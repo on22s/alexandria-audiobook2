@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/husky_tenor_30s_m",
+ "median_ecapa": 0.446,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.4460 is below 0.45 - a near miss, short by 0.0040. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-02T14:12:34",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c1166a11fe79aefe3f86b271e36c08a272204544",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "381a0c2923db153ddad13b3d3c386971d0ee01ef60e0d18f9b0cce21f1130caa"
+  },
+  "args": {
+   "adapter": "lora_models/husky_tenor_30s_m",
+   "dataset": "narrator_various_waking_gods_[b01ngublbw]_char1_vol01_authoritative_deep_mid_voice_varied_mid_quiet_dynamic_range.zip",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 20260902,
+   "out": "ab_test_runtime/experiments/identity_recheck__husky_tenor_30s_m__seed20260902.json"
+  },
+  "seed": 20260902
+ }
+}

@@ -1,0 +1,25 @@
+book                   chunks | JSON  calls/tok/tail       | LINES calls/tok/tail      
+--------------------------------------------------------------------------------------------
+AHandfulOfDust             22 |   35 /  37348 / 2          |   26 /  23017 / 0         
+ARoomWithAView             23 |   28 /  31115 / 0          |   71 /  47588 / 2         
+AnneOfGreenGables          24 |   49 /  39894 / 1          |   59 /  36397 / 2         
+DaisyMiller                16 |  144 / 111226 / 3          |   78 /  35549 / 2         
+HardTimes                  22 |  158 / 117964 / 7          |  191 / 100538 / 6         
+TheInvisibleMan            23 |   49 /  47366 / 1          |  116 /  66556 / 4         
+--------------------------------------------------------------------------------------------
+POOLED over 6 books
+  chunks                 json   130   lines   118
+  chunks with a reject   json    31   lines    32
+  adaptive splits        json    45   lines    68
+  near-miss acceptances  json    80   lines   101
+
+  TAIL chunks (>5 calls) json    14   lines    16
+     json  tail rate 10.8% of chunks, costing 223528 tokens
+     lines tail rate 13.6% of chunks, costing 203587 tokens
+
+  tokens, ALL chunks     json 384913  lines 309645   -19.6%
+  tokens, NON-tail only  json 161385  lines 106058   -34.3%
+
+READ THIS AS: the non-tail row is what the format buys; the tail row is
+what it risks. Adoption needs both, and the 2026-09-02 single-book run
+had -19.9%% non-tail against one tail chunk costing 11,849 tokens.

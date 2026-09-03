@@ -1,0 +1,123 @@
+Processing book from: /home/ubuntu/lineformat_tail_20260903/AHandfulOfDust.txt
+Source scripts: LATIN; NFC normalized: True
+Read 62000 characters
+LLM adapter: attribution_adapter=none
+Chunk size overridden via --chunk-size: 3000 -> 3000
+Connecting to: http://127.0.0.1:8090/v1
+Using model: qwen38
+Chunk size: 3000 chars, Max tokens: 4096
+llama.cpp server at http://127.0.0.1:8090/v1 - context 16384, 4 slot(s), fixed at launch. No LM Studio settings to apply.
+Split into 22 chunks at paragraph/sentence boundaries
+Request preflight: worst=6183 tokens, p95=6183, per-slot=4096, fits=False
+Output format: lines (SPEAKER|INSTRUCT|TEXT)
+Processing chunk 1/22 (2890 chars)...
+  finish_reason=stop | tokens: prompt=1912 completion=785 | took 17.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 1/22 failed quality validation (attempt 1): Response introduced non-ASCII letters absent from the source.; metrics={'source_tokens': 505, 'output_tokens': 501, 'source_token_recall': 0.9842, 'ordered_trigram_recall': 0.9682, 'output_source_ratio': 0.9921}
+Retrying...
+  finish_reason=stop | tokens: prompt=1945 completion=789 | took 15.4s
+  Succeeded on retry 2
+  Got 14 entries (chunk took 33s)
+  ETA: ~11m 34s remaining (21 chunk(s) left, avg 33s/chunk, 33s elapsed)
+Processing chunk 2/22 (2797 chars)...
+  finish_reason=stop | tokens: prompt=2192 completion=994 | took 20.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 2/22 failed quality validation (attempt 1): Your previous response was close but only covered about 87% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "whenever it was possible mrs beaver took an hour off in the ..." (about 71 words).; metrics={'source_tokens': 548, 'output_tokens': 477, 'source_token_recall': 0.8704, 'ordered_trigram_recall': 0.87, 'output_source_ratio': 0.8704}
+Retrying...
+  finish_reason=stop | tokens: prompt=2291 completion=1073 | took 21.1s
+  Succeeded on retry 2
+  Got 21 entries (chunk took 41s)
+  ETA: ~12m 25s remaining (20 chunk(s) left, avg 37s/chunk, 75s elapsed)
+Processing chunk 3/22 (2950 chars)...
+  finish_reason=stop | tokens: prompt=2283 completion=986 | took 20.9s
+  Got 26 entries (chunk took 21s)
+  ETA: ~10m 4s remaining (19 chunk(s) left, avg 32s/chunk, 95s elapsed)
+Processing chunk 4/22 (2918 chars)...
+  finish_reason=stop | tokens: prompt=2306 completion=1157 | took 24.3s
+  Got 43 entries (chunk took 24s)
+  ETA: ~8m 58s remaining (18 chunk(s) left, avg 30s/chunk, 120s elapsed)
+Processing chunk 5/22 (2783 chars)...
+  finish_reason=stop | tokens: prompt=2123 completion=755 | took 16.0s
+  Got 8 entries (chunk took 16s)
+  ETA: ~7m 41s remaining (17 chunk(s) left, avg 27s/chunk, 136s elapsed)
+Processing chunk 6/22 (2710 chars)...
+  finish_reason=stop | tokens: prompt=2550 completion=819 | took 17.4s
+  Got 13 entries (chunk took 17s)
+  ETA: ~6m 48s remaining (16 chunk(s) left, avg 26s/chunk, 153s elapsed)
+Processing chunk 7/22 (2889 chars)...
+  finish_reason=stop | tokens: prompt=2162 completion=1195 | took 24.4s
+  Got 31 entries (chunk took 24s)
+  ETA: ~6m 20s remaining (15 chunk(s) left, avg 25s/chunk, 177s elapsed)
+Processing chunk 8/22 (2961 chars)...
+  finish_reason=stop | tokens: prompt=2186 completion=919 | took 19.6s
+  Got 19 entries (chunk took 20s)
+  ETA: ~5m 44s remaining (14 chunk(s) left, avg 25s/chunk, 197s elapsed)
+Processing chunk 9/22 (2984 chars)...
+  finish_reason=stop | tokens: prompt=2325 completion=1107 | took 23.6s
+  Got 36 entries (chunk took 24s)
+  ETA: ~5m 18s remaining (13 chunk(s) left, avg 25s/chunk, 221s elapsed)
+Processing chunk 10/22 (2941 chars)...
+  finish_reason=stop | tokens: prompt=2165 completion=1004 | took 21.4s
+  Got 30 entries (chunk took 21s)
+  ETA: ~4m 50s remaining (12 chunk(s) left, avg 24s/chunk, 242s elapsed)
+Processing chunk 11/22 (2930 chars)...
+  finish_reason=stop | tokens: prompt=2170 completion=1031 | took 22.2s
+  Got 26 entries (chunk took 22s)
+  ETA: ~4m 24s remaining (11 chunk(s) left, avg 24s/chunk, 264s elapsed)
+Processing chunk 12/22 (2270 chars)...
+  finish_reason=stop | tokens: prompt=2001 completion=809 | took 17.8s
+  Got 25 entries (chunk took 18s)
+  ETA: ~3m 54s remaining (10 chunk(s) left, avg 23s/chunk, 282s elapsed)
+Processing chunk 13/22 (2937 chars)...
+  finish_reason=stop | tokens: prompt=2261 completion=1083 | took 22.8s
+  Got 39 entries (chunk took 23s)
+  ETA: ~3m 30s remaining (9 chunk(s) left, avg 23s/chunk, 305s elapsed)
+Processing chunk 14/22 (2988 chars)...
+  finish_reason=stop | tokens: prompt=2150 completion=927 | took 19.8s
+  Got 24 entries (chunk took 20s)
+  ETA: ~3m 5s remaining (8 chunk(s) left, avg 23s/chunk, 325s elapsed)
+Processing chunk 15/22 (2992 chars)...
+  finish_reason=stop | tokens: prompt=2250 completion=895 | took 19.4s
+  Got 19 entries (chunk took 19s)
+  ETA: ~2m 40s remaining (7 chunk(s) left, avg 23s/chunk, 344s elapsed)
+Processing chunk 16/22 (2900 chars)...
+  finish_reason=stop | tokens: prompt=2135 completion=752 | took 16.2s
+  Got 12 entries (chunk took 16s)
+  ETA: ~2m 15s remaining (6 chunk(s) left, avg 23s/chunk, 360s elapsed)
+Processing chunk 17/22 (2807 chars)...
+  finish_reason=stop | tokens: prompt=2288 completion=844 | took 18.0s
+  Got 17 entries (chunk took 18s)
+  ETA: ~1m 51s remaining (5 chunk(s) left, avg 22s/chunk, 378s elapsed)
+Processing chunk 18/22 (2862 chars)...
+  finish_reason=stop | tokens: prompt=2189 completion=939 | took 19.6s
+  Got 22 entries (chunk took 20s)
+  ETA: ~1m 28s remaining (4 chunk(s) left, avg 22s/chunk, 398s elapsed)
+Processing chunk 19/22 (2885 chars)...
+  finish_reason=stop | tokens: prompt=2162 completion=796 | took 16.8s
+  Got 13 entries (chunk took 17s)
+  ETA: ~1m 5s remaining (3 chunk(s) left, avg 22s/chunk, 415s elapsed)
+Processing chunk 20/22 (2992 chars)...
+  finish_reason=stop | tokens: prompt=2407 completion=1104 | took 23.2s
+  Got 33 entries (chunk took 23s)
+  ETA: ~44s remaining (2 chunk(s) left, avg 22s/chunk, 438s elapsed)
+Processing chunk 21/22 (2958 chars)...
+  finish_reason=stop | tokens: prompt=2374 completion=1023 | took 21.8s
+  Got 26 entries (chunk took 22s)
+  ETA: ~22s remaining (1 chunk(s) left, avg 22s/chunk, 460s elapsed)
+Processing chunk 22/22 (1404 chars)...
+  finish_reason=stop | tokens: prompt=1855 completion=393 | took 9.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 22/22 failed quality validation (attempt 1): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "polly cockpurse s strident tones rang across the restaurant ..." (about 9 words); the passage beginning "there s your mr beaver s mother ..." (about 7 words).; metrics={'source_tokens': 258, 'output_tokens': 244, 'source_token_recall': 0.9341, 'ordered_trigram_recall': 0.8672, 'output_source_ratio': 0.9457}
+Retrying...
+  finish_reason=stop | tokens: prompt=1970 completion=382 | took 8.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 22/22 failed quality validation (attempt 2): Your previous response was close but only covered about 91% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "said marjorie as soon as they got inside the door ..." (about 10 words); the passage beginning "polly cockpurse s strident tones rang across the restaurant ..." (about 9 words).; metrics={'source_tokens': 258, 'output_tokens': 236, 'source_token_recall': 0.907, 'ordered_trigram_recall': 0.8633, 'output_source_ratio': 0.9147}
+Retrying...
+  finish_reason=stop | tokens: prompt=1975 completion=456 | took 9.5s
+  Succeeded on retry 3
+  Got 12 entries (chunk took 27s)
+Dialogue map: paired_quotes, 298 spoken lines, 434/509 entries located in the source
+
+Generated 509 script entries
+Speakers found: BEAVER, BEN, BRENDA, CHAPTER I, DU C?T? DE CHEZ BEAVER, JOCK, JOHN, JOYCE, MACDOUGAL, MARJORIE, MRS BEAVER, MRS TIPPING, NANNY, NARRATOR, POLLY COCKPURSE, TONY, UNKNOWN, VICAR
+Output saved to: /home/ubuntu/lineformat_tail_20260903/out_AHandfulOfDust_lines.json

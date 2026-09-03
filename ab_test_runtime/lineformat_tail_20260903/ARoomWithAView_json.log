@@ -1,0 +1,131 @@
+Processing book from: /home/ubuntu/lineformat_tail_20260903/ARoomWithAView.txt
+Source scripts: LATIN; NFC normalized: True
+Read 62000 characters
+LLM adapter: attribution_adapter=none
+Chunk size overridden via --chunk-size: 3000 -> 3000
+Connecting to: http://127.0.0.1:8090/v1
+Using model: qwen38
+Chunk size: 3000 chars, Max tokens: 4096
+llama.cpp server at http://127.0.0.1:8090/v1 - context 16384, 4 slot(s), fixed at launch. No LM Studio settings to apply.
+Split into 23 chunks at paragraph/sentence boundaries
+Request preflight: worst=6180 tokens, p95=6168, per-slot=4096, fits=False
+Processing chunk 1/23 (2936 chars)...
+  finish_reason=stop | tokens: prompt=1994 completion=1399 | took 87.9s
+  Got 21 entries (chunk took 88s)
+  ETA: ~32m 13s remaining (22 chunk(s) left, avg 88s/chunk, 88s elapsed)
+Processing chunk 2/23 (2867 chars)...
+  finish_reason=stop | tokens: prompt=2298 completion=1456 | took 32.1s
+  Got 25 entries (chunk took 32s)
+  ETA: ~20m 59s remaining (21 chunk(s) left, avg 60s/chunk, 120s elapsed)
+Processing chunk 3/23 (2935 chars)...
+  finish_reason=stop | tokens: prompt=2211 completion=1235 | took 27.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/23 failed quality validation (attempt 1): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "just fancy how small the world is summer street too makes it ..." (about 15 words); the passage beginning "and above all rose the voice of the clever lady crying ..." (about 11 words); the passage beginning "cried a voice from the top of the table ..." (about 9 words).; metrics={'source_tokens': 543, 'output_tokens': 502, 'source_token_recall': 0.9245, 'ordered_trigram_recall': 0.8872, 'output_source_ratio': 0.9245}
+Retrying...
+  finish_reason=stop | tokens: prompt=2351 completion=1294 | took 27.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/23 failed quality validation (attempt 2): Your previous response was close but only covered about 96% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "just fancy how small the world is summer street too makes it ..." (about 15 words); the passage beginning "and above all rose the voice of the clever lady crying ..." (about 11 words); the passage beginning "cried a voice from the top of the table ..." (about 9 words).; metrics={'source_tokens': 543, 'output_tokens': 520, 'source_token_recall': 0.9576, 'ordered_trigram_recall': 0.8965, 'output_source_ratio': 0.9576}
+Retrying...
+  finish_reason=stop | tokens: prompt=2351 completion=1196 | took 25.6s
+  Succeeded on retry 3
+  Got 16 entries (chunk took 81s)
+  ETA: ~22m 19s remaining (20 chunk(s) left, avg 67s/chunk, 201s elapsed)
+Processing chunk 4/23 (2979 chars)...
+  finish_reason=stop | tokens: prompt=2361 completion=1341 | took 29.7s
+  Got 22 entries (chunk took 30s)
+  ETA: ~18m 15s remaining (19 chunk(s) left, avg 58s/chunk, 231s elapsed)
+Processing chunk 5/23 (2201 chars)...
+  finish_reason=stop | tokens: prompt=2082 completion=1088 | took 24.0s
+  Got 18 entries (chunk took 24s)
+  ETA: ~15m 16s remaining (18 chunk(s) left, avg 51s/chunk, 255s elapsed)
+Processing chunk 6/23 (2586 chars)...
+  finish_reason=stop | tokens: prompt=2151 completion=1124 | took 24.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 6/23 failed quality validation (attempt 1): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "said miss bartlett puzzled at the word ..." (about 7 words); the passage beginning "said mr beebe after a pause ..." (about 6 words); the passage beginning "said the little old lady ..." (about 5 words).; metrics={'source_tokens': 467, 'output_tokens': 430, 'source_token_recall': 0.9208, 'ordered_trigram_recall': 0.8817, 'output_source_ratio': 0.9208}
+Retrying...
+  finish_reason=stop | tokens: prompt=2276 completion=1177 | took 24.4s
+  Succeeded on retry 2
+  Got 17 entries (chunk took 49s)
+  ETA: ~14m 21s remaining (17 chunk(s) left, avg 51s/chunk, 304s elapsed)
+Processing chunk 7/23 (2958 chars)...
+  finish_reason=stop | tokens: prompt=2177 completion=1394 | took 30.0s
+  Got 21 entries (chunk took 30s)
+  ETA: ~12m 43s remaining (16 chunk(s) left, avg 48s/chunk, 334s elapsed)
+Processing chunk 8/23 (2505 chars)...
+  finish_reason=stop | tokens: prompt=2080 completion=890 | took 19.8s
+  Got 10 entries (chunk took 20s)
+  ETA: ~11m 3s remaining (15 chunk(s) left, avg 44s/chunk, 354s elapsed)
+Processing chunk 9/23 (2940 chars)...
+  finish_reason=stop | tokens: prompt=2189 completion=879 | took 19.5s
+  Got 6 entries (chunk took 19s)
+  ETA: ~9m 40s remaining (14 chunk(s) left, avg 41s/chunk, 373s elapsed)
+Processing chunk 10/23 (2990 chars)...
+  finish_reason=stop | tokens: prompt=2313 completion=1450 | took 31.0s
+  Got 20 entries (chunk took 31s)
+  ETA: ~8m 45s remaining (13 chunk(s) left, avg 40s/chunk, 404s elapsed)
+Processing chunk 11/23 (2914 chars)...
+  finish_reason=stop | tokens: prompt=2141 completion=1104 | took 24.1s
+  Got 13 entries (chunk took 24s)
+  ETA: ~7m 47s remaining (12 chunk(s) left, avg 39s/chunk, 428s elapsed)
+Processing chunk 12/23 (2454 chars)...
+  finish_reason=stop | tokens: prompt=2286 completion=842 | took 19.0s
+  Got 9 entries (chunk took 19s)
+  ETA: ~6m 50s remaining (11 chunk(s) left, avg 37s/chunk, 447s elapsed)
+Processing chunk 13/23 (2852 chars)...
+  finish_reason=stop | tokens: prompt=2413 completion=1064 | took 23.5s
+  Got 14 entries (chunk took 24s)
+  ETA: ~6m 2s remaining (10 chunk(s) left, avg 36s/chunk, 471s elapsed)
+Processing chunk 14/23 (2958 chars)...
+  finish_reason=stop | tokens: prompt=2186 completion=1163 | took 25.2s
+  Got 16 entries (chunk took 25s)
+  ETA: ~5m 18s remaining (9 chunk(s) left, avg 35s/chunk, 496s elapsed)
+Processing chunk 15/23 (2914 chars)...
+  finish_reason=stop | tokens: prompt=2303 completion=1391 | took 29.8s
+  Got 22 entries (chunk took 30s)
+  ETA: ~4m 40s remaining (8 chunk(s) left, avg 35s/chunk, 526s elapsed)
+Processing chunk 16/23 (2952 chars)...
+  finish_reason=stop | tokens: prompt=2161 completion=1214 | took 26.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 16/23 failed quality validation (attempt 1): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "scraps of the lecture on st francis came floating round the partition ..." (about 13 words); the passage beginning "said lucy though in her heart she sympathized ..." (about 8 words).; metrics={'source_tokens': 543, 'output_tokens': 503, 'source_token_recall': 0.9263, 'ordered_trigram_recall': 0.8946, 'output_source_ratio': 0.9263}
+Retrying...
+  finish_reason=stop | tokens: prompt=2280 completion=1171 | took 24.3s
+  Succeeded on retry 2
+  Got 17 entries (chunk took 50s)
+  ETA: ~4m 12s remaining (7 chunk(s) left, avg 36s/chunk, 576s elapsed)
+Processing chunk 17/23 (2521 chars)...
+  finish_reason=stop | tokens: prompt=2148 completion=1139 | took 24.6s
+  Got 18 entries (chunk took 25s)
+  ETA: ~3m 32s remaining (6 chunk(s) left, avg 35s/chunk, 601s elapsed)
+Processing chunk 18/23 (2911 chars)...
+  finish_reason=stop | tokens: prompt=2242 completion=964 | took 21.4s
+  Got 12 entries (chunk took 21s)
+  ETA: ~2m 52s remaining (5 chunk(s) left, avg 35s/chunk, 622s elapsed)
+Processing chunk 19/23 (2935 chars)...
+  finish_reason=stop | tokens: prompt=2410 completion=981 | took 21.8s
+  Got 11 entries (chunk took 22s)
+  ETA: ~2m 15s remaining (4 chunk(s) left, avg 34s/chunk, 644s elapsed)
+Processing chunk 20/23 (2546 chars)...
+  finish_reason=stop | tokens: prompt=2174 completion=1173 | took 25.3s
+  Got 20 entries (chunk took 25s)
+  ETA: ~1m 40s remaining (3 chunk(s) left, avg 33s/chunk, 670s elapsed)
+Processing chunk 21/23 (2707 chars)...
+  finish_reason=stop | tokens: prompt=2147 completion=976 | took 21.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 21/23 failed quality validation (attempt 1): Your previous response was close but only covered about 100% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 475, 'output_tokens': 537, 'source_token_recall': 1.0, 'ordered_trigram_recall': 0.9958, 'output_source_ratio': 1.1305}
+Retrying...
+  finish_reason=stop | tokens: prompt=2216 completion=832 | took 17.1s
+  Succeeded on retry 2
+  Got 7 entries (chunk took 38s)
+  ETA: ~1m 7s remaining (2 chunk(s) left, avg 34s/chunk, 708s elapsed)
+Processing chunk 22/23 (2959 chars)...
+  finish_reason=stop | tokens: prompt=2374 completion=994 | took 21.7s
+  Got 11 entries (chunk took 22s)
+  ETA: ~33s remaining (1 chunk(s) left, avg 33s/chunk, 730s elapsed)
+Processing chunk 23/23 (428 chars)...
+  finish_reason=stop | tokens: prompt=1591 completion=184 | took 5.3s
+  Got 2 entries (chunk took 5s)
+Dialogue map: paired_quotes, 155 spoken lines, 268/348 entries located in the source
+
+Generated 348 script entries
+Speakers found: GEORGE, LUCY, MISS ALAN, MISS BARLETT, MR. BEEBE, MR. EMERSON, NARRATOR, UNKNOWN
+Output saved to: /home/ubuntu/lineformat_tail_20260903/out_ARoomWithAView_json.json

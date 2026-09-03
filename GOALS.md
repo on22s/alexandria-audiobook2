@@ -3418,12 +3418,37 @@ book, one model, and a brand-new lines prompt against a JSON prompt iterated on
 for months. That asymmetry alone could explain it.
 
 The code ships behind `--output-format`, defaulting to `json`, so nothing in
-production changes. Re-propose only with the tail measured across several
-books — the per-call saving is real and worth revisiting, but the token count
-alone is not the reason to adopt it.
+production changes.
 
-Evidence: `ab_test_runtime/lineformat_ab_20260902/` (comparison + every
-rejection reason, both arms).
+**ANSWERED ON SIX BOOKS — 2026-09-03. The format saves nothing.**
+`lineformat_tail_20260903` ran both arms over six PDNC books. Compared on the
+**same 114 chunks per arm**, excluding DaisyMiller (void — its stripped
+apostrophes broke BOTH arms, see the apostrophe repair):
+
+| | JSON | LINES | |
+|---|---|---|---|
+| tokens | 273,687 | 274,096 | **+0.1%** |
+| tokens/chunk | 2,401 | 2,404 | |
+| tail chunks (>5 calls) | 11 (9.6%) | 14 (12.3%) | |
+
+Per book the spread is enormous and signless — AHandfulOfDust **−38.4%**,
+HardTimes −14.8%, AnneOfGreenGables −8.8%, TheInvisibleMan **+40.5%**,
+ARoomWithAView **+52.9%**. The 25.2% offline prediction and the −19.9%
+single-book non-tail figure both evaporate once retries are counted across
+books, and the tail rates are close enough to be indistinguishable at this n.
+
+**Two numbers in the run's own SUMMARY.txt are NOT the answer**, and are kept
+here only so nobody re-reads them as one: it reports −19.6% pooled, but that
+pools 130 JSON chunks against 118 LINES chunks — different denominators,
+because the two arms got different distances into the books that failed. The
+row above compares only chunks both arms attempted. The same file's −34.3%
+"non-tail" figure has the same defect.
+
+**Closed.** The per-call saving is real and reproducible; it does not survive
+contact with the retry loop. Do not re-propose on a token count.
+
+Evidence: `ab_test_runtime/lineformat_ab_20260902/` (single-book comparison),
+`ab_test_runtime/lineformat_tail_20260903/` (six-book logs + SUMMARY.txt).
 
 ---
 

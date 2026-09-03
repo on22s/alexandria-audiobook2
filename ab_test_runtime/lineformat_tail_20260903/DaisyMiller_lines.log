@@ -1,0 +1,312 @@
+Processing book from: /home/ubuntu/lineformat_tail_20260903/DaisyMiller.txt
+Source health: 1 issue(s) found
+  - stripped_apostrophes: contractions split by a lossy conversion (don t, it s)
+  repaired in memory (249 fixes; your file on disk is unchanged)
+  source is now clean
+Source scripts: LATIN; NFC normalized: True
+Read 62000 characters
+LLM adapter: attribution_adapter=none
+Chunk size overridden via --chunk-size: 3000 -> 3000
+Connecting to: http://127.0.0.1:8090/v1
+Using model: qwen38
+Chunk size: 3000 chars, Max tokens: 4096
+llama.cpp server at http://127.0.0.1:8090/v1 - context 16384, 4 slot(s), fixed at launch. No LM Studio settings to apply.
+Split into 25 chunks at paragraph/sentence boundaries
+Request preflight: worst=6180 tokens, p95=6150, per-slot=4096, fits=False
+Output format: lines (SPEAKER|INSTRUCT|TEXT)
+Processing chunk 1/25 (2035 chars)...
+  finish_reason=stop | tokens: prompt=1719 completion=601 | took 13.5s
+  Got 11 entries (chunk took 13s)
+  ETA: ~5m 23s remaining (24 chunk(s) left, avg 13s/chunk, 13s elapsed)
+Processing chunk 2/25 (2823 chars)...
+  finish_reason=stop | tokens: prompt=2192 completion=849 | took 17.0s
+  Got 13 entries (chunk took 17s)
+  ETA: ~5m 50s remaining (23 chunk(s) left, avg 15s/chunk, 30s elapsed)
+Processing chunk 3/25 (2812 chars)...
+  finish_reason=stop | tokens: prompt=2104 completion=1011 | took 21.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 90% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 498, 'output_tokens': 448, 'source_token_recall': 0.8956, 'ordered_trigram_recall': 0.8327, 'output_source_ratio': 0.8996}
+Retrying...
+  finish_reason=stop | tokens: prompt=2234 completion=880 | took 18.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 89% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 498, 'output_tokens': 446, 'source_token_recall': 0.8916, 'ordered_trigram_recall': 0.8246, 'output_source_ratio': 0.8956}
+Retrying...
+  finish_reason=stop | tokens: prompt=2234 completion=907 | took 17.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 88% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "yes you may take one he answered but i don t think ..." (about 18 words); the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words); the passage beginning "pursued this vivacious infant and then on ..." (about 7 words).; metrics={'source_tokens': 498, 'output_tokens': 444, 'source_token_recall': 0.8835, 'ordered_trigram_recall': 0.8065, 'output_source_ratio': 0.8916}
+Retrying...
+  finish_reason=stop | tokens: prompt=2242 completion=1014 | took 20.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne glanced at the small table near him on which his coffee ..." (about 22 words); the passage beginning "american men are the best he declared ..." (about 7 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words).; metrics={'source_tokens': 498, 'output_tokens': 432, 'source_token_recall': 0.8635, 'ordered_trigram_recall': 0.7923, 'output_source_ratio': 0.8675}
+Retrying...
+  finish_reason=stop | tokens: prompt=2238 completion=936 | took 18.8s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 91% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 498, 'output_tokens': 454, 'source_token_recall': 0.9056, 'ordered_trigram_recall': 0.8387, 'output_source_ratio': 0.9116}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=2104 completion=866 | took 17.3s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 82% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne glanced at the small table near him on which his coffee ..." (about 22 words); the passage beginning "thought winterbourne straightening himself in his seat as if he were prepared ..." (about 14 words); the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 498, 'output_tokens': 411, 'source_token_recall': 0.8233, 'ordered_trigram_recall': 0.7621, 'output_source_ratio': 0.8253}
+  Adaptive split: chunk 3/25 -> 1407 + 1403 chars
+  finish_reason=stop | tokens: prompt=1761 completion=426 | took 8.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 84% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne glanced at the small table near him on which his coffee ..." (about 22 words); the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 257, 'output_tokens': 215, 'source_token_recall': 0.8366, 'ordered_trigram_recall': 0.7961, 'output_source_ratio': 0.8366}
+Retrying...
+  finish_reason=stop | tokens: prompt=1879 completion=446 | took 9.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 95% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 257, 'output_tokens': 245, 'source_token_recall': 0.9455, 'ordered_trigram_recall': 0.898, 'output_source_ratio': 0.9533}
+Retrying...
+  finish_reason=stop | tokens: prompt=1829 completion=419 | took 8.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 257, 'output_tokens': 237, 'source_token_recall': 0.9222, 'ordered_trigram_recall': 0.8824, 'output_source_ratio': 0.9222}
+Retrying...
+  finish_reason=stop | tokens: prompt=1854 completion=453 | took 9.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 95% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "yes you may take one he answered but i don t think ..." (about 18 words).; metrics={'source_tokens': 257, 'output_tokens': 245, 'source_token_recall': 0.9494, 'ordered_trigram_recall': 0.8941, 'output_source_ratio': 0.9533}
+Retrying...
+  finish_reason=stop | tokens: prompt=1857 completion=448 | took 9.4s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 95% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 257, 'output_tokens': 245, 'source_token_recall': 0.9455, 'ordered_trigram_recall': 0.898, 'output_source_ratio': 0.9533}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1761 completion=534 | took 10.9s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 257, 'output_tokens': 241, 'source_token_recall': 0.93, 'ordered_trigram_recall': 0.8745, 'output_source_ratio': 0.9377}
+  Adaptive split: chunk 3/25 -> 631 + 774 chars
+  finish_reason=stop | tokens: prompt=1562 completion=200 | took 4.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 90% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 109, 'output_tokens': 98, 'source_token_recall': 0.8991, 'ordered_trigram_recall': 0.8785, 'output_source_ratio': 0.8991}
+Retrying...
+  finish_reason=stop | tokens: prompt=1655 completion=174 | took 4.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 76% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne glanced at the small table near him on which his coffee ..." (about 22 words).; metrics={'source_tokens': 109, 'output_tokens': 84, 'source_token_recall': 0.7615, 'ordered_trigram_recall': 0.7196, 'output_source_ratio': 0.7706}
+Retrying...
+  finish_reason=stop | tokens: prompt=1659 completion=184 | took 4.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 90% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he exclaimed pronouncing the adjective in a peculiar manner ..." (about 9 words).; metrics={'source_tokens': 109, 'output_tokens': 98, 'source_token_recall': 0.8991, 'ordered_trigram_recall': 0.8785, 'output_source_ratio': 0.8991}
+Retrying...
+  finish_reason=stop | tokens: prompt=1655 completion=218 | took 5.0s
+  Succeeded on retry 4
+  finish_reason=stop | tokens: prompt=1580 completion=215 | took 4.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 82% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne had immediately perceived that he might have the honor of claiming ..." (about 17 words).; metrics={'source_tokens': 148, 'output_tokens': 122, 'source_token_recall': 0.8176, 'ordered_trigram_recall': 0.7603, 'output_source_ratio': 0.8243}
+Retrying...
+  finish_reason=stop | tokens: prompt=1677 completion=246 | took 5.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 94% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 148, 'output_tokens': 139, 'source_token_recall': 0.9392, 'ordered_trigram_recall': 0.8973, 'output_source_ratio': 0.9392}
+Retrying...
+  finish_reason=stop | tokens: prompt=1648 completion=289 | took 6.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 94% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "take care you don t hurt your teeth he said paternally ..." (about 11 words).; metrics={'source_tokens': 148, 'output_tokens': 139, 'source_token_recall': 0.9392, 'ordered_trigram_recall': 0.8836, 'output_source_ratio': 0.9392}
+Retrying...
+  finish_reason=stop | tokens: prompt=1676 completion=263 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 94% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 148, 'output_tokens': 139, 'source_token_recall': 0.9392, 'ordered_trigram_recall': 0.8973, 'output_source_ratio': 0.9392}
+Retrying...
+  finish_reason=stop | tokens: prompt=1648 completion=254 | took 5.4s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "take care you don t hurt your teeth he said paternally ..." (about 11 words).; metrics={'source_tokens': 148, 'output_tokens': 139, 'source_token_recall': 0.9324, 'ordered_trigram_recall': 0.863, 'output_source_ratio': 0.9392}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1580 completion=216 | took 4.7s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 82% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne had immediately perceived that he might have the honor of claiming ..." (about 17 words).; metrics={'source_tokens': 148, 'output_tokens': 122, 'source_token_recall': 0.8243, 'ordered_trigram_recall': 0.7808, 'output_source_ratio': 0.8243}
+  CHUNK 3/25 accepted as trigram-only near-miss after full exhaustion (ordered_trigram_recall=0.8973)
+  finish_reason=stop | tokens: prompt=1724 completion=462 | took 9.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 85% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on ..." (about 7 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 209, 'source_token_recall': 0.8548, 'ordered_trigram_recall': 0.7531, 'output_source_ratio': 0.8672}
+Retrying...
+  finish_reason=stop | tokens: prompt=1854 completion=468 | took 9.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 83% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on winterbourne s affirmative reply ..." (about 11 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 203, 'source_token_recall': 0.834, 'ordered_trigram_recall': 0.7448, 'output_source_ratio': 0.8423}
+Retrying...
+  finish_reason=stop | tokens: prompt=1860 completion=430 | took 8.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 87% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "pursued this vivacious infant and then ..." (about 6 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 210, 'source_token_recall': 0.8672, 'ordered_trigram_recall': 0.7615, 'output_source_ratio': 0.8714}
+Retrying...
+  finish_reason=stop | tokens: prompt=1853 completion=480 | took 10.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 225, 'source_token_recall': 0.9212, 'ordered_trigram_recall': 0.7908, 'output_source_ratio': 0.9336}
+Retrying...
+  finish_reason=stop | tokens: prompt=1814 completion=445 | took 9.1s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 83% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on winterbourne s affirmative reply ..." (about 11 words); the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 203, 'source_token_recall': 0.834, 'ordered_trigram_recall': 0.7448, 'output_source_ratio': 0.8423}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1724 completion=455 | took 9.8s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 88% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he said cheerfully to his young companion ..." (about 7 words); the passage beginning "pursued this vivacious infant and then ..." (about 6 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 241, 'output_tokens': 212, 'source_token_recall': 0.8755, 'ordered_trigram_recall': 0.7615, 'output_source_ratio': 0.8797}
+  Adaptive split: chunk 3/25 -> 706 + 695 chars
+  finish_reason=stop | tokens: prompt=1555 completion=246 | took 5.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then ..." (about 6 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 124, 'output_tokens': 111, 'source_token_recall': 0.8629, 'ordered_trigram_recall': 0.7131, 'output_source_ratio': 0.8952}
+Retrying...
+  finish_reason=stop | tokens: prompt=1665 completion=241 | took 5.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 87% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he declared his companion thanked him ..." (about 6 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 124, 'output_tokens': 111, 'source_token_recall': 0.871, 'ordered_trigram_recall': 0.6803, 'output_source_ratio': 0.8952}
+Retrying...
+  finish_reason=stop | tokens: prompt=1662 completion=255 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 90% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then ..." (about 6 words).; metrics={'source_tokens': 124, 'output_tokens': 112, 'source_token_recall': 0.9032, 'ordered_trigram_recall': 0.7377, 'output_source_ratio': 0.9032}
+Retrying...
+  finish_reason=stop | tokens: prompt=1647 completion=224 | took 4.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 124, 'output_tokens': 103, 'source_token_recall': 0.8145, 'ordered_trigram_recall': 0.7049, 'output_source_ratio': 0.8306}
+Retrying...
+  finish_reason=stop | tokens: prompt=1666 completion=302 | took 6.5s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 90% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on ..." (about 7 words).; metrics={'source_tokens': 124, 'output_tokens': 118, 'source_token_recall': 0.9032, 'ordered_trigram_recall': 0.6885, 'output_source_ratio': 0.9516}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1555 completion=221 | took 4.8s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "pursued this vivacious infant and then on ..." (about 7 words); the passage beginning "cried the child in a moment ..." (about 6 words).; metrics={'source_tokens': 124, 'output_tokens': 102, 'source_token_recall': 0.8065, 'ordered_trigram_recall': 0.6803, 'output_source_ratio': 0.8226}
+  Adaptive split part 1/2 failed
+  finish_reason=stop | tokens: prompt=1550 completion=254 | took 5.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 117, 'output_tokens': 111, 'source_token_recall': 0.9316, 'ordered_trigram_recall': 0.8348, 'output_source_ratio': 0.9487}
+Retrying...
+  finish_reason=stop | tokens: prompt=1618 completion=252 | took 5.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 2): Your previous response was close but only covered about 97% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 117, 'output_tokens': 117, 'source_token_recall': 0.9658, 'ordered_trigram_recall': 0.8522, 'output_source_ratio': 1.0}
+Retrying...
+  finish_reason=stop | tokens: prompt=1618 completion=249 | took 5.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 3): Your previous response was close but only covered about 91% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "he said cheerfully to his young companion ..." (about 7 words).; metrics={'source_tokens': 117, 'output_tokens': 107, 'source_token_recall': 0.906, 'ordered_trigram_recall': 0.8435, 'output_source_ratio': 0.9145}
+Retrying...
+  finish_reason=stop | tokens: prompt=1641 completion=269 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 3/25 failed quality validation (attempt 4): Your previous response was close but only covered about 97% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 117, 'output_tokens': 116, 'source_token_recall': 0.9658, 'ordered_trigram_recall': 0.8696, 'output_source_ratio': 0.9915}
+Retrying...
+  finish_reason=stop | tokens: prompt=1618 completion=251 | took 5.3s
+Warning: CHUNK 3/25 failed quality validation (attempt 5): Your previous response was close but only covered about 94% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 117, 'output_tokens': 112, 'source_token_recall': 0.9402, 'ordered_trigram_recall': 0.8435, 'output_source_ratio': 0.9573}
+  CHUNK 3/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1550 completion=245 | took 5.1s
+Warning: CHUNK 3/25 failed quality validation (attempt 1): Your previous response was close but only covered about 94% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 117, 'output_tokens': 112, 'source_token_recall': 0.9402, 'ordered_trigram_recall': 0.8435, 'output_source_ratio': 0.9573}
+  CHUNK 3/25 accepted as trigram-only near-miss after full exhaustion (ordered_trigram_recall=0.8696)
+  Adaptive split part 2/2 failed
+  CHUNK 3/25 accepted as trigram-only near-miss after full exhaustion (ordered_trigram_recall=0.8387)
+  Chunk 3/25 accepted as trigram-only near-miss (ordered_trigram_recall=0.8387)
+  Got 26 entries (chunk took 341s)
+  ETA: ~45m 27s remaining (22 chunk(s) left, avg 124s/chunk, 372s elapsed)
+Processing chunk 4/25 (2900 chars)...
+  finish_reason=stop | tokens: prompt=2147 completion=1146 | took 22.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 85% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 444, 'source_token_recall': 0.8538, 'ordered_trigram_recall': 0.7722, 'output_source_ratio': 0.8538}
+Retrying...
+  finish_reason=stop | tokens: prompt=2278 completion=1035 | took 20.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 445, 'source_token_recall': 0.8558, 'ordered_trigram_recall': 0.7799, 'output_source_ratio': 0.8558}
+Retrying...
+  finish_reason=stop | tokens: prompt=2278 completion=1073 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 85% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 444, 'source_token_recall': 0.8538, 'ordered_trigram_recall': 0.7741, 'output_source_ratio': 0.8538}
+Retrying...
+  finish_reason=stop | tokens: prompt=2278 completion=954 | took 18.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 445, 'source_token_recall': 0.8558, 'ordered_trigram_recall': 0.7799, 'output_source_ratio': 0.8558}
+Retrying...
+  finish_reason=stop | tokens: prompt=2278 completion=1104 | took 21.6s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response was close but only covered about 87% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 450, 'source_token_recall': 0.8654, 'ordered_trigram_recall': 0.7934, 'output_source_ratio': 0.8654}
+  CHUNK 4/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=2147 completion=1008 | took 19.5s
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 520, 'output_tokens': 445, 'source_token_recall': 0.8558, 'ordered_trigram_recall': 0.7799, 'output_source_ratio': 0.8558}
+  Adaptive split: chunk 4/25 -> 1648 + 1250 chars
+  finish_reason=stop | tokens: prompt=1822 completion=551 | took 10.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 268, 'source_token_recall': 0.921, 'ordered_trigram_recall': 0.8789, 'output_source_ratio': 0.921}
+Retrying...
+  finish_reason=stop | tokens: prompt=1931 completion=540 | took 10.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 267, 'source_token_recall': 0.9175, 'ordered_trigram_recall': 0.8651, 'output_source_ratio': 0.9175}
+Retrying...
+  finish_reason=stop | tokens: prompt=1931 completion=593 | took 11.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 268, 'source_token_recall': 0.921, 'ordered_trigram_recall': 0.8789, 'output_source_ratio': 0.921}
+Retrying...
+  finish_reason=stop | tokens: prompt=1931 completion=510 | took 10.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 93% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 270, 'source_token_recall': 0.9278, 'ordered_trigram_recall': 0.8616, 'output_source_ratio': 0.9278}
+Retrying...
+  finish_reason=stop | tokens: prompt=1931 completion=448 | took 9.8s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response was close but only covered about 82% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "randolph said the young lady what are you doing i m going ..." (about 34 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 240, 'source_token_recall': 0.8247, 'ordered_trigram_recall': 0.7889, 'output_source_ratio': 0.8247}
+  CHUNK 4/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1822 completion=534 | took 10.9s
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 92% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 291, 'output_tokens': 268, 'source_token_recall': 0.921, 'ordered_trigram_recall': 0.8789, 'output_source_ratio': 0.921}
+  Adaptive split: chunk 4/25 -> 733 + 913 chars
+  finish_reason=stop | tokens: prompt=1612 completion=236 | took 5.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words).; metrics={'source_tokens': 131, 'output_tokens': 113, 'source_token_recall': 0.8626, 'ordered_trigram_recall': 0.7984, 'output_source_ratio': 0.8626}
+Retrying...
+  finish_reason=stop | tokens: prompt=1704 completion=252 | took 5.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words).; metrics={'source_tokens': 131, 'output_tokens': 113, 'source_token_recall': 0.8626, 'ordered_trigram_recall': 0.7984, 'output_source_ratio': 0.8626}
+Retrying...
+  finish_reason=stop | tokens: prompt=1704 completion=280 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words).; metrics={'source_tokens': 131, 'output_tokens': 113, 'source_token_recall': 0.8626, 'ordered_trigram_recall': 0.7984, 'output_source_ratio': 0.8626}
+Retrying...
+  finish_reason=stop | tokens: prompt=1704 completion=253 | took 5.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 86% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried randolph in his little hard voice ..." (about 7 words).; metrics={'source_tokens': 131, 'output_tokens': 113, 'source_token_recall': 0.8626, 'ordered_trigram_recall': 0.7984, 'output_source_ratio': 0.8626}
+Retrying...
+  finish_reason=stop | tokens: prompt=1704 completion=188 | took 3.8s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response covered only about 70% of the source text before stopping early. Convert the ENTIRE source chunk from beginning to end this time - do not stop partway through and do not summarize any part of it. The missing content includes the passage beginning "randolph said the young lady what are you doing i m going ..." (about 34 words); the passage beginning "cried randolph in his little hard voice ..." (about 7 words).; metrics={'source_tokens': 131, 'output_tokens': 92, 'source_token_recall': 0.7023, 'ordered_trigram_recall': 0.6202, 'output_source_ratio': 0.7023}
+  Adaptive split part 1/2 failed
+  finish_reason=stop | tokens: prompt=1638 completion=213 | took 4.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "it seemed to winterbourne that he had been in a manner presented ..." (about 26 words); the passage beginning "he said with great civility ..." (about 5 words).; metrics={'source_tokens': 160, 'output_tokens': 129, 'source_token_recall': 0.8063, 'ordered_trigram_recall': 0.7911, 'output_source_ratio': 0.8063}
+Retrying...
+  finish_reason=stop | tokens: prompt=1752 completion=297 | took 6.7s
+  Succeeded on retry 2
+  CHUNK 4/25 accepted as trigram-only near-miss after full exhaustion (ordered_trigram_recall=0.8789)
+  finish_reason=stop | tokens: prompt=1844 completion=545 | took 11.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 75% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she replied and she said nothing more ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 229, 'output_tokens': 172, 'source_token_recall': 0.7511, 'ordered_trigram_recall': 0.63, 'output_source_ratio': 0.7511}
+Retrying...
+  finish_reason=stop | tokens: prompt=1973 completion=564 | took 11.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 83% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried the boy still jumping about ..." (about 6 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 229, 'output_tokens': 190, 'source_token_recall': 0.8297, 'ordered_trigram_recall': 0.7269, 'output_source_ratio': 0.8297}
+Retrying...
+  finish_reason=stop | tokens: prompt=1950 completion=481 | took 9.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 77% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "cried the boy still jumping about ..." (about 6 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 229, 'output_tokens': 177, 'source_token_recall': 0.7729, 'ordered_trigram_recall': 0.652, 'output_source_ratio': 0.7729}
+Retrying...
+  finish_reason=stop | tokens: prompt=1971 completion=567 | took 11.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 77% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she replied and she said nothing more ..." (about 7 words); the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 229, 'output_tokens': 177, 'source_token_recall': 0.7729, 'ordered_trigram_recall': 0.6432, 'output_source_ratio': 0.7729}
+Retrying...
+  finish_reason=stop | tokens: prompt=1973 completion=606 | took 12.2s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response was close but only covered about 79% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words); the passage beginning "winterbourne pursued a little embarrassed ..." (about 5 words).; metrics={'source_tokens': 229, 'output_tokens': 183, 'source_token_recall': 0.7948, 'ordered_trigram_recall': 0.6564, 'output_source_ratio': 0.7991}
+  CHUNK 4/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1844 completion=600 | took 12.7s
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 79% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words); the passage beginning "winterbourne pursued a little embarrassed ..." (about 5 words).; metrics={'source_tokens': 229, 'output_tokens': 183, 'source_token_recall': 0.7948, 'ordered_trigram_recall': 0.6564, 'output_source_ratio': 0.7991}
+  Adaptive split: chunk 4/25 -> 600 + 648 chars
+  finish_reason=stop | tokens: prompt=1670 completion=286 | took 6.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 92, 'source_token_recall': 0.807, 'ordered_trigram_recall': 0.7054, 'output_source_ratio': 0.807}
+Retrying...
+  finish_reason=stop | tokens: prompt=1779 completion=283 | took 6.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 76% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she replied and she said nothing more ..." (about 7 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 87, 'source_token_recall': 0.7632, 'ordered_trigram_recall': 0.6786, 'output_source_ratio': 0.7632}
+Retrying...
+  finish_reason=stop | tokens: prompt=1797 completion=316 | took 6.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 92, 'source_token_recall': 0.807, 'ordered_trigram_recall': 0.7054, 'output_source_ratio': 0.807}
+Retrying...
+  finish_reason=stop | tokens: prompt=1779 completion=257 | took 5.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 92, 'source_token_recall': 0.807, 'ordered_trigram_recall': 0.7054, 'output_source_ratio': 0.807}
+Retrying...
+  finish_reason=stop | tokens: prompt=1779 completion=269 | took 5.4s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response was close but only covered about 76% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she replied and she said nothing more ..." (about 7 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 87, 'source_token_recall': 0.7632, 'ordered_trigram_recall': 0.6786, 'output_source_ratio': 0.7632}
+  CHUNK 4/25 near-miss on final attempt; granting one bonus retry
+  finish_reason=stop | tokens: prompt=1670 completion=264 | took 5.7s
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 81% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "winterbourne inquired in a tone of great respect ..." (about 8 words); the passage beginning "she said after a moment ..." (about 5 words).; metrics={'source_tokens': 114, 'output_tokens': 92, 'source_token_recall': 0.807, 'ordered_trigram_recall': 0.7054, 'output_source_ratio': 0.807}
+  Adaptive split part 1/2 failed
+  finish_reason=stop | tokens: prompt=1693 completion=273 | took 6.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 1): Your previous response was close but only covered about 78% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 115, 'output_tokens': 90, 'source_token_recall': 0.7826, 'ordered_trigram_recall': 0.6549, 'output_source_ratio': 0.7826}
+Retrying...
+  finish_reason=stop | tokens: prompt=1783 completion=345 | took 7.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 2): Your previous response was close but only covered about 83% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 115, 'output_tokens': 96, 'source_token_recall': 0.8348, 'ordered_trigram_recall': 0.6637, 'output_source_ratio': 0.8348}
+Retrying...
+  finish_reason=stop | tokens: prompt=1761 completion=325 | took 6.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 3): Your previous response was close but only covered about 83% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing.; metrics={'source_tokens': 115, 'output_tokens': 96, 'source_token_recall': 0.8261, 'ordered_trigram_recall': 0.6637, 'output_source_ratio': 0.8348}
+Retrying...
+  finish_reason=stop | tokens: prompt=1761 completion=286 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: CHUNK 4/25 failed quality validation (attempt 4): Your previous response was close but only covered about 78% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "cried the boy still jumping about ..." (about 6 words).; metrics={'source_tokens': 115, 'output_tokens': 90, 'source_token_recall': 0.7826, 'ordered_trigram_recall': 0.6549, 'output_source_ratio': 0.7826}
+Retrying...
+  finish_reason=stop | tokens: prompt=1783 completion=269 | took 5.9s
+Warning: CHUNK 4/25 failed quality validation (attempt 5): Your previous response covered only about 74% of the source text before stopping early. Convert the ENTIRE source chunk from beginning to end this time - do not stop partway through and do not summarize any part of it. The missing content includes the passage beginning "cried the boy still jumping about ..." (about 6 words); the passage beginning "winterbourne pursued a little embarrassed ..." (about 5 words).; metrics={'source_tokens': 115, 'output_tokens': 85, 'source_token_recall': 0.7391, 'ordered_trigram_recall': 0.5929, 'output_source_ratio': 0.7391}
+  Adaptive split part 2/2 failed
+  Adaptive split part 2/2 failed
+Error: chunk 4/25 failed validation after retries; preserving existing output and validated checkpoint

@@ -1,0 +1,24 @@
+{
+  "artifact": "lora_serving_eval__qwen38-author-balanced-refusal-scale-contract-a6000-20260901d.json",
+  "artifact_sha256": "7984e18b9d5180596891432814e91bb0202ce10fcbb154e18e8e3ffe25b6288d",
+  "fields": [
+    "rows[arm=base-contract]",
+    "rows[arm=lora-contract]"
+  ],
+  "status": "PARTIAL INVALIDATION - do not read these two arms as results",
+  "valid_arms": [
+    "base",
+    "scale025",
+    "scale050",
+    "scale075",
+    "lora"
+  ],
+  "correction": "Both contract arms raised TypeError on every evaluation window because the evaluator passed attribute_system_prompt to an older LLMGenParams without that field. Their 0/383 values measure harness incompatibility, not model behavior. A compatible contract-only rerun is queued as qwen38_contract_fixed_a6000_20260901e.",
+  "evidence": {
+    "base_contract_rows": 383,
+    "base_contract_unanswered": 383,
+    "lora_contract_rows": 383,
+    "lora_contract_unanswered": 383
+  },
+  "measurement_changed": false
+}

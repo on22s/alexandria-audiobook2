@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/warm_baritone_40s_m_1",
+ "median_ecapa": 0.6881,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6881)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-02T14:17:55",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c1166a11fe79aefe3f86b271e36c08a272204544",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "381a0c2923db153ddad13b3d3c386971d0ee01ef60e0d18f9b0cce21f1130caa"
+  },
+  "args": {
+   "adapter": "lora_models/warm_baritone_40s_m_1",
+   "dataset": "narrator_dracula_[audible_edition]_[b0078pa1oa]_char8_vol01_youthful_energetic_deep_voice_expressive_low_moderate_volum.zip",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 20260902,
+   "out": "ab_test_runtime/experiments/identity_recheck__warm_baritone_40s_m_1__seed20260902.json"
+  },
+  "seed": 20260902
+ }
+}
