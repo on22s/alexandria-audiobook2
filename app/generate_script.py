@@ -19,6 +19,7 @@ from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, get_next_retry_max_tokens)
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
+from apostrophe_repair import restore_stripped_apostrophes
 from source_normalization import (normalize_extreme_phrase_repetitions,
                                   normalize_homoglyph_words,
                                   normalize_known_source_corruptions,
@@ -392,7 +393,16 @@ def fix_mojibake(text):
 def get_preprocessed_source(text, strip_front_matter=True):
     """Return source text and cleanup reports exactly as generation uses them."""
     text = fix_mojibake(text)
+    # RESTORE APOSTROPHES A SOURCE LOST TO SPACES. 9 of PDNC's 28 novels ship
+    # plain text with none, reading "don t" and "Miller s". The model corrects
+    # them, and validate_chunk_quality scores the correction as MISSING source
+    # content - so the retry loop is unwinnable and the chunk can never pass.
+    # DaisyMiller cost 129 rejections, three adaptive splits and a permanent
+    # chunk failure on 2026-09-03 before the run gave up. This runs before every
+    # other normalisation and is a no-op on healthy text (see looks_damaged).
+    text, apostrophe_repairs = restore_stripped_apostrophes(text)
     text, source_normalizations = normalize_known_source_corruptions(text)
+    source_normalizations.extend(apostrophe_repairs)
     text, homoglyph_normalizations = normalize_homoglyph_words(text)
     source_normalizations.extend(homoglyph_normalizations)
     text, repetition_normalizations = normalize_extreme_phrase_repetitions(text)

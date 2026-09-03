@@ -132,6 +132,22 @@
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_apostrophe_repair": [
+    "tests.test_apostrophe_repair.Detection.test_a_lone_apostrophe_does_not_mask_heavy_damage",
+    "tests.test_apostrophe_repair.Detection.test_a_short_damaged_excerpt_is_still_repaired",
+    "tests.test_apostrophe_repair.Detection.test_damaged_signature_is_recognised",
+    "tests.test_apostrophe_repair.Detection.test_empty_input",
+    "tests.test_apostrophe_repair.Detection.test_healthy_prose_is_never_flagged",
+    "tests.test_apostrophe_repair.Detection.test_no_broken_contraction_means_untouched",
+    "tests.test_apostrophe_repair.Detection.test_one_stray_break_in_healthy_prose_is_ignored",
+    "tests.test_apostrophe_repair.Pipeline.test_generation_preprocessing_leaves_healthy_source_alone",
+    "tests.test_apostrophe_repair.Pipeline.test_generation_preprocessing_repairs_damaged_source",
+    "tests.test_apostrophe_repair.Repair.test_changes_are_reported_with_locations",
+    "tests.test_apostrophe_repair.Repair.test_contractions_and_clitics",
+    "tests.test_apostrophe_repair.Repair.test_healthy_text_is_returned_byte_identical",
+    "tests.test_apostrophe_repair.Repair.test_hyphenated_word_is_not_split",
+    "tests.test_apostrophe_repair.Repair.test_length_is_preserved"
+  ],
   "test_argparse_help_strings": [
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_no_help_string_contains_an_unescaped_percent",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
