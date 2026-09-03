@@ -254,6 +254,12 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audit_candidate_membership": [
+    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_false_values_are_populated_measurements",
+    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_mixed_rows_are_not_reported_as_fully_instrumented",
+    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_null_is_instrumentation_missing_not_zero_available",
+    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_old_rows_without_the_field_are_distinct_from_null"
+  ],
   "test_audit_serving_metadata": [
     "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_base_only_rejects_the_legacy_paired_claim",
     "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_baseline_summary_keeps_book_and_unanswered_counts",
