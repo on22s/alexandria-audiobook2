@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2840** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2855** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1272,9 +1272,24 @@ averaged over the nine seeds:
 | `dur_ratio` | 0.9989 | 0.0190 | 0.0063 |
 
 **Stop adding seeds.** A tenth moves pooled ECAPA by under 0.001, which is two
-orders of magnitude below the differences this metric is used to decide. Seed
-20260925 was already running when this was written and is the test of exactly
-that claim rather than an input to it.
+orders of magnitude below the differences this metric is used to decide.
+
+**The tenth seed was predicted before it landed, and it CONFIRMED the claim.**
+Seed 20260925 was still running when the paragraph above was written, so it is
+a check on the convergence claim rather than an input to it:
+
+| metric | 9 seeds | 10 seeds | moved | seed 20260925 alone |
+|---|---:|---:|---:|---:|
+| ECAPA | 0.5917 | 0.5915 | **0.0001** | 0.5903 |
+| `f0_median_ratio` | 1.0714 | 1.0722 | 0.0008 | 1.0791 |
+| `f0_spread_ratio` | 1.1473 | 1.1472 | 0.0002 | 1.1455 |
+| `vtl_ratio` | 0.9910 | 0.9910 | 0.0000 | 0.9913 |
+| `dur_ratio` | 0.9989 | 0.9989 | 0.0000 | 0.9990 |
+
+Every pooled figure moved by 0.0008 or less. Note that a single seed still
+wanders — 20260925's own `f0_median_ratio` is 1.0791 against a pooled 1.0722 —
+which is the reason to quote the pooled number and the spread rather than any
+one draw.
 
 **The finding is not the ECAPA number, it is the two pitch ratios.** Duration
 is essentially exact and vocal-tract length is within 1%, but the library
