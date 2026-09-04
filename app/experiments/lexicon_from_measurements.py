@@ -133,6 +133,12 @@ def main():
         "arms_read": [os.path.basename(a) for a in args.arms],
         "terms_measured": total,
         "plain_already_says_the_word": len(fine),
+        # THE LIST, NOT ONLY THE COUNT. A consumer that has to decide whether a
+        # given term is handled cannot do it from a number. Storing only the
+        # count is why `shipped_book_lexicon_coverage.py` reported terms in
+        # this state as uncovered: it had no way to recognise them, so a term
+        # correctly needing no entry looked identical to one nobody measured.
+        "plain_already_works": sorted(fine),
         "entries_measured_to_help": len(entries),
         "entries_corroborated_by_more_than_one_arm": sum(
             1 for e in entries.values() if e["corroborated"]),
