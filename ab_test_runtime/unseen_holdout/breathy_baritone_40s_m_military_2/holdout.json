@@ -1,0 +1,198 @@
+{
+  "trained_zip": "narrator_qarie_marshall_wolverine:_road_of_bones_[1662042051]_char1_vol01.zip",
+  "source_dir": "Qarie Marshall Wolverine: Road of Bones [1662042051]",
+  "source_volumes": 19,
+  "volumes_excluded_as_training_data": [
+    [
+      "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol01",
+      200
+    ]
+  ],
+  "voices_in_book": 1,
+  "trained_clips": 200,
+  "unseen_pool": 3529,
+  "requested": 20,
+  "written": 20,
+  "seed": 20260904,
+  "clips": [
+    {
+      "audio_filepath": "val/unseen_000.wav",
+      "text": "he gasped through a pink froth of *blood*. “*Toxic* gas. *Lungs*…” ... Logan picked up one of the *ampoules*. ...",
+      "duration": 7.4,
+      "start": 28359.52,
+      "end": 28366.92,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol16"
+    },
+    {
+      "audio_filepath": "val/unseen_001.wav",
+      "text": "but ... of *when* and *how* painfully. .... Up ahead, nearly fifty meters away, the crowd surrounded the Red Cross truck like ants",
+      "duration": 9.62,
+      "start": 18140.8,
+      "end": 18150.42,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol11"
+    },
+    {
+      "audio_filepath": "val/unseen_002.wav",
+      "text": "Falco saw that the sky was dimming ... with the *advent* of dusk. .... He was uncertain what direction they had been traveling. .... If the woman had driven south,",
+      "duration": 8.84,
+      "start": 4043.88,
+      "end": 4052.72,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol03"
+    },
+    {
+      "audio_filepath": "val/unseen_003.wav",
+      "text": "Eddie had just brought back the refilled glass, and Logan had just begun cutting through a hunk of *succulently* tender meat, ...",
+      "duration": 7.06,
+      "start": 22355.24,
+      "end": 22362.3,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol13"
+    },
+    {
+      "audio_filepath": "val/unseen_004.wav",
+      "text": "he said. “I know that we trusted you to *respect* our employer’s *privacy*,” Gregor said.",
+      "duration": 7.04,
+      "start": 8889.3,
+      "end": 8896.34,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol05"
+    },
+    {
+      "audio_filepath": "val/unseen_005.wav",
+      "text": "Charred and wrapped in a *fetal* curl, Logan tumbled wildly across the multicolored steel surface and fell into the gap opened by Gregor’s first attack. ....",
+      "duration": 9.8,
+      "start": 27683.28,
+      "end": 27693.08,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol16"
+    },
+    {
+      "audio_filepath": "val/unseen_006.wav",
+      "text": "Say something.” ... Giving him a *blurry* eyed *once* over, she said, “You look *terrible*.” “You’re all right.”",
+      "duration": 7.54,
+      "start": 15256.72,
+      "end": 15264.26,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol09"
+    },
+    {
+      "audio_filepath": "val/unseen_007.wav",
+      "text": "began to wreak its *hideous* effects on her nervous system. .... In the *theater* of his *memory* he relived her *fateful* request, the moment",
+      "duration": 8.94,
+      "start": 2025.08,
+      "end": 2034.02,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol02"
+    },
+    {
+      "audio_filepath": "val/unseen_008.wav",
+      "text": "“And I don’t wear a costume.” “Good *choice*.” He exhaled another puff of smoke. .... “Truth is, they all start to look alike after a *while*.” ....",
+      "duration": 8.5,
+      "start": 2739.24,
+      "end": 2747.74,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol02"
+    },
+    {
+      "audio_filepath": "val/unseen_009.wav",
+      "text": "“How frequent?” “A person who receives it once will have to be *dosed* again every twenty four hours ...",
+      "duration": 7.12,
+      "start": 3024.76,
+      "end": 3031.88,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol02"
+    },
+    {
+      "audio_filepath": "val/unseen_010.wav",
+      "text": "cut down by Logan’s claws like autumn wheat before a scythe, would carry a scar from this ... debacle. .... All this work for *nothing*",
+      "duration": 9.92,
+      "start": 32311.52,
+      "end": 32321.44,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol19"
+    },
+    {
+      "audio_filepath": "val/unseen_011.wav",
+      "text": "“You know I hate ... when you drop in with that teleportation ring of yours,” *Pritikin* said. “It’s *damned* rude.”",
+      "duration": 7.86,
+      "start": 15899.92,
+      "end": 15907.78,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol09"
+    },
+    {
+      "audio_filepath": "val/unseen_012.wav",
+      "text": "Hallucination ... or salvation? His hand found no *resistance*. It reached into the nether realm above.",
+      "duration": 8.42,
+      "start": 26671.22,
+      "end": 26679.64,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol15"
+    },
+    {
+      "audio_filepath": "val/unseen_013.wav",
+      "text": "this project *for* which he had been *conscripted* would be over right now. .... But when the access panel on the wall beside the main portal lifted open,",
+      "duration": 10.14,
+      "start": 10765.88,
+      "end": 10776.02,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol07"
+    },
+    {
+      "audio_filepath": "val/unseen_014.wav",
+      "text": "Fixing both his hands *on* his weapon, he held it in front of him and pressed his ear to the door. .... All seemed quiet. .... He stepped to the hinge side of the door",
+      "duration": 9.64,
+      "start": 21220.76,
+      "end": 21230.4,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol12"
+    },
+    {
+      "audio_filepath": "val/unseen_015.wav",
+      "text": "thanks to the building’s *intricate* trellises and window frames. .... In a few *easy* moves, Logan pulled himself onto the part of the roof that overhung the *balcony*.",
+      "duration": 9.18,
+      "start": 13807.28,
+      "end": 13816.46,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol08"
+    },
+    {
+      "audio_filepath": "val/unseen_016.wav",
+      "text": "Then, even though he couldn’t see more than a blur of her in the corner of his eye, he pivoted and thrust his *claws* into the night ...",
+      "duration": 8.18,
+      "start": 14640.74,
+      "end": 14648.92,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol09"
+    },
+    {
+      "audio_filepath": "val/unseen_017.wav",
+      "text": "and cracking like a *thirsty* riverbed. ... With *bloodshot* eyes she checked the instrument dashboard, then, apparently *satisfied*,",
+      "duration": 8.6,
+      "start": 23752.16,
+      "end": 23760.76,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol14"
+    },
+    {
+      "audio_filepath": "val/unseen_018.wav",
+      "text": "he continued, “they need *mefloquine*.” ... “We haven’t had any for weeks. .... All we have left is doxycycline.”",
+      "duration": 7.34,
+      "start": 5028.1,
+      "end": 5035.44,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol03"
+    },
+    {
+      "audio_filepath": "val/unseen_019.wav",
+      "text": "that its burden was all in her *mind*. It still felt like it *weighed* a *ton*. She huddled beneath her dome shaped force field with Logan and the surprisingly *sanguine* Nando.",
+      "duration": 11.3,
+      "start": 9493.82,
+      "end": 9505.12,
+      "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol06"
+    }
+  ],
+  "provenance": {
+    "script": "build_unseen_holdout.py",
+    "written": "2026-09-04T17:43:31",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
+      "branch": "agent/unseen-holdout-20260904",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M app/experiments/build_unseen_holdout.py",
+        " M app/tests/test_unseen_holdout.py"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+    },
+    "args": {
+      "error": "vars() argument must have __dict__ attribute"
+    }
+  }
+}

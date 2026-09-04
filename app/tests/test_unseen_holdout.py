@@ -16,7 +16,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(REPO, "app"))
 sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
 
-from experiments.build_unseen_holdout import build, key, read_metadata  # noqa: E402
+from experiments.build_unseen_holdout import (  # noqa: E402
+    build, key, read_metadata, voices_in_book)
 
 WAV = (b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
        b"\x44\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
@@ -102,6 +103,50 @@ class UnseenHoldout(unittest.TestCase):
         self.assertEqual(len(entries), doc["written"])
         for e in entries:
             self.assertTrue(os.path.exists(os.path.join(out, e["audio_filepath"])))
+
+
+class MultiVoiceBooks(unittest.TestCase):
+    """A nine-voice cast production must not be drawn from at random."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.ded = os.path.join(self.tmp, "_deduped")
+        self.src = os.path.join(self.tmp, "book")
+        os.makedirs(self.ded)
+        os.makedirs(self.src)
+        _zip(os.path.join(self.src, "book_vol01.zip"), _rows(0, 0.0, 6))
+        _zip(os.path.join(self.src, "book_vol02.zip"), _rows(500, 200.0, 6))
+        self.rows = _rows(9000, 200.0, 6)
+
+    def _dataset(self, name):
+        path = os.path.join(self.ded, name)
+        _zip(path, self.rows)
+        return path
+
+    def test_a_single_voice_book_is_allowed(self):
+        z = self._dataset("narrator_solo_char1_vol01.zip")
+        self.assertEqual(voices_in_book(z), 1)
+        doc = build(z, self.src, os.path.join(self.tmp, "h"), 4, 1)
+        self.assertEqual(doc["voices_in_book"], 1)
+
+    def test_a_cast_production_is_refused(self):
+        z = self._dataset("narrator_cast_char1_vol01.zip")
+        for n in range(2, 10):
+            _zip(os.path.join(self.ded, f"narrator_cast_char{n}_vol01.zip"),
+                 _rows(n * 1000, 5000.0 + n, 2))
+        self.assertEqual(voices_in_book(z), 9)
+        with self.assertRaises(SystemExit) as ctx:
+            build(z, self.src, os.path.join(self.tmp, "h2"), 4, 1)
+        self.assertIn("different narrator", str(ctx.exception))
+
+    def test_the_override_exists_but_records_the_voice_count(self):
+        z = self._dataset("narrator_cast2_char1_vol01.zip")
+        _zip(os.path.join(self.ded, "narrator_cast2_char2_vol01.zip"),
+             _rows(4000, 8000.0, 2))
+        doc = build(z, self.src, os.path.join(self.tmp, "h3"), 4, 1,
+                    allow_multi_voice=True)
+        self.assertEqual(doc["voices_in_book"], 2,
+                         "an overridden run must still say what it drew from")
 
 
 if __name__ == "__main__":

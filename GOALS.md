@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3073** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3128** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1229,7 +1229,62 @@ different things, and only one of them is more training:
   rival memorised, which is the expected result of a rigged comparison and not
   evidence they are worse. Settling it needs clips **neither** adapter ever
   saw — a different recording of the same narrator, or a slice withheld before
-  either was trained. No such data exists today.
+  either was trained.
+
+  **THAT DATA EXISTED THE WHOLE TIME. Corrected 2026-09-04.** This document
+  said "no such data exists today", and the claim was never checked. Each
+  dataset zip is a 200-clip slice of an audiobook that had been segmented into
+  dozens of 200-clip volumes, and matching the trained clips back by their
+  audiobook `(start, end)` offsets — which survive the renumbering a merge
+  applies to sample names — shows **the entire 75-adapter library was built
+  from one volume per narrator**: 75 of the 82 deduped datasets are `_vol01`,
+  and `gardens_of_the_moon_char1` is all 200 clips of source volume 15, with
+  **zero** overlap against any other volume. Fifty-one further volumes of that
+  narrator, **10,147 unique clips**, had never been used by anything.
+
+  This is a Rule 19b failure of the expensive kind: it did not produce a wrong
+  number, it stopped the search, and it sat in the Priority list as a blocker
+  for three weeks.
+
+  `build_unseen_holdout.py` assembles the held-out sets. It drops the whole
+  contributing volume rather than only the matched clips — a neighbouring clip
+  of a seen passage is the same scene and often the same sentence continued —
+  deduplicates the repeated metadata listings each zip carries, and refuses
+  when a trained clip traces to no known volume, since that would mean some
+  volume's clips were sitting in the pool labelled unseen.
+
+  **Six of the eleven candidates are eligible; five are refused, and the
+  refusal is the point.** The volumes are only safe to draw from when the book
+  is one voice throughout. Dracula [Audible Edition] is a nine-voice cast
+  production, so a random unseen volume there is probably a *different*
+  narrator — which would score both adapters against the wrong person and
+  return an ordinary-looking number. The builder counts the deduped datasets
+  sharing a book prefix and refuses above one:
+
+  | adapter | source book | voices | unseen pool |
+  |---|---|---:|---:|
+  | breathy_tenor_50s_m_fantasy | Gardens of the Moon | 1 | 10,147 |
+  | silky_baritone_40s_m_scifi | Altered Carbon | 1 | 6,548 |
+  | husky_baritone_40s_m_scifi | Nightfall and Other Stories | 1 | 6,175 |
+  | husky_tenor_30s_m_literary | Water Moon | 1 | 3,770 |
+  | breathy_baritone_40s_m_military_2 | Wolverine: Road of Bones | 1 | 3,529 |
+  | husky_tenor_30s_m | Waking Gods | 1 | 3,240 |
+  | warm_baritone_30s_m_scifi | Ex-Heroes | 3 | **refused** |
+  | warm_mezzo_20s_f_anime | Nekomonogatari | 2 | **refused** |
+  | husky_baritone_40s_m_1 | Spice and Wolf | 3 | **refused** |
+  | husky_baritone_50s_m_gothic, silky_mezzo_30s_f_supernatural | Dracula | 9 | **refused** |
+
+  **This is a narrator-level holdout, not a per-character one.** Clips carry
+  `speaker: "UNKNOWN"`, and the dedup heatmap for Gardens of the Moon puts all
+  52 volumes at 0.59–0.75 with no cluster structure — one narrator performing
+  every character. A held-out sample is therefore drawn from the same mixture
+  of narration and character voices as the training slice, which is what makes
+  it comparable, and it must not be described as anything narrower.
+
+  **No score has been measured yet.** `unseen_gate_20260904.sh` runs the
+  existing identity gate over both adapters against the same unseen clips, 20
+  lines each. Until it has run, nothing here says which adapter is better —
+  only that the comparison is now possible.
 
 | trained on | adapters |
 |---|---|

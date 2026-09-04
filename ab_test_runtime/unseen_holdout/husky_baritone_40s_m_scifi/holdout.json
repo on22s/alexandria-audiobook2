@@ -1,0 +1,198 @@
+{
+  "trained_zip": "narrator_jon_lindstrom_nightfall_and_other_stories_[059341635x]_char1_vol01.zip",
+  "source_dir": "Jon Lindstrom Nightfall and Other Stories [059341635X]",
+  "source_volumes": 32,
+  "volumes_excluded_as_training_data": [
+    [
+      "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol16",
+      200
+    ]
+  ],
+  "voices_in_book": 1,
+  "trained_clips": 200,
+  "unseen_pool": 6175,
+  "requested": 20,
+  "written": 20,
+  "seed": 20260904,
+  "clips": [
+    {
+      "audio_filepath": "val/unseen_000.wav",
+      "text": "She ... hesitated, seeing the justice of the *caution*. “All right. .... No *funny* stuff, though.",
+      "duration": 7.88,
+      "start": 53324.46,
+      "end": 53332.34,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol30"
+    },
+    {
+      "audio_filepath": "val/unseen_001.wav",
+      "text": "escape ... isn’t ... that ... easy. It is harder than *you* think to divorce yourself from reality, and when, in the days of Korea,",
+      "duration": 7.78,
+      "start": 21515.22,
+      "end": 21523.0,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol12"
+    },
+    {
+      "audio_filepath": "val/unseen_002.wav",
+      "text": "It gave rise to certain new *principles* of computing, however, so it wasn’t a *total* loss.” .... Why did they *talk* about it?",
+      "duration": 9.36,
+      "start": 38071.86,
+      "end": 38081.22,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol22"
+    },
+    {
+      "audio_filepath": "val/unseen_003.wav",
+      "text": "Isn’t it *logical* to suppose an individual would be *too* proud of his structure and identity to want to dilute it with something *alien*?",
+      "duration": 8.92,
+      "start": 57306.58,
+      "end": 57315.5,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol32"
+    },
+    {
+      "audio_filepath": "val/unseen_004.wav",
+      "text": "Groups, like individuals, will rise to *strange* heights in answer to a *challenge*, and vegetate in the absence of a *challenge*. ....",
+      "duration": 8.04,
+      "start": 17751.92,
+      "end": 17759.96,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_005.wav",
+      "text": "For a second time, Beenay 25 spoke. “Sir, I think you ought to listen to *him*.”",
+      "duration": 7.78,
+      "start": 658.5,
+      "end": 666.28,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol01"
+    },
+    {
+      "audio_filepath": "val/unseen_006.wav",
+      "text": "“…I don’t care who he is. .... “…*All* right. .... I’ll hold on.” .... He looked up at Officer Brown and put his hand over the mouthpiece of the phone.",
+      "duration": 9.52,
+      "start": 15850.78,
+      "end": 15860.3,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol09"
+    },
+    {
+      "audio_filepath": "val/unseen_007.wav",
+      "text": "because he had been *realistic* enough to know what it must be reclaimed from; but he had conquered the feeling easily enough.",
+      "duration": 9.0,
+      "start": 45543.28,
+      "end": 45552.28,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol26"
+    },
+    {
+      "audio_filepath": "val/unseen_008.wav",
+      "text": "He could reach only into the nothingness that ... separated him from *sanity*. He longed ... at the moment",
+      "duration": 7.1,
+      "start": 6937.58,
+      "end": 6944.68,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol04"
+    },
+    {
+      "audio_filepath": "val/unseen_009.wav",
+      "text": "After all, *you* know, business has taken a nosedive these last two months. .... Investors don’t really believe the world is coming to an end,",
+      "duration": 9.48,
+      "start": 825.1,
+      "end": 834.58,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol01"
+    },
+    {
+      "audio_filepath": "val/unseen_010.wav",
+      "text": "he would never see it again as a *sane* man. .... He *whirled*. “No, wait, come *here*!”",
+      "duration": 7.4,
+      "start": 539.54,
+      "end": 546.94,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol01"
+    },
+    {
+      "audio_filepath": "val/unseen_011.wav",
+      "text": "found nothing. .... There was the Kloro’s *holster*, but he dared not reach for it. .... Why hadn’t he *snatched* it at the very *first*?",
+      "duration": 9.5,
+      "start": 26815.38,
+      "end": 26824.88,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol15"
+    },
+    {
+      "audio_filepath": "val/unseen_012.wav",
+      "text": "“*I’d* be glad to listen to whatever you would like to tell me.” .... Ralson drew a deep breath. .... “I’ve known *something* for a year now,",
+      "duration": 9.66,
+      "start": 17309.62,
+      "end": 17319.28,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_013.wav",
+      "text": "All the facts had to fit in, not merely some of them. .... Missing Persons Bureau! If it was a false trail, ...",
+      "duration": 9.04,
+      "start": 12414.82,
+      "end": 12423.86,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol07"
+    },
+    {
+      "audio_filepath": "val/unseen_014.wav",
+      "text": "“I am *Latimer* 25, adjutant of the third class to his *serenity*, Sor 5.”",
+      "duration": 8.2,
+      "start": 3305.38,
+      "end": 3313.58,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol02"
+    },
+    {
+      "audio_filepath": "val/unseen_015.wav",
+      "text": "Just get it through your *head*, Oldenn, that nothing happened. Nothing.” Oldenn turned on his *heel* and left. ....",
+      "duration": 8.72,
+      "start": 6810.02,
+      "end": 6818.74,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol04"
+    },
+    {
+      "audio_filepath": "val/unseen_016.wav",
+      "text": "“Damn right I won’t,” ... agreed Stuart. .... “I don’t *claim* to be a hero. .... I’m just an *average* patriot,",
+      "duration": 8.72,
+      "start": 24559.0,
+      "end": 24567.72,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol14"
+    },
+    {
+      "audio_filepath": "val/unseen_017.wav",
+      "text": "so that you would be *blown* clear of the ship before the steam could even *warm* you. .... In fact, you’d be blown quite a few miles out into *space*, and after that",
+      "duration": 10.12,
+      "start": 24923.86,
+      "end": 24933.98,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol14"
+    },
+    {
+      "audio_filepath": "val/unseen_018.wav",
+      "text": "Alexander, despite his *sore* heart, found *spirit* to deny the *unintended* slur upon his *class*. ....",
+      "duration": 8.56,
+      "start": 48396.98,
+      "end": 48405.54,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol27"
+    },
+    {
+      "audio_filepath": "val/unseen_019.wav",
+      "text": "Me? I’m a *hundred* pounds too *heavy* for a man of action, and I *wouldn’t* be a success at breeding children. .... So *why*",
+      "duration": 9.06,
+      "start": 1075.0,
+      "end": 1084.06,
+      "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol01"
+    }
+  ],
+  "provenance": {
+    "script": "build_unseen_holdout.py",
+    "written": "2026-09-04T17:43:31",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
+      "branch": "agent/unseen-holdout-20260904",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M app/experiments/build_unseen_holdout.py",
+        " M app/tests/test_unseen_holdout.py"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+    },
+    "args": {
+      "error": "vars() argument must have __dict__ attribute"
+    }
+  }
+}

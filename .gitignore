@@ -248,3 +248,4 @@ ab_test_runtime/**/llama_server.log
 # Promotion rollback payloads: the receipts (*.json) are committed; the
 # weight directories beside them are 6.1 GB across 294 files and are not.
 ab_test_runtime/promotion_backups/*/
+ab_test_runtime/unseen_holdout/*/val/
