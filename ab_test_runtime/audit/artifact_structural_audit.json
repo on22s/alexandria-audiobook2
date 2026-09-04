@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 517,
-    "exploratory": 313,
+    "exploratory": 315,
     "provisional": 174
   },
   "artifacts": [
@@ -14685,6 +14685,32 @@
       "status": null,
       "row_count": null,
       "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "tts_output_validation_adapter_seed20260925.json",
+      "bytes": 843027,
+      "sha256": "29e0ad85a0597ca4c2cddec1c74d8c15e8e7ae75d44edd233be242b9caefa1bc",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1417,
+      "has_rows": true,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "tts_output_validation_control_seed20260925.json",
+      "bytes": 873892,
+      "sha256": "b308cf807ce25e0ac68061a00342e4b0f36928b3e32217ad4e7605ab2eefff6e",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1417,
+      "has_rows": true,
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
