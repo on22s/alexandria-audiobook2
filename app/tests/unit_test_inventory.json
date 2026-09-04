@@ -1184,6 +1184,11 @@
     "tests.test_goal_citations.CitationScannerTest.test_every_cited_artifact_actually_exists",
     "tests.test_goal_citations.CitationScannerTest.test_goals_measured_this_session_cite_their_artifacts"
   ],
+  "test_goals_evidence_paths": [
+    "tests.test_goals_evidence_paths.GoalsEvidence.test_a_citation_at_the_wrong_prefix_is_caught",
+    "tests.test_goals_evidence_paths.GoalsEvidence.test_every_cited_evidence_path_is_in_the_repository",
+    "tests.test_goals_evidence_paths.GoalsEvidence.test_the_checker_finds_the_paths_it_is_meant_to_check"
+  ],
   "test_goals_navigation": [
     "tests.test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
     "tests.test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
