@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2905** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2956** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2715,6 +2715,57 @@ Goals about the instruments themselves. These earned their place by failing.
 > just quietly reports plausible numbers that are wrong, and those numbers get
 > believed and acted on. Each goal here exists because a measurement was
 > trusted that should not have been.
+
+### 6.6 A check that cannot fail is not evidence
+
+> **What this is.** Before a check is believed, it has to be shown failing on
+> something it should reject.
+>
+> **Why it matters.** A guard that is silently inert looks exactly like a guard
+> that is passing. Both print nothing and both go green.
+
+**Metric** — checks whose rejecting case is exercised, over checks relied on.
+
+**Current — OPEN.** The rule is written; the audit of existing checks is not
+done.
+
+**EIGHT INSTANCES IN ONE DAY, 2026-09-04.** Not eight bugs. One bug, eight
+disguises:
+
+| what looked fine | why it proved nothing |
+|---|---|
+| `meta.validation: "ok"` on an all-empty FP8 artifact | the guard was behind `contract.get("require_any_prediction")` and nobody asked |
+| "133/133 prompt hashes identical" across two runs | every `prompt_sha256` was `None`; `None == None` |
+| four new tests, all green | all four had `skipTest`-ed |
+| `DONE arm rc=0` in the queue log | `$(date -Is)` ran first and destroyed `$?` |
+| index `--check` passing all day | it reads COMMITTED files; seven artifacts were never committed |
+| two adapter transfers reported "corrupt" | `find \| sort` collates differently per machine |
+| `tts_output_validation.py` reported "never run" | the artifact is named after its SUBJECT, not the script |
+| the evidence test passing where it was written | its scope came from `os.listdir`, not from the commit |
+
+**THE SHAPE IS ALWAYS THE SAME:** a check whose PASSING state is
+indistinguishable from its NOT-LOOKING state. Zero skips because zero ran.
+A hash of nothing equalling a hash of nothing. An index that is perfectly
+consistent with an incomplete set.
+
+**Target — every guard, linter and comparison relied on carries a test that
+fails without the fix, and any comparison of two identifiers requires them to
+EXIST before equality means anything.**
+
+**Rule 21 already says this for METRICS** - validate the instrument before
+trusting 5,000 readings. Today extends it to the machinery around them:
+guards, linters, transfers, and greps. `measure_respellings` was the expensive
+version; `require_any_prediction` was the cheap version, and it was cheap only
+because someone happened to look.
+
+**The counter-discipline costs a line.** `test_exit_code_is_not_destroyed`
+asserts its own regex still matches the offending line. `test_empty_predictions`
+asserts an all-empty arm IS rejected AND that one real prediction passes.
+`test_batch_identity` asserts two NULL hashes compare EQUAL, so a comparison
+must require existence first. None of that is clever; it is just refusing to
+believe a green result that has never been shown red.
+
+---
 
 ### 6.5 Someone has looked at the audio
 

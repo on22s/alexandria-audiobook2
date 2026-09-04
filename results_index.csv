@@ -1769,8 +1769,8 @@ training_composition.json,exploratory,git+naming,no,training_composition.py,e544
 training_determinism.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 trivial_baselines.json,exploratory,git+naming,no,trivial_baselines.py,f4a83982,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 tts_boundary_audit.json,exploratory,git+naming,no,tts_boundary_audit.py,cefa5060,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-tts_output_validation_adapter_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,0f6ede31,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
-tts_output_validation_control_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,0f6ede31,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+tts_output_validation_adapter_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,aa43ce09,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+tts_output_validation_control_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,aa43ce09,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 tuned_disagreement.json,exploratory,git+naming,no,tuned_disagreement.py,b4bf74b6,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 two_by_two.json,exploratory,git+naming,no,two_by_two.py,b6f400a8,,,two_by_two,mushoku16,qwen3.5-9b-uncensored-hauhaucs-aggressive,local-lmstudio,mitch-linux,lmstudio,,,f16?,A,139,27,19.4,"['no LM Studio load state recorded', 'en",True,8e457d6a,698.2,07-26 17:00,http://localhost:1234/v1,
 two_by_two.json,exploratory,git+naming,no,two_by_two.py,b6f400a8,,,two_by_two,mushoku16,qwen3.5-9b-uncensored-hauhaucs-aggressive,local-lmstudio,mitch-linux,lmstudio,,,f16?,B,139,3,2.2,"['no LM Studio load state recorded', 'en",True,8e457d6a,698.2,07-26 17:00,http://localhost:1234/v1,
