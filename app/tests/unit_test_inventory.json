@@ -132,6 +132,16 @@
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_api_summary_guards": [
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_a_failed_test_is_reported_not_swallowed",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_a_faithful_summary_is_accepted",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_an_invalid_status_is_rejected",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_duplicate_or_empty_names_are_rejected",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_missing_tests_or_counts_is_rejected",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_requires_full_must_be_a_bool",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_wrong_mode_is_rejected",
+    "tests.test_api_summary_guards.ApiSummaryGuards.test_wrong_schema_version_is_rejected"
+  ],
   "test_apostrophe_repair": [
     "tests.test_apostrophe_repair.Detection.test_a_lone_apostrophe_does_not_mask_heavy_damage",
     "tests.test_apostrophe_repair.Detection.test_a_short_damaged_excerpt_is_still_repaired",
@@ -2739,6 +2749,15 @@
     "tests.test_statistic_discriminability.MeanTest.test_an_empty_group_is_none_not_zero",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_a_variance_statistic_can_win_and_must_be_visible",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_the_real_ordering_that_motivated_the_seconds_exclusion"
+  ],
+  "test_stored_summary_matches_rows": [
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_a_document_without_the_pair_is_not_judged",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_a_faithful_summary_passes",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_a_truncated_rows_list_is_caught",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_an_arm_in_the_summary_with_no_rows_is_caught",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_an_inflated_correct_count_is_caught",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_rows_for_an_arm_the_summary_omits_are_caught",
+    "tests.test_stored_summary_matches_rows.StoredSummary.test_the_wide_schema_is_not_judged"
   ],
   "test_suite_imports_are_ci_installable": [
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed",
