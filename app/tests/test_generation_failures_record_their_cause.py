@@ -9,7 +9,34 @@ and the failure reached the artifact as a bare `PassExhausted`.
 """
 import importlib.util
 import os
+import sys
+import types
 import unittest
+
+
+def _stub_torch():
+    """CI installs without torch (app/ci_env.py blocks it), and create() does
+    `import torch` before it ever reaches the model. Without this the tests
+    below pass locally and fail in CI on an ImportError that has nothing to do
+    with what they check - which is exactly the checkout-dependence this
+    session has been removing from other tests all day.
+
+    The stub supplies the one thing create() uses.
+    """
+    if "torch" in sys.modules:
+        return None
+    mod = types.ModuleType("torch")
+
+    class _NoGrad:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *exc):
+            return False
+
+    mod.no_grad = _NoGrad
+    sys.modules["torch"] = mod
+    return mod
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "app", "experiments", "distill_eval.py")
@@ -47,8 +74,13 @@ class _Tok:
 
 class FailureRecordsItsCause(unittest.TestCase):
     def setUp(self):
+        self._stubbed = _stub_torch()
         self.m = _mod()
         self.client = self.m.LocalClient(_Boom(), _Tok(), "off")
+
+    def tearDown(self):
+        if self._stubbed is not None:
+            sys.modules.pop("torch", None)
 
     def test_the_exception_reaches_diagnostics(self):
         with self.assertRaises(RuntimeError):
