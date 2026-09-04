@@ -244,3 +244,7 @@ csi_repo/
 # Aozora extraction skeletons are regenerated from public-domain text
 aozora_quotes_*.json
 ab_test_runtime/**/llama_server.log
+
+# Promotion rollback payloads: the receipts (*.json) are committed; the
+# weight directories beside them are 6.1 GB across 294 files and are not.
+ab_test_runtime/promotion_backups/*/

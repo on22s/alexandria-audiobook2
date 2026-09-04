@@ -1,0 +1,52 @@
+{
+  "promoted_at": "20260816_135919",
+  "backup": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/promotion_backups/20260816_135919",
+  "min_ecapa": 0.45,
+  "adapters": [
+    {
+      "adapter": "husky_soprano_20s_f",
+      "gate_ecapa": 0.7026,
+      "shipped_ecapa": 0.6229
+    },
+    {
+      "adapter": "silky_mezzo_30s_f_supernatural",
+      "gate_ecapa": 0.7331,
+      "shipped_ecapa": 0.7176
+    },
+    {
+      "adapter": "warm_baritone_50s_m_gothic",
+      "gate_ecapa": 0.6174,
+      "shipped_ecapa": 0.544
+    },
+    {
+      "adapter": "warm_bass_50s_m_fantasy",
+      "gate_ecapa": 0.6889,
+      "shipped_ecapa": 0.6804
+    },
+    {
+      "adapter": "warm_mezzo_20s_f_anime",
+      "gate_ecapa": 0.7307,
+      "shipped_ecapa": 0.6655
+    },
+    {
+      "adapter": "warm_mezzo_30s_f",
+      "gate_ecapa": 0.6562,
+      "shipped_ecapa": 0.544
+    },
+    {
+      "adapter": "warm_tenor_20s_m",
+      "gate_ecapa": 0.5668,
+      "shipped_ecapa": 0.09
+    },
+    {
+      "adapter": "warm_tenor_20s_m_scifi",
+      "gate_ecapa": 0.6118,
+      "shipped_ecapa": 0.5964
+    },
+    {
+      "adapter": "warm_tenor_30s_m_gothic",
+      "gate_ecapa": 0.5945,
+      "shipped_ecapa": 0.5117
+    }
+  ]
+}
