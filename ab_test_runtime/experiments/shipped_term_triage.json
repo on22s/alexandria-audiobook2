@@ -1,0 +1,129 @@
+{
+ "note": "Triage of the 18 shipped-book terms goal 5.5 found in neither state. Only the loanword class is in scope for a pronunciation lexicon; the rest are named, foreign-but-not-Japanese, or unfixable by respelling.",
+ "book_source": "all 18 occur only in the Re:Zero scripts (Arc N - Volume M)",
+ "counts": {
+  "loanword": 5,
+  "name_character": 4,
+  "name_person": 5,
+  "name_place": 1,
+  "not_japanese": 1,
+  "onomatopoeia": 2
+ },
+ "in_scope_for_5_5": [
+  "deka",
+  "kuchibashi",
+  "manga",
+  "meimei",
+  "pachinko"
+ ],
+ "classified": {
+  "name_character": [
+   {
+    "term": "baru",
+    "reason": "Ram's nickname for Subaru, the su moved to the end",
+    "source": null
+   },
+   {
+    "term": "barusu",
+    "reason": "Ram's nickname for Subaru; listed among his aliases",
+    "source": "https://myanimelist.net/character/118735"
+   },
+   {
+    "term": "basuru",
+    "reason": "another form of the same nickname",
+    "source": null
+   },
+   {
+    "term": "subara",
+    "reason": "truncation of Subaru",
+    "source": null
+   }
+  ],
+  "name_person": [
+   {
+    "term": "daichi",
+    "reason": "Matsuse Daichi-sensei, named in the afterword credits",
+    "source": null
+   },
+   {
+    "term": "makoto",
+    "reason": "named in the afterword credits",
+    "source": null
+   },
+   {
+    "term": "masaharu",
+    "reason": "Masaharu Wanatabe, producer, in the credits",
+    "source": null
+   },
+   {
+    "term": "masahiro",
+    "reason": "named in the afterword credits",
+    "source": null
+   },
+   {
+    "term": "nezumi",
+    "reason": "the author's pen name Nezumi-iro Neko 鼠色猫; SudachiDict returns the COMMON noun rat, which is the wrong sense here",
+    "source": "https://en.wikipedia.org/wiki/Tappei_Nagatsuki"
+   }
+  ],
+  "name_place": [
+   {
+    "term": "maringo",
+    "reason": "'the Maringo Island way'; no such location in the series references, so an in-world place name either way",
+    "source": null
+   }
+  ],
+  "not_japanese": [
+   {
+    "term": "mano",
+    "reason": "'mano a mano' - Spanish; flagged only because it is absent from an English dictionary. SudachiDict tags it a proper noun, also the wrong sense",
+    "source": null
+   }
+  ],
+  "onomatopoeia": [
+   {
+    "term": "gauaa",
+    "reason": "a growl; a respelling cannot meaningfully improve it",
+    "source": null
+   },
+   {
+    "term": "gaurururu",
+    "reason": "a growl",
+    "source": null
+   }
+  ],
+  "loanword": [
+   {
+    "term": "manga",
+    "reason": "common loanword, already English",
+    "source": null
+   },
+   {
+    "term": "pachinko",
+    "reason": "common loanword, already English",
+    "source": null
+   },
+   {
+    "term": "deka",
+    "reason": "Deka Bunko, an imprint; also slang for detective",
+    "source": null
+   },
+   {
+    "term": "kuchibashi",
+    "reason": "嘴/くちばし beak; the line translates the idiom くちばしが黄色い, yellow beak = inexperienced",
+    "source": "https://jisho.org/search/%E3%81%8F%E3%81%A1%E3%81%B0%E3%81%97"
+   },
+   {
+    "term": "meimei",
+    "reason": "銘々 each/individual, or 命名 naming; real in either sense",
+    "source": "https://www.nihongomaster.com/japanese/dictionary/word/51296/meimei-%E9%8A%98%E3%80%85-%E9%8A%98%E9%8A%98-%E3%82%81%E3%81%84%E3%82%81%E3%81%84"
+   }
+  ]
+ },
+ "method": "context sentence from the shipped scripts + SudachiDict reading + a web lookup for the cases the offline tools got wrong",
+ "offline_tools_were_wrong_about": [
+  "nezumi",
+  "mano"
+ ],
+ "written": "2026-09-04T16:24:45"
+}

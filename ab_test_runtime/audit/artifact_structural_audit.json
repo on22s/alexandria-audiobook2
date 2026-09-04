@@ -1,8 +1,8 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 519,
-    "exploratory": 317,
+    "supported_structure": 521,
+    "exploratory": 318,
     "provisional": 174
   },
   "artifacts": [
@@ -14018,6 +14018,40 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "respelling_five_terms_ja.json",
+      "bytes": 5066,
+      "sha256": "4fe37ad72c6f42a3ec8073b13266f09e2e7168b9547524dbf808a7401bbe4f95",
+      "completeness": "complete",
+      "stored_summary_problems": [],
+      "seed": null,
+      "status": "complete",
+      "row_count": 4,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-04T16:39:20",
+      "commit": "a357961be39b3ee54baddf518991ff94eec04b8d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "respelling_five_terms_unattributed.json",
+      "bytes": 3328,
+      "sha256": "11bbfcedcc15741bbc4aaa89bdfe459cb665d451f75671d5ce2e3c9b7b96c79a",
+      "completeness": "complete",
+      "stored_summary_problems": [],
+      "seed": null,
+      "status": "complete",
+      "row_count": 1,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-04T16:39:59",
+      "commit": "a357961be39b3ee54baddf518991ff94eec04b8d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "respelling_hyphen_allrows_n1600.json",
       "bytes": 929290,
       "sha256": "7fb5ed2d08e30ac3df691420ae7d47c6a591176825bbe061fe17b7440680ad4b",
@@ -15136,6 +15170,20 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "shipped_term_triage.json",
+      "bytes": 3480,
+      "sha256": "995b029cd0c66f2c8cbec3ec265cf6c1a0dd6ff84e5eef7a8eb4516000a465dd",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "shipping_readiness.json",
