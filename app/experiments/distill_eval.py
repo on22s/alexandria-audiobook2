@@ -132,8 +132,32 @@ class LocalClient:
             kw.update(do_sample=True, temperature=temperature, top_p=top_p)
         else:
             kw.update(do_sample=False)
-        with torch.no_grad():
-            out = self.model.generate(**enc, **kw)
+        try:
+            with torch.no_grad():
+                out = self.model.generate(**enc, **kw)
+        except Exception as exc:
+            # RECORD THE CAUSE BEFORE IT BECOMES A SYMPTOM. diagnostics used to
+            # be appended only on the success path, so a generate() that raised
+            # recorded NOTHING here; three_pass retried, gave up, and raised
+            # `PassExhausted: attribution failed for a 16-entry batch`, which is
+            # what reached the artifact.
+            #
+            # On 2026-09-04 that produced an FP8 evaluation with 766 rows, both
+            # arms 0 correct, and 428 batch_failed diagnostics whose `attempts`
+            # were all empty. The real reason - the model could not fetch
+            # `kernels-community/finegrained-fp8` with Hugging Face forced
+            # offline - appeared nowhere in the artifact, only in a log on one
+            # machine. A reader saw "every batch failed" and could not learn
+            # why.
+            self.diagnostics.append({
+                "finish_reason": "error",
+                "generated_tokens": 0,
+                "emitted_eos": False,
+                "raw_response": None,
+                "thinking_mode": self.thinking_mode,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+            raise
         gen = out[0][enc["input_ids"].shape[1]:]
         text = self.tok.decode(gen, skip_special_tokens=True)
         finish = "length" if len(gen) >= max_tokens else "stop"
@@ -149,6 +173,34 @@ class LocalClient:
             "thinking_mode": self.thinking_mode,
         })
         return _Response(text, finish, len(token_ids))
+
+
+def preflight_generation(client, model_name):
+    """Prove the model can emit one token before spending hours proving it cannot.
+
+    The FP8 run above attempted 428 batches, each retried four times, against a
+    model that could never produce a token. Every attempt failed identically
+    and deterministically. One tiny generation first turns that into a
+    ten-second abort carrying the real exception.
+
+    Raises SystemExit with the underlying error rather than returning a value,
+    because a preflight that can be ignored is not a preflight.
+    """
+    try:
+        response = client.create(
+            model=model_name,
+            messages=[{"role": "user", "content": "Reply with the word OK."}],
+            max_tokens=8)
+    except Exception as exc:                                # noqa: BLE001
+        raise SystemExit(
+            "PREFLIGHT FAILED - the model cannot generate, so no evaluation "
+            "below would be a measurement of it: "
+            f"{type(exc).__name__}: {exc}")
+    if not (response.choices[0].message.content or "").strip():
+        raise SystemExit(
+            "PREFLIGHT FAILED - the model loaded but generated nothing. An "
+            "evaluation now would record an all-empty arm as a model result.")
+    return True
 
 
 def get_book_paths(book, input_dir=None, checkpoint_dir=None):
@@ -308,6 +360,10 @@ def main():
     model = load_peft_adapter_or_raise(PeftModel, base, args.adapter)
     model.eval()
     client = LocalClient(model, tok, args.thinking_mode)
+    # BEFORE the record exists, so a model that cannot generate produces no
+    # artifact at all rather than a structurally perfect all-empty one.
+    preflight_generation(client, args.model)
+    client.diagnostics.clear()   # the probe is not part of the measurement
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
