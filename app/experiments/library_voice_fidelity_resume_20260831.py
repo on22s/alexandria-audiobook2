@@ -217,6 +217,23 @@ def ecapa_pairs(pairs, python_bin):
         return [None] * len(pairs), str(exc)[:140]
 
 
+def voice_entry(control_voice, models_dir, adapter_name, seed):
+    """-> the voice_config entry for one arm.
+
+    The ONLY difference between the adapter arm and the control arm. A control
+    entry carries no "type", so voice_category() calls it "custom" and it
+    routes to generate_custom_voice; it also carries no adapter_path, which is
+    what makes "the control did not quietly load the LoRA" checkable rather
+    than assumed. Same seed either way, so the arms differ in the voice alone.
+    """
+    if control_voice:
+        return {"voice": control_voice, "seed": str(seed)}
+    return {"type": "lora",
+            "adapter_path": os.path.relpath(
+                os.path.join(models_dir, adapter_name), REPO),
+            "seed": str(seed)}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--models", default=os.path.join(REPO, "lora_models"))
@@ -233,6 +250,14 @@ def main():
                      "app", "env", "bin", "python")))
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "library_voice_fidelity.json"))
+    ap.add_argument("--control-voice", default="",
+                    help="CONTROL ARM. Render with this stock voice instead of "
+                         "each adapter, against the same narrators, clips and "
+                         "metrics. Answers how much of a ratio is the adapter "
+                         "and how much is 'any voice vs this narrator' - the "
+                         "library-wide f0_median 1.07 and f0_spread 1.15 have "
+                         "no null to be read against without it. Use a "
+                         "separate --work and --out; nothing else changes.")
     args = ap.parse_args()
 
     sys.path.insert(0, os.path.join(APP, "experiments"))
@@ -270,10 +295,7 @@ def main():
             print(f"  {name[:34]:36} NO VAL")
             continue
 
-        entry = {"type": "lora",
-                 "adapter_path": os.path.relpath(
-                     os.path.join(args.models, name), REPO),
-                 "seed": str(args.seed)}
+        entry = voice_entry(args.control_voice, args.models, name, args.seed)
         rows = []
         for i, (human_wav, text) in enumerate(clips):
             gen = os.path.join(wdir, f"gen_{i}.wav")
@@ -346,6 +368,8 @@ def main():
     doc = {"contamination": "adapters trained on their own val split; scores "
                             "are an upper bound, useful for ranking only",
            "lines_per_adapter": args.lines, "seed": args.seed,
+           "arm": f"control:{args.control_voice}" if args.control_voice
+                  else "lora",
            "ecapa_error": err, "results": results}
     try:
         from experiments.provenance import provenance
