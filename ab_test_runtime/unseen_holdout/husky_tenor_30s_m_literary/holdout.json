@@ -1,0 +1,198 @@
+{
+  "trained_zip": "narrator_cindy_kay_water_moon:_a_novel_[b0d26l1r1d]_char1_vol01.zip",
+  "source_dir": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]",
+  "source_volumes": 20,
+  "volumes_excluded_as_training_data": [
+    [
+      "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol13",
+      200
+    ]
+  ],
+  "voices_in_book": 1,
+  "trained_clips": 200,
+  "unseen_pool": 3770,
+  "requested": 20,
+  "written": 20,
+  "seed": 20260904,
+  "clips": [
+    {
+      "audio_filepath": "val/unseen_000.wav",
+      "text": "“But I have been doing this job for a *very* long time. .... I can tell when people are happy and when they are *not*,",
+      "duration": 8.2,
+      "start": 1299.32,
+      "end": 1307.52,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol01"
+    },
+    {
+      "audio_filepath": "val/unseen_001.wav",
+      "text": "Desks were still overturned, glass was still shattered, papers were still strewn every which way, but now Keishin began to see the *design* disguising itself as disarray. ....",
+      "duration": 11.78,
+      "start": 6299.26,
+      "end": 6311.04,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol04"
+    },
+    {
+      "audio_filepath": "val/unseen_002.wav",
+      "text": "“*I…I* remember.” .... Hana exhaled, throwing her arms around him. Keishin held her *tight*.",
+      "duration": 8.76,
+      "start": 17383.54,
+      "end": 17392.3,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_003.wav",
+      "text": "Each day, your hands create *cranes* from the seconds and minutes of the other world.” .... “I fold paper.”",
+      "duration": 7.42,
+      "start": 16326.96,
+      "end": 16334.38,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_004.wav",
+      "text": "Hana pushed herself off the floor and ran to the one place in the pawnshop that could have kept him safe. .... The trees of the tsubo niwa rustled in the breeze behind the pawnshop’s *back* door.",
+      "duration": 13.0,
+      "start": 3212.74,
+      "end": 3225.74,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol02"
+    },
+    {
+      "audio_filepath": "val/unseen_005.wav",
+      "text": "Hana ... nodded. .... “These docks belong to the *kashu*. Each *kashu* takes you to a *different* place.” The *kashu* stood at the end of the dock,",
+      "duration": 10.98,
+      "start": 12878.6,
+      "end": 12889.58,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol08"
+    },
+    {
+      "audio_filepath": "val/unseen_006.wav",
+      "text": "“Hana!” ... A group of *children* emerged from the dark, dragging Hana between them. .... Keishin wrestled free from the children,",
+      "duration": 8.52,
+      "start": 28668.24,
+      "end": 28676.76,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol17"
+    },
+    {
+      "audio_filepath": "val/unseen_007.wav",
+      "text": "College. ... Marriage. ... Kids. .... These were the *big* decisions that people believed *mattered*. ....",
+      "duration": 9.14,
+      "start": 17129.32,
+      "end": 17138.46,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_008.wav",
+      "text": "He crashed into the icy water feetfirst but was too *busy* being *terrified* to feel cold. .... He sank into the darkness,",
+      "duration": 8.4,
+      "start": 17070.9,
+      "end": 17079.3,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol10"
+    },
+    {
+      "audio_filepath": "val/unseen_009.wav",
+      "text": "Terminal velocity. ... You’re a *physics* major. Figure it out.” Keishin never took up smoking or learned how to knit.",
+      "duration": 8.7,
+      "start": 4885.74,
+      "end": 4894.44,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol03"
+    },
+    {
+      "audio_filepath": "val/unseen_010.wav",
+      "text": "“*I* *told* you, Otou san.” ... She giggled. “*I* *told* you that *our* sister was hiding *here*.” .... Chapter Fifty",
+      "duration": 11.04,
+      "start": 29384.66,
+      "end": 29395.7,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol17"
+    },
+    {
+      "audio_filepath": "val/unseen_011.wav",
+      "text": "a porter’s *son*, and made him swear not to *tell* anyone. .... Before the day was over, everyone in the market knew my *crime*.",
+      "duration": 8.26,
+      "start": 26305.76,
+      "end": 26314.02,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol15"
+    },
+    {
+      "audio_filepath": "val/unseen_012.wav",
+      "text": "Hana said. “*It* would be a pretty useless bag and would get very heavy if I had to carry around things inside it.” .... Keishin laughed.",
+      "duration": 8.3,
+      "start": 12748.16,
+      "end": 12756.46,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol08"
+    },
+    {
+      "audio_filepath": "val/unseen_013.wav",
+      "text": "her heart *pounding* against her ribs. .... She could not imagine what it was like to be folded, and she did not have high hopes that it would be *pleasant*.",
+      "duration": 8.86,
+      "start": 15734.4,
+      "end": 15743.26,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol09"
+    },
+    {
+      "audio_filepath": "val/unseen_014.wav",
+      "text": "A Punishment to Fit the Crime ... Hana lay next to Haruto and watched *him* sleep.",
+      "duration": 8.9,
+      "start": 21100.42,
+      "end": 21109.32,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol12"
+    },
+    {
+      "audio_filepath": "val/unseen_015.wav",
+      "text": "“They visit each other’s homes?” “*Er…yes*. They…um…visit.” “*Like* what we are doing now.”",
+      "duration": 8.02,
+      "start": 13344.92,
+      "end": 13352.94,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol08"
+    },
+    {
+      "audio_filepath": "val/unseen_016.wav",
+      "text": "“Freshly picked. .... Whose is it?” “My mother’s. .... She gave it to me before we *escaped*.",
+      "duration": 7.24,
+      "start": 32553.62,
+      "end": 32560.86,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol19"
+    },
+    {
+      "audio_filepath": "val/unseen_017.wav",
+      "text": "“That, and because the person he trusts *most* in this world lives in this village.” .... “Who?” A tall woman with white blond hair whose face bore a *striking* resemblance to Haruto’s",
+      "duration": 12.38,
+      "start": 18970.46,
+      "end": 18982.84,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol11"
+    },
+    {
+      "audio_filepath": "val/unseen_018.wav",
+      "text": "Hana fed him the porridge. “*You* do not need to take care of me, Hana.” “I want to.” Hana dabbed his lips with a soft cloth. ....",
+      "duration": 9.64,
+      "start": 20241.82,
+      "end": 20251.46,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol12"
+    },
+    {
+      "audio_filepath": "val/unseen_019.wav",
+      "text": "“You want to see me fall?” ... “I want to see you so happy, you laugh your heart out.” .... “I…wish the same for you.”",
+      "duration": 8.84,
+      "start": 24195.72,
+      "end": 24204.56,
+      "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol14"
+    }
+  ],
+  "provenance": {
+    "script": "build_unseen_holdout.py",
+    "written": "2026-09-04T17:43:31",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
+      "branch": "agent/unseen-holdout-20260904",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M app/experiments/build_unseen_holdout.py",
+        " M app/tests/test_unseen_holdout.py"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+    },
+    "args": {
+      "error": "vars() argument must have __dict__ attribute"
+    }
+  }
+}

@@ -3124,6 +3124,16 @@
     "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_a_failed_book_makes_the_run_fail",
     "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_all_books_succeeding_reports_done"
   ],
+  "test_unseen_holdout": [
+    "tests.test_unseen_holdout.MultiVoiceBooks.test_a_cast_production_is_refused",
+    "tests.test_unseen_holdout.MultiVoiceBooks.test_a_single_voice_book_is_allowed",
+    "tests.test_unseen_holdout.MultiVoiceBooks.test_the_override_exists_but_records_the_voice_count",
+    "tests.test_unseen_holdout.UnseenHoldout.test_clips_are_deduplicated_across_repeated_listings",
+    "tests.test_unseen_holdout.UnseenHoldout.test_it_refuses_when_a_trained_clip_cannot_be_traced",
+    "tests.test_unseen_holdout.UnseenHoldout.test_no_trained_clip_is_ever_returned",
+    "tests.test_unseen_holdout.UnseenHoldout.test_the_whole_contributing_volume_is_dropped",
+    "tests.test_unseen_holdout.UnseenHoldout.test_written_audio_matches_the_manifest"
+  ],
   "test_verbalization": [
     "tests.test_verbalization.BracketedSpanTest.test_an_emoticon_is_not_treated_as_a_span",
     "tests.test_verbalization.BracketedSpanTest.test_bracketed_span_is_split_out",

@@ -1,0 +1,198 @@
+{
+  "trained_zip": "narrator_ralph_lister_gardens_of_the_moon_char1_vol01.zip",
+  "source_dir": "Ralph Lister Gardens of the Moon-converted",
+  "source_volumes": 52,
+  "volumes_excluded_as_training_data": [
+    [
+      "Ralph Lister Gardens of the Moon-converted_vol15.zip",
+      200
+    ]
+  ],
+  "voices_in_book": 1,
+  "trained_clips": 200,
+  "unseen_pool": 10147,
+  "requested": 20,
+  "written": 20,
+  "seed": 20260904,
+  "clips": [
+    {
+      "audio_filepath": "val/unseen_000.wav",
+      "text": "She climbed to her knees. .... Something within Rigga’s *prophecy* seemed lodged in the girl’s head,",
+      "duration": 8.22,
+      "start": 1588.3,
+      "end": 1596.52,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol01.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_001.wav",
+      "text": "and he hurried over to the weapon. “The man’s a *hopeless* legend,” Dujek said. “Shedenul *bless* his *hide*.”",
+      "duration": 8.5,
+      "start": 20034.86,
+      "end": 20043.36,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol12.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_002.wav",
+      "text": "their heads dipping to watch him as they glided back in his direction. .... “Estideein *eleint*,”",
+      "duration": 7.4,
+      "start": 79565.84,
+      "end": 79573.24,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol46.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_003.wav",
+      "text": "she leaned back slightly and, from under *heavy* lids, studied the High Fist. .... Three years of enforced passivity in this siege",
+      "duration": 8.88,
+      "start": 8352.58,
+      "end": 8361.46,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol05.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_004.wav",
+      "text": "more ... to *himself* than to the man who shared the fire. “There are no *lessons* worthy enough for a noble to *heed*.",
+      "duration": 7.34,
+      "start": 68377.58,
+      "end": 68384.92,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol40.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_005.wav",
+      "text": "Beyond him was a hobbled mule. .... The man *tottered*, his weight on one leg, and *unsheathed* a bastard sword,",
+      "duration": 8.64,
+      "start": 67823.02,
+      "end": 67831.66,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol40.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_006.wav",
+      "text": "The pain ... reached the surface. Paran felt his gummy lips split. The hinges of his jaw cracked and he drew in a *savage* gasp.",
+      "duration": 10.12,
+      "start": 19098.98,
+      "end": 19109.1,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol11.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_007.wav",
+      "text": "She’d been sleeping with *Calot* the past *four* months: a little *diversionary* pleasure to ease the boredom of a *siege* that wasn’t going *anywhere*. ....",
+      "duration": 10.44,
+      "start": 7594.2,
+      "end": 7604.64,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol05.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_008.wav",
+      "text": "Before him ... an image formed that made him jerk with surprise. .... “*What*,” he whispered,",
+      "duration": 7.08,
+      "start": 61574.98,
+      "end": 61582.06,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol36.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_009.wav",
+      "text": "“*I* *am* to convey a message to you,” he continued, “most unusual in its *source*. Indeed,",
+      "duration": 7.36,
+      "start": 53398.96,
+      "end": 53406.32,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol31.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_010.wav",
+      "text": "Dujek’s grunt was amused. “*Four* in the last *week*, Adjunct. You get used to it.",
+      "duration": 7.62,
+      "start": 38330.26,
+      "end": 38337.88,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol22.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_011.wav",
+      "text": "Is there no shelter on yon road? Ah, Kruppe’s feet are flailed, his soles bloodied shreds of *throbbing* flesh!",
+      "duration": 9.58,
+      "start": 23132.42,
+      "end": 23142.0,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol14.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_012.wav",
+      "text": "Against the south side of the hill the ground had been ... carved out, not in search of a barrow but as a *stone* quarry.",
+      "duration": 7.8,
+      "start": 60913.4,
+      "end": 60921.2,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol36.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_013.wav",
+      "text": "“Knight of House Dark is the *wild* card,” he said. “That’s the *opening* suit, too. Unless you’re holding the Virgin of Death. ....",
+      "duration": 7.82,
+      "start": 77798.04,
+      "end": 77805.86,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol45.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_014.wav",
+      "text": "There was little subtlety about Kalam: where others used finesse he used the strength of his *thick* arms and legs.",
+      "duration": 7.7,
+      "start": 55001.26,
+      "end": 55008.96,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol32.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_015.wav",
+      "text": "one particular night in the Mouse, when every *nightmare* a young girl’s imagination could hold became *real*.",
+      "duration": 7.84,
+      "start": 39620.16,
+      "end": 39628.0,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol23.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_016.wav",
+      "text": "if only for a moment. .... And that, thinks Kruppe, shall return to us all, for good or ill.”",
+      "duration": 7.98,
+      "start": 52159.2,
+      "end": 52167.18,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol31.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_017.wav",
+      "text": "He pulled away, eyes averted. “Don’t be, *Sorceress*.” He met her gaze. ....",
+      "duration": 8.66,
+      "start": 7442.58,
+      "end": 7451.24,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol05.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_018.wav",
+      "text": "Prediction had become a privilege now ... lost to her. .... Never mind the outside world, she could not even guess *her* own actions,",
+      "duration": 8.42,
+      "start": 65276.98,
+      "end": 65285.4,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol38.zip"
+    },
+    {
+      "audio_filepath": "val/unseen_019.wav",
+      "text": "Whoever they are, they’re good at hiding themselves. .... Now, we might just decide to kill every mage in Darujhistan, but that would take *too* long,",
+      "duration": 9.6,
+      "start": 86476.22,
+      "end": 86485.82,
+      "source_volume": "Ralph Lister Gardens of the Moon-converted_vol50.zip"
+    }
+  ],
+  "provenance": {
+    "script": "build_unseen_holdout.py",
+    "written": "2026-09-04T17:43:30",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
+      "branch": "agent/unseen-holdout-20260904",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M app/experiments/build_unseen_holdout.py",
+        " M app/tests/test_unseen_holdout.py"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+    },
+    "args": {
+      "error": "vars() argument must have __dict__ attribute"
+    }
+  }
+}
