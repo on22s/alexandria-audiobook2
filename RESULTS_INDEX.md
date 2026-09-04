@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1013 artifacts, 1249 arms.
+Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1014 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1557,6 +1557,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_speaker_consistency_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `dataset_tone_spread.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
