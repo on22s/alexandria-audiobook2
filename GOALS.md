@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3018** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3073** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2716,6 +2716,61 @@ as out of scope, which this triage does. Measuring them would put an author's
 credits and a Spanish idiom into a Japanese-loanword lexicon.
 
 Evidence: `ab_test_runtime/experiments/shipped_term_triage.json`.
+
+**THE EIGHTEEN WERE TRIAGED, THEN THE IN-SCOPE FIVE WERE MEASURED — 2026-09-04.
+Coverage moves 78.0% -> 81.7%, and the more useful result is that the question
+was mis-framed.** Thirteen of the eighteen are not foreign loanwords at all:
+nine are names (`masaharu`, `masahiro`, `makoto`, `nezumi`, `subara`, `barusu`,
+`basuru`, `maringo`, `daichi` - among them a character nickname, afterword
+credits and an author's pen name), one is a place, `mano` is Spanish, and
+`gauaa`/`gaurururu` are growls. **That triage is a judgement, not a
+measurement** - made from the surrounding sentences, a dictionary and a web
+search, and recorded here so it can be disputed. It matters that it was made:
+measuring all eighteen would have written a pen name and a Spanish idiom into a
+Japanese-loanword lexicon, which is the failure this goal exists to prevent.
+
+The five in scope were measured on the local card
+(`respelling_five_terms_ja.json`, `respelling_five_terms_unattributed.json`;
+two passes, because `--verdict` is an exact match and `meimei` is attributed
+`unattributed`, and because `--min-books 20` would silently have dropped `deka`
+at 6 books and `kuchibashi` at 4):
+
+| term | books | plain says it | respelled | outcome |
+|---|---|---|---|---|
+| kuchibashi | 4 | no (0.25) | クチバシ, clean | **entry** |
+| manga | 3602 | **yes** (1.0) | マネガブ | **harm** |
+| pachinko | 111 | **yes** (1.0) | シーナコー | **harm** |
+| deka | 6 | no | no | no change |
+| meimei | 58 | no | no | no change |
+
+**One entry from five terms, and two of the five were made worse** - the two
+the engine already pronounced correctly. That is this goal's 69.7% harm rate
+reproduced on the terms that actually ship, and it is the entry rule earning
+its keep rather than a new finding.
+
+**Three of the five never needed measuring, and the scan should have said so.**
+`manga`, `pachinko` and `deka` were already in
+`respelling_measure_rescored.json`. They counted as `NEITHER` because
+`shipped_book_lexicon_coverage.py` defines that state as *absent from the entry
+list and absent from the unfixable list* - and a term whose plain form already
+works is absent from both by design, since an entry would do it harm. **The
+scan reports a correctly-handled term as uncovered.** Nine of the fifteen still
+listed are in exactly that state. The 81.7% is therefore a floor, and the
+instrument, not the lexicon, is what needs the next fix (goal 6.6).
+
+**`deka` disagrees with itself across arms** - `plain_recovers_word` is `True`
+in the rescored baseline and `False` in today's run, same word, same plain
+spelling, no respelling involved. That is the 34-in-391 churn this goal already
+records, landing on one term in five. Its new verdict is not load-bearing and
+no entry rests on it.
+
+Rebuilt `lexicon_candidates.json` over the three arms it already named in
+`arms_read` plus the two new ones: 1,057 entries, 5,620 recorded unfixable, 931
+excluded because the plain reading already works.
+
+**Two of the fifteen that remain are unexplained**: `tsundere` left the list
+and `baru` joined it, and neither term was measured today. Until that is traced
+the fifteen should be read as approximately, not exactly, the remainder.
 
 **A note on how this was nearly got wrong.** The first version parsed the
 discovery script's stdout with awk and returned three terms that were words

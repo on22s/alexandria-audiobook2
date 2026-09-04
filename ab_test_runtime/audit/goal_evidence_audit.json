@@ -437,24 +437,24 @@
   {
    "goal": "5.5",
    "title": "Foreign words are said as foreign words",
-   "cited": 10,
+   "cited": 12,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "pronunciation.json"
    ],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 8,
+    "supported_structure": 10,
     "exploratory": 1
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 1,
    "no_commit": 1,
    "artifacts": [
     {
      "name": "lexicon_candidates.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "02421630"
+     "dirty": false,
+     "commit": "a357961b"
     },
     {
      "name": "respelling_e_row__ay.json",
@@ -491,6 +491,18 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "8b6b4597"
+    },
+    {
+     "name": "respelling_five_terms_ja.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a357961b"
+    },
+    {
+     "name": "respelling_five_terms_unattributed.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a357961b"
     },
     {
      "name": "respelling_measure_rescored.json",

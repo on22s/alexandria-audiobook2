@@ -1611,6 +1611,8 @@ respelling_e_row__ay_sample2.json,supported_structure,provenance,yes,,,,,,,,,,,,
 respelling_e_row__e.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_e_row__ei.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_earcheck.json,supported_structure,none,no,,209b38bf,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+respelling_five_terms_ja.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+respelling_five_terms_unattributed.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_hyphen_allrows_n1600.json,supported_structure,provenance,yes,,,5.2,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_measure.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 respelling_measure_rescored.json,exploratory,none,no,,0cbbe0d5,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -1726,7 +1728,7 @@ seed_instruction_controls.json,supported_structure,provenance,yes,,,,1234,,,,,,,
 segmentation_classifier.json,exploratory,git+naming,no,segmentation_classifier.py,3ddd0df4,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 selection_gap_recheck.json,exploratory,git+naming,no,selection_gap_recheck.py,803be47d,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 shipped_book_lexicon_coverage.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-shipped_term_triage.json,exploratory,none,no,,fd21580b,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+shipped_term_triage.json,exploratory,none,no,,fd183d87,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 shipping_readiness.json,exploratory,git+naming,no,shipping_readiness.py,edba0ca7,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 simd_benchmark.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 source_coverage_single.json,supported_structure,git+naming,no,source_coverage.py,65bf3a27,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
