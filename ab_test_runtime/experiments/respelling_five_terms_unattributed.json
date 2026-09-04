@@ -1,0 +1,75 @@
+{
+  "carrier": "She paused and said {word} before going on.",
+  "e_spelling": "eh",
+  "separator": "hyphen",
+  "note": "scored on READINGS, not characters: `recovers_word` is the whole word present unbroken, which is the headline. `scattered` is the retired per-character score, kept only so the two can be compared - see scattered_overlap",
+  "candidates_considered": 1,
+  "status": "complete",
+  "provenance": {
+    "script": "measure_respellings.py",
+    "written": "2026-09-04T16:39:59",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "a357961be39b3ee54baddf518991ff94eec04b8d",
+      "branch": "main",
+      "dirty": false,
+      "modified_tracked_files": null,
+      "untracked_harness_files": null,
+      "harness_sha256": "30f85df892c02f0d19129e32e31c5a0f1897dd09218c40ca82d66eaec0b2e28a"
+    },
+    "args": {
+      "candidates": "ab_test_runtime/five_terms_candidates.json",
+      "verdict": "unattributed",
+      "min_books": 1,
+      "limit": 0,
+      "rule": "a",
+      "separator": "hyphen",
+      "e_spelling": "eh",
+      "only_e_row": false,
+      "only_failed": null,
+      "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+      "whisper_cpp_model": "whisper.cpp/models/ggml-base.bin",
+      "work": "ab_test_runtime/respelling_five_unattributed",
+      "out": "ab_test_runtime/experiments/respelling_five_terms_unattributed.json"
+    }
+  },
+  "run_identity": {
+    "rule": "a",
+    "separator": "hyphen",
+    "e_spelling": "eh",
+    "verdict": "unattributed",
+    "min_books": 1,
+    "only_e_row": false,
+    "limit": 0,
+    "inputs": {
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/five_terms_candidates.json": "d2ed3ec3117baf99a67e002517843427763ed2404a2deedd77044d6ca42cad9e",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/whisper.cpp/build/bin/whisper-cli": "845f35213548ce717e7808aba77c4241f161fc2b73dab4e181751731dee7672c",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/whisper.cpp/models/ggml-base.bin": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json": "f4458164be7291f7f440df2c02710374145f8c6506c7b377296893cab66e2a7a",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/experiments/measure_respellings.py": "27cf3654a783cf194ff3f4171e410bf3ee47d719d56f1e2c6d403e44a8541b80",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/tts.py": "8d791d482e989931c7701d403c7c4ccca665930dbb5bebee9063b3618d089095",
+      "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/experiments/generation.py": "bd501c5f282fee3dc5cd3e42bd68e45a0befbd687bb52e1b95a9dd996bfa69a1"
+    },
+    "voice": "serena"
+  },
+  "results": [
+    {
+      "term": "meimei",
+      "kana": "メイメイ",
+      "respelling": "meh-ee-meh-ee",
+      "books": 58,
+      "series": 15,
+      "plain_heard": "「スタッフの前に、前に行きましょう」",
+      "plain_recovers_word": false,
+      "plain_closeness": 0.25,
+      "plain_scattered": 0.5,
+      "respelled_heard": "「C-Paws」と言って「M-E-M-E」を見つけた",
+      "respelled_recovers_word": false,
+      "respelled_closeness": 0.25,
+      "respelled_scattered": 0.5,
+      "helps": false,
+      "hurts": false,
+      "closeness_delta": 0.0
+    }
+  ]
+}

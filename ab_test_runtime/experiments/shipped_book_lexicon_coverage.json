@@ -1,28 +1,25 @@
 {
  "note": "Maps goal 5.5's measured terms onto the SHIPPED books. The candidate record counts books over the whole library; this names which saved scripts each term actually occurs in.",
  "shipped_books": 29,
- "terms_measured_total": 6674,
+ "terms_measured_total": 6677,
  "terms_present_in_shipped_books": 82,
- "present_with_entry": 9,
- "present_recorded_unfixable": 55,
- "present_in_neither_state": 18,
- "coverage_percent": 78.0,
+ "present_with_entry": 10,
+ "present_recorded_unfixable": 57,
+ "present_in_neither_state": 15,
+ "coverage_percent": 81.7,
  "terms_in_neither_state": [
   "baru",
   "barusu",
   "basuru",
   "daichi",
-  "deka",
   "gauaa",
   "gaurururu",
-  "kuchibashi",
   "makoto",
   "manga",
   "mano",
   "maringo",
   "masaharu",
   "masahiro",
-  "meimei",
   "nezumi",
   "pachinko",
   "subara"
@@ -872,21 +869,19 @@
  },
  "provenance": {
   "script": "shipped_book_lexicon_coverage.py",
-  "written": "2026-09-04T11:58:56",
+  "written": "2026-09-04T16:44:06",
   "host": "mitch-linux",
   "git": {
-   "commit": "93e2dcd5527b9190a0b4d7969a4f40af869a8e38",
-   "branch": "results/shipped-book-lexicon-coverage",
-   "dirty": true,
+   "commit": "a357961be39b3ee54baddf518991ff94eec04b8d",
+   "branch": "main",
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/shipped_book_lexicon_coverage.py"
-   ],
-   "harness_sha256": "4b0222a4ec8dee279f61d64607aa27ac9cf4eb40b5dc079cda951a98c3d1746b"
+   "untracked_harness_files": null,
+   "harness_sha256": "30f85df892c02f0d19129e32e31c5a0f1897dd09218c40ca82d66eaec0b2e28a"
   },
   "args": {
    "scripts": "scripts",
-   "candidates": "lexicon_candidates.json",
+   "candidates": "ab_test_runtime/experiments/lexicon_candidates.json",
    "out": "ab_test_runtime/experiments/shipped_book_lexicon_coverage.json"
   }
  }
