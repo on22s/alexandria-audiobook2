@@ -842,6 +842,7 @@ lexicon_backmatter_probe.json,exploratory,git+naming,no,lexicon_backmatter_probe
 lexicon_candidates.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lexicon_corpus_candidates.json,exploratory,none,no,,a3f6a384,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_pilot.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+library_fidelity_control_ryan_seed20260925.json,supported_structure,provenance,yes,,,,20260925,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_fidelity_seed_20260827_n20.json,supported_structure,provenance,yes,,,,20260827,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_fidelity_seed_20260828_n20.json,supported_structure,provenance,yes,,,,20260828,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_fidelity_seed_20260829_n20.json,supported_structure,provenance,yes,,,,20260829,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
