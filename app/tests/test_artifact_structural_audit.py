@@ -55,6 +55,22 @@ class StructuralAuditTests(unittest.TestCase):
         self.assertEqual(1, len(result["artifacts"]))
         self.assertIn("unreadable JSON", result["artifacts"][0]["reason"])
 
+    def test_matching_stored_summary_is_accepted(self):
+        self.write("matching.json", {
+            "rows": [{"arm": "base", "correct": True}],
+            "summary": {"base": {"n": 1, "correct": 1}},
+        })
+        result = audit.build_audit(str(self.root))
+        self.assertEqual([], result["artifacts"][0]["stored_summary_problems"])
+
+    def test_inconsistent_stored_summary_stops_the_audit(self):
+        self.write("inconsistent.json", {
+            "rows": [{"arm": "base", "correct": False}],
+            "summary": {"base": {"n": 1, "correct": 1}},
+        })
+        with self.assertRaisesRegex(ValueError, "summaries inconsistent"):
+            audit.build_audit(str(self.root))
+
 
 class IndexableArtifactTests(unittest.TestCase):
     """A checked-in index may only contain what everyone else can see.

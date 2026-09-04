@@ -12,7 +12,7 @@ import sys
 REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
-from experiments.manifest import completeness  # noqa: E402
+from experiments.manifest import completeness, validate_stored_summary  # noqa: E402
 EXPERIMENT_DIR = os.path.join(REPO, "ab_test_runtime", "experiments")
 DEFAULT_OUT = os.path.join(
     REPO, "ab_test_runtime", "audit", "artifact_structural_audit.json")
@@ -52,6 +52,7 @@ def classify_artifact(path):
     # indistinguishable here from one that completed. Same question as the
     # chains and the scorers ask, one definition (Rule 15).
     row["completeness"] = completeness(doc)
+    row["stored_summary_problems"] = validate_stored_summary(doc)
 
     provenance = doc.get("provenance")
     meta = doc.get("meta")
@@ -186,6 +187,15 @@ def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):
 def build_audit(experiment_dir=EXPERIMENT_DIR):
     paths, _ = indexable_artifacts(experiment_dir)
     artifacts = [classify_artifact(path) for path in paths]
+    inconsistent = [row for row in artifacts
+                    if row.get("stored_summary_problems")]
+    if inconsistent:
+        details = "; ".join(
+            f"{row['artifact']}: {', '.join(row['stored_summary_problems'])}"
+            for row in inconsistent[:5])
+        raise ValueError(
+            f"{len(inconsistent)} artifact(s) have summaries inconsistent "
+            f"with their rows: {details}")
     summary = dict(collections.Counter(
         row["classification"] for row in artifacts))
     return {

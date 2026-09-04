@@ -303,6 +303,12 @@ class ContractValidationTest(unittest.TestCase):
         record.meta["lmstudio"]["context_length"] = None
         self.assertTrue(any("context_length" in p for p in record.validate()))
 
+    def test_an_unloaded_model_is_caught_and_a_loaded_model_passes(self):
+        record = self._record()
+        self.assertFalse(any("load state" in p for p in record.validate()))
+        record.meta["lmstudio"]["loaded"] = False
+        self.assertTrue(any("load state" in p for p in record.validate()))
+
     def test_a_different_loaded_model_is_caught(self):
         record = self._record()
         record.meta["lmstudio"]["verified_model"] = "some-other-model"
