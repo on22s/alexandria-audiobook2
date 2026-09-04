@@ -855,6 +855,12 @@
     "tests.test_elson_trigram.ResolveTest.test_an_empty_surface_resolves_to_nothing",
     "tests.test_elson_trigram.ResolveTest.test_pronouns_never_resolve"
   ],
+  "test_empty_predictions_are_rejected": [
+    "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_a_run_may_still_opt_out_explicitly",
+    "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_an_all_empty_arm_is_rejected_without_being_asked",
+    "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_an_arm_that_does_not_predict_is_left_alone",
+    "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_one_real_prediction_is_enough_to_pass"
+  ],
   "test_ensure_llama_server_default": [
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
