@@ -1,0 +1,125 @@
+{
+ "note": "Longest back-to-back repeat of one token, and the share taken by the most frequent token, per transcribed clip. Sizes the looping failure recorded at 3.2. No threshold is asserted.",
+ "clips": 2834,
+ "artifacts": {
+  "tts_output_validation_adapter_seed20260925.json": 1417,
+  "tts_output_validation_control_seed20260925.json": 1417
+ },
+ "longest_run": {
+  "median": 1,
+  "p90": 1,
+  "max": 17
+ },
+ "clips_with_a_run_of": {
+  "3": 5,
+  "4": 1,
+  "5": 1,
+  "8": 1
+ },
+ "worst": [
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_seed_20260925_n20_full75/warm_baritone_30s_m_1/gen_11.wav",
+   "words": 23,
+   "longest_run": 17,
+   "dominant_share": 0.7826,
+   "wer": 0.8095,
+   "class": null,
+   "artifact": "tts_output_validation_adapter_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_seed_20260925_n20_full75/warm_tenor_20s_m_scifi/gen_8.wav",
+   "words": 7,
+   "longest_run": 3,
+   "dominant_share": 0.4286,
+   "wer": 0.5,
+   "class": null,
+   "artifact": "tts_output_validation_adapter_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/warm_tenor_20s_m_scifi/gen_8.wav",
+   "words": 7,
+   "longest_run": 3,
+   "dominant_share": 0.4286,
+   "wer": 0.3333,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/warm_baritone_40s_m_scifi/gen_17.wav",
+   "words": 24,
+   "longest_run": 3,
+   "dominant_share": 0.1667,
+   "wer": 0.6471,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/silky_alto_40s_f_cyberpunk/gen_12.wav",
+   "words": 51,
+   "longest_run": 3,
+   "dominant_share": 0.1373,
+   "wer": 1.6364,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_seed_20260925_n20_full75/warm_alto_50s_f_anime/gen_17.wav",
+   "words": 7,
+   "longest_run": 2,
+   "dominant_share": 0.5714,
+   "wer": 0.0,
+   "class": null,
+   "artifact": "tts_output_validation_adapter_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/warm_alto_50s_f_anime/gen_17.wav",
+   "words": 7,
+   "longest_run": 2,
+   "dominant_share": 0.5714,
+   "wer": 0.0,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/warm_baritone_40s_m_fantasy/gen_5.wav",
+   "words": 13,
+   "longest_run": 2,
+   "dominant_share": 0.2308,
+   "wer": 0.1667,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_seed_20260925_n20_full75/crisp_tenor_20s_m/gen_14.wav",
+   "words": 20,
+   "longest_run": 2,
+   "dominant_share": 0.2,
+   "wer": 0.0,
+   "class": null,
+   "artifact": "tts_output_validation_adapter_seed20260925.json"
+  },
+  {
+   "wav": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/library_fidelity_control_ryan_20260925/crisp_tenor_20s_m/gen_14.wav",
+   "words": 20,
+   "longest_run": 2,
+   "dominant_share": 0.2,
+   "wer": 0.05,
+   "class": null,
+   "artifact": "tts_output_validation_control_seed20260925.json"
+  }
+ ],
+ "provenance": {
+  "script": "detect_repetition.py",
+  "written": "2026-09-04T16:14:24",
+  "host": "mitch-linux",
+  "git": {
+   "error": "No module named 'experiments'"
+  },
+  "args": {
+   "artifacts": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/tts_output_validation_*.json"
+   ],
+   "out": "ab_test_runtime/experiments/repetition_scan.json"
+  }
+ }
+}

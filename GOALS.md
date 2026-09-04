@@ -3682,9 +3682,27 @@ would separate that from ordinary inaccuracy: not 2.3, since that clip asked 21
 words and produced 23 (ratio 1.10, inside its band, because a loop fills the
 right amount of time); not this goal's file check, since the audio is real and
 decodable; not 2.1 or 2.5, since timbre and pitch may be fine while the words
-are one syllable repeated. **One clip of 1,417 is the whole evidence** — enough
-to know it is real, not enough to size it, so no rate is claimed. A repetition
-check over the clips already on disk would size it and has not been run.
+are one syllable repeated. **NOW SIZED — 2026-09-04.** `detect_repetition.py` measured the longest
+back-to-back repeat of one token across all **2,834** transcribed clips, both
+arms:
+
+| | value |
+|---|---|
+| median longest run | 1 |
+| p90 | 1 |
+| max | **17** |
+| clips repeating a word 3+ times | 5 (0.18%) |
+| clips repeating 4+, 5+, 8+ | **1** (0.04%) |
+
+**The failure is real and rare.** The 17-in-a-row clip is the "tanji" one, 78%
+of its transcript a single token — and it is the only clip anywhere past a run
+of three. At the milder end the five split **2 LoRA / 3 stock**, so nothing
+suggests adapters cause it; the one severe case being LoRA is a sample of one.
+
+**Still no threshold is asserted.** A gate invented from 2,834 clips with a
+single severe case would be a guess wearing a number. What the scan gives is a
+denominator: whatever looping costs, it costs it on roughly 1 clip in 2,800,
+and any future arm can be compared against that.
 
 **THE REAL GAP: 4 truncations, all in the LoRA arm, none in the control.** All
 four are the model stopping mid-sentence — 14 words asked and 8 heard, 27 and
