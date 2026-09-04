@@ -480,10 +480,32 @@ class ExperimentRecord:
         expected_arms = contract.get("expected_arms")
         if expected_arms is not None and arms != set(expected_arms):
             problems.append(f"arms {sorted(arms)} != expected {sorted(expected_arms)}")
-        if contract.get("require_any_prediction"):
+        # ON BY DEFAULT, and it did not used to be. This check existed for
+        # exactly the failure it kept missing: on 2026-09-04 an FP8 diagnostic
+        # reported 0/383 for both arms across 766 rows, every prediction None
+        # and no error recorded anywhere. Inference never ran - the model
+        # could not fetch `kernels-community/finegrained-fp8` while Hugging
+        # Face was forced offline, 428 batches failed before a single token,
+        # and each was retried four times. The artifact was structurally
+        # perfect and validated "ok", so it read as a MODEL RESULT: the
+        # adapter answers nothing. That is a claim about a model, made by a
+        # missing dependency.
+        #
+        # It was opt-in, so a run that did not think to ask for it got a clean
+        # bill of health. A guard that must be requested does not guard the
+        # case nobody anticipated.
+        #
+        # SCOPED TO ARMS THAT PREDICT AT ALL: an arm whose rows carry no
+        # `predicted` key is not a prediction experiment (crossbook
+        # normalization compares raw against normalized TEXT) and is left
+        # alone. Measured over all 280 artifacts with arm rows: 16 arms flagged,
+        # all of them genuinely all-empty, 0 false positives.
+        if contract.get("require_any_prediction", True):
             for arm in sorted(arms):
                 arm_rows = [r for r in self.rows if r["arm"] == arm]
-                if arm_rows and not any(r.get("predicted") for r in arm_rows):
+                if not arm_rows or not any("predicted" in r for r in arm_rows):
+                    continue
+                if not any(r.get("predicted") for r in arm_rows):
                     problems.append(
                         f"{arm}: every prediction is empty; this can be an "
                         "inference failure, not a measured null result")
