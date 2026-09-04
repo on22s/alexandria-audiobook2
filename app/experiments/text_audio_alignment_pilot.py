@@ -56,6 +56,30 @@ sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
 from experiments.provenance import provenance  # noqa: E402
 
 WORD = re.compile(r"[a-z0-9']+")
+QUOTE = re.compile(r'[\u201c\u201d\u00ab\u00bb"]')
+
+
+def composition(text):
+    """-> whether a clip holds narration, dialogue, or BOTH.
+
+    WHY THIS IS SEPARATE FROM ALIGNMENT. A clip holding narration AND a quoted
+    line holds the narrator's plain voice and a performed character voice in
+    the same file. That mixture is INSIDE the clip, so no amount of choosing
+    better clips removes it - only recutting at line boundaries does, and that
+    needs the continuous audio rather than the pre-cut archives. The size of
+    this share is therefore the ceiling on what clip selection alone can fix.
+
+    Three words either side, so a stray quotation mark or a one-word
+    interjection does not promote a plain narration clip to BOTH.
+    """
+    parts = QUOTE.split(text or "")
+    if len(parts) < 2:
+        return "narration_only"
+    inside = len(WORD.findall("".join(parts[1::2]).lower()))
+    outside = len(WORD.findall("".join(parts[0::2]).lower()))
+    if inside >= 3 and outside >= 3:
+        return "both"
+    return "dialogue_only" if inside > outside else "narration_only"
 
 
 def words(text):
@@ -146,9 +170,13 @@ def run(epub, volumes, k, limit):
             if book[pos:pos + len(seq)] == seq:
                 exact += 1
         rho, n = spearman([t for t, _ in found], [p for _, p in found])
+        comp = collections.Counter(composition(txt) for _, txt in clips)
         out.append({
             "volume": os.path.basename(vol),
             "clips": len(clips),
+            "composition": dict(comp),
+            "both_narration_and_dialogue_pct": round(
+                100.0 * comp["both"] / len(clips), 1) if clips else None,
             "located": len(found),
             "exact_word_for_word": exact,
             "rate": round(len(found) / len(clips), 4) if clips else None,
@@ -242,6 +270,12 @@ def main():
         print(f"  {v['volume'][-12:]:14} located {v['located']:4}/{v['clips']:<4} "
               f"exact {v['exact_word_for_word']:4} "
               f"decoy {(d['rate'] or 0)*100:4.1f}%   order {order}")
+    both = sum(v["composition"].get("both", 0) for v in real["volumes"])
+    allc = sum(v["clips"] for v in real["volumes"])
+    print(f"\nclips holding BOTH narration and dialogue: {both}/{allc} "
+          f"({100.0*both/allc:.1f}%)")
+    print("   selection cannot fix these - the mixture is inside the clip, "
+          "and only recutting at line boundaries removes it")
     print(f"\nmean match rate  {(doc['mean_rate'] or 0)*100:.1f}%"
           f"   decoy {(doc['decoy_mean_rate'] or 0)*100:.1f}%")
     if sweep:

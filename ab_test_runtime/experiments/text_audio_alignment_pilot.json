@@ -10,6 +10,12 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol01.zip",
     "clips": 200,
+    "composition": {
+     "narration_only": 122,
+     "both": 63,
+     "dialogue_only": 15
+    },
+    "both_narration_and_dialogue_pct": 31.5,
     "located": 200,
     "exact_word_for_word": 199,
     "rate": 1.0,
@@ -23,6 +29,12 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol02.zip",
     "clips": 200,
+    "composition": {
+     "both": 85,
+     "narration_only": 90,
+     "dialogue_only": 25
+    },
+    "both_narration_and_dialogue_pct": 42.5,
     "located": 200,
     "exact_word_for_word": 200,
     "rate": 1.0,
@@ -36,6 +48,145 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol03.zip",
     "clips": 200,
+    "composition": {
+     "narration_only": 143,
+     "both": 45,
+     "dialogue_only": 12
+    },
+    "both_narration_and_dialogue_pct": 22.5,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol04.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 132,
+     "dialogue_only": 16,
+     "both": 52
+    },
+    "both_narration_and_dialogue_pct": 26.0,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol05.zip",
+    "clips": 200,
+    "composition": {
+     "both": 72,
+     "narration_only": 107,
+     "dialogue_only": 21
+    },
+    "both_narration_and_dialogue_pct": 36.0,
+    "located": 200,
+    "exact_word_for_word": 199,
+    "rate": 1.0,
+    "exact_rate": 0.995,
+    "order_agreement": {
+     "rho": 0.9896452411310285,
+     "p": 6.841983388906403e-169
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol06.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 147,
+     "dialogue_only": 7,
+     "both": 46
+    },
+    "both_narration_and_dialogue_pct": 23.0,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol07.zip",
+    "clips": 200,
+    "composition": {
+     "both": 58,
+     "narration_only": 132,
+     "dialogue_only": 10
+    },
+    "both_narration_and_dialogue_pct": 29.0,
+    "located": 199,
+    "exact_word_for_word": 199,
+    "rate": 0.995,
+    "exact_rate": 0.995,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 199
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol08.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 117,
+     "both": 62,
+     "dialogue_only": 21
+    },
+    "both_narration_and_dialogue_pct": 31.0,
+    "located": 200,
+    "exact_word_for_word": 199,
+    "rate": 1.0,
+    "exact_rate": 0.995,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol09.zip",
+    "clips": 200,
+    "composition": {
+     "dialogue_only": 18,
+     "both": 60,
+     "narration_only": 122
+    },
+    "both_narration_and_dialogue_pct": 30.0,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol10.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 102,
+     "both": 84,
+     "dialogue_only": 14
+    },
+    "both_narration_and_dialogue_pct": 42.0,
     "located": 200,
     "exact_word_for_word": 200,
     "rate": 1.0,
@@ -55,6 +206,12 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol01.zip",
     "clips": 200,
+    "composition": {
+     "narration_only": 122,
+     "both": 63,
+     "dialogue_only": 15
+    },
+    "both_narration_and_dialogue_pct": 31.5,
     "located": 0,
     "exact_word_for_word": 0,
     "rate": 0.0,
@@ -65,6 +222,12 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol02.zip",
     "clips": 200,
+    "composition": {
+     "both": 85,
+     "narration_only": 90,
+     "dialogue_only": 25
+    },
+    "both_narration_and_dialogue_pct": 42.5,
     "located": 1,
     "exact_word_for_word": 0,
     "rate": 0.005,
@@ -75,6 +238,124 @@
    {
     "volume": "Ralph Lister Gardens of the Moon-converted_vol03.zip",
     "clips": 200,
+    "composition": {
+     "narration_only": 143,
+     "both": 45,
+     "dialogue_only": 12
+    },
+    "both_narration_and_dialogue_pct": 22.5,
+    "located": 2,
+    "exact_word_for_word": 0,
+    "rate": 0.01,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 2
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol04.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 132,
+     "dialogue_only": 16,
+     "both": 52
+    },
+    "both_narration_and_dialogue_pct": 26.0,
+    "located": 0,
+    "exact_word_for_word": 0,
+    "rate": 0.0,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 0
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol05.zip",
+    "clips": 200,
+    "composition": {
+     "both": 72,
+     "narration_only": 107,
+     "dialogue_only": 21
+    },
+    "both_narration_and_dialogue_pct": 36.0,
+    "located": 0,
+    "exact_word_for_word": 0,
+    "rate": 0.0,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 0
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol06.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 147,
+     "dialogue_only": 7,
+     "both": 46
+    },
+    "both_narration_and_dialogue_pct": 23.0,
+    "located": 0,
+    "exact_word_for_word": 0,
+    "rate": 0.0,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 0
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol07.zip",
+    "clips": 200,
+    "composition": {
+     "both": 58,
+     "narration_only": 132,
+     "dialogue_only": 10
+    },
+    "both_narration_and_dialogue_pct": 29.0,
+    "located": 1,
+    "exact_word_for_word": 0,
+    "rate": 0.005,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 1
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol08.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 117,
+     "both": 62,
+     "dialogue_only": 21
+    },
+    "both_narration_and_dialogue_pct": 31.0,
+    "located": 1,
+    "exact_word_for_word": 0,
+    "rate": 0.005,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 1
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol09.zip",
+    "clips": 200,
+    "composition": {
+     "dialogue_only": 18,
+     "both": 60,
+     "narration_only": 122
+    },
+    "both_narration_and_dialogue_pct": 30.0,
+    "located": 2,
+    "exact_word_for_word": 0,
+    "rate": 0.01,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 2
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol10.zip",
+    "clips": 200,
+    "composition": {
+     "narration_only": 102,
+     "both": 84,
+     "dialogue_only": 14
+    },
+    "both_narration_and_dialogue_pct": 42.0,
     "located": 2,
     "exact_word_for_word": 0,
     "rate": 0.01,
@@ -90,6 +371,12 @@
    "epub": "The Blade Itself (Joe Abercrombie) (z-library.sk, 1lib.sk, z-lib.sk).epub",
    "volume": "Steven Pacey The Blade Itself-converted_vol01",
    "clips": 200,
+   "composition": {
+    "narration_only": 168,
+    "both": 25,
+    "dialogue_only": 7
+   },
+   "both_narration_and_dialogue_pct": 12.5,
    "located": 200,
    "exact_word_for_word": 195,
    "rate": 1.0,
@@ -105,6 +392,10 @@
    "epub": "Malazan Book of the Fallen -04- House of Chains.epub",
    "volume": "Michael Page House of Chains-converted_vol01.zip",
    "clips": 200,
+   "composition": {
+    "narration_only": 200
+   },
+   "both_narration_and_dialogue_pct": 0.0,
    "located": 200,
    "exact_word_for_word": 194,
    "rate": 1.0,
@@ -120,6 +411,12 @@
    "epub": "A Natural History of Dragons.epub",
    "volume": "Kate Reading A Natural History of Dragons-converted_vol01.zip",
    "clips": 200,
+   "composition": {
+    "narration_only": 183,
+    "both": 14,
+    "dialogue_only": 3
+   },
+   "both_narration_and_dialogue_pct": 7.0,
    "located": 199,
    "exact_word_for_word": 199,
    "rate": 0.995,
@@ -135,6 +432,12 @@
    "epub": "Cyberpunk 2077.epub",
    "volume": "Cherami Leigh Cyberpunk 2077-converted_vol01.zip",
    "clips": 200,
+   "composition": {
+    "narration_only": 153,
+    "both": 46,
+    "dialogue_only": 1
+   },
+   "both_narration_and_dialogue_pct": 23.0,
    "located": 200,
    "exact_word_for_word": 200,
    "rate": 1.0,
@@ -150,6 +453,11 @@
    "epub": "Mushoku Tensei - Volume 01.epub",
    "volume": "Cliff Kurt Mushoku Tensei-converted_vol01.zip",
    "clips": 200,
+   "composition": {
+    "narration_only": 187,
+    "both": 13
+   },
+   "both_narration_and_dialogue_pct": 6.5,
    "located": 200,
    "exact_word_for_word": 199,
    "rate": 1.0,
@@ -165,6 +473,12 @@
    "epub": "Spice and Wolf - Volume 10 [Yen Press][Kobo].epub",
    "volume": "J Michael Tatum Spice and Wolf, Vol. 10-converted_vol01.zip",
    "clips": 200,
+   "composition": {
+    "narration_only": 125,
+    "both": 50,
+    "dialogue_only": 25
+   },
+   "both_narration_and_dialogue_pct": 25.0,
    "located": 200,
    "exact_word_for_word": 199,
    "rate": 1.0,
@@ -176,21 +490,21 @@
    "order_n": 200
   }
  ],
- "mean_rate": 1.0,
- "decoy_mean_rate": 0.005,
+ "mean_rate": 0.9995,
+ "decoy_mean_rate": 0.0045,
  "provenance": {
   "script": "text_audio_alignment_pilot.py",
-  "written": "2026-09-04T18:32:30",
+  "written": "2026-09-04T18:40:49",
   "host": "mitch-linux",
   "git": {
-   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+   "commit": "1d58ec3b4b115dc770725413b19ad34d7dca221d",
    "branch": "agent/text-audio-alignment-20260904",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/text_audio_alignment_pilot.py"
+   "modified_tracked_files": [
+    "M app/experiments/text_audio_alignment_pilot.py"
    ],
-   "harness_sha256": "73edd58994229c7fdcfa8bb9d0ba4fd25fe1e629d2dcec9845200532a90b4a7f"
+   "untracked_harness_files": null,
+   "harness_sha256": "4bd5fc82f20b6e60cef6c7800ba46e60ba5af963560808c651c6dbcdfc631c3c"
   },
   "args": {
    "error": "vars() argument must have __dict__ attribute"

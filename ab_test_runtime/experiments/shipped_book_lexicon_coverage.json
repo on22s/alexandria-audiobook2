@@ -1,29 +1,27 @@
 {
  "note": "Maps goal 5.5's measured terms onto the SHIPPED books. The candidate record counts books over the whole library; this names which saved scripts each term actually occurs in.",
  "shipped_books": 29,
- "terms_measured_total": 6677,
+ "terms_measured_total": 7608,
  "terms_present_in_shipped_books": 82,
  "present_with_entry": 10,
  "present_recorded_unfixable": 57,
- "present_in_neither_state": 15,
- "coverage_percent": 81.7,
+ "present_plain_already_works": 11,
+ "third_state_available": true,
+ "present_in_neither_state": 4,
+ "coverage_percent": 95.1,
  "terms_in_neither_state": [
-  "baru",
-  "barusu",
   "basuru",
-  "daichi",
   "gauaa",
   "gaurururu",
-  "makoto",
-  "manga",
-  "mano",
-  "maringo",
-  "masaharu",
-  "masahiro",
-  "nezumi",
-  "pachinko",
   "subara"
  ],
+ "neither_state_with_a_triage_judgement": {
+  "basuru": "name_character",
+  "gauaa": "onomatopoeia",
+  "gaurururu": "onomatopoeia",
+  "subara": "name_character"
+ },
+ "neither_state_unexplained": [],
  "per_book": [
   {
    "book": "Arc 1 - Volume 1",
@@ -869,19 +867,23 @@
  },
  "provenance": {
   "script": "shipped_book_lexicon_coverage.py",
-  "written": "2026-09-04T16:44:06",
+  "written": "2026-09-04T17:56:02",
   "host": "mitch-linux",
   "git": {
-   "commit": "a357961be39b3ee54baddf518991ff94eec04b8d",
-   "branch": "main",
-   "dirty": false,
-   "modified_tracked_files": null,
+   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+   "branch": "agent/coverage-third-state-20260904",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/lexicon_from_measurements.py",
+    " M app/experiments/shipped_book_lexicon_coverage.py"
+   ],
    "untracked_harness_files": null,
-   "harness_sha256": "30f85df892c02f0d19129e32e31c5a0f1897dd09218c40ca82d66eaec0b2e28a"
+   "harness_sha256": "ea78a81756ce04b9b0dd27425d02876b378dce0b54618ce9068738b443e6ebef"
   },
   "args": {
    "scripts": "scripts",
    "candidates": "ab_test_runtime/experiments/lexicon_candidates.json",
+   "triage": "ab_test_runtime/experiments/shipped_term_triage.json",
    "out": "ab_test_runtime/experiments/shipped_book_lexicon_coverage.json"
   }
  }

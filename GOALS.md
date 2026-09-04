@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3171** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3211** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2869,6 +2869,46 @@ excluded because the plain reading already works.
 **Two of the fifteen that remain are unexplained**: `tsundere` left the list
 and `baru` joined it, and neither term was measured today. Until that is traced
 the fifteen should be read as approximately, not exactly, the remainder.
+
+**THE SCAN WAS THE PROBLEM, AND IT IS FIXED — coverage 81.7% -> 95.1%,
+2026-09-04.** Goal 5.5 reaches its conclusions in THREE states, and the scan
+knew two. `lexicon_candidates.json` stored the third — the engine already says
+the word, so an entry would do harm — as a bare count, so the consumer had no
+way to recognise a term in it and filed each one under `NEITHER`. Eleven of
+the fifteen were in that state:
+
+| | before | after |
+|---|---:|---:|
+| with a measured entry | 10 | 10 |
+| recorded as one respelling could not fix | 57 | 57 |
+| plain reading already says it | *not representable* | **11** |
+| in neither state | 15 | **4** |
+| coverage | 81.7% | **95.1%** |
+
+Nothing was measured to earn those 13.4 points. The terms were already
+finished; the instrument could not say so. `plain_already_works` is now written
+as a list beside its count, and a candidates file predating the key returns an
+empty set and prints a note rather than silently reporting the old number —
+a scan whose answer depends on which version wrote its input is worse than one
+that refuses.
+
+**A second instance of the same defect turned up while testing this one.** Run
+from a worktree, where `scripts/` is not checked out, the scan printed `0 books
+scanned, coverage None` and exited 0. It now refuses. Both bugs have the shape
+6.6 names: a check reporting success or a gap where it has simply not looked.
+
+**The four that remain are the ones triage said not to measure** — `basuru` and
+`subara` (name fragments), `gauaa` and `gaurururu` (growls). The scan now reads
+`shipped_term_triage.json` and reports that judgement **beside** the coverage
+figure, never inside it: knowing a term is a growl stops it being re-triaged,
+but it was decided by reading sentences and looking words up, not by measuring,
+and folding it into `coverage_percent` would let a judgement close a
+measurement goal. Zero of the four are unexplained.
+
+**5.5 stays OPEN.** Four terms in the shipped books have no measurement, and
+the target asks for measurement. The remaining work is smaller than it has ever
+been, and it is now honestly sized rather than inflated by an instrument that
+could not see its own third answer.
 
 **A note on how this was nearly got wrong.** The first version parsed the
 discovery script's stdout with awk and returned three terms that were words
