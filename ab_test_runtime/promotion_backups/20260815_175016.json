@@ -1,0 +1,102 @@
+{
+  "promoted_at": "20260815_175016",
+  "backup": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/promotion_backups/20260815_175016",
+  "min_ecapa": 0.45,
+  "adapters": [
+    {
+      "adapter": "breathy_baritone_40s_m_military_2",
+      "gate_ecapa": 0.7072,
+      "shipped_ecapa": 0.6743
+    },
+    {
+      "adapter": "breathy_tenor_50s_m_fantasy",
+      "gate_ecapa": 0.6804,
+      "shipped_ecapa": 0.63
+    },
+    {
+      "adapter": "crisp_mezzo_30s_f",
+      "gate_ecapa": 0.5613,
+      "shipped_ecapa": 0.4581
+    },
+    {
+      "adapter": "gravelly_baritone_50s_m_scifi",
+      "gate_ecapa": 0.634,
+      "shipped_ecapa": 0.6336
+    },
+    {
+      "adapter": "husky_alto_40s_f",
+      "gate_ecapa": 0.7046,
+      "shipped_ecapa": 0.6756
+    },
+    {
+      "adapter": "husky_baritone_35s_m",
+      "gate_ecapa": 0.6591,
+      "shipped_ecapa": 0.5864
+    },
+    {
+      "adapter": "husky_baritone_40s_m_1",
+      "gate_ecapa": 0.5798,
+      "shipped_ecapa": 0.2962
+    },
+    {
+      "adapter": "husky_baritone_50s_m_gothic",
+      "gate_ecapa": 0.6572,
+      "shipped_ecapa": 0.6146
+    },
+    {
+      "adapter": "husky_tenor_30s_m",
+      "gate_ecapa": 0.4662,
+      "shipped_ecapa": 0.4363
+    },
+    {
+      "adapter": "silky_baritone_40s_m_scifi",
+      "gate_ecapa": 0.6944,
+      "shipped_ecapa": 0.6863
+    },
+    {
+      "adapter": "silky_mezzo_30s_f_fantasy",
+      "gate_ecapa": 0.6025,
+      "shipped_ecapa": 0.5689
+    },
+    {
+      "adapter": "warm_alto_40s_f_2",
+      "gate_ecapa": 0.6847,
+      "shipped_ecapa": 0.6117
+    },
+    {
+      "adapter": "warm_baritone_30s_m_1",
+      "gate_ecapa": 0.5863,
+      "shipped_ecapa": 0.5819
+    },
+    {
+      "adapter": "warm_baritone_40s_m_2",
+      "gate_ecapa": 0.7513,
+      "shipped_ecapa": 0.6754
+    },
+    {
+      "adapter": "warm_baritone_40s_m_4",
+      "gate_ecapa": 0.5977,
+      "shipped_ecapa": 0.5718
+    },
+    {
+      "adapter": "warm_baritone_40s_m_5",
+      "gate_ecapa": 0.6002,
+      "shipped_ecapa": 0.5066
+    },
+    {
+      "adapter": "warm_baritone_40s_m_scifi",
+      "gate_ecapa": 0.7022,
+      "shipped_ecapa": 0.6786
+    },
+    {
+      "adapter": "warm_baritone_50s_m",
+      "gate_ecapa": 0.7807,
+      "shipped_ecapa": 0.6755
+    },
+    {
+      "adapter": "warm_tenor_30s_m_2",
+      "gate_ecapa": 0.6044,
+      "shipped_ecapa": 0.5701
+    }
+  ]
+}

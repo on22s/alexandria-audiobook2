@@ -1327,7 +1327,7 @@ on its own training data is genuinely bad.
 the retraining summary were independently regenerated and identity-gated on
 six held-out lines. Twenty passed the 0.45 gate and beat the weights currently
 shipped, so they were installed with receipt and rollback backup
-`promotion_backups/20260815_152050.json`; five passed identity but did not beat
+`ab_test_runtime/promotion_backups/20260815_152050.json`; five passed identity but did not beat
 the current library and one failed identity at 0.393. Exact-source hash checks
 confirmed every installed adapter matches the path recorded by its gate.
 
@@ -1348,7 +1348,7 @@ candidates were then independently regenerated on six held-out lines. Thirty-
 two passed the ≥0.45 identity floor and 19 also beat the shipped weights, so
 only those 19 were installed. Seven failed identity and 14 passed identity but
 did not beat the shipped voice; all 21 were left untouched. Receipt and rollback
-backup: `promotion_backups/20260815_175016.json`.
+backup: `ab_test_runtime/promotion_backups/20260815_175016.json`.
 
 #### The reference clip is CAUSAL — established by intervention, not correlation
 
@@ -1821,7 +1821,7 @@ wire the three-pass path into generation*, which was the open question.
 `three_pass_instruct_temperature`, `three_pass_segment_output_ratio`,
 `three_pass_chunk_size`, `three_pass_presegment_quotes`,
 `three_pass_model_profiles` — are declared in `config_settings.py` and exposed
-in `api_contract/openapi.json` for a path that will now never ship. They are a
+in `app/api_contract/openapi.json` for a path that will now never ship. They are a
 production API surface for nothing. Removing them is an API-contract change
 that could disturb saved `config.json` files, so it is named here rather than
 done quietly.
