@@ -1,6 +1,6 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 14,
+ "goals_scored": 15,
  "goals_citing_no_artifact": [
   "2.5",
   "3.1",
@@ -10,7 +10,6 @@
   "2.2",
   "2.3",
   "2.8",
-  "3.2",
   "3.3",
   "3.4",
   "4.2",
@@ -634,6 +633,27 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "6a3f6698"
+    }
+   ]
+  },
+  {
+   "goal": "3.2",
+   "title": "Every generated file is real audio",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 1
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 1,
+   "artifacts": [
+    {
+     "name": "chapter_validation.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   }

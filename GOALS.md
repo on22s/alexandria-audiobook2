@@ -3373,6 +3373,24 @@ at rather than only a symptom.
 Training loss looked ordinary (2.9 and 3.4), so only generated output reveals
 this. Protected by the gate plus `app/tests/test_training_defaults.py`.
 
+**THIS GOAL IS ONE-SIDED, measured 2026-09-04.** It was written for runaway
+generation — the adapter that emitted 163.8 seconds for every held-out line —
+and gates only the UPPER tail. Two failures found by looking at clips fall
+outside what it can detect, and neither is a threshold that could be tightened:
+
+**Stopping early is ungated and invisible to a median.** Four clips of 1,417
+stopped mid-sentence. Removing all four moves the median heard/asked ratio by
+**0.0000** — not a threshold problem, but what a median IS. There is no lower
+bound in the target.
+
+**Repetition produces a NORMAL duration.** The worst clip asked 21 words and
+produced 23 — ratio **1.10**, inside this goal's 0.8–1.25x band — by saying
+"tanji tanji tanji tanji". A duration metric cannot see a loop by
+construction, because filling the right amount of time is what a loop does.
+
+Recorded here rather than reopening the goal: 2.3 does what it claims and does
+it correctly. It claims less than its title suggests. See 3.2.
+
 ---
 
 ### 2.4 Duration fidelity in normal use
@@ -3574,6 +3592,73 @@ is settled.
 **Probe** — `validate_generated_audio` in `app/audio_validation.py`, funnelled
 through `_save_wav`.
 **Current** — 0 known escapes since the funnel was added. **MET.**
+
+**AND THE AUDIO SAYS THE WORDS.** This goal checks that a file exists and can
+be opened; what is IN it is checked at run time by nothing — `tts.py` and
+`project.py` have no transcribe-back, no word-error check and no truncation
+detection, so every shipping gate sits upstream on text.
+
+It had been measured once, on the shipped chapter audio: `chapter_validation.json`,
+150 contiguous clips, **0.59% WER**, 2 failed, 0 truncated.
+
+**2026-09-04 adds scale and a NULL**, which that run had neither of. 2,834
+clips — the same 1,417 validation lines through both arms of the fidelity
+control, whisper.cpp `small.en`:
+
+| | LoRA voices | stock voice |
+|---|---|---|
+| word error rate | **2.51%** | 4.29% |
+| clips failed | 42 (3.0%) | 105 (7.4%) |
+| truncated | **4** | 0 |
+| non-speech / generation failures | 0 / 0 | 0 / 0 |
+
+**The adapters say the words better** — half the error rate on identical text.
+
+**ON SHIPPED BOOK TEXT the damage is all in non-prose.** 76 segments per arm,
+half prose and half non-prose, same segments both arms:
+
+| | LoRA | stock |
+|---|---|---|
+| pooled WER | 20.16% | 25.47% |
+| **prose** | **1.65%** | 2.01% |
+| **non-prose** | **32.08%** | 40.57% |
+
+Prose is near-perfect and non-prose is twenty times worse **in both arms**, so
+this is the ENGINE meeting non-prose, not an adapter defect — the same shape as
+the pitch-spread null at 2.5. **Do not compare 20.16% with 2.51%**: different
+material, the pooled figure moves with the prose/non-prose mix, and the class
+split is the number to quote.
+
+**THE 200-CHARACTER CAP CARRIES NO QUALITY CLAIM.** WER is LOWER on longer
+text in both arms (2.57 → 1.68 LoRA, 4.34 → 3.58 stock). It is a request-size
+convention.
+
+**A SECOND FAILURE MODE, OBSERVED ONCE AND NOT SIZED.** Rendering the worst
+clips (6.5) showed the top failure is not mis-transcription but the model
+LOOPING: asked "you think people would stay in iro...", it produced "tanji
+tanji tanji tanji tanji" — 81% word error from a stuck syllable. No metric here
+would separate that from ordinary inaccuracy: not 2.3, since that clip asked 21
+words and produced 23 (ratio 1.10, inside its band, because a loop fills the
+right amount of time); not this goal's file check, since the audio is real and
+decodable; not 2.1 or 2.5, since timbre and pitch may be fine while the words
+are one syllable repeated. **One clip of 1,417 is the whole evidence** — enough
+to know it is real, not enough to size it, so no rate is claimed. A repetition
+check over the clips already on disk would size it and has not been run.
+
+**THE REAL GAP: 4 truncations, all in the LoRA arm, none in the control.** All
+four are the model stopping mid-sentence — 14 words asked and 8 heard, 27 and
+8, 29 and 17, 21 and 9, whole clauses recorded as deletions. Truncation has no
+upstream gate anywhere and appears only on the path the product ships.
+
+**What is NOT claimed.** One seed, one library, English only; rows containing
+kana or kanji are excluded by the manifest builder rather than scored badly,
+since `small.en` would return a low number meaning "wrong model". Nothing here
+says the audio sounds good — it says the right words are in it.
+
+Evidence: `ab_test_runtime/experiments/tts_output_validation_{adapter,control}_seed20260925.json`,
+`ab_test_runtime/experiments/wider_tts_NARRATOR.json`,
+`ab_test_runtime/experiments/wider_tts__test_voice.json`,
+`app/experiments/tts_clip_view.py`.
 
 **Target — 0. Any regression is a release blocker.**
 
