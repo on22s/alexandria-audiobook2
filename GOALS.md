@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2956** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2966** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2728,6 +2728,16 @@ Goals about the instruments themselves. These earned their place by failing.
 
 **Current — OPEN.** The rule is written; the audit of existing checks is not
 done.
+
+**FIRST AUDIT TRANCHE, 2026-09-04.** Seven more checks could pass without
+looking: the goal-evidence freshness gate explicitly returned PASS without a
+check mode; five corpus/experiment audits accepted zero joined rows as a
+completed result; and the TTS-boundary audit resolved a clean worktree from
+the presence of an untracked data directory, so an explicit input could fail
+before it was inspected. Each now has a rejecting test for an empty or stale
+case, and the goal-evidence audit is regenerated and checked by `ready.sh`.
+This strengthens the discipline but does not close the goal: the remaining
+guards and comparisons have not all received a negative-control audit.
 
 **EIGHT INSTANCES IN ONE DAY, 2026-09-04.** Not eight bugs. One bug, eight
 disguises:

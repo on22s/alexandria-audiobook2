@@ -147,6 +147,10 @@ def main():
         books[-1]["disagreements"] = rows
 
     fired = totals.get("fired", 0)
+    if not books:
+        raise SystemExit("no scripts matched source files; nothing was audited")
+    if not totals.get("with_span"):
+        raise SystemExit("no spoken entries carried source spans; nothing was audited")
     doc = {
         "status": "complete",
         "provenance": provenance(__file__, args),

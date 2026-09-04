@@ -69,6 +69,9 @@ def main():
         state = "REFUSED" if failed else "ok"
         print(f"  {book:22s} {count:6d} replacements {share:7.3%}  {state}")
 
+    if not rows:
+        raise SystemExit("no input text files found; nothing was audited")
+
     bad = [r for r in rows if not r["passes_gate"]]
     doc = {"status": "complete", "candidates_considered": len(rows),
            "gate": MAX_REPLACEMENT_SHARE, "results": rows,

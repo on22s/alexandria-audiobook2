@@ -1,10 +1,11 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 13,
+ "goals_scored": 14,
  "goals_citing_no_artifact": [
   "2.5",
-  "2.9",
   "3.1",
+  "4.1",
+  "6.6",
   "7.2",
   "2.2",
   "2.3",
@@ -12,9 +13,9 @@
   "3.2",
   "3.3",
   "3.4",
-  "4.1",
   "4.2",
   "5.1",
+  "5.6",
   "6.1",
   "6.2",
   "6.3",
@@ -24,15 +25,15 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 2,
+   "cited": 3,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
     "supported_structure": 1,
-    "provisional": 1
+    "provisional": 2
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
     {
@@ -40,6 +41,12 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "20fe54c3"
+    },
+    {
+     "name": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "be3e7ead"
     },
     {
      "name": "two_stage_attribution_w3200.json",
@@ -52,24 +59,55 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 9,
+   "cited": 15,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json"
    ],
-   "weakest_evidence": "provisional",
+   "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 1,
-    "provisional": 7
+    "exploratory": 5,
+    "provisional": 8,
+    "supported_structure": 1
    },
    "dirty_artifacts": 2,
-   "no_commit": 0,
+   "no_commit": 5,
    "artifacts": [
+    {
+     "name": "distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "8fa4fe64"
+    },
     {
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
      "commit": "20fe54c3"
+    },
+    {
+     "name": "grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json",
+     "classification": "exploratory",
+     "dirty": false,
+     "commit": ""
+    },
+    {
+     "name": "lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json",
+     "classification": "exploratory",
+     "dirty": false,
+     "commit": ""
+    },
+    {
+     "name": "pdnc_character_style_selector__pilot.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     },
     {
      "name": "pdnc_context_evidence__pilot__local-llamacpp.json",
@@ -82,6 +120,12 @@
      "classification": "provisional",
      "dirty": false,
      "commit": "bc69c96a"
+    },
+    {
+     "name": "pdnc_luar_character_selector__pilot.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     },
     {
      "name": "pdnc_narrator_prior__clean-3book.json",
@@ -179,12 +223,14 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 2,
+   "cited": 4,
    "not_in_audit": [],
-   "not_experiment_artifacts": [],
+   "not_experiment_artifacts": [
+    "manifest.json"
+   ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 2
+    "supported_structure": 3
    },
    "dirty_artifacts": 0,
    "no_commit": 0,
@@ -200,6 +246,52 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "223e3955"
+    },
+    {
+     "name": "library_fidelity_seed_20260914_n20.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "00b84dd7"
+    }
+   ]
+  },
+  {
+   "goal": "2.9",
+   "title": "Pitch-carried meaning survives synthesis",
+   "cited": 4,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 2,
+    "supported_structure": 2
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 2,
+   "artifacts": [
+    {
+     "name": "contextual_mandarin_tone_generated_n150.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "expected_prosody__ja_n150.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "29ccc772"
+    },
+    {
+     "name": "expected_prosody__zh_n150.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "29ccc772"
+    },
+    {
+     "name": "japanese_accent_calibration_key.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },
@@ -247,12 +339,14 @@
   {
    "goal": "5.3",
    "title": "Three-pass vs single-pass generation",
-   "cited": 1,
+   "cited": 4,
    "not_in_audit": [],
-   "not_experiment_artifacts": [],
+   "not_experiment_artifacts": [
+    "config.json"
+   ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 1
+    "supported_structure": 3
    },
    "dirty_artifacts": 1,
    "no_commit": 0,
@@ -262,21 +356,34 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "38ce596a"
+    },
+    {
+     "name": "three_pass_vs_single_mapped.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a7e0a996"
+    },
+    {
+     "name": "three_pass_vs_single_pdnc.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "74d1f6b0"
     }
    ]
   },
   {
    "goal": "5.4",
    "title": "Transcription and clip boundaries in the preparer",
-   "cited": 6,
+   "cited": 8,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
-   "weakest_evidence": "supported_structure",
+   "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 6
+    "supported_structure": 6,
+    "exploratory": 2
    },
    "dirty_artifacts": 1,
-   "no_commit": 0,
+   "no_commit": 2,
    "artifacts": [
     {
      "name": "asr_ja_cutting_control.json",
@@ -313,6 +420,18 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "c509cd2e"
+    },
+    {
+     "name": "ctc_japanese_boundary_n10.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "japanese_text_boundary_n50.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },
@@ -425,16 +544,23 @@
   {
    "goal": "7.1",
    "title": "A listener prefers what we ship",
-   "cited": 1,
+   "cited": 2,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
-   "weakest_evidence": "supported_structure",
+   "weakest_evidence": "exploratory",
    "classifications": {
+    "exploratory": 1,
     "supported_structure": 1
    },
    "dirty_artifacts": 0,
-   "no_commit": 0,
+   "no_commit": 1,
    "artifacts": [
+    {
+     "name": "blinded_listening_ratings.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
     {
      "name": "earcheck_separator_results.json",
      "classification": "supported_structure",

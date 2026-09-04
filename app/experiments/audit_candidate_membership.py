@@ -73,6 +73,8 @@ def main():
         matches = glob.glob(pattern, recursive=True)
         paths.extend(matches or [pattern])
     result = audit_paths(paths)
+    if not result["artifacts"]:
+        raise SystemExit("no readable row artifacts found; nothing was audited")
     rendered = json.dumps(result, indent=2, sort_keys=True)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as handle:

@@ -72,6 +72,9 @@ for script in audit_experiment_artifacts audit_legacy_attribution collect_result
         echo "regen_derived: $script FAILED" >&2; exit 1; }
     say "   $script"
 done
+( cd "$REPO" && "$python" "$REPO/app/experiments/goal_evidence_audit.py" >/dev/null 2>&1 ) || {
+    echo "regen_derived: goal_evidence_audit FAILED" >&2; exit 1; }
+say "   goal evidence audit"
 ( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null 2>&1 ) || {
     echo "regen_derived: update_test_inventory FAILED" >&2; exit 1; }
 say "   unit test inventory"
