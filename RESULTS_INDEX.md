@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1000 artifacts, 1245 arms.
+Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1002 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -326,6 +326,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 78.7% | exploratory | ok | False | 40991.3s |
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 68.3% | exploratory | ok | False | 23636.2s |
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 78.4% | exploratory | ok | False | 50138.1s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6678.2s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6705.1s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6666.3s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 6539.6s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 60.2% | exploratory | ok | False | 4222.4s |
@@ -335,6 +337,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 60.2% | exploratory | ok | False | 6468.8s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 6254.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6444.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 6678.2s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 67.0% | exploratory | ok | False | 6705.1s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 6666.3s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 6539.6s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 4222.4s |
