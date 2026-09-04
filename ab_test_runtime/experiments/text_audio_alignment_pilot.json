@@ -1,0 +1,199 @@
+{
+ "note": "Can audiobook clips be located in the book's own text? If they can, a clip inherits the speaker its line was annotated with, and a per-character dataset stops depending on clustering audio.",
+ "epub": "Gardens of the Moon  Malazan Book of the Fallen 1 (Steven Erikson) (z-library.sk, 1lib.sk, z-lib.sk).epub",
+ "decoy_epub": "The Blade Itself (Joe Abercrombie) (z-library.sk, 1lib.sk, z-lib.sk).epub",
+ "source_dir": "Ralph Lister Gardens of the Moon-converted",
+ "real": {
+  "book_words": 213125,
+  "k": 6,
+  "volumes": [
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol01.zip",
+    "clips": 200,
+    "located": 200,
+    "exact_word_for_word": 199,
+    "rate": 1.0,
+    "exact_rate": 0.995,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol02.zip",
+    "clips": 200,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol03.zip",
+    "clips": 200,
+    "located": 200,
+    "exact_word_for_word": 200,
+    "rate": 1.0,
+    "exact_rate": 1.0,
+    "order_agreement": {
+     "rho": 1.0,
+     "p": 0.0
+    },
+    "order_n": 200
+   }
+  ]
+ },
+ "decoy": {
+  "book_words": 209003,
+  "k": 6,
+  "volumes": [
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol01.zip",
+    "clips": 200,
+    "located": 0,
+    "exact_word_for_word": 0,
+    "rate": 0.0,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 0
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol02.zip",
+    "clips": 200,
+    "located": 1,
+    "exact_word_for_word": 0,
+    "rate": 0.005,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 1
+   },
+   {
+    "volume": "Ralph Lister Gardens of the Moon-converted_vol03.zip",
+    "clips": 200,
+    "located": 2,
+    "exact_word_for_word": 0,
+    "rate": 0.01,
+    "exact_rate": 0.0,
+    "order_agreement": null,
+    "order_n": 2
+   }
+  ]
+ },
+ "sweep": [
+  {
+   "title": "Steven Pacey The Blade Itself-converted",
+   "epub": "The Blade Itself (Joe Abercrombie) (z-library.sk, 1lib.sk, z-lib.sk).epub",
+   "volume": "Steven Pacey The Blade Itself-converted_vol01",
+   "clips": 200,
+   "located": 200,
+   "exact_word_for_word": 195,
+   "rate": 1.0,
+   "exact_rate": 0.975,
+   "order_agreement": {
+    "rho": 0.999207980199505,
+    "p": 3.259922992573279e-279
+   },
+   "order_n": 200
+  },
+  {
+   "title": "Michael Page House of Chains-converted",
+   "epub": "Malazan Book of the Fallen -04- House of Chains.epub",
+   "volume": "Michael Page House of Chains-converted_vol01.zip",
+   "clips": 200,
+   "located": 200,
+   "exact_word_for_word": 194,
+   "rate": 1.0,
+   "exact_rate": 0.97,
+   "order_agreement": {
+    "rho": 0.9999733743244439,
+    "p": 0.0
+   },
+   "order_n": 200
+  },
+  {
+   "title": "Kate Reading A Natural History of Dragons-converted",
+   "epub": "A Natural History of Dragons.epub",
+   "volume": "Kate Reading A Natural History of Dragons-converted_vol01.zip",
+   "clips": 200,
+   "located": 199,
+   "exact_word_for_word": 199,
+   "rate": 0.995,
+   "exact_rate": 0.995,
+   "order_agreement": {
+    "rho": 1.0,
+    "p": 0.0
+   },
+   "order_n": 199
+  },
+  {
+   "title": "Cherami Leigh Cyberpunk 2077-converted",
+   "epub": "Cyberpunk 2077.epub",
+   "volume": "Cherami Leigh Cyberpunk 2077-converted_vol01.zip",
+   "clips": 200,
+   "located": 200,
+   "exact_word_for_word": 200,
+   "rate": 1.0,
+   "exact_rate": 1.0,
+   "order_agreement": {
+    "rho": 1.0,
+    "p": 0.0
+   },
+   "order_n": 200
+  },
+  {
+   "title": "Cliff Kurt Mushoku Tensei-converted",
+   "epub": "Mushoku Tensei - Volume 01.epub",
+   "volume": "Cliff Kurt Mushoku Tensei-converted_vol01.zip",
+   "clips": 200,
+   "located": 200,
+   "exact_word_for_word": 199,
+   "rate": 1.0,
+   "exact_rate": 0.995,
+   "order_agreement": {
+    "rho": 1.0,
+    "p": 0.0
+   },
+   "order_n": 200
+  },
+  {
+   "title": "J Michael Tatum Spice and Wolf, Vol. 10-converted",
+   "epub": "Spice and Wolf - Volume 10 [Yen Press][Kobo].epub",
+   "volume": "J Michael Tatum Spice and Wolf, Vol. 10-converted_vol01.zip",
+   "clips": 200,
+   "located": 200,
+   "exact_word_for_word": 199,
+   "rate": 1.0,
+   "exact_rate": 0.995,
+   "order_agreement": {
+    "rho": 1.0,
+    "p": 0.0
+   },
+   "order_n": 200
+  }
+ ],
+ "mean_rate": 1.0,
+ "decoy_mean_rate": 0.005,
+ "provenance": {
+  "script": "text_audio_alignment_pilot.py",
+  "written": "2026-09-04T18:32:30",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+   "branch": "agent/text-audio-alignment-20260904",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/text_audio_alignment_pilot.py"
+   ],
+   "harness_sha256": "73edd58994229c7fdcfa8bb9d0ba4fd25fe1e629d2dcec9845200532a90b4a7f"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

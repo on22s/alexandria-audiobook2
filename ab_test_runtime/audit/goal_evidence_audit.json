@@ -222,16 +222,16 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 4,
+   "cited": 5,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 3
+    "supported_structure": 4
    },
-   "dirty_artifacts": 0,
+   "dirty_artifacts": 1,
    "no_commit": 0,
    "artifacts": [
     {
@@ -251,6 +251,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "00b84dd7"
+    },
+    {
+     "name": "text_audio_alignment_pilot.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "589733ac"
     }
    ]
   },

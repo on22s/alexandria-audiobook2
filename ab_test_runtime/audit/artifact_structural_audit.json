@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 521,
+    "supported_structure": 522,
     "exploratory": 318,
     "provisional": 174
   },
@@ -15546,6 +15546,23 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "text_audio_alignment_pilot.json",
+      "bytes": 5058,
+      "sha256": "838986dd526b2c2afe4e15d42bb784cd341003d909710265eda0576897069774",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-04T18:32:30",
+      "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "three_pass_vs_single.json",
