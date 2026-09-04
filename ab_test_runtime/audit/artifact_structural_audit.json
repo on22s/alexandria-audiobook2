@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 511,
     "exploratory": 311,
-    "provisional": 172
+    "provisional": 174
   },
   "artifacts": [
     {
@@ -3521,6 +3521,38 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8fa4fe64bcea8e4a0b7221d0a93b6c18feab6a75",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "distill_eval__qwen35-9b-apos-damaged-a6000-20260904.json",
+      "bytes": 387133,
+      "sha256": "272c6c4230fdca51d051c67ff00954a986ac6cc6e87270e483041cb61ff49eb8",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 176,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "89652e48ecfd290a3445836535623a648409b309",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "distill_eval__qwen35-9b-apos-repaired-a6000-20260904.json",
+      "bytes": 385547,
+      "sha256": "1e0da4838572847660c45bf6c126f5955632452de9007f8366da45f5307b45fd",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 176,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "89652e48ecfd290a3445836535623a648409b309",
       "written": null,
       "dirty": false,
       "classification": "provisional",

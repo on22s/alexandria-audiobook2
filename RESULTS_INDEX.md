@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-04 from `ab_test_runtime/experiments/` — 994 artifacts, 1241 arms.
+Generated 2026-09-04 from `ab_test_runtime/experiments/` — 996 artifacts, 1245 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -362,9 +362,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 64.8% | exploratory | ok | False | 13881.0s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 14009.3s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 25.0% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | supported_measurement | ok | False | 4420.8s |
+| index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | supported_measurement | ok | False | 4272.4s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | exploratory | ok | False | 19058.8s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | exploratory | ok | False | 18449.6s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | exploratory | ok | False | 16187.8s |
+| index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 62.5% | supported_measurement | ok | False | 4420.8s |
+| index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 59.1% | supported_measurement | ok | False | 4272.4s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 60.2% | exploratory | ok | False | 19058.8s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 59.1% | exploratory | ok | False | 18449.6s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 58.0% | exploratory | ok | False | 16187.8s |
