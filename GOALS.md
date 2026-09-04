@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2822** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2860** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -858,6 +858,44 @@ English cloning also drops median pitch to **0.81x** — a voice pitched a fifth
 of an octave low for the whole book. ECAPA rates that same clone *higher* than
 the LoRA, because embedding similarity is a timbre measure and this is a pitch
 failure.
+
+**THE SPREAD INFLATION IS NOT THE ADAPTERS — measured 2026-09-04.** The
+shipped library runs f0 spread at **1.146** against its narrators, stable to
+±0.014 over ten seeds, and this goal has read that as something the voices do.
+A control arm settles it: the engine's stock voice, never trained on anyone,
+rendering the SAME validation clips of the SAME 74 narrators under the same
+seed, with only the voice entry swapped (`--control-voice`, one function,
+`voice_entry()`):
+
+| metric | adapter | stock voice | difference |
+|---|---|---|---|
+| `f0_spread_ratio` | 1.1455 | **1.1624** | **−0.017** |
+| `f0_median_ratio` | 1.0791 | 0.9614 | +0.118 |
+| `vtl_ratio` | 0.9913 | 1.0718 | −0.081 |
+| `dur_ratio` | 0.9990 | 1.2974 | −0.298 |
+| ECAPA | 0.5903 | 0.0711 | +0.519 |
+
+**A voice asked to imitate nobody inflates spread by 16%, marginally MORE than
+the adapters do**, and only **40 of 74** adapters land closer to 1.0 than the
+control — a coin flip. Whatever widens pitch spread happens before any adapter
+is applied. Retraining voices cannot fix it, and an arm that "improves" spread
+by 0.02 has not beaten the null.
+
+**The median row is NOT evidence and must not be read as any.** The control is
+ONE voice compared against 74 different narrators, so its 0.961 mostly reports
+Ryan's own pitch relative to the average narrator. That comparison is
+confounded by the choice of control voice. Spread survives the same objection
+because it is within-clip variability rather than absolute pitch, which is why
+only the spread row is claimed here.
+
+**The incidental number is the largest in this goal:** ECAPA 0.071 → 0.590, and
+duration 1.297 → 0.999. Against a genuine null the adapters are doing most of
+the work asked of them; pitch spread is simply not among the things they
+control.
+
+Evidence: `ab_test_runtime/experiments/library_fidelity_control_ryan_seed20260925.json`
+(arm `control:Ryan`), paired against
+`ab_test_runtime/experiments/library_fidelity_seed_20260925_n20_full75.json`.
 
 **A caution, since this section could invite the wrong fix.** The app
 deliberately refuses to classify gender from pitch
