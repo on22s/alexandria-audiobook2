@@ -3131,9 +3131,14 @@
     "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_all_books_succeeding_reports_done"
   ],
   "test_unseen_holdout": [
-    "tests.test_unseen_holdout.MultiVoiceBooks.test_a_cast_production_is_refused",
-    "tests.test_unseen_holdout.MultiVoiceBooks.test_a_single_voice_book_is_allowed",
-    "tests.test_unseen_holdout.MultiVoiceBooks.test_the_override_exists_but_records_the_voice_count",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_a_different_voice_is_dropped_from_the_pool",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_a_volume_that_was_never_embedded_is_dropped_not_assumed",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_every_similarity_is_recorded_so_the_threshold_can_be_rejudged",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_it_refuses_when_the_trained_volume_was_never_embedded",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_it_refuses_with_no_embeddings_at_all",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_the_same_voice_is_kept",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_the_threshold_is_honoured",
+    "tests.test_unseen_holdout.SameVoiceGuard.test_unknown_similarity_is_none_rather_than_zero",
     "tests.test_unseen_holdout.UnseenHoldout.test_clips_are_deduplicated_across_repeated_listings",
     "tests.test_unseen_holdout.UnseenHoldout.test_it_refuses_when_a_trained_clip_cannot_be_traced",
     "tests.test_unseen_holdout.UnseenHoldout.test_no_trained_clip_is_ever_returned",

@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1013 artifacts, 1249 arms.
+Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1025 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2162,6 +2162,18 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `two_stage_diagnostic2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_selection_gap.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_selection_gap_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__breathy_baritone_40s_m_military_2__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__breathy_baritone_40s_m_military_2__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__breathy_tenor_50s_m_fantasy__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__breathy_tenor_50s_m_fantasy__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_baritone_40s_m_scifi__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_baritone_40s_m_scifi__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_tenor_30s_m__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_tenor_30s_m__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_tenor_30s_m_literary__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__husky_tenor_30s_m_literary__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__silky_baritone_40s_m_scifi__clean.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `unseen_gate__silky_baritone_40s_m_scifi__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `validation_baseline.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `validation_manifest.json` | SKIPPED: not a result object (list) |
 | `validation_smoke.json` | SKIPPED: 'rows' is not a list of scored arms |

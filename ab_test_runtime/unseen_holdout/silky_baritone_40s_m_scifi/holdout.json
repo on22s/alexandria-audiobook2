@@ -8,188 +8,234 @@
       200
     ]
   ],
-  "voices_in_book": 1,
+  "voices_in_book_recorded_not_gated": 1,
+  "min_voice_similarity": 0.85,
+  "volume_similarity_to_trained": {
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol01": 0.8440493698122932,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol02": 0.8447097489505837,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol03": 0.7985022040038182,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol04": 0.8121721870276101,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol05": 0.8049581998374347,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol06": 0.7925862998528357,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol07": 0.8701598142577949,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol08": 0.9179237255170897,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol09": 0.8969633854096919,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol10": 0.9260511937273895,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol11": 0.952072028982849,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol12": 0.958215371319734,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol13": 0.9414598066326145,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol14": 0.9225111618736422,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol15": 0.934655077030739,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol16": 0.9474062985957019,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol17": 0.9616388781737807,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol18": 0.9543846320428184,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol19": 0.9505666761478669,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol20": 0.9494359912241136,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol21": 0.9457229866212855,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol22": 0.9630422399968092,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol23": 0.9648715594822784,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol24": 0.9477937789176201,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol25": 0.9599324414421613,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol26": 0.9552796816923329,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol27": 0.9657861541471942,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol28": 0.9738255772366503,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol29": 0.956983618319187,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol30": 0.973551035838977,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol32": 0.8910789276218287,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol33": 0.9368790622946919,
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol34": 0.9240227000023968
+  },
+  "volumes_dropped_wrong_voice": [
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol01",
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol02",
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol03",
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol04",
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol05",
+    "Todd McLaren Altered Carbon [B002V1O6X8]_vol06"
+  ],
+  "volumes_dropped_unjudged": [],
   "trained_clips": 200,
-  "unseen_pool": 6548,
+  "unseen_pool": 5348,
   "requested": 20,
   "written": 20,
   "seed": 20260904,
   "clips": [
     {
       "audio_filepath": "val/unseen_000.wav",
-      "text": "I sympathised more than he could have *known*. The young men in silk watched us go with the dead eyed concentration of *snakes*. ....",
-      "duration": 8.2,
-      "start": 36628.7,
-      "end": 36636.9,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol20"
-    },
-    {
-      "audio_filepath": "val/unseen_001.wav",
-      "text": "'I don't know. ... Not yet. .... But if I can get *Sarah* clear, there might be a way to bring *Kawahara* down afterwards.",
-      "duration": 8.06,
-      "start": 43466.7,
-      "end": 43474.76,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol24"
-    },
-    {
-      "audio_filepath": "val/unseen_002.wav",
-      "text": "to deal with such a *local* matter. .... I have been advised by my *lawyers* to retain a *private* investigator,",
-      "duration": 7.38,
-      "start": 2755.76,
-      "end": 2763.14,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol02"
-    },
-    {
-      "audio_filepath": "val/unseen_003.wav",
-      "text": "and one crack of dawn slot up on the *pole*. It looks like a couple of orbitals must have *crashed* and *burned*, way back when, ...",
-      "duration": 7.18,
-      "start": 28709.22,
-      "end": 28716.4,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol16"
-    },
-    {
-      "audio_filepath": "val/unseen_004.wav",
-      "text": "By the time she arrived, the Panama Rose was lit as if for a deck party. .... Vertical searchlights along her sides made it look as if she was being lowered from the night sky on *ropes* of luminescence.",
-      "duration": 11.9,
-      "start": 51902.62,
-      "end": 51914.52,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol29"
-    },
-    {
-      "audio_filepath": "val/unseen_005.wav",
-      "text": "knuckles *whitened* on the trigger of his particle blaster. .... His moudi was compressed and the whites of his eyes were flaring around *stimulant* blasted pupils.",
-      "duration": 9.84,
-      "start": 18170.66,
-      "end": 18180.5,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol10"
-    },
-    {
-      "audio_filepath": "val/unseen_006.wav",
-      "text": "and gazed down at *Miriam* Bancroft, who by now was well on the way to completing her glider. .... When she looked up,",
-      "duration": 8.14,
-      "start": 46818.24,
-      "end": 46826.38,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol26"
-    },
-    {
-      "audio_filepath": "val/unseen_007.wav",
-      "text": "I pull his hands away from his face by *main* force and the raw socket of his *left* eye gapes up at me in the murk. ....",
-      "duration": 7.18,
-      "start": 19581.36,
-      "end": 19588.54,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol11"
-    },
-    {
-      "audio_filepath": "val/unseen_008.wav",
-      "text": "No two designs were alike, *although* I could discern the same artistic hand at work in several of the examples we passed. ....",
-      "duration": 7.34,
-      "start": 53206.94,
-      "end": 53214.28,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol29"
-    },
-    {
-      "audio_filepath": "val/unseen_009.wav",
-      "text": "For a moment, it looked as if he might try to charge me, ... but the table was in the way. .... He stayed seated,",
-      "duration": 7.34,
-      "start": 47403.3,
-      "end": 47410.64,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol26"
-    },
-    {
-      "audio_filepath": "val/unseen_010.wav",
-      "text": "Offworlder.' ... 'Yeah.' If *Elliott* had ... ever been afraid of *me*, it was wearing off ... fast.",
-      "duration": 7.38,
-      "start": 11684.3,
-      "end": 11691.68,
+      "text": "Skeins of memory and feeling and thought, packaged up by numbers.' .... Now I thought I *knew* what was coming,",
+      "duration": 8.88,
+      "start": 11944.12,
+      "end": 11953.0,
       "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol07"
     },
     {
-      "audio_filepath": "val/unseen_011.wav",
-      "text": "this sleeve had the sheen of a narrow vein of copper seen through falling water. .... Thick black hair framed a face with eyes like *hot* coals",
-      "duration": 9.54,
-      "start": 44262.24,
-      "end": 44271.78,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol25"
+      "audio_filepath": "val/unseen_001.wav",
+      "text": "turned away from the confrontation. .... '*You're* right, Kovacs. .... I want you *alive*. .... If you *disappear* now,",
+      "duration": 8.3,
+      "start": 37795.86,
+      "end": 37804.16,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol21"
     },
     {
-      "audio_filepath": "val/unseen_012.wav",
-      "text": "but there's too much *going* on here to walk away from. .... Tell her I'm *starting* to *enjoy* it.' .... There was a slight cough from the entrance to the bar.",
-      "duration": 8.96,
-      "start": 31121.34,
-      "end": 31130.3,
+      "audio_filepath": "val/unseen_002.wav",
+      "text": "'The *truth*.' Begin gave me a *surprised* look. .... 'Lieutenant Ortega tells me you are interested in the *truth*.",
+      "duration": 9.0,
+      "start": 32596.2,
+      "end": 32605.2,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol18"
+    },
+    {
+      "audio_filepath": "val/unseen_003.wav",
+      "text": "sat still for a few minutes to see if anything happened and then, when it didn't, *I* got out of the car and walked back along the street. ....",
+      "duration": 7.92,
+      "start": 11347.98,
+      "end": 11355.9,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol07"
+    },
+    {
+      "audio_filepath": "val/unseen_004.wav",
+      "text": "among which I picked out a young *mirrorwood* tree and numerous stands of *martyrweed*. .... Bancroft was standing next to one of the *latter*,",
+      "duration": 7.44,
+      "start": 23856.2,
+      "end": 23863.64,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol13"
+    },
+    {
+      "audio_filepath": "val/unseen_005.wav",
+      "text": "The frags. .... Only this time it was *much* worse. .... 'One moment, please.' The woman disappeared from the screen and was replaced by the image of a windblown match flame in synch with piano music",
+      "duration": 13.2,
+      "start": 52101.96,
+      "end": 52115.16,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol29"
+    },
+    {
+      "audio_filepath": "val/unseen_006.wav",
+      "text": "said Ortega *loudly*. It took us over an hour to go over the hold, looking for *imaginary* bombs, while Carnage looked on with *poorly* veiled *amusement*. ....",
+      "duration": 9.24,
+      "start": 30174.9,
+      "end": 30184.14,
       "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol17"
     },
     {
-      "audio_filepath": "val/unseen_013.wav",
-      "text": "Sunlight ... poured in through the high window and brought with it, infinitely faintly, the sounds of a city full of *people*. ...",
-      "duration": 8.44,
-      "start": 19515.46,
-      "end": 19523.9,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol11"
+      "audio_filepath": "val/unseen_007.wav",
+      "text": "I tried to relax more, to let the hypnosystem press me down through levels of softly *decreasing* consciousness, ...",
+      "duration": 7.34,
+      "start": 54445.98,
+      "end": 54453.32,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol30"
     },
     {
-      "audio_filepath": "val/unseen_014.wav",
-      "text": "Someone out there wants me dead, and that's not a *comfortable* feeling. .... But you must understand that for a man in my *position* ...",
-      "duration": 8.74,
-      "start": 5100.44,
-      "end": 5109.18,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol03"
+      "audio_filepath": "val/unseen_008.wav",
+      "text": "His contact was *me*, so here I am. Talk to *me*.' I looked at her *levelly*. 'I killed you last week, Trepp.'",
+      "duration": 8.42,
+      "start": 36419.48,
+      "end": 36427.9,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol20"
     },
     {
-      "audio_filepath": "val/unseen_015.wav",
-      "text": "so she tried to escape and fell out of an aerial ... whorehouse called Head in the Clouds. .... That would make her *Catholicism* very convenient, wouldn't it?'",
-      "duration": 7.98,
-      "start": 43131.0,
-      "end": 43138.98,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol24"
+      "audio_filepath": "val/unseen_009.wav",
+      "text": "I settled back on the seat opposite her and watched her hands. .... When she saw where I was looking, she grinned and spread her arms *cruciform* along the back of the seat.",
+      "duration": 9.84,
+      "start": 36715.1,
+      "end": 36724.94,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol20"
     },
     {
-      "audio_filepath": "val/unseen_016.wav",
-      "text": "I stayed at the Hendrix, tried to do some sleeping of my own without much *success* and went back six hours later to find Elliott already *prowling* about the apartment.",
-      "duration": 9.74,
-      "start": 46003.24,
-      "end": 46012.98,
+      "audio_filepath": "val/unseen_010.wav",
+      "text": "'Yeah. .... Covert *needlecast* to a receiver in Europe every eighteen hours. .... Can't tell you much more than that without *Dipping* it,",
+      "duration": 9.1,
+      "start": 54833.6,
+      "end": 54842.7,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol30"
+    },
+    {
+      "audio_filepath": "val/unseen_011.wav",
+      "text": "All part of the Envoy technique, I understand.' ... 'Not really. *Ortega* was the convincing factor.",
+      "duration": 7.46,
+      "start": 49227.24,
+      "end": 49234.7,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol27"
+    },
+    {
+      "audio_filepath": "val/unseen_012.wav",
+      "text": "The woman you're *dealing* with ultimately is *Reileen* Kawahara. You will have been to Head in the Clouds, because I know Kawahara ...",
+      "duration": 7.6,
+      "start": 47581.6,
+      "end": 47589.2,
       "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol26"
     },
     {
+      "audio_filepath": "val/unseen_013.wav",
+      "text": "Clothing hung on lines between the buildings and small children ran about, getting *cheerfully* filthy. ....",
+      "duration": 7.5,
+      "start": 53225.1,
+      "end": 53232.6,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol30"
+    },
+    {
+      "audio_filepath": "val/unseen_014.wav",
+      "text": "The *pride* from the one To *make* a *tool*, The other?' ... I inhaled smoke and nodded.",
+      "duration": 8.92,
+      "start": 26786.9,
+      "end": 26795.82,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol15"
+    },
+    {
+      "audio_filepath": "val/unseen_015.wav",
+      "text": "Ma'am? Kawahara came back, scooping the pliers up off the floor on her way. '*What* are you grinning at, Kovacs?'",
+      "duration": 9.42,
+      "start": 59106.36,
+      "end": 59115.78,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol33"
+    },
+    {
+      "audio_filepath": "val/unseen_016.wav",
+      "text": "I gave him a *curious* look. 'Something *funny*?' 'Yeah.' The woman spoke without turning her *gaze* from the city lights beyond the window. ....",
+      "duration": 9.7,
+      "start": 21114.0,
+      "end": 21123.7,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol12"
+    },
+    {
       "audio_filepath": "val/unseen_017.wav",
-      "text": "He's *real* good about it, even puts us into *store* if it's going to take a *long* time to *heal*. .... But whoever did Lizzie wasn't a *regular*.'",
-      "duration": 8.66,
-      "start": 13242.72,
-      "end": 13251.38,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol08"
+      "text": "'Sometimes. ... *Diplomatic* *missions*, or *deep* cover stuff. .... It wasn't .... I fell silent as she elbowed me in the ribs.",
+      "duration": 7.82,
+      "start": 28185.82,
+      "end": 28193.64,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol16"
     },
     {
       "audio_filepath": "val/unseen_018.wav",
-      "text": "and the overwhelming impression I got was that if there was a line of *least* resistance in life, this face had never been along it.",
-      "duration": 8.12,
-      "start": 1416.18,
-      "end": 1424.3,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol01"
+      "text": "'Let's ... see what you've got.' Between the dimly seen ... heave and swell of the sea ... and the lights of the cabin,",
+      "duration": 7.36,
+      "start": 54540.3,
+      "end": 54547.66,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol30"
     },
     {
       "audio_filepath": "val/unseen_019.wav",
-      "text": "The squawk of the poorly operated ampbox hit us as we went down the steps from the exit. .... I glanced across the landing area and saw a crowd assembled around a *black* clad man on a packing crate.",
-      "duration": 12.4,
-      "start": 2279.98,
-      "end": 2292.38,
-      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol02"
+      "text": "the glass. 'How the *fuck* did Kadmin stand it? Ortega says he used to work with himself all the *time*.' 'Get used to anything in *time*, I *suppose*. ....",
+      "duration": 9.54,
+      "start": 52358.3,
+      "end": 52367.84,
+      "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol29"
     }
   ],
   "provenance": {
     "script": "build_unseen_holdout.py",
-    "written": "2026-09-04T17:43:31",
+    "written": "2026-09-04T18:44:14",
     "host": "mitch-linux",
     "git": {
-      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
-      "branch": "agent/unseen-holdout-20260904",
+      "commit": "57f32d221b1affc6c3b80bd48a054ab6d27cab2e",
+      "branch": "agent/voice-similarity-guard-20260904",
       "dirty": true,
       "modified_tracked_files": [
-        "M app/experiments/build_unseen_holdout.py",
-        " M app/tests/test_unseen_holdout.py"
+        "M ab_test_runtime/unseen_holdout/breathy_tenor_50s_m_fantasy/holdout.json",
+        " M ab_test_runtime/unseen_holdout/husky_tenor_30s_m/holdout.json",
+        " M app/experiments/build_unseen_holdout.py"
       ],
       "untracked_harness_files": null,
-      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+      "harness_sha256": "bf25e2e855bbd9de80c8e8f4b592953d629b1aa7e3d8790375902e0b6c81cca8"
     },
     "args": {
       "error": "vars() argument must have __dict__ attribute"
