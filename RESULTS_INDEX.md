@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1010 artifacts, 1249 arms.
+Generated 2026-09-04 from `ab_test_runtime/experiments/` — 1011 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2070,6 +2070,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `reference_spread__en_score_arm3_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_spread__en_score_arm3_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `repair_candidate_reference_text.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `repetition_scan.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `residual_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_dot_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
