@@ -2591,8 +2591,14 @@
   "test_shipped_book_lexicon_coverage": [
     "tests.test_shipped_book_lexicon_coverage.Parsing.test_a_term_in_neither_state_is_what_the_goal_counts",
     "tests.test_shipped_book_lexicon_coverage.Parsing.test_sidecars_are_not_mistaken_for_books",
-    "tests.test_shipped_book_lexicon_coverage.Parsing.test_the_two_states_are_read_apart",
+    "tests.test_shipped_book_lexicon_coverage.Parsing.test_the_three_states_are_read_apart",
     "tests.test_shipped_book_lexicon_coverage.Parsing.test_words_are_whole_words_not_substrings"
+  ],
+  "test_shipped_coverage_third_state": [
+    "tests.test_shipped_coverage_third_state.ThirdState.test_a_plain_ok_term_is_not_in_neither_state",
+    "tests.test_shipped_coverage_third_state.ThirdState.test_an_old_candidates_file_yields_an_empty_third_state",
+    "tests.test_shipped_coverage_third_state.ThirdState.test_plain_already_works_is_loaded_as_its_own_state",
+    "tests.test_shipped_coverage_third_state.ThirdState.test_the_producer_emits_the_list_not_only_the_count"
   ],
   "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
