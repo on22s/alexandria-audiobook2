@@ -20,6 +20,7 @@ STAGE 2 SEES ONLY STAGE 1'S TEXT plus the entry heads it must label. It is not
 given the passage, so it cannot quietly redo stage 1's job and turn this into a
 one-pass arm wearing two hats.
 """
+import json
 import re
 
 FREEFORM_INSTRUCTION = (
@@ -60,7 +61,50 @@ def parse_decisions(text):
             out[int(m.group(1))] = m.group(2).strip()
         except ValueError:
             continue
+    if out:
+        return out
+    # THE MODEL OFTEN ANSWERS IN JSON, and this used to throw it away. On
+    # 2026-09-04 the stage1_only arm scored 0 of 88 in BOTH arms and wrote
+    # UNKNOWN on every line - not because the model failed but because it
+    # emitted `[{"n": 0, "speaker": "CARISSA"}, ...]`, clean and plausible,
+    # while this parser looked only for `ENTRY 0: CARISSA`. Every batch was
+    # "accepted", every row carried a prediction, and the artifact validated
+    # "ok": a whole diagnostic answered nothing and said so nowhere.
+    #
+    # An adapter trained to emit JSON emitting JSON is the expected case, not
+    # the exception - and reading it here is what makes stage1_only a test of
+    # the REASONING rather than of one output convention.
+    for blob in _json_arrays(text or ""):
+        try:
+            parsed = json.loads(blob)
+        except ValueError:
+            continue
+        if not isinstance(parsed, list):
+            continue
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            n, speaker = item.get("n"), item.get("speaker")
+            if isinstance(n, int) and isinstance(speaker, str) and speaker.strip():
+                out[n] = speaker.strip()
+        if out:
+            break
     return out
+
+
+def _json_arrays(text):
+    """-> candidate JSON array substrings, outermost first."""
+    starts = [i for i, c in enumerate(text) if c == "["]
+    for i in starts:
+        depth = 0
+        for j in range(i, len(text)):
+            if text[j] == "[":
+                depth += 1
+            elif text[j] == "]":
+                depth -= 1
+                if depth == 0:
+                    yield text[i:j + 1]
+                    break
 
 
 def entries_from_decisions(frozen_batch, notes):

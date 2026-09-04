@@ -569,6 +569,29 @@ class ExperimentRecord:
                     problems.append(
                         f"{arm}: every prediction is empty; this can be an "
                         "inference failure, not a measured null result")
+                elif len(arm_rows) >= 20:
+                    # ALL-IDENTICAL IS THE OTHER SHAPE OF NOTHING, and the
+                    # empty check above cannot see it. On 2026-09-04 a
+                    # stage1_only arm answered UNKNOWN on all 88 lines of both
+                    # arms - every batch accepted, every row carrying a
+                    # "prediction", validation "ok", and a diagnostic that
+                    # measured nothing. The model had in fact emitted clean
+                    # JSON; the serialiser looked for another format and fell
+                    # through to a constant.
+                    #
+                    # A predictor that returns one value regardless of input
+                    # carries no information, whether that value is None or a
+                    # word. Threshold 20 because a genuinely tiny arm can share
+                    # an answer by chance; measured over the artifact store,
+                    # 16 of 723 arms trip this and all 16 are the all-empty
+                    # ones already caught above - so it adds no false
+                    # positives to anything already recorded.
+                    distinct = {str(r.get("predicted")) for r in arm_rows}
+                    if len(distinct) == 1:
+                        problems.append(
+                            f"{arm}: every one of {len(arm_rows)} predictions is "
+                            f"{distinct.pop()!r}; a constant predictor carries no "
+                            "information and is usually a parse failure")
         if contract.get("require_raw_response"):
             for arm in sorted(arms):
                 arm_rows = [r for r in self.rows if r["arm"] == arm]
