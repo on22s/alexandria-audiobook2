@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2989** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3018** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2685,8 +2685,37 @@ mano, maringo, masaharu, masahiro, meimei, nezumi, pachinko, subara, tsundere`.
 Several read as names the roster filter did not catch, which is worth checking
 before any of them is measured — a name has its own discovery path.
 
-**What MET now requires** is those eighteen measured or recorded, not another
-pass over the library. The remaining work is small and named.
+**THE EIGHTEEN TRIAGED — 2026-09-04, and only FIVE are this goal's kind of
+word.** All eighteen occur only in the Re:Zero scripts. Classified from the
+context sentence, the SudachiDict reading, and a web lookup for the cases the
+offline tools got wrong:
+
+| class | terms | n |
+|---|---|---|
+| **loanword — in scope** | `manga`, `pachinko`, `deka`, `kuchibashi`, `meimei` | **5** |
+| name — character | `baru`, `barusu`, `basuru`, `subara` | 4 |
+| name — real person | `daichi`, `makoto`, `masaharu`, `masahiro`, `nezumi` | 5 |
+| name — place | `maringo` | 1 |
+| not Japanese | `mano` | 1 |
+| onomatopoeia | `gauaa`, `gaurururu` | 2 |
+
+**The names are not roster failures.** `barusu` is Ram's nickname for Subaru
+with the *su* moved to the end; the rest are afterword credits. None of them
+SPEAKS, so no roster would ever have held them — they are mentioned, not
+labelled, and belong to the name path rather than to a loanword lexicon.
+
+**THE OFFLINE TOOLS WERE WRONG ABOUT TWO, both in the direction that would have
+put the wrong word in the lexicon.** SudachiDict returns `nezumi` as the common
+noun ネズミ, "rat" — it is the author's pen name, Nezumi-iro Neko 鼠色猫. And it
+tags `mano` a proper noun; the line reads "mano a mano", which is Spanish, and
+it was flagged only because it is absent from an ENGLISH dictionary. A
+dictionary lookup of a romanised string cannot tell which sense is on the page.
+
+**So MET requires five terms, not eighteen** — and the other thirteen recorded
+as out of scope, which this triage does. Measuring them would put an author's
+credits and a Spanish idiom into a Japanese-loanword lexicon.
+
+Evidence: `ab_test_runtime/experiments/shipped_term_triage.json`.
 
 **A note on how this was nearly got wrong.** The first version parsed the
 discovery script's stdout with awk and returned three terms that were words
