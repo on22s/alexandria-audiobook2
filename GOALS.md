@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2722** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2739** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -427,14 +427,31 @@ cost of adapting. It does track failure: arms that helped moved +0.5 pp, arms
 that hurt +3.4 pp. Emptiness accompanies a failed adaptation; it has not been
 shown to cause one.
 
-**The 14B result is unanimous, and the confirmation has started.** 15 of 15 is
-the strongest signal in the artifact set. The first two rank-confirmation arms
-landed 2026-09-03 and the shipped r16 holds its SIGN on two books it had never
-been scored on — **mushoku16 +8.3** (51.1% → 59.4%) and **owarimonogatari3
-+2.5** (39.5% → 42.0%), against index18's +9.1. Magnitude varies by a factor of
-four across books, so the ladder's +14.8 for r32 is still a single-book number
-until its own two arms finish. Empty rows FELL in both new books (10→7, 23→6),
-which is further evidence against reading emptiness as a cost of adapting.
+**The 14B result is unanimous, and rank confirmation is COMPLETE — 2026-09-04.**
+15 of 15 arms helped. The shipped r16 holds its sign on both new books
+(mushoku16 **+8.3**, owarimonogatari3 **+2.5**, against index18's +9.1), and
+all four confirmation arms are now in:
+
+| book | r16 | r32 | r32 − r16 |
+|---|---|---|---|
+| index18 (ladder) | +9.1 | +14.8 | **+5.7** |
+| mushoku16 | +8.3 | +6.0 | **−2.3** |
+| owarimonogatari3 | +2.5 | **+12.3** | **+9.9** |
+
+**r32 wins on two books of three, mean +4.4 — but the spread is −2.3 to +9.9,
+wider than the effect.** So r32 is probably the better default and is NOT the
+clean win the single-book ladder implied. Book-level variance dominates the
+configuration choice, which is the same conclusion the wire-format test
+reached by a different route.
+
+Two things this run corrects. The ladder's **+14.8 was a single-book number**
+and reads as +6.0 and +12.3 elsewhere. And on 2026-09-04, after seeing only
+the mushoku16 arm (−2.3), this file was nearly amended to say the rank finding
+was noise and r16 should stand; the very next arm was the largest r32 win in
+the set. **Do not conclude from a partial confirmation run.**
+
+Empty rows fell in three of the four arms (10→7, 23→6, 23→3) and rose in one
+(10→13) — further evidence against reading emptiness as a cost of adapting.
 
 **Where the compute has gone is the opposite of what this says.** Days went to
 diagnosing the family with no reliable effect, while the family with a perfect

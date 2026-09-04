@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 511,
-    "exploratory": 309,
+    "exploratory": 311,
     "provisional": 172
   },
   "artifacts": [
@@ -3358,6 +3358,38 @@
       "seed": null,
       "status": null,
       "row_count": 176,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen3-14b-lr2e5_r32-mushoku16-h100-20260903.json",
+      "bytes": 531541,
+      "sha256": "d05dee0f9daeddb19d4eb65cba259f7ebd268aae5ffae8340d6789e02f57a7e6",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 266,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen3-14b-lr2e5_r32-owarimonogatari3-h100-20260903.json",
+      "bytes": 1035525,
+      "sha256": "a6f2a8050f5dde81dcefd21e7f198f69717bd299cb1fb5051f52e988ffab3050",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 324,
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
