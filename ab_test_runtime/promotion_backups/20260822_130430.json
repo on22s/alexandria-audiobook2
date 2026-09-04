@@ -1,0 +1,12 @@
+{
+  "promoted_at": "20260822_130430",
+  "backup": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/promotion_backups/20260822_130430",
+  "min_ecapa": 0.45,
+  "adapters": [
+    {
+      "adapter": "breathy_alto_50s_f_fantasy",
+      "gate_ecapa": 0.5034,
+      "shipped_ecapa": 0.2913
+    }
+  ]
+}
