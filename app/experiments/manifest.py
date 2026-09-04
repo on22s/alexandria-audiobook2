@@ -279,7 +279,7 @@ class ExperimentRecord:
 
     def add(self, arm, gold_id, line, expected, predicted, correct,
             candidates=None, provenance=None, prompt=None, raw=None,
-            retries=None):
+            retries=None, prompt_sha256=None):
         """One scored line. Prompts are hashed; raw responses kept verbatim."""
         self.rows.append({
             "arm": arm,
@@ -302,7 +302,13 @@ class ExperimentRecord:
             # worse than a crash, because it gets analysed.
             "in_candidates": (None if candidates is None
                               else expected in _checked_candidates(candidates)),
-            "prompt_sha256": _sha(prompt) if prompt is not None else None,
+            # A caller that never had the prompt text can still identify the
+            # batch by passing the hash directly. distill_eval passes neither
+            # today, which is why every row it wrote carries a NULL here - and
+            # why two base runs that disagreed on 3 of 133 rows could not be
+            # shown to have been asked the same question.
+            "prompt_sha256": (prompt_sha256 if prompt_sha256 is not None
+                              else _sha(prompt) if prompt is not None else None),
             "prompt_chars": len(prompt) if prompt is not None else None,
             "raw_response": raw,
             "retries": retries,

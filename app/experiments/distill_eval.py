@@ -165,7 +165,14 @@ class LocalClient:
         eos_ids = self.tok.eos_token_id
         if not isinstance(eos_ids, (list, tuple, set)):
             eos_ids = [eos_ids]
+        import hashlib
         self.diagnostics.append({
+            # The batch's identity. Two base runs disagreed on 3 of 133 rows
+            # on 2026-09-04 and nothing could show whether they had been asked
+            # the same question: every row's prompt_sha256 was NULL, because
+            # nothing ever passed a prompt to record.add.
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "prompt_chars": len(prompt),
             "finish_reason": finish,
             "generated_tokens": len(token_ids),
             "emitted_eos": bool(token_ids and token_ids[-1] in eos_ids),
@@ -296,6 +303,11 @@ def main():
     ap.add_argument("--tag", default=os.environ.get("EXPERIMENT_TAG", "distill"))
     ap.add_argument("--limit", type=int, default=0,
                     help="cap scored rows per book, for a smoke run")
+    ap.add_argument("--only-gold-ids", default="",
+                    help="comma-separated gold ids; only windows containing "
+                         "one of them are run. Repeats the exact batches that "
+                         "disagreed instead of a whole book - three rows cost "
+                         "two batches, not 62 windows.")
     # A 25-entry response is ~25 objects of {n, head, speaker} - about 600
     # tokens. The production default of 12000 exists for a server that stops at
     # EOS; here a degenerate generation runs the full budget at ~15 tok/s, so
@@ -323,6 +335,7 @@ def main():
     ap.add_argument("--thinking-mode", choices=("off", "low", "medium", "xhigh"),
                     default="off", help="Qwen chat-template reasoning mode")
     args = ap.parse_args()
+    only_ids = {i.strip() for i in args.only_gold_ids.split(",") if i.strip()}
 
     # two_step reasons in prose then serialises. It is injected as a provider
     # so attribute_batch keeps its text freeze, index binding and exhaustion
@@ -436,6 +449,15 @@ def main():
                                        for i in send):
                     continue
                 rows = [i for i in send if norm(seg[i].get("text")) in want]
+                # BATCH SELECTION. A determinism probe needs to repeat the two
+                # batches that disagreed, not all 62 windows of the book. The
+                # evaluator could not name a subset, so the only way to re-ask
+                # three rows was to re-run everything - hours of GPU to check
+                # three lines, which is why it had not been done.
+                if only_ids and not any(
+                        f"{book}:{want[norm(seg[i].get('text'))]['id']}" in only_ids
+                        for i in rows):
+                    continue
                 if all(record.done(
                         arm,
                         f"{book}:{want[norm(seg[i].get('text'))]['id']}")
@@ -465,6 +487,8 @@ def main():
                     })
                     raw = (batch_diagnostics[-1]["raw_response"]
                            if batch_diagnostics else None)
+                    prompt_sha = (batch_diagnostics[-1].get("prompt_sha256")
+                                  if batch_diagnostics else None)
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
                     # A failed batch is a failure, not an absence. Dropping it
                     # would remove from the denominator exactly the rows this
@@ -491,6 +515,8 @@ def main():
                 })
                 raw = (batch_diagnostics[-1]["raw_response"]
                        if batch_diagnostics else None)
+                prompt_sha = (batch_diagnostics[-1].get("prompt_sha256")
+                              if batch_diagnostics else None)
                 for off, i in enumerate(send):
                     key = norm(seg[i].get("text"))
                     if key not in want:
@@ -509,7 +535,8 @@ def main():
                                # never held it - the question the unanswered-row
                                # finding of 2026-08-30 arrived at.
                                candidates=roster,
-                               provenance=f"{arm}|{book}", raw=raw)
+                               provenance=f"{arm}|{book}", raw=raw,
+                               prompt_sha256=prompt_sha)
                     scored += 1
                 if k % 20 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
