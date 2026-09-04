@@ -1202,6 +1202,15 @@
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_both_generators_strip_the_same_things",
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_publisher_matter_is_not_left_to_a_flag"
   ],
+  "test_goal66_negative_controls": [
+    "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_candidate_membership_audit_rejects_a_missing_artifact",
+    "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_pdnc_context_audit_rejects_an_empty_corpus",
+    "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_production_trigram_audit_rejects_an_empty_join",
+    "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_source_encoding_audit_rejects_an_empty_input_directory",
+    "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_tts_boundary_audit_rejects_an_empty_script_directory",
+    "tests.test_goal66_negative_controls.GoalEvidenceCheckTests.test_check_rejects_a_stale_goal_evidence_audit",
+    "tests.test_goal66_negative_controls.GoalEvidenceCheckTests.test_goal_evidence_audit_rejects_empty_inputs"
+  ],
   "test_goal_citations": [
     "tests.test_goal_citations.CitationScannerTest.test_a_hyphenated_artifact_name_is_seen",
     "tests.test_goal_citations.CitationScannerTest.test_every_cited_artifact_actually_exists",

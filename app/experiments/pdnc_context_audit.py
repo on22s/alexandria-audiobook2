@@ -104,6 +104,8 @@ def main():
     books = args.books or sorted(
         os.path.basename(p) for p in glob.glob(os.path.join(PDNC, "*"))
         if os.path.exists(os.path.join(p, "quotation_info.csv")))
+    if not books:
+        raise SystemExit("no PDNC books found; nothing was audited")
     totals = {w: {} for w in args.windows}
     for book in books:
         for window, per_type in audit(book, args.windows).items():
@@ -111,6 +113,9 @@ def main():
                 row = totals[window].setdefault(qt, [0, 0])
                 row[0] += n
                 row[1] += seen
+
+    if not any(n for per_window in totals.values() for n, _ in per_window.values()):
+        raise SystemExit("no PDNC quotations found; nothing was audited")
 
     print("%-8s %-10s %8s %12s" % ("window", "type", "quotes", "name in view"))
     payload = {}

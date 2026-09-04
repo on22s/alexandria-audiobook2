@@ -93,10 +93,15 @@ def main():
         # `--check` failed on a tree nobody had touched. An index must not be
         # an input to itself.
         REPO, "ab_test_runtime", "audit", "goal_evidence_audit.json"))
+    ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
 
     audit = load_audit(args.audit)
     goals = parse_goals(args.goals)
+    if not goals:
+        raise SystemExit("no goals found; refusing to report an empty audit")
+    if not audit:
+        raise SystemExit("structural audit contains no artifacts; nothing was checked")
 
     rows, unscored = [], []
     for goal in goals:
@@ -146,6 +151,20 @@ def main():
         document["provenance"] = provenance(__file__, args)
     except Exception as exc:                                    # noqa: BLE001
         document["provenance"] = {"error": str(exc)[:120]}
+    if args.check:
+        try:
+            with open(args.out, encoding="utf-8") as handle:
+                current = json.load(handle)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"goal evidence audit is unreadable: {exc}") from exc
+        # Provenance describes the regeneration, not the indexed data.
+        current.pop("provenance", None)
+        document.pop("provenance", None)
+        if current != document:
+            raise SystemExit("goal evidence audit is stale; regenerate it")
+        print(f"goal evidence audit is current ({len(rows)} goals)")
+        return 0
+
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(document, handle, indent=1, ensure_ascii=False)

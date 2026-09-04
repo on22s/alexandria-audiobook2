@@ -50,6 +50,12 @@ for script in audit_experiment_artifacts audit_legacy_attribution collect_result
         stale=1
     fi
 done
+if ( cd "$REPO" && "$python" "$REPO/app/experiments/goal_evidence_audit.py" --check >/dev/null 2>&1 ); then
+    echo "   goal_evidence_audit  current"
+else
+    echo "   goal_evidence_audit  STALE - regeneration did not settle it" >&2
+    stale=1
+fi
 [ "$stale" = 0 ] || exit 2
 
 # A BRAND-NEW ARTIFACT WILL GO STALE THE MOMENT YOU COMMIT IT, ONCE.

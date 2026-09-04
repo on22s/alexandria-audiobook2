@@ -32,10 +32,8 @@ import os
 import sys
 import unicodedata
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))))
-if not os.path.isdir(os.path.join(REPO, "scripts")):
-    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.dirname(APP)
 sys.path.insert(0, os.path.join(REPO, "app"))
 
 from speech_text import get_speech_normalization  # noqa: E402
@@ -81,6 +79,8 @@ def main():
 
     paths = sorted(p for p in glob.glob(os.path.join(args.scripts, "*.json"))
                    if not p.endswith(".generation_quality.json"))
+    if not paths:
+        raise SystemExit("no script files found; nothing was audited")
     for path in paths:
         book = os.path.basename(path)[:-len(".json")]
         book_after = collections.Counter()
@@ -106,6 +106,9 @@ def main():
                 "distinct": len(book_after),
                 "top": [[c, n] for c, n in book_after.most_common(8)],
             }
+
+    if not lines_total:
+        raise SystemExit("script files contained no spoken text; nothing was audited")
 
     def describe(counter):
         return [{"char": c, "codepoint": f"U+{ord(c):04X}",
