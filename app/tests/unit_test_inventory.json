@@ -3028,6 +3028,13 @@
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_sweep_uses_peak_across_all_sub_batches"
   ],
+  "test_tts_clip_view": [
+    "tests.test_tts_clip_view.Rendering.test_the_page_contains_the_text_and_the_error_pairs",
+    "tests.test_tts_clip_view.RowsOf.test_detail_is_never_used_as_the_reference_string",
+    "tests.test_tts_clip_view.RowsOf.test_rows_without_audio_or_words_are_dropped",
+    "tests.test_tts_clip_view.RowsOf.test_the_asked_text_comes_from_source",
+    "tests.test_tts_clip_view.RowsOf.test_wer_is_errors_over_words"
+  ],
   "test_tts_validation_manifest": [
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_kana_is_detected",
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_plain_english_is_not_flagged",
