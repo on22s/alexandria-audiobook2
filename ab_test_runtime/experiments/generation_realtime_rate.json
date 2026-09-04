@@ -1,0 +1,40 @@
+{
+ "note": "Goal 4.1's metric is generation/audio, LOWER is better. The TTS log prints audio/generation; these are inverses and reading one as the other flips the verdict.",
+ "target_median": 0.9,
+ "target_worst": 1.5,
+ "arms": [
+  {
+   "log": "local_seeds_chain_b.log",
+   "clips": 4251,
+   "median_generation_over_audio": 1.2297,
+   "worst": 1.375,
+   "best": 1.2075,
+   "meets_median_target": false,
+   "meets_worst_target": true
+  },
+  {
+   "log": "library_fidelity_control_20260904.log",
+   "clips": 1417,
+   "median_generation_over_audio": 0.8333,
+   "worst": 0.9583,
+   "best": 0.8171,
+   "meets_median_target": true,
+   "meets_worst_target": true
+  }
+ ],
+ "provenance": {
+  "script": "generation_realtime_rate.py",
+  "written": "2026-09-04T12:41:52",
+  "host": "mitch-linux",
+  "git": {
+   "error": "No module named 'experiments'"
+  },
+  "args": {
+   "logs": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/logs/local_seeds_chain_b.log",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/logs/library_fidelity_control_20260904.log"
+   ],
+   "out": "ab_test_runtime/experiments/generation_realtime_rate.json"
+  }
+ }
+}
