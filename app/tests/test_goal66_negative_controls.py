@@ -65,6 +65,89 @@ class EmptyScopeRejectionTests(unittest.TestCase):
         self.assertIn("nothing was audited", result.stderr + result.stdout)
 
 
+class NonEmptyScopeAcceptanceTests(unittest.TestCase):
+    """The guards reject empty scope without rejecting real measurements."""
+
+    def run_script(self, relative, *args):
+        return subprocess.run(
+            [sys.executable, str(REPO / relative), *map(str, args)],
+            cwd=REPO, capture_output=True, text=True,
+        )
+
+    def test_source_encoding_audit_accepts_a_real_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "book.txt").write_text("ordinary text", encoding="utf-8")
+            out = root / "out.json"
+            result = self.run_script(
+                "app/experiments/audit_source_encoding.py",
+                "--inputs", root, "--out", out)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, json.loads(out.read_text())["candidates_considered"])
+
+    def test_tts_boundary_audit_accepts_spoken_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "book.json").write_text(
+                json.dumps([{"text": "Hello."}]), encoding="utf-8")
+            out = root / "out.json"
+            result = self.run_script(
+                "app/experiments/tts_boundary_audit.py",
+                "--scripts", root, "--out", out)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, json.loads(out.read_text())["lines"])
+
+    def test_production_trigram_audit_accepts_a_spanned_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts, sources = root / "scripts", root / "sources"
+            scripts.mkdir()
+            sources.mkdir()
+            (scripts / "book.json").write_text(json.dumps([{
+                "text": "Hello", "spoken": True, "source_span": [0, 5],
+                "speaker": "NARRATOR",
+            }]), encoding="utf-8")
+            (sources / "book.txt").write_text("Hello", encoding="utf-8")
+            out = root / "out.json"
+            result = self.run_script(
+                "app/experiments/production_trigram_audit.py",
+                "--scripts", scripts, "--sources", sources, "--out", out)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, json.loads(out.read_text())["totals"]["with_span"])
+
+    def test_pdnc_context_audit_accepts_a_real_quotation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, book = Path(tmp), Path(tmp) / "Book"
+            book.mkdir()
+            (book / "novel_text.txt").write_text("Alice said hello", encoding="utf-8")
+            (book / "quotation_info.csv").write_text(
+                'quoteID,quoteByteSpans,speaker,quoteType\nq1,"[(11, 16)]",Alice,Explicit\n',
+                encoding="utf-8")
+            (book / "character_info.csv").write_text(
+                "Main Name,Aliases\nAlice,\n", encoding="utf-8")
+            out = root / "out.json"
+            result = self.run_script(
+                "app/experiments/pdnc_context_audit.py",
+                "--pdnc", root, "--out", out)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["Book"], json.loads(out.read_text())["books"])
+
+    def test_candidate_membership_audit_accepts_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "artifact.json"
+            artifact.write_text(json.dumps({
+                "meta": {"experiment": "probe"},
+                "rows": [{"in_candidates": True}],
+            }), encoding="utf-8")
+            out = root / "out.json"
+            result = self.run_script(
+                "app/experiments/audit_candidate_membership.py",
+                artifact, "--out", out)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, len(json.loads(out.read_text())["artifacts"]))
+
+
 class GoalEvidenceCheckTests(unittest.TestCase):
     def test_check_rejects_a_stale_goal_evidence_audit(self):
         with tempfile.TemporaryDirectory() as tmp:

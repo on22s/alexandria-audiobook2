@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2966** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2977** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2738,6 +2738,17 @@ before it was inspected. Each now has a rejecting test for an empty or stale
 case, and the goal-evidence audit is regenerated and checked by `ready.sh`.
 This strengthens the discipline but does not close the goal: the remaining
 guards and comparisons have not all received a negative-control audit.
+
+**SECOND AUDIT TRANCHE, 2026-09-04.** Stored experiment summaries are now
+recomputed from their long-schema rows by the mandatory structural audit; a
+summary/row mismatch stops regeneration instead of remaining a test-only
+helper. The five new empty-scope guards also have accepting controls, proving
+that they distinguish a real measurement from an empty one rather than merely
+failing every invocation. LM Studio's missing-load-state rejection now has
+both controls as well. A reported uncovered line in `verify_release.py` was
+the executable module entry point, not another validation decision; normal
+CLI verifier runs exercise it. The goal remains open while older guards are
+audited tranche by tranche.
 
 **EIGHT INSTANCES IN ONE DAY, 2026-09-04.** Not eight bugs. One bug, eight
 disguises:
