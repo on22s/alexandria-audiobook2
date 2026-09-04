@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2860** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2905** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1700,6 +1700,51 @@ permanently unattributable.
 
 ---
 
+## 4. Speed and cost
+
+### 4.1 Faster than real time
+
+**Metric** — generation seconds ÷ audio seconds. LOWER is better.
+**Target — median ≤ 0.90x, worst case ≤ 1.50x.**
+
+**OPEN — demoted from met on 2026-09-04.** The goal recorded median
+0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
+figure does not say which VOICE PATH produced it, and the paths differ by half
+again. Measured the same day on the same RX 9070 XT, from the raw seconds in
+the TTS logs:
+
+| path | clips | median | worst | verdict |
+|---|---|---|---|---|
+| **LoRA voices** | 4,251 | **1.23x** | 1.38x | **MISSES** the 0.90x target |
+| stock voice | 1,417 | 0.83x | 0.96x | meets it |
+
+**The LoRA path is what the product ships.** Multi-voice audiobooks assign a
+LoRA per character, so the arm that misses is the arm in use, and it misses by
+37%. It is also slower than the 1.21x this goal recorded as its WORST case,
+across 4,251 consecutive clips rather than 300.
+
+**The cost is the adapter, not the card.** Same machine, same day, same
+validation clips, differing only in whether a LoRA is applied: 1.23x against
+0.83x. Applying an adapter costs about **50% more generation time**, and
+nothing here had recorded that.
+
+**A trap worth naming, because it inverts the answer.** `tts.py` logs
+`17.9s -> 14.5s audio (0.81x real-time)` — that is audio ÷ generation, where
+HIGHER is better. This goal measures generation ÷ audio, where LOWER is
+better. Read one as the other and a 1.23x failure reads as a 0.81x pass.
+`generation_realtime_rate.py` parses the raw seconds and reports only this
+goal's convention.
+
+**What would close it** is either a faster LoRA path or an explicit decision
+that 1.23x is acceptable for multi-voice work — a target change is a legitimate
+outcome, but it has to be made rather than inherited from a measurement that
+did not separate the paths.
+
+Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
+`app/experiments/generation_realtime_rate.py`.
+
+---
+
 ## 5. Text handling
 
 
@@ -3283,6 +3328,25 @@ Reproduced unchanged on 2026-08-12 in
 with **94.0%** of clips outside the band. This confirms the baseline; it is
 not an intervention or an improvement.
 
+**CONFIRMED AT LIBRARY SCALE WITH A NULL — 2026-09-04.** The evidence above
+is 100 clips per language. The fidelity control arm scores **1,417 clips across
+74 adapters**, and adds the comparison this goal never had: the same clips
+rendered by the engine's stock voice, which is asked to match nobody.
+
+| | mean `dur_ratio` |
+|---|---|
+| LoRA voices | **0.9990** |
+| stock voice | 1.2974 |
+
+A voice imitating nobody runs **30% long**; the adapters land within 0.1% of
+the human. Duration fidelity is not merely met, it is the thing the adapters do
+best, and the size of the effect was invisible while there was nothing to
+compare against. This does not touch the per-line spread, which remains the
+open half.
+
+Evidence: `ab_test_runtime/experiments/library_fidelity_control_ryan_seed20260925.json`
+paired with `ab_test_runtime/experiments/library_fidelity_seed_20260925_n20_full75.json`.
+
 **Diagnosed 2026-08-15: the comparison does not isolate a duration defect.**
 The Japanese clone's generated pace matches the pace implied by its reference
 clip: generated duration / reference-rate-predicted duration has median
@@ -3512,28 +3576,6 @@ now derives a stable per-character seed. **MET for TTS.**
 
 ## 4. Speed and cost
 
-
-### 4.1 Faster than real time
-
-> **What this is.** How long the app takes to produce audio, compared with how
-> long that audio lasts.
->
-> **Why it matters.** It is the number a user actually feels. Right now a
-> 10-hour audiobook costs roughly 10 hours of computer time — start it and come
-> back tomorrow. Getting comfortably below 1.0 is the difference between
-> "overnight" and "over lunch".
->
-> **Why this is reachable.** Two of the three languages are already at 0.97–0.98
-> and English at 0.91, so the target is a modest tightening rather than a
-> redesign.
-
-**Metric** — generation seconds ÷ audio seconds.
-**Current** — median **0.91x / 0.98x / 0.97x**, slowest 1.21x (n=300 per
-language, RX 9070 XT). **MET, barely.**
-
-**Target — median ≤ 0.90x, worst case ≤ 1.5x.**
-
----
 
 ### 4.2 Local should not need the cloud
 
