@@ -259,13 +259,22 @@ def main():
             try:
                 render(engine, chunk["text"], chunk.get("instruct", ""),
                        speaker, voice_config, voice_data, wav)
-                r = validate(chunk["text"], transcribe(wav))
+                heard = transcribe(wav)
+                r = validate(chunk["text"], heard)
             except Exception as exc:                  # noqa: BLE001
                 print(f"  [{i}] {label} FAILED: {str(exc)[:80]}")
                 continue
+            # SOURCE, TRANSCRIPT AND DETAIL ARE KEPT. This used to store
+            # counts alone and pop `detail` outright, so the artifact recorded
+            # that 32.08% of non-prose words were wrong and nothing about
+            # WHICH words or why. Goal 6.5 asks that clips have a rendered
+            # view before their numbers are believed, and there was nothing to
+            # render: no reference, no transcript, no per-error pairs. The
+            # rows are ~76 per arm; the cost is negligible beside a figure
+            # that cannot be checked.
             r.update({"class": label, "chars": len(chunk["text"]),
-                      "uid": chunk["uid"], "wav": wav})
-            r.pop("detail", None)
+                      "uid": chunk["uid"], "wav": wav,
+                      "source": chunk["text"], "transcript": heard})
             rows.append(r)
             print(f"  [{i}/{len(pairs)}] {label:9} {len(chunk['text']):4}ch  "
                   f"{r['errors']:3}/{r['threshold']:<3} err  "

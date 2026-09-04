@@ -275,8 +275,13 @@ def main():
             print(f"  [{i}/{len(segments)}] transcribe failed: {e}")
             continue
         r = validate(seg["text"], heard, args.strictness)
+        # `source` is what the model was ASKED to say. Without it an artifact
+        # records only what was HEARD, so a 32% word error rate cannot be
+        # examined at all - goal 6.5 asks that clips have a rendered view
+        # before their numbers are believed, and there was nothing to render
+        # the reference from. Stored beside chars rather than replacing it.
         r.update({"wav": seg["wav"], "chars": len(seg["text"]),
-                  "transcript": heard})
+                  "source": seg["text"], "transcript": heard})
         rows.append(r)
         mark = "FAIL" if r["failed"] else "ok  "
         print(f"  [{i}/{len(segments)}] {mark} {r['errors']}/{r['threshold']} "
