@@ -651,6 +651,12 @@
     "tests.test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
   ],
+  "test_constant_predictions_are_rejected": [
+    "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_a_constant_answer_is_rejected",
+    "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_a_small_arm_is_not_judged",
+    "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_the_empty_case_still_reports_as_empty",
+    "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_variety_passes"
+  ],
   "test_constraint_refine": [
     "tests.test_constraint_refine.RecordedResultTest.test_the_best_proximity_baseline_is_recorded",
     "tests.test_constraint_refine.RecordedResultTest.test_the_recorded_run_shows_the_repair_losing",
@@ -2734,6 +2740,14 @@
     "tests.test_split_quote_repair.PromptVariantTest.test_this_arm_is_offered",
     "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
     "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
+  ],
+  "test_stage1_parses_what_the_model_emits": [
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_entry_lines_win_when_both_are_present",
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_json_wrapped_in_prose_is_still_found",
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_malformed_json_does_not_raise",
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_text_with_no_decisions_yields_nothing",
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_the_entry_line_shape_still_works",
+    "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_the_json_shape_the_model_actually_emitted"
   ],
   "test_stage3_harnesses": [
     "tests.test_stage3_harnesses.TestStage3HarnessesFailLoudly.test_clone_phase_is_required",
