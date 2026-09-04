@@ -288,6 +288,25 @@ class ContractValidationTest(unittest.TestCase):
         self.assertFalse(any("raw response" in p for p in
                              record.validate({"require_raw_response": True})))
 
+    def test_every_failed_generation_batch_is_not_a_measurement(self):
+        record = self._record()
+        record.meta["generation_diagnostics"] = [
+            {"arm": arm, "outcome": "batch_failed"}
+            for arm in ("a", "b")
+        ]
+        problems = record.validate({"require_accepted_generation": True})
+        self.assertEqual(2, sum("every recorded generation batch failed" in p
+                                for p in problems))
+
+    def test_an_accepted_generation_batch_satisfies_the_contract(self):
+        record = self._record()
+        record.meta["generation_diagnostics"] = [
+            {"arm": arm, "outcome": "accepted"}
+            for arm in ("a", "b")
+        ]
+        self.assertFalse(any("generation" in p for p in record.validate(
+            {"require_accepted_generation": True})))
+
     def test_non_ideal_load_settings_are_caught_only_when_demanded(self):
         # "optimized" is computed against an ideal derived from live VRAM, so
         # it moves with whatever else is on the card. Recording it is right;

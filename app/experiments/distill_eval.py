@@ -582,7 +582,8 @@ def main():
         f"distill_eval__{args.tag}.json"),
         contract={"expected_arms": ("base", "tuned"),
                   "require_any_prediction": True,
-                  "require_raw_response": True})
+                  "require_raw_response": True,
+                  "require_accepted_generation": True})
     print("wrote", out)
 
 

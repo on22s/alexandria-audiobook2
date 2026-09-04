@@ -205,6 +205,7 @@ class DistillEvalShimTest(unittest.TestCase):
             source = handle.read()
         self.assertIn('"require_any_prediction": True', source)
         self.assertIn('"require_raw_response": True', source)
+        self.assertIn('"require_accepted_generation": True', source)
 
 
 class DistillEvalProvenanceTest(unittest.TestCase):

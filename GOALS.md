@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2977** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2989** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2749,6 +2749,18 @@ both controls as well. A reported uncovered line in `verify_release.py` was
 the executable module entry point, not another validation decision; normal
 CLI verifier runs exercise it. The goal remains open while older guards are
 audited tranche by tranche.
+
+**THIRD AUDIT TRANCHE, 2026-09-04.** Two downloaded FP8 diagnostics carried
+766 empty predictions and 428 failed generation batches apiece, yet their
+metadata said `validation: ok`; the missing offline FP8 kernel meant inference
+never ran. The evaluator now preflights generation, all prediction experiments
+reject an all-empty arm by default, and `distill_eval` independently requires
+at least one accepted generation batch in every arm. The controls distinguish
+one accepted batch from an arm whose every batch failed. Separately, the
+stage-1-only probe returned `UNKNOWN` for all 176 rows: that is evidence that
+its regex extraction method failed, not evidence that both model arms lost
+attribution knowledge. Its paired one-pass control remained 72.7% base and
+77.3% tuned. The goal remains open for the older, unaudited guards.
 
 **EIGHT INSTANCES IN ONE DAY, 2026-09-04.** Not eight bugs. One bug, eight
 disguises:
