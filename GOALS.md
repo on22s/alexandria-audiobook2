@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2795** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2840** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1255,6 +1255,51 @@ One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
 happened on the first pass of this audit.
+
+**Nine seeds at full 75-adapter coverage, 2026-09-01–04, and the estimate has
+CONVERGED.** Seeds 20260916–20260924 at `lines=20`, each scoring 74 of 75
+adapters (the 75th, `warm_baritone_40s_m_gothic`, records `no val clips` on
+every run — an honest recorded gap in that dataset, not a harness failure).
+Each figure below is the mean across adapters of that adapter's median, then
+averaged over the nine seeds:
+
+| metric | mean | sd across seeds | running-mean drift, last 4 seeds |
+|---|---:|---:|---:|
+| ECAPA | 0.5917 | 0.0024 | **0.0006** |
+| `vtl_ratio` | 0.9910 | 0.0028 | 0.0009 |
+| `f0_median_ratio` | 1.0714 | 0.0069 | 0.0020 |
+| `f0_spread_ratio` | 1.1473 | 0.0142 | 0.0038 |
+| `dur_ratio` | 0.9989 | 0.0190 | 0.0063 |
+
+**Stop adding seeds.** A tenth moves pooled ECAPA by under 0.001, which is two
+orders of magnitude below the differences this metric is used to decide. Seed
+20260925 was already running when this was written and is the test of exactly
+that claim rather than an input to it.
+
+**The finding is not the ECAPA number, it is the two pitch ratios.** Duration
+is essentially exact and vocal-tract length is within 1%, but the library
+speaks **7% high in median pitch** and with **15% wider pitch spread** than the
+narrators it imitates. That is stable to ±0.007 across nine independent draws,
+so it is a property of the library, not of a sample — and it is consistent with
+2.5, which found pitch RANGE the axis that separates a convincing voice from a
+close one.
+
+**What it does NOT say, and this is the whole reason the next run exists.**
+These are ratios against a human narrator with **no null to read them
+against**. Nothing here separates "the adapter sings 7% high" from "any
+synthetic voice sits 7% above this narrator" — a stock voice never asked to
+match anyone would also produce a ratio, and nobody has measured what it is.
+Reading 1.07 as an adapter defect is an inference, not the measurement
+([[Rule 19]]).
+
+`--control-voice` adds that arm: the same narrators, the same clips, the same
+metrics, the engine's default stock voice in place of each LoRA, and the same
+seed, so the arms differ in the voice alone. Until it reports, the honest
+statement is that the library's pitch ratios are precisely measured and their
+cause is unattributed.
+
+Evidence: the nine `ab_test_runtime/experiments/library_fidelity_seed_*_n20_full75.json`,
+`app/tests/test_library_fidelity_control_arm.py`.
 
 **Target — train on `train/` only; 0 adapters trained on their own val split.**
 

@@ -1448,6 +1448,12 @@
     "tests.test_library_eval_build.BuildShapeTest.test_every_key_the_consumer_reads_is_present",
     "tests.test_library_eval_build.BuildShapeTest.test_the_book_is_the_voice_it_came_from"
   ],
+  "test_library_fidelity_control_arm": [
+    "tests.test_library_fidelity_control_arm.VoiceEntry.test_both_arms_use_the_same_seed",
+    "tests.test_library_fidelity_control_arm.VoiceEntry.test_control_arm_carries_no_adapter_path",
+    "tests.test_library_fidelity_control_arm.VoiceEntry.test_control_arm_routes_away_from_the_lora_generator",
+    "tests.test_library_fidelity_control_arm.VoiceEntry.test_default_arm_loads_the_adapter"
+  ],
   "test_limit_zero_means_all": [
     "tests.test_limit_zero_means_all.LimitConventionTest.test_no_script_slices_rows_by_a_bare_limit",
     "tests.test_limit_zero_means_all.LimitConventionTest.test_slicing_semantics_directly",
