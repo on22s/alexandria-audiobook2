@@ -47,7 +47,19 @@ def tracked_files():
 
 
 def top_level_entries():
-    return {name.split("/")[0] for name in os.listdir(REPO)}
+    """From the COMMIT, not from os.listdir.
+
+    Reading the working directory made the test's scope depend on local
+    clutter: `logs/` exists on a machine that has run the app and not in a
+    fresh clone, so `logs/responses/` was in scope here and out of scope
+    there. A test that checks different things in different checkouts is
+    worse than no test - it went green in the worktree it was written in and
+    red in the live tree minutes later.
+    """
+    out = _git("ls-tree", "--name-only", "HEAD")
+    if out.returncode != 0:
+        raise unittest.SkipTest("git unavailable")
+    return {name.strip("/") for name in out.stdout.split() if name.strip()}
 
 
 def cited_paths():
@@ -66,6 +78,13 @@ class GoalsEvidence(unittest.TestCase):
 
     def _satisfied(self, path):
         full = os.path.join(REPO, path)
+        # DELIBERATE EXCLUSION FIRST. This used to be the last branch, which
+        # meant a gitignored DIRECTORY never reached it: `logs/responses/` is
+        # covered by `/logs/` in .gitignore, fell into the isdir branch, found
+        # no tracked files beneath it (correctly - it is ignored) and was
+        # reported as missing evidence.
+        if _git("check-ignore", "-q", path).returncode == 0:
+            return True
         if "*" in path:
             import glob
             return any(os.path.relpath(h, REPO) in self.tracked
@@ -75,10 +94,7 @@ class GoalsEvidence(unittest.TestCase):
         if os.path.isdir(full):
             prefix = path.rstrip("/") + "/"
             return any(t.startswith(prefix) for t in self.tracked)
-        if path in self.tracked:
-            return True
-        # A deliberate exclusion is not a missing artifact.
-        return _git("check-ignore", "-q", path).returncode == 0
+        return path in self.tracked
 
     def test_every_cited_evidence_path_is_in_the_repository(self):
         missing = [p for p in cited_paths()
@@ -117,3 +133,28 @@ class GoalsEvidence(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CheckoutIndependence(unittest.TestCase):
+    """The scope must come from the commit, so every checkout checks the same
+    set. Both of these failed on 2026-09-04 minutes after the file was merged."""
+
+    def test_scope_ignores_untracked_top_level_clutter(self):
+        committed = top_level_entries()
+        on_disk = {n for n in os.listdir(REPO)}
+        self.assertTrue(committed <= on_disk | {".git"},
+                        "ls-tree named something absent from disk")
+        # The live tree carries untracked runtime dirs; they must not widen scope.
+        self.assertNotIn("logs", committed - set(
+            _git("ls-tree", "--name-only", "HEAD").stdout.split()),
+            "scope must be derived from HEAD alone")
+
+    def test_a_gitignored_directory_counts_as_deliberate(self):
+        """logs/ is ignored wholesale by .gitignore line 23. A cited path
+        under it is an excluded runtime location, not missing evidence."""
+        case = GoalsEvidence("test_every_cited_evidence_path_is_in_the_repository")
+        case.setUp()
+        if _git("check-ignore", "-q", "logs/responses/").returncode == 0:
+            self.assertTrue(case._satisfied("logs/responses/"))
+        else:
+            self.skipTest("logs/ is not ignored in this checkout")
