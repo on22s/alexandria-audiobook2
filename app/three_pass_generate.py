@@ -252,7 +252,7 @@ def build_attribute_request(frozen_batch, params, roster,
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
-                    exhaustion_sink=None):
+                    exhaustion_sink=None, entries_provider=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -270,10 +270,26 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
                                                else params.temperature))
-    named = call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, call_params,
-        log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
-        validate_entries=validate, attempt_observer=attempt_observer)
+    # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
+    # function safe - validate_attribution's text freeze, the index_head_check
+    # binding, the exhaustion path - is shared by any provider, so an
+    # alternative attribution strategy cannot quietly skip them. Default None
+    # is the production path, byte-identical to before.
+    if entries_provider is None:
+        named = call_llm_for_entries(
+            client, model_name, sys_prompt, user_prompt, call_params,
+            log_name="llm_responses.log", label="ATTRIBUTE",
+            max_retries=max_retries, validate_entries=validate,
+            attempt_observer=attempt_observer)
+    else:
+        # A provider also receives frozen_batch, because a strategy that
+        # serialises WITHOUT a second model has to build {n, head, speaker}
+        # itself. It still returns through the same validator below.
+        named = entries_provider(
+            client, model_name, sys_prompt, user_prompt, call_params,
+            log_name="llm_responses.log", label="ATTRIBUTE",
+            max_retries=max_retries, validate_entries=validate,
+            attempt_observer=attempt_observer, frozen_batch=frozen_batch)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text

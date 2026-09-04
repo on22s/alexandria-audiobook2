@@ -252,12 +252,37 @@ def main():
     ap.add_argument("--max_tokens", type=int, default=2000)
     ap.add_argument("--input-dir")
     ap.add_argument("--checkpoint-dir")
+    ap.add_argument("--attribution-mode",
+                    choices=("one_pass", "two_step", "stage1_only"),
+                    default="one_pass",
+                    help="how the speaker is asked for. two_step reasons in "
+                         "prose then a model serialises; stage1_only reasons "
+                         "then a REGEX serialises, with no second call. All "
+                         "three replace ONLY the LLM call, so the text freeze, "
+                         "index binding and scoring are identical. Run against "
+                         "an adapter, stage1_only asks whether the adapter "
+                         "learned attribution even when its JSON is broken - "
+                         "tuned>base here with tuned<base under one_pass would "
+                         "mean the evaluation has been measuring format "
+                         "compliance, not attribution.")
     ap.add_argument("--load-in-4bit", action="store_true",
                     help="load the base with bitsandbytes NF4 when BF16 "
                          "weights exceed available VRAM")
     ap.add_argument("--thinking-mode", choices=("off", "low", "medium", "xhigh"),
                     default="off", help="Qwen chat-template reasoning mode")
     args = ap.parse_args()
+
+    # two_step reasons in prose then serialises. It is injected as a provider
+    # so attribute_batch keeps its text freeze, index binding and exhaustion
+    # path; only the model call changes, and both modes are scored by the same
+    # code. stage1_stats separates "the reasoning never decided" from "the
+    # conversion lost the decision" - the distinction the generate_script
+    # two-step run could not make, because validation runs only after stage 2.
+    provider = None
+    stage1_stats = []
+    if args.attribution_mode in ("two_step", "stage1_only"):
+        from experiments.two_step_attribution import build_provider
+        provider = build_provider(stage1_stats, mode=args.attribution_mode)
 
     import torch
     from transformers import (AutoConfig, AutoModelForCausalLM,
@@ -372,7 +397,8 @@ def main():
                     with ctxmgr:
                         out = attribute_batch(client, args.model, frozen, params,
                                               roster, neighbor_contexts=ctx,
-                                              source_text=src)
+                                              source_text=src,
+                                              entries_provider=provider)
                 except Exception as exc:
                     batch_diagnostics = client.diagnostics[diagnostic_start:]
                     record.meta["generation_diagnostics"].append({

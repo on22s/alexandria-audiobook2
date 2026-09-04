@@ -2994,6 +2994,15 @@
     "tests.test_two_step.Prompts.test_stage2_is_never_shown_the_source_chunk",
     "tests.test_two_step.Prompts.test_stage2_refuses_empty_input"
   ],
+  "test_two_step_attribution": [
+    "tests.test_two_step_attribution.Decisions.test_handles_empty",
+    "tests.test_two_step_attribution.Decisions.test_ignores_prose_without_decisions",
+    "tests.test_two_step_attribution.Decisions.test_parses_its_own_summary_lines",
+    "tests.test_two_step_attribution.RegexSerialisation.test_head_comes_from_the_frozen_text",
+    "tests.test_two_step_attribution.RegexSerialisation.test_one_entry_per_frozen_entry_in_order",
+    "tests.test_two_step_attribution.RegexSerialisation.test_undecided_becomes_unknown_not_dropped",
+    "tests.test_two_step_attribution.ValidationIsNotBypassed.test_stage1_only_returns_nothing_when_the_validator_refuses"
+  ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_lowercase_phrase_is_not_a_name_however_it_is_hyphenated",
