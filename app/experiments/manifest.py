@@ -211,6 +211,56 @@ def _checked_candidates(candidates):
     return candidates
 
 
+def validate_stored_summary(doc):
+    """-> problems where an artifact's stored summary disagrees with its rows.
+
+    The check ExperimentRecord.validate() could not perform. Inside a live
+    record the summary is derived from the rows, so they agree by
+    construction; the disagreement this guards against only exists once the
+    two are separate records in a file. Every number quoted from this
+    repository is read out of the stored summary block, and nothing verified
+    it against the rows beside it.
+    """
+    problems = []
+    stored = doc.get("summary")
+    rows = doc.get("rows")
+    if not isinstance(stored, dict) or not isinstance(rows, list):
+        return problems
+    # ONLY THE LONG SCHEMA, where a row names its arm. Several families are
+    # WIDE instead - aishell3_score, ljspeech_score and the rest put each arm
+    # in its own COLUMN on every row (`lora`, `clone`, `human_vs_human`), so
+    # no row carries an `arm` key at all. A first version of this check
+    # counted no arms in those files, decided every summary bucket was
+    # orphaned, and reported 105 of 397 artifacts inconsistent. All 105 were
+    # this mismatch. Judging a schema you do not understand is not a check,
+    # it is noise with a number attached.
+    if not any(isinstance(r, dict) and r.get("arm") for r in rows):
+        return problems
+    counted = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("arm"):
+            continue
+        b = counted.setdefault(row["arm"], {"n": 0, "correct": 0})
+        b["n"] += 1
+        b["correct"] += bool(row.get("correct"))
+    for arm, bucket in sorted(stored.items()):
+        if not isinstance(bucket, dict):
+            continue
+        seen = counted.get(arm)
+        if seen is None:
+            problems.append(f"{arm}: summary names an arm with no rows")
+            continue
+        if "n" in bucket and bucket["n"] != seen["n"]:
+            problems.append(f"{arm}: summary n={bucket['n']} but "
+                            f"{seen['n']} rows")
+        if "correct" in bucket and bucket["correct"] != seen["correct"]:
+            problems.append(f"{arm}: summary correct={bucket['correct']} "
+                            f"but rows give {seen['correct']}")
+    for arm in sorted(set(counted) - set(stored)):
+        problems.append(f"{arm}: rows exist for an arm the summary omits")
+    return problems
+
+
 class ExperimentRecord:
     """Collect per-line records, then write one self-describing artifact."""
 
@@ -441,15 +491,19 @@ class ExperimentRecord:
             problems.append(
                 f"{len(duplicates)} duplicate (arm, id) identities, "
                 f"e.g. {duplicates[:3]}")
-        for arm, bucket in self.summary().items():
-            rows = [r for r in self.rows if r["arm"] == arm]
-            if bucket["n"] != len(rows):
-                problems.append(f"{arm}: summary n={bucket['n']} but "
-                                f"{len(rows)} rows")
-            recomputed = sum(1 for r in rows if r["correct"])
-            if bucket["correct"] != recomputed:
-                problems.append(f"{arm}: summary correct={bucket['correct']} "
-                                f"but rows give {recomputed}")
+        # THESE TWO CHECKS USED TO LIVE HERE AND COULD NOT FAIL. They compared
+        # self.summary()["n"] against len(rows) and self.summary()["correct"]
+        # against a recount of the same rows - but summary() DERIVES both by
+        # counting self.rows three lines earlier, so each compared a value to
+        # its own source. A trace over all 2,696 tests on 2026-09-04 showed
+        # both lines never executed: not because nothing tried, but because no
+        # input could reach them.
+        #
+        # The concern was right and is now checked where it can actually be
+        # violated - validate_stored_summary(), against an artifact loaded from
+        # disk, where the summary block and the rows are two separate records
+        # that a hand edit, a merge, a truncation or an older writer can put
+        # out of step.
         contract = contract or {}
         environment = self.meta.get("lmstudio") or {}
         if not environment.get("loaded"):
