@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 515,
-    "exploratory": 311,
+    "exploratory": 313,
     "provisional": 174
   },
   "artifacts": [
@@ -3278,6 +3278,38 @@
       "seed": null,
       "status": null,
       "row_count": 1544,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen3-14b-apos-damaged-h100-20260903.json",
+      "bytes": 382992,
+      "sha256": "a0d2c5ee956cc25bdf50b3759725fff52cab4c631dec58cb2ea857b005f67545",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 176,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen3-14b-apos-repaired-h100-20260903.json",
+      "bytes": 382931,
+      "sha256": "72b19f12e9e492983b2babd3df84dd08c9df8cd88b9267b9ed8a4858924f2a75",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 176,
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
