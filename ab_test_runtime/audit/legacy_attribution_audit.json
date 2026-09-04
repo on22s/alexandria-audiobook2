@@ -1,11 +1,11 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "3e015acac606646d0182a68cda7dd3fadf67178dad4e56a6c55796896c63cdad",
+  "source_structural_sha256": "4a852bf42969f25c4013823501d069eb42213bfea76326b59290889f3137b31b",
   "summary": {
     "exploratory": 48,
     "historical_only": 49,
     "provisional": 21,
-    "supported_measurement": 54
+    "supported_measurement": 56
   },
   "artifacts": [
     {
@@ -1417,6 +1417,48 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 40,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
+    },
+    {
+      "artifact": "distill_eval__qwen35-9b-apos-damaged-a6000-20260904.json",
+      "family": "distill_eval",
+      "rows": 176,
+      "arms": [
+        "base",
+        "tuned"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
+    },
+    {
+      "artifact": "distill_eval__qwen35-9b-apos-repaired-a6000-20260904.json",
+      "family": "distill_eval",
+      "rows": 176,
+      "arms": [
+        "base",
+        "tuned"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

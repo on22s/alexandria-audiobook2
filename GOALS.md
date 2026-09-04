@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2739** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2795** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2535,6 +2535,62 @@ oversight.
 **Not settled by the ASR.** Kana agreement shows the phonemes moved; it does
 not show the result sounds natural in an English sentence. Entries are
 proposed by measurement and confirmed by ear — see 7.1.
+
+---
+
+### 5.6 The training corpus says what the books say
+
+**The defect, which is not in dispute.** 10 of PDNC's 28 novels lost every
+apostrophe upstream, so 1,796 broken contractions — `dont`, `Im`, `wont` — reach
+728 of the 3,974 training rows. **18.3% of the corpus** teaches the model that
+English contractions contain a space or nothing at all. Every adapter this
+project has trained learned from that text, including all seven arms of the 14B
+strength ladder. The damage is measured, the count is exact, and the repair is
+shipped: `apostrophe_repair.restore_stripped_apostrophes`, wired into
+`get_preprocessed_source`, with `ladder_mixture_20260901_repaired.jsonl` built
+beside the original (1,796 breaks → 0).
+
+**What is NOT known, and what this goal is for:** whether the defect costs
+anything. "Cleaner data trains better" is an assumption. It could be worth
+points, or worth nothing, because 18% of rows carrying a cosmetic defect may be
+noise beside the attribution signal. Repairing the inputs was justified on its
+own terms — `generate_script` was failing on DaisyMiller because of it — and
+that justification does not extend to the training set.
+
+**FIRST MEASUREMENT — 2026-09-04, Qwen3.5-9B, and it does not support the
+assumption.** Two adapters trained on mixtures differing in 1,796 characters and
+nothing else — same rows, same order, same seed, same hyperparameters — then
+scored on index18 (88 rows):
+
+| arm | tuned | vs base |
+|---|---|---|
+| base (both arms) | 57/88 · 64.8% | — |
+| damaged corpus | 55/88 · 62.5% | **−2.3** |
+| repaired corpus | 52/88 · 59.1% | **−5.7** |
+
+The identical base score across arms is the control behaving correctly.
+
+**Do NOT read the gap between the arms.** It is **3 rows out of 88**, one book,
+one seed. This test cannot resolve a difference that size, and the direction —
+repaired scoring *lower* — is exactly what noise at this n looks like. Anyone
+citing "repair costs 3.4 points" is citing an artifact.
+
+**What the run does show is that both arms landed below base**, so on 9B the
+tuning hurt on this book regardless of apostrophes. That makes the 9B a poor
+instrument for this question: it has no positive effect to attenuate ([[Rule
+21]] — validate the instrument before trusting the readings).
+
+**The deciding run is 14B**, matched to the shipped `lr2e5_r16` arm that scored
+**+9.1** on index18, so there is a real effect for the defect to eat into. Same
+two mixtures, byte-identical in length (8,557,933) because the repair swaps one
+character for one. Queued on the H100 2026-09-04.
+
+**This goal closes only when the 14B pair reports**, and it closes either way: a
+null is as useful as a win, because it retires "we should retrain everything on
+clean data" as a standing obligation.
+
+Evidence: `ab_test_runtime/experiments/distill_eval__qwen35-9b-apos-{damaged,repaired}-a6000-20260904.json`,
+`app/apostrophe_repair.py`, `app/tests/test_apostrophe_repair.py`.
 
 ---
 
