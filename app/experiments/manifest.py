@@ -578,6 +578,22 @@ class ExperimentRecord:
                     problems.append(
                         f"{arm}: no raw response was recorded; generation "
                         "success cannot be verified")
+        if contract.get("require_accepted_generation"):
+            diagnostics = self.meta.get("generation_diagnostics")
+            if not isinstance(diagnostics, list):
+                problems.append("generation diagnostics were not recorded")
+            else:
+                for arm in sorted(arms):
+                    arm_diagnostics = [row for row in diagnostics
+                                       if row.get("arm") == arm]
+                    if not arm_diagnostics:
+                        problems.append(
+                            f"{arm}: no generation diagnostics were recorded")
+                    elif not any(row.get("outcome") == "accepted"
+                                 for row in arm_diagnostics):
+                        problems.append(
+                            f"{arm}: every recorded generation batch failed; "
+                            "this is not a model measurement")
         expected_ids = contract.get("expected_ids")
         if expected_ids is not None:
             expected_ids = set(expected_ids)
