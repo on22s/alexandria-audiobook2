@@ -2519,6 +2519,12 @@
     "tests.test_seed_plumbing.TestSeedIsRead.test_seed_is_not_a_hardcoded_constant"
   ],
   "test_separator_earcheck_explicit_terms": [],
+  "test_shipped_book_lexicon_coverage": [
+    "tests.test_shipped_book_lexicon_coverage.Parsing.test_a_term_in_neither_state_is_what_the_goal_counts",
+    "tests.test_shipped_book_lexicon_coverage.Parsing.test_sidecars_are_not_mistaken_for_books",
+    "tests.test_shipped_book_lexicon_coverage.Parsing.test_the_two_states_are_read_apart",
+    "tests.test_shipped_book_lexicon_coverage.Parsing.test_words_are_whole_words_not_substrings"
+  ],
   "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline",

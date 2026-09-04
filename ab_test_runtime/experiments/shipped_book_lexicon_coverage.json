@@ -1,0 +1,893 @@
+{
+ "note": "Maps goal 5.5's measured terms onto the SHIPPED books. The candidate record counts books over the whole library; this names which saved scripts each term actually occurs in.",
+ "shipped_books": 29,
+ "terms_measured_total": 6674,
+ "terms_present_in_shipped_books": 82,
+ "present_with_entry": 9,
+ "present_recorded_unfixable": 55,
+ "present_in_neither_state": 18,
+ "coverage_percent": 78.0,
+ "terms_in_neither_state": [
+  "baru",
+  "barusu",
+  "basuru",
+  "daichi",
+  "deka",
+  "gauaa",
+  "gaurururu",
+  "kuchibashi",
+  "makoto",
+  "manga",
+  "mano",
+  "maringo",
+  "masaharu",
+  "masahiro",
+  "meimei",
+  "nezumi",
+  "pachinko",
+  "subara"
+ ],
+ "per_book": [
+  {
+   "book": "Arc 1 - Volume 1",
+   "foreign_terms": 16
+  },
+  {
+   "book": "Arc 1 - Volume 1_2",
+   "foreign_terms": 15
+  },
+  {
+   "book": "Arc 1 - Volume 1_3",
+   "foreign_terms": 16
+  },
+  {
+   "book": "Arc 1 - Volume 1_4",
+   "foreign_terms": 16
+  },
+  {
+   "book": "Arc 2 - Volume 2",
+   "foreign_terms": 18
+  },
+  {
+   "book": "Arc 2 - Volume 2_2",
+   "foreign_terms": 15
+  },
+  {
+   "book": "Arc 2 - Volume 2_3",
+   "foreign_terms": 18
+  },
+  {
+   "book": "Arc 2 - Volume 3",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 2 - Volume 3_2",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 2 - Volume 3_3",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 2 - Volume 3_4",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 3 - Volume 4",
+   "foreign_terms": 20
+  },
+  {
+   "book": "Arc 3 - Volume 4_2",
+   "foreign_terms": 15
+  },
+  {
+   "book": "Arc 3 - Volume 4_3",
+   "foreign_terms": 20
+  },
+  {
+   "book": "Arc 3 - Volume 5",
+   "foreign_terms": 23
+  },
+  {
+   "book": "Arc 3 - Volume 5_2",
+   "foreign_terms": 20
+  },
+  {
+   "book": "Arc 3 - Volume 5_3",
+   "foreign_terms": 23
+  },
+  {
+   "book": "Arc 3 - Volume 6",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 3 - Volume 6_2",
+   "foreign_terms": 14
+  },
+  {
+   "book": "Arc 3 - Volume 6_3",
+   "foreign_terms": 17
+  },
+  {
+   "book": "Arc 3 - Volume 7",
+   "foreign_terms": 19
+  },
+  {
+   "book": "Arc 3 - Volume 7_2",
+   "foreign_terms": 15
+  },
+  {
+   "book": "Arc 3 - Volume 8",
+   "foreign_terms": 21
+  },
+  {
+   "book": "Arc 3 - Volume 8_2",
+   "foreign_terms": 19
+  },
+  {
+   "book": "Arc 3 - Volume 8_3",
+   "foreign_terms": 21
+  },
+  {
+   "book": "Arc 3 - Volume 9",
+   "foreign_terms": 34
+  },
+  {
+   "book": "Arc 3 - Volume 9_2",
+   "foreign_terms": 29
+  },
+  {
+   "book": "Arc 4 - Volume 10",
+   "foreign_terms": 30
+  },
+  {
+   "book": "Arc 4 - Volume 10_2",
+   "foreign_terms": 20
+  }
+ ],
+ "term_to_books": {
+  "bahaa": [
+   "Arc 3 - Volume 9"
+  ],
+  "banan": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "baru": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_3",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "barusu": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "basuru": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3"
+  ],
+  "baumann": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "beako": [
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 9",
+   "Arc 4 - Volume 10"
+  ],
+  "bokko": [
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4"
+  ],
+  "choiya": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_3"
+  ],
+  "dahuu": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "daichi": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10"
+  ],
+  "dake": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "dangero": [
+   "Arc 3 - Volume 9"
+  ],
+  "dango": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "deka": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_3"
+  ],
+  "dema": [
+   "Arc 3 - Volume 9"
+  ],
+  "demi": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "eiiya": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "eiji": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "fuugetsu": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 4 - Volume 10"
+  ],
+  "gangan": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7"
+  ],
+  "ganguro": [
+   "Arc 4 - Volume 10"
+  ],
+  "gauaa": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3"
+  ],
+  "gaurururu": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_3"
+  ],
+  "gize": [
+   "Arc 3 - Volume 7"
+  ],
+  "hajimeru": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "happeni": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "heya": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "ikeda": [
+   "Arc 4 - Volume 10"
+  ],
+  "ikemoto": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3"
+  ],
+  "intere": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3"
+  ],
+  "isekai": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "kadokawa": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "kansai": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3"
+  ],
+  "kenshin": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3"
+  ],
+  "koyomi": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "kuchibashi": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "kusano": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10"
+  ],
+  "kuwaa": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "kyuuta": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "makoto": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10"
+  ],
+  "manga": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "mano": [
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4"
+  ],
+  "mansi": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "maringo": [
+   "Arc 4 - Volume 10"
+  ],
+  "masaharu": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "masahiro": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "matsuse": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10"
+  ],
+  "meimei": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "metia": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "mori": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "mundo": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "myon": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4"
+  ],
+  "myuu": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "nakamura": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "neko": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "nezumi": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "nonono": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3"
+  ],
+  "nyaa": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_3"
+  ],
+  "oowaa": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "otaku": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "otsuka": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "ouchie": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "pachinko": [
+   "Arc 4 - Volume 10"
+  ],
+  "peromio": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "rajan": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "ryuu": [
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "seikatsu": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4",
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2",
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "sensei": [
+   "Arc 2 - Volume 2",
+   "Arc 2 - Volume 2_2",
+   "Arc 2 - Volume 2_3",
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 6",
+   "Arc 3 - Volume 6_2",
+   "Arc 3 - Volume 6_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 7_2",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_2",
+   "Arc 3 - Volume 8_3"
+  ],
+  "shii": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 7"
+  ],
+  "shou": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "suba": [
+   "Arc 2 - Volume 3",
+   "Arc 2 - Volume 3_2",
+   "Arc 2 - Volume 3_3",
+   "Arc 2 - Volume 3_4",
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_3",
+   "Arc 3 - Volume 7",
+   "Arc 3 - Volume 8",
+   "Arc 3 - Volume 8_3",
+   "Arc 3 - Volume 9"
+  ],
+  "subara": [
+   "Arc 1 - Volume 1",
+   "Arc 1 - Volume 1_2",
+   "Arc 1 - Volume 1_3",
+   "Arc 1 - Volume 1_4"
+  ],
+  "suehiro": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "tanaka": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "tsundere": [
+   "Arc 4 - Volume 10",
+   "Arc 4 - Volume 10_2"
+  ],
+  "udon": [
+   "Arc 3 - Volume 4",
+   "Arc 3 - Volume 4_2",
+   "Arc 3 - Volume 4_3"
+  ],
+  "uesugi": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3"
+  ],
+  "umehara": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "yandere": [
+   "Arc 3 - Volume 5",
+   "Arc 3 - Volume 5_2",
+   "Arc 3 - Volume 5_3"
+  ],
+  "yokotani": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ],
+  "yoshiko": [
+   "Arc 3 - Volume 9",
+   "Arc 3 - Volume 9_2"
+  ]
+ },
+ "provenance": {
+  "script": "shipped_book_lexicon_coverage.py",
+  "written": "2026-09-04T11:58:56",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "93e2dcd5527b9190a0b4d7969a4f40af869a8e38",
+   "branch": "results/shipped-book-lexicon-coverage",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/shipped_book_lexicon_coverage.py"
+   ],
+   "harness_sha256": "4b0222a4ec8dee279f61d64607aa27ac9cf4eb40b5dc079cda951a98c3d1746b"
+  },
+  "args": {
+   "scripts": "scripts",
+   "candidates": "lexicon_candidates.json",
+   "out": "ab_test_runtime/experiments/shipped_book_lexicon_coverage.json"
+  }
+ }
+}
