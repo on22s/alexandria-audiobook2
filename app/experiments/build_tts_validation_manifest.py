@@ -83,7 +83,20 @@ def main():
         args.zips = load_fidelity_module().DEFAULT_ZIPS
 
     rows, counts = build(args.work, args.models, args.zips, args.lines)
+    # The manifest itself stays a bare list, because that is what
+    # tts_output_validation.py reads. Provenance goes beside it rather than
+    # inside it, so the pairing can be replayed without changing the contract
+    # its only consumer depends on.
     json.dump(rows, open(args.out, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    side = {"manifest": os.path.basename(args.out), "rows": len(rows), **counts}
+    try:
+        sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
+        from provenance import provenance
+        side["provenance"] = provenance(__file__, args)
+    except Exception as exc:                                # noqa: BLE001
+        side["provenance"] = {"error": str(exc)[:120]}
+    json.dump(side, open(args.out + ".provenance.json", "w", encoding="utf-8"),
+              indent=1, ensure_ascii=False)
     print("manifest rows      : %d" % len(rows))
     for k, v in counts.items():
         print("  %-24s %d" % (k, v))
