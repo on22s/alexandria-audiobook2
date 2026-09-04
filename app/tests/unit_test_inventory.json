@@ -924,6 +924,12 @@
     "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_an_empty_roster_is_not_silently_a_pass",
     "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_every_scoring_call_passes_candidates"
   ],
+  "test_exit_code_is_not_destroyed": [
+    "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_it_finds_scripts_to_check",
+    "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_no_tracked_script_reads_status_after_a_substitution",
+    "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_the_check_would_catch_the_real_thing",
+    "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_the_correct_form_is_not_flagged"
+  ],
   "test_expected_prosody_fusion": [],
   "test_experiment_conventions": [
     "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
