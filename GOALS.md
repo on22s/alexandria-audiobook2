@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2837** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2860** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2620,11 +2620,34 @@ different hat. `--write-lexicon` exists and is off by default.
 the word either has a measured entry or is recorded as one respelling could
 not fix.**
 
-**What remains between this and MET:** the record above is over the *measured
-corpus*, not over *the shipped books*. Terms carry a book COUNT, not a book
-list, so mapping these terms onto a specific shipped book needs a scan of that
-book's text - which is cheap and has not been run. Until it is, this is the
-right record of the wrong population, and the goal stays open. Both halves matter, and the second is now the larger: **87% of that
+**THE SCAN HAS NOW BEEN RUN — 2026-09-04, and the goal stays open at 78.0%.**
+`shipped_book_lexicon_coverage.py` discovers the foreign terms in the 29 saved
+scripts using `discover_foreign_terms`' own detector and roster filter -
+imported, not reimplemented - and asks of each which state it is in:
+
+| | terms |
+|---|---|
+| foreign terms in the shipped books | **82** |
+| has a measured entry | 9 |
+| recorded as one respelling could not fix | 55 |
+| **in NEITHER state** | **18** |
+
+**Coverage over the shipped books is 78.0%, not the 87.7% this goal records
+over the measured corpus**, and the two are different populations: 6,674 terms
+were measured, of which only 82 occur in a book we ship. The eighteen are
+`barusu, basuru, daichi, deka, gauaa, gaurururu, kuchibashi, makoto, manga,
+mano, maringo, masaharu, masahiro, meimei, nezumi, pachinko, subara, tsundere`.
+Several read as names the roster filter did not catch, which is worth checking
+before any of them is measured — a name has its own discovery path.
+
+**What MET now requires** is those eighteen measured or recorded, not another
+pass over the library. The remaining work is small and named.
+
+**A note on how this was nearly got wrong.** The first version parsed the
+discovery script's stdout with awk and returned three terms that were words
+from the report's own prose — `candidate`, `only;`, `scripts,` — and missed two
+real ones. Importing the detector changed the answer from 80/17 to 82/18. The
+scan is cheap; parsing a human-readable report is not the cheap way to do it. Both halves matter, and the second is now the larger: **87% of that
 band was not rescued** by either derivation rule, so most of this goal's
 output will be recorded failures rather than entries. A word a respelling
 cannot help needs saying so, rather than leaving a blank that reads as an

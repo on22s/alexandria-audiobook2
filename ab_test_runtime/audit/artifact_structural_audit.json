@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 516,
+    "supported_structure": 517,
     "exploratory": 313,
     "provisional": 174
   },
@@ -14165,6 +14165,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "shipped_book_lexicon_coverage.json",
+      "bytes": 18270,
+      "sha256": "f1ec76716898daaa9a61ddf47f4cad0740ed329d2d343492b79923c54122ddf2",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-04T11:58:56",
+      "commit": "93e2dcd5527b9190a0b4d7969a4f40af869a8e38",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "shipping_readiness.json",
