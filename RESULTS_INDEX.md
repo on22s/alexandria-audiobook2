@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1142 artifacts, 1249 arms.
+Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1155 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2155,31 +2155,44 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `three_pass_vs_single_pdnc_resumed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_qwen3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_sum_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_sum_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_sum_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_amy_landon_a_memory_called_empire__teixcalaan_book__s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_amy_landon_a_memory_called_empire__teixcalaan_book__s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_amy_landon_a_memory_called_empire__teixcalaan_book__s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_brian_nishii_alita__battle_angel__the_official_movi_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_brian_nishii_alita__battle_angel__the_official_movi_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_brian_nishii_alita__battle_angel__the_official_movi_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_brittney_karbowski_reincarnated_slime_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_brittney_karbowski_reincarnated_slime_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_brittney_karbowski_reincarnated_slime_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_c_j__mission_monster_core_2__1774241641__char1_vol0_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_c_j__mission_monster_core_2__1774241641__char1_vol0_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_c_j__mission_monster_core_2__1774241641__char1_vol0_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cherami_leigh_cyberpunk_2077_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cherami_leigh_cyberpunk_2077_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cherami_leigh_cyberpunk_2077_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
