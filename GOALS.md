@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3220** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3284** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1395,6 +1395,70 @@ The three failures stable over the earlier 21 seeds remain the bottom three:
 `husky_baritone_20s_m_supernatural` **0.160**. This widens coverage; it does
 not remove the contamination caveat above because the shipped adapters heard
 their validation lines during training.
+
+**THE FIRST VARIABLE THAT PREDICTS WHETHER AN ADAPTER WORKS — 2026-09-04.**
+The 2026-08-07 audit established that training settings explain none of the
+0.027–0.737 ECAPA range: lr, sample count and epochs identical, final loss flat
+at ~4.1 across all of it. The cause is upstream of training, and it is now
+measured.
+
+The owner's account of the original pipeline supplies the mechanism. Two book
+shapes go through it and are not distinguished: **one narrator performing many
+characters** yields a single dataset that is internally a mixture of tones,
+while a **cast production** is a mixture of different people. *One narrator is
+not one voice.*
+
+**Book type is not the variable, and that was tested first.** 39 of 75 adapters
+(52%) come from a book dedup found more than one voice in, and the five REBUILD
+adapters are 3 of 5 (60%) — chance. So the mixture is measured **directly, per
+dataset**, from the dedup run's own cached ECAPA embeddings (1,281 volumes ×
+150 clips, `dedup_analysis/embeddings_cache.pkl`) — no audio re-embedded, no
+GPU taken. `tightness` is each dataset's mean cosine to its own centroid.
+
+    tightness vs adapter ECAPA    r = 0.584   p = 4.8e-08   (n=74)
+                                  Spearman rho = 0.562  p = 1.9e-07
+
+| | |
+|---|---|
+| failing adapters (<0.45) whose dataset is in the loosest quartile | **8 of 9** |
+| tightest-quartile datasets that produced a failing adapter | **0 of 19** |
+| loosest-quartile datasets that still scored 0.6 or better | 7 of 19 |
+
+**The prediction is asymmetric, and saying so is the useful part.** A tight
+dataset has never produced a failure here; a loose one usually but not always
+does. That is a screening test, not a verdict — it would have flagged 8 of the
+9 before any GPU time was spent, and it would have been wrong about 7 voices
+had it been used to refuse them.
+
+**It is not ECAPA agreeing with itself.** Tightness and the fidelity score come
+from the same embedding model, so the correlation could have been an artefact
+of the instrument. It survives against measures ECAPA plays no part in:
+
+    tightness vs |vtl_ratio - 1|         r = -0.388   p = 0.001
+    tightness vs |f0_median_ratio - 1|   r = -0.380   p = 0.001
+    tightness vs final_loss              r = -0.201   p = 0.086  (null)
+
+Vocal tract length and f0 are signal analysis. Looser datasets produce adapters
+whose pitch and vocal-tract characteristics drift further from the target,
+measured independently of speaker embeddings. Loss stays blind to all of it, as
+it has been to everything else in this goal.
+
+**Dating the library, since "can we do better now" needs a baseline.** All 75
+datasets were built on **2026-06-03**; 19 adapters still carry weights from
+that day and 56 were retrained across 2026-08-07/11/15/16. The June group's
+median ECAPA is 0.591 against the August group's 0.633, but **that comparison
+is confounded** — the August group was selected for retraining precisely
+because it was contaminated, so it is not a before/after. What is not
+confounded is what exists now and did not in June: the trainer honours the
+180/20 split, an identity gate refuses voices that resemble nobody, and this
+tightness screen flags 8 of 9 failures before any GPU time.
+
+**Evidence** — `dataset_tone_spread.json`, and
+`app/tests/test_dataset_tone_spread.py`, which validates the statistic on
+synthetic embeddings whose structure is known: one cluster scores above 0.9,
+two score lower, and the value falls monotonically at 1, 2, 4 and 8 clusters,
+so the number can be read as *how much of a mixture is this*. A single clip
+returns no statistic rather than a perfect 1.0.
 
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for

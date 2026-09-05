@@ -681,6 +681,17 @@
     "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_preserves_text_and_boundaries",
     "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_rejects_partial_alignment"
   ],
+  "test_dataset_tone_spread": [
+    "tests.test_dataset_tone_spread.Correlate.test_a_constant_column_correlates_with_nothing",
+    "tests.test_dataset_tone_spread.Correlate.test_it_reports_both_coefficients_and_their_p_values",
+    "tests.test_dataset_tone_spread.Correlate.test_too_few_points_is_not_a_correlation",
+    "tests.test_dataset_tone_spread.NameMatching.test_genuinely_different_names_still_differ",
+    "tests.test_dataset_tone_spread.NameMatching.test_punctuation_differences_do_not_break_the_match",
+    "tests.test_dataset_tone_spread.ToneStats.test_a_degenerate_input_returns_no_statistic",
+    "tests.test_dataset_tone_spread.ToneStats.test_more_voices_are_looser_still",
+    "tests.test_dataset_tone_spread.ToneStats.test_one_voice_is_tight",
+    "tests.test_dataset_tone_spread.ToneStats.test_two_voices_are_looser_than_one"
+  ],
   "test_dedup_benchmark": [
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
