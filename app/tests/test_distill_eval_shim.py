@@ -161,6 +161,27 @@ class DistillEvalShimTest(unittest.TestCase):
         self.assertIs(model.kwargs["do_sample"], True)
         self.assertEqual(model.kwargs["temperature"], 0.7)
 
+    def test_inference_seed_reaches_cpu_cuda_and_deterministic_policy(self):
+        calls = []
+
+        class _Cuda:
+            @staticmethod
+            def is_available():
+                return True
+
+            @staticmethod
+            def manual_seed_all(seed):
+                calls.append(("cuda", seed))
+
+        fake_torch = types.SimpleNamespace(
+            cuda=_Cuda(),
+            manual_seed=lambda seed: calls.append(("cpu", seed)),
+            use_deterministic_algorithms=lambda enabled:
+                calls.append(("deterministic", enabled)))
+        self.module.apply_inference_seed(fake_torch, 29, deterministic=True)
+        self.assertEqual(calls, [
+            ("cpu", 29), ("cuda", 29), ("deterministic", True)])
+
     def test_truncated_generation_reports_finish_reason_length(self):
         """call_llm_for_entries' retry policy branches on
         finish_reason=='length'. A shim that always said 'stop' would turn a
