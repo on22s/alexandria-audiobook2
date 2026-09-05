@@ -222,16 +222,16 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 8,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 7
+    "supported_structure": 8
    },
-   "dirty_artifacts": 4,
+   "dirty_artifacts": 5,
    "no_commit": 0,
    "artifacts": [
     {
@@ -263,6 +263,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "223e3955"
+    },
+    {
+     "name": "generated_audio_quality.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "6266ffe5"
     },
     {
      "name": "library_fidelity_seed_20260914_n20.json",
