@@ -1513,6 +1513,15 @@ the second half of the tightening does MORE work than the first:
 
     control 0.5226      middle 0.5467      tight 0.5776
 
+The arms' realised tightness on one definition - cosine to each arm's own
+centroid - is 0.815 / 0.868 / 0.918 on Gardens of the Moon, evenly spaced by
+construction. `build_middle_arm.py` first recorded 0.862 for the middle,
+measuring against the POOL centroid instead: a different statistic under the
+same key. The gap is small (0.006 here) and changes nothing about the result,
+which is an ECAPA comparison of trained adapters rather than of these numbers -
+but two arms' figures were not comparable and both builders now use the one
+definition.
+
 Random to mid-tightness is a coin flip - 27 of 54, indistinguishable from
 nothing. Mid to maximum wins 43 of 54 at p=0.00002, the strongest signal in the
 experiment. **So selection should take the tightest clips available rather than
