@@ -1499,13 +1499,49 @@ that fell back.** This is a rescue mechanism, applied where it is needed and
 skipped elsewhere - and it costs a sort, not a retrain and not a rebuilt
 dataset.
 
-**What it does not yet say.** How MUCH tighter the arm was does not predict how
-much it won by (r=-0.011, p=0.94), so "avoid the worst clips" and "maximise
-tightness" remain indistinguishable from two arms. A third arm at the midpoint
-in tightness (0.815 / 0.862 / 0.918 on Gardens of the Moon) is running. The
-same-morning rank ladder is the argument for it: -2.5, +2.5, +12.4, +16.7 reads
-as monotonic only because the intermediate rungs exist, and would look like a
-threshold from its endpoints alone.
+**AND THE CURVE IS MONOTONIC, NOT A THRESHOLD — third arm measured
+2026-09-05, 54 books carrying all three.** The question was whether the gain
+comes from avoiding the worst clips (predicting middle ~= tight) or from
+tightness itself (predicting tight > middle > control). It is the second, and
+the second half of the tightening does MORE work than the first:
+
+| step | mean | wins | Wilcoxon |
+|---|---:|---:|---:|
+| control -> middle | +0.0241 | 27 of 54 | **p = 0.494** |
+| middle -> tight | **+0.0309** | **43 of 54** | **p = 0.00002** |
+| control -> tight | +0.0550 | 35 of 54 | p = 0.00058 |
+
+    control 0.5226      middle 0.5467      tight 0.5776
+
+The arms' realised tightness on one definition - cosine to each arm's own
+centroid - is 0.815 / 0.868 / 0.918 on Gardens of the Moon, evenly spaced by
+construction. `build_middle_arm.py` first recorded 0.862 for the middle,
+measuring against the POOL centroid instead: a different statistic under the
+same key. The gap is small (0.006 here) and changes nothing about the result,
+which is an ECAPA comparison of trained adapters rather than of these numbers -
+but two arms' figures were not comparable and both builders now use the one
+definition.
+
+Random to mid-tightness is a coin flip - 27 of 54, indistinguishable from
+nothing. Mid to maximum wins 43 of 54 at p=0.00002, the strongest signal in the
+experiment. **So selection should take the tightest clips available rather than
+merely exclude the worst.**
+
+**This corrects the reading recorded above.** That flat dose-response
+(r=-0.011, p=0.94) measured the wrong thing: how far apart two arms happened to
+land, across books whose pools have different shapes - not one book stepped
+through three levels. Two points cannot show a curve's shape, and those two
+were the endpoints. The same-day rank ladder makes the identical point on a
+different axis: -2.5, +2.5, +12.4, +16.7 reads as monotonic only because the
+intermediate rungs exist, and from its endpoints alone would look like a
+threshold.
+
+The earlier finding is unchanged and still governs WHERE to spend it: the gain
+concentrates on weak datasets (r=-0.598), buying +0.10 there against +0.01 on
+datasets that were already good.
+
+Five books were skipped for having no tight arm to place a middle between.
+Seed 20260905 only, six lines per gate.
 
 Seed 20260905 only. Six lines per gate, so per-book numbers are noisy and the
 aggregate is what carries this.
