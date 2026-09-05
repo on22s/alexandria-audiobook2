@@ -1,0 +1,277 @@
+{
+ "note": "Datasets eligible for the tight-vs-random selection experiment: the book has 3+ volumes, its trained volume is in the dedup embedding cache, and enough sibling volumes pass the 0.85 same-voice filter to leave 400+ embedded clips. The five books the first chain covers are excluded so this does not repeat them.",
+ "a_bug_this_list_survived": "Built with glob at first, which reads the ASIN in a folder named '... [B0D26L1R1D]' as a character class, matches nothing, and reports the book as having no volumes. 26 of 51 books vanished silently and the count came out 31 instead of 59. os.listdir throughout.",
+ "count": 54,
+ "books": [
+  {
+   "dataset": "narrator_emily_woo_zeller_red_winter:_the_complete_trilogy_[b0d1z63lzd]_char2_vol01.zip",
+   "book": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]",
+   "pool": 7500
+  },
+  {
+   "dataset": "narrator_simon_vance_the_blinding_knife_[b0096gj7g2]_char1_vol01.zip",
+   "book": "Simon Vance The Blinding Knife [B0096GJ7G2]",
+   "pool": 7350
+  },
+  {
+   "dataset": "narrator_michael_kramer_the_hero_of_ages_char1_vol01.zip",
+   "book": "Michael Kramer The Hero of Ages-converted",
+   "pool": 7050
+  },
+  {
+   "dataset": "narrator_steven_pacey_the_blade_itself_char1_vol01.zip",
+   "book": "Steven Pacey The Blade Itself-converted",
+   "pool": 6600
+  },
+  {
+   "dataset": "narrator_michael_page_house_of_chains_char1_vol01.zip",
+   "book": "Michael Page House of Chains-converted",
+   "pool": 6450
+  },
+  {
+   "dataset": "narrator_emily_woo_zeller_red_winter:_the_complete_trilogy_[b0d1z63lzd]_char1_vol01.zip",
+   "book": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]",
+   "pool": 6300
+  },
+  {
+   "dataset": "narrator_shiromi_arserio_the_jasmine_throne_[154910487x]_char1_vol01.zip",
+   "book": "Shiromi Arserio The Jasmine Throne [154910487X]",
+   "pool": 6150
+  },
+  {
+   "dataset": "narrator_tara_sands_shorefall:_a_novel_[0593148053]_char1_vol01.zip",
+   "book": "Tara Sands Shorefall: A Novel [0593148053]",
+   "pool": 6000
+  },
+  {
+   "dataset": "narrator_hollie_jackson_seize_the_day:_a_world_conquest_isekai:_empress_book_1_[b0cxrzxtr9]_char1_vol01.zip",
+   "book": "Hollie Jackson Seize the Day: A World Conquest Isekai: Empress, Book 1 [B0CXRZXTR9]",
+   "pool": 5550
+  },
+  {
+   "dataset": "narrator_tim_gerard_reynolds_age_of_war_char1_vol01.zip",
+   "book": "Tim Gerard Reynolds Age of War-converted",
+   "pool": 5100
+  },
+  {
+   "dataset": "narrator_amy_landon_a_memory_called_empire:_teixcalaan_book_1_[1250318955]_char1_vol01.zip",
+   "book": "Amy Landon A Memory Called Empire: Teixcalaan, Book 1 [1250318955]",
+   "pool": 4650
+  },
+  {
+   "dataset": "narrator_mare_trevathan_the_godking's_legacy_char1_vol01.zip",
+   "book": "Mare Trevathan The Godking's Legacy-converted",
+   "pool": 4500
+  },
+  {
+   "dataset": "narrator_john_lee_spellmonger:_spellmonger_book_1_[b01n264eek]_char1_vol01.zip",
+   "book": "John Lee Spellmonger: Spellmonger, Book 1 [B01N264EEK]",
+   "pool": 4350
+  },
+  {
+   "dataset": "narrator_rc_bray_lost_gods_char1_vol01.zip",
+   "book": "RC Bray Lost Gods-converted",
+   "pool": 4350
+  },
+  {
+   "dataset": "narrator_cherami_leigh_cyberpunk_2077_char1_vol01.zip",
+   "book": "Cherami Leigh Cyberpunk 2077-converted",
+   "pool": 4200
+  },
+  {
+   "dataset": "narrator_suzy_jackson_skyward_char2_vol01.zip",
+   "book": "Suzy Jackson Skyward-converted",
+   "pool": 4050
+  },
+  {
+   "dataset": "narrator_emily_woo_zeller_red_winter:_the_complete_trilogy_[b0d1z63lzd]_char3_vol01.zip",
+   "book": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]",
+   "pool": 3900
+  },
+  {
+   "dataset": "narrator_jot_davies_the_vagrant_[b00vus19w4]_char1_vol01.zip",
+   "book": "Jot Davies The Vagrant [B00VUS19W4]",
+   "pool": 3900
+  },
+  {
+   "dataset": "narrator_scott_brick_foundation's_edge_[b005wl4r7e]_char2_vol01.zip",
+   "book": "Scott Brick Foundation's Edge [B005WL4R7E]",
+   "pool": 3750
+  },
+  {
+   "dataset": "narrator_nick_podehl_super_sales_on_super_heroes_book_2:_super_sales_on_super_heroes_book_2_[b07cj4c449]_char1_vol01.zip",
+   "book": "Nick Podehl Super Sales on Super Heroes, Book 2: Super Sales on Super Heroes, Book 2 [B07CJ4C449]",
+   "pool": 3600
+  },
+  {
+   "dataset": "narrator_peter_kenny_sword_of_destiny_char1_vol01.zip",
+   "book": "Peter Kenny Sword of Destiny-converted",
+   "pool": 3600
+  },
+  {
+   "dataset": "narrator_kirby_heyborne_out_of_house_and_home:_fred_the_vampire_accountant_series_book_7_[b09d1hqbvy]_char1_vol01.zip",
+   "book": "Kirby Heyborne Out of House and Home: Fred, the Vampire Accountant Series, Book 7 [B09D1HQBVY]",
+   "pool": 3300
+  },
+  {
+   "dataset": "narrator_suzy_jackson_skyward_char1_vol01.zip",
+   "book": "Suzy Jackson Skyward-converted",
+   "pool": 3150
+  },
+  {
+   "dataset": "narrator_kate_reading_a_natural_history_of_dragons_char1_vol01.zip",
+   "book": "Kate Reading A Natural History of Dragons-converted",
+   "pool": 3000
+  },
+  {
+   "dataset": "narrator_scott_brick_foundation's_edge_[b005wl4r7e]_char1_vol01.zip",
+   "book": "Scott Brick Foundation's Edge [B005WL4R7E]",
+   "pool": 3000
+  },
+  {
+   "dataset": "narrator_brian_nishii_alita:_battle_angel:_the_official_movie_novelization_[b07hhjpkmj]_char1_vol01.zip",
+   "book": "Brian Nishii Alita: Battle Angel: The Official Movie Novelization [B07HHJPKMJ]",
+   "pool": 2700
+  },
+  {
+   "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01.zip",
+   "book": "Brittney Karbowski Reincarnated Slime-converted",
+   "pool": 2700
+  },
+  {
+   "dataset": "narrator_christian_j._gilliland_hazel_cohen_elemental_summoner_1_[b09bxyjxyt]_char1_vol01.zip",
+   "book": "Christian J. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT]",
+   "pool": 2550
+  },
+  {
+   "dataset": "narrator_robert_west_damsels_of_jormia_char1_vol01.zip",
+   "book": "Robert West Damsels of Jormia-converted",
+   "pool": 2550
+  },
+  {
+   "dataset": "narrator_reba_buhr_ascendance_of_a_bookworm___1_char1_vol01.zip",
+   "book": "Reba Buhr Ascendance of a Bookworm - 1-converted",
+   "pool": 2400
+  },
+  {
+   "dataset": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_summoner:_volume_i_[b09nzklscb]_char1_vol01.zip",
+   "book": "Alyssa Poon, Robert Bradvica Rise of the Weakest Summoner: Volume I [B09NZKLSCB]",
+   "pool": 2250
+  },
+  {
+   "dataset": "narrator_liam_price_the_archer_of_beast_woods_char1_vol01.zip",
+   "book": "Liam Price The Archer of Beast Woods-converted",
+   "pool": 2250
+  },
+  {
+   "dataset": "narrator_c.j._mission_monster_core_2_[1774241641]_char1_vol01.zip",
+   "book": "C.J. Mission Monster Core 2 [1774241641]",
+   "pool": 2100
+  },
+  {
+   "dataset": "narrator_cliff_kurt_mushoku_tensei_char1_vol01.zip",
+   "book": "Cliff Kurt Mushoku Tensei-converted",
+   "pool": 1950
+  },
+  {
+   "dataset": "narrator_cristina_vee_nekomonogatari_char1_vol01.zip",
+   "book": "Cristina Vee Nekomonogatari-converted",
+   "pool": 1800
+  },
+  {
+   "dataset": "narrator_keith_silverstein_kizumonogatari_char2_vol01.zip",
+   "book": "Keith Silverstein KIZUMONOGATARI-converted",
+   "pool": 1800
+  },
+  {
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol._10_char2_vol01.zip",
+   "book": "J Michael Tatum Spice and Wolf, Vol. 10-converted",
+   "pool": 1650
+  },
+  {
+   "dataset": "narrator_jay_snyder_ex_heroes_char1_vol01.zip",
+   "book": "Jay Snyder Ex-Heroes-converted",
+   "pool": 1650
+  },
+  {
+   "dataset": "narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of_the_world:_a_novel_[059345894x]_char1_vol01.zip",
+   "book": "Traci Kato-Kiriyama The Phone Booth at the Edge of the World: A Novel [059345894X]",
+   "pool": 1500
+  },
+  {
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol._10_char1_vol01.zip",
+   "book": "J Michael Tatum Spice and Wolf, Vol. 10-converted",
+   "pool": 1350
+  },
+  {
+   "dataset": "narrator_keith_silverstein_kizumonogatari_char1_vol01.zip",
+   "book": "Keith Silverstein KIZUMONOGATARI-converted",
+   "pool": 1350
+  },
+  {
+   "dataset": "narrator_dracula_[audible_edition]_[b0078pa1oa]_char7_vol01.zip",
+   "book": "Dracula [Audible Edition] [B0078PA1OA]",
+   "pool": 1200
+  },
+  {
+   "dataset": "narrator_dracula_[audible_edition]_[b0078pa1oa]_char9_vol01.zip",
+   "book": "Dracula [Audible Edition] [B0078PA1OA]",
+   "pool": 1200
+  },
+  {
+   "dataset": "narrator_jay_snyder_ex_heroes_char2_vol01.zip",
+   "book": "Jay Snyder Ex-Heroes-converted",
+   "pool": 1200
+  },
+  {
+   "dataset": "narrator_luci_christian_full_metal_panic_char2_vol01.zip",
+   "book": "Luci Christian Full Metal Panic-converted",
+   "pool": 1200
+  },
+  {
+   "dataset": "narrator_mallorie_rodak_frieren:_beyond_journey's_end__prelude__vol._1_[b0gx9t26cv]_char1_vol01.zip",
+   "book": "Mallorie Rodak Frieren: Beyond Journey's End -Prelude-, Vol. 1 [B0GX9T26CV]",
+   "pool": 1050
+  },
+  {
+   "dataset": "narrator_miranda_parkin_my_happy_marriage_vol._1_char2_vol01.zip",
+   "book": "Miranda Parkin My Happy Marriage, Vol. 1-converted",
+   "pool": 900
+  },
+  {
+   "dataset": "narrator_dracula_[audible_edition]_[b0078pa1oa]_char8_vol01.zip",
+   "book": "Dracula [Audible Edition] [B0078PA1OA]",
+   "pool": 750
+  },
+  {
+   "dataset": "narrator_suzie_yeung_stephen_fu_86__char1_vol01.zip",
+   "book": "Suzie Yeung Stephen Fu 86--converted",
+   "pool": 750
+  },
+  {
+   "dataset": "narrator_suzie_yeung_stephen_fu_86__char2_vol01.zip",
+   "book": "Suzie Yeung Stephen Fu 86--converted",
+   "pool": 750
+  },
+  {
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char1_vol01.zip",
+   "book": "Suzie Yeung Even If These Tears Disappear Tonight-converted",
+   "pool": 600
+  },
+  {
+   "dataset": "narrator_cristina_vee_nekomonogatari_char2_vol01.zip",
+   "book": "Cristina Vee Nekomonogatari-converted",
+   "pool": 450
+  },
+  {
+   "dataset": "narrator_dracula_[audible_edition]_[b0078pa1oa]_char1_vol01.zip",
+   "book": "Dracula [Audible Edition] [B0078PA1OA]",
+   "pool": 450
+  },
+  {
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char4_vol01.zip",
+   "book": "Suzie Yeung Even If These Tears Disappear Tonight-converted",
+   "pool": 450
+  }
+ ]
+}

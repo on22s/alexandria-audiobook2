@@ -249,3 +249,5 @@ ab_test_runtime/**/llama_server.log
 # weight directories beside them are 6.1 GB across 294 files and are not.
 ab_test_runtime/promotion_backups/*/
 ab_test_runtime/unseen_holdout/*/val/
+ab_test_runtime/tight_selection/
+dedup_analysis
