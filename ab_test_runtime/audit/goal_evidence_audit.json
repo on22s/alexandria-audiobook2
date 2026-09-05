@@ -222,16 +222,16 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 9,
+   "cited": 10,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 8
+    "supported_structure": 9
    },
-   "dirty_artifacts": 5,
+   "dirty_artifacts": 6,
    "no_commit": 0,
    "artifacts": [
     {
@@ -281,6 +281,12 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "1d58ec3b"
+    },
+    {
+     "name": "tone_spread_sensitivity.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "2741538d"
     }
    ]
   },

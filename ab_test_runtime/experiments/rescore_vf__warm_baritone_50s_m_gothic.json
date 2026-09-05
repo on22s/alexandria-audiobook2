@@ -1,0 +1,31 @@
+{
+ "adapter": "../pinokio/api/alexandria-audiobook2.git/lora_models/warm_baritone_50s_m_gothic",
+ "median_ecapa": 0.5083,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5083)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T16:33:36",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "ee27946cddb5379041592fb02854ef86d5423fcc",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "49597fe00b76bd268f50ae3de5a54d48390c147e9a8921bfc41004dd98e949d0"
+  },
+  "args": {
+   "adapter": "warm_baritone_50s_m_gothic",
+   "dataset": "ab_test_runtime/rescore_voicefiltered/warm_baritone_50s_m_gothic",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/rescore_vf__warm_baritone_50s_m_gothic.json"
+  },
+  "seed": 1234
+ }
+}
