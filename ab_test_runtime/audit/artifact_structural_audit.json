@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 644,
+    "supported_structure": 648,
     "exploratory": 318,
     "provisional": 174
   },
@@ -16177,6 +16177,23 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__middle.json",
+      "bytes": 1222,
+      "sha256": "0682d853c613ddd668a0c1f8e39d8de913333bba463a68809c550b300c5c5144",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": 1234,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T05:24:57",
+      "commit": "75a152581274ec30073803de4972033d107bca29",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__tight.json",
       "bytes": 1218,
       "sha256": "7353fda7892cd4944a1430f09078b85f5352484650215c70ef81c2e5e0d350b8",
@@ -16755,6 +16772,23 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "tight_gate__narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905__middle.json",
+      "bytes": 1190,
+      "sha256": "fff3a7189c8e3e2724fdc02fe149816d46497e66f08431d1e44d5a0691a719fc",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": 1234,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T05:35:14",
+      "commit": "75a152581274ec30073803de4972033d107bca29",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "tight_gate__narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905__tight.json",
       "bytes": 1186,
       "sha256": "4ed9b6f896c5159ded1822f8815e9a6f490097e1698c67b7cab83a2afce7c8f0",
@@ -16954,6 +16988,23 @@
       "identity_contract": "tts_provenance",
       "written": "2026-09-04T20:00:00",
       "commit": "1557e806f81593ab79894229a4870507dfe2f551",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "tight_gate__narrator_ralph_lister_gardens_of_the_moon_char1_vol01_s20260905__middle.json",
+      "bytes": 1194,
+      "sha256": "e59b5fc7401c1e532fd46da50dca157017a909dd6e4c252dd4ca5e454479abf2",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": 1234,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T05:20:00",
+      "commit": "75a152581274ec30073803de4972033d107bca29",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -17192,6 +17243,23 @@
       "identity_contract": "tts_provenance",
       "written": "2026-09-04T20:20:43",
       "commit": "1557e806f81593ab79894229a4870507dfe2f551",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "tight_gate__narrator_simon_vance_the_blinding_knife__b0096gj7g2__char1_v_s20260905__middle.json",
+      "bytes": 1222,
+      "sha256": "5499fd6723eb7fba5e2a988ec11264760d6f382a4019e1191983db1f119966d0",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": 1234,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T05:30:22",
+      "commit": "75a152581274ec30073803de4972033d107bca29",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"

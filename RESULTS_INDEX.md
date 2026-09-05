@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1136 artifacts, 1249 arms.
+Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1140 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2180,6 +2180,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_hollie_jackson_seize_the_day__a_world_conquest_isek_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_hollie_jackson_seize_the_day__a_world_conquest_isek_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2214,6 +2215,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_mare_trevathan_the_godking_s_legacy_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_mare_trevathan_the_godking_s_legacy_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_michael_page_house_of_chains_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_michael_page_house_of_chains_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2226,6 +2228,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_qarie_marshall_wolverine__road_of_bones__1662042051_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_qarie_marshall_wolverine__road_of_bones__1662042051_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_ralph_lister_gardens_of_the_moon_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_ralph_lister_gardens_of_the_moon_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_ralph_lister_gardens_of_the_moon_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_rc_bray_lost_gods_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_rc_bray_lost_gods_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2240,6 +2243,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_shiromi_arserio_the_jasmine_throne__154910487x__cha_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_shiromi_arserio_the_jasmine_throne__154910487x__cha_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_simon_vance_the_blinding_knife__b0096gj7g2__char1_v_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_simon_vance_the_blinding_knife__b0096gj7g2__char1_v_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_simon_vance_the_blinding_knife__b0096gj7g2__char1_v_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_steven_pacey_the_blade_itself_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_steven_pacey_the_blade_itself_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
