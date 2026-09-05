@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3284** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 3327** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1641,6 +1641,49 @@ rebuilding the dataset.
 Two dead voices became good ones. The three that barely moved are the ones
 whose DATASETS are mixed-speaker (2.7 above): there the reference was never the
 binding constraint, and rebuilding is still required.
+
+**EVERY CLIP ALREADY CARRIES THE BOOK'S OWN WORDS — 2026-09-04.** Character
+identity is currently recovered by clustering speaker embeddings, which is why
+a cast production splits correctly while one narrator performing many
+characters collapses into a single tone-mixed dataset. The proposed fix was to
+locate each clip in the book's text so it could inherit the speaker its line
+was annotated with. **That work is unnecessary: the alignment already exists.**
+
+    7 titles, 1,400 clips     located 1,399     word-for-word exact 1,385 (98.9%)
+    decoy (unrelated novel)   0.5%
+    order agreement           Spearman rho = 1.000, p = 0
+
+The original pipeline force-aligned the audiobook against the ebook and stored
+the book's prose, not a transcript. **The 100% match rate is therefore
+circular** — it confirms where the text came from rather than discovering an
+alignment, and `exact_word_for_word` is the number that carries the finding.
+Labelling a clip with its character is a join on text, not a fuzzy match or an
+audio problem.
+
+The decoy earns its place: without it, "100% of clips match the book" is
+equally consistent with a matcher that matches any English prose, and 0.5% on
+an unrelated novel is what makes the specificity a measurement rather than an
+assertion. It holds across English fantasy and Japanese light novels in
+translation (Gardens of the Moon, House of Chains, The Blade Itself, A Natural
+History of Dragons, Cyberpunk 2077, Mushoku Tensei, Spice and Wolf).
+
+**Twenty titles have both an EPUB and audiobook clips**, so this is not a
+one-book curiosity. The 29 annotated scripts are all Re:Zero and overlap none
+of the 51 audiobooks, which is why the roster cannot be used directly today —
+the books would need annotating first, and attribution runs at 71–89% (1.1,
+1.3), so the labels would be imperfect rather than gold.
+
+**What the field does that this pipeline does not.** Emilia-Pipe filters
+in-the-wild speech on *intra-clip x-vector variance for speaker consistency* —
+the same statistic as 2.7's tightness measure, used as a **filter** rather than
+a score — plus DNSMOS >= 3.0 and cross-ASR consistency, retaining **29.4%** of
+raw audio. This pipeline applies no perceptual quality filter at any point:
+the only file mentioning DNSMOS or UTMOS is `app/experiments/robotic_proxy.py`,
+an experiment outside the dataset path. Selecting the 200 clips nearest a
+volume's dominant mode, rather than 200 arbitrary ones, is the cheapest form of
+that idea and needs no new model.
+
+**Evidence** — `text_audio_alignment_pilot.json`.
 
 ---
 
