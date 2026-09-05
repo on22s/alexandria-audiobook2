@@ -163,6 +163,10 @@
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_recognises_the_shapes_it_must_allow"
   ],
+  "test_arm_audio_statistics": [
+    "tests.test_arm_audio_statistics.ArmAudioStatisticsScopeTests.test_empty_scope_is_rejected",
+    "tests.test_arm_audio_statistics.ArmAudioStatisticsScopeTests.test_one_complete_pair_is_accepted"
+  ],
   "test_artifact_provenance_integrity": [
     "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_a_named_generating_script_still_exists",
     "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_every_artifact_parses",
