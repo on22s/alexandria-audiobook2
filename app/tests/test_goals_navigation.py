@@ -1,12 +1,22 @@
 """GOALS.md is split by status, and both halves of that claim are checked.
 
-A pointer to a line number rots the first time anyone edits above it, and a
-document that sorts goals by status rots the first time one changes status.
-Neither failure announces itself: the file still renders, the number still
-looks like a number, and a goal that quietly moved from OPEN to MET sits in
-the wrong half being read as work that is left.
+A document that sorts goals by status rots the first time one changes status,
+and the failure does not announce itself: the file still renders, and a goal
+that quietly moved from OPEN to MET sits in the wrong half being read as work
+that is left. So the split is recomputed here rather than trusted.
 
-So the navigation note is not trusted. It is recomputed here.
+THE LINE NUMBER IS GONE ON PURPOSE. The navigation note used to name the line
+Part II starts on, and this file checked it, so it was never WRONG. It was
+still a derived value stored in a hand-edited document, and it conflicted on
+every pull request that added a paragraph above Part II - three times on
+2026-09-04 alone. Both sides of such a conflict are always wrong: two branches
+that each grow the open half by a different amount produce two different
+numbers, and the number after merging is neither. GOALS.md carries prose, so
+it cannot take the `merge=ours` driver the other derived files use. Removing
+the number is the only fix that ends it, and a test now keeps it from coming
+back.
+
+Run this module directly to print where Part II starts.
 """
 import re
 import unittest
@@ -62,16 +72,30 @@ def verdict(body):
 
 class GoalsNavigationTests(unittest.TestCase):
 
-    def test_the_stated_line_number_is_where_met_goals_actually_start(self):
+    def test_the_document_names_no_line_number(self):
+        """Keeps the conflict generator from being reintroduced.
+
+        Checking a hardcoded number is not enough - the old test did exactly
+        that and passed, while the number still had to be resolved by hand on
+        every merge. The only stable state is not storing it.
+        """
+        offenders = [f"line {i + 1}: {line.strip()[:70]}"
+                     for i, line in enumerate(read_goals())
+                     if re.search(r"(begin|start|found|is)\w*\s+at\s+line\s+"
+                                  r"\*{0,2}\d+", line, re.I)]
+        self.assertEqual([], offenders,
+                         "a line number is stored in GOALS.md again. It will "
+                         "conflict on every PR that edits above it, and both "
+                         "sides of that conflict will be wrong:\n  "
+                         + "\n  ".join(offenders))
+
+    def test_both_parts_are_present_and_findable(self):
+        """What the pointer was for: the split must exist and be locatable."""
         lines = read_goals()
-        actual = lines.index(MET_HEADING) + 1
-        stated = [int(m.group(1)) for m in
-                  (re.search(r"met goals begin at line \*{0,2}(\d+)", line)
-                   for line in lines) if m]
-        self.assertTrue(stated, "the navigation note is missing its line number")
-        self.assertEqual([actual], stated,
-                         f"the note points at line {stated}, but "
-                         f"'{MET_HEADING}' is on line {actual}. Update the note.")
+        self.assertIn(OPEN_HEADING, lines)
+        self.assertIn(MET_HEADING, lines)
+        self.assertLess(lines.index(OPEN_HEADING), lines.index(MET_HEADING),
+                        "open goals come first")
 
     def test_every_goal_sits_in_the_half_its_status_says(self):
         parts = goals_by_part(read_goals())
@@ -98,5 +122,14 @@ class GoalsNavigationTests(unittest.TestCase):
                          "to the split")
 
 
+def _report():
+    lines = read_goals()
+    print(f"{MET_HEADING} starts at line {lines.index(MET_HEADING) + 1} "
+          f"of GOALS.md ({len(lines)} lines).")
+    parts = goals_by_part(lines)
+    print(f"  open: {len(parts['open'])} goals   met: {len(parts['met'])} goals")
+
+
 if __name__ == "__main__":
+    _report()
     unittest.main()

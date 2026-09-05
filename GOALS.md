@@ -27,9 +27,22 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3327** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first, then `# Part II — Met`. The
+> split is by status rather than topic, so what is left to do reads top-down
+> without scrolling past what is finished. Goal numbers are unchanged — 2.7 is
+> 2.7 in either part.
 
-> **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
+> **This note deliberately carries no line number.** It used to, and the number
+> was correct — a test recomputed it and refused a stale one. It still cost a
+> manual merge resolution on **every** pull request that added a paragraph
+> above Part II, three times on 2026-09-04 alone, and each time BOTH sides of
+> the conflict were wrong: two branches that each grew the open half by a
+> different amount produce two different numbers, neither of them the number
+> after merging. A derived value stored in a file that cannot take a merge
+> driver — GOALS.md carries prose, so `merge=ours` would discard real edits —
+> is a conflict generator, and the fix is to stop storing it. Run
+> `python -m tests.test_goals_navigation` from `app/` to print where Part II
+> currently starts.
 
 ### A few words that repeat
 
