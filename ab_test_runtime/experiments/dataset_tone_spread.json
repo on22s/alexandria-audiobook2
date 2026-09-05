@@ -1,0 +1,839 @@
+{
+ "note": "Per-dataset tone mixture, measured from the dedup run's own cached ECAPA embeddings. Tightness is mean cosine to the dataset centroid; spread is its standard deviation.",
+ "adapters": 75,
+ "measured": 74,
+ "unmeasured_reasons": {},
+ "tightness_vs_ecapa": {
+  "n": 74,
+  "r": 0.5837838536517023,
+  "p": 4.7790274272254e-08,
+  "rho": 0.5622362088115512,
+  "rho_p": 1.8597770726742587e-07
+ },
+ "spread_vs_ecapa": {
+  "n": 74,
+  "r": -0.45796581995320584,
+  "p": 4.082427998258135e-05,
+  "rho": -0.2929054329956246,
+  "rho_p": 0.011322639033539066
+ },
+ "tightness_vs_non_ecapa_controls": {
+  "dur_ratio": {
+   "n": 74,
+   "r": -0.10773380065129193,
+   "p": 0.36090273731162315,
+   "rho": -0.04655572203575666,
+   "rho_p": 0.6936674401316559
+  },
+  "vtl_ratio": {
+   "n": 74,
+   "r": -0.3881969133915516,
+   "p": 0.0006317074455623419,
+   "rho": -0.2793822606221207,
+   "rho_p": 0.01592479893846714
+  },
+  "f0_median_ratio": {
+   "n": 74,
+   "r": -0.3795905401169072,
+   "p": 0.0008513132389237253,
+   "rho": -0.3678021337098834,
+   "rho_p": 0.0012646013765895518
+  },
+  "f0_spread_ratio": {
+   "n": 74,
+   "r": -0.1275768623541296,
+   "p": 0.2787164472507593,
+   "rho": 0.013550737517036015,
+   "rho_p": 0.9087712556884645
+  },
+  "final_loss": {
+   "n": 74,
+   "r": -0.20126619301643695,
+   "p": 0.08551874907825076,
+   "rho": -0.12621991854868564,
+   "rho_p": 0.28390318967777334
+  }
+ },
+ "contingency": {
+  "failing_adapters_below_0.45": 9,
+  "of_those_in_loosest_quartile": 8,
+  "loosest_quartile_n": 19,
+  "loosest_quartile_still_scoring_0.6_or_better": 7,
+  "tightest_quartile_n": 19,
+  "tightest_quartile_failing": 0,
+  "quartile_cuts": {
+   "loose_below": 0.7504,
+   "tight_at_or_above": 0.879
+  }
+ },
+ "results": [
+  {
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "dataset": "narrator_mare_trevathan_the_godking_s_legacy_char1_vol01",
+   "source_volume": "Mare Trevathan The Godking's Legacy-converted_vol16.zip",
+   "clips_embedded": 150,
+   "tightness": 0.7723,
+   "spread": 0.0664,
+   "ecapa": 0.3983,
+   "final_loss": 4.2666294031673
+  },
+  {
+   "adapter": "breathy_baritone_30s_m_fantasy",
+   "dataset": "narrator_robert_west_damsels_of_jormia_char2_vol01",
+   "source_volume": "Robert West Damsels of Jormia-converted_vol19.zip",
+   "clips_embedded": 22,
+   "tightness": 0.641,
+   "spread": 0.07,
+   "ecapa": 0.7403,
+   "final_loss": 5.0948708057403564
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_literary",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char5_vol01",
+   "source_volume": "Suzie Yeung Even If These Tears Disappear Tonight-converted_vol10",
+   "clips_embedded": 150,
+   "tightness": 0.8682,
+   "spread": 0.0789,
+   "ecapa": 0.6817,
+   "final_loss": 4.0766892552375795
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_1",
+   "dataset": "narrator_michael_page_house_of_chains_char1_vol01",
+   "source_volume": "Michael Page House of Chains-converted_vol07.zip",
+   "clips_embedded": 150,
+   "tightness": 0.9051,
+   "spread": 0.0548,
+   "ecapa": 0.688,
+   "final_loss": 4.268293261528015
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_2",
+   "dataset": "narrator_qarie_marshall_wolverine_road_of_bones_1662042051_char1_vol01",
+   "source_volume": "Qarie Marshall Wolverine: Road of Bones [1662042051]_vol01",
+   "clips_embedded": 150,
+   "tightness": 0.8833,
+   "spread": 0.0491,
+   "ecapa": 0.6558,
+   "final_loss": 4.082468770609962
+  },
+  {
+   "adapter": "breathy_mezzo_20s_f_scifi",
+   "dataset": "narrator_luci_christian_full_metal_panic_char2_vol01",
+   "source_volume": "Luci Christian Full Metal Panic-converted_vol12.zip",
+   "clips_embedded": 150,
+   "tightness": 0.7366,
+   "spread": 0.2027,
+   "ecapa": 0.5858,
+   "final_loss": 4.174490072992113
+  },
+  {
+   "adapter": "breathy_tenor_18s_m_supernatural",
+   "dataset": "narrator_keith_silverstein_kizumonogatari_char2_vol01",
+   "source_volume": "Keith Silverstein KIZUMONOGATARI-converted_vol02.zip",
+   "clips_embedded": 150,
+   "tightness": 0.7882,
+   "spread": 0.1885,
+   "ecapa": 0.4834,
+   "final_loss": 4.271434728304545
+  },
+  {
+   "adapter": "breathy_tenor_20s_m_fantasy",
+   "dataset": "narrator_liam_price_the_archer_of_beast_woods_char1_vol01",
+   "source_volume": "Liam Price The Archer of Beast Woods-converted_vol04.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8884,
+   "spread": 0.0387,
+   "ecapa": 0.6106,
+   "final_loss": 4.2520931204160055
+  },
+  {
+   "adapter": "breathy_tenor_50s_m_fantasy",
+   "dataset": "narrator_ralph_lister_gardens_of_the_moon_char1_vol01",
+   "source_volume": "Ralph Lister Gardens of the Moon-converted_vol15.zip",
+   "clips_embedded": 150,
+   "tightness": 0.866,
+   "spread": 0.0466,
+   "ecapa": 0.6401,
+   "final_loss": 4.197844433784485
+  },
+  {
+   "adapter": "bright_tenor_30s_m",
+   "dataset": "narrator_mallorie_rodak_frieren_beyond_journey_s_end_prelude_vol_1_b0gx9t26cv_char1_vol01",
+   "source_volume": "Mallorie Rodak Frieren: Beyond Journey's End -Prelude-, Vol_vol10. 1 [B0GX9T26CV]",
+   "clips_embedded": 150,
+   "tightness": 0.8804,
+   "spread": 0.0617,
+   "ecapa": 0.6132,
+   "final_loss": 4.10018582203809
+  },
+  {
+   "adapter": "crisp_mezzo_30s_f",
+   "dataset": "narrator_miranda_parkin_my_happy_marriage_vol_1_char2_vol01",
+   "source_volume": "Miranda Parkin My Happy Marriage, Vol_vol02. 1-converted",
+   "clips_embedded": 150,
+   "tightness": 0.6644,
+   "spread": 0.1765,
+   "ecapa": 0.4259,
+   "final_loss": 4.189277219772339
+  },
+  {
+   "adapter": "crisp_tenor_20s_m",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char1_vol01",
+   "source_volume": "Suzie Yeung Even If These Tears Disappear Tonight-converted_vol07",
+   "clips_embedded": 150,
+   "tightness": 0.8956,
+   "spread": 0.0431,
+   "ecapa": 0.69,
+   "final_loss": 4.2167138126161365
+  },
+  {
+   "adapter": "crisp_tenor_30s_m_fantasy",
+   "dataset": "narrator_shiromi_arserio_the_jasmine_throne_154910487x_char1_vol01",
+   "source_volume": "Shiromi Arserio The Jasmine Throne [154910487X]_vol19",
+   "clips_embedded": 150,
+   "tightness": 0.8416,
+   "spread": 0.0407,
+   "ecapa": 0.5163,
+   "final_loss": 4.317043258084191
+  },
+  {
+   "adapter": "gravelly_baritone_50s_m_scifi",
+   "dataset": "narrator_scott_brick_foundation_s_edge_b005wl4r7e_char1_vol01",
+   "source_volume": "Scott Brick Foundation's Edge [B005WL4R7E]_vol07",
+   "clips_embedded": 150,
+   "tightness": 0.8678,
+   "spread": 0.0419,
+   "ecapa": 0.6234,
+   "final_loss": 3.9797266324361167
+  },
+  {
+   "adapter": "husky_alto_40s_f",
+   "dataset": "narrator_amy_landon_a_memory_called_empire_teixcalaan_book_1_1250318955_char1_vol01",
+   "source_volume": "Amy Landon A Memory Called Empire: Teixcalaan, Book 1 [1250318955]_vol09",
+   "clips_embedded": 150,
+   "tightness": 0.899,
+   "spread": 0.034,
+   "ecapa": 0.6898,
+   "final_loss": 4.211255476209852
+  },
+  {
+   "adapter": "husky_baritone_20s_m_anime",
+   "dataset": "narrator_cristina_vee_nekomonogatari_char2_vol01",
+   "source_volume": "Cristina Vee Nekomonogatari-converted_vol12.zip",
+   "clips_embedded": 150,
+   "tightness": 0.6881,
+   "spread": 0.2452,
+   "ecapa": 0.6821,
+   "final_loss": 4.2420096344418
+  },
+  {
+   "adapter": "husky_baritone_20s_m_supernatural",
+   "dataset": "narrator_keith_silverstein_kizumonogatari_char1_vol01",
+   "source_volume": "Keith Silverstein KIZUMONOGATARI-converted_vol17.zip",
+   "clips_embedded": 150,
+   "tightness": 0.5272,
+   "spread": 0.191,
+   "ecapa": 0.1596,
+   "final_loss": 4.130967171192169
+  },
+  {
+   "adapter": "husky_baritone_35s_m",
+   "dataset": "narrator_peter_kenny_sword_of_destiny_char1_vol01",
+   "source_volume": "Peter Kenny Sword of Destiny-converted_vol13.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8369,
+   "spread": 0.0654,
+   "ecapa": 0.6136,
+   "final_loss": 4.470417990949419
+  },
+  {
+   "adapter": "husky_baritone_40s_m_1",
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol_10_char2_vol01",
+   "source_volume": "J Michael Tatum Spice and Wolf, Vol. 10-converted_vol08.zip",
+   "clips_embedded": 150,
+   "tightness": 0.7239,
+   "spread": 0.2379,
+   "ecapa": 0.5125,
+   "final_loss": 4.2343544549412195
+  },
+  {
+   "adapter": "husky_baritone_40s_m_2",
+   "dataset": "narrator_scott_brick_foundation_s_edge_b005wl4r7e_char2_vol01",
+   "source_volume": "Scott Brick Foundation's Edge [B005WL4R7E]_vol25",
+   "clips_embedded": 150,
+   "tightness": 0.86,
+   "spread": 0.0383,
+   "ecapa": 0.5488,
+   "final_loss": 4.035558041334152
+  },
+  {
+   "adapter": "husky_baritone_40s_m_military",
+   "dataset": "narrator_suzie_yeung_stephen_fu_86_char2_vol01",
+   "source_volume": "Suzie Yeung Stephen Fu 86--converted_vol12",
+   "clips_embedded": 150,
+   "tightness": 0.7929,
+   "spread": 0.196,
+   "ecapa": 0.6175,
+   "final_loss": 4.288315545188056
+  },
+  {
+   "adapter": "husky_baritone_40s_m_scifi",
+   "dataset": "narrator_jon_lindstrom_nightfall_and_other_stories_059341635x_char1_vol01",
+   "source_volume": "Jon Lindstrom Nightfall and Other Stories [059341635X]_vol16",
+   "clips_embedded": 150,
+   "tightness": 0.8733,
+   "spread": 0.0455,
+   "ecapa": 0.5731,
+   "final_loss": 3.979197564125061
+  },
+  {
+   "adapter": "husky_baritone_50s_m_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char1_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol02",
+   "clips_embedded": 150,
+   "tightness": 0.8624,
+   "spread": 0.044,
+   "ecapa": 0.6556,
+   "final_loss": 4.153340084022946
+  },
+  {
+   "adapter": "husky_baritone_50s_m_military",
+   "dataset": "narrator_tim_gerard_reynolds_age_of_war_char1_vol01",
+   "source_volume": "Tim Gerard Reynolds Age of War-converted_vol22",
+   "clips_embedded": 150,
+   "tightness": 0.8524,
+   "spread": 0.0554,
+   "ecapa": 0.6354,
+   "final_loss": 4.297352133856879
+  },
+  {
+   "adapter": "husky_soprano_20s_f",
+   "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01",
+   "source_volume": "Brittney Karbowski Reincarnated Slime-converted_vol14.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8854,
+   "spread": 0.07,
+   "ecapa": 0.7411,
+   "final_loss": 4.257090185748206
+  },
+  {
+   "adapter": "husky_tenor_30s_m",
+   "dataset": "narrator_various_waking_gods_b01ngublbw_char1_vol01",
+   "source_volume": "Various Waking Gods [B01NGUBLBW]_vol11",
+   "clips_embedded": 150,
+   "tightness": 0.6731,
+   "spread": 0.2297,
+   "ecapa": 0.3668,
+   "final_loss": 4.3300345314873585
+  },
+  {
+   "adapter": "husky_tenor_30s_m_fantasy",
+   "dataset": "narrator_steven_pacey_the_blade_itself_char1_vol01",
+   "source_volume": "Steven Pacey The Blade Itself-converted_vol34",
+   "clips_embedded": 150,
+   "tightness": 0.8676,
+   "spread": 0.0519,
+   "ecapa": 0.6859,
+   "final_loss": 4.259476069609324
+  },
+  {
+   "adapter": "husky_tenor_30s_m_literary",
+   "dataset": "narrator_cindy_kay_water_moon_a_novel_b0d26l1r1d_char1_vol01",
+   "source_volume": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]_vol13",
+   "clips_embedded": 150,
+   "tightness": 0.8783,
+   "spread": 0.0522,
+   "ecapa": 0.6875,
+   "final_loss": 4.070996505022049
+  },
+  {
+   "adapter": "silky_alto_40s_f",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char3_vol01",
+   "source_volume": "Suzie Yeung Even If These Tears Disappear Tonight-converted_vol05",
+   "clips_embedded": 150,
+   "tightness": 0.7431,
+   "spread": 0.1248,
+   "ecapa": 0.6527,
+   "final_loss": 4.266026922067007
+  },
+  {
+   "adapter": "silky_alto_40s_f_cyberpunk",
+   "dataset": "narrator_cherami_leigh_cyberpunk_2077_char1_vol01",
+   "source_volume": "Cherami Leigh Cyberpunk 2077-converted_vol02.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8346,
+   "spread": 0.0593,
+   "ecapa": 0.6427,
+   "final_loss": 4.302345824241638
+  },
+  {
+   "adapter": "silky_alto_40s_f_literary_1",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char2_vol01",
+   "source_volume": "Suzie Yeung Even If These Tears Disappear Tonight-converted_vol04",
+   "clips_embedded": 150,
+   "tightness": 0.8601,
+   "spread": 0.159,
+   "ecapa": 0.6502,
+   "final_loss": 4.130442651510239
+  },
+  {
+   "adapter": "silky_alto_40s_f_literary_2",
+   "dataset": "narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of_the_world_a_novel_059345894x_char1_vol01",
+   "source_volume": "Traci Kato-Kiriyama The Phone Booth at the Edge of the World: A Novel [059345894X]_vol11",
+   "clips_embedded": 150,
+   "tightness": 0.9236,
+   "spread": 0.0532,
+   "ecapa": 0.7309,
+   "final_loss": 4.1417060380286355
+  },
+  {
+   "adapter": "silky_baritone_30s_m",
+   "dataset": "narrator_nick_podehl_super_sales_on_super_heroes_book_2_super_sales_on_super_heroes_book_2_b07cj4c449_char1_vol01",
+   "source_volume": "Nick Podehl Super Sales on Super Heroes, Book 2: Super Sales on Super Heroes, Book 2 [B07CJ4C449]_vol11",
+   "clips_embedded": 150,
+   "tightness": 0.8108,
+   "spread": 0.0709,
+   "ecapa": 0.5008,
+   "final_loss": 4.218347199757894
+  },
+  {
+   "adapter": "silky_baritone_30s_m_fantasy",
+   "dataset": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_summoner_volume_i_b09nzklscb_char1_vol01",
+   "source_volume": "Alyssa Poon, Robert Bradvica Rise of the Weakest Summoner: Volume I [B09NZKLSCB]_vol07",
+   "clips_embedded": 150,
+   "tightness": 0.8487,
+   "spread": 0.1341,
+   "ecapa": 0.5768,
+   "final_loss": 4.095074442625045
+  },
+  {
+   "adapter": "silky_baritone_40s_m_scifi",
+   "dataset": "narrator_todd_mclaren_altered_carbon_b002v1o6x8_char1_vol01",
+   "source_volume": "Todd McLaren Altered Carbon [B002V1O6X8]_vol31",
+   "clips_embedded": 150,
+   "tightness": 0.8795,
+   "spread": 0.0584,
+   "ecapa": 0.6793,
+   "final_loss": 4.073923774560293
+  },
+  {
+   "adapter": "silky_baritone_45s_m",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char4_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol05",
+   "clips_embedded": 150,
+   "tightness": 0.613,
+   "spread": 0.2413,
+   "ecapa": 0.1033,
+   "final_loss": 4.0592869126796725
+  },
+  {
+   "adapter": "silky_mezzo_10s_f_fantasy",
+   "dataset": "narrator_reba_buhr_ascendance_of_a_bookworm_1_char1_vol01",
+   "source_volume": "Reba Buhr Ascendance of a Bookworm - 1-converted_vol06.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8499,
+   "spread": 0.0542,
+   "ecapa": 0.6142,
+   "final_loss": 4.135305349032084
+  },
+  {
+   "adapter": "silky_mezzo_30s_f",
+   "dataset": "narrator_suzy_jackson_skyward_char1_vol01",
+   "source_volume": "Suzy Jackson Skyward-converted_vol33",
+   "clips_embedded": 80,
+   "tightness": 0.878,
+   "spread": 0.087,
+   "ecapa": 0.7632,
+   "final_loss": 4.169328247958964
+  },
+  {
+   "adapter": "silky_mezzo_30s_f_fantasy",
+   "dataset": "narrator_emily_woo_zeller_red_winter_the_complete_trilogy_b0d1z63lzd_char2_vol01",
+   "source_volume": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]_vol45",
+   "clips_embedded": 150,
+   "tightness": 0.828,
+   "spread": 0.0643,
+   "ecapa": 0.5977,
+   "final_loss": 4.188946435186598
+  },
+  {
+   "adapter": "silky_mezzo_30s_f_supernatural",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char6_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol08",
+   "clips_embedded": 150,
+   "tightness": 0.6223,
+   "spread": 0.2712,
+   "ecapa": 0.7032,
+   "final_loss": 4.2504690289497375
+  },
+  {
+   "adapter": "velvety_mezzo_30s_f_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char9_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol12",
+   "clips_embedded": 150,
+   "tightness": 0.7049,
+   "spread": 0.2224,
+   "ecapa": 0.0792,
+   "final_loss": 4.11488025188446
+  },
+  {
+   "adapter": "warm_alto_40s_f_1",
+   "dataset": "narrator_miranda_parkin_my_happy_marriage_vol_1_char1_vol01",
+   "source_volume": "Miranda Parkin My Happy Marriage, Vol_vol01. 1-converted",
+   "clips_embedded": 150,
+   "tightness": 0.8435,
+   "spread": 0.0669,
+   "ecapa": 0.4786,
+   "final_loss": 4.15631791220771
+  },
+  {
+   "adapter": "warm_alto_40s_f_2",
+   "dataset": "narrator_suzy_jackson_skyward_char2_vol01",
+   "source_volume": "Suzy Jackson Skyward-converted_vol09",
+   "clips_embedded": 150,
+   "tightness": 0.8764,
+   "spread": 0.0463,
+   "ecapa": 0.6971,
+   "final_loss": 4.1008617692523535
+  },
+  {
+   "adapter": "warm_alto_40s_f_3",
+   "dataset": "narrator_tara_sands_shorefall_a_novel_0593148053_char1_vol01",
+   "source_volume": "Tara Sands Shorefall: A Novel [0593148053]_vol41",
+   "clips_embedded": 105,
+   "tightness": 0.8755,
+   "spread": 0.0524,
+   "ecapa": 0.6603,
+   "final_loss": 4.099373831831175
+  },
+  {
+   "adapter": "warm_alto_50s_f_anime",
+   "dataset": "narrator_hollie_jackson_seize_the_day_a_world_conquest_isekai_empress_book_1_b0cxrzxtr9_char1_vol01",
+   "source_volume": "Hollie Jackson Seize the Day: A World Conquest Isekai: Empress, Book 1 [B0CXRZXTR9]_vol05",
+   "clips_embedded": 150,
+   "tightness": 0.8792,
+   "spread": 0.0626,
+   "ecapa": 0.7111,
+   "final_loss": 4.251587047841814
+  },
+  {
+   "adapter": "warm_alto_50s_f_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char3_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol21",
+   "clips_embedded": 150,
+   "tightness": 0.5736,
+   "spread": 0.1713,
+   "ecapa": 0.6043,
+   "final_loss": 4.1041210484504695
+  },
+  {
+   "adapter": "warm_baritone_20s_m_postapoc",
+   "dataset": "narrator_jay_snyder_ex_heroes_char2_vol01",
+   "source_volume": "Jay Snyder Ex-Heroes-converted_vol17.zip",
+   "clips_embedded": 73,
+   "tightness": 0.6893,
+   "spread": 0.1787,
+   "ecapa": 0.5216,
+   "final_loss": 4.137502446586703
+  },
+  {
+   "adapter": "warm_baritone_30s_m_1",
+   "dataset": "narrator_brian_nishii_alita_battle_angel_the_official_movie_novelization_b07hhjpkmj_char1_vol01",
+   "source_volume": "Brian Nishii Alita: Battle Angel: The Official Movie Novelization [B07HHJPKMJ]_vol09",
+   "clips_embedded": 150,
+   "tightness": 0.8923,
+   "spread": 0.0367,
+   "ecapa": 0.5301,
+   "final_loss": 4.082920583089193
+  },
+  {
+   "adapter": "warm_baritone_30s_m_2",
+   "dataset": "narrator_christian_j_gilliland_hazel_cohen_elemental_summoner_1_b09bxyjxyt_char1_vol01",
+   "source_volume": "Christian J_vol02. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT]",
+   "clips_embedded": 150,
+   "tightness": 0.8342,
+   "spread": 0.1005,
+   "ecapa": 0.5442,
+   "final_loss": 4.025485928058624
+  },
+  {
+   "adapter": "warm_baritone_30s_m_3",
+   "dataset": "narrator_jay_snyder_ex_heroes_char3_vol01",
+   "source_volume": "Jay Snyder Ex-Heroes-converted_vol06.zip",
+   "clips_embedded": 150,
+   "tightness": 0.6716,
+   "spread": 0.1965,
+   "ecapa": 0.3359,
+   "final_loss": 4.070069922341241
+  },
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_1",
+   "dataset": "narrator_cliff_kurt_mushoku_tensei_char1_vol01",
+   "source_volume": "Cliff Kurt Mushoku Tensei-converted_vol12.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8373,
+   "spread": 0.075,
+   "ecapa": 0.6213,
+   "final_loss": 4.022227218416002
+  },
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_2",
+   "dataset": "narrator_robert_west_damsels_of_jormia_char1_vol01",
+   "source_volume": "Robert West Damsels of Jormia-converted_vol16.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8389,
+   "spread": 0.1098,
+   "ecapa": 0.6285,
+   "final_loss": 4.188185796472761
+  },
+  {
+   "adapter": "warm_baritone_30s_m_scifi",
+   "dataset": "narrator_jay_snyder_ex_heroes_char1_vol01",
+   "source_volume": "Jay Snyder Ex-Heroes-converted_vol15.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8608,
+   "spread": 0.1165,
+   "ecapa": 0.6582,
+   "final_loss": 4.126800531148911
+  },
+  {
+   "adapter": "warm_baritone_40s_m_1",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char8_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol24",
+   "clips_embedded": 150,
+   "tightness": 0.7091,
+   "spread": 0.0491,
+   "ecapa": 0.3378,
+   "final_loss": 4.131259330113729
+  },
+  {
+   "adapter": "warm_baritone_40s_m_2",
+   "dataset": "narrator_gareth_armstrong_the_devastation_of_baal_space_marine_conquests_warhammer_40000_book_1_b07ctt3bgq_char1_vol01",
+   "source_volume": "Gareth Armstrong The Devastation of Baal: Space Marine Conquests: Warhammer 40,000, Book 1 [B07CTT3BGQ]_vol20",
+   "clips_embedded": 150,
+   "tightness": 0.9131,
+   "spread": 0.0378,
+   "ecapa": 0.7294,
+   "final_loss": 4.280269479751587
+  },
+  {
+   "adapter": "warm_baritone_40s_m_3",
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol_10_char1_vol01",
+   "source_volume": "J Michael Tatum Spice and Wolf, Vol. 10-converted_vol14.zip",
+   "clips_embedded": 117,
+   "tightness": 0.8828,
+   "spread": 0.0419,
+   "ecapa": 0.4901,
+   "final_loss": 4.00676232117873
+  },
+  {
+   "adapter": "warm_baritone_40s_m_4",
+   "dataset": "narrator_paul_boehmer_vampire_hunter_d_char1_vol01",
+   "source_volume": "Paul Boehmer Vampire Hunter D-converted_vol02.zip",
+   "clips_embedded": 150,
+   "tightness": 0.871,
+   "spread": 0.0484,
+   "ecapa": 0.5811,
+   "final_loss": 4.135227704048157
+  },
+  {
+   "adapter": "warm_baritone_40s_m_5",
+   "dataset": "narrator_rc_bray_lost_gods_char1_vol01",
+   "source_volume": "RC Bray Lost Gods-converted_vol20.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8634,
+   "spread": 0.0517,
+   "ecapa": 0.6095,
+   "final_loss": 4.085396688514286
+  },
+  {
+   "adapter": "warm_baritone_40s_m_fantasy",
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol_10_char3_vol01",
+   "source_volume": "J Michael Tatum Spice and Wolf, Vol. 10-converted_vol09.zip",
+   "clips_embedded": 150,
+   "tightness": 0.6857,
+   "spread": 0.205,
+   "ecapa": 0.6659,
+   "final_loss": 4.2558454341358605
+  },
+  {
+   "adapter": "warm_baritone_40s_m_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char2_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol31",
+   "clips_embedded": 2,
+   "tightness": 0.8768,
+   "spread": 0.0,
+   "ecapa": null,
+   "final_loss": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_military",
+   "dataset": "narrator_simon_vance_the_blinding_knife_b0096gj7g2_char1_vol01",
+   "source_volume": "Simon Vance The Blinding Knife [B0096GJ7G2]_vol46",
+   "clips_embedded": 150,
+   "tightness": 0.8697,
+   "spread": 0.0498,
+   "ecapa": 0.6386,
+   "final_loss": 4.224999701976776
+  },
+  {
+   "adapter": "warm_baritone_40s_m_scifi",
+   "dataset": "narrator_c_j_mission_monster_core_2_1774241641_char1_vol01",
+   "source_volume": "C.J_vol02. Mission Monster Core 2 [1774241641]",
+   "clips_embedded": 150,
+   "tightness": 0.8606,
+   "spread": 0.0646,
+   "ecapa": 0.6929,
+   "final_loss": 4.172542173332638
+  },
+  {
+   "adapter": "warm_baritone_50s_m",
+   "dataset": "narrator_jot_davies_the_vagrant_b00vus19w4_char1_vol01",
+   "source_volume": "Jot Davies The Vagrant [B00VUS19W4]_vol08",
+   "clips_embedded": 150,
+   "tightness": 0.8942,
+   "spread": 0.0582,
+   "ecapa": 0.7312,
+   "final_loss": 4.248555703957876
+  },
+  {
+   "adapter": "warm_baritone_50s_m_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char5_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol30",
+   "clips_embedded": 150,
+   "tightness": 0.6146,
+   "spread": 0.1189,
+   "ecapa": 0.4325,
+   "final_loss": 4.217012431886461
+  },
+  {
+   "adapter": "warm_bass_50s_m_fantasy",
+   "dataset": "narrator_michael_kramer_the_hero_of_ages_char1_vol01",
+   "source_volume": "Michael Kramer The Hero of Ages-converted_vol02.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8858,
+   "spread": 0.0435,
+   "ecapa": 0.6915,
+   "final_loss": 4.100507573286692
+  },
+  {
+   "adapter": "warm_mezzo_20s_f_anime",
+   "dataset": "narrator_cristina_vee_nekomonogatari_char1_vol01",
+   "source_volume": "Cristina Vee Nekomonogatari-converted_vol11.zip",
+   "clips_embedded": 150,
+   "tightness": 0.9139,
+   "spread": 0.0219,
+   "ecapa": 0.6625,
+   "final_loss": 4.061419423421224
+  },
+  {
+   "adapter": "warm_mezzo_30s_f",
+   "dataset": "narrator_kate_reading_a_natural_history_of_dragons_char1_vol01",
+   "source_volume": "Kate Reading A Natural History of Dragons-converted_vol14.zip",
+   "clips_embedded": 150,
+   "tightness": 0.8968,
+   "spread": 0.0348,
+   "ecapa": 0.6771,
+   "final_loss": 4.038728235827552
+  },
+  {
+   "adapter": "warm_mezzo_30s_f_fantasy_1",
+   "dataset": "narrator_emily_woo_zeller_red_winter_the_complete_trilogy_b0d1z63lzd_char1_vol01",
+   "source_volume": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]_vol05",
+   "clips_embedded": 150,
+   "tightness": 0.8597,
+   "spread": 0.0444,
+   "ecapa": 0.6452,
+   "final_loss": 4.049729478359223
+  },
+  {
+   "adapter": "warm_mezzo_30s_f_fantasy_2",
+   "dataset": "narrator_emily_woo_zeller_red_winter_the_complete_trilogy_b0d1z63lzd_char3_vol01",
+   "source_volume": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]_vol49",
+   "clips_embedded": 150,
+   "tightness": 0.7798,
+   "spread": 0.0718,
+   "ecapa": 0.4801,
+   "final_loss": 4.112989340888129
+  },
+  {
+   "adapter": "warm_tenor_20s_m",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char4_vol01",
+   "source_volume": "Suzie Yeung Even If These Tears Disappear Tonight-converted_vol02",
+   "clips_embedded": 150,
+   "tightness": 0.6887,
+   "spread": 0.1387,
+   "ecapa": 0.6568,
+   "final_loss": 4.12567604250378
+  },
+  {
+   "adapter": "warm_tenor_20s_m_scifi",
+   "dataset": "narrator_luci_christian_full_metal_panic_char1_vol01",
+   "source_volume": "Luci Christian Full Metal Panic-converted_vol01.zip",
+   "clips_embedded": 150,
+   "tightness": 0.655,
+   "spread": 0.2051,
+   "ecapa": 0.5287,
+   "final_loss": 4.097733569145203
+  },
+  {
+   "adapter": "warm_tenor_25s_m_military",
+   "dataset": "narrator_suzie_yeung_stephen_fu_86_char1_vol01",
+   "source_volume": "Suzie Yeung Stephen Fu 86--converted_vol02",
+   "clips_embedded": 150,
+   "tightness": 0.8419,
+   "spread": 0.056,
+   "ecapa": 0.6236,
+   "final_loss": 4.18122804429796
+  },
+  {
+   "adapter": "warm_tenor_30s_m_1",
+   "dataset": "narrator_john_lee_spellmonger_spellmonger_book_1_b01n264eek_char1_vol01",
+   "source_volume": "John Lee Spellmonger: Spellmonger, Book 1 [B01N264EEK]_vol04",
+   "clips_embedded": 150,
+   "tightness": 0.9054,
+   "spread": 0.0388,
+   "ecapa": 0.7017,
+   "final_loss": 4.336548882060581
+  },
+  {
+   "adapter": "warm_tenor_30s_m_2",
+   "dataset": "narrator_kirby_heyborne_out_of_house_and_home_fred_the_vampire_accountant_series_book_7_b09d1hqbvy_char1_vol01",
+   "source_volume": "Kirby Heyborne Out of House and Home: Fred, the Vampire Accountant Series, Book 7 [B09D1HQBVY]_vol09",
+   "clips_embedded": 150,
+   "tightness": 0.8768,
+   "spread": 0.0439,
+   "ecapa": 0.6124,
+   "final_loss": 4.028354522917006
+  },
+  {
+   "adapter": "warm_tenor_30s_m_gothic",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char7_vol01",
+   "source_volume": "Dracula [Audible Edition] [B0078PA1OA]_vol17",
+   "clips_embedded": 150,
+   "tightness": 0.8994,
+   "spread": 0.0306,
+   "ecapa": 0.6316,
+   "final_loss": 4.205992811255985
+  }
+ ],
+ "provenance": {
+  "script": "dataset_tone_spread.py",
+  "written": "2026-09-04T18:15:28",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+   "branch": "agent/dataset-tone-spread-20260904",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/dataset_tone_spread.py"
+   ],
+   "harness_sha256": "9ed8456aa0015389f015fac3eadd80e2eca88b1043c9375453ff7f049379c3c6"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

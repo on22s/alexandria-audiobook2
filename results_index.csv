@@ -372,6 +372,7 @@ dataset_ref_audit.json,supported_structure,provenance,yes,,,,11,,,,,,,,,,,,,,,,,
 dataset_source_identification.json,exploratory,none,no,,567bb25c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 dataset_speaker_consistency.json,supported_structure,provenance,yes,,,,3,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dataset_speaker_consistency_n10.json,supported_structure,provenance,yes,,,,3,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+dataset_tone_spread.json,supported_structure,provenance,yes,,,2.7,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
