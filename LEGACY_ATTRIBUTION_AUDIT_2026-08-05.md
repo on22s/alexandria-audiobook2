@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 174 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 193 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 101
+- `exploratory`: 111
 - `historical_only`: 30
 - `provisional`: 13
-- `supported_measurement`: 30
+- `supported_measurement`: 39
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -76,6 +76,12 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `context_width_production__mushoku16__qwen__qwen3-14b__local.json` | context_width_production | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
 | `context_width_production__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
 | `crossover__grimgar03__local.json` | segmentation_crossover | historical_only | 7980 | 320 | 60 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r64-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r64-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r8-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r8-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr5e5_r16-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr5e5_r16-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
 | `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-full-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-n10-a6000-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35-9b-apos-damaged-a6000-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
@@ -83,11 +89,24 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `distill_eval__qwen35_9b_bf16_author_heldout_balanced-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-low-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-low-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-medium-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-off-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-xhigh-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-nf4-heldout-one_pass-index18-tnr2-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38-nf4-heldout-stage1_only-index18-tnr2-20260904.json` | distill_eval | exploratory | 176 | 0 | 0 | False | base: every one of 88 predictions is 'UNKNOWN'; a constant predictor carries no information and is usually a parse failure; tuned: every one of 88 predictions is 'UNKNOWN'; a constant predictor carries no information and is usually a parse failure |
+| `distill_eval__qwen38-ratio-mix75-tnr0-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38-ratio-task4k-tnr0-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38_27b_bf16_origin_author_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_bf16_origin_hybrid_targets_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | base: every prediction is empty; this can be an inference failure, not a measured null result; recorded commit is unavailable from current history; tuned: every prediction is empty; this can be an inference failure, not a measured null result |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | base: every prediction is empty; this can be an inference failure, not a measured null result; recorded commit is unavailable from current history; tuned: every prediction is empty; this can be an inference failure, not a measured null result |
+| `distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r8-seed20260904-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r8-seed20260905-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 1584 | 0 | 0 | False |  |
 | `grammar_constraint__index18__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 396 | 0 | 0 | False |  |
 | `grammar_constraint__mushoku16__mistralai__magistral-small__local-llamacpp.json` | grammar_constraint | supported_measurement | 556 | 0 | 0 | False |  |
