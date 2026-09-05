@@ -1466,7 +1466,52 @@ confounded is what exists now and did not in June: the trainer honours the
 180/20 split, an identity gate refuses voices that resemble nobody, and this
 tightness screen flags 8 of 9 failures before any GPU time.
 
-**Evidence** — `dataset_tone_spread.json`, and
+**AND CHOOSING TIGHTER CLIPS ACTUALLY WORKS — measured overnight 2026-09-05,
+54 books.** The r=0.58 above is a correlation over datasets nobody chose. This
+is the intervention: two arms drawn from ONE pool at the SAME size, differing
+only in selection - 200 at random against the 200 nearest the pool centroid -
+scored on a shared held-out set reserved before either arm was drawn, so
+neither trained on it.
+
+| | |
+|---|---|
+| tight arm better | **35 of 54** |
+| control better | 19 |
+| mean delta | **+0.0550** |
+| median delta | **+0.0433** |
+| Wilcoxon signed-rank | **p = 0.00058** |
+| sign test | p = 0.0402 |
+
+**Trimming the five largest swings each way makes it STRONGER** - mean +0.0447,
+p = 0.00008 - so this is a broad shift rather than a few dramatic books
+carrying an average.
+
+**The gain lands almost entirely on the datasets that were worst to begin
+with**, which was not designed for and is the more useful half:
+
+    control score vs gain      r = -0.598   p < 0.0001
+    weak baselines  (n=27)     mean gain +0.1002   21/27 improved
+    strong baselines (n=27)    mean gain +0.0097   14/27 improved
+
+On an already-good dataset selection buys nothing. On a bad one it buys +0.10.
+**Six adapters crossed the 0.45 usability gate that were below it, against one
+that fell back.** This is a rescue mechanism, applied where it is needed and
+skipped elsewhere - and it costs a sort, not a retrain and not a rebuilt
+dataset.
+
+**What it does not yet say.** How MUCH tighter the arm was does not predict how
+much it won by (r=-0.011, p=0.94), so "avoid the worst clips" and "maximise
+tightness" remain indistinguishable from two arms. A third arm at the midpoint
+in tightness (0.815 / 0.862 / 0.918 on Gardens of the Moon) is running. The
+same-morning rank ladder is the argument for it: -2.5, +2.5, +12.4, +16.7 reads
+as monotonic only because the intermediate rungs exist, and would look like a
+threshold from its endpoints alone.
+
+Seed 20260905 only. Six lines per gate, so per-book numbers are noisy and the
+aggregate is what carries this.
+
+**Evidence** — `tight_gate__<dataset>_s20260905__{control,tight}.json`,
+`dataset_tone_spread.json`, and
 `app/tests/test_dataset_tone_spread.py`, which validates the statistic on
 synthetic embeddings whose structure is known: one cluster scores above 0.9,
 two score lower, and the value falls monotonically at 1, 2, 4 and 8 clusters,

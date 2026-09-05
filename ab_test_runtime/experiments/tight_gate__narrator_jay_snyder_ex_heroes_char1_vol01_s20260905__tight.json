@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_selection/narrator_jay_snyder_ex_heroes_char1_vol01_s20260905/tight/adapter",
+ "median_ecapa": 0.5958,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5958)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T02:55:31",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1557e806f81593ab79894229a4870507dfe2f551",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "0c0e1603c3043a6a821163bc1f906cd9f88fe3d72f20089dc4b0edbe0e215767"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_selection/narrator_jay_snyder_ex_heroes_char1_vol01_s20260905/tight/adapter",
+   "dataset": "ab_test_runtime/tight_selection/narrator_jay_snyder_ex_heroes_char1_vol01_s20260905/tight",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/tight_gate__narrator_jay_snyder_ex_heroes_char1_vol01_s20260905__tight.json"
+  },
+  "seed": 1234
+ }
+}
