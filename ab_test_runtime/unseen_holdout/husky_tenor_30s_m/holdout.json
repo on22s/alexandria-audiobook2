@@ -8,188 +8,227 @@
       200
     ]
   ],
-  "voices_in_book": 1,
+  "voices_in_book_recorded_not_gated": 1,
+  "min_voice_similarity": 0.85,
+  "volume_similarity_to_trained": {
+    "Various Waking Gods [B01NGUBLBW]_vol01": 0.48058151693266105,
+    "Various Waking Gods [B01NGUBLBW]_vol02": 0.6200517017000495,
+    "Various Waking Gods [B01NGUBLBW]_vol03": 0.6357790253875122,
+    "Various Waking Gods [B01NGUBLBW]_vol04": 0.5806369557748702,
+    "Various Waking Gods [B01NGUBLBW]_vol05": 0.8379855289760758,
+    "Various Waking Gods [B01NGUBLBW]_vol06": 0.669356429378597,
+    "Various Waking Gods [B01NGUBLBW]_vol07": 0.8594049155508032,
+    "Various Waking Gods [B01NGUBLBW]_vol08": 0.7705132873886851,
+    "Various Waking Gods [B01NGUBLBW]_vol09": 0.8141986194824384,
+    "Various Waking Gods [B01NGUBLBW]_vol10": 0.7769390537845976,
+    "Various Waking Gods [B01NGUBLBW]_vol12": 0.8305464909091904,
+    "Various Waking Gods [B01NGUBLBW]_vol13": 0.3800434235814089,
+    "Various Waking Gods [B01NGUBLBW]_vol14": 0.37494641423309505,
+    "Various Waking Gods [B01NGUBLBW]_vol15": 0.37681411707760926,
+    "Various Waking Gods [B01NGUBLBW]_vol16": 0.3400912568155146,
+    "Various Waking Gods [B01NGUBLBW]_vol17": 0.32591881148798196,
+    "Various Waking Gods [B01NGUBLBW]_vol18": 0.3713997784162962
+  },
+  "volumes_dropped_wrong_voice": [
+    "Various Waking Gods [B01NGUBLBW]_vol01",
+    "Various Waking Gods [B01NGUBLBW]_vol02",
+    "Various Waking Gods [B01NGUBLBW]_vol03",
+    "Various Waking Gods [B01NGUBLBW]_vol04",
+    "Various Waking Gods [B01NGUBLBW]_vol05",
+    "Various Waking Gods [B01NGUBLBW]_vol06",
+    "Various Waking Gods [B01NGUBLBW]_vol08",
+    "Various Waking Gods [B01NGUBLBW]_vol09",
+    "Various Waking Gods [B01NGUBLBW]_vol10",
+    "Various Waking Gods [B01NGUBLBW]_vol12",
+    "Various Waking Gods [B01NGUBLBW]_vol13",
+    "Various Waking Gods [B01NGUBLBW]_vol14",
+    "Various Waking Gods [B01NGUBLBW]_vol15",
+    "Various Waking Gods [B01NGUBLBW]_vol16",
+    "Various Waking Gods [B01NGUBLBW]_vol17",
+    "Various Waking Gods [B01NGUBLBW]_vol18"
+  ],
+  "volumes_dropped_unjudged": [],
   "trained_clips": 200,
-  "unseen_pool": 3240,
+  "unseen_pool": 200,
   "requested": 20,
   "written": 20,
   "seed": 20260904,
   "clips": [
     {
       "audio_filepath": "val/unseen_000.wav",
-      "text": "I thought I could persuade him. .... And? My *powers* of persuasion were not all that I *thought* them to be.",
-      "duration": 7.04,
-      "start": 21001.74,
-      "end": 21008.78,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol12"
+      "text": "Each seems to have its *own…personality*. This one glows *orange*, for one thing. Here’s a picture from last *year*.",
+      "duration": 8.22,
+      "start": 12539.82,
+      "end": 12548.04,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_001.wav",
-      "text": "For now, it’s a very simple one: Send *Themis* to England, that will take seven or eight days. .... Let my kids do their job for another week and we’ll reconvene.",
-      "duration": 10.98,
-      "start": 1957.88,
-      "end": 1968.86,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol02"
+      "text": "They cannot simply ask the parents for their permission. .... Why not? Because it would imply telling them where they intend to take the *girl*, ...",
+      "duration": 9.96,
+      "start": 12221.36,
+      "end": 12231.32,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_002.wav",
-      "text": "“Who would be *stupid* enough to climb up that thing?” ... Eva, the elevator doesn’t work, so we’ll have to climb up that big ladder.",
-      "duration": 7.9,
-      "start": 21989.7,
-      "end": 21997.6,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol12"
+      "text": "... *a…How* long do I have? I cannot tell you *precisely*. *Minutes*. What will Delta do?",
+      "duration": 8.24,
+      "start": 12197.76,
+      "end": 12206.0,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_003.wav",
-      "text": "but he cannot ignore us, or that election will happen much sooner. *Liberal* *Democrats* will not be silenced.",
-      "duration": 9.76,
-      "start": 4036.98,
-      "end": 4046.74,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol03"
+      "text": "and, once they are reasonably confident they can operate her, take *Themis* for themselves by any means necessary. ....",
+      "duration": 8.24,
+      "start": 12097.36,
+      "end": 12105.6,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_004.wav",
-      "text": "Stupid ... memories. .... No, I wanna know. .... Did I ever tell you about our *wedding* night? Tell me. .... Well, not *everything*. ....",
-      "duration": 8.02,
-      "start": 23672.36,
-      "end": 23680.38,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol13"
+      "text": "civilian advisor. .... Do you think sending *me* on a mission to watch a bunch of soldiers do what I can’t do *anymore* is gonna make me feel *better* about what happened?",
+      "duration": 9.92,
+      "start": 11945.58,
+      "end": 11955.5,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_005.wav",
-      "text": "You have a *child* in Puerto Rico, a *daughter*. I think she’s about *ten* or *eleven*. ....",
-      "duration": 7.36,
-      "start": 13879.1,
-      "end": 13886.46,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol08"
+      "text": "I stayed in my *cell* as much as I could. .... They took me to the *yard*, twice a day, but I mostly kept to *myself*. .... I couldn’t stop thinking about what I had done to *Vincent*. I",
+      "duration": 9.16,
+      "start": 11720.52,
+      "end": 11729.68,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_006.wav",
-      "text": "This could perhaps be accomplished without your knowing. .... That said, she would eventually need to be *trained*.",
-      "duration": 9.82,
-      "start": 15062.94,
-      "end": 15072.76,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol09"
+      "text": "only know of *one*. I will arrange for that meeting as promised, but I have to take care of a few things ... first.",
+      "duration": 7.84,
+      "start": 13034.54,
+      "end": 13042.38,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_007.wav",
-      "text": "is his Y chromosome DNA, that is the *sss…sex* chromosome. .... You could use the markers in that",
-      "duration": 9.34,
-      "start": 17129.58,
-      "end": 17138.92,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol10"
+      "text": "This is *desperate*. It’s *futile*. These people will die. I will grant you that this is a ...",
+      "duration": 7.0,
+      "start": 12681.18,
+      "end": 12688.18,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_008.wav",
-      "text": "Are we any closer to finding *Themis*? No. .... We know for a fact that no one could have physically moved her without our *knowing*.",
-      "duration": 8.96,
-      "start": 13042.38,
-      "end": 13051.34,
+      "text": "Kara’s there. Vincent’s there. Then things get really messed up and, by the time I realize how *far* out of her *mind* Alyssa’s gone, ...",
+      "duration": 9.62,
+      "start": 11808.12,
+      "end": 11817.74,
       "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_009.wav",
-      "text": "Here it goes. .... There was a *king* crab fisherman in Alaska. .... Every morning during the fall,",
-      "duration": 9.28,
-      "start": 24707.94,
-      "end": 24717.22,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol14"
+      "text": "Twenty minutes. .... Where? ... London. .... London? *I* wonder why they would choose to land in the same city *twice*.",
+      "duration": 10.42,
+      "start": 12513.88,
+      "end": 12524.3,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_010.wav",
-      "text": "You’re the one who got me into this mess in the first place. .... Let me hear your *opening*. .... Where’s that *damn* piece of *paper*?",
-      "duration": 7.7,
-      "start": 1163.24,
-      "end": 1170.94,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol01"
+      "text": "preferably on an *exclusive* basis. .... They want to use it against us. .... I do not believe it is their intent to do so *now*,",
+      "duration": 9.02,
+      "start": 12116.66,
+      "end": 12125.68,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_011.wav",
-      "text": "And what does that tell you? ... That they understand *resource* optimization very well. .... The cost of an eradication effort is, *generally* speaking,",
-      "duration": 10.02,
-      "start": 13663.16,
-      "end": 13673.18,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol08"
+      "text": "I wish we hadn’t *killed* Rose, but it turned out OK, *sorta*. .... Hell, we got to wrestle with *aliens*!",
+      "duration": 8.74,
+      "start": 11473.98,
+      "end": 11482.72,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_012.wav",
-      "text": "If they were looking for us to make a *statement*, my spreading *green* goo all over their *feet* seems a .... *little…understated*. I don’t even know if that’s what they’re looking for. ...",
-      "duration": 8.18,
-      "start": 31705.34,
-      "end": 31713.52,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol17"
+      "text": "Cars blowing their horns. .... It’s one thirty in the morning, people! *Sarah*, you need to get out of here. .... And now I have a visitor! Did you see the big red ON AIR sign outside the door? Look out the window. .... You need to get out now.",
+      "duration": 12.4,
+      "start": 12456.3,
+      "end": 12468.7,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_013.wav",
-      "text": "Call me Rose. .... Just don’t try anything on your own. .... Listen to Vincent, *OK*? OK! Eva.",
-      "duration": 8.24,
-      "start": 26854.26,
-      "end": 26862.5,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol15"
+      "text": "These people are trying candles and peace ... signs. .... Instead of following their *most* basic *instinct* and running away,",
+      "duration": 7.88,
+      "start": 12661.72,
+      "end": 12669.6,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_014.wav",
-      "text": "Doing so might require a ship, or equipment that was not present in London. .... But it’d be *here* now?",
-      "duration": 8.14,
-      "start": 9710.44,
-      "end": 9718.58,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol06"
+      "text": "I listened to the log I made that morning and I took some notes. .... I’ll walk you through them *in* *case* this doesn’t work.",
+      "duration": 8.58,
+      "start": 11178.56,
+      "end": 11187.14,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_015.wav",
-      "text": "It is *true* that Ms. Papantoniou removed biological *samples* from both of you while you were being held, ...",
-      "duration": 8.98,
-      "start": 14691.06,
-      "end": 14700.04,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol08"
+      "text": "There were *four* years left on your sentence for crushing Mr. Couture into a wall with your *vehicle*. You had to serve the *entirety* of your sentence after violating the terms of your parole by leaving the state to join Alyssa in Puerto Rico. ....",
+      "duration": 14.94,
+      "start": 11655.84,
+      "end": 11670.78,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_016.wav",
-      "text": "I like you. I don’t want you to be miserable. .... How could you possibly know what *NATO* plans to do?",
-      "duration": 8.74,
-      "start": 4753.04,
-      "end": 4761.78,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol03"
+      "text": "Let’s do this again. .... Ho *Ah* *ben* *calver*! It worked! I moved again!",
+      "duration": 7.98,
+      "start": 11582.82,
+      "end": 11590.8,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_017.wav",
-      "text": "Might as well have thrown insults at it. .... She did give him the *finger*. .... Too bad the helicopters were gone. .... That would have made a great picture. Or a statue. *Ha*!",
-      "duration": 9.28,
-      "start": 8119.52,
-      "end": 8128.8,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol05"
+      "text": "We do not know ... whether *she* has been destroyed, ... or if *she* even is on this planet, ... so",
+      "duration": 7.78,
+      "start": 12766.16,
+      "end": 12773.94,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_018.wav",
-      "text": "I would have killed *my* wife and *my* daughter on the *same* day. .... But Eva *stopped* me. .... She’s *ten*",
-      "duration": 7.9,
-      "start": 22504.76,
-      "end": 22512.66,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol12"
+      "text": "You and I both know this conversation will not end with any *great* moral victory on your part. .... Do you know what I talked about at Fort Carson, before I went to Puerto Rico?",
+      "duration": 11.04,
+      "start": 11698.94,
+      "end": 11709.98,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     },
     {
       "audio_filepath": "val/unseen_019.wav",
-      "text": "She knew. .... Somehow she knew *Kara* was her mother. .... How did she know? I have no *idea*.",
-      "duration": 7.0,
-      "start": 23880.18,
-      "end": 23887.18,
-      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol13"
+      "text": "you chose to act like a *decent* human being, once, for about ten minutes. .... I am *truly* sorry if you were expecting a *medal*.",
+      "duration": 9.56,
+      "start": 11867.64,
+      "end": 11877.2,
+      "source_volume": "Various Waking Gods [B01NGUBLBW]_vol07"
     }
   ],
   "provenance": {
     "script": "build_unseen_holdout.py",
-    "written": "2026-09-04T17:43:31",
+    "written": "2026-09-04T18:44:13",
     "host": "mitch-linux",
     "git": {
-      "commit": "4704a0ea92bb477d0a96452ad235d3c1eb49e735",
-      "branch": "agent/unseen-holdout-20260904",
+      "commit": "57f32d221b1affc6c3b80bd48a054ab6d27cab2e",
+      "branch": "agent/voice-similarity-guard-20260904",
       "dirty": true,
       "modified_tracked_files": [
-        "M app/experiments/build_unseen_holdout.py",
-        " M app/tests/test_unseen_holdout.py"
+        "M ab_test_runtime/unseen_holdout/breathy_tenor_50s_m_fantasy/holdout.json",
+        " M app/experiments/build_unseen_holdout.py"
       ],
       "untracked_harness_files": null,
-      "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+      "harness_sha256": "bf25e2e855bbd9de80c8e8f4b592953d629b1aa7e3d8790375902e0b6c81cca8"
     },
     "args": {
       "error": "vars() argument must have __dict__ attribute"
