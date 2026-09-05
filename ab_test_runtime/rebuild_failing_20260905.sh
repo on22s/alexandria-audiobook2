@@ -33,8 +33,15 @@ EMB="$R/dedup_analysis/embeddings_cache.pkl"
 [ -s "$EMB" ] || { echo "no embedding cache" >&2; exit 1; }
 export ALEXANDRIA_SIBLING_PYTHON="${ALEXANDRIA_SIBLING_PYTHON:-/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python}"
 [ -x "$ALEXANDRIA_SIBLING_PYTHON" ] || { echo "no speechbrain interpreter" >&2; exit 1; }
-LORA="$R/lora_models"; [ -d "$LORA" ] || LORA="$MAIN/lora_models"
-[ -d "$LORA" ] || { echo "no shipped adapters at lora_models" >&2; exit 1; }
+# TEST FOR THE ADAPTERS, NOT FOR THE DIRECTORY. A worktree HAS a lora_models
+# directory - git tracks the manifest - but none of the 75 adapter_model
+# .safetensors are tracked, so the directory exists and is empty. `-d` passed,
+# the fallback never fired, and all five shipped arms reported MISSING while
+# the run carried on. Count what is inside.
+count_adapters () { find "$1" -name adapter_model.safetensors 2>/dev/null | head -1; }
+LORA="$R/lora_models"
+[ -n "$(count_adapters "$LORA")" ] || LORA="$MAIN/lora_models"
+[ -n "$(count_adapters "$LORA")" ] || { echo "no shipped adapters found under $R or $MAIN" >&2; exit 1; }
 echo "interpreter: $PY"; echo "shipped adapters: $LORA"
 
 EPOCHS=6; LR=1e-06; RANK=64; ALPHA=128; ACC=8
