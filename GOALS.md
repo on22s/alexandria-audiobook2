@@ -1266,38 +1266,90 @@ different things, and only one of them is more training:
   when a trained clip traces to no known volume, since that would mean some
   volume's clips were sitting in the pool labelled unseen.
 
-  **Six of the eleven candidates are eligible; five are refused, and the
-  refusal is the point.** The volumes are only safe to draw from when the book
-  is one voice throughout. Dracula [Audible Edition] is a nine-voice cast
-  production, so a random unseen volume there is probably a *different*
-  narrator — which would score both adapters against the wrong person and
-  return an ordinary-looking number. The builder counts the deduped datasets
-  sharing a book prefix and refuses above one:
+  **THE FIRST GUARD COUNTED THE WRONG THING, corrected 2026-09-04.** Volumes
+  are only safe to draw from when the candidate is the same VOICE, and the
+  first version asked instead how many datasets dedup produced for the book,
+  refusing above one. That number tracks how many CONTIGUOUS per-actor blocks
+  the chunking happened to produce, not how many people are in the recording:
 
-  | adapter | source book | voices | unseen pool |
+      book                       within-vol  between-vol   truth
+      Gardens of the Moon           0.824       0.965      1 narrator
+      Dracula [Audible Edition]     0.700       0.558      9-voice cast, caught
+      Waking Gods ("Various")       0.528       0.619      cast, PASSED as 1 voice
+      86-- (two named narrators)    0.728       0.745      ambiguous, PASSED
+
+  Dracula was caught only because it is epistolary — long contiguous stretches
+  are one actor, so its volumes cluster. **A cast whose actors alternate puts
+  all of them in every volume, the volumes then resemble one another, and
+  cluster-counting waves it through.** Waking Gods did exactly that.
+
+  The guard now asks the question directly, per pair — how similar is this
+  candidate volume to the volume the adapter trained on — and records the
+  figure for every volume so the threshold can be re-judged rather than
+  trusted. Rerun over the six candidates:
+
+  | adapter | book | volumes dropped as a different voice | pool |
   |---|---|---:|---:|
-  | breathy_tenor_50s_m_fantasy | Gardens of the Moon | 1 | 10,147 |
-  | silky_baritone_40s_m_scifi | Altered Carbon | 1 | 6,548 |
-  | husky_baritone_40s_m_scifi | Nightfall and Other Stories | 1 | 6,175 |
-  | husky_tenor_30s_m_literary | Water Moon | 1 | 3,770 |
-  | breathy_baritone_40s_m_military_2 | Wolverine: Road of Bones | 1 | 3,529 |
-  | husky_tenor_30s_m | Waking Gods | 1 | 3,240 |
-  | warm_baritone_30s_m_scifi | Ex-Heroes | 3 | **refused** |
-  | warm_mezzo_20s_f_anime | Nekomonogatari | 2 | **refused** |
-  | husky_baritone_40s_m_1 | Spice and Wolf | 3 | **refused** |
-  | husky_baritone_50s_m_gothic, silky_mezzo_30s_f_supernatural | Dracula | 9 | **refused** |
+  | breathy_tenor_50s_m_fantasy | Gardens of the Moon | 0 of 51 | 10,147 |
+  | husky_baritone_40s_m_scifi | Nightfall and Other Stories | 0 of 31 | 6,175 |
+  | husky_tenor_30s_m_literary | Water Moon | 0 of 19 | 3,770 |
+  | breathy_baritone_40s_m_military_2 | Wolverine: Road of Bones | 0 of 18 | 3,529 |
+  | silky_baritone_40s_m_scifi | Altered Carbon | **6 of 33** | 5,348 |
+  | husky_tenor_30s_m | Waking Gods | **16 of 17** | **200** |
 
-  **This is a narrator-level holdout, not a per-character one.** Clips carry
-  `speaker: "UNKNOWN"`, and the dedup heatmap for Gardens of the Moon puts all
-  52 volumes at 0.59–0.75 with no cluster structure — one narrator performing
-  every character. A held-out sample is therefore drawn from the same mixture
-  of narration and character voices as the training slice, which is what makes
-  it comparable, and it must not be described as anything narrower.
+  **`husky_tenor_30s_m`'s holdout was drawing other narrators**, at 0.326–0.859
+  similarity to its own trained volume, and the old guard had passed that book
+  as a single voice. Any figure measured against it is void.
 
-  **No score has been measured yet.** `unseen_gate_20260904.sh` runs the
-  existing identity gate over both adapters against the same unseen clips, 20
-  lines each. Until it has run, nothing here says which adapter is better —
-  only that the comparison is now possible.
+  **The threshold is calibrated, not chosen.** Across these six, the clean
+  books put every sibling volume at 0.919–0.992 against the trained one while
+  the two contaminated reach down to 0.326 and 0.793. 0.85 sits in the empty
+  band between, as the identity gate's 0.45 does. It is a six-book calibration
+  and should be revisited when a seventh disagrees. A volume the dedup run
+  never embedded is dropped as **unjudged** rather than assumed either way, and
+  the builder refuses outright when the trained volume itself was never
+  embedded.
+
+  **MEASURED 2026-09-04, and the clean adapters win.** 12 runs, 20 unseen
+  lines each, on the local card:
+
+  | adapter | shipped | clean | delta | |
+  |---|---:|---:|---:|---|
+  | husky_tenor_30s_m_literary | 0.6576 | **0.6865** | **+0.0289** | real pair |
+  | husky_baritone_40s_m_scifi | 0.5509 | **0.5781** | **+0.0272** | real pair |
+  | husky_tenor_30s_m | 0.2533 | 0.2771 | +0.0238 | real pair, **holdout void** |
+  | breathy_tenor_50s_m_fantasy | 0.5693 | 0.5693 | **+0.0000** | control |
+  | silky_baritone_40s_m_scifi | 0.6210 | 0.6210 | **+0.0000** | control |
+  | breathy_baritone_40s_m_military_2 | 0.6275 | 0.6275 | **+0.0000** | control |
+
+  **The three controls are what make the two results readable.** Those pairs
+  turned out to be the same weights twice — the adapters had already been
+  promoted, and the candidate list came from `decontaminate_batch*` artifacts
+  that predate the promotions. Each returned a delta of **exactly zero** across
+  20 generated lines, so the harness contributes no measurement noise at this
+  precision and a +0.027 difference is signal rather than scatter. What began
+  as three wasted arms is the positive control the comparison needed.
+
+  So on clips **neither** adapter had seen, the honestly-trained adapter beat
+  the contaminated one in both valid pairs, by +0.029 and +0.027. The refusal
+  those adapters were blocked by was an artefact of scoring them on clips the
+  shipped adapter had memorised, exactly as this goal suspected but could not
+  previously show.
+
+  **What this does NOT establish**, and the limits are larger than the result:
+
+  - **Two valid pairs.** Not six: three were degenerate and one holdout is void.
+  - **The absolute numbers are not comparable to the 0.45 gate**, or to library
+    scores. Different volumes of one audiobook carry different mixtures of
+    narration and performed character voices, so both arms are scored against a
+    related but not identical distribution. `verify_adapter_identity.py` prints
+    a PASS/FAIL verdict against 0.45; that verdict is meaningless here. Only
+    the paired delta means anything.
+  - **"The clean retrain" is not one object.** Up to three retrain campaigns
+    exist per adapter (`decontaminate`, `reference_rank1_all21`,
+    `retrain_honest`), and the chain picked one per adapter without recording
+    which. Choosing by score afterwards would be selection on the outcome, so
+    the rule must be stated and the hash stamped before this is extended.
 
 | trained on | adapters |
 |---|---|
@@ -1602,6 +1654,49 @@ rebuilding the dataset.
 Two dead voices became good ones. The three that barely moved are the ones
 whose DATASETS are mixed-speaker (2.7 above): there the reference was never the
 binding constraint, and rebuilding is still required.
+
+**EVERY CLIP ALREADY CARRIES THE BOOK'S OWN WORDS — 2026-09-04.** Character
+identity is currently recovered by clustering speaker embeddings, which is why
+a cast production splits correctly while one narrator performing many
+characters collapses into a single tone-mixed dataset. The proposed fix was to
+locate each clip in the book's text so it could inherit the speaker its line
+was annotated with. **That work is unnecessary: the alignment already exists.**
+
+    7 titles, 1,400 clips     located 1,399     word-for-word exact 1,385 (98.9%)
+    decoy (unrelated novel)   0.5%
+    order agreement           Spearman rho = 1.000, p = 0
+
+The original pipeline force-aligned the audiobook against the ebook and stored
+the book's prose, not a transcript. **The 100% match rate is therefore
+circular** — it confirms where the text came from rather than discovering an
+alignment, and `exact_word_for_word` is the number that carries the finding.
+Labelling a clip with its character is a join on text, not a fuzzy match or an
+audio problem.
+
+The decoy earns its place: without it, "100% of clips match the book" is
+equally consistent with a matcher that matches any English prose, and 0.5% on
+an unrelated novel is what makes the specificity a measurement rather than an
+assertion. It holds across English fantasy and Japanese light novels in
+translation (Gardens of the Moon, House of Chains, The Blade Itself, A Natural
+History of Dragons, Cyberpunk 2077, Mushoku Tensei, Spice and Wolf).
+
+**Twenty titles have both an EPUB and audiobook clips**, so this is not a
+one-book curiosity. The 29 annotated scripts are all Re:Zero and overlap none
+of the 51 audiobooks, which is why the roster cannot be used directly today —
+the books would need annotating first, and attribution runs at 71–89% (1.1,
+1.3), so the labels would be imperfect rather than gold.
+
+**What the field does that this pipeline does not.** Emilia-Pipe filters
+in-the-wild speech on *intra-clip x-vector variance for speaker consistency* —
+the same statistic as 2.7's tightness measure, used as a **filter** rather than
+a score — plus DNSMOS >= 3.0 and cross-ASR consistency, retaining **29.4%** of
+raw audio. This pipeline applies no perceptual quality filter at any point:
+the only file mentioning DNSMOS or UTMOS is `app/experiments/robotic_proxy.py`,
+an experiment outside the dataset path. Selecting the 200 clips nearest a
+volume's dominant mode, rather than 200 arbitrary ones, is the cheapest form of
+that idea and needs no new model.
+
+**Evidence** — `text_audio_alignment_pilot.json`.
 
 ---
 

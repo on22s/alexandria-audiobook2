@@ -1,0 +1,37 @@
+{
+ "adapter": "ab_test_runtime/decontaminate/batch1/breathy_baritone_40s_m_military_2/adapter",
+ "median_ecapa": 0.6275,
+ "lines": 20,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6275)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-04T18:34:37",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
+   "branch": "main",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M ab_test_runtime/unseen_holdout/breathy_baritone_40s_m_military_2/holdout.json",
+    " M ab_test_runtime/unseen_holdout/breathy_tenor_50s_m_fantasy/holdout.json",
+    " M ab_test_runtime/unseen_holdout/husky_tenor_30s_m/holdout.json",
+    " M ab_test_runtime/unseen_holdout/husky_tenor_30s_m_literary/holdout.json",
+    " M ab_test_runtime/unseen_holdout/silky_baritone_40s_m_scifi/holdout.json"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "00af918989647f8d21b7a65a35b45c8fccc21c2a3c9143729f0133d06fc202bd"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch1/breathy_baritone_40s_m_military_2/adapter",
+   "dataset": "ab_test_runtime/unseen_holdout/breathy_baritone_40s_m_military_2",
+   "lines": 20,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/unseen_gate__breathy_baritone_40s_m_military_2__clean.json"
+  },
+  "seed": 1234
+ }
+}
