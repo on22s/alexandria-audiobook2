@@ -1510,7 +1510,45 @@ threshold from its endpoints alone.
 Seed 20260905 only. Six lines per gate, so per-book numbers are noisy and the
 aggregate is what carries this.
 
-**Evidence** — `tight_gate__<dataset>_s20260905__{control,tight}.json`,
+**BUT THE TIGHT CLIPS ARE ALSO THE CLEANER RECORDINGS — measured 2026-09-05,
+58 books.** A speaker embedding is computed from audio, and audio that is
+quiet, clipped, noisy or half silence embeds oddly for reasons that have
+nothing to do with WHOSE voice it is. So selecting near a dataset's centroid
+may be selecting clean recordings rather than a consistent voice, and the two
+imply different tools. Paired within book, 40 clips per arm:
+
+| feature | control | tight | wins | p |
+|---|---:|---:|---:|---:|
+| snr_db | 63.87 | 64.66 | 32/58 | 0.351 |
+| silence_frac | 0.2987 | **0.2704** | **5/58** | **<0.0001** |
+| spectral_flat | 0.3207 | **0.3079** | **7/58** | **<0.0001** |
+| rms_db | -24.02 | **-23.76** | **43/58** | 0.0002 |
+| rms_var | 0.0641 | 0.0626 | **11/58** | **<0.0001** |
+
+Tight clips are systematically louder, less silent, less noise-like and more
+level-stable - four of five features at p<=0.0002, three near-unanimous across
+books.
+
+**This does not overturn the selection result**, which is measured on held-out
+audio and stands. **It undermines the stated mechanism.** "The dataset is more
+nearly one voice" is no longer the only reading: selection works, and which
+lever it pulls is not established.
+
+**These are signal statistics, not perceptual quality.** No MOS predictor is
+installed - `robotic_proxy.py` already names UTMOSv2 and NISQA as the right
+tools and neither is available - so this scores nothing. It asks only whether
+the arms differ systematically on measurable properties of the signal, which is
+what makes quality a confound. SNR is the single null and is also the crudest
+of the five (a loud/quiet percentile ratio, not a speech/noise separation), so
+its silence carries little.
+
+**The decisive follow-up is selection on quality ALONE** - top 200 by a
+cleanliness score, ignoring the centroid. If that matches the tight arm, the
+lever was quality and the tool should be a perceptual filter rather than an
+embedding centroid. Emilia-Pipe keeps 29.4% of raw audio at DNSMOS >= 3.0;
+this pipeline filters nothing perceptual at any point.
+
+**Evidence** — `arm_audio_statistics.json`, `tight_gate__<dataset>_s20260905__{control,tight}.json`,
 `dataset_tone_spread.json`, and
 `app/tests/test_dataset_tone_spread.py`, which validates the statistic on
 synthetic embeddings whose structure is known: one cluster scores above 0.9,
