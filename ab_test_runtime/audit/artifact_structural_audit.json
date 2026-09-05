@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 643,
+    "supported_structure": 644,
     "exploratory": 318,
     "provisional": 174
   },
@@ -16036,6 +16036,23 @@
       "identity_contract": "tts_provenance",
       "written": "2026-09-05T02:24:31",
       "commit": "1557e806f81593ab79894229a4870507dfe2f551",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__control.json",
+      "bytes": 1178,
+      "sha256": "5c3df910d64778c5aafede9b1b8eb136ef638a8c8c47ef8da2aaf8944bf70e11",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": 1234,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T05:13:53",
+      "commit": "2ef50cef2f2acff08f0fb45a27e37eb2f63b401c",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"

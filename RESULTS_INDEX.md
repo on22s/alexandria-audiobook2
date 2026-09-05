@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1135 artifacts, 1249 arms.
+Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1136 artifacts, 1249 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2172,6 +2172,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
