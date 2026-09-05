@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_selection/narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905/control/adapter",
+ "median_ecapa": 0.5849,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5849)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T01:06:16",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1557e806f81593ab79894229a4870507dfe2f551",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "0c0e1603c3043a6a821163bc1f906cd9f88fe3d72f20089dc4b0edbe0e215767"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_selection/narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905/control/adapter",
+   "dataset": "ab_test_runtime/tight_selection/narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905/control",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/tight_gate__narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905__control.json"
+  },
+  "seed": 1234
+ }
+}
