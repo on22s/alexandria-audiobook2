@@ -21,6 +21,20 @@ if [ ! -x "$PY" ]; then
     exit 1
 fi
 echo "interpreter: $PY"
+
+# The dedup embedding cache is a 150MB untracked artifact that lives only in
+# the main checkout, so a worktree run has to reach for it there - the same
+# problem as app/env above, and it cost one queued run that failed loudly and
+# skipped rather than training on nothing.
+EMB="$R/dedup_analysis/embeddings_cache.pkl"
+if [ ! -s "$EMB" ]; then
+    EMB="$(git -C "$R" worktree list --porcelain 2>/dev/null | head -1 | awk '{print $2}')/dedup_analysis/embeddings_cache.pkl"
+fi
+if [ ! -s "$EMB" ]; then
+    echo "no embedding cache found; the same-voice filter cannot run" >&2
+    exit 1
+fi
+echo "embeddings: $EMB"
 ZIPS="${ALEXANDRIA_ZIPS_DIR:-$HOME/Desktop/zips2}"
 WORK="$R/ab_test_runtime/tight_selection"
 
@@ -66,6 +80,7 @@ while IFS='|' read -r tag zip book; do
             "$PY" -u app/experiments/build_tight_dataset.py \
                 --trained-zip "$ZIPS/_deduped/$zip" \
                 --source-dir "$ZIPS/$book" \
+                --embeddings "$EMB" \
                 --out "$WORK/$st" --seed "$seed" \
                 > "/tmp/tight_${st}_build.log" 2>&1
             local_rc=$?
