@@ -138,6 +138,29 @@ def arm_mean(arm_dir, sample, rng, with_dnsmos=False):
     return {k: statistics.mean(r[k] for r in rows) for k in keys}, len(rows)
 
 
+def collect_books(work, arms, sample, rng, with_dnsmos=False):
+    """Return paired arm statistics, refusing a scope that measured nothing."""
+    books = []
+    for tag in sorted(os.listdir(work)):
+        dirs = {arm: os.path.join(work, tag, arm) for arm in arms}
+        if not all(os.path.isdir(directory) for directory in dirs.values()):
+            continue
+        means, counts = {}, {}
+        for arm, directory in dirs.items():
+            mean, count = arm_mean(directory, sample, rng, with_dnsmos)
+            if mean is None:
+                means = None
+                break
+            means[arm], counts[arm] = mean, count
+        if means:
+            books.append({"tag": tag, "clips": counts, "arms": means})
+        print(f"  {len(books):3} {tag[:52]}", flush=True)
+    if not books:
+        raise SystemExit("no books had readable clips in every requested arm; "
+                         "nothing was measured")
+    return books
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--work", default=os.path.join(
@@ -154,21 +177,7 @@ def main():
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
-    books = []
-    for tag in sorted(os.listdir(args.work)):
-        dirs = {a: os.path.join(args.work, tag, a) for a in args.arms}
-        if not all(os.path.isdir(d) for d in dirs.values()):
-            continue
-        means, counts = {}, {}
-        for a, d in dirs.items():
-            m, n = arm_mean(d, args.sample, rng, args.dnsmos)
-            if m is None:
-                means = None
-                break
-            means[a], counts[a] = m, n
-        if means:
-            books.append({"tag": tag, "clips": counts, "arms": means})
-        print(f"  {len(books):3} {tag[:52]}", flush=True)
+    books = collect_books(args.work, args.arms, args.sample, rng, args.dnsmos)
 
     doc = {
         "note": "Signal statistics per arm, paired by book. NOT perceptual "

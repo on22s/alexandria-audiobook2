@@ -35,7 +35,7 @@ The comparison that matters is not base vs tuned alone. A tuned 14B is only
 interesting if it approaches what the 70B cascade buys, so the cascade's
 measured gains on these same books are the standard to read it against.
 """
-import argparse, collections, contextlib, json, os, random, re, sys, time, warnings
+import argparse, collections, contextlib, hashlib, json, os, random, re, sys, time, warnings
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -58,6 +58,35 @@ BATCH = 25
 
 def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
+
+
+def get_training_manifest_provenance(adapter):
+    """Return self-contained training provenance without inventing absence.
+
+    Older adapters legitimately predate training manifests.  Their status is
+    recorded as missing, never translated into a claim that evaluation books
+    were held out.
+    """
+    path = os.path.join(adapter, "training_manifest.json")
+    if not os.path.isfile(path):
+        return {"status": "missing", "path": "training_manifest.json"}
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        manifest = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        return {"status": "invalid", "path": "training_manifest.json",
+                "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        "status": "recorded",
+        "path": "training_manifest.json",
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "model": manifest.get("model"),
+        "data": manifest.get("data"),
+        "seed": manifest.get("seed"),
+        "data_seed": manifest.get("data_seed"),
+        "recipe": manifest.get("recipe"),
+    }
 
 
 # --- the shim -------------------------------------------------------------
@@ -422,9 +451,12 @@ def main():
          "seed": args.seed, "deterministic_algorithms": args.deterministic},
         environment=environment,
         notes="Paired base-versus-LoRA evaluation. Training-data provenance "
-              "belongs to the adapter's training manifest; this evaluator "
-              "does not infer it. Arms share one loaded model and differ only "
-              "by peft disable_adapter().")
+              "is copied from the adapter's training manifest when present; "
+              "a missing manifest is recorded as unknown, never inferred. "
+              "Arms share one loaded model and differ only by peft "
+              "disable_adapter().")
+    record.meta["adapter_training"] = get_training_manifest_provenance(
+        args.adapter)
     # Six hours of GPU with no resume point was a bad trade the first time.
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
