@@ -125,15 +125,26 @@ def build(folder, name, context_chars=400):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--folder", required=True, help="directory of PDNC downloads")
+    # CONTEXT WIDTH AS A FLAG, NOT A DEFAULT. It was reachable only by editing
+    # build()'s signature, which is why exactly one width other than 400 was
+    # ever produced. Widening 400 -> 3,200 was worth +12.7 points and the curve
+    # had not flattened; the closest published analogue (Llama-3 8b on PDNC,
+    # arXiv 2406.11380) chunks at 4096 tokens, roughly 16,000 characters.
+    ap.add_argument("--context-chars", type=int, default=400,
+                    help="characters of context kept either side of a line")
+    ap.add_argument("--suffix", default=None,
+                    help="fixture name suffix, e.g. w8000; defaults to none")
     ap.add_argument("--novels", nargs="+", required=True)
     ap.add_argument("--out_dir", default=REPO + "/app/fixtures")
     args = ap.parse_args()
 
     for name in args.novels:
-        fx = build(args.folder, name)
+        fx = build(args.folder, name, context_chars=args.context_chars)
         by_type = collections.Counter(e["quote_type"] for e in fx["entries"])
         by_cat = collections.Counter(e["category"] for e in fx["entries"])
-        out = os.path.join(args.out_dir, f"attribution_gold_pdnc_{name.lower()}.json")
+        suffix = f"_{args.suffix}" if args.suffix else ""
+        out = os.path.join(args.out_dir,
+                           f"attribution_gold_pdnc_{name.lower()}{suffix}.json")
         json.dump(fx, open(out, "w"), ensure_ascii=False, indent=1)
         print(f"{name}: {len(fx['entries'])} quotations, "
               f"{len(fx['roster'])} characters, {len(fx['aliases'])} alias groups")
