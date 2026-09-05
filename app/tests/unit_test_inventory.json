@@ -893,6 +893,14 @@
     "tests.test_elson_trigram.ResolveTest.test_an_empty_surface_resolves_to_nothing",
     "tests.test_elson_trigram.ResolveTest.test_pronouns_never_resolve"
   ],
+  "test_empty_arm_is_not_zero": [
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_genuine_zero_is_still_zero",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_scored_arm_reports_its_accuracy",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_an_arm_with_no_rows_has_no_accuracy",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_the_old_formula_would_have_passed_these",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_validate_refuses_a_record_with_no_rows",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_write_refuses_a_record_that_measured_nothing"
+  ],
   "test_empty_predictions_are_rejected": [
     "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_a_run_may_still_opt_out_explicitly",
     "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_an_all_empty_arm_is_rejected_without_being_asked",

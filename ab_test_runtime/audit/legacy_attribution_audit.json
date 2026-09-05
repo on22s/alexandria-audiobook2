@@ -2,10 +2,10 @@
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
   "source_structural_sha256": "fecac14d3fcdd99b236b452555b6bb32a1ffb256cf883580a1da10d335a7da43",
   "summary": {
-    "exploratory": 48,
-    "historical_only": 49,
-    "provisional": 21,
-    "supported_measurement": 56
+    "exploratory": 101,
+    "historical_only": 30,
+    "provisional": 13,
+    "supported_measurement": 30
   },
   "artifacts": [
     {
@@ -16,9 +16,11 @@
         "contiguous",
         "scattered"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -37,9 +39,11 @@
         "contiguous",
         "scattered"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -58,9 +62,11 @@
         "contiguous",
         "scattered"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -80,9 +86,11 @@
         "b25",
         "b50"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -103,9 +111,11 @@
         "b25",
         "b5"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -126,9 +136,11 @@
         "b5",
         "b50"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -148,9 +160,11 @@
         "b25",
         "b50"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -171,9 +185,11 @@
         "b25",
         "b5"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -193,9 +209,11 @@
         "b25",
         "b50"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -215,9 +233,11 @@
         "b25",
         "b50"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -238,9 +258,11 @@
         "b5",
         "b50"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -259,9 +281,11 @@
         "baseline",
         "thinking"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -280,9 +304,11 @@
         "baseline",
         "thinking"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -302,9 +328,11 @@
         "because",
         "scaffold_thinking"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1199,9 +1227,11 @@
         "w1",
         "w4"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1220,9 +1250,11 @@
         "w1",
         "w4"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1241,9 +1273,11 @@
         "w1",
         "w4"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1262,9 +1296,11 @@
         "w1",
         "w4"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1283,9 +1319,11 @@
         "w1",
         "w4"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1304,9 +1342,11 @@
         "w1",
         "w4"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1325,9 +1365,11 @@
         "w1",
         "w4"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1837,9 +1879,11 @@
         "base",
         "lora"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -1858,9 +1902,11 @@
         "base",
         "lora"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -1879,9 +1925,11 @@
         "base",
         "lora"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -1900,9 +1948,11 @@
         "base",
         "lora"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1921,9 +1971,11 @@
         "base",
         "lora"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -1945,7 +1997,8 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -1968,7 +2021,8 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -1991,7 +2045,8 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2013,7 +2068,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2036,7 +2092,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2058,7 +2115,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2081,7 +2139,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2104,7 +2163,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2127,7 +2187,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2149,7 +2210,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2172,7 +2234,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2195,7 +2258,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2218,7 +2282,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2241,7 +2306,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2264,7 +2330,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2287,7 +2354,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2310,7 +2378,8 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -2330,9 +2399,11 @@
         "baseline",
         "narrator"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2351,9 +2422,11 @@
         "baseline",
         "narrator"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2372,9 +2445,11 @@
         "baseline",
         "narrator"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2393,9 +2468,11 @@
         "baseline",
         "narrator"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2577,9 +2654,11 @@
         "scaffold_thinking",
         "thinking"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2601,9 +2680,11 @@
         "scaffold_thinking",
         "thinking"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2625,9 +2706,11 @@
         "scaffold_thinking",
         "thinking"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2649,9 +2732,11 @@
         "scaffold_thinking",
         "thinking"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2673,9 +2758,11 @@
         "scaffold_thinking",
         "thinking"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2694,9 +2781,11 @@
         "plain",
         "reasoned"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2715,9 +2804,11 @@
         "plain",
         "reasoned"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2736,9 +2827,11 @@
         "plain",
         "reasoned"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -2757,9 +2850,11 @@
         "plain",
         "reasoned"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -2781,9 +2876,11 @@
         "prose",
         "voting"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3094,9 +3191,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3115,9 +3214,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3136,9 +3237,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3157,9 +3260,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3178,9 +3283,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3199,9 +3306,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3220,9 +3329,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3241,9 +3352,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3262,9 +3375,11 @@
         "baseline",
         "tagfirst"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3292,7 +3407,8 @@
         "environment is missing context_length",
         "environment is missing parallel",
         "no LM Studio load state recorded",
-        "no harness fingerprint: the code that ran is unidentified"
+        "no harness fingerprint: the code that ran is unidentified",
+        "saved summary differs from row recomputation"
       ],
       "current_gold": {
         "available": true,
@@ -3554,9 +3670,11 @@
         "vote3",
         "vote5"
       ],
-      "classification": "historical_only",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3575,9 +3693,11 @@
         "greedy",
         "vote3"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3597,9 +3717,11 @@
         "vote3",
         "vote5"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
@@ -3618,9 +3740,11 @@
         "greedy",
         "vote3"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "saved summary differs from row recomputation"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": true,
