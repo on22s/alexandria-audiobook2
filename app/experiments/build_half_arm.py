@@ -55,7 +55,10 @@ def main():
         sys.exit(f"no prior build at {args.out}; this arm is only meaningful "
                  f"beside the arms it is compared against")
     prior = json.load(open(existing, encoding="utf-8"))
-    if "half" in prior.get("arms", {}):
+    # BOTH the record AND the data. Skipping on the arms.json key alone made a
+    # deleted directory read as "already built": rc=0, nothing produced, and
+    # the chain then skipped the book for having no arm to train.
+    if "half" in prior.get("arms", {}) and os.path.isdir(os.path.join(args.out, "half")):
         print(f"SKIP {args.out} - half arm already built")
         return
 
