@@ -7,6 +7,7 @@ is the sum of the same two source clips. This changes prompt grouping only.
 import argparse
 import hashlib
 import json
+import math
 import os
 import statistics
 import sys
@@ -38,14 +39,19 @@ def build_short_pairs(rows, pair_count):
 def summarize(rows):
     baseline = [row["separate_ratio"] for row in rows]
     grouped = [row["grouped_ratio"] for row in rows]
-    gains = sum(abs(after - 1) < abs(before - 1)
-                for before, after in zip(baseline, grouped))
+    changes = [abs(before - 1) - abs(after - 1)
+               for before, after in zip(baseline, grouped)]
+    ties = sum(math.isclose(change, 0.0, abs_tol=1e-12)
+               for change in changes)
+    gains = sum(change > 0 and not math.isclose(change, 0.0, abs_tol=1e-12)
+                for change in changes)
     return {
         "n": len(rows),
         "separate_median": round(statistics.median(baseline), 4),
         "grouped_median": round(statistics.median(grouped), 4),
         "pairs_closer_to_one": gains,
-        "pairs_farther_from_one": len(rows) - gains,
+        "pairs_farther_from_one": len(rows) - gains - ties,
+        "pairs_tied": ties,
     }
 
 
