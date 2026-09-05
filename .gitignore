@@ -251,5 +251,7 @@ ab_test_runtime/promotion_backups/*/
 ab_test_runtime/unseen_holdout/*/val/
 ab_test_runtime/tight_selection/
 dedup_analysis
+ab_test_runtime/tight_rebuild/
+ab_test_runtime/rescore_voicefiltered/
 app/fixtures/attribution_gold_pdnc_*_w8000.json
 app/fixtures/attribution_gold_pdnc_*_w16000.json

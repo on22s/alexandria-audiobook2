@@ -103,7 +103,13 @@ def main():
     rows = [pool[i] for i in middle_idx]
     write_arm(os.path.join(args.out, "middle"), rows, held, texts)
 
-    m_cos = np.array([cos[i] for i in middle_idx])
+    # Own-centroid, matching build_tight_dataset. This recorded pool-centroid
+    # cosine, which is a different statistic under the same key: it reported
+    # 0.8622 for an arm whose tightness on the shared definition is 0.8682.
+    # Small numerically, wrong in kind - two arms' numbers were not comparable.
+    me = np.array([pool[i][3] for i in middle_idx])
+    mc = me.mean(axis=0); mc /= max(float(np.linalg.norm(mc)), 1e-9)
+    m_cos = me @ mc
     prior.setdefault("arms", {})["middle"] = {
         "clips": len(rows),
         "tightness": round(float(m_cos.mean()), 4),
