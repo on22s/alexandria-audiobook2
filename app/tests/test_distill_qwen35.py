@@ -1,13 +1,17 @@
 """Architecture and adapter-target guards for Qwen3.5 distillation."""
 import os
 import sys
+import tempfile
 import unittest
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from experiments.distill_train import (
+    build_training_manifest,
     get_lora_target_modules,
     get_model_loader_name,
+    get_seed_kwargs,
     truncate_for_supervision,
 )
 
@@ -23,6 +27,27 @@ class _FakeModel:
 
 
 class Qwen35TrainingTest(unittest.TestCase):
+    def test_training_and_sampler_seeds_are_independent(self):
+        self.assertEqual({"seed": 17, "data_seed": 23},
+                         get_seed_kwargs(17, 23))
+
+    def test_training_manifest_hashes_data_and_records_recipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = os.path.join(tmp, "train.jsonl")
+            with open(data, "wb") as handle:
+                handle.write(b'{"teacher":"ALICE"}\n')
+            args = SimpleNamespace(
+                model="model-at-revision", seed=17, data_seed=23, epochs=1,
+                lr=2e-5, lora_r=8, lora_alpha=16, batch_size=1,
+                grad_accum=8, max_len=2048, label_field="teacher",
+                load_in_4bit=False)
+            manifest = build_training_manifest(args, [data])
+        self.assertEqual(17, manifest["seed"])
+        self.assertEqual(23, manifest["data_seed"])
+        self.assertEqual(8, manifest["recipe"]["lora_r"])
+        self.assertEqual(
+            "0def56925c3c4ffd9ea97d06a23a357a78c7780bbeaa3dd0d6ecf6dd5701cca4",
+            manifest["data"][0]["sha256"])
     def test_conditional_architectures_use_image_text_loader(self):
         for architecture in (
                 "Qwen3_5ForConditionalGeneration",

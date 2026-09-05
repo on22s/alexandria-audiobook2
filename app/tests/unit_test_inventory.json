@@ -820,6 +820,7 @@
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_artifact_contract_requires_predictions_and_raw_responses",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_diagnostic_distinguishes_eos_from_empty_content",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_inference_seed_reaches_cpu_cuda_and_deterministic_policy",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_generation_diagnostics_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
@@ -832,7 +833,9 @@
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_existing_causal_model_keeps_causal_loader",
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_long_prompt_is_truncated_without_losing_answer_labels",
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_refuses_when_language_targets_are_absent",
-    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_targets_language_model_but_not_vision"
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_targets_language_model_but_not_vision",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_training_and_sampler_seeds_are_independent",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_training_manifest_hashes_data_and_records_recipe"
   ],
   "test_distill_training_resume": [
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
@@ -1261,9 +1264,10 @@
     "tests.test_goals_evidence_paths.GoalsEvidence.test_the_checker_finds_the_paths_it_is_meant_to_check"
   ],
   "test_goals_navigation": [
+    "tests.test_goals_navigation.GoalsNavigationTests.test_both_parts_are_present_and_findable",
     "tests.test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
     "tests.test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
-    "tests.test_goals_navigation.GoalsNavigationTests.test_the_stated_line_number_is_where_met_goals_actually_start"
+    "tests.test_goals_navigation.GoalsNavigationTests.test_the_document_names_no_line_number"
   ],
   "test_gold_set_builder": [
     "tests.test_gold_set_builder.AdaptiveWindowTest.test_expansion_is_capped",
