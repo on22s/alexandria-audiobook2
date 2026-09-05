@@ -27,7 +27,7 @@ VRAM. A 14B LoRA in bf16 needs roughly 30-40GB with gradient checkpointing,
 which fits the A6000 and does not fit a 16GB card without 4-bit quantisation
 that ROCm makes awkward. Run this on the instance.
 """
-import argparse, json, os, sys, glob
+import argparse, hashlib, json, os, sys, glob
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -37,6 +37,34 @@ sys.path.insert(0, REPO + "/app")
 def get_resume_checkpoint(resume):
     """Return the Trainer resume value selected by the CLI flag."""
     return True if resume else None
+
+
+def get_seed_kwargs(seed, data_seed):
+    """Return the two independent RNG controls consumed by Trainer."""
+    return {"seed": seed, "data_seed": data_seed}
+
+
+def build_training_manifest(args, data_paths):
+    """Describe the exact inputs and recipe needed to reproduce an adapter."""
+    from experiments.provenance import provenance
+    inputs = []
+    for path in data_paths:
+        with open(path, "rb") as handle:
+            digest = hashlib.sha256(handle.read()).hexdigest()
+        inputs.append({"path": os.path.abspath(path), "sha256": digest})
+    return {
+        "schema_version": 1, "provenance": provenance(__file__, args),
+        "model": args.model,
+        "data": inputs, "seed": args.seed, "data_seed": args.data_seed,
+        "recipe": {
+            "epochs": args.epochs, "learning_rate": args.lr,
+            "lora_r": args.lora_r, "lora_alpha": args.lora_alpha,
+            "lora_dropout": 0.05, "batch_size": args.batch_size,
+            "gradient_accumulation_steps": args.grad_accum,
+            "max_length": args.max_len, "label_field": args.label_field,
+            "load_in_4bit": args.load_in_4bit,
+        },
+    }
 
 
 LORA_TARGET_SUFFIXES = (
@@ -161,6 +189,10 @@ def main():
                          "required for a 14B model on a 16GB card")
     ap.add_argument("--max_steps", type=int, default=-1,
                     help="maximum optimizer steps; use 1 for a smoke test")
+    ap.add_argument("--seed", type=int, default=42,
+                    help="model, dropout and other training RNG seed")
+    ap.add_argument("--data-seed", type=int,
+                    help="sampler seed; defaults to --seed")
     ap.add_argument("--routed-dir",
                     help="directory of routed__<book>.json artifacts; when "
                          "given, training refuses to start unless every "
@@ -170,6 +202,8 @@ def main():
                          "report is still printed and the reason belongs in "
                          "whatever queued this run")
     args = ap.parse_args()
+    if args.data_seed is None:
+        args.data_seed = args.seed
 
     # REFUSE BEFORE THE GPU, NOT AFTER. A corpus can be silently short - on
     # 2026-08-31 it was short by 195 routed rows, 131 of them from one book,
@@ -208,6 +242,8 @@ def main():
     from peft import (LoraConfig, get_peft_model,
                       prepare_model_for_kbit_training)
     from datasets import Dataset
+
+    transformers.set_seed(args.seed)
 
     tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     if tok.pad_token is None:
@@ -316,13 +352,19 @@ def main():
             save_strategy="steps" if args.save_steps else "epoch",
             save_steps=args.save_steps or 500,
             save_total_limit=2, report_to=[], lr_scheduler_type="cosine",
-            warmup_ratio=0.03),
+            warmup_ratio=0.03,
+            **get_seed_kwargs(args.seed, args.data_seed)),
         train_dataset=ds,
         data_collator=DataCollatorForSeq2Seq(tok, padding=True,
                                              label_pad_token_id=-100),
     ).train(resume_from_checkpoint=get_resume_checkpoint(args.resume))
     model.save_pretrained(args.out)
     tok.save_pretrained(args.out)
+    with open(os.path.join(args.out, "training_manifest.json"), "w",
+              encoding="utf-8") as handle:
+        json.dump(build_training_manifest(args, args.data), handle,
+                  indent=2, sort_keys=True)
+        handle.write("\n")
     print(f"\nwrote adapter to {args.out}")
     print("Now run distill_eval.py against the four gold books. The training "
           "loss is not a result.")
