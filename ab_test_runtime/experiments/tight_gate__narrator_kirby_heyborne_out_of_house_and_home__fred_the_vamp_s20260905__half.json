@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_selection/narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905/half/adapter",
+ "median_ecapa": 0.6106,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6106)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T12:32:36",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "f0440e36124c1342211eb2aff679dbb4041a9008",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "49597fe00b76bd268f50ae3de5a54d48390c147e9a8921bfc41004dd98e949d0"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_selection/narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905/half/adapter",
+   "dataset": "ab_test_runtime/tight_selection/narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905/half",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/tight_gate__narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905__half.json"
+  },
+  "seed": 1234
+ }
+}

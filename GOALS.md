@@ -1543,6 +1543,77 @@ datasets that were already good.
 Five books were skipped for having no tight arm to place a middle between.
 Seed 20260905 only, six lines per gate.
 
+**AND 100 CHOSEN CLIPS BEAT 200 — on similarity AND on how the output sounds,
+2026-09-05, 51 books carrying all three arms.** Every arm until now held
+exactly 200 clips, so SIZE and SELECTION had never been separated. The `half`
+arm is the top 100 by tightness: half the data, chosen twice as strictly.
+
+| arm | clips | ECAPA |
+|---|---:|---:|
+| control | 200 | 0.5368 |
+| middle | 200 | 0.5584 |
+| tight | 200 | 0.5920 |
+| **half** | **100** | **0.6221** |
+
+    control -> tight   +0.0551   35/51   p = 0.00023
+    control -> half    +0.0852   44/51   p < 0.000001
+    tight   -> half    +0.0301   36/51   p = 0.00032
+
+**Selection does not merely substitute for data; it beats twice the data.**
+Halving the training set while tightening the cut is worth +0.030 over the
+200-clip tight arm on its own.
+
+**The generated audio agrees**, which is a different question and the first
+measurement this project has against goal 2.6. `generated_audio_quality.json`
+scores the clips each adapter PRODUCED during its identity gate - 1,293 wavs
+that were a by-product nobody had looked at - with DNSMOS and against the human
+clip each was paired with:
+
+    ovrl_mos        middle -> half   +0.0714   42/49   p < 0.000001
+                    half -> tight    -0.0733    3/49   p < 0.000001
+    duration_ratio  middle -> half   +0.0161   34/49   p = 0.028
+                    half -> tight    -0.0245   16/49   p = 0.005
+
+ECAPA asks whether the voice resembles the target. DNSMOS asks whether the
+output is good speech at all, and both peak at the same arm.
+
+**AND IT IS NOT BECAUSE THE CLIPS ARE CLEANER.** `half` differs from `tight`
+in two ways - slightly tighter (0.9224 against 0.9176) and half the size - so
+the obvious worry is that it simply holds better audio. Scoring the TRAINING
+clips of all four arms with DNSMOS separates them (`arm_audio_statistics_
+fourarm.json`, 54 books, 20 clips per arm):
+
+| step | training-clip DNSMOS | adapter ECAPA |
+|---|---|---|
+| control -> middle | +0.0109 (p=0.021) | +0.0216 |
+| middle -> tight | +0.0243 (p=0.00002) | +0.0336 |
+| **tight -> half** | **-0.0016 (p=0.74, null)** | **+0.0301 (p=0.00032)** |
+
+**The training audio of `half` and `tight` is indistinguishable in quality -
+3.3732 against 3.3748, 29 of 54, p=0.74 - and one of them produces a markedly
+better adapter.** Silence fraction says the same: 0.2684 against 0.2672,
+p=0.70. So for the step that matters, quality is flat while the outcome moves,
+and audio quality cannot be the mechanism.
+
+That leaves size. `half` is `tight`'s own top 100 by the same ranking, so the
+selection rule is held fixed and the training sets differ in how many clips
+they contain. **Fewer clips, better adapter, and not because the clips are
+cleaner.**
+
+This does not undo the confound recorded above for the LOWER steps: from
+control to tight, quality and tightness rise together and remain entangled.
+The dissociation is specific to the step where size changes.
+
+**Run health.** 53 of 59 gates, 10 failures. Six books have no half arm. Four
+of the failures left zero-byte training logs in a burst of six seconds
+immediately after a gate released the card - the signature of VRAM not yet
+freed when the next process claimed it, and the reason `project.py` carries
+worker-stepdown retries that a chain calling `train_lora.py` directly does not
+get. They cost nothing to redo: the chain skips by artifact.
+
+Seed 20260905 only, six lines per gate; per-book numbers are noisy and the
+aggregate carries this.
+
 Seed 20260905 only. Six lines per gate, so per-book numbers are noisy and the
 aggregate is what carries this.
 
