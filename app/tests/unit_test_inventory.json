@@ -854,6 +854,7 @@
   "test_duration_length_intervention": [
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_cache_identity_changes_with_reference_audio",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_pairs_are_deterministic_and_use_the_shortest_complete_rows",
+    "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_summary_does_not_call_an_unchanged_pair_worse",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_summary_measures_matched_improvement_toward_one"
   ],
   "test_duration_outlier_analysis": [

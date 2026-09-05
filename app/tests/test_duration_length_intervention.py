@@ -25,6 +25,17 @@ class DurationLengthInterventionTests(unittest.TestCase):
         ])
         self.assertEqual(1, summary["pairs_closer_to_one"])
         self.assertEqual(1, summary["pairs_farther_from_one"])
+        self.assertEqual(0, summary["pairs_tied"])
+
+    def test_summary_does_not_call_an_unchanged_pair_worse(self):
+        summary = summarize([
+            {"separate_ratio": 0.8, "grouped_ratio": 0.8},
+            {"separate_ratio": 0.8, "grouped_ratio": 0.9},
+            {"separate_ratio": 1.1, "grouped_ratio": 1.3},
+        ])
+        self.assertEqual(1, summary["pairs_closer_to_one"])
+        self.assertEqual(1, summary["pairs_farther_from_one"])
+        self.assertEqual(1, summary["pairs_tied"])
 
     def test_cache_identity_changes_with_reference_audio(self):
         with tempfile.TemporaryDirectory() as root:
