@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 649,
+    "supported_structure": 650,
     "exploratory": 318,
     "provisional": 174
   },
@@ -282,6 +282,23 @@
       "identity_contract": "tts_provenance",
       "written": "2026-09-05T10:59:24",
       "commit": "4676163a36f26506e86a84603c166f3807c72ec5",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "arm_audio_statistics_dnsmos.json",
+      "bytes": 51427,
+      "sha256": "e6a2440556304b1e8cf235ac14c3262df842ddad27dc2f7e689b1d2792360911",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-05T11:50:45",
+      "commit": "41cb67f4457ff4bc0f007785a68a58c18a88e719",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"

@@ -222,16 +222,16 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 7,
+   "cited": 8,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 6
+    "supported_structure": 7
    },
-   "dirty_artifacts": 3,
+   "dirty_artifacts": 4,
    "no_commit": 0,
    "artifacts": [
     {
@@ -239,6 +239,12 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "4676163a"
+    },
+    {
+     "name": "arm_audio_statistics_dnsmos.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "41cb67f4"
     },
     {
      "name": "dataset_tone_spread.json",

@@ -83,18 +83,59 @@ def clip_stats(path):
 
 FEATURES = ["snr_db", "silence_frac", "spectral_flat", "clip_rate",
             "rms_db", "rms_var"]
+# DNSMOS is the published no-reference model Emilia-Pipe filters on at >= 3.0.
+# It is here to VALIDATE the six statistics above, which are hand-rolled and
+# therefore exactly the kind of unchecked instrument this project has been
+# burned by. If DNSMOS agrees with them on the same books, they were measuring
+# something real; if it disagrees, they were not, and the conclusion drawn from
+# them has to be withdrawn rather than defended.
+DNSMOS_FEATURES = ["ovrl_mos", "sig_mos", "bak_mos"]
 
 
-def arm_mean(arm_dir, sample, rng):
+def dnsmos_stats(path):
+    """-> DNSMOS scores for one clip, or None. Requires 16 kHz."""
+    import soundfile as sf
+    from speechmos import dnsmos
+    try:
+        y, sr = sf.read(path, dtype="float32", always_2d=False)
+    except Exception:
+        return None
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    if sr != 16000:
+        import librosa
+        y = librosa.resample(y, orig_sr=sr, target_sr=16000)
+        sr = 16000
+    if len(y) < sr // 2:
+        return None
+    try:
+        r = dnsmos.run(y, sr)
+    except Exception:
+        return None
+    return {k: float(r[k]) for k in DNSMOS_FEATURES if k in r}
+
+
+def arm_mean(arm_dir, sample, rng, with_dnsmos=False):
     wavs = sorted(glob.glob(os.path.join(arm_dir, "train", "*.wav")))
     if not wavs:
         return None, 0
     if sample and len(wavs) > sample:
         wavs = [wavs[i] for i in rng.choice(len(wavs), sample, replace=False)]
-    rows = [s for s in (clip_stats(w) for w in wavs) if s]
+    rows = []
+    for w in wavs:
+        st = clip_stats(w)
+        if not st:
+            continue
+        if with_dnsmos:
+            d = dnsmos_stats(w)
+            if d:
+                st.update(d)
+        rows.append(st)
     if not rows:
         return None, 0
-    return {k: statistics.mean(r[k] for r in rows) for k in FEATURES}, len(rows)
+    keys = [k for k in FEATURES + (DNSMOS_FEATURES if with_dnsmos else [])
+            if all(k in r for r in rows)]
+    return {k: statistics.mean(r[k] for r in rows) for k in keys}, len(rows)
 
 
 def main():
@@ -104,6 +145,9 @@ def main():
     ap.add_argument("--arms", nargs="+", default=["control", "tight"])
     ap.add_argument("--sample", type=int, default=40,
                     help="clips per arm; 0 for all")
+    ap.add_argument("--dnsmos", action="store_true",
+                    help="also score every sampled clip with DNSMOS, the model "
+                         "Emilia-Pipe filters on; ~0.8s per clip")
     ap.add_argument("--seed", type=int, default=20260905)
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "arm_audio_statistics.json"))
@@ -117,7 +161,7 @@ def main():
             continue
         means, counts = {}, {}
         for a, d in dirs.items():
-            m, n = arm_mean(d, args.sample, rng)
+            m, n = arm_mean(d, args.sample, rng, args.dnsmos)
             if m is None:
                 means = None
                 break
@@ -139,7 +183,9 @@ def main():
     a, b = args.arms[0], args.arms[1]
     from scipy import stats
     comp = {}
-    for k in FEATURES:
+    for k in FEATURES + (DNSMOS_FEATURES if args.dnsmos else []):
+        if not all(k in bk["arms"][a] and k in bk["arms"][b] for bk in books):
+            continue
         xs = [bk["arms"][a][k] for bk in books]
         ys = [bk["arms"][b][k] for bk in books]
         d = [y - x for x, y in zip(xs, ys)]

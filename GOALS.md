@@ -1534,9 +1534,35 @@ audio and stands. **It undermines the stated mechanism.** "The dataset is more
 nearly one voice" is no longer the only reading: selection works, and which
 lever it pulls is not established.
 
-**These are signal statistics, not perceptual quality.** No MOS predictor is
-installed - `robotic_proxy.py` already names UTMOSv2 and NISQA as the right
-tools and neither is available - so this scores nothing. It asks only whether
+**DNSMOS AGREES, so the six statistics above were measuring something real.**
+They are hand-rolled, which is precisely the unchecked instrument this project
+has been burned by, so they were checked against the published no-reference
+model Emilia-Pipe filters on - installed for this, and not written here. Same
+58 books, 20 clips per arm:
+
+| DNSMOS | control | tight | wins | p |
+|---|---:|---:|---:|---:|
+| ovrl_mos | 3.3251 | **3.3728** | **53/58** | <0.0001 |
+| sig_mos | 3.5860 | **3.6210** | **50/58** | <0.0001 |
+| bak_mos | 4.0806 | **4.1117** | **52/58** | <0.0001 |
+
+All three dimensions favour the tight arm at p<0.0001. The decision rule was
+fixed before the numbers arrived: agreement validates the six statistics,
+disagreement would have withdrawn the conclusion drawn from them.
+
+**`bak_mos` is the telling one.** Background quality is a property of the
+RECORDING, not of whose voice is on it, and the tight arms have cleaner
+backgrounds in 52 of 58 books. That is the confound in its purest form.
+
+**But the standard filter would not act here.** OVRL sits at 3.33 and 3.37,
+both above Emilia-Pipe's >=3.0 cutoff, so a DNSMOS filter at the conventional
+threshold would reject almost nothing in this corpus. Quality is a real
+confound in these arms without being a usable lever at that setting, and the
+quality-selection arm therefore needs a RELATIVE cut - top 200 by DNSMOS -
+rather than the absolute one.
+
+**The six statistics are signal measures, not perceptual quality.** They score
+nothing on their own. It asks only whether
 the arms differ systematically on measurable properties of the signal, which is
 what makes quality a confound. SNR is the single null and is also the crudest
 of the five (a loud/quiet percentile ratio, not a speech/noise separation), so
@@ -1548,7 +1574,7 @@ lever was quality and the tool should be a perceptual filter rather than an
 embedding centroid. Emilia-Pipe keeps 29.4% of raw audio at DNSMOS >= 3.0;
 this pipeline filters nothing perceptual at any point.
 
-**Evidence** — `arm_audio_statistics.json`, `tight_gate__<dataset>_s20260905__{control,tight}.json`,
+**Evidence** — `arm_audio_statistics.json`, `arm_audio_statistics_dnsmos.json`, `tight_gate__<dataset>_s20260905__{control,tight}.json`,
 `dataset_tone_spread.json`, and
 `app/tests/test_dataset_tone_spread.py`, which validates the statistic on
 synthetic embeddings whose structure is known: one cluster scores above 0.9,
