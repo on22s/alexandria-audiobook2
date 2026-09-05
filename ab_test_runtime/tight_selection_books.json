@@ -1,8 +1,13 @@
 {
- "note": "Datasets eligible for the tight-vs-random selection experiment: the book has 3+ volumes, its trained volume is in the dedup embedding cache, and enough sibling volumes pass the 0.85 same-voice filter to leave 400+ embedded clips. The five books the first chain covers are excluded so this does not repeat them.",
+ "note": "Every dataset eligible for the tight-vs-random selection experiment: the book has 3+ volumes, its trained volume is in the dedup embedding cache, and enough sibling volumes pass the 0.85 same-voice filter to leave 400+ embedded clips.",
  "a_bug_this_list_survived": "Built with glob at first, which reads the ASIN in a folder named '... [B0D26L1R1D]' as a character class, matches nothing, and reports the book as having no volumes. 26 of 51 books vanished silently and the count came out 31 instead of 59. os.listdir throughout.",
- "count": 54,
+ "count": 59,
  "books": [
+  {
+   "dataset": "narrator_ralph_lister_gardens_of_the_moon_char1_vol01.zip",
+   "book": "Ralph Lister Gardens of the Moon-converted",
+   "pool": 7650
+  },
   {
    "dataset": "narrator_emily_woo_zeller_red_winter:_the_complete_trilogy_[b0d1z63lzd]_char2_vol01.zip",
    "book": "Emily Woo Zeller Red Winter: The Complete Trilogy [B0D1Z63LZD]",
@@ -59,6 +64,11 @@
    "pool": 4650
   },
   {
+   "dataset": "narrator_jon_lindstrom_nightfall_and_other_stories_[059341635x]_char1_vol01.zip",
+   "book": "Jon Lindstrom Nightfall and Other Stories [059341635X]",
+   "pool": 4650
+  },
+  {
    "dataset": "narrator_mare_trevathan_the_godking's_legacy_char1_vol01.zip",
    "book": "Mare Trevathan The Godking's Legacy-converted",
    "pool": 4500
@@ -81,6 +91,11 @@
   {
    "dataset": "narrator_suzy_jackson_skyward_char2_vol01.zip",
    "book": "Suzy Jackson Skyward-converted",
+   "pool": 4050
+  },
+  {
+   "dataset": "narrator_todd_mclaren_altered_carbon_[b002v1o6x8]_char1_vol01.zip",
+   "book": "Todd McLaren Altered Carbon [B002V1O6X8]",
    "pool": 4050
   },
   {
@@ -129,6 +144,11 @@
    "pool": 3000
   },
   {
+   "dataset": "narrator_cindy_kay_water_moon:_a_novel_[b0d26l1r1d]_char1_vol01.zip",
+   "book": "Cindy Kay Water Moon: A Novel [B0D26L1R1D]",
+   "pool": 2850
+  },
+  {
    "dataset": "narrator_brian_nishii_alita:_battle_angel:_the_official_movie_novelization_[b07hhjpkmj]_char1_vol01.zip",
    "book": "Brian Nishii Alita: Battle Angel: The Official Movie Novelization [B07HHJPKMJ]",
    "pool": 2700
@@ -136,6 +156,11 @@
   {
    "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01.zip",
    "book": "Brittney Karbowski Reincarnated Slime-converted",
+   "pool": 2700
+  },
+  {
+   "dataset": "narrator_qarie_marshall_wolverine:_road_of_bones_[1662042051]_char1_vol01.zip",
+   "book": "Qarie Marshall Wolverine: Road of Bones [1662042051]",
    "pool": 2700
   },
   {

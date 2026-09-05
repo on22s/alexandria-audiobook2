@@ -21,7 +21,14 @@ PY="$R/app/env/bin/python"; [ -x "$PY" ] || PY="$MAIN/app/env/bin/python"
 EMB="$R/dedup_analysis/embeddings_cache.pkl"
 [ -s "$EMB" ] || EMB="$MAIN/dedup_analysis/embeddings_cache.pkl"
 [ -s "$EMB" ] || { echo "no embedding cache" >&2; exit 1; }
+# The ECAPA scorer runs under the sibling repo's interpreter, and the gate
+# derives that path from its OWN location - which from a worktree points at a
+# directory that does not exist, so every gate reported NOT MEASURED. Name it.
+export ALEXANDRIA_SIBLING_PYTHON="${ALEXANDRIA_SIBLING_PYTHON:-/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python}"
+[ -x "$ALEXANDRIA_SIBLING_PYTHON" ] || {
+    echo "no speechbrain interpreter at $ALEXANDRIA_SIBLING_PYTHON" >&2; exit 1; }
 echo "interpreter: $PY"; echo "embeddings: $EMB"
+echo "ecapa: $ALEXANDRIA_SIBLING_PYTHON"
 
 EPOCHS=6; LR=1e-06; RANK=64; ALPHA=128; ACC=8
 
