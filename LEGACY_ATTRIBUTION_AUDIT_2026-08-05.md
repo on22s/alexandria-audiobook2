@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 174 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 193 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 48
-- `historical_only`: 49
-- `provisional`: 21
-- `supported_measurement`: 56
+- `exploratory`: 111
+- `historical_only`: 30
+- `provisional`: 13
+- `supported_measurement`: 39
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -15,20 +15,20 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 
 | artifact | family | class | rows | changed scores | unmapped | dirty | problems |
 |---|---|---|---:|---:|---:|---|---|
-| `batch_contiguity__index18__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | supported_measurement | 184 | 0 | 0 | False |  |
-| `batch_contiguity__mushoku16__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | supported_measurement | 266 | 0 | 0 | False |  |
-| `batch_contiguity__owarimonogatari3__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | supported_measurement | 324 | 0 | 0 | False |  |
-| `batch_size__grimgar03__qwen__qwen3-14b__local-llamacpp-wide.json` | batch_size | historical_only | 1200 | 41 | 12 | True |  |
-| `batch_size__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | batch_size | historical_only | 1600 | 27 | 16 | False |  |
-| `batch_size__index18__qwen__qwen3-14b__local-llamacpp.json` | batch_size | supported_measurement | 396 | 0 | 0 | False |  |
-| `batch_size__mushoku16__qwen__qwen3-14b__local-llamacpp-wide.json` | batch_size | provisional | 417 | 0 | 0 | True |  |
-| `batch_size__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | batch_size | supported_measurement | 556 | 0 | 0 | False |  |
-| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep1.json` | batch_size | provisional | 486 | 0 | 0 | True |  |
-| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep2.json` | batch_size | provisional | 486 | 0 | 0 | True |  |
-| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | batch_size | supported_measurement | 648 | 0 | 0 | False |  |
-| `because_production__grimgar03__qwen__qwen3-14b__local.json` | because_production | historical_only | 800 | 33 | 8 | False |  |
-| `because_production__mushoku16__qwen__qwen3-14b__local.json` | because_production | supported_measurement | 278 | 0 | 0 | False |  |
-| `because_production__qwen__qwen3-14b.json` | because_production | provisional | 417 | 0 | 0 | True |  |
+| `batch_contiguity__index18__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | exploratory | 184 | 0 | 0 | False | saved summary differs from row recomputation |
+| `batch_contiguity__mushoku16__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | exploratory | 266 | 0 | 0 | False | saved summary differs from row recomputation |
+| `batch_contiguity__owarimonogatari3__qwen__qwen3-14b__local-rocm-contig.json` | batch_contiguity | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
+| `batch_size__grimgar03__qwen__qwen3-14b__local-llamacpp-wide.json` | batch_size | exploratory | 1200 | 41 | 12 | True | saved summary differs from row recomputation |
+| `batch_size__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | batch_size | exploratory | 1600 | 27 | 16 | False | saved summary differs from row recomputation |
+| `batch_size__index18__qwen__qwen3-14b__local-llamacpp.json` | batch_size | exploratory | 396 | 0 | 0 | False | saved summary differs from row recomputation |
+| `batch_size__mushoku16__qwen__qwen3-14b__local-llamacpp-wide.json` | batch_size | exploratory | 417 | 0 | 0 | True | saved summary differs from row recomputation |
+| `batch_size__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | batch_size | exploratory | 556 | 0 | 0 | False | saved summary differs from row recomputation |
+| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep1.json` | batch_size | exploratory | 486 | 0 | 0 | True | saved summary differs from row recomputation |
+| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep2.json` | batch_size | exploratory | 486 | 0 | 0 | True | saved summary differs from row recomputation |
+| `batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | batch_size | exploratory | 648 | 0 | 0 | False | saved summary differs from row recomputation |
+| `because_production__grimgar03__qwen__qwen3-14b__local.json` | because_production | exploratory | 800 | 33 | 8 | False | saved summary differs from row recomputation |
+| `because_production__mushoku16__qwen__qwen3-14b__local.json` | because_production | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
+| `because_production__qwen__qwen3-14b.json` | because_production | exploratory | 417 | 0 | 0 | True | saved summary differs from row recomputation |
 | `candidate_id__qwen__qwen3-14b.json` | candidate_id | historical_only | 294 | 1 | 0 | False |  |
 | `closed_set.json` | closed_set | exploratory | 441 | 2 | 0 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified |
 | `closed_set__gemma-4-e4b-uncensored-hauhaucs-aggressive.json` | closed_set | exploratory | 441 | 0 | 0 | False | recorded commit is unavailable from current history |
@@ -68,14 +68,20 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `context_width__index18__qwen__qwen3-14b__local-llamacpp.json` | context_width | supported_measurement | 297 | 0 | 0 | False |  |
 | `context_width__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | context_width | supported_measurement | 408 | 0 | 0 | False |  |
 | `context_width__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | context_width | supported_measurement | 486 | 0 | 0 | False |  |
-| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep1.json` | context_width_production | historical_only | 800 | 26 | 8 | False |  |
-| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep2.json` | context_width_production | historical_only | 800 | 23 | 8 | False |  |
-| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep3.json` | context_width_production | historical_only | 800 | 23 | 8 | False |  |
-| `context_width_production__grimgar03__qwen__qwen3-14b__local.json` | context_width_production | historical_only | 800 | 26 | 8 | False |  |
-| `context_width_production__index18__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | supported_measurement | 198 | 0 | 0 | False |  |
-| `context_width_production__mushoku16__qwen__qwen3-14b__local.json` | context_width_production | supported_measurement | 278 | 0 | 0 | False |  |
-| `context_width_production__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | supported_measurement | 324 | 0 | 0 | False |  |
+| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep1.json` | context_width_production | exploratory | 800 | 26 | 8 | False | saved summary differs from row recomputation |
+| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep2.json` | context_width_production | exploratory | 800 | 23 | 8 | False | saved summary differs from row recomputation |
+| `context_width_production__grimgar03__qwen__qwen3-14b__local-llamacpp-rep3.json` | context_width_production | exploratory | 800 | 23 | 8 | False | saved summary differs from row recomputation |
+| `context_width_production__grimgar03__qwen__qwen3-14b__local.json` | context_width_production | exploratory | 800 | 26 | 8 | False | saved summary differs from row recomputation |
+| `context_width_production__index18__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
+| `context_width_production__mushoku16__qwen__qwen3-14b__local.json` | context_width_production | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
+| `context_width_production__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
 | `crossover__grimgar03__local.json` | segmentation_crossover | historical_only | 7980 | 320 | 60 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r64-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r64-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r8-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr2e5_r8-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr5e5_r16-mushoku16-tnr2-20260904.json` | distill_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `distill_eval__qwen3-14b-lr5e5_r16-owarimonogatari3-tnr2-20260904.json` | distill_eval | supported_measurement | 324 | 0 | 0 | False |  |
 | `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-full-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-n10-a6000-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35-9b-apos-damaged-a6000-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
@@ -83,11 +89,24 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `distill_eval__qwen35_9b_bf16_author_heldout_balanced-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-low-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-low-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-medium-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-off-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-xhigh-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-nf4-heldout-one_pass-index18-tnr2-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38-nf4-heldout-stage1_only-index18-tnr2-20260904.json` | distill_eval | exploratory | 176 | 0 | 0 | False | base: every one of 88 predictions is 'UNKNOWN'; a constant predictor carries no information and is usually a parse failure; tuned: every one of 88 predictions is 'UNKNOWN'; a constant predictor carries no information and is usually a parse failure |
+| `distill_eval__qwen38-ratio-mix75-tnr0-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38-ratio-task4k-tnr0-20260904.json` | distill_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `distill_eval__qwen38_27b_bf16_origin_author_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_bf16_origin_hybrid_targets_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | base: every prediction is empty; this can be an inference failure, not a measured null result; recorded commit is unavailable from current history; tuned: every prediction is empty; this can be an inference failure, not a measured null result |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | base: every prediction is empty; this can be an inference failure, not a measured null result; recorded commit is unavailable from current history; tuned: every prediction is empty; this can be an inference failure, not a measured null result |
+| `distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r8-seed20260904-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r8-seed20260905-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 1584 | 0 | 0 | False |  |
 | `grammar_constraint__index18__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 396 | 0 | 0 | False |  |
 | `grammar_constraint__mushoku16__mistralai__magistral-small__local-llamacpp.json` | grammar_constraint | supported_measurement | 556 | 0 | 0 | False |  |
@@ -96,32 +115,32 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `joint_scene__index18__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 297 | 0 | 0 | False |  |
 | `joint_scene__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | historical_only | 417 | 2 | 0 | False |  |
 | `joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 486 | 0 | 0 | False |  |
-| `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | historical_only | 1360 | 0 | 590 | False |  |
-| `lora_serving_eval__local-hardcases-q4-20260825.json` | lora_serving_eval | historical_only | 1360 | 0 | 590 | False |  |
-| `lora_serving_eval__local-longcontext-q4-20260825.json` | lora_serving_eval | historical_only | 1360 | 0 | 590 | False |  |
-| `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | historical_only | 450 | 0 | 266 | False |  |
-| `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | historical_only | 1094 | 0 | 324 | True |  |
-| `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
-| `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
-| `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q8-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35_9b_bf16_author_heldout_balanced-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
-| `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | historical_only | 800 | 29 | 8 | False |  |
-| `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 198 | 0 | 0 | False |  |
-| `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |
-| `narrator_prior__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 324 | 0 | 0 | False |  |
+| `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
+| `lora_serving_eval__local-hardcases-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
+| `lora_serving_eval__local-longcontext-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
+| `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | exploratory | 450 | 0 | 266 | False | saved summary differs from row recomputation |
+| `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | exploratory | 1094 | 0 | 324 | True | saved summary differs from row recomputation |
+| `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q8-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35_9b_bf16_author_heldout_balanced-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 800 | 29 | 8 | False | saved summary differs from row recomputation |
+| `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
+| `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
+| `narrator_prior__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
 | `pdnc_context_evidence__pilot__local-llamacpp.json` | pdnc_context_evidence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_evidence__pilot__local-llamacpp.json` | pdnc_evidence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | supported_measurement | 720 | None | None | False |  |
@@ -130,16 +149,16 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `pdnc_sequence__pilot__local-llamacpp.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_sequence__pilot__repeat2.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_targeted_sequence__pilot__local-llamacpp.json` | pdnc_targeted_sequence | supported_measurement | 1800 | None | None | False |  |
-| `reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json` | reasoning_arms | historical_only | 2000 | 111 | 20 | False |  |
-| `reasoning_arms__grimgar03__qwen__qwen3-14b.json` | reasoning_arms | historical_only | 2000 | 79 | 20 | True |  |
-| `reasoning_arms__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | supported_measurement | 495 | 0 | 0 | False |  |
-| `reasoning_arms__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | supported_measurement | 810 | 0 | 0 | False |  |
-| `reasoning_arms__qwen__qwen3-14b.json` | reasoning_arms | historical_only | 695 | 4 | 0 | True |  |
-| `reasoning_check__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | historical_only | 792 | 1 | 0 | False |  |
-| `reasoning_check__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | supported_measurement | 198 | 0 | 0 | False |  |
-| `reasoning_check__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | supported_measurement | 278 | 0 | 0 | False |  |
-| `reasoning_check__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | supported_measurement | 324 | 0 | 0 | False |  |
-| `reexamine__qwen__qwen3-14b.json` | reexamine | provisional | 695 | 0 | 0 | True |  |
+| `reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json` | reasoning_arms | exploratory | 2000 | 111 | 20 | False | saved summary differs from row recomputation |
+| `reasoning_arms__grimgar03__qwen__qwen3-14b.json` | reasoning_arms | exploratory | 2000 | 79 | 20 | True | saved summary differs from row recomputation |
+| `reasoning_arms__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | exploratory | 495 | 0 | 0 | False | saved summary differs from row recomputation |
+| `reasoning_arms__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | exploratory | 810 | 0 | 0 | False | saved summary differs from row recomputation |
+| `reasoning_arms__qwen__qwen3-14b.json` | reasoning_arms | exploratory | 695 | 4 | 0 | True | saved summary differs from row recomputation |
+| `reasoning_check__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | exploratory | 792 | 1 | 0 | False | saved summary differs from row recomputation |
+| `reasoning_check__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
+| `reasoning_check__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
+| `reasoning_check__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | reasoning_check | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
+| `reexamine__qwen__qwen3-14b.json` | reexamine | exploratory | 695 | 0 | 0 | True | saved summary differs from row recomputation |
 | `roster_quality__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | roster_quality | provisional | 1540 | 0 | 0 | True |  |
 | `roster_quality__index18__qwen__qwen3-14b__local-llamacpp.json` | roster_quality | provisional | 368 | 0 | 0 | True |  |
 | `roster_quality__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | roster_quality | provisional | 532 | 0 | 0 | True |  |
@@ -153,16 +172,16 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `scene_cast__mushoku16__qwen__qwen3-14b__local-llamacpp-look6.json` | scene_cast | provisional | 399 | 0 | 0 | True |  |
 | `scene_cast__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | scene_cast | provisional | 399 | 0 | 0 | True |  |
 | `scene_cast__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | scene_cast | provisional | 486 | 0 | 0 | True |  |
-| `tag_priority__grimgar03__mistralai__magistral-small__local-llamacpp.json` | tag_priority | provisional | 792 | 0 | 0 | True |  |
-| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep1.json` | tag_priority | supported_measurement | 792 | 0 | 0 | False |  |
-| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep2.json` | tag_priority | supported_measurement | 792 | 0 | 0 | False |  |
-| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep3.json` | tag_priority | supported_measurement | 792 | 0 | 0 | False |  |
-| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | historical_only | 800 | 22 | 8 | True |  |
-| `tag_priority__index18__mistralai__magistral-small__local-llamacpp.json` | tag_priority | provisional | 198 | 0 | 0 | True |  |
-| `tag_priority__index18__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | supported_measurement | 198 | 0 | 0 | False |  |
-| `tag_priority__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | provisional | 278 | 0 | 0 | True |  |
-| `tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | supported_measurement | 324 | 0 | 0 | False |  |
-| `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified |
+| `tag_priority__grimgar03__mistralai__magistral-small__local-llamacpp.json` | tag_priority | exploratory | 792 | 0 | 0 | True | saved summary differs from row recomputation |
+| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep1.json` | tag_priority | exploratory | 792 | 0 | 0 | False | saved summary differs from row recomputation |
+| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep2.json` | tag_priority | exploratory | 792 | 0 | 0 | False | saved summary differs from row recomputation |
+| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp-rep3.json` | tag_priority | exploratory | 792 | 0 | 0 | False | saved summary differs from row recomputation |
+| `tag_priority__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 800 | 22 | 8 | True | saved summary differs from row recomputation |
+| `tag_priority__index18__mistralai__magistral-small__local-llamacpp.json` | tag_priority | exploratory | 198 | 0 | 0 | True | saved summary differs from row recomputation |
+| `tag_priority__index18__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
+| `tag_priority__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 278 | 0 | 0 | True | saved summary differs from row recomputation |
+| `tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
+| `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified; saved summary differs from row recomputation |
 | `two_stage_attribution__explicit_control.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_inner_narration.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
@@ -175,10 +194,10 @@ All 174 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_wp2021.json` | two_stage_attribution | exploratory | 380 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021_train.json` | two_stage_attribution | exploratory | 200 | None | None | False | recorded commit is unavailable from current history |
-| `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
-| `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |
-| `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 417 | 0 | 0 | False |  |
-| `voting__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 324 | 0 | 0 | False |  |
+| `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | exploratory | 1200 | 30 | 12 | False | saved summary differs from row recomputation |
+| `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
+| `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | exploratory | 417 | 0 | 0 | False | saved summary differs from row recomputation |
+| `voting__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | voting | exploratory | 324 | 0 | 0 | False | saved summary differs from row recomputation |
 | `xc_riqua__control.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
 | `xc_riqua__explicit_hint.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
 | `xc_riqua__inner_narration.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |

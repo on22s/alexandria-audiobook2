@@ -17,6 +17,7 @@ openai, and a top-level import of either fails the release verifier rather
 than the test.
 """
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -161,6 +162,27 @@ class DistillEvalShimTest(unittest.TestCase):
         self.assertIs(model.kwargs["do_sample"], True)
         self.assertEqual(model.kwargs["temperature"], 0.7)
 
+    def test_inference_seed_reaches_cpu_cuda_and_deterministic_policy(self):
+        calls = []
+
+        class _Cuda:
+            @staticmethod
+            def is_available():
+                return True
+
+            @staticmethod
+            def manual_seed_all(seed):
+                calls.append(("cuda", seed))
+
+        fake_torch = types.SimpleNamespace(
+            cuda=_Cuda(),
+            manual_seed=lambda seed: calls.append(("cpu", seed)),
+            use_deterministic_algorithms=lambda enabled:
+                calls.append(("deterministic", enabled)))
+        self.module.apply_inference_seed(fake_torch, 29, deterministic=True)
+        self.assertEqual(calls, [
+            ("cpu", 29), ("cuda", 29), ("deterministic", True)])
+
     def test_truncated_generation_reports_finish_reason_length(self):
         """call_llm_for_entries' retry policy branches on
         finish_reason=='length'. A shim that always said 'stop' would turn a
@@ -224,7 +246,37 @@ class DistillEvalProvenanceTest(unittest.TestCase):
             source = handle.read()
         self.assertNotIn("1,091 routed rows", source)
         self.assertNotIn("grimgar06 and", source)
-        self.assertIn("does not infer it", source)
+        self.assertIn("missing manifest is recorded as unknown", source)
+
+    def test_missing_training_manifest_is_unknown_not_held_out(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as adapter:
+            result = self.module.get_training_manifest_provenance(adapter)
+        self.assertEqual("missing", result["status"])
+        self.assertNotIn("held_out", result)
+
+    def test_training_manifest_is_hashed_and_embedded(self):
+        import tempfile
+        manifest = {"model": "base", "data": [{"path": "train.jsonl",
+                     "sha256": "abc"}], "seed": 7, "data_seed": 8,
+                    "recipe": {"learning_rate": 1e-5}}
+        raw = json.dumps(manifest).encode("utf-8")
+        with tempfile.TemporaryDirectory() as adapter:
+            with open(os.path.join(adapter, "training_manifest.json"), "wb") as fh:
+                fh.write(raw)
+            result = self.module.get_training_manifest_provenance(adapter)
+        self.assertEqual("recorded", result["status"])
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), result["sha256"])
+        self.assertEqual(manifest["data"], result["data"])
+
+    def test_invalid_training_manifest_is_not_reported_as_recorded(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as adapter:
+            with open(os.path.join(adapter, "training_manifest.json"), "w") as fh:
+                fh.write("not json")
+            result = self.module.get_training_manifest_provenance(adapter)
+        self.assertEqual("invalid", result["status"])
+        self.assertIn("JSONDecodeError", result["error"])
 
     def test_classifier_accounts_for_every_excluded_gold_entry(self):
         gold = {"entries": [

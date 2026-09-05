@@ -39,7 +39,7 @@
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "20fe54c3"
+     "commit": "97455708"
     },
     {
      "name": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
@@ -88,7 +88,7 @@
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "20fe54c3"
+     "commit": "97455708"
     },
     {
      "name": "grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json",
@@ -222,18 +222,30 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 6,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 5
+    "supported_structure": 8
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 5,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "arm_audio_statistics.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "4676163a"
+    },
+    {
+     "name": "arm_audio_statistics_dnsmos.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "41cb67f4"
+    },
     {
      "name": "dataset_tone_spread.json",
      "classification": "supported_structure",
@@ -251,6 +263,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "223e3955"
+    },
+    {
+     "name": "generated_audio_quality.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "6266ffe5"
     },
     {
      "name": "library_fidelity_seed_20260914_n20.json",

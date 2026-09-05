@@ -466,8 +466,17 @@ class ExperimentRecord:
                 bucket["available"] += 1
                 bucket["cond"] += row["correct"]
         for bucket in arms.values():
-            bucket["accuracy"] = bucket["correct"] / max(bucket["n"], 1)
-            bucket["conditional"] = bucket["cond"] / max(bucket["available"], 1)
+            # NOTHING SCORED IS NOT ZERO PERCENT. `correct / max(n, 1)` turned
+            # an arm that measured nothing into a confident 0.0, which reads
+            # downstream as a real accuracy - and did: an FP8 pair was reported
+            # as "base 0.0 tuned 0.0, nothing was scored" on 2026-09-05 when
+            # both arms held 383 rows and 71 differing predictions. A missing
+            # measurement and a measured zero must not look the same, so an
+            # empty arm gets None and validate() refuses the artifact.
+            bucket["accuracy"] = (bucket["correct"] / bucket["n"]
+                                  if bucket["n"] else None)
+            bucket["conditional"] = (bucket["cond"] / bucket["available"]
+                                     if bucket["available"] else None)
         return arms
 
     def validate(self, contract=None):
@@ -485,6 +494,17 @@ class ExperimentRecord:
         get identity and aggregation right has produced drift every time.
         """
         problems = []
+        # AN ARM THAT SCORED NOTHING IS A FAILED RUN, NOT A ZERO RESULT.
+        # summary() now returns None rather than 0.0 for it, and the artifact
+        # must not be written: an unscored arm beside a scored one is a
+        # comparison with one side missing, and reads as a catastrophic loss.
+        for arm, bucket in sorted(self.summary().items()):
+            if not bucket["n"]:
+                problems.append(
+                    f"{arm}: no rows scored, so it has no accuracy. A run that "
+                    f"measured nothing must not be written as a result")
+        if not self.rows:
+            problems.append("no rows at all; nothing was measured")
         seen = collections.Counter((row["arm"], row["id"]) for row in self.rows)
         duplicates = sorted(key for key, count in seen.items() if count > 1)
         if duplicates:

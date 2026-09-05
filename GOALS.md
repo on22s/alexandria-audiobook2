@@ -27,9 +27,22 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 3327** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first, then `# Part II — Met`. The
+> split is by status rather than topic, so what is left to do reads top-down
+> without scrolling past what is finished. Goal numbers are unchanged — 2.7 is
+> 2.7 in either part.
 
-> **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
+> **This note deliberately carries no line number.** It used to, and the number
+> was correct — a test recomputed it and refused a stale one. It still cost a
+> manual merge resolution on **every** pull request that added a paragraph
+> above Part II, three times on 2026-09-04 alone, and each time BOTH sides of
+> the conflict were wrong: two branches that each grew the open half by a
+> different amount produce two different numbers, neither of them the number
+> after merging. A derived value stored in a file that cannot take a merge
+> driver — GOALS.md carries prose, so `merge=ours` would discard real edits —
+> is a conflict generator, and the fix is to stop storing it. Run
+> `python -m tests.test_goals_navigation` from `app/` to print where Part II
+> currently starts.
 
 ### A few words that repeat
 
@@ -1453,7 +1466,223 @@ confounded is what exists now and did not in June: the trainer honours the
 180/20 split, an identity gate refuses voices that resemble nobody, and this
 tightness screen flags 8 of 9 failures before any GPU time.
 
-**Evidence** — `dataset_tone_spread.json`, and
+**AND CHOOSING TIGHTER CLIPS ACTUALLY WORKS — measured overnight 2026-09-05,
+54 books.** The r=0.58 above is a correlation over datasets nobody chose. This
+is the intervention: two arms drawn from ONE pool at the SAME size, differing
+only in selection - 200 at random against the 200 nearest the pool centroid -
+scored on a shared held-out set reserved before either arm was drawn, so
+neither trained on it.
+
+| | |
+|---|---|
+| tight arm better | **35 of 54** |
+| control better | 19 |
+| mean delta | **+0.0550** |
+| median delta | **+0.0433** |
+| Wilcoxon signed-rank | **p = 0.00058** |
+| sign test | p = 0.0402 |
+
+**Trimming the five largest swings each way makes it STRONGER** - mean +0.0447,
+p = 0.00008 - so this is a broad shift rather than a few dramatic books
+carrying an average.
+
+**The gain lands almost entirely on the datasets that were worst to begin
+with**, which was not designed for and is the more useful half:
+
+    control score vs gain      r = -0.598   p < 0.0001
+    weak baselines  (n=27)     mean gain +0.1002   21/27 improved
+    strong baselines (n=27)    mean gain +0.0097   14/27 improved
+
+On an already-good dataset selection buys nothing. On a bad one it buys +0.10.
+**Six adapters crossed the 0.45 usability gate that were below it, against one
+that fell back.** This is a rescue mechanism, applied where it is needed and
+skipped elsewhere - and it costs a sort, not a retrain and not a rebuilt
+dataset.
+
+**AND THE CURVE IS MONOTONIC, NOT A THRESHOLD — third arm measured
+2026-09-05, 54 books carrying all three.** The question was whether the gain
+comes from avoiding the worst clips (predicting middle ~= tight) or from
+tightness itself (predicting tight > middle > control). It is the second, and
+the second half of the tightening does MORE work than the first:
+
+| step | mean | wins | Wilcoxon |
+|---|---:|---:|---:|
+| control -> middle | +0.0241 | 27 of 54 | **p = 0.494** |
+| middle -> tight | **+0.0309** | **43 of 54** | **p = 0.00002** |
+| control -> tight | +0.0550 | 35 of 54 | p = 0.00058 |
+
+    control 0.5226      middle 0.5467      tight 0.5776
+
+The arms' realised tightness on one definition - cosine to each arm's own
+centroid - is 0.815 / 0.868 / 0.918 on Gardens of the Moon, evenly spaced by
+construction. `build_middle_arm.py` first recorded 0.862 for the middle,
+measuring against the POOL centroid instead: a different statistic under the
+same key. The gap is small (0.006 here) and changes nothing about the result,
+which is an ECAPA comparison of trained adapters rather than of these numbers -
+but two arms' figures were not comparable and both builders now use the one
+definition.
+
+Random to mid-tightness is a coin flip - 27 of 54, indistinguishable from
+nothing. Mid to maximum wins 43 of 54 at p=0.00002, the strongest signal in the
+experiment. **So selection should take the tightest clips available rather than
+merely exclude the worst.**
+
+**This corrects the reading recorded above.** That flat dose-response
+(r=-0.011, p=0.94) measured the wrong thing: how far apart two arms happened to
+land, across books whose pools have different shapes - not one book stepped
+through three levels. Two points cannot show a curve's shape, and those two
+were the endpoints. The same-day rank ladder makes the identical point on a
+different axis: -2.5, +2.5, +12.4, +16.7 reads as monotonic only because the
+intermediate rungs exist, and from its endpoints alone would look like a
+threshold.
+
+The earlier finding is unchanged and still governs WHERE to spend it: the gain
+concentrates on weak datasets (r=-0.598), buying +0.10 there against +0.01 on
+datasets that were already good.
+
+Five books were skipped for having no tight arm to place a middle between.
+Seed 20260905 only, six lines per gate.
+
+**AND 100 CHOSEN CLIPS BEAT 200 — on similarity AND on how the output sounds,
+2026-09-05, 51 books carrying all three arms.** Every arm until now held
+exactly 200 clips, so SIZE and SELECTION had never been separated. The `half`
+arm is the top 100 by tightness: half the data, chosen twice as strictly.
+
+| arm | clips | ECAPA |
+|---|---:|---:|
+| control | 200 | 0.5368 |
+| middle | 200 | 0.5584 |
+| tight | 200 | 0.5920 |
+| **half** | **100** | **0.6221** |
+
+    control -> tight   +0.0551   35/51   p = 0.00023
+    control -> half    +0.0852   44/51   p < 0.000001
+    tight   -> half    +0.0301   36/51   p = 0.00032
+
+**Selection does not merely substitute for data; it beats twice the data.**
+Halving the training set while tightening the cut is worth +0.030 over the
+200-clip tight arm on its own.
+
+**The generated audio agrees**, which is a different question and the first
+measurement this project has against goal 2.6. `generated_audio_quality.json`
+scores the clips each adapter PRODUCED during its identity gate - 1,293 wavs
+that were a by-product nobody had looked at - with DNSMOS and against the human
+clip each was paired with:
+
+    ovrl_mos        middle -> half   +0.0714   42/49   p < 0.000001
+                    half -> tight    -0.0733    3/49   p < 0.000001
+    duration_ratio  middle -> half   +0.0161   34/49   p = 0.028
+                    half -> tight    -0.0245   16/49   p = 0.005
+
+ECAPA asks whether the voice resembles the target. DNSMOS asks whether the
+output is good speech at all, and both peak at the same arm.
+
+**AND IT IS NOT BECAUSE THE CLIPS ARE CLEANER.** `half` differs from `tight`
+in two ways - slightly tighter (0.9224 against 0.9176) and half the size - so
+the obvious worry is that it simply holds better audio. Scoring the TRAINING
+clips of all four arms with DNSMOS separates them (`arm_audio_statistics_
+fourarm.json`, 54 books, 20 clips per arm):
+
+| step | training-clip DNSMOS | adapter ECAPA |
+|---|---|---|
+| control -> middle | +0.0109 (p=0.021) | +0.0216 |
+| middle -> tight | +0.0243 (p=0.00002) | +0.0336 |
+| **tight -> half** | **-0.0016 (p=0.74, null)** | **+0.0301 (p=0.00032)** |
+
+**The training audio of `half` and `tight` is indistinguishable in quality -
+3.3732 against 3.3748, 29 of 54, p=0.74 - and one of them produces a markedly
+better adapter.** Silence fraction says the same: 0.2684 against 0.2672,
+p=0.70. So for the step that matters, quality is flat while the outcome moves,
+and audio quality cannot be the mechanism.
+
+That leaves size. `half` is `tight`'s own top 100 by the same ranking, so the
+selection rule is held fixed and the training sets differ in how many clips
+they contain. **Fewer clips, better adapter, and not because the clips are
+cleaner.**
+
+This does not undo the confound recorded above for the LOWER steps: from
+control to tight, quality and tightness rise together and remain entangled.
+The dissociation is specific to the step where size changes.
+
+**Run health.** 53 of 59 gates, 10 failures. Six books have no half arm. Four
+of the failures left zero-byte training logs in a burst of six seconds
+immediately after a gate released the card - the signature of VRAM not yet
+freed when the next process claimed it, and the reason `project.py` carries
+worker-stepdown retries that a chain calling `train_lora.py` directly does not
+get. They cost nothing to redo: the chain skips by artifact.
+
+Seed 20260905 only, six lines per gate; per-book numbers are noisy and the
+aggregate carries this.
+
+Seed 20260905 only. Six lines per gate, so per-book numbers are noisy and the
+aggregate is what carries this.
+
+**BUT THE TIGHT CLIPS ARE ALSO THE CLEANER RECORDINGS — measured 2026-09-05,
+58 books.** A speaker embedding is computed from audio, and audio that is
+quiet, clipped, noisy or half silence embeds oddly for reasons that have
+nothing to do with WHOSE voice it is. So selecting near a dataset's centroid
+may be selecting clean recordings rather than a consistent voice, and the two
+imply different tools. Paired within book, 40 clips per arm:
+
+| feature | control | tight | wins | p |
+|---|---:|---:|---:|---:|
+| snr_db | 63.87 | 64.66 | 32/58 | 0.351 |
+| silence_frac | 0.2987 | **0.2704** | **5/58** | **<0.0001** |
+| spectral_flat | 0.3207 | **0.3079** | **7/58** | **<0.0001** |
+| rms_db | -24.02 | **-23.76** | **43/58** | 0.0002 |
+| rms_var | 0.0641 | 0.0626 | **11/58** | **<0.0001** |
+
+Tight clips are systematically louder, less silent, less noise-like and more
+level-stable - four of five features at p<=0.0002, three near-unanimous across
+books.
+
+**This does not overturn the selection result**, which is measured on held-out
+audio and stands. **It undermines the stated mechanism.** "The dataset is more
+nearly one voice" is no longer the only reading: selection works, and which
+lever it pulls is not established.
+
+**DNSMOS AGREES, so the six statistics above were measuring something real.**
+They are hand-rolled, which is precisely the unchecked instrument this project
+has been burned by, so they were checked against the published no-reference
+model Emilia-Pipe filters on - installed for this, and not written here. Same
+58 books, 20 clips per arm:
+
+| DNSMOS | control | tight | wins | p |
+|---|---:|---:|---:|---:|
+| ovrl_mos | 3.3251 | **3.3728** | **53/58** | <0.0001 |
+| sig_mos | 3.5860 | **3.6210** | **50/58** | <0.0001 |
+| bak_mos | 4.0806 | **4.1117** | **52/58** | <0.0001 |
+
+All three dimensions favour the tight arm at p<0.0001. The decision rule was
+fixed before the numbers arrived: agreement validates the six statistics,
+disagreement would have withdrawn the conclusion drawn from them.
+
+**`bak_mos` is the telling one.** Background quality is a property of the
+RECORDING, not of whose voice is on it, and the tight arms have cleaner
+backgrounds in 52 of 58 books. That is the confound in its purest form.
+
+**But the standard filter would not act here.** OVRL sits at 3.33 and 3.37,
+both above Emilia-Pipe's >=3.0 cutoff, so a DNSMOS filter at the conventional
+threshold would reject almost nothing in this corpus. Quality is a real
+confound in these arms without being a usable lever at that setting, and the
+quality-selection arm therefore needs a RELATIVE cut - top 200 by DNSMOS -
+rather than the absolute one.
+
+**The six statistics are signal measures, not perceptual quality.** They score
+nothing on their own. It asks only whether
+the arms differ systematically on measurable properties of the signal, which is
+what makes quality a confound. SNR is the single null and is also the crudest
+of the five (a loud/quiet percentile ratio, not a speech/noise separation), so
+its silence carries little.
+
+**The decisive follow-up is selection on quality ALONE** - top 200 by a
+cleanliness score, ignoring the centroid. If that matches the tight arm, the
+lever was quality and the tool should be a perceptual filter rather than an
+embedding centroid. Emilia-Pipe keeps 29.4% of raw audio at DNSMOS >= 3.0;
+this pipeline filters nothing perceptual at any point.
+
+**Evidence** — `arm_audio_statistics.json`, `arm_audio_statistics_dnsmos.json`, `tight_gate__<dataset>_s20260905__{control,tight}.json`,
+`dataset_tone_spread.json`, and
 `app/tests/test_dataset_tone_spread.py`, which validates the statistic on
 synthetic embeddings whose structure is known: one cluster scores above 0.9,
 two score lower, and the value falls monotonically at 1, 2, 4 and 8 clusters,

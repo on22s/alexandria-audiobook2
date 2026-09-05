@@ -163,6 +163,10 @@
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_recognises_the_shapes_it_must_allow"
   ],
+  "test_arm_audio_statistics": [
+    "tests.test_arm_audio_statistics.ArmAudioStatisticsScopeTests.test_empty_scope_is_rejected",
+    "tests.test_arm_audio_statistics.ArmAudioStatisticsScopeTests.test_one_complete_pair_is_accepted"
+  ],
   "test_artifact_provenance_integrity": [
     "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_a_named_generating_script_still_exists",
     "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_every_artifact_parses",
@@ -818,8 +822,12 @@
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_classifier_accounts_for_every_excluded_gold_entry",
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
+    "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_invalid_training_manifest_is_not_reported_as_recorded",
+    "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_missing_training_manifest_is_unknown_not_held_out",
+    "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_training_manifest_is_hashed_and_embedded",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_artifact_contract_requires_predictions_and_raw_responses",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_diagnostic_distinguishes_eos_from_empty_content",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_inference_seed_reaches_cpu_cuda_and_deterministic_policy",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_generation_diagnostics_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
@@ -832,7 +840,9 @@
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_existing_causal_model_keeps_causal_loader",
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_long_prompt_is_truncated_without_losing_answer_labels",
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_refuses_when_language_targets_are_absent",
-    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_targets_language_model_but_not_vision"
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_targets_language_model_but_not_vision",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_training_and_sampler_seeds_are_independent",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_training_manifest_hashes_data_and_records_recipe"
   ],
   "test_distill_training_resume": [
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
@@ -851,6 +861,7 @@
   "test_duration_length_intervention": [
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_cache_identity_changes_with_reference_audio",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_pairs_are_deterministic_and_use_the_shortest_complete_rows",
+    "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_summary_does_not_call_an_unchanged_pair_worse",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_summary_measures_matched_improvement_toward_one"
   ],
   "test_duration_outlier_analysis": [
@@ -889,6 +900,14 @@
     "tests.test_elson_trigram.DeclineTest.test_plain_narration_after_the_quote",
     "tests.test_elson_trigram.ResolveTest.test_an_empty_surface_resolves_to_nothing",
     "tests.test_elson_trigram.ResolveTest.test_pronouns_never_resolve"
+  ],
+  "test_empty_arm_is_not_zero": [
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_genuine_zero_is_still_zero",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_scored_arm_reports_its_accuracy",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_an_arm_with_no_rows_has_no_accuracy",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_the_old_formula_would_have_passed_these",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_validate_refuses_a_record_with_no_rows",
+    "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_write_refuses_a_record_that_measured_nothing"
   ],
   "test_empty_predictions_are_rejected": [
     "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_a_run_may_still_opt_out_explicitly",
@@ -1261,9 +1280,10 @@
     "tests.test_goals_evidence_paths.GoalsEvidence.test_the_checker_finds_the_paths_it_is_meant_to_check"
   ],
   "test_goals_navigation": [
+    "tests.test_goals_navigation.GoalsNavigationTests.test_both_parts_are_present_and_findable",
     "tests.test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
     "tests.test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
-    "tests.test_goals_navigation.GoalsNavigationTests.test_the_stated_line_number_is_where_met_goals_actually_start"
+    "tests.test_goals_navigation.GoalsNavigationTests.test_the_document_names_no_line_number"
   ],
   "test_gold_set_builder": [
     "tests.test_gold_set_builder.AdaptiveWindowTest.test_expansion_is_capped",

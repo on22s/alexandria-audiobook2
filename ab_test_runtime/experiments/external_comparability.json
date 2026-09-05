@@ -2,20 +2,20 @@
  "status": "complete",
  "provenance": {
   "script": "external_comparability.py",
-  "written": "2026-08-21T11:38:02",
+  "written": "2026-09-05T13:28:17",
   "host": "mitch-linux",
   "git": {
-   "commit": "20fe54c35836910ac336f1effac4e05969546962",
-   "branch": "agent/external-comparability-20260821",
+   "commit": "97455708731449fead6bcadcdb00b13326f42eb0",
+   "branch": "agent/external-llama3-entry-20260905",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/external_comparability.py"
+   "modified_tracked_files": [
+    "M app/experiments/external_comparability.py"
    ],
-   "harness_sha256": "484f4bdb8a957ab71798118f9bffda8a2017bd2c91f5b8da106812da6c20929b"
+   "untracked_harness_files": null,
+   "harness_sha256": "30d17f47142565a67782257bc030689cab9fe75f061915378b7f543901d5baa3"
   },
   "args": {
-   "out": "external_comparability.json"
+   "out": "ab_test_runtime/experiments/external_comparability.json"
   }
  },
  "scope": "a record of external attribution numbers this project cites, with the protocol each was produced under. It settles whether they can be placed beside ours; it does not re-measure them",
@@ -37,6 +37,15 @@
    "protocol": "as above, gold mentions",
    "comparable_to_ours": false,
    "why": "same oracle"
+  },
+  {
+   "claim": "Overall PDNC accuracy, an 8B LLM doing joint attribution",
+   "value": 0.906,
+   "source": "Evaluating LLMs for Quotation Attribution in Literary Texts: A Case Study of LLaMa3 (arXiv 2406.11380)",
+   "dataset": "PDNC-1, 22 novels",
+   "protocol": "Llama-3 8b Instruct, ZERO-SHOT with chain-of-thought, no fine-tuning. Novels split by chapter and chunked at 4096 TOKENS with 1024 stride; every quote in a chunk numbered 1..n and attributed JOINTLY in one pass. The prompt carries a GOLD character-to-alias map (\"Anne Elliot=Miss Anne=Anne\"), which the authors call an upper bound because a real workflow must build the alias list itself. 94.7% explicit, 89.1% other types; 88.5% on PDNC-2",
+   "comparable_to_ours": false,
+   "why": "the gold alias map is the oracle. Ours infers the roster, and 1.2 measured that the roster holds the right name 85% of the time while the model picks it 29.9% - so their setting hands over precisely the half we fail at. Recorded because the METHOD is the closest published analogue to ours: same family of model, zero-shot, joint attribution of numbered quotes in one pass. The difference that is NOT an oracle is context width - they use 4096 tokens (~16k characters) where our widest tested window is 3,200 characters, and widening 400->3,200 was worth +12.7 points"
   },
   {
    "claim": "Explicit-quote accuracy, hand-written rules",
@@ -85,6 +94,6 @@
   }
  ],
  "comparable": 2,
- "not_comparable": 5,
+ "not_comparable": 6,
  "verdict": "one external number transfers - Elson's .99, which we reproduced ourselves at .9899. The rest were produced under oracles or scoring formats we do not share and must not be quoted as targets"
 }

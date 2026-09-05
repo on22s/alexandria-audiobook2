@@ -51,6 +51,30 @@ RECORD = [
                                "(arXiv 2608.02359)",
      "dataset": "PDNC", "protocol": "as above, gold mentions",
      "comparable_to_ours": False, "why": "same oracle"},
+    {"claim": "Overall PDNC accuracy, an 8B LLM doing joint attribution",
+     "value": 0.906, "source": "Evaluating LLMs for Quotation Attribution in "
+                               "Literary Texts: A Case Study of LLaMa3 "
+                               "(arXiv 2406.11380)",
+     "dataset": "PDNC-1, 22 novels",
+     "protocol":
+         "Llama-3 8b Instruct, ZERO-SHOT with chain-of-thought, no "
+         "fine-tuning. Novels split by chapter and chunked at 4096 TOKENS "
+         "with 1024 stride; every quote in a chunk numbered 1..n and "
+         "attributed JOINTLY in one pass. The prompt carries a GOLD "
+         "character-to-alias map (\"Anne Elliot=Miss Anne=Anne\"), which the "
+         "authors call an upper bound because a real workflow must build the "
+         "alias list itself. 94.7% explicit, 89.1% other types; 88.5% on "
+         "PDNC-2",
+     "comparable_to_ours": False,
+     "why": "the gold alias map is the oracle. Ours infers the roster, and "
+            "1.2 measured that the roster holds the right name 85% of the "
+            "time while the model picks it 29.9% - so their setting hands "
+            "over precisely the half we fail at. Recorded because the METHOD "
+            "is the closest published analogue to ours: same family of model, "
+            "zero-shot, joint attribution of numbered quotes in one pass. The "
+            "difference that is NOT an oracle is context width - they use "
+            "4096 tokens (~16k characters) where our widest tested window is "
+            "3,200 characters, and widening 400->3,200 was worth +12.7 points"},
     {"claim": "Explicit-quote accuracy, hand-written rules",
      "value": 0.99, "source": "Elson & McKeown, AAAI 2010",
      "dataset": "their own 6-author corpus",

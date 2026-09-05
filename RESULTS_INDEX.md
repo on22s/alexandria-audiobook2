@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1229 artifacts, 1249 arms.
+Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1280 artifacts, 1393 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -32,12 +32,12 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | contiguous | 385 | 74.5% | exploratory | ok | False | 5518.1s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | scattered | 385 | 57.9% | exploratory | ok | False | 5518.1s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 92 | 75.0% | supported_measurement | ok | False | 10801.7s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 92 | 67.4% | supported_measurement | ok | False | 10801.7s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 133 | 68.4% | supported_measurement | ok | False | 15992.9s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 133 | 31.6% | supported_measurement | ok | False | 15992.9s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 162 | 53.7% | supported_measurement | ok | False | 19624.4s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 162 | 35.2% | supported_measurement | ok | False | 19624.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 92 | 75.0% | exploratory | ok | False | 10801.7s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 92 | 67.4% | exploratory | ok | False | 10801.7s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 133 | 68.4% | exploratory | ok | False | 15992.9s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 133 | 31.6% | exploratory | ok | False | 15992.9s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | contiguous | 162 | 53.7% | exploratory | ok | False | 19624.4s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scattered | 162 | 35.2% | exploratory | ok | False | 19624.4s |
 
 ## batch_size
 
@@ -46,54 +46,54 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | b1 | 400 | 60.5% | exploratory | ok | False | 3853.3s |
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | b25 | 400 | 79.2% | exploratory | ok | False | 3853.3s |
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | b5 | 400 | 69.0% | exploratory | ok | False | 3853.3s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b1 | 400 | 54.0% | historical_only | ok | False | 2298.0s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b1 | 400 | 54.0% | exploratory | ok | False | 2298.0s |
 | grimgar03 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b1 | 400 | 52.8% | exploratory | ok | False | 2647.3s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b10 | 400 | 54.0% | historical_only | ok | False | 2298.0s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b10 | 400 | 54.0% | exploratory | ok | False | 2298.0s |
 | grimgar03 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b10 | 400 | 52.0% | exploratory | ok | False | 2647.3s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 400 | 62.3% | historical_only | ok | True | 2990.1s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 400 | 59.8% | historical_only | ok | True | 2990.1s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b25 | 400 | 55.5% | historical_only | ok | False | 2298.0s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 400 | 62.3% | exploratory | ok | True | 2990.1s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 400 | 59.8% | exploratory | ok | True | 2990.1s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b25 | 400 | 55.5% | exploratory | ok | False | 2298.0s |
 | grimgar03 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b25 | 400 | 55.8% | exploratory | ok | False | 2647.3s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b5 | 400 | 54.0% | historical_only | ok | False | 2298.0s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b5 | 400 | 54.0% | exploratory | ok | False | 2298.0s |
 | grimgar03 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b5 | 400 | 52.0% | exploratory | ok | False | 2647.3s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 400 | 63.7% | historical_only | ok | True | 2990.1s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b10 | 99 | 68.7% | supported_measurement | ok | False | 1851.3s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 99 | 66.7% | supported_measurement | ok | False | 1851.3s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b5 | 99 | 54.5% | supported_measurement | ok | False | 1851.3s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 99 | 54.5% | supported_measurement | ok | False | 1851.3s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b1 | 139 | 30.2% | supported_measurement | ok | False | 952.5s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 400 | 63.7% | exploratory | ok | True | 2990.1s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b10 | 99 | 68.7% | exploratory | ok | False | 1851.3s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 99 | 66.7% | exploratory | ok | False | 1851.3s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b5 | 99 | 54.5% | exploratory | ok | False | 1851.3s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 99 | 54.5% | exploratory | ok | False | 1851.3s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b1 | 139 | 30.2% | exploratory | ok | False | 952.5s |
 | mushoku16 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b1 | 139 | 28.8% | exploratory | ok | False | 1396.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b10 | 139 | 46.0% | supported_measurement | ok | False | 952.5s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b10 | 139 | 46.0% | exploratory | ok | False | 952.5s |
 | mushoku16 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b10 | 139 | 38.1% | exploratory | ok | False | 1396.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 139 | 49.6% | provisional | ok | True | 3425.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 139 | 51.8% | provisional | ok | True | 3425.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b25 | 139 | 49.6% | supported_measurement | ok | False | 952.5s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 139 | 49.6% | exploratory | ok | True | 3425.6s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 139 | 51.8% | exploratory | ok | True | 3425.6s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b25 | 139 | 49.6% | exploratory | ok | False | 952.5s |
 | mushoku16 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b25 | 139 | 46.8% | exploratory | ok | False | 1396.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b5 | 139 | 40.3% | supported_measurement | ok | False | 952.5s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | b5 | 139 | 40.3% | exploratory | ok | False | 952.5s |
 | mushoku16 | qwen3-14b | cloud-a6000-LM | LM Studio loopback | 16384 | b5 | 139 | 37.4% | exploratory | ok | False | 1396.6s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 139 | 48.9% | provisional | ok | True | 3425.6s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b10 | 162 | 36.4% | supported_measurement | ok | False | 2716.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 162 | 46.3% | provisional | ok | True | 8526.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 162 | 46.3% | provisional | ok | True | 8230.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 40.7% | provisional | ok | True | 8526.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 40.7% | provisional | ok | True | 8230.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 39.5% | supported_measurement | ok | False | 2716.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b5 | 162 | 26.5% | supported_measurement | ok | False | 2716.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 47.5% | provisional | ok | True | 8526.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 47.5% | provisional | ok | True | 8230.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 46.3% | supported_measurement | ok | False | 2716.3s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 139 | 48.9% | exploratory | ok | True | 3425.6s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b10 | 162 | 36.4% | exploratory | ok | False | 2716.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 162 | 46.3% | exploratory | ok | True | 8526.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b100 | 162 | 46.3% | exploratory | ok | True | 8230.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 40.7% | exploratory | ok | True | 8526.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 40.7% | exploratory | ok | True | 8230.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b25 | 162 | 39.5% | exploratory | ok | False | 2716.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b5 | 162 | 26.5% | exploratory | ok | False | 2716.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 47.5% | exploratory | ok | True | 8526.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 47.5% | exploratory | ok | True | 8230.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | b50 | 162 | 46.3% | exploratory | ok | False | 2716.3s |
 
 ## because_production
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 400 | 55.5% | historical_only | ok | False | 4766.2s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 400 | 63.7% | historical_only | ok | False | 4766.2s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | supported_measurement | ok | False | 2668.6s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | provisional | ok | True | 4564.3s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 139 | 42.4% | provisional | ok | True | 4564.3s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 139 | 43.2% | provisional | ok | True | 4564.3s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 139 | 52.5% | supported_measurement | ok | False | 2668.6s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 400 | 55.5% | exploratory | ok | False | 4766.2s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 400 | 63.7% | exploratory | ok | False | 4766.2s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | exploratory | ok | False | 2668.6s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | exploratory | ok | True | 4564.3s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 139 | 42.4% | exploratory | ok | True | 4564.3s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 139 | 43.2% | exploratory | ok | True | 4564.3s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 139 | 52.5% | exploratory | ok | False | 2668.6s |
 
 ## booknlp_baseline
 
@@ -293,26 +293,26 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w1 | 400 | 79.2% | exploratory | ok | False | 4704.6s |
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w4 | 400 | 76.8% | exploratory | ok | False | 4704.6s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 59.8% | historical_only | ok | False | 1914.8s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 58.0% | historical_only | ok | False | 1897.4s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 58.0% | historical_only | ok | False | 1882.6s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w1 | 400 | 57.0% | historical_only | ok | False | 1426.2s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | historical_only | ok | False | 1914.8s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | historical_only | ok | False | 1897.4s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | historical_only | ok | False | 1882.6s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w4 | 400 | 67.5% | historical_only | ok | False | 1426.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 59.8% | exploratory | ok | False | 1914.8s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 58.0% | exploratory | ok | False | 1897.4s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w1 | 400 | 58.0% | exploratory | ok | False | 1882.6s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w1 | 400 | 57.0% | exploratory | ok | False | 1426.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | exploratory | ok | False | 1914.8s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | exploratory | ok | False | 1897.4s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | w4 | 400 | 69.8% | exploratory | ok | False | 1882.6s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w4 | 400 | 67.5% | exploratory | ok | False | 1426.2s |
 | index18 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w1 | 99 | 70.7% | exploratory | ok | False | 4411.0s |
 | index18 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w4 | 99 | 72.7% | exploratory | ok | False | 4411.0s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w1 | 99 | 65.7% | supported_measurement | ok | False | 1317.4s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w4 | 99 | 68.7% | supported_measurement | ok | False | 1317.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w1 | 99 | 65.7% | exploratory | ok | False | 1317.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w4 | 99 | 68.7% | exploratory | ok | False | 1317.4s |
 | mushoku16 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w1 | 139 | 66.9% | exploratory | ok | False | 2904.1s |
 | mushoku16 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w4 | 139 | 59.0% | exploratory | ok | False | 2904.1s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w1 | 139 | 49.6% | supported_measurement | ok | False | 826.8s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w4 | 139 | 44.6% | supported_measurement | ok | False | 826.8s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w1 | 139 | 49.6% | exploratory | ok | False | 826.8s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | w4 | 139 | 44.6% | exploratory | ok | False | 826.8s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w1 | 162 | 59.3% | exploratory | ok | False | 5596.8s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | w4 | 162 | 62.3% | exploratory | ok | False | 5596.8s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w1 | 162 | 40.1% | supported_measurement | ok | False | 2955.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w4 | 162 | 40.1% | supported_measurement | ok | False | 2955.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w1 | 162 | 40.1% | exploratory | ok | False | 2955.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | w4 | 162 | 40.1% | exploratory | ok | False | 2955.3s |
 
 ## distill_eval
 
@@ -337,6 +337,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 60.2% | exploratory | ok | False | 6468.8s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 6254.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6444.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12125.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 11630.4s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 6678.2s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 67.0% | exploratory | ok | False | 6705.1s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 6666.3s |
@@ -348,6 +350,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 6468.8s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 6254.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 63.6% | exploratory | ok | False | 6444.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 73.9% | exploratory | ok | False | 12125.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 72.7% | exploratory | ok | False | 11630.4s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 41016.0s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 3116.6s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 46972.6s |
@@ -360,11 +364,17 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 42125.5s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 44817.8s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 43536.4s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 13576.8s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 13881.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 13647.9s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 14009.3s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 13804.9s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 13576.8s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 64.8% | exploratory | ok | False | 13881.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 13647.9s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 14009.3s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 13804.9s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 25.0% | exploratory | ok | False | 27294.0s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | supported_measurement | ok | False | 4420.8s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | supported_measurement | ok | False | 4272.4s |
@@ -376,39 +386,73 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 60.2% | exploratory | ok | False | 19058.8s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 59.1% | exploratory | ok | False | 18449.6s |
 | index18 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 58.0% | exploratory | ok | False | 16187.8s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | supported_measurement | ok | False | 9583.0s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 0.0% | exploratory | ok | False | 8840.7s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | supported_measurement | ok | False | 9701.7s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | supported_measurement | ok | False | 9593.6s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 47025.9s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 44789.2s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 46101.9s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | supported_measurement | ok | False | 9583.0s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 0.0% | exploratory | ok | False | 8840.7s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 79.5% | supported_measurement | ok | False | 9701.7s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 69.3% | supported_measurement | ok | False | 9593.6s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 47025.9s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 44789.2s |
 | index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 46101.9s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 75.0% | exploratory | ok | False | 19197.8s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 14320.0s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 13769.2s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 13722.5s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 15856.9s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 15987.6s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 16363.7s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 18069.2s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 75.0% | exploratory | ok | False | 12184.7s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 18656.4s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 75.0% | exploratory | ok | False | 12546.9s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 26754.7s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 88 | 73.9% | exploratory | ok | False | 15444.0s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 72.7% | exploratory | ok | False | 19197.8s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 73.9% | exploratory | ok | False | 14320.0s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 13769.2s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 13722.5s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 69.3% | exploratory | ok | False | 15856.9s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 15987.6s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 16363.7s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 18069.2s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 12184.7s |
 | index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 18656.4s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 12546.9s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 26754.7s |
+| index18 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 15444.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 1 | 0.0% | exploratory | ok | False | 1.9s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 1 | 0.0% | exploratory | ok | False | 2.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 70.5% | exploratory | ok | False | 57561.8s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 5016.9s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 5928.3s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 11010.4s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 970.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 10.0% | exploratory | ok | False | 8963.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 15616.2s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 0.0% | exploratory | ok | False | 28.6s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 0.0% | exploratory | ok | False | 29.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18279.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 1 | 0.0% | exploratory | ok | False | 1.9s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 1 | 0.0% | exploratory | ok | False | 2.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 57561.8s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 100.0% | exploratory | ok | False | 5016.9s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 100.0% | exploratory | ok | False | 5928.3s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 61.4% | exploratory | ok | False | 11010.4s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 90.0% | exploratory | ok | False | 970.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 10.0% | exploratory | ok | False | 8963.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 61.4% | exploratory | ok | False | 15616.2s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 0.0% | exploratory | ok | False | 28.6s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 0.0% | exploratory | ok | False | 29.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 18279.0s |
@@ -422,8 +466,18 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 92 | 75.0% | exploratory | ok | False | 50138.1s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.1% | exploratory | ok | False | 7319.4s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 52.6% | exploratory | ok | False | 14029.3s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12125.9s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 11630.4s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 59.4% | exploratory | ok | False | 7319.4s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 58.6% | exploratory | ok | False | 14029.3s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 54.1% | exploratory | ok | False | 12125.9s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 57.1% | exploratory | ok | False | 11630.4s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6359.1s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6184.2s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6444.6s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 59.4% | supported_measurement | ok | False | 6359.1s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 56.4% | supported_measurement | ok | False | 6184.2s |
+| mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 59.4% | supported_measurement | ok | False | 6444.6s |
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 41016.0s |
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 10 | 80.0% | exploratory | ok | False | 3116.6s |
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 46972.6s |
@@ -436,11 +490,17 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.2% | exploratory | ok | False | 42125.5s |
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 78.2% | exploratory | ok | False | 44817.8s |
 | mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 78.2% | exploratory | ok | False | 43536.4s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 13576.8s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 13881.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 13647.9s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 14009.3s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 13804.9s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 27294.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 61.7% | exploratory | ok | False | 13576.8s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 13881.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 61.7% | exploratory | ok | False | 13647.9s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 69.9% | exploratory | ok | False | 14009.3s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 61.7% | exploratory | ok | False | 13804.9s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 22.6% | exploratory | ok | False | 27294.0s |
 | mushoku16 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 19058.8s |
 | mushoku16 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 18449.6s |
@@ -455,32 +515,58 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 71.4% | exploratory | ok | False | 44789.2s |
 | mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 69.9% | exploratory | ok | False | 46101.9s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 19197.8s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 14320.0s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 13769.2s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 13722.5s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 15856.9s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 15987.6s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 16363.7s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 18069.2s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 12184.7s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 18656.4s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 12546.9s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 26754.7s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 15444.0s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.9% | exploratory | ok | False | 19197.8s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 14320.0s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.9% | exploratory | ok | False | 13769.2s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 77.4% | exploratory | ok | False | 13722.5s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 77.4% | exploratory | ok | False | 15856.9s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 76.7% | exploratory | ok | False | 15987.6s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 16363.7s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 76.7% | exploratory | ok | False | 18069.2s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 76.7% | exploratory | ok | False | 12184.7s |
 | mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.9% | exploratory | ok | False | 18656.4s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 12546.9s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 71.4% | exploratory | ok | False | 26754.7s |
+| mushoku16 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 71.4% | exploratory | ok | False | 15444.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 3 | 0.0% | exploratory | ok | False | 1.9s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 3 | 0.0% | exploratory | ok | False | 2.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 68.4% | exploratory | ok | False | 57561.8s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 100.0% | exploratory | ok | False | 5016.9s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 100.0% | exploratory | ok | False | 5928.3s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 11010.4s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 100.0% | exploratory | ok | False | 970.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 30.0% | exploratory | ok | False | 8963.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 15616.2s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 0.0% | exploratory | ok | False | 28.6s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 0.0% | exploratory | ok | False | 29.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18279.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 3 | 0.0% | exploratory | ok | False | 1.9s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 3 | 0.0% | exploratory | ok | False | 2.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 66.9% | exploratory | ok | False | 57561.8s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 80.0% | exploratory | ok | False | 5016.9s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 80.0% | exploratory | ok | False | 5928.3s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 66.2% | exploratory | ok | False | 11010.4s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 100.0% | exploratory | ok | False | 970.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 0.0% | exploratory | ok | False | 8963.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 66.2% | exploratory | ok | False | 15616.2s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 0.0% | exploratory | ok | False | 28.6s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 0.0% | exploratory | ok | False | 29.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.9% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.2% | exploratory | ok | False | 18279.0s |
@@ -494,8 +580,18 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 62.4% | exploratory | ok | False | 50138.1s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 39.5% | exploratory | ok | False | 26607.3s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 33318.2s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12125.9s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 11630.4s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 42.0% | exploratory | ok | False | 26607.3s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 51.2% | exploratory | ok | False | 33318.2s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 35.2% | exploratory | ok | False | 12125.9s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 31.5% | exploratory | ok | False | 11630.4s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16551.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 15970.8s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16038.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 55.6% | supported_measurement | ok | False | 16551.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 36.4% | supported_measurement | ok | False | 15970.8s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 51.2% | supported_measurement | ok | False | 16038.1s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 41016.0s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 3116.6s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 46972.6s |
@@ -508,11 +604,17 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 70.4% | exploratory | ok | False | 42125.5s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.0% | exploratory | ok | False | 44817.8s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 72.8% | exploratory | ok | False | 43536.4s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 13576.8s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 13881.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 13647.9s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 14009.3s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 13804.9s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 27294.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 61.1% | exploratory | ok | False | 13576.8s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.9% | exploratory | ok | False | 13881.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 61.1% | exploratory | ok | False | 13647.9s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 14009.3s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 61.1% | exploratory | ok | False | 13804.9s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 28.4% | exploratory | ok | False | 27294.0s |
 | owarimonogatari3 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 162 | 30.2% | exploratory | ok | False | 19058.8s |
 | owarimonogatari3 | Qwen3.5-9B | local-lmstudio | lmstudio | 32768 | base | 162 | 30.2% | exploratory | ok | False | 18449.6s |
@@ -527,32 +629,58 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 57.4% | exploratory | ok | False | 44789.2s |
 | owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.9% | exploratory | ok | False | 46101.9s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.9% | exploratory | ok | False | 19197.8s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 14320.0s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 13769.2s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 13722.5s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 15856.9s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 15987.6s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 16363.7s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18069.2s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 12184.7s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18656.4s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 68.5% | exploratory | ok | False | 12546.9s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 61.7% | exploratory | ok | False | 26754.7s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | base | 162 | 61.7% | exploratory | ok | False | 15444.0s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.6% | exploratory | ok | False | 19197.8s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 65.4% | exploratory | ok | False | 14320.0s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 62.3% | exploratory | ok | False | 13769.2s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.0% | exploratory | ok | False | 13722.5s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.3% | exploratory | ok | False | 15856.9s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 15987.6s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 70.4% | exploratory | ok | False | 16363.7s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.7% | exploratory | ok | False | 18069.2s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.7% | exploratory | ok | False | 12184.7s |
 | owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.0% | exploratory | ok | False | 18656.4s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.0% | exploratory | ok | False | 12546.9s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 54.9% | exploratory | ok | False | 26754.7s |
+| owarimonogatari3 | Qwen3.8-27B-BF16 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.7% | exploratory | ok | False | 15444.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 2 | 0.0% | exploratory | ok | False | 1.9s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 2 | 0.0% | exploratory | ok | False | 2.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 57.4% | exploratory | ok | False | 57561.8s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 80.0% | exploratory | ok | False | 5016.9s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 30.0% | exploratory | ok | False | 5928.3s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 11010.4s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 80.0% | exploratory | ok | False | 970.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 10 | 0.0% | exploratory | ok | False | 8963.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 15616.2s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 0.0% | exploratory | ok | False | 28.6s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 0.0% | exploratory | ok | False | 29.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18279.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 2 | 0.0% | exploratory | ok | False | 1.9s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 2 | 0.0% | exploratory | ok | False | 2.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 58.6% | exploratory | ok | False | 57561.8s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 40.0% | exploratory | ok | False | 5016.9s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 10.0% | exploratory | ok | False | 5928.3s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 46.9% | exploratory | ok | False | 11010.4s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 0.0% | exploratory | ok | False | 970.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 10 | 0.0% | exploratory | ok | False | 8963.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 46.9% | exploratory | ok | False | 15616.2s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 0.0% | exploratory | ok | False | 28.6s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 56.2% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 0.0% | exploratory | ok | False | 29.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.2% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.6% | exploratory | ok | False | 18279.0s |
@@ -629,19 +757,19 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 2253.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 1984.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 1929.7s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 4494.5s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 6000.3s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 4544.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 79.7% | historical_only | ok | True | 28194.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | exploratory | ok | False | 4494.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | exploratory | ok | False | 6000.3s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | exploratory | ok | False | 4544.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 79.7% | exploratory | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 64.4% | exploratory | ok | False | 3920.5s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 75.8% | exploratory | ok | False | 6206.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 68.1% | exploratory | ok | False | 2253.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 72.7% | exploratory | ok | False | 1984.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 76.6% | exploratory | ok | False | 1929.7s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 78.4% | historical_only | ok | False | 4494.5s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 72.5% | historical_only | ok | False | 6000.3s |
-| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 77.9% | historical_only | ok | False | 4544.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 83.9% | historical_only | ok | True | 28194.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 78.4% | exploratory | ok | False | 4494.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 72.5% | exploratory | ok | False | 6000.3s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 77.9% | exploratory | ok | False | 4544.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 83.9% | exploratory | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 80.3% | exploratory | ok | False | 3920.5s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1456.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1799.3s |
@@ -652,9 +780,10 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 88 | 77.3% | exploratory | ok | False | 4021.8s |
 | index18 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 3282.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 92 | 70.7% | exploratory | ok | False | 6206.6s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | exploratory | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 92 | 81.5% | historical_only | ok | False | 19529.9s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 92 | 81.5% | exploratory | ok | False | 19529.9s |
+| index18 | qwen3.6-27b | local-CUDA | CUDA | 32768 | base | 88 | 73.9% | exploratory | ok | False | 2690.7s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 75.0% | exploratory | ok | False | 22071.6s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 75.0% | exploratory | ok | False | 23705.1s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 71.6% | exploratory | ok | False | 13622.6s |
@@ -663,6 +792,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 6147.6s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 71.6% | exploratory | ok | False | 4068.2s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 71.6% | exploratory | ok | False | 3350.4s |
+| index18 | qwen3.8-27b | local-CUDA | CUDA | 32768 | base | 88 | 73.9% | exploratory | ok | False | 2684.0s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 69.3% | exploratory | ok | False | 20538.5s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 64.8% | exploratory | ok | False | 24066.6s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 23059.2s |
@@ -745,24 +875,28 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2957.1s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2890.6s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2890.6s |
+| index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 88 | 73.9% | exploratory | ok | False | 7080.7s |
+| index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 88 | 72.7% | exploratory | ok | False | 7080.7s |
 | mushoku16 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 133 | 73.7% | exploratory | ok | False | 4021.8s |
 | mushoku16 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 3282.9s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 133 | 49.6% | exploratory | ok | False | 6206.6s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4494.5s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 6000.3s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4544.9s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 133 | 51.9% | historical_only | ok | False | 19529.9s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | exploratory | ok | False | 4494.5s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | exploratory | ok | False | 6000.3s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | exploratory | ok | False | 4544.9s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 133 | 51.9% | exploratory | ok | False | 19529.9s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 133 | 64.7% | exploratory | ok | False | 6206.6s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 59.4% | historical_only | ok | False | 4494.5s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 6000.3s |
-| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 4544.9s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 133 | 60.9% | historical_only | ok | False | 19529.9s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 59.4% | exploratory | ok | False | 4494.5s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | exploratory | ok | False | 6000.3s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | exploratory | ok | False | 4544.9s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 133 | 60.9% | exploratory | ok | False | 19529.9s |
+| mushoku16 | qwen3.6-27b | local-CUDA | CUDA | 32768 | base | 133 | 72.9% | exploratory | ok | False | 2690.7s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 72.9% | exploratory | ok | False | 22071.6s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 70.7% | exploratory | ok | False | 23705.1s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 13622.6s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 74.4% | exploratory | ok | False | 7329.5s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18441.5s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 74.4% | exploratory | ok | False | 6147.6s |
+| mushoku16 | qwen3.8-27b | local-CUDA | CUDA | 32768 | base | 133 | 72.9% | exploratory | ok | False | 2684.0s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 72.9% | exploratory | ok | False | 20538.5s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 69.2% | exploratory | ok | False | 24066.6s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 23059.2s |
@@ -833,26 +967,30 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.9% | exploratory | ok | False | 2957.1s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2890.6s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2890.6s |
+| mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 133 | 72.9% | exploratory | ok | False | 7080.7s |
+| mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 133 | 73.7% | exploratory | ok | False | 7080.7s |
 | owarimonogatari3 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 162 | 65.4% | exploratory | ok | False | 4021.8s |
 | owarimonogatari3 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3282.9s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 162 | 45.7% | exploratory | ok | False | 6206.6s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4494.5s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 6000.3s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4544.9s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 162 | 53.7% | historical_only | ok | True | 28194.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | exploratory | ok | False | 4494.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | exploratory | ok | False | 6000.3s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | exploratory | ok | False | 4544.9s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 162 | 53.7% | exploratory | ok | True | 28194.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3920.5s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 162 | 54.9% | exploratory | ok | False | 6206.6s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 42.0% | historical_only | ok | False | 4494.5s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | historical_only | ok | False | 6000.3s |
-| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | historical_only | ok | False | 4544.9s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 162 | 58.0% | historical_only | ok | True | 28194.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 42.0% | exploratory | ok | False | 4494.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | exploratory | ok | False | 6000.3s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | exploratory | ok | False | 4544.9s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 162 | 58.0% | exploratory | ok | True | 28194.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 57.4% | exploratory | ok | False | 3920.5s |
+| owarimonogatari3 | qwen3.6-27b | local-CUDA | CUDA | 32768 | base | 162 | 63.6% | exploratory | ok | False | 2690.7s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 69.1% | exploratory | ok | False | 22071.6s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 68.5% | exploratory | ok | False | 23705.1s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 56.2% | exploratory | ok | False | 13622.6s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 67.9% | exploratory | ok | False | 7329.5s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 66.0% | exploratory | ok | False | 18441.5s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 67.9% | exploratory | ok | False | 6147.6s |
+| owarimonogatari3 | qwen3.8-27b | local-CUDA | CUDA | 32768 | base | 162 | 65.4% | exploratory | ok | False | 2684.0s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 63.0% | exploratory | ok | False | 20538.5s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 51.2% | exploratory | ok | False | 24066.6s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 66.0% | exploratory | ok | False | 23059.2s |
@@ -923,19 +1061,21 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 162 | 33.3% | exploratory | ok | False | 2957.1s |
 | owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2890.6s |
 | owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 162 | 32.7% | exploratory | ok | False | 2890.6s |
+| owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 162 | 65.4% | exploratory | ok | False | 7080.7s |
+| owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 162 | 56.8% | exploratory | ok | False | 7080.7s |
 
 ## narrator_prior
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 400 | 57.2% | historical_only | ok | False | 2180.7s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 400 | 60.2% | historical_only | ok | False | 2180.7s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 64.6% | supported_measurement | ok | False | 1021.5s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 99 | 65.7% | supported_measurement | ok | False | 1021.5s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 139 | 51.8% | supported_measurement | ok | False | 842.4s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 139 | 56.1% | supported_measurement | ok | False | 842.4s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 162 | 38.3% | supported_measurement | ok | False | 1783.8s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | narrator | 162 | 38.9% | supported_measurement | ok | False | 1783.8s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 400 | 57.2% | exploratory | ok | False | 2180.7s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 400 | 60.2% | exploratory | ok | False | 2180.7s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 64.6% | exploratory | ok | False | 1021.5s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 99 | 65.7% | exploratory | ok | False | 1021.5s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 139 | 51.8% | exploratory | ok | False | 842.4s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | narrator | 139 | 56.1% | exploratory | ok | False | 842.4s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 162 | 38.3% | exploratory | ok | False | 1783.8s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | narrator | 162 | 38.9% | exploratory | ok | False | 1783.8s |
 
 ## pdnc_context_evidence
 
@@ -1053,64 +1193,64 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | baseline | 400 | 71.5% | historical_only | ok | False | 9454.9s |
-| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | because | 400 | 72.2% | historical_only | ok | False | 9454.9s |
-| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold | 400 | 68.2% | historical_only | ok | False | 9454.9s |
-| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 68.2% | historical_only | ok | False | 9454.9s |
-| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | thinking | 400 | 71.2% | historical_only | ok | False | 9454.9s |
+| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | baseline | 400 | 71.5% | exploratory | ok | False | 9454.9s |
+| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | because | 400 | 72.2% | exploratory | ok | False | 9454.9s |
+| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold | 400 | 68.2% | exploratory | ok | False | 9454.9s |
+| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 68.2% | exploratory | ok | False | 9454.9s |
+| grimgar03 | gemma-3-27b | cloud-a6000-lmstudio | lmstudio | 16384 | thinking | 400 | 71.2% | exploratory | ok | False | 9454.9s |
 | grimgar03 | magistral-small | cloud-a6000-lmstudio | lmstudio | 16384 | baseline | 400 | 64.0% | exploratory | ok | False | 8256.2s |
 | grimgar03 | magistral-small | cloud-a6000-lmstudio | lmstudio | 16384 | because | 400 | 61.8% | exploratory | ok | False | 8256.2s |
 | grimgar03 | magistral-small | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold | 400 | 52.0% | exploratory | ok | False | 8256.2s |
 | grimgar03 | magistral-small | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 52.0% | exploratory | ok | False | 8256.2s |
 | grimgar03 | magistral-small | cloud-a6000-lmstudio | lmstudio | 16384 | thinking | 400 | 63.0% | exploratory | ok | False | 8256.2s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 400 | 56.5% | historical_only | ok | True | 8588.7s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 400 | 54.8% | historical_only | ok | True | 8588.7s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold | 400 | 52.5% | historical_only | ok | True | 8588.7s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 56.5% | historical_only | ok | True | 8588.7s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 400 | 66.2% | historical_only | ok | True | 8588.7s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 400 | 56.5% | exploratory | ok | True | 8588.7s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 400 | 54.8% | exploratory | ok | True | 8588.7s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold | 400 | 52.5% | exploratory | ok | True | 8588.7s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 56.5% | exploratory | ok | True | 8588.7s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 400 | 66.2% | exploratory | ok | True | 8588.7s |
 | grimgar03 | qwen3-32b | cloud-a6000-lmstudio | lmstudio | 16384 | baseline | 400 | 67.2% | exploratory | ok | False | 21565.9s |
 | grimgar03 | qwen3-32b | cloud-a6000-lmstudio | lmstudio | 16384 | because | 400 | 67.5% | exploratory | ok | False | 21565.9s |
 | grimgar03 | qwen3-32b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold | 400 | 57.8% | exploratory | ok | False | 21565.9s |
 | grimgar03 | qwen3-32b | cloud-a6000-lmstudio | lmstudio | 16384 | scaffold_thinking | 400 | 68.5% | exploratory | ok | False | 21565.9s |
 | grimgar03 | qwen3-32b | cloud-a6000-lmstudio | lmstudio | 16384 | thinking | 400 | 72.2% | exploratory | ok | False | 21565.9s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 61.6% | supported_measurement | ok | False | 8280.2s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | because | 99 | 62.6% | supported_measurement | ok | False | 8280.2s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold | 99 | 56.6% | supported_measurement | ok | False | 8280.2s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold_thinking | 99 | 68.7% | supported_measurement | ok | False | 8280.2s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | thinking | 99 | 68.7% | supported_measurement | ok | False | 8280.2s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 39.6% | historical_only | ok | True | 5021.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 139 | 50.4% | historical_only | ok | True | 5021.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold | 139 | 41.0% | historical_only | ok | True | 5021.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 139 | 48.2% | historical_only | ok | True | 5021.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 139 | 41.7% | historical_only | ok | True | 5021.5s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 162 | 43.2% | supported_measurement | ok | False | 12654.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | because | 162 | 47.5% | supported_measurement | ok | False | 12654.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold | 162 | 38.9% | supported_measurement | ok | False | 12654.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold_thinking | 162 | 43.2% | supported_measurement | ok | False | 12654.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | thinking | 162 | 38.9% | supported_measurement | ok | False | 12654.2s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 61.6% | exploratory | ok | False | 8280.2s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | because | 99 | 62.6% | exploratory | ok | False | 8280.2s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold | 99 | 56.6% | exploratory | ok | False | 8280.2s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold_thinking | 99 | 68.7% | exploratory | ok | False | 8280.2s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | thinking | 99 | 68.7% | exploratory | ok | False | 8280.2s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 39.6% | exploratory | ok | True | 5021.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | because | 139 | 50.4% | exploratory | ok | True | 5021.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold | 139 | 41.0% | exploratory | ok | True | 5021.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | scaffold_thinking | 139 | 48.2% | exploratory | ok | True | 5021.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | thinking | 139 | 41.7% | exploratory | ok | True | 5021.5s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 162 | 43.2% | exploratory | ok | False | 12654.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | because | 162 | 47.5% | exploratory | ok | False | 12654.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold | 162 | 38.9% | exploratory | ok | False | 12654.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | scaffold_thinking | 162 | 43.2% | exploratory | ok | False | 12654.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | thinking | 162 | 38.9% | exploratory | ok | False | 12654.2s |
 
 ## reasoning_check
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 396 | 58.1% | historical_only | ok | False | 3748.4s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 396 | 59.3% | historical_only | ok | False | 3748.4s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 99 | 62.6% | supported_measurement | ok | False | 1966.4s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 99 | 58.6% | supported_measurement | ok | False | 1966.4s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 139 | 51.1% | supported_measurement | ok | False | 1970.5s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 139 | 48.2% | supported_measurement | ok | False | 1970.5s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 162 | 40.7% | supported_measurement | ok | False | 2902.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 162 | 41.4% | supported_measurement | ok | False | 2902.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 396 | 58.1% | exploratory | ok | False | 3748.4s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 396 | 59.3% | exploratory | ok | False | 3748.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 99 | 62.6% | exploratory | ok | False | 1966.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 99 | 58.6% | exploratory | ok | False | 1966.4s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 139 | 51.1% | exploratory | ok | False | 1970.5s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 139 | 48.2% | exploratory | ok | False | 1970.5s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | plain | 162 | 40.7% | exploratory | ok | False | 2902.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | reasoned | 162 | 41.4% | exploratory | ok | False | 2902.2s |
 
 ## reexamine
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | provisional | ok | True | 2737.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | narration | 139 | 34.5% | provisional | ok | True | 2737.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | narrator | 139 | 51.8% | provisional | ok | True | 2737.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | prose | 139 | 47.5% | provisional | ok | True | 2737.5s |
-| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | voting | 139 | 49.6% | provisional | ok | True | 2737.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | baseline | 139 | 49.6% | exploratory | ok | True | 2737.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | narration | 139 | 34.5% | exploratory | ok | True | 2737.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | narrator | 139 | 51.8% | exploratory | ok | True | 2737.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | prose | 139 | 47.5% | exploratory | ok | True | 2737.5s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 16384 | voting | 139 | 49.6% | exploratory | ok | True | 2737.5s |
 
 ## roster_quality
 
@@ -1140,6 +1280,10 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | generated | 133 | 48.9% | provisional | ok | True | 2800.3s |
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | gold | 133 | 48.9% | provisional | ok | True | 2800.3s |
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | inflated | 133 | 48.1% | provisional | ok | True | 2800.3s |
+| owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | augmented | 162 | 62.3% | exploratory | ok | False | 10475.7s |
+| owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | generated | 162 | 59.9% | exploratory | ok | False | 10475.7s |
+| owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | gold | 162 | 66.7% | exploratory | ok | False | 10475.7s |
+| owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | inflated | 162 | 62.3% | exploratory | ok | False | 10475.7s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | augmented | 162 | 45.1% | provisional | ok | True | 7321.2s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | generated | 162 | 40.7% | provisional | ok | True | 7321.2s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | gold | 162 | 42.6% | provisional | ok | True | 7321.2s |
@@ -1225,26 +1369,26 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | baseline | 396 | 82.6% | exploratory | ok | False | 4007.5s |
 | grimgar03 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | tagfirst | 396 | 82.8% | exploratory | ok | False | 4007.5s |
-| grimgar03 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 70.7% | provisional | ok | True | 2667.2s |
-| grimgar03 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 68.9% | provisional | ok | True | 2667.2s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 63.4% | supported_measurement | ok | False | 1803.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 62.4% | supported_measurement | ok | False | 1782.1s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 62.4% | supported_measurement | ok | False | 1781.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 400 | 56.5% | historical_only | ok | True | 1887.0s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | supported_measurement | ok | False | 1803.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | supported_measurement | ok | False | 1782.1s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | supported_measurement | ok | False | 1781.9s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 400 | 63.0% | historical_only | ok | True | 1887.0s |
-| index18 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 68.7% | provisional | ok | True | 1642.5s |
-| index18 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 99 | 64.6% | provisional | ok | True | 1642.5s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 99 | 64.6% | supported_measurement | ok | False | 913.0s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | tagfirst | 99 | 65.7% | supported_measurement | ok | False | 913.0s |
+| grimgar03 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 70.7% | exploratory | ok | True | 2667.2s |
+| grimgar03 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 68.9% | exploratory | ok | True | 2667.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 63.4% | exploratory | ok | False | 1803.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 62.4% | exploratory | ok | False | 1782.1s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 396 | 62.4% | exploratory | ok | False | 1781.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 400 | 56.5% | exploratory | ok | True | 1887.0s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | exploratory | ok | False | 1803.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | exploratory | ok | False | 1782.1s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 396 | 62.4% | exploratory | ok | False | 1781.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 400 | 63.0% | exploratory | ok | True | 1887.0s |
+| index18 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 99 | 68.7% | exploratory | ok | True | 1642.5s |
+| index18 | magistral-small | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 99 | 64.6% | exploratory | ok | True | 1642.5s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 99 | 64.6% | exploratory | ok | False | 913.0s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | tagfirst | 99 | 65.7% | exploratory | ok | False | 913.0s |
 | mushoku16 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | baseline | 136 | 67.6% | exploratory | ok | False | 2362.9s |
 | mushoku16 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | tagfirst | 136 | 66.2% | exploratory | ok | False | 2362.9s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 139 | 51.1% | provisional | ok | True | 1073.2s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 139 | 45.3% | provisional | ok | True | 1073.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 162 | 40.7% | supported_measurement | ok | False | 1891.9s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | tagfirst | 162 | 43.2% | supported_measurement | ok | False | 1891.9s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | baseline | 139 | 51.1% | exploratory | ok | True | 1073.2s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | tagfirst | 139 | 45.3% | exploratory | ok | True | 1073.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | baseline | 162 | 40.7% | exploratory | ok | False | 1891.9s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | tagfirst | 162 | 43.2% | exploratory | ok | False | 1891.9s |
 
 ## two_by_two
 
@@ -1427,16 +1571,16 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 400 | 55.8% | historical_only | ok | False | 6517.4s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 400 | 58.0% | historical_only | ok | False | 6517.4s |
-| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote5 | 400 | 57.8% | historical_only | ok | False | 6517.4s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 99 | 64.6% | supported_measurement | ok | False | 1607.3s |
-| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 99 | 63.6% | supported_measurement | ok | False | 1607.3s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 139 | 47.5% | supported_measurement | ok | False | 3221.3s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 139 | 48.9% | supported_measurement | ok | False | 3221.3s |
-| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote5 | 139 | 48.9% | supported_measurement | ok | False | 3221.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 162 | 40.7% | supported_measurement | ok | False | 2872.6s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 162 | 38.3% | supported_measurement | ok | False | 2872.6s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 400 | 55.8% | exploratory | ok | False | 6517.4s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 400 | 58.0% | exploratory | ok | False | 6517.4s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote5 | 400 | 57.8% | exploratory | ok | False | 6517.4s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 99 | 64.6% | exploratory | ok | False | 1607.3s |
+| index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 99 | 63.6% | exploratory | ok | False | 1607.3s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 139 | 47.5% | exploratory | ok | False | 3221.3s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 139 | 48.9% | exploratory | ok | False | 3221.3s |
+| mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote5 | 139 | 48.9% | exploratory | ok | False | 3221.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | greedy | 162 | 40.7% | exploratory | ok | False | 2872.6s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | vote3 | 162 | 38.3% | exploratory | ok | False | 2872.6s |
 
 ## Not indexed
 
@@ -1460,6 +1604,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `anchor_length_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `annotator_evidence.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aozora_quote_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `arm_audio_statistics.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `arm_audio_statistics_dnsmos.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `arm_audio_statistics_fourarm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_hybrid__kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1706,6 +1853,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__silky_baritone_45s_m.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__velvety_mezzo_30s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `generated_audio_quality.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `generation_realtime_rate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `homograph_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -2185,22 +2333,28 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2212,15 +2366,19 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_hollie_jackson_seize_the_day__a_world_conquest_isek_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_hollie_jackson_seize_the_day__a_world_conquest_isek_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char2_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char2_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_j_michael_tatum_spice_and_wolf_vol__10_char2_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_jay_snyder_ex_heroes_char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_jay_snyder_ex_heroes_char2_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char2_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_jay_snyder_ex_heroes_char2_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_john_lee_spellmonger__spellmonger_book_1__b01n264ee_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2240,9 +2398,11 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_kate_reading_a_natural_history_of_dragons_char1_vol_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_kate_reading_a_natural_history_of_dragons_char1_vol_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_keith_silverstein_kizumonogatari_char1_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_keith_silverstein_kizumonogatari_char2_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char2_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_keith_silverstein_kizumonogatari_char2_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2254,6 +2414,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_liam_price_the_archer_of_beast_woods_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_liam_price_the_archer_of_beast_woods_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_luci_christian_full_metal_panic_char2_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_luci_christian_full_metal_panic_char2_vol01_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_luci_christian_full_metal_panic_char2_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_luci_christian_full_metal_panic_char2_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_mallorie_rodak_frieren__beyond_journey_s_end__prelu_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2323,6 +2484,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_steven_pacey_the_blade_itself_char1_vol01_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_steven_pacey_the_blade_itself_char1_vol01_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_suzie_yeung_even_if_these_tears_disappear_tonight_c_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_suzie_yeung_even_if_these_tears_disappear_tonight_c_s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_suzie_yeung_even_if_these_tears_disappear_tonight_c_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_suzie_yeung_even_if_these_tears_disappear_tonight_c_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_suzie_yeung_stephen_fu_86__char1_vol01_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2352,6 +2514,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_todd_mclaren_altered_carbon__b002v1o6x8__char1_vol0_s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_todd_mclaren_altered_carbon__b002v1o6x8__char1_vol0_s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

@@ -1,0 +1,1521 @@
+{
+ "note": "Signal statistics per arm, paired by book. NOT perceptual quality - no MOS predictor is installed. Asks only whether the arms differ systematically on measurable properties of the signal, which is what would make audio quality a confound for the tightness result.",
+ "arms": [
+  "control",
+  "tight"
+ ],
+ "books": 58,
+ "clips_per_arm_sampled": 40,
+ "per_book": [
+  {
+   "tag": "gardens_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 81.39145799082529,
+     "silence_frac": 0.387698380945958,
+     "spectral_flat": 0.46291548970194,
+     "clip_rate": 0.0,
+     "rms_db": -22.623370322547416,
+     "rms_var": 0.08774186570576274
+    },
+    "tight": {
+     "snr_db": 87.32993527087693,
+     "silence_frac": 0.3470541466759362,
+     "spectral_flat": 0.4469926141399817,
+     "clip_rate": 0.0,
+     "rms_db": -21.9954115120197,
+     "rms_var": 0.08576624116563546
+    }
+   }
+  },
+  {
+   "tag": "gardens_s20260906",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 80.33978334156286,
+     "silence_frac": 0.34358699986640723,
+     "spectral_flat": 0.4455370429093761,
+     "clip_rate": 0.0,
+     "rms_db": -21.877844677489872,
+     "rms_var": 0.08771299563166884
+    },
+    "tight": {
+     "snr_db": 85.8261042547643,
+     "silence_frac": 0.3491469863990705,
+     "spectral_flat": 0.44725469738727014,
+     "clip_rate": 0.0,
+     "rms_db": -22.109079507053384,
+     "rms_var": 0.08584890319540173
+    }
+   }
+  },
+  {
+   "tag": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_sum_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 53.817687078045005,
+     "silence_frac": 0.20565402491535886,
+     "spectral_flat": 0.25778813998017586,
+     "clip_rate": 0.0,
+     "rms_db": -23.45835230387791,
+     "rms_var": 0.06155600048857092
+    },
+    "tight": {
+     "snr_db": 65.22154615946768,
+     "silence_frac": 0.1951304058791223,
+     "spectral_flat": 0.26087572871929676,
+     "clip_rate": 0.0,
+     "rms_db": -23.431995721177543,
+     "rms_var": 0.060057596686095255
+    }
+   }
+  },
+  {
+   "tag": "narrator_amy_landon_a_memory_called_empire__teixcalaan_book__s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 64.98700897586102,
+     "silence_frac": 0.3368102664975212,
+     "spectral_flat": 0.3621282578511615,
+     "clip_rate": 0.0,
+     "rms_db": -23.119922558168096,
+     "rms_var": 0.0673952253584163
+    },
+    "tight": {
+     "snr_db": 63.22777205526578,
+     "silence_frac": 0.3032258833482478,
+     "spectral_flat": 0.34651263886121364,
+     "clip_rate": 0.0,
+     "rms_db": -22.83561750351066,
+     "rms_var": 0.06572958285551006
+    }
+   }
+  },
+  {
+   "tag": "narrator_brian_nishii_alita__battle_angel__the_official_movi_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 62.88519496013909,
+     "silence_frac": 0.2738965374417976,
+     "spectral_flat": 0.3289358482108588,
+     "clip_rate": 0.0,
+     "rms_db": -22.81305341619092,
+     "rms_var": 0.06868946177618922
+    },
+    "tight": {
+     "snr_db": 62.59767041783157,
+     "silence_frac": 0.24699379336382504,
+     "spectral_flat": 0.3123259679016874,
+     "clip_rate": 0.0,
+     "rms_db": -22.16513788453718,
+     "rms_var": 0.07048460375525317
+    }
+   }
+  },
+  {
+   "tag": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 61.71300833072765,
+     "silence_frac": 0.24664848143980256,
+     "spectral_flat": 0.3546121463458889,
+     "clip_rate": 0.0,
+     "rms_db": -23.752967745888633,
+     "rms_var": 0.06061405547280433
+    },
+    "tight": {
+     "snr_db": 59.06773808752082,
+     "silence_frac": 0.22131224384704137,
+     "spectral_flat": 0.35737925435543677,
+     "clip_rate": 0.0,
+     "rms_db": -23.709375294427314,
+     "rms_var": 0.05965721524154361
+    }
+   }
+  },
+  {
+   "tag": "narrator_c_j__mission_monster_core_2__1774241641__char1_vol0_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 70.33859655575257,
+     "silence_frac": 0.284804881254852,
+     "spectral_flat": 0.29360337856619945,
+     "clip_rate": 0.0,
+     "rms_db": -23.628724711081567,
+     "rms_var": 0.0670743822764148
+    },
+    "tight": {
+     "snr_db": 69.99926175082675,
+     "silence_frac": 0.24437091422430976,
+     "spectral_flat": 0.2666508353465874,
+     "clip_rate": 0.0,
+     "rms_db": -22.388096526347415,
+     "rms_var": 0.07296083874418641
+    }
+   }
+  },
+  {
+   "tag": "narrator_cherami_leigh_cyberpunk_2077_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 70.02816325696978,
+     "silence_frac": 0.37082492510600623,
+     "spectral_flat": 0.36715705194267023,
+     "clip_rate": 0.0,
+     "rms_db": -23.739011666431992,
+     "rms_var": 0.07226830080377751
+    },
+    "tight": {
+     "snr_db": 70.50614289070586,
+     "silence_frac": 0.3572299120381097,
+     "spectral_flat": 0.3525414241321624,
+     "clip_rate": 0.0,
+     "rms_db": -23.99931608603519,
+     "rms_var": 0.06931471522148806
+    }
+   }
+  },
+  {
+   "tag": "narrator_christian_j__gilliland_hazel_cohen_elemental_summon_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 47.280538804587586,
+     "silence_frac": 0.2712971043216871,
+     "spectral_flat": 0.2724337810523918,
+     "clip_rate": 0.0,
+     "rms_db": -22.510142497537974,
+     "rms_var": 0.07221477183918122
+    },
+    "tight": {
+     "snr_db": 48.94994873094717,
+     "silence_frac": 0.23136903683791205,
+     "spectral_flat": 0.2501556629910242,
+     "clip_rate": 0.0,
+     "rms_db": -22.073702436311834,
+     "rms_var": 0.07084991054867265
+    }
+   }
+  },
+  {
+   "tag": "narrator_cindy_kay_water_moon__a_novel__b0d26l1r1d__char1_vo_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 59.77747680508955,
+     "silence_frac": 0.32168208852506375,
+     "spectral_flat": 0.3571556681454854,
+     "clip_rate": 0.0,
+     "rms_db": -23.519959809729354,
+     "rms_var": 0.06546299089987552
+    },
+    "tight": {
+     "snr_db": 59.80761837296316,
+     "silence_frac": 0.30996679186330794,
+     "spectral_flat": 0.35138235352761216,
+     "clip_rate": 0.0,
+     "rms_db": -23.39330882957909,
+     "rms_var": 0.06454487723821153
+    }
+   }
+  },
+  {
+   "tag": "narrator_cliff_kurt_mushoku_tensei_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 90.15214512086901,
+     "silence_frac": 0.33708966226685627,
+     "spectral_flat": 0.43955374513146317,
+     "clip_rate": 0.0,
+     "rms_db": -26.10736547770986,
+     "rms_var": 0.05315420703603611
+    },
+    "tight": {
+     "snr_db": 90.55767706330728,
+     "silence_frac": 0.2910454611329657,
+     "spectral_flat": 0.3954040493230039,
+     "clip_rate": 0.0,
+     "rms_db": -25.513521524977428,
+     "rms_var": 0.052289126880631746
+    }
+   }
+  },
+  {
+   "tag": "narrator_cristina_vee_nekomonogatari_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 49.164530057987136,
+     "silence_frac": 0.28119066844834256,
+     "spectral_flat": 0.3574767760578746,
+     "clip_rate": 0.0,
+     "rms_db": -25.712202403361154,
+     "rms_var": 0.04886239890166735
+    },
+    "tight": {
+     "snr_db": 52.46382663339874,
+     "silence_frac": 0.2873471239865486,
+     "spectral_flat": 0.36548808702306124,
+     "clip_rate": 0.0,
+     "rms_db": -25.671866746359107,
+     "rms_var": 0.047689344136508494
+    }
+   }
+  },
+  {
+   "tag": "narrator_cristina_vee_nekomonogatari_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 52.10099274835827,
+     "silence_frac": 0.3251309518960425,
+     "spectral_flat": 0.38229192128791567,
+     "clip_rate": 0.0,
+     "rms_db": -26.335913176701087,
+     "rms_var": 0.04934523767879239
+    },
+    "tight": {
+     "snr_db": 52.02170722516357,
+     "silence_frac": 0.30168771408632894,
+     "spectral_flat": 0.3779934278113356,
+     "clip_rate": 0.0,
+     "rms_db": -25.891587101601502,
+     "rms_var": 0.04869932702626465
+    }
+   }
+  },
+  {
+   "tag": "narrator_dracula__audible_edition___b0078pa1oa__char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 52.43572127870132,
+     "silence_frac": 0.24865877523414967,
+     "spectral_flat": 0.3287990661145683,
+     "clip_rate": 0.0,
+     "rms_db": -21.629423363413043,
+     "rms_var": 0.07277540558325199
+    },
+    "tight": {
+     "snr_db": 53.5303301602087,
+     "silence_frac": 0.21716805318248783,
+     "spectral_flat": 0.3191661803428989,
+     "clip_rate": 0.0,
+     "rms_db": -21.22520215233059,
+     "rms_var": 0.07272397200184652
+    }
+   }
+  },
+  {
+   "tag": "narrator_dracula__audible_edition___b0078pa1oa__char7_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 51.92569203945636,
+     "silence_frac": 0.271476978365648,
+     "spectral_flat": 0.28009202922317455,
+     "clip_rate": 0.0,
+     "rms_db": -22.91418506409608,
+     "rms_var": 0.06843112450765189
+    },
+    "tight": {
+     "snr_db": 56.6315588558037,
+     "silence_frac": 0.2641530222162469,
+     "spectral_flat": 0.28372060057301857,
+     "clip_rate": 0.0,
+     "rms_db": -22.601274811703185,
+     "rms_var": 0.06889582653888696
+    }
+   }
+  },
+  {
+   "tag": "narrator_dracula__audible_edition___b0078pa1oa__char8_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 48.371768237155315,
+     "silence_frac": 0.28610693107898183,
+     "spectral_flat": 0.2835772006055441,
+     "clip_rate": 0.0,
+     "rms_db": -22.45179185233389,
+     "rms_var": 0.07239214984703855
+    },
+    "tight": {
+     "snr_db": 43.435522038617385,
+     "silence_frac": 0.2541942581169289,
+     "spectral_flat": 0.24742034720960504,
+     "clip_rate": 0.0,
+     "rms_db": -22.011877319846253,
+     "rms_var": 0.07107957507604806
+    }
+   }
+  },
+  {
+   "tag": "narrator_dracula__audible_edition___b0078pa1oa__char9_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 55.08643636753701,
+     "silence_frac": 0.26414968277899553,
+     "spectral_flat": 0.2852464017318323,
+     "clip_rate": 0.0,
+     "rms_db": -22.728928105693754,
+     "rms_var": 0.0688451515259239
+    },
+    "tight": {
+     "snr_db": 56.05117581376303,
+     "silence_frac": 0.2567582734060455,
+     "spectral_flat": 0.2796643053121808,
+     "clip_rate": 0.0,
+     "rms_db": -22.671813211100787,
+     "rms_var": 0.0680168387101102
+    }
+   }
+  },
+  {
+   "tag": "narrator_emily_woo_zeller_red_winter__the_complete_trilogy___s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 70.48386889313774,
+     "silence_frac": 0.34155508689967784,
+     "spectral_flat": 0.3124393717641462,
+     "clip_rate": 0.0,
+     "rms_db": -27.234282823748956,
+     "rms_var": 0.04674468156478188
+    },
+    "tight": {
+     "snr_db": 67.80938719267941,
+     "silence_frac": 0.27904061305648903,
+     "spectral_flat": 0.27300405206904893,
+     "clip_rate": 0.0,
+     "rms_db": -26.115423158286134,
+     "rms_var": 0.04596289355638692
+    }
+   }
+  },
+  {
+   "tag": "narrator_hollie_jackson_seize_the_day__a_world_conquest_isek_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 64.53539305202641,
+     "silence_frac": 0.3136037617746339,
+     "spectral_flat": 0.3671734567543956,
+     "clip_rate": 0.0,
+     "rms_db": -22.7857756220729,
+     "rms_var": 0.06875832218187171
+    },
+    "tight": {
+     "snr_db": 63.275597429356964,
+     "silence_frac": 0.22523418155000513,
+     "spectral_flat": 0.3379499844778475,
+     "clip_rate": 0.0,
+     "rms_db": -21.812012506289793,
+     "rms_var": 0.06507420270150169
+    }
+   }
+  },
+  {
+   "tag": "narrator_j_michael_tatum_spice_and_wolf_vol__10_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 66.94924963619233,
+     "silence_frac": 0.31266692564458776,
+     "spectral_flat": 0.2599413136793147,
+     "clip_rate": 0.0,
+     "rms_db": -24.919178273902745,
+     "rms_var": 0.06536860066150554
+    },
+    "tight": {
+     "snr_db": 67.08604693585869,
+     "silence_frac": 0.29246536903564785,
+     "spectral_flat": 0.25127720587610336,
+     "clip_rate": 0.0,
+     "rms_db": -24.807056828690165,
+     "rms_var": 0.06623341255207195
+    }
+   }
+  },
+  {
+   "tag": "narrator_j_michael_tatum_spice_and_wolf_vol__10_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 66.0495092411025,
+     "silence_frac": 0.30420460293575197,
+     "spectral_flat": 0.2580275593255842,
+     "clip_rate": 0.0,
+     "rms_db": -25.235882406697648,
+     "rms_var": 0.06207500490578891
+    },
+    "tight": {
+     "snr_db": 66.57898295108032,
+     "silence_frac": 0.2912623753233411,
+     "spectral_flat": 0.2529414153899358,
+     "clip_rate": 0.0,
+     "rms_db": -25.252137673222105,
+     "rms_var": 0.06281268790784607
+    }
+   }
+  },
+  {
+   "tag": "narrator_jay_snyder_ex_heroes_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 58.490058107522636,
+     "silence_frac": 0.2871726694551586,
+     "spectral_flat": 0.20905478672871053,
+     "clip_rate": 0.0,
+     "rms_db": -25.475614022762628,
+     "rms_var": 0.0531805194812959
+    },
+    "tight": {
+     "snr_db": 58.15217318840851,
+     "silence_frac": 0.2590230138522363,
+     "spectral_flat": 0.20267034133753922,
+     "clip_rate": 0.0,
+     "rms_db": -25.69225191419804,
+     "rms_var": 0.0500284123284985
+    }
+   }
+  },
+  {
+   "tag": "narrator_jay_snyder_ex_heroes_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 58.39312605390024,
+     "silence_frac": 0.29332563400670886,
+     "spectral_flat": 0.20727153254825548,
+     "clip_rate": 0.0,
+     "rms_db": -25.119732378396158,
+     "rms_var": 0.05598136511048117
+    },
+    "tight": {
+     "snr_db": 56.10085216430944,
+     "silence_frac": 0.24889803500458751,
+     "spectral_flat": 0.19532263165522942,
+     "clip_rate": 0.0,
+     "rms_db": -25.213571796162928,
+     "rms_var": 0.05017075310844261
+    }
+   }
+  },
+  {
+   "tag": "narrator_john_lee_spellmonger__spellmonger_book_1__b01n264ee_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 58.137995875614756,
+     "silence_frac": 0.24684607265327094,
+     "spectral_flat": 0.2566082287923399,
+     "clip_rate": 0.0,
+     "rms_db": -21.591577313219222,
+     "rms_var": 0.07686981571602489
+    },
+    "tight": {
+     "snr_db": 57.829935103413625,
+     "silence_frac": 0.23313877791254373,
+     "spectral_flat": 0.25039652748884156,
+     "clip_rate": 0.0,
+     "rms_db": -21.52700386221886,
+     "rms_var": 0.07570476787293781
+    }
+   }
+  },
+  {
+   "tag": "narrator_jon_lindstrom_nightfall_and_other_stories__05934163_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 53.24803695997269,
+     "silence_frac": 0.2921190993807613,
+     "spectral_flat": 0.3456641864891172,
+     "clip_rate": 0.0,
+     "rms_db": -25.26186563227093,
+     "rms_var": 0.06228139861646834
+    },
+    "tight": {
+     "snr_db": 53.01436126896131,
+     "silence_frac": 0.25136386502540303,
+     "spectral_flat": 0.32563328438930034,
+     "clip_rate": 0.0,
+     "rms_db": -25.393756815990074,
+     "rms_var": 0.05760774963074957
+    }
+   }
+  },
+  {
+   "tag": "narrator_jot_davies_the_vagrant__b00vus19w4__char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 67.39513668660194,
+     "silence_frac": 0.35754868870190465,
+     "spectral_flat": 0.3027121569071023,
+     "clip_rate": 0.0,
+     "rms_db": -26.012701927848592,
+     "rms_var": 0.06199489268503897
+    },
+    "tight": {
+     "snr_db": 62.22139732617984,
+     "silence_frac": 0.32746924617255674,
+     "spectral_flat": 0.2739971408532685,
+     "clip_rate": 0.0,
+     "rms_db": -25.52749519746773,
+     "rms_var": 0.06188464172914927
+    }
+   }
+  },
+  {
+   "tag": "narrator_kate_reading_a_natural_history_of_dragons_char1_vol_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 39.82876391232546,
+     "silence_frac": 0.26783239181460766,
+     "spectral_flat": 0.1648434931660369,
+     "clip_rate": 0.0,
+     "rms_db": -23.365550516216413,
+     "rms_var": 0.057554935319622455
+    },
+    "tight": {
+     "snr_db": 38.963667307796314,
+     "silence_frac": 0.22390911061565233,
+     "spectral_flat": 0.16363240207532198,
+     "clip_rate": 0.0,
+     "rms_db": -23.132673083670902,
+     "rms_var": 0.05501643350665369
+    }
+   }
+  },
+  {
+   "tag": "narrator_keith_silverstein_kizumonogatari_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 41.3311102181389,
+     "silence_frac": 0.17199133669799713,
+     "spectral_flat": 0.23207335945414187,
+     "clip_rate": 0.0,
+     "rms_db": -25.256993137291232,
+     "rms_var": 0.05458275702573282
+    },
+    "tight": {
+     "snr_db": 32.573716457012246,
+     "silence_frac": 0.14047468226593612,
+     "spectral_flat": 0.20279521786406499,
+     "clip_rate": 0.0,
+     "rms_db": -26.0182907790804,
+     "rms_var": 0.04991686217356166
+    }
+   }
+  },
+  {
+   "tag": "narrator_keith_silverstein_kizumonogatari_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 40.34341157480392,
+     "silence_frac": 0.1925996355121975,
+     "spectral_flat": 0.2436620190783939,
+     "clip_rate": 0.0,
+     "rms_db": -26.30588725075966,
+     "rms_var": 0.05063025932171554
+    },
+    "tight": {
+     "snr_db": 38.773096342190684,
+     "silence_frac": 0.15993746089427066,
+     "spectral_flat": 0.23094940654608134,
+     "clip_rate": 0.0,
+     "rms_db": -24.863395208027857,
+     "rms_var": 0.055033931388492184
+    }
+   }
+  },
+  {
+   "tag": "narrator_kirby_heyborne_out_of_house_and_home__fred_the_vamp_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 45.71375766504677,
+     "silence_frac": 0.21079208208929762,
+     "spectral_flat": 0.27424671191179484,
+     "clip_rate": 0.0,
+     "rms_db": -24.804883874528,
+     "rms_var": 0.046040424051225784
+    },
+    "tight": {
+     "snr_db": 46.35721935336308,
+     "silence_frac": 0.2022466935251713,
+     "spectral_flat": 0.2719079621947501,
+     "clip_rate": 0.0,
+     "rms_db": -25.253973944139716,
+     "rms_var": 0.04373157550375691
+    }
+   }
+  },
+  {
+   "tag": "narrator_liam_price_the_archer_of_beast_woods_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 80.14453499312361,
+     "silence_frac": 0.3006812208461595,
+     "spectral_flat": 0.39690188797922826,
+     "clip_rate": 0.0,
+     "rms_db": -26.550494003562395,
+     "rms_var": 0.04687363573197271
+    },
+    "tight": {
+     "snr_db": 87.855337497082,
+     "silence_frac": 0.2869246530075073,
+     "spectral_flat": 0.3879538550322192,
+     "clip_rate": 0.0,
+     "rms_db": -26.32798253412284,
+     "rms_var": 0.047012186519224765
+    }
+   }
+  },
+  {
+   "tag": "narrator_luci_christian_full_metal_panic_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 73.8000862829012,
+     "silence_frac": 0.3133479613969046,
+     "spectral_flat": 0.31201108567886704,
+     "clip_rate": 0.0,
+     "rms_db": -23.672030674499727,
+     "rms_var": 0.06919055218235685
+    },
+    "tight": {
+     "snr_db": 92.01300311720462,
+     "silence_frac": 0.2916893310691211,
+     "spectral_flat": 0.3285782720533887,
+     "clip_rate": 0.0,
+     "rms_db": -23.38844488936813,
+     "rms_var": 0.06910261116787057
+    }
+   }
+  },
+  {
+   "tag": "narrator_mallorie_rodak_frieren__beyond_journey_s_end__prelu_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 58.542859941733795,
+     "silence_frac": 0.34299396484439054,
+     "spectral_flat": 0.3259554676930281,
+     "clip_rate": 0.0,
+     "rms_db": -22.993147449694984,
+     "rms_var": 0.0738383525241516
+    },
+    "tight": {
+     "snr_db": 59.08221138881067,
+     "silence_frac": 0.31647055357117343,
+     "spectral_flat": 0.305230421291124,
+     "clip_rate": 0.0,
+     "rms_db": -23.73047796605273,
+     "rms_var": 0.06508449059293948
+    }
+   }
+  },
+  {
+   "tag": "narrator_mare_trevathan_the_godking_s_legacy_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 93.88344017760846,
+     "silence_frac": 0.35671520771318715,
+     "spectral_flat": 0.3077077778322795,
+     "clip_rate": 0.0,
+     "rms_db": -24.513860253490588,
+     "rms_var": 0.0665389159559015
+    },
+    "tight": {
+     "snr_db": 95.71397470035045,
+     "silence_frac": 0.33116609901014776,
+     "spectral_flat": 0.2902561005103147,
+     "clip_rate": 0.0,
+     "rms_db": -24.400727106750526,
+     "rms_var": 0.06521294392922303
+    }
+   }
+  },
+  {
+   "tag": "narrator_michael_kramer_the_hero_of_ages_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 57.14278648807855,
+     "silence_frac": 0.3098349305254882,
+     "spectral_flat": 0.3118506251254984,
+     "clip_rate": 0.0,
+     "rms_db": -26.55760491026771,
+     "rms_var": 0.04912955319910669
+    },
+    "tight": {
+     "snr_db": 55.195415191962056,
+     "silence_frac": 0.26268719111099686,
+     "spectral_flat": 0.2865866239276271,
+     "clip_rate": 0.0,
+     "rms_db": -25.94978465915486,
+     "rms_var": 0.04890798196630526
+    }
+   }
+  },
+  {
+   "tag": "narrator_michael_page_house_of_chains_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 76.0286457794234,
+     "silence_frac": 0.20762329809830787,
+     "spectral_flat": 0.23259275117262776,
+     "clip_rate": 0.0,
+     "rms_db": -23.00766126956718,
+     "rms_var": 0.05641491838604219
+    },
+    "tight": {
+     "snr_db": 74.40422571199805,
+     "silence_frac": 0.1930609982529126,
+     "spectral_flat": 0.21860344174388766,
+     "clip_rate": 0.0,
+     "rms_db": -22.897063871104127,
+     "rms_var": 0.056009359170314924
+    }
+   }
+  },
+  {
+   "tag": "narrator_miranda_parkin_my_happy_marriage_vol__1_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 63.32487088478448,
+     "silence_frac": 0.3139543638387024,
+     "spectral_flat": 0.3077859293336115,
+     "clip_rate": 0.0,
+     "rms_db": -24.572178144501546,
+     "rms_var": 0.06616846164382946
+    },
+    "tight": {
+     "snr_db": 63.67609256162048,
+     "silence_frac": 0.29091480195058883,
+     "spectral_flat": 0.2936258373006526,
+     "clip_rate": 0.0,
+     "rms_db": -24.428668641902952,
+     "rms_var": 0.06454794585812715
+    }
+   }
+  },
+  {
+   "tag": "narrator_nick_podehl_super_sales_on_super_heroes_book_2__sup_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 68.48026449378077,
+     "silence_frac": 0.2631934867745613,
+     "spectral_flat": 0.2598987962456926,
+     "clip_rate": 0.0,
+     "rms_db": -22.567216351506406,
+     "rms_var": 0.06449513744850814
+    },
+    "tight": {
+     "snr_db": 70.17050605216419,
+     "silence_frac": 0.2635487027840975,
+     "spectral_flat": 0.24932551199934588,
+     "clip_rate": 0.0,
+     "rms_db": -21.99595627702762,
+     "rms_var": 0.06746864981370886
+    }
+   }
+  },
+  {
+   "tag": "narrator_peter_kenny_sword_of_destiny_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 73.64491831042139,
+     "silence_frac": 0.3372220262639208,
+     "spectral_flat": 0.38145059474922344,
+     "clip_rate": 0.0,
+     "rms_db": -24.648048618899693,
+     "rms_var": 0.0630712091177589
+    },
+    "tight": {
+     "snr_db": 75.66139890596526,
+     "silence_frac": 0.30244196282101476,
+     "spectral_flat": 0.360841203879038,
+     "clip_rate": 0.0,
+     "rms_db": -25.005708350614128,
+     "rms_var": 0.05800360183007671
+    }
+   }
+  },
+  {
+   "tag": "narrator_qarie_marshall_wolverine__road_of_bones__1662042051_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 76.94820262846287,
+     "silence_frac": 0.26497797883900376,
+     "spectral_flat": 0.4293708573936869,
+     "clip_rate": 0.0,
+     "rms_db": -22.83550110392768,
+     "rms_var": 0.0683196243499631
+    },
+    "tight": {
+     "snr_db": 69.5240054122358,
+     "silence_frac": 0.22006570386653074,
+     "spectral_flat": 0.39580088067898844,
+     "clip_rate": 0.0,
+     "rms_db": -22.166141257725613,
+     "rms_var": 0.06873313571438007
+    }
+   }
+  },
+  {
+   "tag": "narrator_ralph_lister_gardens_of_the_moon_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 80.66102975646156,
+     "silence_frac": 0.3654306985526051,
+     "spectral_flat": 0.4479359603736011,
+     "clip_rate": 0.0,
+     "rms_db": -22.066998647073294,
+     "rms_var": 0.0895736158755014
+    },
+    "tight": {
+     "snr_db": 85.9022516434097,
+     "silence_frac": 0.3502352346208793,
+     "spectral_flat": 0.4466198981619745,
+     "clip_rate": 0.0,
+     "rms_db": -21.85362097677358,
+     "rms_var": 0.08770604179233413
+    }
+   }
+  },
+  {
+   "tag": "narrator_rc_bray_lost_gods_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 53.28358113461966,
+     "silence_frac": 0.3750791052723869,
+     "spectral_flat": 0.23978105295231145,
+     "clip_rate": 0.0,
+     "rms_db": -25.721195041397486,
+     "rms_var": 0.060220797908454256
+    },
+    "tight": {
+     "snr_db": 52.52807673456777,
+     "silence_frac": 0.29210135738781673,
+     "spectral_flat": 0.21529303171697464,
+     "clip_rate": 0.0,
+     "rms_db": -24.560808814774035,
+     "rms_var": 0.058182240075863485
+    }
+   }
+  },
+  {
+   "tag": "narrator_reba_buhr_ascendance_of_a_bookworm___1_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 95.65344474956879,
+     "silence_frac": 0.2671671721809606,
+     "spectral_flat": 0.44217669927127273,
+     "clip_rate": 0.0,
+     "rms_db": -25.928359088328836,
+     "rms_var": 0.04330631690644002
+    },
+    "tight": {
+     "snr_db": 100.65947573377697,
+     "silence_frac": 0.25396183574907377,
+     "spectral_flat": 0.4351240676574011,
+     "clip_rate": 0.0,
+     "rms_db": -25.519211284795606,
+     "rms_var": 0.0440539312904044
+    }
+   }
+  },
+  {
+   "tag": "narrator_robert_west_damsels_of_jormia_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 99.9639490965291,
+     "silence_frac": 0.2505043457053363,
+     "spectral_flat": 0.39470947219537655,
+     "clip_rate": 0.0,
+     "rms_db": -22.53090946122307,
+     "rms_var": 0.06258691334442423
+    },
+    "tight": {
+     "snr_db": 100.17402495195762,
+     "silence_frac": 0.2563550086726676,
+     "spectral_flat": 0.3955572639197387,
+     "clip_rate": 0.0,
+     "rms_db": -22.958344356937655,
+     "rms_var": 0.05826136756219784
+    }
+   }
+  },
+  {
+   "tag": "narrator_scott_brick_foundation_s_edge__b005wl4r7e__char1_vo_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 39.470878445739274,
+     "silence_frac": 0.22947799390593027,
+     "spectral_flat": 0.2701361176600788,
+     "clip_rate": 0.0,
+     "rms_db": -23.718662855548214,
+     "rms_var": 0.0557728090945592
+    },
+    "tight": {
+     "snr_db": 39.233612456446835,
+     "silence_frac": 0.2000262507167054,
+     "spectral_flat": 0.2644650256123001,
+     "clip_rate": 0.0,
+     "rms_db": -23.3888328780606,
+     "rms_var": 0.05387161447169108
+    }
+   }
+  },
+  {
+   "tag": "narrator_scott_brick_foundation_s_edge__b005wl4r7e__char2_vo_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 39.83852996423935,
+     "silence_frac": 0.23483782223157998,
+     "spectral_flat": 0.2725648741152075,
+     "clip_rate": 0.0,
+     "rms_db": -23.724488642812943,
+     "rms_var": 0.05564813471986118
+    },
+    "tight": {
+     "snr_db": 38.02037376635301,
+     "silence_frac": 0.19724973612527483,
+     "spectral_flat": 0.25921836333891113,
+     "clip_rate": 0.0,
+     "rms_db": -23.34150097932183,
+     "rms_var": 0.0534221142271272
+    }
+   }
+  },
+  {
+   "tag": "narrator_shiromi_arserio_the_jasmine_throne__154910487x__cha_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 70.71016034179715,
+     "silence_frac": 0.3904912877138055,
+     "spectral_flat": 0.3991729143217073,
+     "clip_rate": 0.0,
+     "rms_db": -22.981573960370728,
+     "rms_var": 0.07842170462750507
+    },
+    "tight": {
+     "snr_db": 73.20423244816291,
+     "silence_frac": 0.36595758570850684,
+     "spectral_flat": 0.3870841064951332,
+     "clip_rate": 0.0,
+     "rms_db": -22.614818532950697,
+     "rms_var": 0.0765736272426641
+    }
+   }
+  },
+  {
+   "tag": "narrator_simon_vance_the_blinding_knife__b0096gj7g2__char1_v_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 86.24864130804043,
+     "silence_frac": 0.28984096152105493,
+     "spectral_flat": 0.34812125513669556,
+     "clip_rate": 0.0,
+     "rms_db": -23.914936223555657,
+     "rms_var": 0.06260683254274202
+    },
+    "tight": {
+     "snr_db": 95.19403454315068,
+     "silence_frac": 0.27641876627042883,
+     "spectral_flat": 0.346634190288301,
+     "clip_rate": 0.0,
+     "rms_db": -23.62752442598455,
+     "rms_var": 0.06242416574374534
+    }
+   }
+  },
+  {
+   "tag": "narrator_steven_pacey_the_blade_itself_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 76.7277628624489,
+     "silence_frac": 0.2835122940560699,
+     "spectral_flat": 0.3282241543191189,
+     "clip_rate": 0.0,
+     "rms_db": -22.797913367457298,
+     "rms_var": 0.07193649919569556
+    },
+    "tight": {
+     "snr_db": 83.39946180987724,
+     "silence_frac": 0.28658837700547396,
+     "spectral_flat": 0.3229483073129876,
+     "clip_rate": 0.0,
+     "rms_db": -23.391731389133096,
+     "rms_var": 0.0676198159692817
+    }
+   }
+  },
+  {
+   "tag": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_c_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 59.67011148530738,
+     "silence_frac": 0.39472311725109704,
+     "spectral_flat": 0.3311509886861992,
+     "clip_rate": 0.0,
+     "rms_db": -22.3914471121694,
+     "rms_var": 0.08724683209212064
+    },
+    "tight": {
+     "snr_db": 58.18138433546009,
+     "silence_frac": 0.3553342517925442,
+     "spectral_flat": 0.31914182196236385,
+     "clip_rate": 0.0,
+     "rms_db": -22.062099476912046,
+     "rms_var": 0.08691030647535711
+    }
+   }
+  },
+  {
+   "tag": "narrator_suzie_yeung_stephen_fu_86__char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 71.4347900290418,
+     "silence_frac": 0.2858357524899527,
+     "spectral_flat": 0.42146469080000976,
+     "clip_rate": 0.0,
+     "rms_db": -21.838768540764487,
+     "rms_var": 0.07856123984024938
+    },
+    "tight": {
+     "snr_db": 67.3903085707462,
+     "silence_frac": 0.24930012582726654,
+     "spectral_flat": 0.39811852883527626,
+     "clip_rate": 0.0,
+     "rms_db": -21.6156511658842,
+     "rms_var": 0.07555947169181486
+    }
+   }
+  },
+  {
+   "tag": "narrator_suzie_yeung_stephen_fu_86__char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 71.00544393410763,
+     "silence_frac": 0.2873363450802165,
+     "spectral_flat": 0.4014710274779829,
+     "clip_rate": 0.0,
+     "rms_db": -21.644808494922096,
+     "rms_var": 0.08065492511285527
+    },
+    "tight": {
+     "snr_db": 72.67407719811627,
+     "silence_frac": 0.256701939717781,
+     "spectral_flat": 0.3760525262435431,
+     "clip_rate": 0.0,
+     "rms_db": -21.536965490817643,
+     "rms_var": 0.07673270343054418
+    }
+   }
+  },
+  {
+   "tag": "narrator_suzy_jackson_skyward_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 62.651949720436484,
+     "silence_frac": 0.30466549499715473,
+     "spectral_flat": 0.3510432221825318,
+     "clip_rate": 0.0,
+     "rms_db": -23.963670098009647,
+     "rms_var": 0.06261576147202028
+    },
+    "tight": {
+     "snr_db": 63.392969941685,
+     "silence_frac": 0.2741069889163128,
+     "spectral_flat": 0.3504062789226327,
+     "clip_rate": 0.0,
+     "rms_db": -24.00151889507576,
+     "rms_var": 0.05905448053139702
+    }
+   }
+  },
+  {
+   "tag": "narrator_suzy_jackson_skyward_char2_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 63.947095051849395,
+     "silence_frac": 0.3149572757308446,
+     "spectral_flat": 0.3547894315600871,
+     "clip_rate": 0.0,
+     "rms_db": -24.096714093284813,
+     "rms_var": 0.06271969741857922
+    },
+    "tight": {
+     "snr_db": 62.43445558779663,
+     "silence_frac": 0.2805768054731094,
+     "spectral_flat": 0.3397806049935711,
+     "clip_rate": 0.0,
+     "rms_db": -24.218897600894323,
+     "rms_var": 0.05774543919481171
+    }
+   }
+  },
+  {
+   "tag": "narrator_tara_sands_shorefall__a_novel__0593148053__char1_vo_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 55.92800369233055,
+     "silence_frac": 0.3206029170275106,
+     "spectral_flat": 0.3274713785184476,
+     "clip_rate": 0.0,
+     "rms_db": -28.070565297501588,
+     "rms_var": 0.043917759871009474
+    },
+    "tight": {
+     "snr_db": 57.648725151216794,
+     "silence_frac": 0.27769340612980564,
+     "spectral_flat": 0.3136570289664098,
+     "clip_rate": 0.0,
+     "rms_db": -26.621197014932967,
+     "rms_var": 0.0454400629029688
+    }
+   }
+  },
+  {
+   "tag": "narrator_tim_gerard_reynolds_age_of_war_char1_vol01_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 69.46020075931294,
+     "silence_frac": 0.3993242221838499,
+     "spectral_flat": 0.24505709250535151,
+     "clip_rate": 0.0,
+     "rms_db": -25.686955263632747,
+     "rms_var": 0.05941171201574354
+    },
+    "tight": {
+     "snr_db": 69.96191836336469,
+     "silence_frac": 0.382461494693162,
+     "spectral_flat": 0.24180891961515727,
+     "clip_rate": 0.0,
+     "rms_db": -25.8209213946024,
+     "rms_var": 0.05713260178138799
+    }
+   }
+  },
+  {
+   "tag": "narrator_todd_mclaren_altered_carbon__b002v1o6x8__char1_vol0_s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 43.119005849721994,
+     "silence_frac": 0.32037228877032764,
+     "spectral_flat": 0.11820388596139747,
+     "clip_rate": 0.0,
+     "rms_db": -24.46496575859208,
+     "rms_var": 0.060697180393843544
+    },
+    "tight": {
+     "snr_db": 40.52182996076173,
+     "silence_frac": 0.25179088863875804,
+     "spectral_flat": 0.10982861803580246,
+     "clip_rate": 0.0,
+     "rms_db": -23.551023148514535,
+     "rms_var": 0.059724882868756844
+    }
+   }
+  },
+  {
+   "tag": "narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905",
+   "clips": {
+    "control": 40,
+    "tight": 40
+   },
+   "arms": {
+    "control": {
+     "snr_db": 60.282498012699705,
+     "silence_frac": 0.3487782714231558,
+     "spectral_flat": 0.3482812870450534,
+     "clip_rate": 0.0,
+     "rms_db": -23.523955215322204,
+     "rms_var": 0.06893971670317442
+    },
+    "tight": {
+     "snr_db": 60.329024911119575,
+     "silence_frac": 0.3035425402488124,
+     "spectral_flat": 0.32773368442717676,
+     "clip_rate": 0.0,
+     "rms_db": -23.00868437553973,
+     "rms_var": 0.06656230340753161
+    }
+   }
+  }
+ ],
+ "comparison": {
+  "snr_db": {
+   "mean_control": 63.87402251725141,
+   "mean_tight": 64.657040990507,
+   "mean_delta": 0.7830184732555927,
+   "wins": 32,
+   "n": 58,
+   "p": 0.3508442704219381
+  },
+  "silence_frac": {
+   "mean_control": 0.2986628816066292,
+   "mean_tight": 0.27037913855132323,
+   "mean_delta": -0.028283743055305958,
+   "wins": 5,
+   "n": 58,
+   "p": 7.644049396171772e-11
+  },
+  "spectral_flat": {
+   "mean_control": 0.32069488620248326,
+   "mean_tight": 0.3079255200361543,
+   "mean_delta": -0.012769366166328917,
+   "wins": 7,
+   "n": 58,
+   "p": 4.094906583000348e-09
+  },
+  "rms_db": {
+   "mean_control": -24.022029556445727,
+   "mean_tight": -23.763474736070545,
+   "mean_delta": 0.25855482037518174,
+   "wins": 43,
+   "n": 58,
+   "p": 0.00018720644949737363
+  },
+  "rms_var": {
+   "mean_control": 0.06405995709739565,
+   "mean_tight": 0.06260080855524816,
+   "mean_delta": -0.001459148542147478,
+   "wins": 11,
+   "n": 58,
+   "p": 6.252676231284427e-06
+  }
+ },
+ "provenance": {
+  "script": "arm_audio_statistics.py",
+  "written": "2026-09-05T10:59:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "4676163a36f26506e86a84603c166f3807c72ec5",
+   "branch": "agent/tightness-vs-audio-quality-20260905",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/arm_audio_statistics.py"
+   ],
+   "harness_sha256": "f7006de4adb393a0d7c6cb96d6ccfed18eb2da0255c28e2457e78d57f402e7e6"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}
