@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1406 artifacts, 1429 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1407 artifacts, 1429 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2420,6 +2420,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `second_english__warm_baritone_30s_m_1_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_30s_m_scifi_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_50s_m_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `second_rater_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `seed_instruction_controls.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `segmentation_classifier.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `selection_gap_recheck.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

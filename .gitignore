@@ -259,3 +259,4 @@ ab_test_runtime/tight_rebuild_newly_exposed/
 ab_test_runtime/guarded_holdout/
 ab_test_runtime/guarded_regate_all/
 ab_test_runtime/adapter_listening_package/
+ab_test_runtime/second_rater_package/
