@@ -1,0 +1,31 @@
+{
+ "adapter": "../pinokio/api/alexandria-audiobook2.git/lora_models/warm_alto_50s_f_anime",
+ "median_ecapa": 0.6411,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6411)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T20:21:25",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1c61b99fb6f0d58c30a570b29680fd0acbe54eb7",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "49597fe00b76bd268f50ae3de5a54d48390c147e9a8921bfc41004dd98e949d0"
+  },
+  "args": {
+   "adapter": "warm_alto_50s_f_anime",
+   "dataset": "ab_test_runtime/regate_voicefiltered/warm_alto_50s_f_anime",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/regate_vf__warm_alto_50s_f_anime.json"
+  },
+  "seed": 1234
+ }
+}

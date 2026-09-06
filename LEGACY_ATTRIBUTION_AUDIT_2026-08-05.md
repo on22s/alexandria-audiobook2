@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 193 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 195 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 111
+- `exploratory`: 113
 - `historical_only`: 30
 - `provisional`: 13
 - `supported_measurement`: 39
@@ -191,7 +191,9 @@ All 193 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
 | `two_stage_attribution_riqua.json` | two_stage_attribution | supported_measurement | 1287 | None | None | False |  |
+| `two_stage_attribution_w16000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
+| `two_stage_attribution_w8000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021.json` | two_stage_attribution | exploratory | 380 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021_train.json` | two_stage_attribution | exploratory | 200 | None | None | False | recorded commit is unavailable from current history |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | exploratory | 1200 | 30 | 12 | False | saved summary differs from row recomputation |
