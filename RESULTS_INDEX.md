@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1398 artifacts, 1399 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1404 artifacts, 1429 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -337,8 +337,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 60.2% | exploratory | ok | False | 6468.8s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 6254.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 6444.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12633.8s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12249.7s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12328.6s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12852.6s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12125.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 11630.4s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 88 | 61.4% | exploratory | ok | False | 12965.7s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 6678.2s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 67.0% | exploratory | ok | False | 6705.1s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 6666.3s |
@@ -350,8 +355,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 6468.8s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 6254.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 63.6% | exploratory | ok | False | 6444.9s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 69.3% | exploratory | ok | False | 12633.8s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 70.5% | exploratory | ok | False | 12249.7s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 68.2% | exploratory | ok | False | 12328.6s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 69.3% | exploratory | ok | False | 12852.6s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 73.9% | exploratory | ok | False | 12125.9s |
 | index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 72.7% | exploratory | ok | False | 11630.4s |
+| index18 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 88 | 67.0% | exploratory | ok | False | 12965.7s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 41016.0s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 3116.6s |
 | index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 46972.6s |
@@ -466,12 +476,22 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 92 | 75.0% | exploratory | ok | False | 50138.1s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.1% | exploratory | ok | False | 7319.4s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 52.6% | exploratory | ok | False | 14029.3s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12633.8s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12249.7s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12328.6s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12852.6s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12125.9s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 11630.4s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 133 | 51.9% | exploratory | ok | False | 12965.7s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 59.4% | exploratory | ok | False | 7319.4s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 58.6% | exploratory | ok | False | 14029.3s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 51.1% | exploratory | ok | False | 12633.8s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 54.9% | exploratory | ok | False | 12249.7s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 50.4% | exploratory | ok | False | 12328.6s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 52.6% | exploratory | ok | False | 12852.6s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 54.1% | exploratory | ok | False | 12125.9s |
 | mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 57.1% | exploratory | ok | False | 11630.4s |
+| mushoku16 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 133 | 49.6% | exploratory | ok | False | 12965.7s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6359.1s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6184.2s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | supported_measurement | ok | False | 6444.6s |
@@ -580,12 +600,22 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 62.4% | exploratory | ok | False | 50138.1s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 39.5% | exploratory | ok | False | 26607.3s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 33318.2s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12633.8s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12249.7s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12328.6s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12852.6s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12125.9s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 11630.4s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | exploratory | ok | False | 12965.7s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 42.0% | exploratory | ok | False | 26607.3s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 51.2% | exploratory | ok | False | 33318.2s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 38.3% | exploratory | ok | False | 12633.8s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 41.4% | exploratory | ok | False | 12249.7s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 41.4% | exploratory | ok | False | 12328.6s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 43.8% | exploratory | ok | False | 12852.6s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 35.2% | exploratory | ok | False | 12125.9s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 31.5% | exploratory | ok | False | 11630.4s |
+| owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 36.4% | exploratory | ok | False | 12965.7s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16551.1s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 15970.8s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16038.1s |
@@ -1661,6 +1691,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `baseline_heldout__warm_baritone_30s_m_scifi.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `blinded_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `blinded_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `candidate_restriction.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `candidate_scoring_feasibility.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `candidate_scoring_feasibility__endpoint.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cascade_state__grimgar03__a6000-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

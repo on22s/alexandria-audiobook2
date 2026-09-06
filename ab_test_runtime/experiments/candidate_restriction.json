@@ -1,0 +1,45 @@
+{
+ "note": "What each candidate-restriction rule costs in RECALL, measured offline before any LLM run. A speaker who falls out of the candidate set cannot be recovered by better selection.",
+ "why": "arXiv 2307.03734 reports 0.40 end-to-end against 0.78 once candidates are restricted to coreference-resolved mentions - the largest method effect in external_comparability.json. This asks what the same idea costs here, using name matching rather than a coreference model.",
+ "quotes": 2494,
+ "rules": [
+  {
+   "rule": "full roster (what runs today)",
+   "median_candidates": 74.0,
+   "recall": 1.0
+  },
+  {
+   "rule": "named anywhere in the book",
+   "median_candidates": 61.0,
+   "recall": 1.0
+  },
+  {
+   "rule": "named in this quote's own context",
+   "median_candidates": 8.0,
+   "recall": 0.9274
+  }
+ ],
+ "current_accuracy_full_roster": 0.656,
+ "break_even_accuracy_on_retained_rows": 0.7073,
+ "limitations": [
+  "Three PDNC books, 2,494 quotes. English only.",
+  "Name matching, not coreference: a speaker referred to only by pronoun in the window is dropped, which is most of the 7.3 points lost.",
+  "Recall is an upper bound on what restriction can achieve, not a prediction that selection improves at all."
+ ],
+ "provenance": {
+  "script": "candidate_restriction.py",
+  "written": "2026-09-06T11:59:51",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "6f3812227217994f34b4d7bbf8409748265157e6d3a408413ed1056fa2ee0099"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

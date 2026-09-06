@@ -24,17 +24,23 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 5,
+   "cited": 6,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "supported_structure": 1,
+    "supported_structure": 2,
     "provisional": 4
    },
    "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "candidate_restriction.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "57bd23a3"
+    },
     {
      "name": "external_comparability.json",
      "classification": "supported_structure",

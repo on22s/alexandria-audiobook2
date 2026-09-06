@@ -235,6 +235,87 @@ change, and it points at exactly what
 selection is. It is the first externally-supported lead this goal has had that
 is not already known to fail.
 
+#### Restricting the candidate set: 74 names to 8, for 7.3 points of recall — 2026-09-06
+
+The surviving lead from that comparison is a candidate-SET change, so the first
+question is what narrowing COSTS. A speaker who falls out of the set cannot be
+recovered by better selection, and that ceiling is measurable offline without
+spending a single LLM call:
+
+| rule | median candidates | recall |
+|---|---|---|
+| full roster (what runs today) | 74 | 100.0% |
+| named anywhere in the book | 61 | 100.0% |
+| **named in this quote's own context** | **8** | **92.7%** |
+
+A **9x** reduction in the choice space for **7.3 points** of recall. The roster
+carries 74 characters where only 27 ever speak, so most of what is being
+offered is people who are never the answer.
+
+**The threshold is registered before the run.** Today's arm reads 0.656 over
+these 2,494 rows with all 74 candidates offered. The restricted run only wins
+if it picks correctly on more than **70.7%** of the rows it retains — that is
+0.656 divided by the 92.7% recall, and it is what the comparison must beat to
+mean anything.
+
+**This does not predict that selection improves.** Recall is a ceiling, not a
+forecast: a smaller list with the answer still in it is a necessary condition
+for the intervention to work and not a sufficient one. What makes it worth
+running is that [[attribution_selection_not_recall]] already measured the
+failure as selection rather than supply — the roster holds the right name and
+the model does not pick it — and this is the only lever the literature credits
+that we have not tried.
+
+**A first version of this measurement reported 7.3 points as 84.5**, because it
+keyed alias groups on `group[0]`, which `roster_lines`' own docstring warns is
+NOT the canonical name — so `expected_speaker` never matched and the rule
+looked unusable. It was reported as a dead end before it was checked against
+the resolution the pipeline actually uses. [[Rule 21]] again, and the cheapest
+possible instance of it: the correct number was one function call away.
+
+**Evidence** — `candidate_restriction.json`.
+
+#### An unanswered row is not a wrong one, and it was hiding the rank effect — 2026-09-06
+
+The rank ladder was read from raw accuracy, which scores a row the model left
+blank as a row it got wrong. Between 26 and 52 of 383 rows per run are blank,
+and separating the two changes both the size and the stability of the effect:
+
+| rank | seed | Δ raw | blanks | Δ conditional |
+|---|---|---|---|---|
+| r8 | 20260904 | +2.1 | 26 | +1.2 |
+| r8 | 20260905 | +1.3 | 30 | +1.0 |
+| r8 | 20260906 | −0.5 | 30 | −1.0 |
+| r16 | 20260904 | +1.3 | 43 | +3.0 |
+| r16 | 20260905 | +4.2 | 29 | +3.9 |
+| r16 | 20260906 | +2.1 | 36 | +2.8 |
+| r32 | 20260904 | +4.2 | 52 | **+7.9** |
+
+**The seed sensitivity was mostly compliance noise.** r16 reads +1.3 / +4.2 /
++2.1 raw — a three-point swing that looked like instability and prompted a
+third seed. Conditionally it reads **+3.0 / +3.9 / +2.8**, a third of the
+spread, from the same three runs. A dose-response also appears that the raw
+numbers do not show: r8 about 0, r16 about +3, r32 about +8.
+
+**And the r32-vs-r16 comparison changes verdict.** On the shared seed:
+
+    raw, blanks scored wrong        +26/-15   +2.87 pts   p = 0.117
+    rows both models answered       +24/-10   +4.29 pts   p = 0.024
+
+**The obvious confound was tested and does not hold.** If r32 were declining
+the hard rows, conditioning would flatter it — but the base model scores
+**50.0%** on the 14 rows r32 left blank against **48.6%** across all 383, so
+they are of average difficulty. r16 scored 35.7% on them, so r32 is skipping
+rows r16 mostly got wrong anyway.
+
+So rank 32 is better at attribution AND worse at answering, and pooling the two
+into one number cost the comparison its significance. **r32 remains a single
+seed**; the ordering is suggestive, not settled. The 52 blanks (13.6%) are a
+decoding or prompt-format defect with its own fix, and are the same class of
+thing the artifact guard now refuses to record as a score.
+
+**Evidence** — `distill_eval__rank-seed-control-{r8,r16,r32}-seed*.json`.
+
 **Evidence** — `external_comparability.json`; arXiv 2608.02359, 2307.03734,
 2406.11380.
 
