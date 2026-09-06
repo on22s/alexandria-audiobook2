@@ -467,11 +467,32 @@ def main():
     # against a list of {gold_path, sha256, lines}. Two answers to one question
     # is the drift Rule 15 exists to stop, and neither side's tests could see
     # the other. One hashing path, in the class every experiment shares.
+    # A BOOK NAMED TWICE IS SCORED TWICE AND WEIGHTED TWICE. An overnight
+    # command on tnr-0 read
+    #   --books grimgar03 index18 mushoku16 owarimonogatari3 grimgar03
+    # and nothing here noticed. grimgar03 carries 385 of the 772 scoreable
+    # lines - about as many as the other three combined - so counting it twice
+    # would have made the pooled accuracy close to grimgar03's own, while the
+    # artifact still named four books. Refuse: a repeated book is a typo every
+    # time, never an intent, and silently deduplicating would hide the typo
+    # from whoever wrote it.
+    dupes = sorted({b for b in args.books if args.books.count(b) > 1})
+    if dupes:
+        sys.exit(f"--books names {', '.join(dupes)} more than once. A book "
+                 f"scored twice is weighted twice in the pooled totals; fix "
+                 f"the command rather than the numbers.")
+    # WHAT WAS ACTUALLY SCORED, recorded from the argument rather than left to
+    # the free-text notes. Every artifact from 2026-09-01 and -09-04 carries a
+    # note saying "scored on four gold books" and scored three: the note is
+    # prose copied between runs, and gold_files - which was correct - is easy
+    # to miss beside it. This field cannot drift from the loop below.
+    record.meta["books_requested"] = list(args.books)
     record.meta["gold_population"] = {}
     record.meta["generation_diagnostics"] = []
 
     totals = {"base": [0, 0], "tuned": [0, 0]}
     per_book, answers = {}, {"base": {}, "tuned": {}}
+    record.meta["books_scored"] = []
     for book in args.books:
         gold, src, seg, roster, want, exclusions = load_book(
             book, args.input_dir, args.checkpoint_dir)
@@ -486,6 +507,7 @@ def main():
                    for s in range(0, len(seg), BATCH)]
         windows = [w for w in windows
                    if any(norm(seg[i].get("text")) in want for i in w)]
+        record.meta["books_scored"].append(book)
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "
               f"{len(windows)} windows", flush=True)
         for arm in ("base", "tuned"):

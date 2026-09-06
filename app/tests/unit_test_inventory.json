@@ -819,6 +819,13 @@
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_both_implementations_exclude_the_artifact_tree",
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_without_the_exclusion_an_artifact_makes_the_tree_dirty"
   ],
+  "test_distill_eval_books": [
+    "tests.test_distill_eval_books.BookArgumentTests.test_duplicate_books_are_refused_not_deduplicated",
+    "tests.test_distill_eval_books.BookArgumentTests.test_every_default_book_has_a_gold_fixture",
+    "tests.test_distill_eval_books.BookArgumentTests.test_grimgar03_is_the_largest_and_so_the_costliest_to_drop",
+    "tests.test_distill_eval_books.BookArgumentTests.test_the_default_covers_all_four_gold_books",
+    "tests.test_distill_eval_books.BookArgumentTests.test_what_was_scored_is_recorded_as_data"
+  ],
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_classifier_accounts_for_every_excluded_gold_entry",
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
