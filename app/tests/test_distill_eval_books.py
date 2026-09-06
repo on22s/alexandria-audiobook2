@@ -61,13 +61,34 @@ class BookArgumentTests(unittest.TestCase):
                            "combined; if not, the weighting argument changes")
 
     def test_duplicate_books_are_refused_not_deduplicated(self):
-        """Silently deduplicating would hide the typo from whoever wrote it."""
-        import experiments.distill_eval as m
-        src = open(m.__file__, encoding="utf-8").read()
-        self.assertIn("names {', '.join(dupes)} more than once", src,
-                      "the duplicate check must refuse and name the books")
-        self.assertIn("weighted twice", src,
+        """Silently deduplicating would hide the typo from whoever wrote it.
+
+        THIS TEST USED TO GREP THE SOURCE for the refusal's wording, which
+        passes whether or not the refusal is reachable - if the block were
+        wrapped in `if False`, or never called from main, the assertion would
+        still hold. It was committed in a change whose whole subject was
+        guards. The refusal is now a function and this calls it.
+        """
+        from experiments.distill_eval import reject_duplicate_books
+        with self.assertRaises(SystemExit) as ctx:
+            reject_duplicate_books(["grimgar03", "index18", "grimgar03"])
+        message = str(ctx.exception)
+        self.assertIn("grimgar03", message, "the refusal must name the book")
+        self.assertIn("weighted twice", message,
                       "the refusal must say why a repeat matters")
+
+    def test_every_book_named_once_is_accepted(self):
+        """The accepting control: a guard that rejects everything is no guard."""
+        from experiments.distill_eval import reject_duplicate_books
+        books = ["grimgar03", "index18", "mushoku16", "owarimonogatari3"]
+        self.assertEqual(books, reject_duplicate_books(books))
+
+    def test_three_copies_are_refused_and_named_once(self):
+        from experiments.distill_eval import reject_duplicate_books
+        with self.assertRaises(SystemExit) as ctx:
+            reject_duplicate_books(["a", "a", "a", "b"])
+        self.assertEqual(1, str(ctx.exception).count("a more than once"),
+                         "a book repeated three times is still one problem")
 
     def test_what_was_scored_is_recorded_as_data(self):
         import experiments.distill_eval as m

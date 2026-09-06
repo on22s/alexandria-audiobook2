@@ -55,40 +55,11 @@ EPOCHS=6; LR=1e-06; RANK=64; ALPHA=128; ACC=8
 N=100; FULL_N=200; HELD=20; SEED=20260905
 
 # Refuse the adapter if any held-out clip is in the half arm's training set.
-#
-# KEYED ON (source_volume, text), NOT ON THE FILENAME. A first version compared
-# basenames and was silently incapable of ever firing: every split renumbers
-# from zero, so held-out clips are val_0000.wav.. while training clips are
-# train_0000.wav.., and the same clip in both splits carries two different
-# names. It reported CLEAN on a file compared against itself. It is now checked
-# against three cases with known answers before being trusted - train/val
-# CLEAN, val/val LEAK 20 of 20, control-train/val CLEAN.
+# The logic lives in app/experiments/holdout_leak.py so a test can call it; it
+# used to be inline here, where nothing could, and its first version compared
+# basenames and could never fire.
 leaks () {
-    "$PY" - "$1" "$2" <<'PYEOF'
-import json, sys
-def keys(p):
-    out = set()
-    with open(p, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
-            text = (row.get("text") or "").strip()
-            if text:
-                out.add((row.get("source_volume") or "", text))
-    return out
-train, val = keys(sys.argv[1]), keys(sys.argv[2])
-if not train or not val:
-    print("UNREADABLE")
-    raise SystemExit(2)
-both = train & val
-print("LEAK %d of %d" % (len(both), len(val)) if both else "CLEAN")
-raise SystemExit(1 if both else 0)
-PYEOF
+    "$PY" -u app/experiments/holdout_leak.py "$1" "$2"
 }
 
 while IFS=$'\t' read -r name zip book; do

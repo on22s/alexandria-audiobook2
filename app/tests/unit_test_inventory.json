@@ -827,9 +827,11 @@
   ],
   "test_distill_eval_books": [
     "tests.test_distill_eval_books.BookArgumentTests.test_duplicate_books_are_refused_not_deduplicated",
+    "tests.test_distill_eval_books.BookArgumentTests.test_every_book_named_once_is_accepted",
     "tests.test_distill_eval_books.BookArgumentTests.test_every_default_book_has_a_gold_fixture",
     "tests.test_distill_eval_books.BookArgumentTests.test_grimgar03_is_the_largest_and_so_the_costliest_to_drop",
     "tests.test_distill_eval_books.BookArgumentTests.test_the_default_covers_all_four_gold_books",
+    "tests.test_distill_eval_books.BookArgumentTests.test_three_copies_are_refused_and_named_once",
     "tests.test_distill_eval_books.BookArgumentTests.test_what_was_scored_is_recorded_as_data"
   ],
   "test_distill_eval_shim": [
@@ -1444,6 +1446,14 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_falls_back_to_rocm_smi",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
+  ],
+  "test_holdout_leak": [
+    "tests.test_holdout_leak.HoldoutLeak.test_a_file_against_itself_is_a_total_leak",
+    "tests.test_holdout_leak.HoldoutLeak.test_an_empty_side_refuses_rather_than_reporting_clean",
+    "tests.test_holdout_leak.HoldoutLeak.test_disjoint_splits_are_clean",
+    "tests.test_holdout_leak.HoldoutLeak.test_filenames_are_not_part_of_the_identity",
+    "tests.test_holdout_leak.HoldoutLeak.test_one_shared_clip_is_caught_despite_different_filenames",
+    "tests.test_holdout_leak.HoldoutLeak.test_same_text_in_a_different_volume_is_not_a_leak"
   ],
   "test_homograph_probe": [
     "tests.test_homograph_probe.HomographItemTests.test_a_pair_is_never_adjacent",
