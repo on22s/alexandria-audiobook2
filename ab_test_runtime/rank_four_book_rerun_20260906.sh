@@ -9,11 +9,21 @@
 #     seed 20260904   r32 beat r16 by +2.87   p=0.117
 #     seed 20260905   r32 LOST to r16 by -1.04
 #
-# THE CAUSE WAS A MISSING FILE, NOT A FLAG. tnr-3 was the only box in the fleet
-# without grimgar03's three-pass checkpoint - it had the input text and not the
-# checkpoint the evaluator needs - so every run there silently covered three
-# books. The file is 1.6 MB and has been copied. Nothing about the command was
-# ever wrong, which is why nobody found it by reading the chains.
+# THE CAUSE, diagnosed on 2026-09-05 in g3smoke.sh and not by me: grimgar03's
+# INPUT TEXT was never shipped to the cloud boxes. The gold fixture - 396 rows,
+# the largest of the four - was on every box all along, so 25 chain scripts
+# hardcode `--books index18 mushoku16 owarimonogatari3` because that was the
+# largest set the input directory could actually serve. distill_eval's own
+# default is all four. The workaround outlived the cause: the text has since
+# been shipped, and the newer chains do pass four books, but 25 older ones
+# still carry the three-book list.
+#
+# TWO WRONG EXPLANATIONS WERE TRIED FIRST, both by me and both fitting the
+# evidence I had gathered rather than the evidence I had not. That the
+# evaluator silently skipped an unloadable book: it does not, load_book raises.
+# That tnr-3 lacked grimgar03's CHECKPOINT: it did lack it, but the checkpoint
+# is not what the old chains were missing, and copying it fixed nothing. The
+# real answer was sitting in a chain header on the box.
 #
 # WHAT THIS COULD CHANGE. grimgar03's base arm reads 89.1% against 68-75% for
 # the other three, so it is the easiest book as well as the biggest. Adding it
@@ -39,15 +49,19 @@ PY="${RANK_PY:-python3}"
 ARMS="${RANK_ARMS:-r16 r32}"
 
 test -s "$MODEL/config.json" || { echo "base model missing: $MODEL" >&2; exit 1; }
-# THE CHECKPOINT, not just the input. Its absence is what made every previous
-# run three-book, and it failed silently: the evaluator skips a book it cannot
-# load rather than refusing, so a missing 1.6 MB file looked like a smaller
-# experiment.
+# THE INPUT TEXT is the file whose absence caused this, so it is named first
+# and by name. A box without grimgar03.txt cannot serve the book, which is why
+# 25 chains hardcoded a three-book list around it. The checkpoint is checked
+# too because the evaluator RAISES on a missing one - a crash rather than a
+# quiet three-book run, but still worth catching before the model loads.
 for b in grimgar03 index18 mushoku16 owarimonogatari3; do
-    test -s "$INPUT/$b.txt" || { echo "input missing: $b" >&2; exit 1; }
+    test -s "$INPUT/$b.txt" || {
+        echo "input text missing: $b.txt - THIS is what made 25 chains" >&2
+        echo "hardcode a three-book list. Ship the text before running." >&2
+        exit 1
+    }
     test -s "$CKPT/${b}__three_pass.json.threepass_checkpoint.json" || {
-        echo "checkpoint missing: $b - this is what silently made previous" >&2
-        echo "runs three-book. Copy it before running." >&2
+        echo "checkpoint missing: $b (the evaluator would raise on this)" >&2
         exit 1
     }
 done
