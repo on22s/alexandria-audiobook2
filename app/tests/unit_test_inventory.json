@@ -3163,8 +3163,11 @@
   ],
   "test_unseen_holdout": [
     "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_a_clip_of_another_character_is_dropped",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_a_full_holdout_records_no_shortfall",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_a_short_holdout_is_refused_not_quietly_written",
     "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_an_unverified_holdout_says_so_in_the_artifact",
     "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_it_refuses_rather_than_skipping_verification",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_min_lines_can_be_lowered_deliberately",
     "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_the_threshold_is_the_trough_not_the_gate",
     "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_the_written_order_is_shuffled",
     "tests.test_unseen_holdout.SameVoiceGuard.test_a_different_voice_is_dropped_from_the_pool",
