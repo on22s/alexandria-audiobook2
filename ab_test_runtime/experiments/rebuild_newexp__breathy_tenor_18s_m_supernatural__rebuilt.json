@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_rebuild_newly_exposed/breathy_tenor_18s_m_supernatural/tight/adapter",
+ "median_ecapa": 0.5171,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5171)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T00:10:37",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b8c2d69b5032f1fd433fe983c7573a12c0bb389c",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "cf97aa28b685e8b92346e579640c9ff29c78b94957f94212732e4a644c5084b8"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_rebuild_newly_exposed/breathy_tenor_18s_m_supernatural/tight/adapter",
+   "dataset": "ab_test_runtime/tight_rebuild_newly_exposed/breathy_tenor_18s_m_supernatural/tight",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/rebuild_newexp__breathy_tenor_18s_m_supernatural__rebuilt.json"
+  },
+  "seed": 1234
+ }
+}

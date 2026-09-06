@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/half/adapter",
+ "median_ecapa": 0.4924,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.4924)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T04:22:13",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b0cf3d4445d93103b07057856ae881135bd2d24b",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "cf97aa28b685e8b92346e579640c9ff29c78b94957f94212732e4a644c5084b8"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/half/adapter",
+   "dataset": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/tight",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/half_rescue__warm_baritone_40s_m_1__half.json"
+  },
+  "seed": 1234
+ }
+}
