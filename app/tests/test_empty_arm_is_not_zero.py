@@ -93,3 +93,103 @@ class EmptyArmHasNoAccuracy(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnsweredNothingIsNotZero(unittest.TestCase):
+    """383 rows, every prediction None, and a stored accuracy of 0.0.
+
+    The guard above was written for an EMPTY arm and cannot see a full one
+    that generated no text. Two FP8 arms on 2026-09-04 held 383 rows each with
+    every `predicted` and every `raw_response` None, and were written as
+    accuracy 0.0 - so a dead run and a model that got everything wrong are the
+    same number downstream. `n` counts attempts; only `answered` counts
+    attempts that produced something.
+
+    Scanning the 84 stored distill_eval artifacts with the retroactive check
+    flags 4 of them, 8 arms: these two FP8 pairs and two 6-row smoke runs.
+    """
+
+    def test_an_arm_that_answered_nothing_has_no_accuracy(self):
+        rec = _record()
+        for i in range(8):
+            rec.add("tuned", f"g{i}", "line", "ALICE", None, 0,
+                    candidates=["ALICE", "BOB"])
+        bucket = rec.summary()["tuned"]
+        self.assertEqual(bucket["n"], 8)
+        self.assertEqual(rec._answered(rec.rows)["tuned"], 0)
+        self.assertNotIn("answered", bucket,
+                         "the bucket shape must not change: every reader that "
+                         "compares a recomputed summary to a stored one would "
+                         "see all artifacts differ at once")
+        self.assertIsNone(bucket["accuracy"],
+                          "a run that generated nothing must not report 0.0")
+        self.assertIsNone(bucket["conditional"])
+
+    def test_the_old_rule_would_have_called_it_zero(self):
+        """Pins the discrimination, so the fixture cannot quietly stop working."""
+        rec = _record()
+        for i in range(8):
+            rec.add("tuned", f"g{i}", "line", "ALICE", None, 0,
+                    candidates=["ALICE", "BOB"])
+        b = rec.summary()["tuned"]
+        old = b["correct"] / max(b["n"], 1)          # what it used to compute
+        self.assertEqual(old, 0.0)
+        self.assertIsNone(b["accuracy"], "the new rule must disagree with 0.0")
+
+    def test_such_an_arm_fails_validation(self):
+        rec = _record()
+        for i in range(8):
+            rec.add("tuned", f"g{i}", "line", "ALICE", None, 0,
+                    candidates=["ALICE", "BOB"])
+        problems = rec.validate()
+        self.assertTrue(any("not one prediction" in p for p in problems),
+                        f"expected a no-prediction refusal, got {problems}")
+
+    def test_one_real_answer_is_enough_to_be_a_measurement(self):
+        """A model that mostly failed still measured something; do not over-refuse."""
+        rec = _record()
+        for i in range(7):
+            rec.add("tuned", f"g{i}", "line", "ALICE", None, 0,
+                    candidates=["ALICE", "BOB"])
+        rec.add("tuned", "g7", "line", "ALICE", "ALICE", 1,
+                candidates=["ALICE", "BOB"])
+        b = rec.summary()["tuned"]
+        self.assertEqual(rec._answered(rec.rows)["tuned"], 1)
+        self.assertAlmostEqual(b["accuracy"], 1 / 8)
+        self.assertFalse(any("not one prediction" in p for p in rec.validate()))
+
+    def test_whitespace_is_not_an_answer(self):
+        rec = _record()
+        for i in range(4):
+            rec.add("tuned", f"g{i}", "line", "ALICE", "   ", 0,
+                    candidates=["ALICE", "BOB"])
+        self.assertEqual(rec._answered(rec.rows)["tuned"], 0)
+        self.assertIsNone(rec.summary()["tuned"]["accuracy"])
+
+    def test_a_stored_artifact_is_reported_not_refused(self):
+        """Dead runs already on disk are INDEXED, not treated as unreadable.
+
+        Kept separate from validate_stored_summary on purpose: that answers
+        "does the summary follow from the rows", and the artifact audit treats
+        a No as fatal. Here the summary follows perfectly and both describe a
+        run that generated nothing. Making it fatal blocked every regeneration
+        over historical artifacts and would have pressured someone into
+        deleting evidence.
+        """
+        from experiments.manifest import unanswered_arms, validate_stored_summary
+        doc = {"summary": {"base": {"n": 3, "correct": 0, "accuracy": 0.0}},
+               "rows": [{"arm": "base", "id": f"g{i}", "correct": False,
+                         "predicted": None} for i in range(3)]}
+        self.assertEqual(unanswered_arms(doc), {"base": 3})
+        self.assertEqual(validate_stored_summary(doc), [],
+                         "a dead run must not read as an unverifiable summary")
+
+    def test_a_healthy_stored_artifact_is_not_flagged(self):
+        from experiments.manifest import unanswered_arms, validate_stored_summary
+        doc = {"summary": {"base": {"n": 2, "correct": 1, "accuracy": 0.5}},
+               "rows": [{"arm": "base", "id": "g0", "correct": True,
+                         "predicted": "ALICE"},
+                        {"arm": "base", "id": "g1", "correct": False,
+                         "predicted": "BOB"}]}
+        self.assertEqual(validate_stored_summary(doc), [])
+        self.assertEqual(unanswered_arms(doc), {})

@@ -12,7 +12,8 @@ import sys
 REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
-from experiments.manifest import completeness, validate_stored_summary  # noqa: E402
+from experiments.manifest import (completeness, unanswered_arms,  # noqa: E402
+                                  validate_stored_summary)
 EXPERIMENT_DIR = os.path.join(REPO, "ab_test_runtime", "experiments")
 DEFAULT_OUT = os.path.join(
     REPO, "ab_test_runtime", "audit", "artifact_structural_audit.json")
@@ -53,6 +54,13 @@ def classify_artifact(path):
     # chains and the scorers ask, one definition (Rule 15).
     row["completeness"] = completeness(doc)
     row["stored_summary_problems"] = validate_stored_summary(doc)
+    # A DEAD RUN IS INDEXED, NOT REFUSED. Recorded rather than raised, because
+    # an artifact whose summary follows perfectly from rows that hold no
+    # predictions is a real thing that happened and belongs in the index -
+    # unlike a summary that contradicts its rows, which cannot be checked at
+    # all. Making these fatal blocked every regeneration over five historical
+    # artifacts and would have pushed someone into deleting them.
+    row["arms_that_generated_nothing"] = unanswered_arms(doc)
 
     provenance = doc.get("provenance")
     meta = doc.get("meta")
@@ -196,8 +204,11 @@ def build_audit(experiment_dir=EXPERIMENT_DIR):
         raise ValueError(
             f"{len(inconsistent)} artifact(s) have summaries inconsistent "
             f"with their rows: {details}")
+    dead = {row["artifact"]: row["arms_that_generated_nothing"]
+            for row in artifacts if row.get("arms_that_generated_nothing")}
     summary = dict(collections.Counter(
         row["classification"] for row in artifacts))
+    summary["artifacts_that_generated_nothing"] = len(dead)
     return {
         "scope": "structural audit only; classifications do not validate scientific conclusions",
         "summary": summary, "artifacts": artifacts}

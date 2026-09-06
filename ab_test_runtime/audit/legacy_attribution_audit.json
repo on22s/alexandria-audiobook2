@@ -1,6 +1,6 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "ae175c5e01a798bd785aef8b9793dc1ff4cdda3d2ae9813f1414ab8bd6885ea5",
+  "source_structural_sha256": "53f6f1a6a0d88bbd629047ac62bff341db8ce0d841626063cce37bade897db7d",
   "summary": {
     "exploratory": 113,
     "historical_only": 30,
@@ -1984,8 +1984,11 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
+        "base: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "base: every prediction is empty; this can be an inference failure, not a measured null result",
         "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation",
+        "tuned: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "tuned: every prediction is empty; this can be an inference failure, not a measured null result"
       ],
       "current_gold": {
@@ -2009,8 +2012,11 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
+        "base: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "base: every prediction is empty; this can be an inference failure, not a measured null result",
         "recorded commit is unavailable from current history",
+        "saved summary differs from row recomputation",
+        "tuned: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "tuned: every prediction is empty; this can be an inference failure, not a measured null result"
       ],
       "current_gold": {

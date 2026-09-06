@@ -240,9 +240,13 @@ def validate_stored_summary(doc):
     for row in rows:
         if not isinstance(row, dict) or not row.get("arm"):
             continue
-        b = counted.setdefault(row["arm"], {"n": 0, "correct": 0})
+        b = counted.setdefault(row["arm"], {"n": 0, "correct": 0,
+                                            "answered": 0})
         b["n"] += 1
         b["correct"] += bool(row.get("correct"))
+        predicted = row.get("predicted")
+        if predicted is not None and str(predicted).strip():
+            b["answered"] += 1
     for arm, bucket in sorted(stored.items()):
         if not isinstance(bucket, dict):
             continue
@@ -259,6 +263,49 @@ def validate_stored_summary(doc):
     for arm in sorted(set(counted) - set(stored)):
         problems.append(f"{arm}: rows exist for an arm the summary omits")
     return problems
+
+
+def unanswered_arms(doc):
+    """-> {arm: n} for arms holding rows where NOTHING was ever predicted.
+
+    DELIBERATELY NOT PART OF validate_stored_summary. That function answers
+    one question - does the stored summary follow from the rows beside it -
+    and the artifact audit treats a No as fatal, because a number that cannot
+    be checked must not be indexed. This is a different question: the summary
+    here follows from the rows perfectly, and both are describing a run that
+    generated no text.
+
+    Folding the two together made `audit_experiment_artifacts` refuse to build
+    at all over five HISTORICAL artifacts, which blocks every regeneration and
+    pressures whoever hits it into deleting evidence. A dead run is a fact
+    about the corpus and belongs IN the index, not in the way of it. The live
+    guard in ExperimentRecord.validate() is what stops another being written.
+
+    Five artifacts on disk qualify as of 2026-09-06: two FP8 pairs at 383 rows
+    per arm, two 6-row smoke runs, and one Q6_K serving eval.
+    """
+    out = {}
+    rows = doc.get("rows")
+    stored = doc.get("summary")
+    if not isinstance(rows, list) or not isinstance(stored, dict):
+        return out
+    if not any(isinstance(r, dict) and r.get("arm") for r in rows):
+        return out
+    counted = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("arm"):
+            continue
+        b = counted.setdefault(row["arm"], {"n": 0, "answered": 0})
+        b["n"] += 1
+        predicted = row.get("predicted")
+        if predicted is not None and str(predicted).strip():
+            b["answered"] += 1
+    for arm, b in counted.items():
+        bucket = stored.get(arm)
+        if (b["n"] and not b["answered"] and isinstance(bucket, dict)
+                and isinstance(bucket.get("accuracy"), (int, float))):
+            out[arm] = b["n"]
+    return out
 
 
 class ExperimentRecord:
@@ -455,7 +502,32 @@ class ExperimentRecord:
         os.replace(tmp, path)
     # ---- end TEMPORARY -------------------------------------------------
 
+    @staticmethod
+    def _answered(rows):
+        """-> {arm: rows that produced a prediction}.
+
+        ONE DEFINITION, used by summary() and validate(), because the same
+        question asked twice drifts (Rule 15). `n` counts attempts; this counts
+        attempts that produced text, and they differ exactly when generation
+        failed - the case `n` alone cannot see.
+
+        NOT A FIELD ON THE SUMMARY BUCKET. Adding one there changed the shape
+        every reader compares against: `audit_legacy_attribution.inspect_artifact`
+        asks whether `record.summary()` still equals the summary stored in the
+        file, and an extra key made all 195 legacy artifacts differ at once,
+        collapsing supported_measurement, historical_only and provisional into
+        exploratory. The guard has to decide the accuracy without changing what
+        an artifact looks like.
+        """
+        out = collections.Counter()
+        for row in rows:
+            predicted = row.get("predicted")
+            if predicted is not None and str(predicted).strip():
+                out[row["arm"]] += 1
+        return out
+
     def summary(self):
+        answered = self._answered(self.rows)
         arms = {}
         for row in self.rows:
             bucket = arms.setdefault(row["arm"], {"n": 0, "correct": 0,
@@ -465,7 +537,7 @@ class ExperimentRecord:
             if row["in_candidates"]:
                 bucket["available"] += 1
                 bucket["cond"] += row["correct"]
-        for bucket in arms.values():
+        for arm, bucket in arms.items():
             # NOTHING SCORED IS NOT ZERO PERCENT. `correct / max(n, 1)` turned
             # an arm that measured nothing into a confident 0.0, which reads
             # downstream as a real accuracy - and did: an FP8 pair was reported
@@ -473,10 +545,20 @@ class ExperimentRecord:
             # both arms held 383 rows and 71 differing predictions. A missing
             # measurement and a measured zero must not look the same, so an
             # empty arm gets None and validate() refuses the artifact.
+            # NEITHER IS AN ARM THAT ANSWERED NOTHING. The n==0 guard below
+            # was written for an empty arm and cannot see a full one that
+            # generated no text: two FP8 arms on 2026-09-04 held 383 rows
+            # EACH, every `predicted` None and every `raw_response` None, and
+            # were written as "accuracy 0.0" - a dead run and a model that got
+            # everything wrong are indistinguishable in that number. The guard
+            # has to ask whether anything was ANSWERED, not whether any row
+            # exists.
+            scored = bucket["n"] and answered[arm]
             bucket["accuracy"] = (bucket["correct"] / bucket["n"]
-                                  if bucket["n"] else None)
+                                  if scored else None)
             bucket["conditional"] = (bucket["cond"] / bucket["available"]
-                                     if bucket["available"] else None)
+                                     if (scored and bucket["available"])
+                                     else None)
         return arms
 
     def validate(self, contract=None):
@@ -498,11 +580,17 @@ class ExperimentRecord:
         # summary() now returns None rather than 0.0 for it, and the artifact
         # must not be written: an unscored arm beside a scored one is a
         # comparison with one side missing, and reads as a catastrophic loss.
+        answered = self._answered(self.rows)
         for arm, bucket in sorted(self.summary().items()):
             if not bucket["n"]:
                 problems.append(
                     f"{arm}: no rows scored, so it has no accuracy. A run that "
                     f"measured nothing must not be written as a result")
+            elif not answered[arm]:
+                problems.append(
+                    f"{arm}: {bucket['n']} rows but not one prediction - the "
+                    f"model produced no output. This is a failed run, not a "
+                    f"score of zero, and must not be written as a result")
         if not self.rows:
             problems.append("no rows at all; nothing was measured")
         seen = collections.Counter((row["arm"], row["id"]) for row in self.rows)
