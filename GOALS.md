@@ -3949,6 +3949,46 @@ It is: fix or delete the `per_char` no-op arm and re-run the instruction
 comparison so its four sets are real; then a second rater who is not the
 project owner, because every limitation below turns on that.
 
+#### The ECAPA gap is audible, and it was checked blind — 2026-09-06
+
+Every adapter conclusion in goal 2.7 rests on ECAPA cosine, and until today
+nobody had asked whether it corresponds to anything a person hears. Eleven
+blinded sets, the prediction written into `adapter_listening.json` BEFORE the
+rating, the key sealed and its sha256 verified afterwards:
+
+| sets | ECAPA gap | chose the higher-scoring arm | couldn't tell |
+|---|---|---|---|
+| 4 | **+0.315** | **4 of 4** | 0 |
+| 4 | −0.017 | 2 | 2 |
+
+**The prediction held.** Where the metric reports a large gap the rater picked
+the higher-scoring arm every time — on IDENTICAL sentences, with the arms
+shuffled between slots, so the choice cannot come from content. Where the
+metric reports nothing, the rater could not tell in half the sets and never
+once preferred the other arm. **ECAPA tracks an audible difference at this
+scale**, which is the assumption every number in 2.7 was resting on unexamined.
+
+**THE CONTROLS ARE VOID, and the rater is who found it.** The three
+positive-control sets paired the reference against a foreign narrator reading a
+DIFFERENT sentence, because the builder took clip `<index>` from that adapter's
+own holdout rather than the trained adapter's line. The rater flagged all three
+unprompted — *"those ones had the wrong wavs compared, didn't [match] lines
+entirely"* — and they are exactly the three. So 3-of-3 shows that a MISMATCH is
+noticeable, not that speaker identity is, and it must not be quoted as a passed
+control.
+
+That leaves this result without a positive control, which is a real weakness
+and not a footnote: the controls exist to show the rest carries signal.
+`blinded_listening_ratings.json` earned its reading by passing 3 of 3 genuine
+controls; this one has not. The eight test sets stand on a different property —
+same line, same holdout, only the arm differing — which is why they cannot be
+answered from content, but a rebuilt control is needed before this is leaned on.
+`adapter_listening.py` now REFUSES to build the control rather than pairing
+mismatched lines, since generating the foreign voice on the trained adapter's
+own line requires a TTS pass.
+
+**Evidence** — `adapter_listening_ratings.json`, `adapter_listening.json`.
+
 **Limitations, as recorded in the artifact.** One rater, one session, eight
 sets. The instruction comparison is weaker than eight sets suggests. The
 `voice_distinction` question is hard to read on the two-clip sets and must not

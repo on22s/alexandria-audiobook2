@@ -615,17 +615,29 @@
   {
    "goal": "7.1",
    "title": "A listener prefers what we ship",
-   "cited": 2,
+   "cited": 4,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "exploratory": 1,
-    "supported_structure": 1
+    "supported_structure": 2,
+    "exploratory": 2
    },
-   "dirty_artifacts": 0,
-   "no_commit": 1,
+   "dirty_artifacts": 1,
+   "no_commit": 2,
    "artifacts": [
+    {
+     "name": "adapter_listening.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "57bd23a3"
+    },
+    {
+     "name": "adapter_listening_ratings.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
     {
      "name": "blinded_listening_ratings.json",
      "classification": "exploratory",
