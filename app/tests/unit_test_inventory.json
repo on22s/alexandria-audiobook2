@@ -902,6 +902,13 @@
     "tests.test_elson_trigram.ResolveTest.test_pronouns_never_resolve"
   ],
   "test_empty_arm_is_not_zero": [
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_a_healthy_stored_artifact_is_not_flagged",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_a_stored_artifact_is_reported_not_refused",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_an_arm_that_answered_nothing_has_no_accuracy",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_one_real_answer_is_enough_to_be_a_measurement",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_such_an_arm_fails_validation",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_the_old_rule_would_have_called_it_zero",
+    "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_whitespace_is_not_an_answer",
     "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_genuine_zero_is_still_zero",
     "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_a_scored_arm_reports_its_accuracy",
     "tests.test_empty_arm_is_not_zero.EmptyArmHasNoAccuracy.test_an_arm_with_no_rows_has_no_accuracy",
