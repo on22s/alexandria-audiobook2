@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1398 artifacts, 1399 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1399 artifacts, 1399 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1594,6 +1594,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 
 | artifact | why |
 |---|---|
+| `adapter_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_aishell3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_ljspeech.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

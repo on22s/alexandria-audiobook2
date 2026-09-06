@@ -1,0 +1,155 @@
+{
+ "note": "Concealed key. Do not open before the ratings are written.",
+ "sets": [
+  {
+   "set": "set_00",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "is_control": false
+  },
+  {
+   "set": "set_01",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "is_control": false
+  },
+  {
+   "set": "set_02",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "is_control": false
+  },
+  {
+   "set": "set_03",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 3,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "is_control": false
+  },
+  {
+   "set": "set_04",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 0,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "is_control": false
+  },
+  {
+   "set": "set_05",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 1,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "is_control": false
+  },
+  {
+   "set": "set_06",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 2,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "is_control": false
+  },
+  {
+   "set": "set_07",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 3,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "is_control": false
+  },
+  {
+   "set": "set_08",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "slots": {
+    "A": "foreign",
+    "B": "shipped"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "is_control": true
+  },
+  {
+   "set": "set_09",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "slots": {
+    "A": "shipped",
+    "B": "foreign"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "is_control": true
+  },
+  {
+   "set": "set_10",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "slots": {
+    "A": "shipped",
+    "B": "foreign"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "is_control": true
+  }
+ ],
+ "provenance": {
+  "script": "adapter_listening.py",
+  "written": "2026-09-06T11:16:45",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+   "branch": "agent/adapter-listening-20260906",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/adapter_listening.py"
+   ],
+   "harness_sha256": "2c628b663016a05749c8fc82bd977247c49503b991d369741f4638cc7051e720"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}
