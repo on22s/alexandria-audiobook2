@@ -1,0 +1,43 @@
+{
+ "note": "Coverage only. No accuracy is reported here on purpose: a table mixing three-book and four-book artifacts compares two corpora, and that is the error this audit exists to surface.",
+ "gold_rows": {
+  "grimgar03": 396,
+  "owarimonogatari3": 162,
+  "mushoku16": 136,
+  "index18": 99
+ },
+ "artifacts_touching_a_light_novel": 85,
+ "artifacts_covering_all_four": 3,
+ "appearances_per_book": {
+  "index18": 74,
+  "owarimonogatari3": 63,
+  "mushoku16": 62,
+  "grimgar03": 4
+ },
+ "absent_from_multi_book_artifacts": {
+  "grimgar03": 54,
+  "mushoku16": 1,
+  "index18": 1
+ },
+ "full_coverage_artifacts": [
+  "distill_eval__mixed_register.json",
+  "distill_eval__pdnc_only.json",
+  "distill_eval__thunder-a6000-distill.json"
+ ],
+ "limitations": [
+  "A three-book artifact is not invalid; it measured what it measured. The defect is reading it as a light-novel result.",
+  "grimgar03 is 396 of 793 gold rows, and its base arm reads 89.1% against 68-75% for the others, so adding it raises any pooled figure for reasons unrelated to method."
+ ],
+ "provenance": {
+  "script": "light_novel_coverage.py",
+  "written": "2026-09-06T17:16:41",
+  "host": "mitch-linux",
+  "git": {
+   "error": "No module named 'experiments'"
+  },
+  "args": {
+   "experiments": "experiments",
+   "out": "ab_test_runtime/experiments/light_novel_coverage.json"
+  }
+ }
+}
