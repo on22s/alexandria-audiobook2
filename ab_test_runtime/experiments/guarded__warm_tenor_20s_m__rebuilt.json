@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_rebuild_newly_exposed/warm_tenor_20s_m/tight/adapter",
+ "median_ecapa": 0.3438,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.3438 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T08:34:55",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "2abe4fdf341ceb8d3a01f14a28daafd48222ecff",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "1ddf50dfa1e750f0784d13e5decda7db4c79d766eb35d2bafb72552450638549"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_rebuild_newly_exposed/warm_tenor_20s_m/tight/adapter",
+   "dataset": "ab_test_runtime/guarded_holdout/warm_tenor_20s_m",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded__warm_tenor_20s_m__rebuilt.json"
+  },
+  "seed": 1234
+ }
+}
