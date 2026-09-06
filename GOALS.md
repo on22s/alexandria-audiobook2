@@ -152,6 +152,41 @@ candidate roster for **100%** of rows, and the model answers something else on
 > is selection: single-part Explicit rows have the evidence 98.4% of the time
 > and still score .717.
 
+#### Context stops paying after 3,200 characters — 2026-09-06
+
+The window that bought +11.6 points on Explicit does not keep buying. Two more
+widenings, each scored against w3200 **on the identical quotations** rather
+than on its own row count:
+
+| window | n (paired) | accuracy | change | moved | McNemar |
+|---|---|---|---|---|---|
+| w3200 | 600 | 64.8% | — | — | — |
+| w8000 | 600 | 60.5% | **-4.3 pts** | +41 / -67 | p = 0.016 |
+| w16000 | 600 | 56.8% | **-8.0 pts** | +56 / -104 | p = 0.0002 |
+
+Both losses are significant and the damage scales with the window, so this is
+not noise around a plateau: **more context actively hurts.** Whatever the model
+gains from a wider window it more than loses to the distraction of it.
+
+The pairing is the whole result and was nearly missed. The sweep ran under the
+default `--limit 200` per fixture, so the raw files hold 600 rows against
+w3200's 2,494; comparing the summary percentages would have compared different
+quotations at different windows and measured mostly which subset each arm drew.
+The join is on quotation id after stripping the window from the fixture name,
+which is the only reason these are 600 paired differences rather than two
+independent samples.
+
+This closes the "widen it further" branch of [[Rule 1.3]]'s context audit and
+agrees with the earlier per-book finding that widening w1->w4 was
+book-dependent rather than a fix (**-5.0 on mushoku16**). Supply is not the
+binding constraint; [[attribution_selection_not_recall]] says the roster
+already holds the right name 85% of the time and the model picks it 29.9%.
+
+**Evidence** — `two_stage_attribution_w8000.json`,
+`two_stage_attribution_w16000.json`, both paired against
+`two_stage_attribution_w3200.json`.
+
+
 #### A refinement layer was tried on that gap. All three constraints lose.
 
 DiLA (KDD '26) proposes LLM-proposes-then-constraint-repairs, and the shape
@@ -1993,6 +2028,141 @@ the only file mentioning DNSMOS or UTMOS is `app/experiments/robotic_proxy.py`,
 an experiment outside the dataset path. Selecting the 200 clips nearest a
 volume's dominant mode, rather than 200 arbitrary ones, is the cheapest form of
 that idea and needs no new model.
+
+**THE LIBRARY'S SCORES WERE OPTIMISTIC, NOT PESSIMISTIC — 2026-09-06.** Every
+figure this goal rests on came from each adapter's own dataset val split, drawn
+before the same-voice guard existed. Re-gating all 75 on voice-verified clips
+measured **68; the other 7 were refused** for pools too small to verify, which
+is the correct outcome and not a gap:
+
+    library median   0.6235          below 0.45:  8
+    voice-filtered   0.5857          below 0.45: 10
+    mean delta      -0.0412   fell 54 of 68   Wilcoxon p < 1e-5
+
+One voice recovered — `husky_baritone_20s_m_supernatural` 0.160 -> 0.509 — and
+four the library called healthy fell below the gate, `warm_tenor_20s_m` worst
+at 0.657 -> 0.349.
+
+**HALF OF THAT IS THE INSTRUMENT, AND THE FAILURE-COUNT CLAIM DOES NOT SURVIVE
+— investigated 2026-09-06.** Two supposedly clean holdouts disagreed by 0.42 on
+one adapter, which turned out to be two defects compounding:
+
+- **`build_unseen_holdout` guards at VOLUME level.** It keeps a volume whose
+  centroid is >= 0.85 similar to the trained one, but a volume of a multi-voice
+  book contains every character in it. `crisp_mezzo_30s_f` is char2 of a
+  two-voice book, and **7 of its 20 held-out clips are the other character**
+  (anchor cosine 0.05-0.16 against a real clip of the trained voice, versus
+  0.59-0.86 for the rest).
+- **`library_voice_fidelity.extract_val` reads `entries[:limit]`** - the first
+  12 clips in FILE ORDER, not a sample. All seven foreign clips sit in that
+  window.
+
+Over all 20 clips the two holdouts barely differ (median 0.638 against 0.732).
+The 0.42 gap is the read window, not the data. **A verdict that depends on the
+order lines were written to a file is not a measurement.**
+
+Contamination is NOT general - 5 of 6 sampled holdouts hold zero foreign clips
+- but it is structurally scoped: **20 of the 68 are char2-or-higher**, where the
+volume-level guard cannot separate characters, and those fell nearly three
+times as hard as the rest (-0.0746 against -0.0272).
+
+Restricted to the **48 adapters from one-voice books**, both central claims
+hold, and one does not:
+
+| claim | all 68 | clean 48 |
+|---|---|---|
+| median | 0.6235 -> 0.5857 | 0.6393 -> 0.6084 |
+| mean delta | -0.0412, p<1e-5 | **-0.0272, 38/48, p=1e-6** |
+| tone-spread correlation | r=+0.526 | **r=+0.538**, p=8e-5 |
+| below 0.45 | 8 -> 10 | **3 -> 3** |
+
+So the library WAS optimistic and the correlation IS real, both on
+uncontaminated data. **But "the count of broken adapters went up" was an
+artifact** of the char2+ group and is withdrawn: on one-voice books the count
+does not move at all. Every char2-or-higher figure in this goal should be read
+as provisional until the guard filters clips rather than volumes.
+
+This is the first internally consistent measurement of the library for the 48;
+one procedure, and a refusal rather than a guess for the 7 unverifiable pools.
+
+`dataset_tone_spread`'s correlation survives the correction and keeps its
+shape. Recomputed against the 68 corrected scores:
+
+| population | r | p | n |
+|---|---|---|---|
+| as published (library scores) | +0.584 | 4.8e-08 | 74 |
+| voice-filtered scores | **+0.526** | 4.1e-06 | 68 |
+| weaker half only | +0.480 | 0.004 | 34 |
+| stronger half only | +0.184 | 0.30 | 34 |
+
+**Tightness is a screen, not a dial.** It discriminates strongly among broken
+adapters and is indistinguishable from noise among working ones. Use it to
+reject a dataset before spending five minutes training it; do not expect it to
+improve a voice that already passes.
+
+**REBUILDING IS BASELINE-DEPENDENT, AND HARMS WORKING VOICES — 2026-09-06.**
+Nine adapters have now been rebuilt with the tight arm and gated against their
+shipped versions on one held-out set reserved before training. Pooled it is a
+null result — mean +0.053, median +0.002, 5 of 9 rose, **Wilcoxon p = 0.65** —
+and the null is two real effects cancelling:
+
+    gain vs shipped baseline    r = -0.843   p = 0.0043   n = 9
+
+replicating, more strongly, the **r = -0.598** the selection experiment
+measured over 54 books.
+
+| population | n | mean delta | rose |
+|---|---|---|---|
+| genuinely broken (shipped < 0.30) | 3 | **+0.199** | 2/3 |
+| not actually broken (shipped >= 0.45) | 4 | **-0.045** | 2/4 |
+
+`husky_baritone_20s_m_supernatural` went 0.548 -> 0.413 and fell below the
+gate. **The operational rule is therefore rebuild below ~0.30 and leave
+anything above 0.45 alone**, not "rebuild the failures": applied to all nine it
+would have broken a working voice to fix two dead ones.
+
+**And four of the nine were not broken.** They score >= 0.45 as shipped,
+unchanged, on a clean held-out set. The two holdouts that disagreed on
+`crisp_mezzo_30s_f` — 0.132 against 0.552 — have since been explained above:
+voice contamination in a char2 holdout, read through a first-12 window. That
+adapter is one of the 20 provisional ones. Same family as [[Rule 21]]: the
+instrument, not the reading.
+
+**The half arm replicates on the three that were genuinely broken —
+2026-09-06.** 100 well-chosen clips against the tight arm's 200, all three
+scored on the same held-out clips as the shipped and tight arms:
+
+| adapter | shipped | tight 200 | half 100 | half - tight | gate |
+|---|---|---|---|---|---|
+| `velvety_mezzo_30s_f_gothic` | 0.057 | 0.363 | 0.402 | +0.039 | fail |
+| `warm_baritone_40s_m_1` | 0.171 | 0.475 | **0.492** | +0.018 | **PASS** |
+| `breathy_alto_50s_f_fantasy` | 0.291 | 0.277 | 0.328 | +0.051 | fail |
+
+Half beat tight on all three, mean **+0.0359**, against the +0.0301 measured
+over 51 books. **At n=3 that is a consistency check, not an independent
+confirmation** — three paired differences carry no p-value worth quoting. It
+also reversed the one case where tight made a broken adapter worse
+(`breathy_alto_50s_f_fantasy`, 0.291 -> 0.277 -> 0.328), so that failure was
+the recipe rather than an unrecoverable dataset.
+
+**Selection reliably improves a broken adapter and does not reliably fix one.**
+Mean +0.235 over shipped, and **one of three clears 0.45**. Two are recovered
+but unshippable at 0.402 and 0.328.
+
+The pool was reused rather than redrawn, so the held-out set is identical by
+construction rather than by an argument about seed determinism. The leak check
+guarding that is keyed on `(source_volume, text)`: a first version compared
+basenames and **could never have fired**, because every split renumbers from
+zero and one clip present in two splits carries two different names. It
+reported CLEAN on a file compared against itself. It now passes three cases
+with known answers — train/val CLEAN, val/val LEAK 20 of 20, control-train/val
+CLEAN — and returned CLEAN on all three adapters here.
+
+**Evidence** — `regate_vf__<adapter>.json` (68),
+`rebuild_newexp__<adapter>__{shipped,rebuilt}.json` (8),
+`half_rescue__<adapter>__half.json` (3), and
+`tight_rebuild__<adapter>__{shipped,rebuilt}.json` for the first five.
+
 
 **Evidence** — `text_audio_alignment_pilot.json`.
 
