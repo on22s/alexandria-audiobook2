@@ -2008,9 +2008,49 @@ is the correct outcome and not a gap:
 
 One voice recovered — `husky_baritone_20s_m_supernatural` 0.160 -> 0.509 — and
 four the library called healthy fell below the gate, `warm_tenor_20s_m` worst
-at 0.657 -> 0.349. **The count of broken adapters went up, not down.** This is
-the first internally consistent measurement of the library: one procedure for
-all 68, and a refusal rather than a guess for the rest.
+at 0.657 -> 0.349.
+
+**HALF OF THAT IS THE INSTRUMENT, AND THE FAILURE-COUNT CLAIM DOES NOT SURVIVE
+— investigated 2026-09-06.** Two supposedly clean holdouts disagreed by 0.42 on
+one adapter, which turned out to be two defects compounding:
+
+- **`build_unseen_holdout` guards at VOLUME level.** It keeps a volume whose
+  centroid is >= 0.85 similar to the trained one, but a volume of a multi-voice
+  book contains every character in it. `crisp_mezzo_30s_f` is char2 of a
+  two-voice book, and **7 of its 20 held-out clips are the other character**
+  (anchor cosine 0.05-0.16 against a real clip of the trained voice, versus
+  0.59-0.86 for the rest).
+- **`library_voice_fidelity.extract_val` reads `entries[:limit]`** - the first
+  12 clips in FILE ORDER, not a sample. All seven foreign clips sit in that
+  window.
+
+Over all 20 clips the two holdouts barely differ (median 0.638 against 0.732).
+The 0.42 gap is the read window, not the data. **A verdict that depends on the
+order lines were written to a file is not a measurement.**
+
+Contamination is NOT general - 5 of 6 sampled holdouts hold zero foreign clips
+- but it is structurally scoped: **20 of the 68 are char2-or-higher**, where the
+volume-level guard cannot separate characters, and those fell nearly three
+times as hard as the rest (-0.0746 against -0.0272).
+
+Restricted to the **48 adapters from one-voice books**, both central claims
+hold, and one does not:
+
+| claim | all 68 | clean 48 |
+|---|---|---|
+| median | 0.6235 -> 0.5857 | 0.6393 -> 0.6084 |
+| mean delta | -0.0412, p<1e-5 | **-0.0272, 38/48, p=1e-6** |
+| tone-spread correlation | r=+0.526 | **r=+0.538**, p=8e-5 |
+| below 0.45 | 8 -> 10 | **3 -> 3** |
+
+So the library WAS optimistic and the correlation IS real, both on
+uncontaminated data. **But "the count of broken adapters went up" was an
+artifact** of the char2+ group and is withdrawn: on one-voice books the count
+does not move at all. Every char2-or-higher figure in this goal should be read
+as provisional until the guard filters clips rather than volumes.
+
+This is the first internally consistent measurement of the library for the 48;
+one procedure, and a refusal rather than a guess for the 7 unverifiable pools.
 
 `dataset_tone_spread`'s correlation survives the correction and keeps its
 shape. Recomputed against the 68 corrected scores:
@@ -2049,11 +2089,11 @@ anything above 0.45 alone**, not "rebuild the failures": applied to all nine it
 would have broken a working voice to fix two dead ones.
 
 **And four of the nine were not broken.** They score >= 0.45 as shipped,
-unchanged, on a clean held-out set. Worse, the two clean holdouts disagree with
-each other — `crisp_mezzo_30s_f` reads 0.132 on the re-gate's holdout and 0.552
-on the rebuild's. At least one is still not measuring what it claims, so no
-single holdout's number should be read as an adapter's quality until that is
-explained. Same family as [[Rule 21]]: the instrument, not the reading.
+unchanged, on a clean held-out set. The two holdouts that disagreed on
+`crisp_mezzo_30s_f` — 0.132 against 0.552 — have since been explained above:
+voice contamination in a char2 holdout, read through a first-12 window. That
+adapter is one of the 20 provisional ones. Same family as [[Rule 21]]: the
+instrument, not the reading.
 
 **The half arm replicates on the three that were genuinely broken —
 2026-09-06.** 100 well-chosen clips against the tight arm's 200, all three
