@@ -228,6 +228,7 @@ def _ecapa(pairs, python_bin):
 def build(trained_zip, source_dir, out_dir, lines, seed,
           embeddings=None, min_voice_similarity=0.85,
           min_clip_voice=0.30, clip_anchors=2, oversample=3,
+          min_lines=12,
           sibling_python=None, verify_clips=True):
     voices = voices_in_book(trained_zip)
     centroids = volume_centroids(embeddings) if embeddings else {}
@@ -364,6 +365,29 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
                      f"holdout.")
         sys.exit("no unseen clips remain after excluding contributing volumes")
 
+    # A SHORT HOLDOUT IS NOT A SMALL PROBLEM, IT IS A DIFFERENT MEASUREMENT.
+    # Empty was refused from the start; short was not, and on the first real
+    # run `velvety_mezzo_30s_f_gothic` rejected 54 of 60 candidates - that book
+    # is about 90% another voice - and quietly wrote SIX clips. The gate then
+    # scored it without complaint and its median came from 6 lines rather than
+    # the 12 every other adapter used, which is not comparable to them and was
+    # visible nowhere in the output. Refusing here is the same rule the empty
+    # case already follows; the only reason it was not applied is that nobody
+    # had yet seen a book contaminated badly enough to produce it.
+    if verify_clips and len(picked) < lines:
+        shortfall = lines - len(picked)
+        if len(picked) < min_lines:
+            sys.exit(
+                f"only {len(picked)} of {lines} clips survived the voice "
+                f"check ({rejected_wrong_voice} of {len(candidates)} "
+                f"candidates were another character). A holdout this short is "
+                f"not comparable to a full one - its median comes from fewer "
+                f"draws. Raise --oversample to verify more candidates, or "
+                f"lower --min-lines to accept it deliberately.")
+        print(f"WARNING: {len(picked)} of {lines} clips, {shortfall} short - "
+              f"{rejected_wrong_voice} of {len(candidates)} candidates were "
+              f"another character", file=sys.stderr)
+
     val = os.path.join(out_dir, "val")
     os.makedirs(val, exist_ok=True)
     meta_path = os.path.join(val, "metadata.jsonl")
@@ -405,6 +429,8 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
         "voices_in_book_recorded_not_gated": voices,
         "min_voice_similarity": min_voice_similarity,
         "volume_similarity_to_trained": similarities,
+        "clips_written_short_by": (lines - len(picked)) if verify_clips else 0,
+        "min_lines": min_lines if verify_clips else None,
         "clips_verified": verify_clips,
         "min_clip_voice": min_clip_voice if verify_clips else None,
         "clips_rejected_wrong_voice": rejected_wrong_voice,
@@ -443,6 +469,11 @@ def main():
                          "held-out clip is a different person. 0.30 is the "
                          "trough between the two modes of 1,360 labelled "
                          "clips; 0.45 sits on the real mode's rising edge")
+    ap.add_argument("--min-lines", type=int, default=12,
+                    help="refuse rather than write a holdout shorter than "
+                         "this. 12 is what the identity gate reads, so below "
+                         "it the median rests on fewer draws than every other "
+                         "adapter's and is not comparable")
     ap.add_argument("--clip-anchors", type=int, default=2,
                     help="reference clips drawn from the trained zip; more "
                          "than one so a single odd clip cannot set the bar")
@@ -466,6 +497,7 @@ def main():
                 args.seed, args.embeddings, args.min_voice_similarity,
                 min_clip_voice=args.min_clip_voice,
                 clip_anchors=args.clip_anchors,
+                min_lines=args.min_lines,
                 oversample=args.oversample,
                 sibling_python=args.sibling_python,
                 verify_clips=not args.no_verify_clips)

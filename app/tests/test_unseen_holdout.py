@@ -328,3 +328,30 @@ class ClipLevelVoiceGuard(unittest.TestCase):
         starts = [float(c["start"]) for c in doc["clips"]]
         self.assertNotEqual(starts, sorted(starts),
                             "clips were written in offset order")
+
+    def test_a_short_holdout_is_refused_not_quietly_written(self):
+        """velvety_mezzo_30s_f_gothic wrote SIX clips and nobody was told.
+
+        Its book is about 90% another voice: 54 of 60 candidates were
+        rejected, 6 were written, and the identity gate scored a median over 6
+        lines while every other adapter used 12. That is a different
+        measurement wearing the same name, and it was visible nowhere. Empty
+        was already refused; short was not.
+        """
+        with self.assertRaises(SystemExit) as ctx:
+            self._build([0.9] * 3 + [0.01] * 9, lines=8)
+        msg = str(ctx.exception)
+        self.assertIn("survived the voice check", msg)
+        self.assertIn("not comparable", msg,
+                      "the refusal must say WHY a short holdout is a problem")
+
+    def test_min_lines_can_be_lowered_deliberately(self):
+        """Refusing must be overridable, or a real short holdout is unbuildable."""
+        doc = self._build([0.9] * 3 + [0.01] * 9, lines=8, min_lines=2)
+        self.assertEqual(len(doc["clips"]), 3)
+        self.assertEqual(doc["clips_written_short_by"], 5,
+                         "the shortfall must be recorded, not just tolerated")
+
+    def test_a_full_holdout_records_no_shortfall(self):
+        doc = self._build([0.9] * 12, lines=4)
+        self.assertEqual(doc["clips_written_short_by"], 0)
