@@ -3162,6 +3162,11 @@
     "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_all_books_succeeding_reports_done"
   ],
   "test_unseen_holdout": [
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_a_clip_of_another_character_is_dropped",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_an_unverified_holdout_says_so_in_the_artifact",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_it_refuses_rather_than_skipping_verification",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_the_threshold_is_the_trough_not_the_gate",
+    "tests.test_unseen_holdout.ClipLevelVoiceGuard.test_the_written_order_is_shuffled",
     "tests.test_unseen_holdout.SameVoiceGuard.test_a_different_voice_is_dropped_from_the_pool",
     "tests.test_unseen_holdout.SameVoiceGuard.test_a_volume_that_was_never_embedded_is_dropped_not_assumed",
     "tests.test_unseen_holdout.SameVoiceGuard.test_every_similarity_is_recorded_so_the_threshold_can_be_rejudged",
