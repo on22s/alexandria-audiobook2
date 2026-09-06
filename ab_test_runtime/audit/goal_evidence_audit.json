@@ -24,22 +24,28 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 5,
+   "cited": 6,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "supported_structure": 1,
+    "supported_structure": 2,
     "provisional": 4
    },
    "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
     {
+     "name": "candidate_restriction.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "57bd23a3"
+    },
+    {
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "97455708"
+     "commit": "925a106f"
     },
     {
      "name": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
@@ -100,7 +106,7 @@
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "97455708"
+     "commit": "925a106f"
     },
     {
      "name": "grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json",
