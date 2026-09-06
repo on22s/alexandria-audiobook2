@@ -98,6 +98,29 @@ def _arm_clip(adapter, arm, index):
     return os.path.join(base, f"check_{index}.wav")
 
 
+def _foreign_clip(adapter, index):
+    """A DIFFERENT NARRATOR SAYING THE SAME SENTENCE.
+
+    The first version took clip `index` from the foreign adapter's OWN
+    identity_check, which is a different holdout draw - so the control clip
+    said different words as well as being a different voice, and the rater
+    could pick the odd one out by CONTENT. The rater spotted it unprompted
+    ("those ones had the wrong wavs compared, didn't [match] lines entirely")
+    on all three controls, which is exactly the failure a control must not
+    have: it was measuring whether a mismatch is noticeable, not whether
+    speaker identity is.
+
+    The 3-of-3 rejection recorded on 2026-09-06 therefore certifies less than
+    it appears to, and the eight test sets - same line, same holdout, only the
+    arm differing - are the part of that package that stands.
+
+    Generating the foreign voice on the trained adapter's own held-out line
+    needs a TTS pass, which is why this returns None and the caller refuses
+    rather than silently rebuilding the broken control.
+    """
+    return None
+
+
 def _reference(adapter, index):
     return os.path.join(HOLDOUT, adapter, "val", f"unseen_{index:03d}.wav")
 
@@ -134,8 +157,15 @@ def build(package_dir, public_path, key_path, seed, lines, data_root=None):
         for index, (adapter, line, arm_a, arm_b, gap, delta) in enumerate(planned):
             ref = _reference(adapter, line)
             a = _arm_clip(adapter, arm_a, line)
-            b = (_arm_clip(FOREIGN, "shipped", line) if arm_b == "foreign"
+            b = (_foreign_clip(adapter, line) if arm_b == "foreign"
                  else _arm_clip(adapter, arm_b, line))
+            if b is None:
+                raise PackageError(
+                    "the foreign-narrator control needs that narrator reading "
+                    "THIS line, which requires a TTS pass. Refusing to build a "
+                    "control whose clip differs in content as well as voice - "
+                    "that is what the 2026-09-06 package did, and the rater "
+                    "identified all three by content.")
             for path in (ref, a, b):
                 if not _wav_ok(path):
                     raise PackageError(f"unusable clip {path}")

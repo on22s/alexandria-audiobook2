@@ -1,0 +1,147 @@
+{
+ "note": "Ratings for the blinded adapter-fidelity package, unblinded against the sealed key. The key's sha256 matches the value recorded in adapter_listening.json before rating, so these were made blind.",
+ "key_sha256_verified": true,
+ "rater": "the project owner, not a naive listener",
+ "results": {
+  "large_gap": {
+   "n": 4,
+   "shipped": 4,
+   "other": 0,
+   "cant_tell": 0
+  },
+  "no_gap": {
+   "n": 4,
+   "shipped": 2,
+   "other": 0,
+   "cant_tell": 2
+  },
+  "controls": {
+   "n": 3,
+   "shipped": 3,
+   "other": 0,
+   "cant_tell": 0
+  }
+ },
+ "registered_prediction": {
+  "large_gap_sets": "the shipped arm is chosen clearly and consistently (ECAPA gap +0.315)",
+  "no_gap_sets": "near chance (ECAPA gap +0.017 - the metric says there is nothing to hear)",
+  "controls": "the foreign narrator is rejected in all 3; if not, nothing else in this package is readable",
+  "falsifies_ecapa_if": "both classes come out near chance, which would mean the metric does not track audible speaker identity at this scale"
+ },
+ "verdict": "HELD. Where ECAPA reports a 0.315 gap the rater chose the higher-scoring arm 4 of 4, on identical sentences with the arms shuffled between slots. Where it reports -0.017 the rater could not tell in half the sets and never preferred the other arm. ECAPA tracks an audible difference at this scale.",
+ "controls_are_compromised": "The three controls paired the reference against a foreign narrator reading a DIFFERENT sentence, because the builder took clip <index> from that adapter's own holdout. The rater identified all three unprompted as mismatched. 3-of-3 therefore shows that a mismatch is noticeable, not that speaker identity is audible, and must not be quoted as a passed control. The eight test sets are unaffected - same line, same holdout, only the arm differs - which is also why they cannot be answered from content.",
+ "limitations": [
+  "Two adapters, one narrator each, twelve lines drawn from one held-out set - this asks whether the metric tracks anything audible, not how well.",
+  "The rater is expected to be the project owner, who is not a naive listener; goal 7.1 records that limitation already.",
+  "'same' answers are counted separately and are not evidence for either arm.",
+  "One rater, one session, eight scoreable sets.",
+  "Two adapters. This asks whether the metric tracks anything audible, not how well it tracks.",
+  "The controls are void; the package has no passing positive control."
+ ],
+ "rows": [
+  {
+   "set": "set_00",
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "answer": "A",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_01",
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "answer": "A",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_02",
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "answer": "A",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_03",
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 3,
+   "answer": "B",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_04",
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 0,
+   "answer": "B",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_05",
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 1,
+   "answer": "same",
+   "chose": "same"
+  },
+  {
+   "set": "set_06",
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 2,
+   "answer": "same",
+   "chose": "same"
+  },
+  {
+   "set": "set_07",
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 3,
+   "answer": "B",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_08",
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "answer": "B",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_09",
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "answer": "A",
+   "chose": "shipped"
+  },
+  {
+   "set": "set_10",
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "answer": "A",
+   "chose": "shipped"
+  }
+ ],
+ "provenance": {
+  "script": "adapter_listening.py",
+  "unblinded": "2026-09-06",
+  "package": "../pinokio/api/alexandria-audiobook2.git/ab_test_runtime/adapter_listening_package"
+ }
+}

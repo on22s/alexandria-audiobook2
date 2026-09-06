@@ -1,5 +1,6 @@
 artifact,evidence_status,resolution_tier,replayable,producer,added_commit,cited_by_goal,seed,experiment,book,model,env_tag,host,backend,ctx,parallel,kv,arm,n,correct,accuracy_pct,validation,dirty,commit,elapsed_s,finished,endpoint,note
-adapter_listening.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+adapter_listening.json,supported_structure,provenance,yes,,,7.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+adapter_listening_ratings.json,exploratory,git+naming,no,adapter_listening.py,,7.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_stop_check_aishell3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_stop_check_kokoro.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_stop_check_ljspeech.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
