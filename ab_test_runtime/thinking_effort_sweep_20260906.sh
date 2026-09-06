@@ -64,8 +64,19 @@ done
 # THE CLEAN index18, not the one with 6,662 replacement characters and zero
 # quote marks. A sweep measured on that file would compare four settings on a
 # book with its strongest dialogue cue deleted.
-bad=$(grep -c $'\xef\xbf\xbd' "$INPUT/index18.txt" 2>/dev/null || echo 0)
-[ "$bad" -eq 0 ] || { echo "index18 holds $bad replacement chars; use the clean text" >&2; exit 1; }
+# `grep -c` PRINTS 0 AND EXITS 1 when it matches nothing, so `|| echo 0`
+# appended a SECOND zero and the test saw "0\n0" - not an integer. The guard
+# then refused a perfectly clean file. It failed safe, which is the right
+# direction to fail in, but it was still wrong, and it had never been run
+# against either a clean or a dirty file before it shipped.
+bad=$(grep -c $'\xef\xbf\xbd' "$INPUT/index18.txt" 2>/dev/null) || true
+bad=${bad:-0}
+[ "$bad" -eq 0 ] || {
+    echo "index18 holds $bad replacement characters. The corrupt copy has" >&2
+    echo "6,662 of them and zero quote marks; a sweep measured on it would" >&2
+    echo "compare four settings on a book with its dialogue cue deleted." >&2
+    exit 1
+}
 # THE BOX RESTORES FROM A SNAPSHOT, so its checkout is whatever it was when the
 # snapshot was taken. Without #503 this script runs perfectly and records NO
 # findings - four blank rates and no cause, which is the whole reason for the
