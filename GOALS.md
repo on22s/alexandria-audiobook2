@@ -182,6 +182,62 @@ book-dependent rather than a fix (**-5.0 on mushoku16**). Supply is not the
 binding constraint; [[attribution_selection_not_recall]] says the roster
 already holds the right name 85% of the time and the model picks it 29.9%.
 
+#### Every published PDNC number is measured with the alias oracle — 2026-09-06
+
+The literature search that produced the LLaMa3 entry named ONE difference that
+was not an oracle, and it has now been tested and refuted:
+
+> *"the difference that is NOT an oracle is context width - they use 4096
+> tokens (~16k characters) where our widest tested window is 3,200"*
+
+That was the actionable half of the 0.906 comparison. The sweep above widened
+the window exactly as indicated and **lost** 4.3 points at w8000 and 8.0 at
+w16000. The lead is closed, and reading further wins into "just widen it like
+the paper did" is closed with it.
+
+It is closed twice over, because the current state of the art reports the same
+thing from the other direction: `Fast and Accurate Quotation Attribution in
+Literary Texts` (arXiv 2608.02359) measures 500 -> 2000 tokens as worth **+1.8
+points overall** (92.7% -> 94.5%). Two independent measurements now say context
+width is not where attribution accuracy is won.
+
+**THE COMPARISON WAS THE WRONG WAY UP.** That paper states plainly that systems
+on this benchmark access "the gold-labelled character list both at training and
+evaluation time", and calls the setting "slightly unrealistic". So 0.906 and
+0.945 alike are measured with the roster handed over — and 1.2 measured that
+the roster is precisely the half we fail at, holding the right name 85% of the
+time while the model picks it 29.9%.
+
+The one PDNC number published END TO END, where the system builds its own
+character list, is **BookNLP-OG at 0.40** (arXiv 2307.03734, Table 3).
+
+| system | PDNC accuracy | builds its own roster |
+|---|---|---|
+| BookNLP-OG | 0.40 | **yes** |
+| **ours, w3200** | **0.656** | **yes** |
+| BookNLP+ (coref mentions matched to the gold list) | 0.78 | no |
+| Llama-3 8b, gold alias map in the prompt | 0.906 | no |
+| ModernBERT joint scoring, gold list at train and test | 0.945 | no |
+
+**We are not 25 points behind the state of the art; we are 25 points above the
+only comparable published result.** Every figure this document has treated as a
+target is measured on a different task. `external_comparability.json` now
+records which is which, and the honest sentence is that no published number
+exists for the setting this project actually runs, apart from BookNLP-OG's.
+
+**What survives as an actionable lead.** One method effect in that paper is not
+about the oracle: **coreference-derived candidate mentions beat alias-only
+candidates by +12 points on NON-EXPLICIT quotes**, and the 0.40 -> 0.78 jump
+between BookNLP-OG and BookNLP+ is the same intervention measured end to end
+against filtered. That is a candidate-SET change, not a context or prompt
+change, and it points at exactly what
+[[attribution_selection_not_recall]] measured here: supply is not the problem,
+selection is. It is the first externally-supported lead this goal has had that
+is not already known to fail.
+
+**Evidence** — `external_comparability.json`; arXiv 2608.02359, 2307.03734,
+2406.11380.
+
 **Evidence** — `two_stage_attribution_w8000.json`,
 `two_stage_attribution_w16000.json`, both paired against
 `two_stage_attribution_w3200.json`.
