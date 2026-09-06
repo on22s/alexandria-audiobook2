@@ -39,7 +39,7 @@
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "57bd23a3"
+     "commit": "925a106f"
     },
     {
      "name": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
@@ -100,7 +100,7 @@
      "name": "external_comparability.json",
      "classification": "supported_structure",
      "dirty": true,
-     "commit": "57bd23a3"
+     "commit": "925a106f"
     },
     {
      "name": "grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json",

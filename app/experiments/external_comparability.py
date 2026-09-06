@@ -116,6 +116,8 @@ RECORD = [
      "protocol":
          "An encoder plus MLP scorer, not a prompted LLM: quotation and "
          "mention representations scored jointly inside one context window. "
+         "The GOLD-labelled character list is accessed at BOTH training and "
+         "evaluation time, which the authors call 'slightly unrealistic'. "
          "99.3% explicit, 95.5% anaphoric, 89.3% implicit. 0.43s per novel "
          "on an A100, ~1000x faster than the Llama-3 8b approach.",
      "comparable_to_ours": False,

@@ -5714,8 +5714,8 @@
     },
     {
       "artifact": "external_comparability.json",
-      "bytes": 7973,
-      "sha256": "684a845ca116aea7d34fef1a067097615b130f4b3e42bd8172c85304cb4c8f13",
+      "bytes": 8103,
+      "sha256": "04828aad7be8ea22a4626523569c61ef24b3ed766d99be5e7c3169ebfe1c1b1b",
       "completeness": "complete",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -5724,8 +5724,8 @@
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-09-06T11:30:12",
-      "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+      "written": "2026-09-06T11:36:55",
+      "commit": "925a106f9fd09ac4dc66dd15f0cbf41857702f83",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
