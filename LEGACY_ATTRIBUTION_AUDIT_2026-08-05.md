@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 195 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 200 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 113
+- `exploratory`: 118
 - `historical_only`: 30
 - `provisional`: 13
 - `supported_measurement`: 39
@@ -105,8 +105,13 @@ All 195 legacy-metadata artifacts are listed exactly once. Classification descri
 | `distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | base: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result; base: every prediction is empty; this can be an inference failure, not a measured null result; recorded commit is unavailable from current history; saved summary differs from row recomputation; tuned: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result; tuned: every prediction is empty; this can be an inference failure, not a measured null result |
 | `distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-diagnostic-off-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r16-seed20260904-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r16-seed20260905-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r16-seed20260906-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r32-seed20260904-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__rank-seed-control-r8-seed20260904-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__rank-seed-control-r8-seed20260905-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__rank-seed-control-r8-seed20260906-h100-20260904.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 1584 | 0 | 0 | False |  |
 | `grammar_constraint__index18__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 396 | 0 | 0 | False |  |
 | `grammar_constraint__mushoku16__mistralai__magistral-small__local-llamacpp.json` | grammar_constraint | supported_measurement | 556 | 0 | 0 | False |  |

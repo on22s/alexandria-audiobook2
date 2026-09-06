@@ -75,6 +75,62 @@ RECORD = [
             "difference that is NOT an oracle is context width - they use "
             "4096 tokens (~16k characters) where our widest tested window is "
             "3,200 characters, and widening 400->3,200 was worth +12.7 points"},
+    # THE ONLY FULLY END-TO-END NUMBER PUBLISHED ON PDNC, and therefore the
+    # only one that measures the task this project actually performs.
+    {"claim": "Overall PDNC accuracy, a system that builds its own character "
+              "list",
+     "value": 0.40,
+     "source": "Improving Automatic Quotation Attribution in Literary Novels "
+               "(arXiv 2307.03734), Table 3, BookNLP-OG",
+     "dataset": "PDNC, Quotations split, 5-fold cross-validation",
+     "protocol":
+         "BookNLP's original pipeline run END TO END: it identifies its own "
+         "characters and candidate mentions, with no gold list supplied at "
+         "any point.",
+     "comparable_to_ours": True,
+     "why": "This is our setting. We infer the roster too, and w3200 reads "
+            "0.656 over 2,494 rows - ABOVE this number, not below the 0.906 "
+            "the LLaMa3 entry reports. Every other PDNC figure in this file "
+            "is measured with the gold alias list handed to the system, so "
+            "reading our result against them compares two different tasks."},
+    {"claim": "Overall PDNC accuracy, coreference mentions matched to the gold "
+              "character list",
+     "value": 0.78,
+     "source": "Improving Automatic Quotation Attribution in Literary Novels "
+               "(arXiv 2307.03734), Table 3, BookNLP+",
+     "dataset": "PDNC, Quotations split, 5-fold cross-validation",
+     "protocol":
+         "Candidates restricted to coreference-resolved mention spans, which "
+         "are then MATCHED AGAINST the annotated PDNC character list.",
+     "comparable_to_ours": False,
+     "why": "The gold list enters as a filter on the candidate set rather "
+            "than as a prompt, which is a softer oracle than LLaMa3's alias "
+            "map but still an oracle. The gap from 0.40 to 0.78 is what the "
+            "published literature says that filtering is worth - and it is "
+            "the single largest method effect recorded in this file."},
+    {"claim": "Overall PDNC accuracy, current state of the art",
+     "value": 0.945,
+     "source": "Fast and Accurate Quotation Attribution in Literary Texts "
+               "(arXiv 2608.02359)",
+     "dataset": "PDNC, ModernBERT-large, joint scoring, 2000-token context",
+     "protocol":
+         "An encoder plus MLP scorer, not a prompted LLM: quotation and "
+         "mention representations scored jointly inside one context window. "
+         "The GOLD-labelled character list is accessed at BOTH training and "
+         "evaluation time, which the authors call 'slightly unrealistic'. "
+         "99.3% explicit, 95.5% anaphoric, 89.3% implicit. 0.43s per novel "
+         "on an A100, ~1000x faster than the Llama-3 8b approach.",
+     "comparable_to_ours": False,
+     "why": "The authors state plainly that systems here access 'the "
+            "gold-labelled character list both at training and evaluation "
+            "time' and call the setting 'slightly unrealistic'. So the whole "
+            "PDNC leaderboard, 0.906 and 0.945 alike, is measured with the "
+            "oracle. TWO of its findings are still usable because they are "
+            "not about the oracle: coreference-derived mentions beat "
+            "alias-only candidates by +12 points on NON-EXPLICIT quotes, and "
+            "widening context from 500 to 2000 tokens buys only +1.8 points "
+            "overall - which independently corroborates this project's own "
+            "sweep, where 3,200 -> 8,000 characters LOST 4.3 points."},
     {"claim": "Explicit-quote accuracy, hand-written rules",
      "value": 0.99, "source": "Elson & McKeown, AAAI 2010",
      "dataset": "their own 6-author corpus",
