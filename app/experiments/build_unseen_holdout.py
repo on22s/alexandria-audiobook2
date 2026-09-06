@@ -63,6 +63,7 @@ import json
 import os
 import pickle
 import random
+import shutil
 import re
 import sys
 import zipfile
@@ -152,8 +153,82 @@ def voice_similarity(centroids, trained_stem, candidate_stem):
     return float(a @ b)
 
 
+def verify_clip_voices(candidates, trained_zip, work, threshold, anchors,
+                       python_bin):
+    """-> [(candidate, mean cosine to the trained voice)] for clips that pass.
+
+    WHY A CLIP-LEVEL CHECK EXISTS AT ALL. The volume-level guard above keeps a
+    VOLUME whose centroid resembles the trained one, but a volume of a
+    multi-voice book contains every character in it, and the deduped character
+    zips exist for vol01 ONLY - all 75 of them - so no later volume carries a
+    character label to filter on. Measured over 68 holdouts and 1,360 clips:
+    10.7% of held-out clips are a different person, 28 of 68 holdouts carry at
+    least one, and char2-or-higher adapters average 22.3% against 5.9% for
+    char1. `crisp_mezzo_30s_f` was 7 of 20, which is how one adapter came to
+    read 0.132 on this holdout and 0.552 on another.
+
+    WHY ECAPA AND NOT THE CACHED EMBEDDINGS. Four features built from the dedup
+    cache were scored against these 1,360 ECAPA-labelled clips and every one of
+    them is near chance - centroid AUC 0.599, nearest-trained-clip 0.562, top-5
+    0.583, top-20 0.606. The cache cannot tell two characters of one book
+    apart, so a cheap filter built on it would have looked principled and
+    filtered nothing. It is not used.
+
+    THE THRESHOLD IS THE TROUGH OF A BIMODAL DISTRIBUTION, not a round number:
+    those 1,360 clips form one mode at 0.00-0.20 and another peaking at 0.75,
+    with the sparsest band at 0.25-0.30. An earlier cut at 0.45 sat on the
+    rising edge of the REAL mode and called 62 good clips foreign.
+
+    NO SILENT FALLBACK. Without the speechbrain interpreter this returns None
+    and the caller refuses. A verifier that waves clips through when it cannot
+    run is the shape that turns a configuration error into a corpus of
+    believable non-results.
+    """
+    if not candidates:
+        return []
+    if not python_bin or not os.path.exists(python_bin):
+        return None
+    os.makedirs(work, exist_ok=True)
+    refs = []
+    with zipfile.ZipFile(trained_zip) as zf:
+        wavs = sorted(n for n in zf.namelist() if n.endswith(".wav"))
+        for i, member in enumerate(wavs[:anchors]):
+            dest = os.path.join(work, "anchor_%02d.wav" % i)
+            with open(dest, "wb") as fh:
+                fh.write(zf.read(member))
+            refs.append(dest)
+    if not refs:
+        return None
+    paths = [c[0] for c in candidates]
+    pairs = [(r, pth) for pth in paths for r in refs]
+    cos, err = _ecapa(pairs, python_bin)
+    if cos is None:
+        return None
+    kept = []
+    for i, cand in enumerate(candidates):
+        window = [x for x in cos[i * len(refs):(i + 1) * len(refs)]
+                  if x is not None]
+        if not window:
+            continue
+        score = sum(window) / len(window)
+        if score >= threshold:
+            kept.append((cand, score))
+    return kept
+
+
+def _ecapa(pairs, python_bin):
+    """Thin seam over library_voice_fidelity.ecapa_pairs, so tests can stub it."""
+    from library_voice_fidelity import ecapa_pairs
+    cos, err = ecapa_pairs(pairs, python_bin)
+    if not cos or all(x is None for x in cos):
+        return None, err
+    return cos, err
+
+
 def build(trained_zip, source_dir, out_dir, lines, seed,
-          embeddings=None, min_voice_similarity=0.85):
+          embeddings=None, min_voice_similarity=0.85,
+          min_clip_voice=0.30, clip_anchors=2, oversample=3,
+          sibling_python=None, verify_clips=True):
     voices = voices_in_book(trained_zip)
     centroids = volume_centroids(embeddings) if embeddings else {}
     if not centroids:
@@ -223,8 +298,70 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
 
     rng = random.Random(seed)
     rng.shuffle(pool)
-    picked = pool[:lines]
+    # THE SHUFFLE IS LOAD-BEARING and is pinned by a test. Downstream, the
+    # identity gate reads the FIRST `--lines` entries of the file this writes,
+    # so a written order that reflected volume or offset would hand it a
+    # systematically skewed sample rather than a random one.
+    picked_scores, rejected_wrong_voice, unjudged_clips = [], 0, 0
+    candidates = []
+    if not verify_clips:
+        picked = pool[:lines]
+    else:
+        # Oversample, verify, keep the first `lines` survivors. Verifying only
+        # `lines` candidates would silently return a short holdout whenever a
+        # book is contaminated, which is exactly the case this exists for.
+        work = os.path.join(out_dir, "_voice_check")
+        candidates = pool[:lines * max(1, oversample)]
+        staged = []
+        for i, (vol, member, row) in enumerate(candidates):
+            wav_member = os.path.join(os.path.dirname(member),
+                                      os.path.basename(row["audio_filepath"]))
+            wav_member = wav_member.replace(os.sep, "/")
+            try:
+                with zipfile.ZipFile(vol) as zf:
+                    try:
+                        data = zf.read(wav_member)
+                    except KeyError:
+                        cand = [n for n in zf.namelist()
+                                if n.endswith(os.path.basename(row["audio_filepath"]))]
+                        if not cand:
+                            continue
+                        data = zf.read(cand[0])
+            except (KeyError, OSError):
+                continue
+            os.makedirs(work, exist_ok=True)
+            path = os.path.join(work, "cand_%03d.wav" % i)
+            with open(path, "wb") as fh:
+                fh.write(data)
+            staged.append((path, (vol, member, row)))
+        kept = verify_clip_voices(staged, trained_zip, work, min_clip_voice,
+                                  clip_anchors, sibling_python)
+        if kept is None:
+            sys.exit("clip-level voice check could not run (no speechbrain "
+                     "interpreter, or no anchor clips in the trained zip). "
+                     "Refusing to write a holdout that may hold another "
+                     "character - pass --sibling-python, or --no-verify-clips "
+                     "to build one deliberately unverified.")
+        picked = []
+        for (path, entry), score in kept:
+            if len(picked) >= lines:
+                break
+            picked.append(entry)
+            picked_scores.append(round(float(score), 4))
+        rejected_wrong_voice = len(staged) - len(kept)
+        unjudged_clips = len(candidates) - len(staged)
+        shutil.rmtree(work, ignore_errors=True)
     if not picked:
+        # NAME THE CAUSE. These are two different failures and the fix differs:
+        # an empty pool means the volume guard excluded everything, while an
+        # empty result from a non-empty pool means every candidate was judged
+        # to be another character. A single message sent readers to the wrong
+        # one.
+        if pool and verify_clips:
+            sys.exit(f"every one of {len(candidates)} candidate clips scored "
+                     f"below --min-clip-voice {min_clip_voice}: none of them "
+                     f"is the trained voice. Refusing to write an empty "
+                     f"holdout.")
         sys.exit("no unseen clips remain after excluding contributing volumes")
 
     val = os.path.join(out_dir, "val")
@@ -253,6 +390,10 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
                      "duration": row.get("duration"),
                      "start": row["start"], "end": row["end"],
                      "source_volume": os.path.basename(vol)}
+            # None, not a number, when the clip was never verified: a reader
+            # must be able to tell an unchecked holdout from a checked one.
+            entry["voice_similarity"] = (picked_scores[i]
+                                         if i < len(picked_scores) else None)
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
             written.append(entry)
 
@@ -264,6 +405,10 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
         "voices_in_book_recorded_not_gated": voices,
         "min_voice_similarity": min_voice_similarity,
         "volume_similarity_to_trained": similarities,
+        "clips_verified": verify_clips,
+        "min_clip_voice": min_clip_voice if verify_clips else None,
+        "clips_rejected_wrong_voice": rejected_wrong_voice,
+        "clips_unreadable": unjudged_clips,
         "volumes_dropped_wrong_voice": sorted(wrong_voice),
         "volumes_dropped_unjudged": sorted(unjudged),
         "trained_clips": len(trained),
@@ -293,6 +438,24 @@ def main():
         REPO, "dedup_analysis", "embeddings_cache.pkl"),
         help="the dedup run's cached per-clip embeddings, used to check that "
              "a candidate volume is the same voice as the trained one")
+    ap.add_argument("--min-clip-voice", type=float, default=0.30,
+                    help="per-CLIP cosine to the trained voice below which a "
+                         "held-out clip is a different person. 0.30 is the "
+                         "trough between the two modes of 1,360 labelled "
+                         "clips; 0.45 sits on the real mode's rising edge")
+    ap.add_argument("--clip-anchors", type=int, default=2,
+                    help="reference clips drawn from the trained zip; more "
+                         "than one so a single odd clip cannot set the bar")
+    ap.add_argument("--oversample", type=int, default=3,
+                    help="candidates verified per line wanted, so a "
+                         "contaminated book still yields a full holdout")
+    ap.add_argument("--sibling-python", default=os.environ.get(
+                        "ALEXANDRIA_SIBLING_PYTHON"),
+                    help="interpreter with speechbrain; without it the build "
+                         "REFUSES rather than skipping verification")
+    ap.add_argument("--no-verify-clips", action="store_true",
+                    help="write a deliberately unverified holdout. Recorded "
+                         "in the artifact as clips_verified=false")
     ap.add_argument("--min-voice-similarity", type=float, default=0.85,
                     help="drop candidate volumes below this cosine to the "
                          "trained volume (calibrated on six books: clean ones "
@@ -300,7 +463,12 @@ def main():
     args = ap.parse_args()
 
     doc = build(args.trained_zip, args.source_dir, args.out, args.lines,
-                args.seed, args.embeddings, args.min_voice_similarity)
+                args.seed, args.embeddings, args.min_voice_similarity,
+                min_clip_voice=args.min_clip_voice,
+                clip_anchors=args.clip_anchors,
+                oversample=args.oversample,
+                sibling_python=args.sibling_python,
+                verify_clips=not args.no_verify_clips)
     print(f"source volumes            : {doc['source_volumes']}")
     print(f"excluded as training data : "
           f"{[v for v, _ in doc['volumes_excluded_as_training_data']]}")

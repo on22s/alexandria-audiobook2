@@ -1,5 +1,12 @@
 """The holdout builder must never hand back a clip the adapter trained on.
 
+Most tests here pass `verify_clips=False`. That is deliberate and not a
+weakening: they exercise the VOLUME-level logic, which needs no audio model,
+and the clip-level check is covered by `ClipLevelVoiceGuard` below, which stubs
+the embedding call. A test that silently ran without the check because no
+interpreter was present would be the fallback this module exists to prevent -
+so the flag is explicit at every call site.
+
 Every fixture here is a miniature of the real layout: a "trained" dataset zip
 whose clips carry audiobook offsets, and source volumes that share those
 offsets under different sample numbers - which is exactly how the real data
@@ -83,7 +90,8 @@ class UnseenHoldout(unittest.TestCase):
     def test_no_trained_clip_is_ever_returned(self):
         out = os.path.join(self.tmp, "holdout")
         doc = build(self.trained, self.src, out, lines=12, seed=1,
-                    embeddings=self.emb)
+                    embeddings=self.emb,
+                    verify_clips=False)
         trained = {key(r) for r, _ in read_metadata(self.trained)}
         got = {(round(c["start"], 2), round(c["end"], 2)) for c in doc["clips"]}
         self.assertEqual(trained & got, set(),
@@ -94,7 +102,8 @@ class UnseenHoldout(unittest.TestCase):
         is too close to call unseen."""
         out = os.path.join(self.tmp, "holdout")
         doc = build(self.trained, self.src, out, lines=12, seed=1,
-                    embeddings=self.emb)
+                    embeddings=self.emb,
+                    verify_clips=False)
         self.assertEqual([v for v, _ in doc["volumes_excluded_as_training_data"]],
                          ["book_vol02.zip"])
         self.assertNotIn("book_vol02.zip",
@@ -105,7 +114,8 @@ class UnseenHoldout(unittest.TestCase):
         would report two measurements where there is one."""
         out = os.path.join(self.tmp, "holdout")
         doc = build(self.trained, self.src, out, lines=50, seed=1,
-                    embeddings=self.emb)
+                    embeddings=self.emb,
+                    verify_clips=False)
         got = [(c["start"], c["end"]) for c in doc["clips"]]
         self.assertEqual(len(got), len(set(got)))
         self.assertEqual(doc["unseen_pool"], 12)
@@ -117,13 +127,15 @@ class UnseenHoldout(unittest.TestCase):
         _zip(orphan, self.trained_rows + _rows(7000, 5000.0, 2))
         with self.assertRaises(SystemExit) as ctx:
             build(orphan, self.src, os.path.join(self.tmp, "h2"), 4, 1,
-                  embeddings=self.emb)
+                  embeddings=self.emb,
+                    verify_clips=False)
         self.assertIn("refusing", str(ctx.exception))
 
     def test_written_audio_matches_the_manifest(self):
         out = os.path.join(self.tmp, "holdout")
         doc = build(self.trained, self.src, out, lines=12, seed=1,
-                    embeddings=self.emb)
+                    embeddings=self.emb,
+                    verify_clips=False)
         with open(os.path.join(out, "val", "metadata.jsonl"),
                   encoding="utf-8") as fh:
             entries = [json.loads(x) for x in fh if x.strip()]
@@ -158,7 +170,8 @@ class SameVoiceGuard(unittest.TestCase):
     def _build(self, unlike=(), **kw):
         emb = _embeddings(os.path.join(self.tmp, "e.pkl"), self.stems, unlike)
         return build(self.trained, self.src, os.path.join(self.tmp, "h"),
-                     12, 1, embeddings=emb, **kw)
+                     12, 1, embeddings=emb,
+                     verify_clips=kw.pop("verify_clips", False), **kw)
 
     def test_a_different_voice_is_dropped_from_the_pool(self):
         doc = self._build(unlike=["book_vol03"])
@@ -186,7 +199,7 @@ class SameVoiceGuard(unittest.TestCase):
         emb = _embeddings(os.path.join(self.tmp, "part.pkl"),
                           ["book_vol02", "book_vol03"])
         doc = build(self.trained, self.src, os.path.join(self.tmp, "h4"),
-                    12, 1, embeddings=emb)
+                    12, 1, embeddings=emb, verify_clips=False)
         self.assertEqual(doc["volumes_dropped_unjudged"], ["book_vol01.zip"])
         self.assertNotIn("book_vol01.zip",
                          {c["source_volume"] for c in doc["clips"]})
@@ -216,3 +229,102 @@ class SameVoiceGuard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClipLevelVoiceGuard(unittest.TestCase):
+    """The volume guard keeps a volume; a volume holds every character in it.
+
+    THE CASE THAT GOT THROUGH. `crisp_mezzo_30s_f` is char2 of a two-voice
+    book. Every one of its candidate volumes passed the volume-level check,
+    and 7 of its 20 held-out clips were still the other character - which is
+    how one adapter read 0.132 on that holdout and 0.552 on another built from
+    the same book. Measured over 68 holdouts and 1,360 clips: 10.7% of clips
+    are a different person and 28 holdouts carry at least one.
+
+    The embedding call is stubbed. These tests are about what the builder DOES
+    with a verdict, which is the part that was wrong; whether ECAPA can tell
+    two people apart is not in question and needs no GPU here.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.src = os.path.join(self.tmp, "book")
+        os.makedirs(self.src, exist_ok=True)
+        # vol01 is the slice that became the training set; vol02 is unseen.
+        _zip(os.path.join(self.src, "book_vol01.zip"), _rows(0, 0.0, 8))
+        _zip(os.path.join(self.src, "book_vol02.zip"), _rows(500, 900.0, 12))
+        self.trained = os.path.join(self.tmp, "trained.zip")
+        _zip(self.trained, _rows(9000, 0.0, 8))
+        self.emb = _embeddings(os.path.join(self.tmp, "e.pkl"),
+                               ["book_vol01", "book_vol02"])
+
+    def tearDown(self):
+        import shutil as _sh
+        _sh.rmtree(self.tmp, ignore_errors=True)
+
+    def _build(self, scores, **kw):
+        """Run a build whose clip verifier returns `scores` in order."""
+        import experiments.build_unseen_holdout as m
+        seq = list(scores)
+
+        def fake(pairs, python_bin):
+            # one score per candidate, repeated once per anchor
+            per = max(1, len(pairs) // max(1, len(seq)))
+            return [seq[i // per] for i in range(len(pairs))], None
+
+        real = m._ecapa
+        m._ecapa = fake
+        try:
+            return m.build(self.trained, self.src,
+                           os.path.join(self.tmp, "h"), kw.pop("lines", 4), 1,
+                           embeddings=self.emb, sibling_python=sys.executable,
+                           clip_anchors=1, **kw)
+        finally:
+            m._ecapa = real
+
+    def test_a_clip_of_another_character_is_dropped(self):
+        doc = self._build([0.9] * 6 + [0.02] * 6, lines=4)
+        self.assertEqual(len(doc["clips"]), 4)
+        for c in doc["clips"]:
+            self.assertGreaterEqual(c["voice_similarity"], 0.30)
+        self.assertGreater(doc["clips_rejected_wrong_voice"], 0,
+                           "the foreign clips were not counted as rejected")
+
+    def test_the_threshold_is_the_trough_not_the_gate(self):
+        """0.45 sat on the rising edge of the REAL mode and cost 62 good clips."""
+        doc = self._build([0.35] * 12, lines=4)
+        self.assertEqual(len(doc["clips"]), 4,
+                         "clips at 0.35 are the trained voice and must be kept")
+        with self.assertRaises(SystemExit) as ctx:
+            self._build([0.35] * 12, lines=4, min_clip_voice=0.45)
+        self.assertIn("min-clip-voice", str(ctx.exception),
+                      "the refusal must name the clip filter, not the volume "
+                      "guard - they need different fixes")
+
+    def test_it_refuses_rather_than_skipping_verification(self):
+        """No silent pass-through: the dangerous fallback returns a plausible value."""
+        with self.assertRaises(SystemExit) as ctx:
+            build(self.trained, self.src, os.path.join(self.tmp, "h9"), 4, 1,
+                  embeddings=self.emb, sibling_python=None)
+        self.assertIn("Refusing", str(ctx.exception))
+
+    def test_an_unverified_holdout_says_so_in_the_artifact(self):
+        doc = build(self.trained, self.src, os.path.join(self.tmp, "h10"), 4, 1,
+                    embeddings=self.emb, verify_clips=False)
+        self.assertFalse(doc["clips_verified"])
+        self.assertIsNone(doc["min_clip_voice"])
+        for c in doc["clips"]:
+            self.assertIsNone(c["voice_similarity"],
+                              "an unverified clip must not carry a score")
+
+    def test_the_written_order_is_shuffled(self):
+        """The gate reads the FIRST --lines entries, so order must be random.
+
+        If clips were written in pool order they would cluster by volume and
+        by offset, and the gate would read a systematically skewed sample
+        rather than a random one.
+        """
+        doc = self._build([0.9] * 12, lines=8)
+        starts = [float(c["start"]) for c in doc["clips"]]
+        self.assertNotEqual(starts, sorted(starts),
+                            "clips were written in offset order")
