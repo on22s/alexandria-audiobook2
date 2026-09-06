@@ -751,6 +751,14 @@
     "tests.test_deterministic_retry.DeterministicRetryTest.test_nonzero_temperature_still_retries",
     "tests.test_deterministic_retry.DeterministicRetryTest.test_temperature_zero_stops_repeating_an_identical_prompt"
   ],
+  "test_diagnostic_records_cause": [
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_a_non_dict_record_is_ignored",
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_it_keeps_what_the_client_already_recorded",
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_it_merges_and_does_not_append",
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_keys_the_observer_does_not_own_are_not_copied",
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_no_diagnostics_yet_is_survivable",
+    "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_the_rejection_codes_reach_the_diagnostic"
+  ],
   "test_dialogue_attribution": [
     "tests.test_dialogue_attribution.ApostropheTest.test_a_book_written_this_way_is_refused",
     "tests.test_dialogue_attribution.ApostropheTest.test_apostrophes_do_not_make_a_line_look_quoted",
