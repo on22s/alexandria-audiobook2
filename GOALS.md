@@ -2100,63 +2100,85 @@ adapters and is indistinguishable from noise among working ones. Use it to
 reject a dataset before spending five minutes training it; do not expect it to
 improve a voice that already passes.
 
-**REBUILDING IS BASELINE-DEPENDENT, AND HARMS WORKING VOICES — 2026-09-06.**
-Nine adapters have now been rebuilt with the tight arm and gated against their
-shipped versions on one held-out set reserved before training. Pooled it is a
-null result — mean +0.053, median +0.002, 5 of 9 rose, **Wilcoxon p = 0.65** —
-and the null is two real effects cancelling:
+**REBUILDING DOES NOT HELP. THE WHOLE RESULT BELOW WAS CONTAMINATION —
+re-measured 2026-09-06.** Nine adapters were rebuilt with the tight arm and
+gated against their shipped versions. Scored on the ORIGINAL
+`build_tight_dataset` val splits that produced this section's first version,
+the pooled result was a null (mean +0.053, p = 0.65) carrying a strong
+structure inside it, `r = -0.843, p = 0.0043` between gain and shipped
+baseline, which appeared to replicate the `r = -0.598` measured over 54 books.
 
-    gain vs shipped baseline    r = -0.843   p = 0.0043   n = 9
+Those val splits were never checked for voice. They are **22.2% a different
+person**, worse than the re-gate holdouts' 10.7%, with 8 of 9 affected — and
+`husky_baritone_20s_m_supernatural`'s was **17 of 20 foreign, median anchor
+cosine 0.006**, which is the adapter this section used as its example of a
+working voice being damaged. Both of its numbers were measured against someone
+else.
 
-replicating, more strongly, the **r = -0.598** the selection experiment
-measured over 54 books.
+Re-run on holdouts built with the clip-level guard, one voice by construction,
+both arms on the same fresh clips:
 
-| population | n | mean delta | rose |
-|---|---|---|---|
-| genuinely broken (shipped < 0.30) | 3 | **+0.199** | 2/3 |
-| not actually broken (shipped >= 0.45) | 4 | **-0.045** | 2/4 |
-
-`husky_baritone_20s_m_supernatural` went 0.548 -> 0.413 and fell below the
-gate. **The operational rule is therefore rebuild below ~0.30 and leave
-anything above 0.45 alone**, not "rebuild the failures": applied to all nine it
-would have broken a working voice to fix two dead ones.
-
-**And four of the nine were not broken.** They score >= 0.45 as shipped,
-unchanged, on a clean held-out set. The two holdouts that disagreed on
-`crisp_mezzo_30s_f` — 0.132 against 0.552 — have since been explained above:
-voice contamination in a char2 holdout, read through a first-12 window. That
-adapter is one of the 20 provisional ones. Same family as [[Rule 21]]: the
-instrument, not the reading.
-
-**The half arm replicates on the three that were genuinely broken —
-2026-09-06.** 100 well-chosen clips against the tight arm's 200, all three
-scored on the same held-out clips as the shipped and tight arms:
-
-| adapter | shipped | tight 200 | half 100 | half - tight | gate |
+| adapter | old ship | old rebuilt | new ship | new rebuilt | delta |
 |---|---|---|---|---|---|
-| `velvety_mezzo_30s_f_gothic` | 0.057 | 0.363 | 0.402 | +0.039 | fail |
-| `warm_baritone_40s_m_1` | 0.171 | 0.475 | **0.492** | +0.018 | **PASS** |
-| `breathy_alto_50s_f_fantasy` | 0.291 | 0.277 | 0.328 | +0.051 | fail |
+| `breathy_alto_50s_f_fantasy` | 0.291 | 0.277 | 0.367 | 0.384 | +0.017 |
+| `breathy_mezzo_20s_f_scifi` | 0.547 | 0.475 | 0.559 | 0.510 | -0.049 |
+| `breathy_tenor_18s_m_supernatural` | 0.492 | 0.517 | 0.449 | 0.539 | +0.090 |
+| `crisp_mezzo_30s_f` | 0.552 | 0.554 | 0.533 | 0.504 | -0.029 |
+| `husky_baritone_20s_m_supernatural` | 0.548 | 0.413 | 0.527 | 0.509 | -0.017 |
+| `velvety_mezzo_30s_f_gothic` | 0.057 | 0.363 | 0.150 | 0.059 | -0.091 |
+| `warm_alto_40s_f_1` | 0.388 | 0.520 | 0.437 | 0.534 | +0.097 |
+| `warm_baritone_40s_m_1` | 0.171 | 0.475 | **0.670** | **0.355** | **-0.316** |
+| `warm_tenor_20s_m` | 0.395 | 0.322 | 0.349 | 0.344 | -0.005 |
 
-Half beat tight on all three, mean **+0.0359**, against the +0.0301 measured
-over 51 books. **At n=3 that is a consistency check, not an independent
-confirmation** — three paired differences carry no p-value worth quoting. It
-also reversed the one case where tight made a broken adapter worse
-(`breathy_alto_50s_f_fantasy`, 0.291 -> 0.277 -> 0.328), so that failure was
-the recipe rather than an unrecoverable dataset.
+| | mean | rose | Wilcoxon | r(gain, baseline) |
+|---|---|---|---|---|
+| contaminated holdouts | +0.0529 | 5/9 | p = 0.65 | **-0.843**, p = 0.0043 |
+| voice-guarded holdouts | **-0.0337** | 3/9 | p = 0.50 | **-0.368**, p = 0.33 |
 
-**Selection reliably improves a broken adapter and does not reliably fix one.**
-Mean +0.235 over shipped, and **one of three clears 0.45**. Two are recovered
-but unshippable at 0.402 and 0.328.
+**Three claims are withdrawn.**
 
-The pool was reused rather than redrawn, so the held-out set is identical by
-construction rather than by an argument about seed determinism. The leak check
-guarding that is keyed on `(source_volume, text)`: a first version compared
-basenames and **could never have fired**, because every split renumbers from
-zero and one clip present in two splits carries two different names. It
-reported CLEAN on a file compared against itself. It now passes three cases
-with known answers — train/val CLEAN, val/val LEAK 20 of 20, control-train/val
-CLEAN — and returned CLEAN on all three adapters here.
+- **"Gain depends on baseline" is withdrawn.** `r = -0.843` becomes `-0.368,
+  p = 0.33`. It had replicated a prior `r = -0.598`, and that agreement proved
+  nothing: both measurements shared the defect. Two results agreeing is not
+  evidence when they share an instrument.
+- **Both rescues are withdrawn.** `warm_baritone_40s_m_1` read 0.171 -> 0.475
+  and actually reads **0.670 -> 0.355**: the shipped adapter was healthy and
+  rebuilding BROKE it, a swing of -0.316 in the opposite direction to the one
+  recorded. `velvety_mezzo_30s_f_gothic`'s +0.306 becomes -0.091, and at 0.150
+  shipped it remains broken.
+- **The operational rule "rebuild below ~0.30, leave above 0.45 alone" is
+  withdrawn**, because the population it was drawn from was mislabelled: two of
+  the three "genuinely broken" adapters were not broken.
+
+**What survives is a null with a downside.** Mean **-0.0337**, 3 of 9 rose,
+p = 0.50, and four adapters at or above 0.45 came out worse than they went in.
+Tight-selection rebuilding is not a rescue tool.
+
+**THE HALF ARM RESULT INHERITS THIS AND IS NOW UNINTERPRETABLE.** It compared
+100 clips against 200 on `velvety_mezzo_30s_f_gothic`, `warm_baritone_40s_m_1`
+and `breathy_alto_50s_f_fantasy`, chosen because they were "genuinely broken",
+scored on the same contaminated splits. Half beat tight on all three
+(+0.039, +0.018, +0.051, mean +0.0359 against +0.0301 over 51 books) and that
+number is not withdrawn — nothing has re-measured it — but its premise is:
+`warm_baritone_40s_m_1` was never broken. **The comparison must be re-run on
+guarded holdouts before it is cited.**
+
+Its leak check remains sound and is worth keeping: keyed on
+`(source_volume, text)`, after a first version that compared basenames and
+**could never have fired**, because every split renumbers from zero and one
+clip present in two splits carries two different names. It reported CLEAN on a
+file compared against itself. It now passes three cases with known answers —
+train/val CLEAN, val/val LEAK 20 of 20, control-train/val CLEAN.
+
+**Evidence** — `guarded__<adapter>__{shipped,rebuilt}.json` (18).
+
+**What this cost, as a lesson.** Every claim withdrawn here was a correct
+number with a wrong instrument behind it, and each was believed because
+something agreed with it: the r replicated an earlier r, the rescues were large
+and consistent, the damage example was dramatic. [[Rule 21]] says validate the
+instrument before trusting the readings; the sharper form is that AGREEMENT
+BETWEEN TWO RESULTS IS NOT VALIDATION when both rest on the same unchecked
+measurement.
 
 **Evidence** — `regate_vf__<adapter>.json` (68),
 `rebuild_newexp__<adapter>__{shipped,rebuilt}.json` (8),

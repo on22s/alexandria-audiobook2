@@ -1,0 +1,31 @@
+{
+ "adapter": "../../../aa2-tight/ab_test_runtime/tight_rebuild/husky_baritone_20s_m_supernatural/tight/adapter",
+ "median_ecapa": 0.5095,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5095)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T07:53:38",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "2abe4fdf341ceb8d3a01f14a28daafd48222ecff",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "1ddf50dfa1e750f0784d13e5decda7db4c79d766eb35d2bafb72552450638549"
+  },
+  "args": {
+   "adapter": "adapter",
+   "dataset": "ab_test_runtime/guarded_holdout/husky_baritone_20s_m_supernatural",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded__husky_baritone_20s_m_supernatural__rebuilt.json"
+  },
+  "seed": 1234
+ }
+}
