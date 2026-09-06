@@ -319,6 +319,24 @@ def classify_gold_population(gold, seg):
     return want, exclusions
 
 
+def reject_duplicate_books(books):
+    """Refuse a --books list that names the same book twice.
+
+    A FUNCTION RATHER THAN AN INLINE BLOCK so the refusal can be exercised.
+    The first test for this asserted that distill_eval.py's SOURCE contained
+    the refusal message - which passes if the block is unreachable, wrapped in
+    `if False`, or never called at all. That is the exact shape goal 6.6 is
+    about, and it was committed in a change whose subject was guards.
+    """
+    dupes = sorted({b for b in books if books.count(b) > 1})
+    if dupes:
+        raise SystemExit(
+            f"--books names {', '.join(dupes)} more than once. A book scored "
+            f"twice is weighted twice in the pooled totals; fix the command "
+            f"rather than the numbers.")
+    return list(books)
+
+
 def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
     source_path, checkpoint_path = get_book_paths(
@@ -476,11 +494,7 @@ def main():
     # artifact still named four books. Refuse: a repeated book is a typo every
     # time, never an intent, and silently deduplicating would hide the typo
     # from whoever wrote it.
-    dupes = sorted({b for b in args.books if args.books.count(b) > 1})
-    if dupes:
-        sys.exit(f"--books names {', '.join(dupes)} more than once. A book "
-                 f"scored twice is weighted twice in the pooled totals; fix "
-                 f"the command rather than the numbers.")
+    reject_duplicate_books(args.books)
     # WHAT WAS ACTUALLY SCORED, recorded from the argument rather than left to
     # the free-text notes. Every artifact from 2026-09-01 and -09-04 carries a
     # note saying "scored on four gold books" and scored three: the note is

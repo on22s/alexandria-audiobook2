@@ -3728,6 +3728,57 @@ the executable module entry point, not another validation decision; normal
 CLI verifier runs exercise it. The goal remains open while older guards are
 audited tranche by tranche.
 
+**FOURTH AUDIT TRANCHE, 2026-09-06.** Six checks were found unable to fail, in
+one day, and four of them had been written that same day. The pattern is not
+carelessness about tests — every one of these HAD a test, and the test passed.
+It is that the rejecting case was never constructed.
+
+- **The empty-arm guard could not see an arm that answered nothing.** #476 made
+  `correct/n` return None when `n` is zero. Two FP8 arms hold 383 rows EACH
+  with every `predicted` None and were written as `accuracy 0.0`. `n` counts
+  attempts; nothing counted attempts that produced text. Twelve stored
+  artifacts qualify. Fixed and rejecting-tested in #495.
+- **The empty-holdout refusal could not see a SHORT holdout.** It refused zero
+  clips and said nothing about six. `velvety_mezzo_30s_f_gothic` rejected 54 of
+  60 candidates and quietly wrote six, and the gate scored a median over 6
+  lines while every other adapter used 12 — same verdict format, different
+  measurement. Fixed in #493.
+- **The volume-level voice guard could not see clip-level contamination.** A
+  volume of a multi-voice book contains every character in it; 10.7% of
+  held-out clips were a different person. Fixed in #489.
+- **A leak check compared BASENAMES across splits that renumber from zero**, so
+  `train_0000.wav` and `val_0000.wav` could never collide however much they
+  leaked. It reported CLEAN on a file compared against itself. It also lived
+  inside a bash heredoc where no test could import it — a guard nobody can show
+  failing because nobody can call it. Now `app/experiments/holdout_leak.py`
+  with six tests, including the self-comparison it used to pass.
+- **A test asserted the SOURCE of a guard rather than its behaviour.** It
+  grepped `distill_eval.py` for the refusal's wording, which holds whether or
+  not the refusal is reachable — wrap the block in `if False` and it still
+  passes. It was committed in #494, a change whose entire subject was guards.
+  The refusal is now `reject_duplicate_books()` and the test calls it, with an
+  accepting control beside it.
+- **Two ANALYSIS instruments, never committed, produced two withdrawn claims.**
+  An ECAPA self-clustering rule reported zero foreign clips in a holdout known
+  to hold seven, because with a third of the set foreign the outliers are
+  similar to each other and stop being outliers. A cache-cosine gap rule
+  flagged 1 of 68 and missed the one case with a known answer. Neither was a
+  committed check, which is precisely why neither had a rejecting test — and
+  both were reported as findings before being checked against a known case.
+
+**What this tranche changes about the rule.** The first three tranches audited
+guards that already existed. This one is about the moment of writing: four of
+the six were introduced and tested on the same day, and passed. The discipline
+that would have caught every one is narrower than "write a test" — it is
+*construct the input the guard must reject, and watch it reject*. A test that
+greps source, or that only exercises the accepting path, is the failure mode
+this goal names, and it is now demonstrated from the inside.
+
+**And the corollary from [[Rule 21]] earned again**: agreement is not
+validation. `r=-0.843` was believed because it replicated an earlier `r=-0.598`;
+both rested on the same contaminated holdouts and both were wrong. Two results
+agreeing tells you they share a method, not that the method works.
+
 **THIRD AUDIT TRANCHE, 2026-09-04.** Two downloaded FP8 diagnostics carried
 766 empty predictions and 428 failed generation batches apiece, yet their
 metadata said `validation: ok`; the missing offline FP8 kernel meant inference
