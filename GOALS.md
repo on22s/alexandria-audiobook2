@@ -2180,6 +2180,72 @@ One voice recovered — `husky_baritone_20s_m_supernatural` 0.160 -> 0.509 — a
 four the library called healthy fell below the gate, `warm_tenor_20s_m` worst
 at 0.657 -> 0.349.
 
+**THE CLEAN MEASUREMENT, ALL 75 ON CLIP-VERIFIED HOLDOUTS — 2026-09-06.** The
+library was re-gated a third time, now with the clip-level guard (#489), the
+short-holdout refusal (#493) and `--oversample 5`. **66 measured, 9 refused** —
+each refusal a book too contaminated to yield 12 verified clips, where the old
+scheme's answer was a number.
+
+    library median   0.6235  ->  guarded  0.6004
+    mean delta       -0.0149      median  -0.0270
+    fell             46/66        Wilcoxon p = 0.0035
+    below 0.45        7  ->  6
+    moved < 0.15     61 of 66
+
+**The library was mildly optimistic and nothing worse.** The drop is real and
+significant, and it is about one and a half points; **61 of 66 adapters move
+less than 0.15**. The ranking was broadly right. Only the absolute numbers were
+flattered by scoring against clips chosen before the same-voice guard existed,
+and the 0.45 gate should be read against these figures rather than the
+library's.
+
+**"More adapters are broken than we thought" is withdrawn for good.** 7 -> 6.
+That claim has now failed at every stage of this investigation - on the
+contaminated re-gate, on the clean 48, on the clean 40, on the nine rebuilds,
+and here on the full clean set. It should not be retested.
+
+**The two largest movers go UP**, and that is the finding with consequences:
+
+| adapter | library | guarded |
+|---|---|---|
+| `husky_baritone_20s_m_supernatural` | 0.160 | **0.527** |
+| `warm_baritone_40s_m_1` | 0.338 | **0.670** |
+| `husky_baritone_40s_m_military` | 0.618 | 0.210 |
+| `warm_tenor_20s_m` | 0.657 | 0.349 |
+
+Two voices the library called dead are healthy once measured against the right
+person. **The library's failures were more often measurement artifacts than
+broken voices**, which is exactly why rebuilding them came out a null with a
+downside: three of the nine rebuilt adapters were never broken.
+
+**THE TONE-SPREAD CORRELATION DOES NOT SURVIVE THE CLEAN SET.** This run
+existed to settle it, and the answer is that it shrinks every time the
+measurement improves:
+
+| scored against | r | p | n |
+|---|---|---|---|
+| library val splits (contaminated) | +0.584 | 4.8e-08 | 74 |
+| first re-gate, volume guard only | +0.526 | 4.1e-06 | 68 |
+| its uncontaminated subset | +0.662 | 3.3e-06 | 40 |
+| **clip-verified, all 66** | **+0.253** | **0.040** | 66 |
+| weaker half alone | +0.185 | 0.30 | 33 |
+| stronger half alone | +0.035 | 0.85 | 33 |
+
+At p=0.040 among the day's many comparisons, with **neither half significant
+alone**, this is not established. **"Tightness is a screen, not a dial" is
+withdrawn** - that framing came from the +0.526 and +0.662 readings, and on
+properly guarded holdouts the screen is not there either. Dataset tone spread
+should not be used to reject a dataset before training.
+
+**The pattern across the whole thread.** Four claims from this line of work
+have now been withdrawn - the failure count, the r=-0.843 baseline dependence,
+both rebuild rescues, and now the tone-spread correlation - and every one
+shrank in the same direction as the instrument got cleaner. See
+[[agreement_is_not_validation]]. What survived is smaller and duller than what
+was claimed: the library is slightly optimistic, and rebuilding does not help.
+
+**Evidence** — `guarded_regate__<adapter>.json` (66).
+
 **HALF OF THAT IS THE INSTRUMENT, AND THE FAILURE-COUNT CLAIM DOES NOT SURVIVE
 — investigated 2026-09-06.** Two supposedly clean holdouts disagreed by 0.42 on
 one adapter, which turned out to be two defects compounding:

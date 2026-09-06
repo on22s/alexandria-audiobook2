@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1407 artifacts, 1429 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1473 artifacts, 1429 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1912,6 +1912,72 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `guarded__warm_baritone_40s_m_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `guarded__warm_tenor_20s_m__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `guarded__warm_tenor_20s_m__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_alto_50s_f_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_baritone_40s_m_military_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_baritone_40s_m_military_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_mezzo_20s_f_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_tenor_18s_m_supernatural.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_tenor_20s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__breathy_tenor_50s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__bright_tenor_30s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__crisp_mezzo_30s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__crisp_tenor_20s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__crisp_tenor_30s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__gravelly_baritone_50s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_alto_40s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_20s_m_anime.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_20s_m_supernatural.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_35s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_40s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_40s_m_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_40s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_40s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_50s_m_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_baritone_50s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_soprano_20s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_tenor_30s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_tenor_30s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__husky_tenor_30s_m_literary.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_alto_40s_f_cyberpunk.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_alto_40s_f_literary_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_baritone_30s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_baritone_30s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_baritone_40s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_mezzo_10s_f_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_mezzo_30s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_mezzo_30s_f_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__silky_mezzo_30s_f_supernatural.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_alto_40s_f_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_alto_40s_f_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_alto_40s_f_3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_alto_50s_f_anime.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_alto_50s_f_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_20s_m_postapoc.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_fantasy_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_fantasy_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_30s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_4.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_5.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_40s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_50s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_baritone_50s_m_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_bass_50s_m_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_mezzo_20s_f_anime.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_mezzo_30s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_mezzo_30s_f_fantasy_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_mezzo_30s_f_fantasy_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_tenor_20s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_tenor_25s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_tenor_30s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_tenor_30s_m_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded_regate__warm_tenor_30s_m_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__breathy_alto_50s_f_fantasy__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__velvety_mezzo_30s_f_gothic__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__warm_baritone_40s_m_1__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

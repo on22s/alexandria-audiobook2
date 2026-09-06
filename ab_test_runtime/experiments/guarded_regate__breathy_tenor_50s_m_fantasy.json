@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/breathy_tenor_50s_m_fantasy",
+ "median_ecapa": 0.5609,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.5609)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T11:34:54",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "6f3812227217994f34b4d7bbf8409748265157e6d3a408413ed1056fa2ee0099"
+  },
+  "args": {
+   "adapter": "lora_models/breathy_tenor_50s_m_fantasy",
+   "dataset": "ab_test_runtime/guarded_regate_all/breathy_tenor_50s_m_fantasy",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__breathy_tenor_50s_m_fantasy.json"
+  },
+  "seed": 1234
+ }
+}

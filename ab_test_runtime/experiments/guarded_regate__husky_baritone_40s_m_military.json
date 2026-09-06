@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/husky_baritone_40s_m_military",
+ "median_ecapa": 0.2101,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.2101 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T12:46:42",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "6f3812227217994f34b4d7bbf8409748265157e6d3a408413ed1056fa2ee0099"
+  },
+  "args": {
+   "adapter": "lora_models/husky_baritone_40s_m_military",
+   "dataset": "ab_test_runtime/guarded_regate_all/husky_baritone_40s_m_military",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__husky_baritone_40s_m_military.json"
+  },
+  "seed": 1234
+ }
+}

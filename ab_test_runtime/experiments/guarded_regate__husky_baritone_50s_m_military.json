@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/husky_baritone_50s_m_military",
+ "median_ecapa": 0.6403,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6403)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T12:56:20",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "9c040bc26a6541c6b6f9c706ede6a16bc5fed16a",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "3f66bdd65a8780c0064bb9e6950a2853b67525b189bb03ab3b307416b99ed9f1"
+  },
+  "args": {
+   "adapter": "lora_models/husky_baritone_50s_m_military",
+   "dataset": "ab_test_runtime/guarded_regate_all/husky_baritone_50s_m_military",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__husky_baritone_50s_m_military.json"
+  },
+  "seed": 1234
+ }
+}
