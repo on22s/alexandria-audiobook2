@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_rebuild/breathy_alto_50s_f_fantasy/tight/adapter",
+ "median_ecapa": 0.2771,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.2771 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T15:33:40",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "219b205cb9ea3600acf323acd8781b8103d09bce",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "49597fe00b76bd268f50ae3de5a54d48390c147e9a8921bfc41004dd98e949d0"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_rebuild/breathy_alto_50s_f_fantasy/tight/adapter",
+   "dataset": "ab_test_runtime/tight_rebuild/breathy_alto_50s_f_fantasy/tight",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/tight_rebuild__breathy_alto_50s_f_fantasy__rebuilt.json"
+  },
+  "seed": 1234
+ }
+}
