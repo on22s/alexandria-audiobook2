@@ -139,6 +139,46 @@ def roster_lines(fixture):
     return lines
 
 
+def restrict_roster(roster, entry):
+    """-> only the roster lines whose character is NAMED near this quote.
+
+    THE LEAD THIS TESTS. arXiv 2307.03734 reports 0.40 end-to-end against 0.78
+    once candidates are restricted to coreference-resolved mentions - the
+    largest method effect in `external_comparability.json`, and the only one
+    the literature credits that is not an oracle. `candidate_restriction.json`
+    measured what the same idea costs here with name matching instead of a
+    coreference model: the roster falls from 74 characters to 8 and the right
+    speaker survives 92.7% of the time.
+
+    WHAT IT CANNOT DO. A speaker named only by pronoun in the window is
+    dropped, and that is most of the 7.3 points lost. This is deliberately the
+    cheap version - if it moves nothing, a coreference model is the next step
+    and not a different idea.
+
+    Matching is whole-word and case-folded on every surface form the line
+    carries, canonical and bracketed aliases alike, because a character
+    referred to as MRS. BENNET must be kept when the line's head is BENNET.
+    """
+    import re as _re
+    context = " ".join(str(entry.get(k) or "") for k in
+                       ("prev_context", "line", "next_context")).upper()
+    if not context.strip():
+        return roster
+    kept = []
+    for line in roster:
+        head = line.split(" [also:")[0]
+        extra = _re.findall(r"\[also: (.+)\]", line)
+        forms = [head] + ([x.strip() for x in extra[0].split(",")] if extra else [])
+        if any(_re.search(r"\b" + _re.escape(f.upper()) + r"\b", context)
+               for f in forms):
+            kept.append(line)
+    # NEVER HAND BACK AN EMPTY CAST. A quote whose window names nobody would
+    # otherwise get a prompt with no candidates at all, which is a different
+    # question than the one being asked; fall back to the full roster and let
+    # the artifact record how often that happened.
+    return kept or roster
+
+
 def clean_answer(text):
     """-> the name the model meant, from whatever shape it replied in.
 
@@ -315,6 +355,7 @@ def summarise(rows):
 
 
 def main():
+    restricted = unrestricted = 0
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--fixtures", nargs="+",
                     default=sorted(glob.glob(os.path.join(
@@ -341,6 +382,12 @@ def main():
                          "+17.8 points on PDNC was never combined with the "
                          "wide context window; this is what lets them be. "
                          "Books without an entry are unchanged.")
+    ap.add_argument("--restrict-candidates", action="store_true",
+                    help="show only characters NAMED in the quote's own "
+                         "context window. Measured offline at 74 -> 8 "
+                         "candidates for 7.3 points of recall; the run beats "
+                         "the unrestricted arm only above 70.7%% on retained "
+                         "rows (candidate_restriction.json)")
     ap.add_argument("--prompt-variant", default="control",
                     choices=list(PROMPT_VARIANTS),
                     help="control is byte-identical to the shipped prompt")
@@ -379,6 +426,7 @@ def main():
     # The artifact must say which prompt produced it. Two arms whose only
     # difference is one sentence are indistinguishable afterwards otherwise.
     record.meta["prompt_variant"] = args.prompt_variant
+    record.meta["restrict_candidates"] = bool(args.restrict_candidates)
     record.enable_checkpoint(out + ".ckpt")
 
     # BOOK -> NARRATOR, matched on a substring of the fixture stem so the
@@ -430,7 +478,13 @@ def main():
             gold_id = f"{book}:{entry['id']}"
             if record.done("single", gold_id):
                 continue
-            answer, raw, failure = ask(client, args.model, entry, roster,
+            shown = (restrict_roster(roster, entry)
+                     if args.restrict_candidates else roster)
+            if len(shown) < len(roster):
+                restricted += 1
+            elif args.restrict_candidates:
+                unrestricted += 1
+            answer, raw, failure = ask(client, args.model, entry, shown,
                                        decoding, narrator, args.prompt_variant)
             predicted = None if failure else answer
             correct = bool(predicted and predicted != DECLINE
@@ -445,7 +499,7 @@ def main():
             # the aliases; the artifact records the set they belong to.
             record.add("single", gold_id, entry.get("line"),
                        entry.get("expected_speaker"), predicted, correct,
-                       candidates=roster_names(roster),
+                       candidates=roster_names(shown),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
                        raw=(raw if raw is not None else failure),
                        prompt=(build_prompt(entry, roster, narrator,
@@ -468,6 +522,17 @@ def main():
              if r["id"].startswith(os.path.basename(p).replace(".json", "") + ":")])
         for p in args.fixtures}
     record.meta["overall"] = summarise(record.rows)
+    # HOW OFTEN THE RESTRICTION ACTUALLY BIT, so a null result can be told
+    # apart from a restriction that never applied. `fell_back` counts quotes
+    # whose window named nobody and were shown the full roster instead.
+    if args.restrict_candidates:
+        record.meta["restriction"] = {
+            "rows_restricted": restricted,
+            "rows_fell_back_to_full_roster": unrestricted,
+            "expected_recall_ceiling": 0.927,
+            "beats_unrestricted_only_above": 0.707,
+            "measured_by": "candidate_restriction.json",
+        }
     written = record.write(out)
     print(f"\nwrote {written}")
 
