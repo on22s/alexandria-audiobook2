@@ -258,3 +258,4 @@ app/fixtures/attribution_gold_pdnc_*_w16000.json
 ab_test_runtime/tight_rebuild_newly_exposed/
 ab_test_runtime/guarded_holdout/
 ab_test_runtime/guarded_regate_all/
+ab_test_runtime/adapter_listening_package/
