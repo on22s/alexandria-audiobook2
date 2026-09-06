@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1298 artifacts, 1393 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1298 artifacts, 1393 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
