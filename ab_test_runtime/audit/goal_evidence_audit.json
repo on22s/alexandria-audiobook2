@@ -24,16 +24,17 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 6,
+   "cited": 7,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
-   "weakest_evidence": "provisional",
+   "weakest_evidence": "exploratory",
    "classifications": {
     "supported_structure": 2,
+    "exploratory": 1,
     "provisional": 4
    },
    "dirty_artifacts": 2,
-   "no_commit": 0,
+   "no_commit": 1,
    "artifacts": [
     {
      "name": "candidate_restriction.json",
@@ -46,6 +47,12 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "925a106f"
+    },
+    {
+     "name": "light_novel_coverage.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     },
     {
      "name": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",

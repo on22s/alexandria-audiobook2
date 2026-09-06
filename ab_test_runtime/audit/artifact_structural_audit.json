@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 941,
-    "exploratory": 332,
+    "exploratory": 333,
     "provisional": 200,
     "artifacts_that_generated_nothing": 12
   },
@@ -10747,6 +10747,24 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "light_novel_coverage.json",
+      "bytes": 1341,
+      "sha256": "9cc8afdd6257a0d3e371b9c827d440ecd83b8c1d204949e0988cac2deec45e10",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-06T17:16:41",
+      "commit": null,
+      "dirty": null,
+      "classification": "exploratory",
+      "reason": "embedded provenance is incomplete"
     },
     {
       "artifact": "listener_impact.json",

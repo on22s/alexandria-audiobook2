@@ -368,6 +368,47 @@ required exactly one roster name in `prev_context`, which is 3,200 characters
 and typically holds four or five. Reporting "no separation" on 15 rows would
 have been a statement about the rule's rarity dressed as a result.
 
+#### HALF THE LIGHT-NOVEL GOLD WAS MISSING FROM ALMOST EVERY RUN — 2026-09-06
+
+The four annotated Japanese light novels hold 793 gold rows and **`grimgar03`
+is 396 of them**. It appears in **4 of 85** artifacts:
+
+| book | gold rows | artifacts it appears in |
+|---|---:|---:|
+| `grimgar03` | **396** | **4** |
+| `owarimonogatari3` | 162 | 63 |
+| `mushoku16` | 136 | 62 |
+| `index18` | 99 | 74 |
+
+Every one of the 54 three-book artifacts omits the same book. Only three cover
+all four, and all three are from 2026-08-23.
+
+**So the per-book tables, the adapter rankings and the "Qwen3.8 adapters are a
+null" verdict were computed on half the corpus** — and on the harder half.
+`grimgar03`'s base arm reads **89.1%** against 68-75% for the other three, so
+adding it raises any pooled figure for reasons that have nothing to do with
+method, and a table mixing three-book and four-book artifacts is comparing two
+corpora rather than two methods.
+
+A three-book artifact is not invalid; it measured what it measured. The defect
+is reading it as a light-novel result, which is a claim about the corpus rather
+than about the file.
+
+**The equal-coverage fix has taken.** All three in-flight cloud runs pass
+`--books grimgar03 index18 mushoku16 owarimonogatari3`, so results from here
+are on the full set. They will not be comparable to the 54 historical ones.
+
+**What this makes a backlog item, and what it does not.** Re-running all ~50
+adapters is not worth it - most were exploratory arms nobody will act on. What
+should be re-run at four books is the handful current conclusions rest on: the
+`nf4_speaker_longcontext_tophalf` family and whichever rank settles out of the
+seed comparison. Until then, **this goal's per-book target is measured against
+three books**, and two of four clearing 75% is a statement about those three.
+
+**Evidence** — `light_novel_coverage.json`, which reports coverage and
+deliberately no accuracy: a table pairing the two corpora is the error the
+audit exists to surface.
+
 **Target — every book ≥ 75% on the local model.** Two of four already clear it;
 owarimonogatari3 needs +5.9 and mushoku16 +2.1.
 
