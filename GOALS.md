@@ -1373,6 +1373,55 @@ available. Three voices remained catastrophically low on every draw:
 | `husky_baritone_20s_m_supernatural` | 0.119 | 0.075–0.160 | 13 |
 
 The overall seed-adapter median was 0.583. These three failures are therefore
+**ONE OF THE THREE IS NOT A DEFECT AT ALL - 2026-09-05.**
+`husky_baritone_20s_m_supernatural` scores **0.509 and PASSES** when gated on
+clips voice-verified against its own trained volume, against the 0.160 recorded
+here. `warm_baritone_50s_m_gothic` moves 0.432 -> **0.508**, also a pass.
+
+**Twenty-one draws agreeing is one measurement repeated, not twenty-one
+measurements.** Every seed drew from the SAME dataset's val split, and those
+splits predate the same-voice guard added the same week - the one that found
+Waking Gods has twelve narrators and 16 of its 17 volumes are a different voice
+from the trained one. A val split carrying wrong-speaker clips scores a correct
+adapter against somebody else, identically on every draw. Replication tests the
+sampling, never the frame.
+
+**It is NOT a systemic fault, and the direction is why.** All nine sub-0.45
+adapters re-gated on voice-verified clips (`rescore_vf__*.json`):
+
+| adapter | library | voice-filtered | |
+|---|---:|---:|---|
+| velvety_mezzo_30s_f_gothic | 0.079 | 0.051 | fail |
+| husky_baritone_20s_m_supernatural | 0.160 | **0.509** | **PASS** |
+| warm_baritone_30s_m_3 | 0.336 | 0.095 | fail |
+| warm_baritone_40s_m_1 | 0.338 | 0.228 | fail |
+| husky_tenor_30s_m | 0.367 | 0.370 | fail |
+| breathy_alto_50s_f_fantasy | 0.398 | 0.367 | fail |
+| crisp_mezzo_30s_f | 0.426 | 0.132 | fail |
+| warm_baritone_50s_m_gothic | 0.432 | **0.508** | **PASS** |
+| silky_baritone_45s_m | 0.103 | *refused* | pool too small to verify |
+
+Five fell, three rose. A contaminated split depresses scores uniformly - an
+adapter trained on the right voice scores low against the wrong one - so a
+one-directional story does not fit. What fits is that a single 20-clip split is
+unstable for these adapters in BOTH directions, a property of the failing tail
+rather than of the corpus.
+
+**What this touches.** Anything reading
+`library_fidelity_seed_20260914_n20.json` inherits that instability, including
+`dataset_tone_spread`'s r=0.58, which takes its ECAPA axis from that file and
+should be re-run against corrected scores before being leaned on further.
+
+**The selection experiments are unaffected.** `build_tight_dataset` builds its
+own held-out set and filters by voice similarity against the trained volume, so
+control, middle, tight and half were never scored on unverified clips. The
+100-beats-200 result, the monotonic curve and the quality dissociation stand.
+
+**A rebuild does not rescue them.** Tight-selection rebuilds of five of the nine
+gave 3 of 5 improved, mean +0.093, Wilcoxon p=0.63 - directionally consistent
+with the +0.100 predicted for weak baselines, and far too few books to claim it
+(`tight_rebuild__*.json`).
+
 stable defects, not unlucky validation samples. The probe could not measure
 56 of 75 adapters, and one more adapter has no validation clips. That is a
 coverage limit on this replication, not a pass for those voices and not a new

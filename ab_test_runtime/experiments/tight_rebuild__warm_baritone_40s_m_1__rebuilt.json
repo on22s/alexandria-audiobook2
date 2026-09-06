@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/tight/adapter",
+ "median_ecapa": 0.4746,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.4746)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-05T15:27:27",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "219b205cb9ea3600acf323acd8781b8103d09bce",
+   "branch": "agent/tight-selection-experiment-20260904",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "49597fe00b76bd268f50ae3de5a54d48390c147e9a8921bfc41004dd98e949d0"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/tight/adapter",
+   "dataset": "ab_test_runtime/tight_rebuild/warm_baritone_40s_m_1/tight",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/tight_rebuild__warm_baritone_40s_m_1__rebuilt.json"
+  },
+  "seed": 1234
+ }
+}
