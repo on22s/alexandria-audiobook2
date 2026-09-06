@@ -24,13 +24,13 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 3,
+   "cited": 5,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
     "supported_structure": 1,
-    "provisional": 2
+    "provisional": 4
    },
    "dirty_artifacts": 2,
    "no_commit": 0,
@@ -48,10 +48,22 @@
      "commit": "be3e7ead"
     },
     {
+     "name": "two_stage_attribution_w16000.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "b2fd16b7"
+    },
+    {
      "name": "two_stage_attribution_w3200.json",
      "classification": "provisional",
      "dirty": false,
      "commit": "9c7a7032"
+    },
+    {
+     "name": "two_stage_attribution_w8000.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "b2fd16b7"
     }
    ]
   },
