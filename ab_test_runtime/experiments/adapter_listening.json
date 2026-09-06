@@ -1,0 +1,147 @@
+{
+ "note": "Blinded adapter-fidelity listening package. The key is a separate file; its sha256 below proves a rating was made before the key was opened.",
+ "asks": "For each set, play reference.wav, then A.wav and B.wav. Say which sounds more like the SAME PERSON as the reference. 'same' is a permitted answer.",
+ "prediction_registered_before_rating": {
+  "large_gap_sets": "the shipped arm is chosen clearly and consistently (ECAPA gap +0.315)",
+  "no_gap_sets": "near chance (ECAPA gap +0.017 - the metric says there is nothing to hear)",
+  "controls": "the foreign narrator is rejected in all 3; if not, nothing else in this package is readable",
+  "falsifies_ecapa_if": "both classes come out near chance, which would mean the metric does not track audible speaker identity at this scale"
+ },
+ "sets": [
+  {
+   "set": "set_00",
+   "text": "CHAPTER XXII *JONATHAN* HARKER’S *JOURNAL*",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_01",
+   "text": "Having passed the wall, we took our way to the house, taking care to keep in the *shadows* of the trees on the lawn when the moonlight shone out. ....",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_02",
+   "text": "Had we done so, the Count *must* have guessed our purpose, and would doubtless have taken measures in advance to frustrate such an effort with regard to the others;",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_03",
+   "text": "as the rays crossed each other, ... or the opacity of our bodies threw great shadows. .... I could not for my life get away from the feeling that there was someone *else* amongst us.",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_04",
+   "text": "DISQUALIFIED *Kane* SAID HE FLICKED HIS FINGER AND THE MAN WHO HAD JUST SHOUTED DISAPPEARED ...",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_05",
+   "text": "I WONDER IF I CAN USE *BLOODY* CHEE WITHOUT ACTIVATING THE PATH ... LUCILLA SIGNALLED FOR THE DRIVER TO STOP AND HOPPED OUT OF THE CARRIAGE,",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_06",
+   "text": "EVEN TIGERS DRINK ... *ACORN* ... STOWO ... UH ... THE OLD MAN AND I LOOKED AT EACH OTHER ...",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_07",
+   "text": "PLEASE *PAPPER* .... SIGHED THE OLD MAN .... DIED OF OLD AGE .... I WAS PASSED DOWN TO .... LAND ONE OF THE PRINCES OF THE RAVENWOOD EMPIRE ,",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_08",
+   "text": "CHAPTER XXII *JONATHAN* HARKER’S *JOURNAL*",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_09",
+   "text": "Having passed the wall, we took our way to the house, taking care to keep in the *shadows* of the trees on the lawn when the moonlight shone out. ....",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_10",
+   "text": "Had we done so, the Count *must* have guessed our purpose, and would doubtless have taken measures in advance to frustrate such an effort with regard to the others;",
+   "question": "Which of A or B sounds more like the same speaker as reference.wav? Answer A, B or same.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  }
+ ],
+ "package_dir": "../pinokio/api/alexandria-audiobook2.git/ab_test_runtime/adapter_listening_package",
+ "concealed_key_sha256": "34fd24280151633709e86128f09f13c7af6bbb8c4dcb38fc478283a8a3418f5a",
+ "limitations": [
+  "Two adapters, one narrator each, twelve lines drawn from one held-out set - this asks whether the metric tracks anything audible, not how well.",
+  "The rater is expected to be the project owner, who is not a naive listener; goal 7.1 records that limitation already.",
+  "'same' answers are counted separately and are not evidence for either arm."
+ ],
+ "provenance": {
+  "script": "adapter_listening.py",
+  "written": "2026-09-06T11:16:45",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+   "branch": "agent/adapter-listening-20260906",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/adapter_listening.py"
+   ],
+   "harness_sha256": "2c628b663016a05749c8fc82bd977247c49503b991d369741f4638cc7051e720"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

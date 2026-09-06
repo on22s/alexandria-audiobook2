@@ -1,12 +1,30 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 872,
+    "supported_structure": 873,
     "exploratory": 331,
     "provisional": 195,
     "artifacts_that_generated_nothing": 12
   },
   "artifacts": [
+    {
+      "artifact": "adapter_listening.json",
+      "bytes": 5661,
+      "sha256": "a7117bc0569d2d35aceda7a5d39380c735102f38ed485bd0669ef0ef120000b2",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-06T11:16:45",
+      "commit": "57bd23a30f3dd21fda7fb8612eb4c7d5e3da9e0a",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
     {
       "artifact": "adapter_stop_check_aishell3.json",
       "bytes": 1551,
