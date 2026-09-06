@@ -836,6 +836,7 @@
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_diagnostic_distinguishes_eos_from_empty_content",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_inference_seed_reaches_cpu_cuda_and_deterministic_policy",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_generation_diagnostics_the_caller_reads",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_sampling_controls_reach_generate",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_thinking_mode_reaches_the_template",

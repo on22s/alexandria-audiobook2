@@ -162,6 +162,17 @@ class DistillEvalShimTest(unittest.TestCase):
         self.assertIs(model.kwargs["do_sample"], True)
         self.assertEqual(model.kwargs["temperature"], 0.7)
 
+    def test_sampling_controls_reach_generate(self):
+        """The decoding A/B is real only if its controls reach Transformers."""
+        model = _Model()
+        client = self.module.LocalClient(
+            model, _Tok("[]"), top_k=20, repetition_penalty=1.1)
+        client.create(messages=[{"role": "user", "content": "x"}],
+                      temperature=0.7, top_p=0.8, max_tokens=16)
+        self.assertEqual(model.kwargs["top_k"], 20)
+        self.assertEqual(model.kwargs["top_p"], 0.8)
+        self.assertEqual(model.kwargs["repetition_penalty"], 1.1)
+
     def test_inference_seed_reaches_cpu_cuda_and_deterministic_policy(self):
         calls = []
 

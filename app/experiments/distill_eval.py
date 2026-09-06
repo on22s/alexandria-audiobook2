@@ -122,9 +122,12 @@ class _Response:
 class LocalClient:
     """Mimics the sliver of the OpenAI client that the LLM path touches."""
 
-    def __init__(self, model, tok, thinking_mode="off"):
+    def __init__(self, model, tok, thinking_mode="off", top_k=None,
+                 repetition_penalty=1.0):
         self.model, self.tok = model, tok
         self.thinking_mode = thinking_mode
+        self.top_k = top_k
+        self.repetition_penalty = repetition_penalty
         self.chat = self
         self.completions = self
         self.adapter_enabled = True
@@ -159,8 +162,12 @@ class LocalClient:
         # would not be comparable to any of them.
         if temperature and temperature > 0:
             kw.update(do_sample=True, temperature=temperature, top_p=top_p)
+            if self.top_k is not None:
+                kw["top_k"] = self.top_k
         else:
             kw.update(do_sample=False)
+        if self.repetition_penalty != 1.0:
+            kw["repetition_penalty"] = self.repetition_penalty
         try:
             with torch.no_grad():
                 out = self.model.generate(**enc, **kw)
@@ -373,6 +380,11 @@ def main():
                          "weights exceed available VRAM")
     ap.add_argument("--thinking-mode", choices=("off", "low", "medium", "xhigh"),
                     default="off", help="Qwen chat-template reasoning mode")
+    ap.add_argument("--temperature", type=float, default=0.0,
+                    help="attribution sampling temperature; zero is greedy")
+    ap.add_argument("--top-p", type=float, default=0.8)
+    ap.add_argument("--top-k", type=int, default=None)
+    ap.add_argument("--repetition-penalty", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=42,
                     help="explicit inference RNG seed, recorded in the artifact")
     ap.add_argument("--deterministic", action="store_true",
@@ -418,14 +430,17 @@ def main():
         args.model, **get_model_load_kwargs(torch, quantization_config))
     model = load_peft_adapter_or_raise(PeftModel, base, args.adapter)
     model.eval()
-    client = LocalClient(model, tok, args.thinking_mode)
+    client = LocalClient(model, tok, args.thinking_mode, args.top_k,
+                         args.repetition_penalty)
     # BEFORE the record exists, so a model that cannot generate produces no
     # artifact at all rather than a structurally perfect all-empty one.
     preflight_generation(client, args.model)
     client.diagnostics.clear()   # the probe is not part of the measurement
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
-                          temperature=0.0, attribute_temperature=0.0,
-                          top_p=0.8, reasoning_effort="none")
+                          temperature=args.temperature,
+                          attribute_temperature=args.temperature,
+                          top_p=args.top_p, top_k=args.top_k,
+                          reasoning_effort="none")
 
     # There is no LM Studio here, so the environment is stated rather than
     # queried: `parallel` is 1 because generate() is called serially, and
@@ -446,7 +461,10 @@ def main():
         # keeps the singular gold_path/gold_sha256 fields pointing at the first
         # for the consumers that select on them.
         [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
-        {"temperature": 0.0, "batch": BATCH, "adapter": args.adapter,
+        {"temperature": args.temperature, "top_p": args.top_p,
+         "top_k": args.top_k,
+         "repetition_penalty": args.repetition_penalty,
+         "batch": BATCH, "adapter": args.adapter,
          "max_tokens": args.max_tokens, "thinking_mode": args.thinking_mode,
          "seed": args.seed, "deterministic_algorithms": args.deterministic},
         environment=environment,
