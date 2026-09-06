@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1380 artifacts, 1399 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1398 artifacts, 1399 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1861,6 +1861,24 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `generated_audio_quality.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `generation_realtime_rate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_alto_50s_f_fantasy__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_alto_50s_f_fantasy__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_mezzo_20s_f_scifi__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_mezzo_20s_f_scifi__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_tenor_18s_m_supernatural__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__breathy_tenor_18s_m_supernatural__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__crisp_mezzo_30s_f__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__crisp_mezzo_30s_f__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__husky_baritone_20s_m_supernatural__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__husky_baritone_20s_m_supernatural__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__velvety_mezzo_30s_f_gothic__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__velvety_mezzo_30s_f_gothic__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_alto_40s_f_1__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_alto_40s_f_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_baritone_40s_m_1__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_baritone_40s_m_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_tenor_20s_m__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `guarded__warm_tenor_20s_m__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__breathy_alto_50s_f_fantasy__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__velvety_mezzo_30s_f_gothic__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__warm_baritone_40s_m_1__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
