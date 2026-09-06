@@ -22,6 +22,11 @@
 # against 26.4% tuned), so this also tests whether "the adapter is worse" is
 # largely "the adapter trips the validator more".
 #
+# --load-in-4bit IS NOT OPTIONAL. A 27B in bf16 needs about 54 GB and the A6000
+# has 48, so without it the run OOMs AFTER a 52 GB transfer. This was spotted
+# once, patched in a worktree, and never committed - #504 merged without it -
+# which is why the flag now sits next to a comment saying so.
+#
 # NF4, NOT FP8, BECAUSE THIS RUNS ON AN A6000. The existing full-size thinking
 # runs used Qwen3.8-27B-FP8 on an A100. Ampere has no FP8 tensor cores, and a
 # missing `kernels-community/finegrained-fp8` is exactly what produced the two
@@ -43,6 +48,12 @@ INPUT="${SWEEP_INPUT:-/home/ubuntu/clean_gold_20260827/inputs}"
 CKPT="${SWEEP_CKPT:-/home/ubuntu/clean_gold_20260827/checkpoints}"
 HOST_TAG="${SWEEP_HOST_TAG:-a6000-tnr4-20260906}"
 PY="${SWEEP_PY:-python3}"
+# ROWS PER BOOK. A full four-book pass costs about 6.5 hours per mode on an
+# A6000 - measured from tnr-2, where grimgar03's base arm alone took 5,772s for
+# 385 lines - so four modes would be 26 hours. This sweep asks for the BLANK
+# RATE and which rule causes it, and 100 rows a book answers that at a quarter
+# of the cost. Set SWEEP_LIMIT=0 for the full pass.
+LIMIT="${SWEEP_LIMIT:-100}"
 
 test -s "$MODEL/config.json" || { echo "base model missing: $MODEL" >&2; exit 1; }
 [ -n "$ADAPTER" ] || { echo "set SWEEP_ADAPTER to an NF4-compatible adapter" >&2; exit 1; }
@@ -80,6 +91,7 @@ for mode in off low medium xhigh; do
         --books grimgar03 index18 mushoku16 owarimonogatari3 \
         --input-dir "$INPUT" --checkpoint-dir "$CKPT" \
         --thinking-mode "$mode" --max_tokens 2000 --tag "$tag" \
+        --load-in-4bit --limit "$LIMIT" \
         > "/home/ubuntu/${tag}.eval.log" 2>&1
     rc=$?; echo "[$(date -Is)] EVAL $mode rc=$rc"
 done
