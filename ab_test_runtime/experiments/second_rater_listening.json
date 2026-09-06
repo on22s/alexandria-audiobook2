@@ -1,0 +1,130 @@
+{
+ "note": "Blinded listening package for a rater who is not the project owner. The key is a separate file; its sha256 below proves a rating was made before the key was opened.",
+ "asks": "For each set, play reference.wav, then A.wav and B.wav, and say which sounds more like the SAME PERSON as the reference. 'Can't tell' is a permitted answer.",
+ "control_design": "Three sets pair the reference against one more recording of the same narrator and one of a different narrator. BOTH are different sentences from the reference, so content carries no signal about which is the same person - the flaw that voided the 2026-09-06 controls, where only the foreign clip differed in content. A rater who cannot pass these has not produced a readable result.",
+ "sets": [
+  {
+   "set": "set_00",
+   "text": "CHAPTER XXII *JONATHAN* HARKER’S *JOURNAL*",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_01",
+   "text": "Having passed the wall, we took our way to the house, taking care to keep in the *shadows* of the trees on the lawn when the moonlight shone out. ....",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_02",
+   "text": "Had we done so, the Count *must* have guessed our purpose, and would doubtless have taken measures in advance to frustrate such an effort with regard to the others;",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_03",
+   "text": "as the rays crossed each other, ... or the opacity of our bodies threw great shadows. .... I could not for my life get away from the feeling that there was someone *else* amongst us.",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_04",
+   "text": "DISQUALIFIED *Kane* SAID HE FLICKED HIS FINGER AND THE MAN WHO HAD JUST SHOUTED DISAPPEARED ...",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_05",
+   "text": "I WONDER IF I CAN USE *BLOODY* CHEE WITHOUT ACTIVATING THE PATH ... LUCILLA SIGNALLED FOR THE DRIVER TO STOP AND HOPPED OUT OF THE CARRIAGE,",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_06",
+   "text": "EVEN TIGERS DRINK ... *ACORN* ... STOWO ... UH ... THE OLD MAN AND I LOOKED AT EACH OTHER ...",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_07",
+   "text": "PLEASE *PAPPER* .... SIGHED THE OLD MAN .... DIED OF OLD AGE .... I WAS PASSED DOWN TO .... LAND ONE OF THE PRINCES OF THE RAVENWOOD EMPIRE ,",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_08",
+   "text": "",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_09",
+   "text": "",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  },
+  {
+   "set": "set_10",
+   "text": "",
+   "clips": [
+    "reference.wav",
+    "A.wav",
+    "B.wav"
+   ]
+  }
+ ],
+ "package_dir": "../pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_rater_package",
+ "concealed_key_sha256": "f47f47297343230c08d6fb47a7bad74acc6e1eeba3f5b8b700ca0b8afe1881e9",
+ "limitations": [
+  "Two adapters. This asks whether the metric tracks anything audible, not how well.",
+  "The test sets use synthesised speech on both sides; the controls use human recordings on both sides."
+ ],
+ "provenance": {
+  "script": "second_rater_package.py",
+  "written": "2026-09-06T13:45:53",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "71527e2caf23d25d226f45c880d3736b0bff2c1e",
+   "branch": "agent/second-rater-package-20260906",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/second_rater_package.py"
+   ],
+   "harness_sha256": "7eed330733c7b56bb5d9ebc3cd6a9f583e80b7693c6c1db1188282d5ebd723df"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

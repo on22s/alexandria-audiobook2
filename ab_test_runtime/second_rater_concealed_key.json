@@ -1,0 +1,155 @@
+{
+ "note": "Concealed key. Do not open before the ratings are written.",
+ "sets": [
+  {
+   "set": "set_00",
+   "kind": "test",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155
+  },
+  {
+   "set": "set_01",
+   "kind": "test",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155
+  },
+  {
+   "set": "set_02",
+   "kind": "test",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155
+  },
+  {
+   "set": "set_03",
+   "kind": "test",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 3,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "large",
+   "ecapa_gap": 0.3155
+  },
+  {
+   "set": "set_04",
+   "kind": "test",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 0,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169
+  },
+  {
+   "set": "set_05",
+   "kind": "test",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 1,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169
+  },
+  {
+   "set": "set_06",
+   "kind": "test",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 2,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169
+  },
+  {
+   "set": "set_07",
+   "kind": "test",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 3,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "gap_class": "none",
+   "ecapa_gap": -0.0169
+  },
+  {
+   "set": "set_08",
+   "kind": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "slots": {
+    "A": "other_person",
+    "B": "same_person"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null
+  },
+  {
+   "set": "set_09",
+   "kind": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "slots": {
+    "A": "other_person",
+    "B": "same_person"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null
+  },
+  {
+   "set": "set_10",
+   "kind": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "slots": {
+    "A": "same_person",
+    "B": "other_person"
+   },
+   "gap_class": "control",
+   "ecapa_gap": null
+  }
+ ],
+ "provenance": {
+  "script": "second_rater_package.py",
+  "written": "2026-09-06T13:45:53",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "71527e2caf23d25d226f45c880d3736b0bff2c1e",
+   "branch": "agent/second-rater-package-20260906",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/second_rater_package.py"
+   ],
+   "harness_sha256": "7eed330733c7b56bb5d9ebc3cd6a9f583e80b7693c6c1db1188282d5ebd723df"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}
