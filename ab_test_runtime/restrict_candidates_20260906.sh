@@ -40,10 +40,28 @@ for b in prideandprejudice theawakening thesignofthefour; do
 done
 [ -n "$FIX" ] || { echo "no w3200 fixtures found" >&2; exit 1; }
 echo "fixtures:$(echo "$FIX" | wc -w)"
+# $? AFTER A PIPELINE IS THE LAST COMMAND'S STATUS, NOT THE PYTHON'S. The first
+# version piped through `tail -40` and then read `rc=$?`, so it read tail's
+# status - which is always 0. On 2026-09-06 the run died instantly with
+# `RuntimeError: no llama.cpp /props at http://127.0.0.1:8090/v1`, and the
+# chain printed `RUN rc=0` and `ALL DONE`, and gpu_job.sh logged OK. A green
+# exit over a crash, which is the failure this repository keeps finding in
+# other people's code and had here in its own.
+#
+# PIPESTATUS[0] is the python's status. The chain also EXITS with it, so the
+# queue records a failure instead of a success - without that, the log is
+# still wrong even when this line is right.
+set -o pipefail
 "$PY" -u app/experiments/two_stage_attribution.py \
     --fixtures $FIX --restrict-candidates \
     --limit 0 --seed 20260819 --tag restricted \
     --out "$ART" 2>&1 | tail -40
-rc=$?
+rc=${PIPESTATUS[0]}
 echo "[$(date -Is)] RUN rc=$rc"
+if [ "$rc" -ne 0 ]; then
+    echo "the run FAILED; no artifact was written. Common cause: no llama.cpp" >&2
+    echo "server on the base URL. Start one serving qwen3-14b, then retry." >&2
+    exit "$rc"
+fi
+[ -s "$ART" ] || { echo "run reported success but wrote no artifact" >&2; exit 1; }
 echo "ALL DONE $(date -Is)"
