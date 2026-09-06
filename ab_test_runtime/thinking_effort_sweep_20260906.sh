@@ -54,6 +54,20 @@ PY="${SWEEP_PY:-python3}"
 # RATE and which rule causes it, and 100 rows a book answers that at a quarter
 # of the cost. Set SWEEP_LIMIT=0 for the full pass.
 LIMIT="${SWEEP_LIMIT:-100}"
+# WHICH MODES. Measured on this box: 72 seconds per LLM call, so one mode over
+# four books is about 7 hours and all four is 30. --limit does not help,
+# because the cost is the windows the model must walk, not the rows scored.
+#
+# Default is `off low`, the only comparison that decides anything: every
+# Qwen3.8 conclusion in this project was taken at `off`, and `low` beat it at
+# equal accuracy on the 30-row probe (0.0% blank against 6.7%). `medium` and
+# `xhigh` are already directionally known-bad there - 23.3% and 86.7% blank -
+# so paying 15 more hours to place them precisely buys little.
+#
+# Cutting BOOKS instead was rejected: grimgar03 is 396 of 793 gold rows and is
+# absent from 54 of 58 historical runs, so a three-book sweep would reproduce
+# exactly the coverage defect that audit documented.
+MODES="${SWEEP_MODES:-off low}"
 
 test -s "$MODEL/config.json" || { echo "base model missing: $MODEL" >&2; exit 1; }
 [ -n "$ADAPTER" ] || { echo "set SWEEP_ADAPTER to an NF4-compatible adapter" >&2; exit 1; }
@@ -93,7 +107,7 @@ echo "repo commit: $(git -C "$R" rev-parse --short HEAD 2>/dev/null || echo unkn
 echo "model:   $MODEL"
 echo "adapter: $ADAPTER"
 
-for mode in off low medium xhigh; do
+for mode in $MODES; do
     tag="qwen38-effort-${mode}-${HOST_TAG}"
     art="$R/ab_test_runtime/experiments/distill_eval__${tag}.json"
     if [ -s "$art" ]; then echo "SKIP $mode"; continue; fi
