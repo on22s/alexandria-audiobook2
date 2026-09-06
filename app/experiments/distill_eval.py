@@ -319,6 +319,37 @@ def classify_gold_population(gold, seg):
     return want, exclusions
 
 
+def merge_validation_into_diagnostics(client):
+    """-> an attempt_observer that records WHY a batch was rejected.
+
+    THE TWO HALVES EXISTED AND WERE NOT CONNECTED. `call_llm_for_entries`
+    already computes `outcome` and `failure_codes` from the validator's
+    findings and hands them to `attempt_observer`; this evaluator built its own
+    diagnostics inside the client and passed no observer, so the codes were
+    computed and dropped on the floor.
+
+    The cost, measured on 2026-09-06: an artifact recording 43 `batch_failed`
+    windows whose every attempt returned a COMPLETE, well-formed, EOS-terminated
+    JSON array of exactly the right length. Alignment passed and nothing was
+    truncated, so the rejection had to come from one of validate_attribution's
+    speaker rules - but which one was unrecoverable from the artifact, and
+    answering it took an hour of reading code that the file could have carried
+    in a field.
+
+    It merges rather than appends: the client writes one diagnostic per
+    generation and the observer fires once for the same attempt, so appending
+    would double-count attempts and make `len(attempts)` lie.
+    """
+    def observe(record):
+        if not isinstance(record, dict) or not client.diagnostics:
+            return
+        for key in ("outcome", "failure_codes", "recovery_codes",
+                    "quality_metrics", "response_repeat_count"):
+            if key in record:
+                client.diagnostics[-1][key] = record[key]
+    return observe
+
+
 def reject_duplicate_books(books):
     """Refuse a --books list that names the same book twice.
 
@@ -557,12 +588,14 @@ def main():
                 ctxmgr = (model.disable_adapter() if arm == "base"
                           else contextlib.nullcontext())
                 diagnostic_start = len(client.diagnostics)
+                observer = merge_validation_into_diagnostics(client)
                 try:
                     with ctxmgr:
                         out = attribute_batch(client, args.model, frozen, params,
                                               roster, neighbor_contexts=ctx,
                                               source_text=src,
-                                              entries_provider=provider)
+                                              entries_provider=provider,
+                                              attempt_observer=observer)
                 except Exception as exc:
                     batch_diagnostics = client.diagnostics[diagnostic_start:]
                     record.meta["generation_diagnostics"].append({
