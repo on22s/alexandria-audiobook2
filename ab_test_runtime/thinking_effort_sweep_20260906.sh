@@ -55,6 +55,19 @@ done
 # book with its strongest dialogue cue deleted.
 bad=$(grep -c $'\xef\xbf\xbd' "$INPUT/index18.txt" 2>/dev/null || echo 0)
 [ "$bad" -eq 0 ] || { echo "index18 holds $bad replacement chars; use the clean text" >&2; exit 1; }
+# THE BOX RESTORES FROM A SNAPSHOT, so its checkout is whatever it was when the
+# snapshot was taken. Without #503 this script runs perfectly and records NO
+# findings - four blank rates and no cause, which is the whole reason for the
+# sweep. Refuse rather than produce a weaker artifact that looks complete.
+grep -q "merge_validation_into_diagnostics" app/experiments/distill_eval.py 2>/dev/null || {
+    echo "this checkout predates #503: a rejected batch would not record WHICH" >&2
+    echo "validator rule fired, and the sweep would answer 'how much' but never" >&2
+    echo "'why'. Run: git -C \"$R\" pull --ff-only   then retry." >&2
+    exit 1
+}
+# llama.cpp is not used by this path (transformers+peft), but a stale checkout
+# usually means a stale everything; say so once rather than debugging it later.
+echo "repo commit: $(git -C "$R" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 echo "model:   $MODEL"
 echo "adapter: $ADAPTER"
 
