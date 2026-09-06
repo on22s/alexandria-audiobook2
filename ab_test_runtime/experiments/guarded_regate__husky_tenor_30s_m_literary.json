@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/husky_tenor_30s_m_literary",
+ "median_ecapa": 0.6688,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6688)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T13:11:13",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "36a6716765907fac35978dc89bbcfc076837fe45",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "b3ca29792a644203e542bb9fe5e43f6468937cec0cb06fe3b69ba12786862c21"
+  },
+  "args": {
+   "adapter": "lora_models/husky_tenor_30s_m_literary",
+   "dataset": "ab_test_runtime/guarded_regate_all/husky_tenor_30s_m_literary",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__husky_tenor_30s_m_literary.json"
+  },
+  "seed": 1234
+ }
+}

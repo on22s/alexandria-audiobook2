@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/husky_tenor_30s_m",
+ "median_ecapa": 0.4448,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.4448 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T13:04:36",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "9c040bc26a6541c6b6f9c706ede6a16bc5fed16a",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "3f66bdd65a8780c0064bb9e6950a2853b67525b189bb03ab3b307416b99ed9f1"
+  },
+  "args": {
+   "adapter": "lora_models/husky_tenor_30s_m",
+   "dataset": "ab_test_runtime/guarded_regate_all/husky_tenor_30s_m",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__husky_tenor_30s_m.json"
+  },
+  "seed": 1234
+ }
+}

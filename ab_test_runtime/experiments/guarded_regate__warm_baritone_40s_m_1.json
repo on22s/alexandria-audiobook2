@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/warm_baritone_40s_m_1",
+ "median_ecapa": 0.6704,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.6704)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T14:19:52",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "71527e2caf23d25d226f45c880d3736b0bff2c1e",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "aa01cc781ab140bb7cd217d76f407a394a1474528d814d49ad0dbc807535c7c4"
+  },
+  "args": {
+   "adapter": "lora_models/warm_baritone_40s_m_1",
+   "dataset": "ab_test_runtime/guarded_regate_all/warm_baritone_40s_m_1",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__warm_baritone_40s_m_1.json"
+  },
+  "seed": 1234
+ }
+}

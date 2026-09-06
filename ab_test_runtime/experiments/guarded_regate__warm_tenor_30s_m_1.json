@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/warm_tenor_30s_m_1",
+ "median_ecapa": 0.7094,
+ "lines": 12,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.7094)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-09-06T15:10:41",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b0b0583d55dd1a3400da092e3f3a7df6aea6e09c",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "19779b5309ad85d1059cfc9f1825618ad566b5e5debf0df52192a490a38ea9da"
+  },
+  "args": {
+   "adapter": "lora_models/warm_tenor_30s_m_1",
+   "dataset": "ab_test_runtime/guarded_regate_all/warm_tenor_30s_m_1",
+   "lines": 12,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/guarded_regate__warm_tenor_30s_m_1.json"
+  },
+  "seed": 1234
+ }
+}
