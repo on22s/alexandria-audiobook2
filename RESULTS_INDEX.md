@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-05 from `ab_test_runtime/experiments/` — 1289 artifacts, 1393 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1299 artifacts, 1393 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2525,6 +2525,16 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__middle.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_gate__narrator_traci_kato_kiriyama_the_phone_booth_at_the_edge_of__s20260905__tight.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__breathy_alto_50s_f_fantasy__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__breathy_alto_50s_f_fantasy__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__crisp_mezzo_30s_f__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__crisp_mezzo_30s_f__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__husky_baritone_20s_m_supernatural__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__husky_baritone_20s_m_supernatural__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__velvety_mezzo_30s_f_gothic__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__velvety_mezzo_30s_f_gothic__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__warm_baritone_40s_m_1__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tight_rebuild__warm_baritone_40s_m_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tone_spread_sensitivity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
