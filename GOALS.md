@@ -1515,6 +1515,39 @@ GPU taken. `tightness` is each dataset's mean cosine to its own centroid.
     tightness vs adapter ECAPA    r = 0.584   p = 4.8e-08   (n=74)
                                   Spearman rho = 0.562  p = 1.9e-07
 
+**AND THE CORRELATION IS CARRIED BY ITS BOTTOM NINE — 2026-09-05.** The ECAPA
+axis comes from `library_fidelity_seed_20260914_n20.json`, which scores every
+adapter on its own dataset's val split - splits predating the same-voice guard.
+Re-gating the nine sub-0.45 adapters on voice-verified clips moved eight of
+them, so `tone_spread_sensitivity.json` asks what that does to r:
+
+| reading | r | p | n |
+|---|---:|---:|---:|
+| as published | +0.584 | 4.8e-08 | 74 |
+| eight corrected scores substituted | +0.513 | 3.0e-06 | 74 |
+| **the nine failing adapters dropped** | **+0.214** | **0.087** | **65** |
+
+**Substituting barely moves it**, so r is not fragile to the points known to be
+wrong. **Dropping the failing tail collapses it below significance.** Among the
+65 adapters that already work, tightness predicts very little.
+
+**So the claim needs rewording, not withdrawing.** This is not "tightness
+predicts adapter quality across the library". It is **"tightness separates the
+broken from the working, and says little among the working"** - and those argue
+for different actions: the first for tightening every dataset, the second for
+using tightness as a triage signal. The selection experiment found the same
+shape from the other side, where the gain was +0.100 on weak baselines against
++0.010 on strong ones.
+
+**The uncomfortable part.** The nine adapters carrying the correlation are the
+same nine whose measurements are least stable - five of the eight re-gated
+moved DOWNWARD, so their scores were unstable rather than uniformly depressed.
+A sensitivity test cannot fix that; only re-gating all 75 on voice-verified
+clips can, and that is queued.
+
+Nothing measured experimentally is affected: the selection arms built their own
+voice-filtered held-out sets.
+
 | | |
 |---|---|
 | failing adapters (<0.45) whose dataset is in the loosest quartile | **8 of 9** |

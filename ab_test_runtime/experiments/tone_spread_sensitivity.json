@@ -1,0 +1,97 @@
+{
+ "note": "Sensitivity of dataset_tone_spread's r to the eight adapters re-gated on voice-verified clips. NOT a correction: only 9 of 75 adapters were re-gated, so the other 66 keep a score from the same procedure.",
+ "adapters_rescored": 8,
+ "refused": [
+  "silky_baritone_45s_m"
+ ],
+ "as_published": {
+  "n": 74,
+  "r": 0.5837838536517023,
+  "p": 4.7790274272254e-08,
+  "rho": 0.5622362088115512,
+  "rho_p": 1.8597770726742587e-07
+ },
+ "substituted": {
+  "n": 74,
+  "r": 0.5127119028407492,
+  "p": 3.007760007253802e-06,
+  "rho": 0.5519289152165863,
+  "rho_p": 3.4454098155067274e-07
+ },
+ "substituted_count": 8,
+ "dropped": {
+  "n": 65,
+  "r": 0.21374199972304594,
+  "p": 0.08733517867005901,
+  "rho": 0.42469405594405596,
+  "rho_p": 0.0004218006527333666
+ },
+ "moved": [
+  {
+   "adapter": "velvety_mezzo_30s_f_gothic",
+   "was": 0.0792,
+   "now": 0.0507,
+   "delta": -0.028500000000000004
+  },
+  {
+   "adapter": "husky_baritone_20s_m_supernatural",
+   "was": 0.1596,
+   "now": 0.5088,
+   "delta": 0.34920000000000007
+  },
+  {
+   "adapter": "warm_baritone_30s_m_3",
+   "was": 0.3359,
+   "now": 0.0946,
+   "delta": -0.24129999999999996
+  },
+  {
+   "adapter": "warm_baritone_40s_m_1",
+   "was": 0.3378,
+   "now": 0.2276,
+   "delta": -0.11019999999999999
+  },
+  {
+   "adapter": "husky_tenor_30s_m",
+   "was": 0.3668,
+   "now": 0.3702,
+   "delta": 0.0033999999999999586
+  },
+  {
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "was": 0.3983,
+   "now": 0.3672,
+   "delta": -0.03109999999999996
+  },
+  {
+   "adapter": "crisp_mezzo_30s_f",
+   "was": 0.4259,
+   "now": 0.1324,
+   "delta": -0.2935
+  },
+  {
+   "adapter": "warm_baritone_50s_m_gothic",
+   "was": 0.4325,
+   "now": 0.5083,
+   "delta": 0.07579999999999998
+  }
+ ],
+ "provenance": {
+  "script": "tone_spread_sensitivity.py",
+  "written": "2026-09-05T17:33:57",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "2741538d880ea05a9cdae3a60e01f01b85b543bf",
+   "branch": "agent/tone-spread-sensitivity-20260905",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/tone_spread_sensitivity.py"
+   ],
+   "harness_sha256": "484cc37ab8b1676eada99454b3fe097015687cb347051ebbce1be084268fbf62"
+  },
+  "args": {
+   "error": "vars() argument must have __dict__ attribute"
+  }
+ }
+}

@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1379 artifacts, 1399 arms.
+Generated 2026-09-06 from `ab_test_runtime/experiments/` — 1380 artifacts, 1399 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2620,6 +2620,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_rebuild__velvety_mezzo_30s_f_gothic__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_rebuild__warm_baritone_40s_m_1__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tight_rebuild__warm_baritone_40s_m_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tone_spread_sensitivity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `trivial_baselines.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
