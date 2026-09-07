@@ -102,7 +102,7 @@ class EnvironmentCaptureError(RuntimeError):
     """The run's environment could not be recorded, so it is not comparable."""
 
 
-def lmstudio_state(model_name):
+def lmstudio_state(model_name, base_url=None):
     """What the server actually has loaded, and how it is configured.
 
     Raises rather than returning an error string. A GPU result whose context
@@ -110,18 +110,44 @@ def lmstudio_state(model_name):
     run, and this project's determinism claim depends on both. The first
     version swallowed a TypeError from calling the helper with the wrong
     signature, and three artifacts shipped with no environment at all.
+
+    ASK THE ENDPOINT WHAT IT IS. This machine runs llama.cpp, not LM Studio,
+    and `lms ps` is the wrong instrument for it - against a llama.cpp server it
+    reports available/not-loaded for a model answering in 0.2s, which reads as
+    "the model is not loaded" and aborts the run. That is not hypothetical:
+    local_4book_20260906 died on exactly this at 2026-09-07T01:47Z with the
+    served model live on :8090 the whole time.
+
+    `get_current_status` is already the project's one dispatch for this
+    question - it probes /props first and falls through to `lms ps` - and is
+    what the Setup tab and ensure_ideal_settings use. Calling `get_lmstudio_status`
+    directly here was a second, independently-maintained copy of that decision,
+    and it drifted exactly the way Rule 15 says it will. base_url stays optional
+    so a caller with no endpoint keeps the old path rather than guessing one.
     """
     from lmstudio_settings import get_lmstudio_status
-    status = get_lmstudio_status(model_name)
+    if base_url:
+        from lmstudio_settings import get_current_status
+        # llm_mode=None lets is_remote_llm decide from the URL alone, which is
+        # the same rule the app applies when the toggle and the URL agree.
+        status = get_current_status(None, base_url, model_name)
+    else:
+        status = get_lmstudio_status(model_name)
     if not isinstance(status, dict) or not status.get("available"):
         raise EnvironmentCaptureError(
-            f"LM Studio status unavailable for {model_name!r}: {status!r}")
+            f"model status unavailable for {model_name!r} at "
+            f"{base_url or 'the configured LM Studio'}: {status!r}")
     if not status.get("loaded"):
         raise EnvironmentCaptureError(
             f"{model_name!r} is not loaded; refusing to record a run whose "
             "model state is unknown")
     state = {key: status.get(key) for key in
              ("loaded", "context_length", "parallel", "optimized")}
+    # WHICH STACK served the run. Two engines answer this question and their
+    # numbers are not interchangeable, so an artifact that records context and
+    # parallel without recording who reported them is one step short.
+    if status.get("runtime"):
+        state["runtime"] = status["runtime"]
     # get_lmstudio_status matches on identifier/modelKey, so loaded=True is
     # itself confirmation that *this* model is the one loaded - recorded
     # explicitly rather than re-parsing `lms ps` in a second place.
@@ -359,7 +385,7 @@ class ExperimentRecord:
             "model": model_name,
             "endpoint": base_url,
             "lmstudio": (environment if environment is not None
-                         else lmstudio_state(model_name)),
+                         else lmstudio_state(model_name, base_url)),
             "decoding": dict(decoding),
             "gold_path": os.path.relpath(gold_path, repo),
             "gold_sha256": hashlib.sha256(gold_bytes).hexdigest(),

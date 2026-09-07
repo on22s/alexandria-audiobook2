@@ -410,3 +410,113 @@ class HarnessEvidenceParityTest(unittest.TestCase):
     def test_multi_arm_harnesses_record_elapsed_time_per_arm(self):
         source = self._source("roster_warmup.py")
         self.assertIn("elapsed_by_arm", source)
+
+
+class LlamaCppEnvironmentCaptureTest(unittest.TestCase):
+    """The environment guard must work against the engine this project runs.
+
+    `lmstudio_state` asked `lms ps` and nothing else. Against llama.cpp that
+    answers available/not-loaded for a live model, so the guard aborted a run
+    whose server was serving fine - local_4book_20260906 died that way on
+    2026-09-07 with the model up on :8090 the entire time.
+
+    These fixtures are a real HTTP server speaking the /props shape the local
+    llama.cpp build actually returns (b10688-d8ddd75: n_ctx 8192, total_slots 4,
+    alias qwen3-14b), not a stubbed status dict - the bug was in reading the
+    endpoint, so a test that stubs the reading proves nothing.
+    """
+
+    PROPS = {
+        "build_info": "b10688-d8ddd75",
+        "model_path": "/models/Qwen3-14B-Q4_K_M.gguf",
+        "model_ftype": "Q4_K - Medium",
+        "total_slots": 4,
+        "model_alias": "qwen3-14b",
+        "default_generation_settings": {
+            "n_ctx": 8192,
+            "params": {"temperature": 0.8, "reasoning_format": "auto"},
+        },
+    }
+
+    def _serve(self, payload, path="/props"):
+        """Run a one-endpoint HTTP server; -> base_url. Torn down per test."""
+        import http.server
+        import json as _json
+        import threading
+
+        body = _json.dumps(payload).encode()
+        served = path
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):                        # noqa: N802
+                if self.path != served:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):            # keep test output clean
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+        return "http://127.0.0.1:%d/v1" % server.server_address[1]
+
+    def test_a_live_llama_cpp_server_is_captured_not_refused(self):
+        from experiments.manifest import lmstudio_state
+        state = lmstudio_state("qwen3-14b", self._serve(self.PROPS))
+        self.assertTrue(state["loaded"])
+        # The numbers must come from /props, which is the whole point: these
+        # are the two fields the determinism claim rests on.
+        self.assertEqual(8192, state["context_length"])
+        self.assertEqual(4, state["parallel"])
+        self.assertEqual("llama.cpp", state["runtime"])
+        self.assertEqual("qwen3-14b", state["verified_model"])
+
+    def test_a_served_alias_that_is_not_the_asked_model_still_refuses(self):
+        # THE CASE IT MUST REJECT. Reading /props is only safe if a server
+        # holding a DIFFERENT model still aborts the run - otherwise this
+        # change trades one silent failure for a worse one, scoring a run
+        # against a model nobody selected.
+        from experiments.manifest import EnvironmentCaptureError, lmstudio_state
+        with self.assertRaises(EnvironmentCaptureError):
+            lmstudio_state("qwen3-30b", self._serve(self.PROPS))
+
+    def test_an_endpoint_that_is_not_llama_cpp_does_not_claim_it_is(self):
+        # /props answering with the wrong shape is not a llama.cpp server.
+        # It must fall through rather than report an empty environment as real.
+        from experiments.manifest import EnvironmentCaptureError, lmstudio_state
+        base = self._serve({"something": "else"})
+        try:
+            state = lmstudio_state("qwen3-14b", base)
+        except EnvironmentCaptureError:
+            return                       # fell through to LM Studio, refused
+        self.assertNotEqual("llama.cpp", state.get("runtime"))
+
+    def test_the_old_signature_still_reaches_the_lm_studio_path(self):
+        # base_url is optional so existing callers are unchanged; with no
+        # endpoint there is nothing to probe and `lms ps` remains the answer.
+        import lmstudio_settings
+        from experiments.manifest import lmstudio_state
+        calls = []
+        original = lmstudio_settings.get_lmstudio_status
+
+        def fake(model_name):
+            calls.append(model_name)
+            return {"available": True, "loaded": True,
+                    "context_length": 32768, "parallel": 1, "optimized": True}
+
+        lmstudio_settings.get_lmstudio_status = fake
+        self.addCleanup(setattr, lmstudio_settings,
+                        "get_lmstudio_status", original)
+        state = lmstudio_state("some-model")
+        self.assertEqual(["some-model"], calls)
+        self.assertEqual(32768, state["context_length"])
+        self.assertNotIn("runtime", state)
