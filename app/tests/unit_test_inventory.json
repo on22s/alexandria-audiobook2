@@ -280,7 +280,13 @@
     "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_false_values_are_populated_measurements",
     "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_mixed_rows_are_not_reported_as_fully_instrumented",
     "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_null_is_instrumentation_missing_not_zero_available",
-    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_old_rows_without_the_field_are_distinct_from_null"
+    "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_old_rows_without_the_field_are_distinct_from_null",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_a_correct_artifact_is_not_flagged",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_a_genuinely_absent_speaker_stays_absent",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_an_unavailable_gold_is_none_not_agreement",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_conditional_accuracy_is_reported_both_ways",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_it_finds_the_gaen_shape",
+    "tests.test_audit_candidate_membership.MembershipRecheckTest.test_rows_without_a_candidate_list_are_not_checkable"
   ],
   "test_audit_serving_metadata": [
     "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_base_only_rejects_the_legacy_paired_claim",
