@@ -3,9 +3,9 @@
   "source_structural_sha256": "93901c81f0e9fc066e72137357ca65c52ba3415175cf500230e04d66735394fe",
   "summary": {
     "exploratory": 118,
-    "historical_only": 30,
-    "provisional": 13,
-    "supported_measurement": 39
+    "historical_only": 36,
+    "provisional": 11,
+    "supported_measurement": 35
   },
   "artifacts": [
     {
@@ -72,7 +72,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 3,
         "line_count_changed": false
       },
       "semantic_limit": "Isolates companion ordering, not end-to-end production quality."
@@ -219,7 +219,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 4,
         "line_count_changed": false
       },
       "semantic_limit": "Accuracy and throughput must be considered together; books differ."
@@ -243,7 +243,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 4,
         "line_count_changed": false
       },
       "semantic_limit": "Accuracy and throughput must be considered together; books differ."
@@ -268,7 +268,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 1,
         "line_count_changed": false
       },
       "semantic_limit": "Accuracy and throughput must be considered together; books differ."
@@ -1375,7 +1375,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 1,
         "line_count_changed": false
       },
       "semantic_limit": "Book-specific repeats; report each book/repeat rather than pooling."
@@ -1448,15 +1448,15 @@
         "base",
         "tuned"
       ],
-      "classification": "supported_measurement",
+      "classification": "historical_only",
       "dirty": false,
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 10,
         "line_count_changed": false
       },
       "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
@@ -1490,15 +1490,15 @@
         "base",
         "tuned"
       ],
-      "classification": "supported_measurement",
+      "classification": "historical_only",
       "dirty": false,
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 7,
         "line_count_changed": false
       },
       "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
@@ -1532,15 +1532,15 @@
         "base",
         "tuned"
       ],
-      "classification": "supported_measurement",
+      "classification": "historical_only",
       "dirty": false,
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 10,
         "line_count_changed": false
       },
       "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
@@ -2403,7 +2403,7 @@
         "joint-chrono",
         "joint-shuffled"
       ],
-      "classification": "supported_measurement",
+      "classification": "historical_only",
       "dirty": false,
       "problems": [],
       "current_gold": {
@@ -2411,7 +2411,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 1,
         "line_count_changed": false
       },
       "semantic_limit": "Joint and shuffled controls answer ordering only within the tested fixtures."
@@ -3287,7 +3287,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 6,
         "line_count_changed": false
       },
       "semantic_limit": "Reasoning/justification settings are model- and serving-stack-specific."
@@ -3515,7 +3515,7 @@
         "gold",
         "inflated"
       ],
-      "classification": "provisional",
+      "classification": "historical_only",
       "dirty": true,
       "problems": [],
       "current_gold": {
@@ -3523,7 +3523,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 3,
         "line_count_changed": false
       },
       "semantic_limit": "Gold-roster arms are upper bounds and not deployable inputs."
@@ -3715,7 +3715,7 @@
         "scene",
         "scene+2"
       ],
-      "classification": "provisional",
+      "classification": "historical_only",
       "dirty": true,
       "problems": [],
       "current_gold": {
@@ -3723,7 +3723,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 2,
         "line_count_changed": false
       },
       "semantic_limit": "Scene-cast extraction and attribution effects cannot be conflated."
@@ -3930,7 +3930,7 @@
         "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
+        "correctness_changed_rows": 1,
         "line_count_changed": false
       },
       "semantic_limit": "Prompt rule effects vary by book/model and require per-book reporting."

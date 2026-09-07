@@ -1,0 +1,3174 @@
+{
+  "scope": "tracked JSON artifacts only; historical files are not rewritten",
+  "correction": [
+    "TSUKIHI",
+    "TSUKIHI ARARAGI"
+  ],
+  "artifacts_changed": 100,
+  "row_evaluations_changed": 899,
+  "artifacts": [
+    {
+      "artifact": "ab_test_runtime/experiments/batch_contiguity__owarimonogatari3__qwen__qwen3-14b__local-rocm-contig.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3-03266",
+        "owarimonogatari3-03342",
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "contiguous": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "scattered": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 2,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep1.json",
+      "changed_row_evaluations": 4,
+      "changed_ids": [
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03266",
+        "owarimonogatari3-03282"
+      ],
+      "arms": {
+        "b100": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "b25": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "b50": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 2,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp-rep2.json",
+      "changed_row_evaluations": 4,
+      "changed_ids": [
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03266",
+        "owarimonogatari3-03282"
+      ],
+      "arms": {
+        "b100": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "b25": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "b50": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 2,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/batch_size__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03207"
+      ],
+      "arms": {
+        "b10": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "b25": {
+          "rows": 7,
+          "old_correct": 5,
+          "new_correct": 5,
+          "changed": 0
+        },
+        "b5": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "b50": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 2,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/context_width_production__owarimonogatari3__llama-3.3-70b__thunder-a6000-70b.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "w1": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 3,
+          "changed": 0
+        },
+        "w4": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 3,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/context_width_production__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03207"
+      ],
+      "arms": {
+        "w1": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "w4": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 3,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__mixed_register.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 6,
+          "new_correct": 6,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__pdnc_only.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 5,
+          "new_correct": 5,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen3-14b-lr2e5_r16-owarimonogatari3-h100-20260903.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen3-14b-lr2e5_r32-owarimonogatari3-h100-20260903.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen3-14b-lr2e5_r64-owarimonogatari3-tnr2-20260904.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen3-14b-lr2e5_r8-owarimonogatari3-tnr2-20260904.json",
+      "changed_row_evaluations": 7,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen3-14b-lr5e5_r16-owarimonogatari3-tnr2-20260904.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-full-a6000-20260901.json",
+      "changed_row_evaluations": 14,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_27b_nf4_author_heldout_balanced-corrected-gold-a6000-20260828.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_27b_nf4_lightnovel75_pdnc25_70bteacher_1epoch-corrected-gold-a6000-20260829.json",
+      "changed_row_evaluations": 14,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_27b_nf4_speaker_hardcases_split_nonmajor-corrected-gold-a6000-20260828.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_27b_nf4_speaker_longcontext_tophalf_5epoch-corrected-gold-a6000-20260828.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_author_heldout_balanced-corrected-gold-a100-20260827.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_author_heldout_balanced-corrected-gold-a100-loaderfix-20260828.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-a100-20260827.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-a100-loaderfix-20260828.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-20260827.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.json",
+      "changed_row_evaluations": 7,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03266"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 1,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_9b_bf16_author_heldout_balanced-corrected-gold-production-off-diagnostic-a6000-20260901.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-production-off-diagnostic-a6000-20260901.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json",
+      "changed_row_evaluations": 9,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38-27b-bf16-author-balanced-lr2e5-r16-1epoch-h100-20260902.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38-multientry-thinking-low-full-a100-20260901.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_author_balanced_r32_lr2e5_1epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_author_balanced_r4_lr2e5_1epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_author_balanced_r8_lr2e5_1epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_hybrid_r16_lr1e5_1epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_hybrid_r16_lr2e5_2epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_hybrid_rank32_lr2e5_1epoch-corrected-gold-a100-20260901.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_origin_author_balanced_lr2e5_1epoch-corrected-gold-a100-20260831.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_origin_author_balanced_lr2e5_1epoch-diagnostic-off-h100-20260904.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_origin_hybrid_targets_lr2e5_1epoch-corrected-gold-a100-20260831.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_bf16_origin_hybrid_targets_lr2e5_1epoch-diagnostic-off-h100-20260904.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_fp8_author_balanced_multientry25_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-corrected-gold-a6000-loaderfix-20260829.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-diagnostic-off-h100-20260904.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-fp8-corrected-gold-a100-loaderfix-20260829.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-corrected-gold-a6000-loaderfix-20260829.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-diagnostic-off-h100-20260904.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_nf4_speaker_longcontext_tophalf_5epoch-fp8-corrected-gold-a100-loaderfix-20260829.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__qwen38_27b_unsloth_bnb4_origin_author_balanced_lr2e5_r16_1epoch-corrected-gold-a100-20260902.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r16-seed20260904-h100-20260904.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r16-seed20260905-h100-20260904.json",
+      "changed_row_evaluations": 10,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r16-seed20260906-h100-20260904.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r32-seed20260904-h100-20260904.json",
+      "changed_row_evaluations": 9,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r8-seed20260904-h100-20260904.json",
+      "changed_row_evaluations": 9,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r8-seed20260905-h100-20260904.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__rank-seed-control-r8-seed20260906-h100-20260904.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__thunder-a6000-cheapa.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 2,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/distill_eval__thunder-a6000-distill.json",
+      "changed_row_evaluations": 2,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        },
+        "tuned": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 5,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/joint_scene__owarimonogatari3__llama-3.3-70b__thunder-a6000-70b.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "independent": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "joint-chrono": {
+          "rows": 7,
+          "old_correct": 6,
+          "new_correct": 6,
+          "changed": 0
+        },
+        "joint-shuffled": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "independent": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "joint-chrono": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 3,
+          "changed": 1
+        },
+        "joint-shuffled": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__cloud-alldata.json",
+      "changed_row_evaluations": 4,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 3,
+          "changed": 2
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.json",
+      "changed_row_evaluations": 5,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__local-balanced-q4-20260825.json",
+      "changed_row_evaluations": 2,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__local-hardcases-q4-20260825.json",
+      "changed_row_evaluations": 2,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 5,
+          "new_correct": 5,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__local-longcontext-q4-20260825.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 3,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__mixed-shippable.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 4,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 9,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 5,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 1,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q8-hardcases-clean-gold-repeat-20260828.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 8,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 7,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35_9b_bf16_author_heldout_balanced-q4km-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 7,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-q4km-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-q4km-clean-gold-local-20260827.json",
+      "changed_row_evaluations": 5,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 3,
+          "changed": 3
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 2,
+          "changed": 2
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen36-q4km-untuned-clean-gold.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-author-balanced-Q6_K-a6000-20260901.json",
+      "changed_row_evaluations": 29,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-author-balanced-Q8_0-a6000-20260901.json",
+      "changed_row_evaluations": 26,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-author-balanced-UD-Q2_K_XL-a6000-tnr0-20260902.json",
+      "changed_row_evaluations": 28,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-author-balanced-contract-fixed-a6000-20260901e.json",
+      "changed_row_evaluations": 12,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-01779",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 7,
+          "changed": 7
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-author-balanced-refusal-scale-contract-a6000-20260901d.json",
+      "changed_row_evaluations": 26,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-q4km-untuned-clean-gold.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-refusal-repeat105-a6000-20260901.json",
+      "changed_row_evaluations": 26,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-refusal-repeat110-a6000-20260901.json",
+      "changed_row_evaluations": 26,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "base-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "lora-contract": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 0,
+          "changed": 0
+        },
+        "scale025": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale050": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "scale075": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38-roster-factorial-a6000-20260901.json",
+      "changed_row_evaluations": 25,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned-gold-guaranteed": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        },
+        "tuned-open": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 5,
+          "changed": 4
+        },
+        "tuned-reversed": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__qwen38_27b_fp8_author_heldout_balanced-q4km-clean-gold-cloud-20260827.json",
+      "changed_row_evaluations": 11,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-01775",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342",
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03207",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 6,
+          "changed": 6
+        },
+        "lora": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 5,
+          "changed": 5
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",
+      "changed_row_evaluations": 4,
+      "changed_ids": [
+        "owarimonogatari3:owarimonogatari3-01769",
+        "owarimonogatari3:owarimonogatari3-03266",
+        "owarimonogatari3:owarimonogatari3-03282",
+        "owarimonogatari3:owarimonogatari3-03342"
+      ],
+      "arms": {
+        "base": {
+          "rows": 7,
+          "old_correct": 0,
+          "new_correct": 4,
+          "changed": 4
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/reasoning_arms__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 6,
+      "changed_ids": [
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03266",
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03266",
+        "owarimonogatari3-03282",
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "baseline": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "because": {
+          "rows": 7,
+          "old_correct": 5,
+          "new_correct": 5,
+          "changed": 0
+        },
+        "scaffold": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 3,
+          "changed": 0
+        },
+        "scaffold_thinking": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 5,
+          "changed": 4
+        },
+        "thinking": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 4,
+          "changed": 2
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/roster_quality__owarimonogatari3__llama-3.3-70b__thunder-a6000-70b.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "augmented": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "generated": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 3,
+          "changed": 0
+        },
+        "gold": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "inflated": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 3,
+          "changed": 1
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/roster_quality__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 3,
+      "changed_ids": [
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03342",
+        "owarimonogatari3-03207"
+      ],
+      "arms": {
+        "augmented": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "generated": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        },
+        "gold": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 4,
+          "changed": 1
+        },
+        "inflated": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 2,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/scene_cast__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 2,
+      "changed_ids": [
+        "owarimonogatari3-03207",
+        "owarimonogatari3-03342"
+      ],
+      "arms": {
+        "full": {
+          "rows": 7,
+          "old_correct": 3,
+          "new_correct": 5,
+          "changed": 2
+        },
+        "scene": {
+          "rows": 7,
+          "old_correct": 2,
+          "new_correct": 2,
+          "changed": 0
+        },
+        "scene+2": {
+          "rows": 7,
+          "old_correct": 1,
+          "new_correct": 1,
+          "changed": 0
+        }
+      }
+    },
+    {
+      "artifact": "ab_test_runtime/experiments/tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
+      "changed_row_evaluations": 1,
+      "changed_ids": [
+        "owarimonogatari3-03207"
+      ],
+      "arms": {
+        "baseline": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 5,
+          "changed": 1
+        },
+        "tagfirst": {
+          "rows": 7,
+          "old_correct": 4,
+          "new_correct": 4,
+          "changed": 0
+        }
+      }
+    }
+  ],
+  "provenance": {
+    "script": "alias_correction_rescore.py",
+    "written": "2026-09-07T12:58:34",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "ae3de4530075074dcf9d397c39e5c70e3b7ee8d9",
+      "branch": "fix/tsukihi-alias-scoring",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M  GOALS.md",
+        "AM app/experiments/alias_correction_rescore.py",
+        "M  app/fixtures/attribution_gold_owarimonogatari3.json",
+        "A  app/tests/test_alias_correction_rescore.py",
+        "M  app/tests/test_roster_membership_names.py",
+        "M  app/tests/unit_test_inventory.json"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "72926c7292c5c3dfab6ce541a4aaecc889cf8126c5b4abd7534965b5289a3cb6"
+    },
+    "args": {
+      "fixture": "app/fixtures/attribution_gold_owarimonogatari3.json",
+      "out": "ab_test_runtime/audit/tsukihi_alias_rescore.json"
+    }
+  }
+}

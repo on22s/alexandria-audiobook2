@@ -83,10 +83,11 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 15,
+   "cited": 16,
    "not_in_audit": [],
    "not_experiment_artifacts": [
-    "attribution_gold_random.json"
+    "attribution_gold_random.json",
+    "tsukihi_alias_rescore.json"
    ],
    "weakest_evidence": "exploratory",
    "classifications": {

@@ -27,6 +27,25 @@ class RosterMembershipNamesTest(unittest.TestCase):
         self.assertIn("GAEN", names)
         self.assertIn("IZUKO GAEN", names)
 
+    def test_tsukihi_full_name_is_same_character_but_sisters_are_not(self):
+        path = os.path.join(APP, "fixtures",
+                            "attribution_gold_owarimonogatari3.json")
+        with open(path, encoding="utf-8") as handle:
+            gold = json.load(handle)
+        groups = alias_groups(gold)
+        self.assertTrue(same_speaker("TSUKIHI", "TSUKIHI ARARAGI", groups))
+        self.assertFalse(same_speaker("TSUKIHI", "KAREN ARARAGI", groups))
+        self.assertFalse(same_speaker("TSUKIHI", "KOYOMI ARARAGI", groups))
+
+    def test_tsukihi_roster_membership_expands_only_a_shown_alias(self):
+        path = os.path.join(APP, "fixtures",
+                            "attribution_gold_owarimonogatari3.json")
+        with open(path, encoding="utf-8") as handle:
+            groups = alias_groups(json.load(handle))
+        names = roster_membership_names(["TSUKIHI ARARAGI"], groups)
+        self.assertIn("TSUKIHI", names)
+        self.assertNotIn("KAREN ARARAGI", names)
+
     def test_it_does_not_invent_characters_the_model_never_saw(self):
         # THE CASE IT MUST REFUSE. An alias group with nobody on the roster
         # contributes nothing; otherwise `in_candidates` becomes unfalsifiable,

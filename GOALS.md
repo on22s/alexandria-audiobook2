@@ -662,9 +662,9 @@ all four confirmation arms are now in:
 |---|---|---|---|
 | index18 (ladder) | +9.1 | +14.8 | **+5.7** |
 | mushoku16 | +8.3 | +6.0 | **−2.3** |
-| owarimonogatari3 | +2.5 | **+12.3** | **+9.9** |
+| owarimonogatari3 | +3.7 | **+13.0** | **+9.3** |
 
-**r32 wins on two books of three, mean +4.4 — but the spread is −2.3 to +9.9,
+**r32 wins on two books of three, mean +4.2 — but the spread is −2.3 to +9.3,
 wider than the effect.** So r32 is probably the better default and is NOT the
 clean win the single-book ladder implied. Book-level variance dominates the
 configuration choice, which is the same conclusion the wire-format test
@@ -678,6 +678,15 @@ the set. **Do not conclude from a partial confirmation run.**
 
 Empty rows fell in three of the four arms (10→7, 23→6, 23→3) and rose in one
 (10→13) — further evidence against reading emptiness as a cost of adapting.
+
+**Gold correction, 2026-09-07.** `TSUKIHI` and `TSUKIHI ARARAGI` name the
+same character, but the fixture omitted that alias pair while the roster showed
+only the full name. `tsukihi_alias_rescore.json` non-destructively re-scores
+every tracked artifact against the corrected fixture: 100 artifacts and 899
+row-evaluations change. Historical JSON remains immutable, so figures involving
+Owarimonogatari must use that ledger rather than their stored `correct` field.
+The rank numbers above include the correction; it narrows r32's advantage over
+r16 by 0.6 points and does not change the ordering.
 
 **Where the compute has gone is the opposite of what this says.** Days went to
 diagnosing the family with no reliable effect, while the family with a perfect
