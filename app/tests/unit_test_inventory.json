@@ -1934,6 +1934,16 @@
     "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_noise_floor_compares_baselines_not_arms",
     "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_same_accuracy_by_different_rows_is_still_no_evidence"
   ],
+  "test_paired_arm_check": [
+    "tests.test_paired_arm_check.CheckTest.test_it_can_show_a_caveat_DOES_matter",
+    "tests.test_paired_arm_check.CheckTest.test_it_can_show_a_caveat_does_not_matter",
+    "tests.test_paired_arm_check.CheckTest.test_pooling_two_books_keeps_their_ids_apart",
+    "tests.test_paired_arm_check.CompareTest.test_it_counts_repairs_and_breaks_not_just_totals",
+    "tests.test_paired_arm_check.CompareTest.test_no_discordant_pairs_is_p_one",
+    "tests.test_paired_arm_check.PromptDisagreementTest.test_a_missing_hash_is_unknown_and_never_agreement",
+    "tests.test_paired_arm_check.PromptDisagreementTest.test_a_sound_comparison_reports_nothing",
+    "tests.test_paired_arm_check.PromptDisagreementTest.test_it_finds_a_row_whose_arms_saw_different_prompts"
+  ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected",
