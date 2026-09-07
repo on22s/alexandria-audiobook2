@@ -1757,6 +1757,11 @@
   "test_lmstudio_status_route": [
     "tests.test_lmstudio_status_route.LmStudioStatusRouteTest.test_status_uses_the_active_profile_not_the_stale_mirror"
   ],
+  "test_local_baseline_book_override": [
+    "tests.test_local_baseline_book_override.LocalBaselineBookOverrideTest.test_a_subset_containing_index18_is_still_refused",
+    "tests.test_local_baseline_book_override.LocalBaselineBookOverrideTest.test_a_subset_without_index18_is_not_refused_for_it",
+    "tests.test_local_baseline_book_override.LocalBaselineBookOverrideTest.test_the_default_run_still_checks_index18"
+  ],
   "test_local_gpu_job": [
     "tests.test_local_gpu_job.LocalGpuJobTests.test_runner_uses_one_approved_lock_queue_and_checked_timeout"
   ],

@@ -29,9 +29,13 @@ PY="$R/app/env/bin/python"; [ -x "$PY" ] || PY="$MAIN/app/env/bin/python"
 [ -x "$PY" ] || { echo "no interpreter" >&2; exit 1; }
 BASE_URL="${LN_BASE_URL:-http://127.0.0.1:8090/v1}"
 MODEL="${LN_MODEL:-qwen3-14b}"
-GOLD="$R/ab_test_runtime/local_gold"
+GOLD="${LN_GOLD:-$R/ab_test_runtime/local_gold}"
 [ -d "$GOLD/inputs" ] || GOLD="$MAIN/ab_test_runtime/local_gold"
-TAG="local-4book-base-$(date +%Y%m%d)"
+# BOOKS and TAG are overridable so a single book can be re-measured without a
+# second chain. The defaults are the four-book baseline this file was written
+# for, so an unparameterised run is unchanged.
+BOOKS="${LN_BOOKS:-grimgar03 index18 mushoku16 owarimonogatari3}"
+TAG="${LN_TAG:-local-4book-base-$(date +%Y%m%d)}"
 ART="$R/ab_test_runtime/experiments/lora_serving_eval__${TAG}.json"
 [ -s "$ART" ] && { echo "SKIP - artifact exists"; exit 0; }
 
@@ -39,12 +43,18 @@ curl -s --max-time 10 "${BASE_URL%/v1}/props" >/dev/null 2>&1 || {
     echo "no llama.cpp at $BASE_URL - start a server for $MODEL first" >&2
     exit 1
 }
-for b in grimgar03 index18 mushoku16 owarimonogatari3; do
+for b in $BOOKS; do
     test -s "$GOLD/inputs/$b.txt" || { echo "input missing: $b" >&2; exit 1; }
     test -s "$GOLD/checkpoints/${b}__three_pass.json.threepass_checkpoint.json" \
         || { echo "checkpoint missing: $b" >&2; exit 1; }
 done
-bad=$(grep -c $'\xef\xbf\xbd' "$GOLD/inputs/index18.txt" 2>/dev/null) || true
+# Only when index18 is actually being run: the corrupt-copy guard is about
+# that one file, and a subset that excludes it must not be refused for the
+# state of a book it never reads.
+bad=0
+case " $BOOKS " in
+    *" index18 "*) bad=$(grep -c $'\xef\xbf\xbd' "$GOLD/inputs/index18.txt" 2>/dev/null) || true ;;
+esac
 [ "${bad:-0}" -eq 0 ] || {
     echo "index18 holds $bad replacement characters - that is the corrupt copy," >&2
     echo "which has 6,662 of them and zero quote marks. Use the clean text." >&2
@@ -52,7 +62,7 @@ bad=$(grep -c $'\xef\xbf\xbd' "$GOLD/inputs/index18.txt" 2>/dev/null) || true
 }
 echo "gold: $GOLD"
 "$PY" -u app/experiments/lora_serving_eval.py \
-    --books grimgar03 index18 mushoku16 owarimonogatari3 \
+    --books $BOOKS \
     --model "$MODEL" --base_url "$BASE_URL" --base-only \
     --input-dir "$GOLD/inputs" --checkpoint-dir "$GOLD/checkpoints" \
     --tag "$TAG" 2>&1 | tail -40
