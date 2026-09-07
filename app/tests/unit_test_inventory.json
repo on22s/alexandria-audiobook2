@@ -1147,6 +1147,13 @@
     "tests.test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent",
     "tests.test_find_nicknames.ParseAliasResponseTests.test_punctuation_variant_resolves_via_shared_normalization"
   ],
+  "test_fp8_scale_load_probe": [
+    "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_a_clean_load_reports_nothing",
+    "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_a_non_scale_unplaced_tensor_is_recorded_but_not_counted",
+    "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_it_finds_the_unplaced_scale_in_the_real_report",
+    "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_it_marks_a_scale_tensor_as_a_scale",
+    "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_no_report_is_not_a_clean_report_by_accident"
+  ],
   "test_frontend_exposure": [
     "tests.test_frontend_exposure.CategoryTest.test_cjk_and_accented_latin_are_separated",
     "tests.test_frontend_exposure.CategoryTest.test_grouped_numbers_need_a_separator",
