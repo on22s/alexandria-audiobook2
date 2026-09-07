@@ -43,7 +43,7 @@ APP = REPO + "/app/"
 sys.path.insert(0, APP)
 
 from experiments.manifest import ExperimentRecord
-from experiments.scoring import alias_groups, same_speaker
+from experiments.scoring import alias_groups, same_speaker, roster_membership_names
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
 from three_pass_generate import (attribute_batch, build_roster,
@@ -548,6 +548,10 @@ def main():
             "exclusions": exclusions,
         }
         groups = alias_groups(gold)
+        # What `in_candidates` is tested against: the names these roster
+        # lines stand for, per ExperimentRecord.add's contract. The roster
+        # itself is still what the model is SHOWN.
+        membership = roster_membership_names(roster, groups)
         windows = [list(range(s, min(s + BATCH, len(seg))))
                    for s in range(0, len(seg), BATCH)]
         windows = [w for w in windows
@@ -621,7 +625,7 @@ def main():
                                 continue
                             record.add(arm, row_id, g["line"],
                                        g["expected_speaker"].upper(), None, False,
-                                       candidates=roster,
+                                       candidates=membership,
                                        provenance=f"{arm}|{book}|batch_failed",
                                        raw=raw)
                             scored += 1
@@ -653,7 +657,7 @@ def main():
                                # answer cannot be told apart from a roster that
                                # never held it - the question the unanswered-row
                                # finding of 2026-08-30 arrived at.
-                               candidates=roster,
+                               candidates=membership,
                                provenance=f"{arm}|{book}", raw=raw,
                                prompt_sha256=prompt_sha)
                     scored += 1
