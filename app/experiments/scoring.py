@@ -95,3 +95,41 @@ def same_speaker(expected, actual, groups=(), phonetic=False):
         key = romaji_key(b)
         return bool(key) and key == romaji_key(a)
     return False
+
+
+def roster_membership_names(roster, groups=()):
+    """-> every name the shown roster lines stand for, for `in_candidates`.
+
+    WHAT THIS IS FOR. `ExperimentRecord.add` tests candidate membership by
+    EXACT match, deliberately, and its own note says what a caller owes it:
+    "Pass the names the roster line stands for (canonical and aliases) so
+    `in_candidates` means what it says". Two evaluators did not. They passed
+    the display roster while scoring `correct` through `same_speaker`, which IS
+    alias-aware - so the two fields disagreed by construction, and the
+    availability figure was the one that lied.
+
+    Measured on the four-book local baseline of 2026-09-07:
+
+        book               exact   with this
+        grimgar03          98.7%      99.5%
+        index18            70.5%      86.4%
+        owarimonogatari3   73.5%      94.4%
+
+    owarimonogatari3's gold declares ['GAEN', 'IZUKO GAEN']. The roster showed
+    the full name, the gold asks for the short one, and 31 rows - 72% of that
+    book's apparent shortfall - were recorded as the model never having been
+    offered a character it was offered every time. That reads as "the cast list
+    is incomplete" and sends you to fix candidate generation, which is not the
+    problem.
+
+    ONLY CHARACTERS ACTUALLY ON THE ROSTER ARE EXPANDED. An alias group whose
+    members are all absent contributes nothing: the question is what the shown
+    lines stand for, not who exists in the book. Widening it to every declared
+    name would make `in_candidates` unfalsifiable, which is worse than the bug.
+    """
+    shown = {normalize(name) for name in roster if name}
+    names = set(shown)
+    for group in groups:
+        if group & shown:
+            names |= group
+    return sorted(names)

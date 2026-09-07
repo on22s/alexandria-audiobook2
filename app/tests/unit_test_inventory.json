@@ -2453,6 +2453,13 @@
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_the_roster_threshold_is_stricter_than_the_entry_gate",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_without_source_text_every_new_speaker_is_admitted"
   ],
+  "test_roster_membership_names": [
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_a_roster_with_no_aliases_is_unchanged",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_it_does_not_invent_characters_the_model_never_saw",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_it_normalizes_so_membership_matches_the_scorer",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_membership_and_correctness_now_agree_on_the_real_fixture",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_the_gaen_case"
+  ],
   "test_roster_order_bias": [
     "tests.test_roster_order_bias.AnalyseTest.test_a_row_whose_answer_is_off_roster_is_skipped",
     "tests.test_roster_order_bias.AnalyseTest.test_a_wrong_answer_later_than_gold_counts_the_other_way",

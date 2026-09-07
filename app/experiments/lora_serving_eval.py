@@ -36,7 +36,8 @@ APP = REPO + "/app/"
 sys.path.insert(0, APP)
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord
-from experiments.scoring import alias_groups, same_speaker
+from experiments.scoring import (alias_groups, roster_membership_names,
+                                 same_speaker)
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
 from three_pass_generate import (attribute_batch, build_roster,
@@ -160,6 +161,10 @@ def main():
         gold, src, seg, roster, want = load_book(
             book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
+        # What `in_candidates` is tested against: the names these roster
+        # lines stand for, per ExperimentRecord.add's contract. The roster
+        # itself is still what the model is SHOWN.
+        membership = roster_membership_names(roster, groups)
         windows = [list(range(s, min(s + BATCH, len(seg))))
                    for s in range(0, len(seg), BATCH)]
         windows = [w for w in windows
@@ -198,7 +203,7 @@ def main():
                         if not record.done(arm, f"{book}:{g['id']}"):
                             record.add(arm, f"{book}:{g['id']}", g["line"],
                                        g["expected_speaker"].upper(), None,
-                                       False, candidates=roster,
+                                       False, candidates=membership,
                                        provenance=f"{arm}|batch_failed")
                     continue
                 for off, i in enumerate(send):
@@ -214,7 +219,7 @@ def main():
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown; see distill_eval.
-                               candidates=roster,
+                               candidates=membership,
                                provenance=f"{arm}|scale={scale}")
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
