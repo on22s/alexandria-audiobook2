@@ -616,12 +616,12 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 35.2% | exploratory | ok | False | 12125.9s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 31.5% | exploratory | ok | False | 11630.4s |
 | owarimonogatari3 | 40c069824f4251a91eefaf281e | local-lmstudio | lmstudio | 32768 | tuned | 162 | 36.4% | exploratory | ok | False | 12965.7s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16551.1s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 15970.8s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | supported_measurement | ok | False | 16038.1s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 55.6% | supported_measurement | ok | False | 16551.1s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 36.4% | supported_measurement | ok | False | 15970.8s |
-| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 51.2% | supported_measurement | ok | False | 16038.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | historical_only | ok | False | 16551.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | historical_only | ok | False | 15970.8s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 38.9% | historical_only | ok | False | 16038.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 55.6% | historical_only | ok | False | 16551.1s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 36.4% | historical_only | ok | False | 15970.8s |
+| owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 51.2% | historical_only | ok | False | 16038.1s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 41016.0s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 10 | 90.0% | exploratory | ok | False | 3116.6s |
 | owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 46972.6s |
@@ -775,9 +775,9 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | independent | 162 | 59.3% | exploratory | ok | False | 1996.3s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | joint-chrono | 162 | 69.8% | exploratory | ok | False | 1996.3s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | joint-shuffled | 162 | 43.8% | exploratory | ok | False | 1996.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | independent | 162 | 48.8% | supported_measurement | ok | False | 538.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | joint-chrono | 162 | 45.7% | supported_measurement | ok | False | 538.3s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | joint-shuffled | 162 | 45.7% | supported_measurement | ok | False | 538.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | independent | 162 | 48.8% | historical_only | ok | False | 538.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | joint-chrono | 162 | 45.7% | historical_only | ok | False | 538.3s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | joint-shuffled | 162 | 45.7% | historical_only | ok | False | 538.3s |
 
 ## lora_serving_eval
 
@@ -1314,10 +1314,10 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | generated | 162 | 59.9% | exploratory | ok | False | 10475.7s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | gold | 162 | 66.7% | exploratory | ok | False | 10475.7s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | inflated | 162 | 62.3% | exploratory | ok | False | 10475.7s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | augmented | 162 | 45.1% | provisional | ok | True | 7321.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | generated | 162 | 40.7% | provisional | ok | True | 7321.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | gold | 162 | 42.6% | provisional | ok | True | 7321.2s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | inflated | 162 | 30.9% | provisional | ok | True | 7321.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | augmented | 162 | 45.1% | historical_only | ok | True | 7321.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | generated | 162 | 40.7% | historical_only | ok | True | 7321.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | gold | 162 | 42.6% | historical_only | ok | True | 7321.2s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | inflated | 162 | 30.9% | historical_only | ok | True | 7321.2s |
 
 ## roster_warmup
 
@@ -1364,9 +1364,9 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | full | 162 | 64.2% | exploratory | ok | False | 7587.4s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | scene | 162 | 54.9% | exploratory | ok | False | 7587.4s |
 | owarimonogatari3 | llama-3.3-70b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda on- | 16384 | scene+2 | 162 | 62.3% | exploratory | ok | False | 7587.4s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | full | 162 | 45.1% | provisional | ok | True | 3728.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scene | 162 | 38.9% | provisional | ok | True | 3728.1s |
-| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scene+2 | 162 | 40.7% | provisional | ok | True | 3728.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | full | 162 | 45.1% | historical_only | ok | True | 3728.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scene | 162 | 38.9% | historical_only | ok | True | 3728.1s |
+| owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | scene+2 | 162 | 40.7% | historical_only | ok | True | 3728.1s |
 
 ## segmentation_crossover
 

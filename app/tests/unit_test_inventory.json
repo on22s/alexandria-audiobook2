@@ -61,6 +61,10 @@
     "tests.test_addressee_confusion.TurnNeighbourTests.test_naming_a_third_party_supports_neither",
     "tests.test_addressee_confusion.TurnNeighbourTests.test_two_party_exchange_cannot_separate_the_hypotheses"
   ],
+  "test_alias_correction_rescore": [
+    "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_records_changed_score_without_mutating_artifact",
+    "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_unrelated_rows_produce_no_ledger_entry"
+  ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
@@ -2464,7 +2468,9 @@
     "tests.test_roster_membership_names.RosterMembershipNamesTest.test_it_does_not_invent_characters_the_model_never_saw",
     "tests.test_roster_membership_names.RosterMembershipNamesTest.test_it_normalizes_so_membership_matches_the_scorer",
     "tests.test_roster_membership_names.RosterMembershipNamesTest.test_membership_and_correctness_now_agree_on_the_real_fixture",
-    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_the_gaen_case"
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_the_gaen_case",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_tsukihi_full_name_is_same_character_but_sisters_are_not",
+    "tests.test_roster_membership_names.RosterMembershipNamesTest.test_tsukihi_roster_membership_expands_only_a_shown_alias"
   ],
   "test_roster_order_bias": [
     "tests.test_roster_order_bias.AnalyseTest.test_a_row_whose_answer_is_off_roster_is_skipped",
