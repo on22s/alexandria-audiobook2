@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 941,
+    "supported_structure": 942,
     "exploratory": 333,
     "provisional": 200,
     "artifacts_that_generated_nothing": 12
@@ -12250,6 +12250,24 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "paired_arm_check__lr2e4_r16_20260907.json",
+      "bytes": 8106,
+      "sha256": "295f41bfbd2e74b654bb2533f311b5af68f25698d8c166c3cb5f577cc166b2d7",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-07T09:57:29",
+      "commit": "7b4ec45729fa8c1585e683ec5b12e04ba3e5f447",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "pdnc_character_style_selector__pilot.json",

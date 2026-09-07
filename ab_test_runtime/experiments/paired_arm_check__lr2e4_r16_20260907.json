@@ -1,0 +1,480 @@
+{
+  "books": {
+    "index18": {
+      "n": 88,
+      "base": 61.36363636363637,
+      "tuned": 68.18181818181817,
+      "delta": 6.8181818181818175,
+      "repaired": 16,
+      "broken": 10,
+      "p": 0.32693958282471036
+    },
+    "mushoku16": {
+      "n": 133,
+      "base": 51.127819548872175,
+      "tuned": 61.65413533834586,
+      "delta": 10.526315789473683,
+      "repaired": 29,
+      "broken": 15,
+      "p": 0.04876676590447507
+    }
+  },
+  "pooled": {
+    "n": 221,
+    "base": 55.203619909502265,
+    "tuned": 64.25339366515837,
+    "delta": 9.049773755656108,
+    "repaired": 45,
+    "broken": 25,
+    "p": 0.022462895492508777
+  },
+  "mismatched_prompts": [
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00370"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-01051"
+    ]
+  ],
+  "unknown_prompts": [
+    [
+      "index18",
+      "index18:index18-00017"
+    ],
+    [
+      "index18",
+      "index18:index18-00068"
+    ],
+    [
+      "index18",
+      "index18:index18-00078"
+    ],
+    [
+      "index18",
+      "index18:index18-00141"
+    ],
+    [
+      "index18",
+      "index18:index18-00147"
+    ],
+    [
+      "index18",
+      "index18:index18-00214"
+    ],
+    [
+      "index18",
+      "index18:index18-00342"
+    ],
+    [
+      "index18",
+      "index18:index18-00343"
+    ],
+    [
+      "index18",
+      "index18:index18-00359"
+    ],
+    [
+      "index18",
+      "index18:index18-00377"
+    ],
+    [
+      "index18",
+      "index18:index18-00389"
+    ],
+    [
+      "index18",
+      "index18:index18-00435"
+    ],
+    [
+      "index18",
+      "index18:index18-00446"
+    ],
+    [
+      "index18",
+      "index18:index18-00488"
+    ],
+    [
+      "index18",
+      "index18:index18-00490"
+    ],
+    [
+      "index18",
+      "index18:index18-00501"
+    ],
+    [
+      "index18",
+      "index18:index18-00505"
+    ],
+    [
+      "index18",
+      "index18:index18-00535"
+    ],
+    [
+      "index18",
+      "index18:index18-00557"
+    ],
+    [
+      "index18",
+      "index18:index18-00578"
+    ],
+    [
+      "index18",
+      "index18:index18-00586"
+    ],
+    [
+      "index18",
+      "index18:index18-00648"
+    ],
+    [
+      "index18",
+      "index18:index18-00656"
+    ],
+    [
+      "index18",
+      "index18:index18-00663"
+    ],
+    [
+      "index18",
+      "index18:index18-00728"
+    ],
+    [
+      "index18",
+      "index18:index18-00763"
+    ],
+    [
+      "index18",
+      "index18:index18-00799"
+    ],
+    [
+      "index18",
+      "index18:index18-00808"
+    ],
+    [
+      "index18",
+      "index18:index18-00817"
+    ],
+    [
+      "index18",
+      "index18:index18-00842"
+    ],
+    [
+      "index18",
+      "index18:index18-00879"
+    ],
+    [
+      "index18",
+      "index18:index18-00887"
+    ],
+    [
+      "index18",
+      "index18:index18-00976"
+    ],
+    [
+      "index18",
+      "index18:index18-00978"
+    ],
+    [
+      "index18",
+      "index18:index18-00980"
+    ],
+    [
+      "index18",
+      "index18:index18-00985"
+    ],
+    [
+      "index18",
+      "index18:index18-00997"
+    ],
+    [
+      "index18",
+      "index18:index18-01010"
+    ],
+    [
+      "index18",
+      "index18:index18-01093"
+    ],
+    [
+      "index18",
+      "index18:index18-01111"
+    ],
+    [
+      "index18",
+      "index18:index18-01140"
+    ],
+    [
+      "index18",
+      "index18:index18-01157"
+    ],
+    [
+      "index18",
+      "index18:index18-01176"
+    ],
+    [
+      "index18",
+      "index18:index18-01213"
+    ],
+    [
+      "index18",
+      "index18:index18-01292"
+    ],
+    [
+      "index18",
+      "index18:index18-01310"
+    ],
+    [
+      "index18",
+      "index18:index18-01315"
+    ],
+    [
+      "index18",
+      "index18:index18-01327"
+    ],
+    [
+      "index18",
+      "index18:index18-01333"
+    ],
+    [
+      "index18",
+      "index18:index18-01355"
+    ],
+    [
+      "index18",
+      "index18:index18-01361"
+    ],
+    [
+      "index18",
+      "index18:index18-01387"
+    ],
+    [
+      "index18",
+      "index18:index18-01421"
+    ],
+    [
+      "index18",
+      "index18:index18-01450"
+    ],
+    [
+      "index18",
+      "index18:index18-01478"
+    ],
+    [
+      "index18",
+      "index18:index18-01484"
+    ],
+    [
+      "index18",
+      "index18:index18-01531"
+    ],
+    [
+      "index18",
+      "index18:index18-01539"
+    ],
+    [
+      "index18",
+      "index18:index18-01560"
+    ],
+    [
+      "index18",
+      "index18:index18-01568"
+    ],
+    [
+      "index18",
+      "index18:index18-01570"
+    ],
+    [
+      "index18",
+      "index18:index18-01635"
+    ],
+    [
+      "index18",
+      "index18:index18-01673"
+    ],
+    [
+      "index18",
+      "index18:index18-01716"
+    ],
+    [
+      "index18",
+      "index18:index18-01794"
+    ],
+    [
+      "index18",
+      "index18:index18-01797"
+    ],
+    [
+      "index18",
+      "index18:index18-01805"
+    ],
+    [
+      "index18",
+      "index18:index18-01828"
+    ],
+    [
+      "index18",
+      "index18:index18-01836"
+    ],
+    [
+      "index18",
+      "index18:index18-01921"
+    ],
+    [
+      "index18",
+      "index18:index18-01948"
+    ],
+    [
+      "index18",
+      "index18:index18-01986"
+    ],
+    [
+      "index18",
+      "index18:index18-02064"
+    ],
+    [
+      "index18",
+      "index18:index18-02082"
+    ],
+    [
+      "index18",
+      "index18:index18-02156"
+    ],
+    [
+      "index18",
+      "index18:index18-02158"
+    ],
+    [
+      "index18",
+      "index18:index18-02186"
+    ],
+    [
+      "index18",
+      "index18:index18-02194"
+    ],
+    [
+      "index18",
+      "index18:index18-02282"
+    ],
+    [
+      "index18",
+      "index18:index18-02283"
+    ],
+    [
+      "index18",
+      "index18:index18-02316"
+    ],
+    [
+      "index18",
+      "index18:index18-02351"
+    ],
+    [
+      "index18",
+      "index18:index18-02363"
+    ],
+    [
+      "index18",
+      "index18:index18-02371"
+    ],
+    [
+      "index18",
+      "index18:index18-02393"
+    ],
+    [
+      "index18",
+      "index18:index18-02401"
+    ],
+    [
+      "index18",
+      "index18:index18-02516"
+    ],
+    [
+      "index18",
+      "index18:index18-02525"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00539"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00546"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00551"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00552"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00558"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00818"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00887"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-00895"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-01658"
+    ],
+    [
+      "mushoku16",
+      "mushoku16:mushoku16-01976"
+    ]
+  ],
+  "pooled_matched_only": {
+    "n": 121,
+    "base": 54.54545454545454,
+    "tuned": 65.28925619834712,
+    "delta": 10.743801652892563,
+    "repaired": 26,
+    "broken": 13,
+    "p": 0.053251914097927615
+  },
+  "excluded_rows_alone": {
+    "n": 100,
+    "base": 56.00000000000001,
+    "tuned": 63.0,
+    "delta": 7.000000000000001,
+    "repaired": 19,
+    "broken": 12,
+    "p": 0.2810415150597675
+  },
+  "provenance": {
+    "script": "paired_arm_check.py",
+    "written": "2026-09-07T09:57:29",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "7b4ec45729fa8c1585e683ec5b12e04ba3e5f447",
+      "branch": "paired-arm-check",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/paired_arm_check.py",
+        "app/tests/test_paired_arm_check.py"
+      ],
+      "harness_sha256": "590f16ace10a1e575b123ec05c5ed261185e6dee1320a18e7196cc712f22a09e"
+    },
+    "args": {
+      "artifacts": [
+        "ab_test_runtime/evidence_20260907/distill_eval__qwen3-14b-lr2e4_r16-h100-20260901.json",
+        "ab_test_runtime/evidence_20260907/distill_eval__qwen3-14b-lr2e4_r16-mushoku16-h100-20260904b.json"
+      ],
+      "arms": [
+        "base",
+        "tuned"
+      ],
+      "out": "ab_test_runtime/experiments/paired_arm_check__lr2e4_r16_20260907.json"
+    }
+  }
+}

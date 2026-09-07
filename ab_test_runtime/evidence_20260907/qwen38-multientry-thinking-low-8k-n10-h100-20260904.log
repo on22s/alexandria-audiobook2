@@ -1,0 +1,279 @@
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/1520 [00:00<?, ?it/s]Loading weights:   0%|          | 1/1520 [00:06<2:33:59,  6.08s/it]Loading weights:   0%|          | 3/1520 [00:08<58:01,  2.29s/it]  Loading weights:   2%|▏         | 37/1520 [00:08<03:05,  7.99it/s]Loading weights:   4%|▎         | 56/1520 [00:08<02:04, 11.76it/s]Loading weights:   4%|▍         | 64/1520 [00:08<01:45, 13.84it/s]Loading weights:   6%|▌         | 92/1520 [00:09<01:05, 21.82it/s]Loading weights:   7%|▋         | 111/1520 [00:09<00:50, 27.69it/s]Loading weights:   8%|▊         | 119/1520 [00:10<00:55, 25.34it/s]Loading weights:   8%|▊         | 124/1520 [00:10<00:51, 26.85it/s]Loading weights:   9%|▊         | 130/1520 [00:11<01:15, 18.38it/s]Loading weights:   9%|▉         | 137/1520 [00:11<01:02, 22.01it/s]Loading weights:  11%|█         | 166/1520 [00:11<00:35, 38.09it/s]Loading weights:  11%|█▏        | 172/1520 [00:11<00:37, 35.75it/s]Loading weights:  12%|█▏        | 177/1520 [00:12<00:36, 36.64it/s]Loading weights:  12%|█▏        | 185/1520 [00:12<00:57, 23.06it/s]Loading weights:  13%|█▎        | 204/1520 [00:13<00:43, 30.32it/s]Loading weights:  14%|█▍        | 211/1520 [00:13<00:40, 32.17it/s]Loading weights:  16%|█▌        | 240/1520 [00:13<00:29, 43.41it/s]Loading weights:  17%|█▋        | 257/1520 [00:13<00:23, 54.70it/s]Loading weights:  17%|█▋        | 265/1520 [00:14<00:35, 35.57it/s]Loading weights:  18%|█▊        | 278/1520 [00:14<00:30, 40.29it/s]Loading weights:  19%|█▉        | 285/1520 [00:14<00:31, 39.20it/s]Loading weights:  20%|█▉        | 303/1520 [00:15<00:25, 46.96it/s]Loading weights:  20%|██        | 309/1520 [00:15<00:25, 48.19it/s]Loading weights:  21%|██        | 315/1520 [00:16<00:48, 24.81it/s]Loading weights:  22%|██▏       | 333/1520 [00:16<00:31, 37.80it/s]Loading weights:  23%|██▎       | 352/1520 [00:16<00:31, 37.23it/s]Loading weights:  24%|██▎       | 359/1520 [00:16<00:32, 35.23it/s]Loading weights:  25%|██▍       | 378/1520 [00:17<00:25, 44.95it/s]Loading weights:  25%|██▌       | 384/1520 [00:17<00:24, 45.84it/s]Loading weights:  26%|██▌       | 390/1520 [00:18<00:46, 24.29it/s]Loading weights:  27%|██▋       | 407/1520 [00:18<00:35, 31.62it/s]Loading weights:  28%|██▊       | 426/1520 [00:18<00:30, 35.83it/s]Loading weights:  28%|██▊       | 433/1520 [00:19<00:31, 34.15it/s]Loading weights:  30%|███       | 462/1520 [00:19<00:23, 45.75it/s]Loading weights:  31%|███       | 470/1520 [00:19<00:26, 40.12it/s]Loading weights:  31%|███▏      | 475/1520 [00:19<00:26, 39.45it/s]Loading weights:  32%|███▏      | 479/1520 [00:20<00:26, 38.75it/s]Loading weights:  32%|███▏      | 483/1520 [00:20<00:50, 20.47it/s]Loading weights:  33%|███▎      | 500/1520 [00:21<00:32, 31.43it/s]Loading weights:  33%|███▎      | 507/1520 [00:21<00:32, 31.02it/s]Loading weights:  35%|███▍      | 525/1520 [00:21<00:24, 39.85it/s]Loading weights:  35%|███▍      | 530/1520 [00:21<00:25, 38.57it/s]Loading weights:  35%|███▌      | 536/1520 [00:22<00:45, 21.45it/s]Loading weights:  37%|███▋      | 555/1520 [00:23<00:39, 24.72it/s]Loading weights:  38%|███▊      | 574/1520 [00:23<00:25, 37.14it/s]Loading weights:  38%|███▊      | 581/1520 [00:23<00:26, 34.88it/s]Loading weights:  39%|███▉      | 600/1520 [00:23<00:20, 43.98it/s]Loading weights:  40%|███▉      | 606/1520 [00:23<00:21, 43.04it/s]Loading weights:  40%|████      | 612/1520 [00:24<00:37, 24.00it/s]Loading weights:  41%|████▏     | 629/1520 [00:24<00:26, 33.14it/s]Loading weights:  43%|████▎     | 648/1520 [00:25<00:25, 34.41it/s]Loading weights:  43%|████▎     | 655/1520 [00:25<00:27, 31.71it/s]Loading weights:  45%|████▌     | 684/1520 [00:26<00:19, 42.32it/s]Loading weights:  46%|████▌     | 692/1520 [00:26<00:20, 39.79it/s]Loading weights:  46%|████▌     | 697/1520 [00:26<00:21, 38.88it/s]Loading weights:  46%|████▋     | 703/1520 [00:27<00:36, 22.23it/s]Loading weights:  48%|████▊     | 722/1520 [00:27<00:25, 31.59it/s]Loading weights:  48%|████▊     | 729/1520 [00:27<00:23, 34.07it/s]Loading weights:  48%|████▊     | 734/1520 [00:28<00:26, 29.85it/s]Loading weights:  49%|████▊     | 739/1520 [00:28<00:25, 31.00it/s]Loading weights:  50%|████▉     | 756/1520 [00:28<00:17, 44.06it/s]Loading weights:  50%|█████     | 761/1520 [00:29<00:31, 24.42it/s]Loading weights:  51%|█████     | 777/1520 [00:29<00:24, 29.89it/s]Loading weights:  52%|█████▏    | 796/1520 [00:29<00:19, 36.63it/s]Loading weights:  53%|█████▎    | 803/1520 [00:30<00:20, 34.71it/s]Loading weights:  54%|█████▍    | 822/1520 [00:30<00:18, 37.54it/s]Loading weights:  54%|█████▍    | 826/1520 [00:30<00:19, 35.66it/s]Loading weights:  55%|█████▍    | 832/1520 [00:31<00:32, 21.36it/s]Loading weights:  56%|█████▌    | 851/1520 [00:31<00:22, 30.07it/s]Loading weights:  57%|█████▋    | 870/1520 [00:32<00:19, 33.48it/s]Loading weights:  58%|█████▊    | 877/1520 [00:32<00:19, 33.15it/s]Loading weights:  60%|█████▉    | 906/1520 [00:32<00:13, 44.03it/s]Loading weights:  60%|██████    | 912/1520 [00:33<00:15, 40.21it/s]Loading weights:  60%|██████    | 916/1520 [00:33<00:15, 38.40it/s]Loading weights:  61%|██████    | 923/1520 [00:33<00:15, 39.76it/s]Loading weights:  61%|██████    | 927/1520 [00:34<00:36, 16.39it/s]Loading weights:  62%|██████▏   | 944/1520 [00:34<00:23, 24.85it/s]Loading weights:  63%|██████▎   | 951/1520 [00:35<00:22, 25.64it/s]Loading weights:  64%|██████▍   | 980/1520 [00:35<00:15, 34.66it/s]Loading weights:  66%|██████▌   | 999/1520 [00:36<00:16, 31.14it/s]Loading weights:  67%|██████▋   | 1018/1520 [00:36<00:13, 38.19it/s]Loading weights:  67%|██████▋   | 1025/1520 [00:37<00:14, 34.64it/s]Loading weights:  69%|██████▊   | 1043/1520 [00:37<00:11, 42.33it/s]Loading weights:  69%|██████▉   | 1048/1520 [00:37<00:11, 41.14it/s]Loading weights:  69%|██████▉   | 1053/1520 [00:37<00:11, 42.22it/s]Loading weights:  70%|██████▉   | 1058/1520 [00:38<00:20, 22.46it/s]Loading weights:  71%|███████   | 1073/1520 [00:38<00:14, 31.67it/s]Loading weights:  72%|███████▏  | 1092/1520 [00:38<00:11, 36.01it/s]Loading weights:  72%|███████▏  | 1099/1520 [00:39<00:13, 32.12it/s]Loading weights:  74%|███████▎  | 1118/1520 [00:39<00:09, 42.28it/s]Loading weights:  74%|███████▍  | 1123/1520 [00:39<00:09, 41.03it/s]Loading weights:  74%|███████▍  | 1128/1520 [00:40<00:18, 20.88it/s]Loading weights:  75%|███████▌  | 1147/1520 [00:40<00:11, 31.38it/s]Loading weights:  77%|███████▋  | 1166/1520 [00:41<00:10, 34.00it/s]Loading weights:  77%|███████▋  | 1173/1520 [00:41<00:11, 30.30it/s]Loading weights:  93%|█████████▎| 1411/1520 [00:41<00:00, 255.90it/s]Loading weights:  97%|█████████▋| 1477/1520 [00:41<00:00, 292.79it/s]Loading weights: 100%|██████████| 1520/1520 [00:42<00:00, 36.19it/s] 
+[transformers] [1mQwen3_5ForConditionalGeneration LOAD REPORT[0m from: /home/ubuntu/models/Qwen3.8-27B-FP8
+Key                                                                 | Status     |  | 
+--------------------------------------------------------------------+------------+--+-
+model.language_model.layers.{0...63}.mlp.gate_proj.weight_scale_inv | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+
+grimgar03: 385 scoreable lines, roster 25, 94 windows
+[transformers] DeepGEMM unavailable for this call, falling back to Triton. Reason: DeepGEMM's JIT compiles with nvcc, but none was found in `/usr/local/cuda/bin`. Point `CUDA_HOME` at a full CUDA ≥ 12.3 toolkit (not a runtime-only install). Set `TRANSFORMERS_DISABLE_DEEPGEMM_LINEAR=1` to skip DeepGEMM for FP8 linear entirely.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 11 files:   0%|          | 0/11 [00:00<?, ?it/s]Fetching 11 files: 100%|██████████| 11/11 [00:00<00:00, 1893.20it/s]
+  finish_reason=length | tokens: prompt=None completion=8000 | took 3751.5s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1143.3s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1250.7s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 3: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1220.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 4: PassExhausted
+  base   0/18 =   0.0%  [0.0-18.5]  unanswered 18  distinct names 1  7366s
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1352.2s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1317.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1312.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 3: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1352.8s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 4: PassExhausted
+  tuned  0/18 =   0.0%  [0.0-18.5]  unanswered 18  distinct names 1  5335s
+
+index18: 88 scoreable lines, roster 30, 59 windows
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1082.9s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1084.9s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1060.8s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 3: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1031.2s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 4: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1004.8s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 5: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1017.9s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 6: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1071.3s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 7: PassExhausted
+  base   0/10 =   0.0%  [0.0-30.8]  unanswered 10  distinct names 1  7354s
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1279.3s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1293.7s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1289.6s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 3: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1291.3s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 4: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1271.9s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 5: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1250.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 6: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1222.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 7: PassExhausted
+  tuned  0/10 =   0.0%  [0.0-30.8]  unanswered 10  distinct names 1  8899s
+
+mushoku16: 133 scoreable lines, roster 18, 62 windows
+  finish_reason=length | tokens: prompt=None completion=8000 | took 962.5s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 979.2s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1036.9s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 3: PassExhausted
+  base   0/10 =   0.0%  [0.0-30.8]  unanswered 10  distinct names 1  2979s
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1217.6s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1221.7s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1250.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 3: PassExhausted
+  tuned  0/10 =   0.0%  [0.0-30.8]  unanswered 10  distinct names 1  3690s
+
+owarimonogatari3: 162 scoreable lines, roster 16, 93 windows
+  finish_reason=length | tokens: prompt=None completion=8000 | took 968.8s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 966.7s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 994.4s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 3: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 952.7s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 4: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 943.0s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 5: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 935.6s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  base window 6: PassExhausted
+  base   0/10 =   0.0%  [0.0-30.8]  unanswered 10  distinct names 1  5761s
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1179.1s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 1: PassExhausted
+  finish_reason=length | tokens: prompt=None completion=8000 | took 1187.0s
+  WARNING: Response was truncated (hit effective max_tokens=8000). Consider optimizing LM Studio context.
+  Token budget: requested=8000, effective=8000, next_requested=12000, next_effective=12000
+Warning: Could not find JSON array in ATTRIBUTE response (attempt 1)
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  tuned window 2: PassExhausted
