@@ -105,10 +105,11 @@ def get_eval_arms(base_only=False):
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
 
 
-def get_eval_metadata(base_only=False):
+def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none"):
     """Describe only settings this evaluator controls or directly observes."""
     arms = get_eval_arms(base_only)
-    decoding = {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
+    decoding = {"temperature": 0.0, "batch": batch, "max_tokens": 2000,
+                "reasoning_effort": reasoning_effort,
                 "arms": [arm for arm, _ in arms]}
     if base_only:
         notes = (
@@ -134,18 +135,27 @@ def main():
     ap.add_argument("--base-only", action="store_true",
                     help="score an untuned server without querying its empty "
                          "/lora-adapters state")
+    ap.add_argument("--batch-size", type=int, default=BATCH,
+                    help="segmented entries per attribution request")
+    ap.add_argument("--reasoning-effort", default="none",
+                    choices=("none", "minimal", "low", "medium", "high",
+                             "xhigh", "max"))
     ap.add_argument("--input-dir",
                     help="directory containing corrected <book>.txt inputs")
     ap.add_argument("--checkpoint-dir", help="directory containing corrected "
                     "<book>__three_pass.json.threepass_checkpoint.json files")
     args = ap.parse_args()
+    if args.batch_size < 1:
+        ap.error("--batch-size must be at least 1")
 
     client = OpenAI(base_url=args.base_url, api_key="local")
     params = LLMGenParams(max_tokens=2000, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
-                          top_p=0.8, reasoning_effort="none")
+                          top_p=0.8,
+                          reasoning_effort=args.reasoning_effort)
     _env = os.environ.get("EXPERIMENT_ENV")
-    decoding, notes = get_eval_metadata(args.base_only)
+    decoding, notes = get_eval_metadata(
+        args.base_only, args.batch_size, args.reasoning_effort)
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -165,8 +175,8 @@ def main():
         # lines stand for, per ExperimentRecord.add's contract. The roster
         # itself is still what the model is SHOWN.
         membership = roster_membership_names(roster, groups)
-        windows = [list(range(s, min(s + BATCH, len(seg))))
-                   for s in range(0, len(seg), BATCH)]
+        windows = [list(range(s, min(s + args.batch_size, len(seg))))
+                   for s in range(0, len(seg), args.batch_size)]
         windows = [w for w in windows
                    if any(norm(seg[i].get("text")) in want for i in w)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "

@@ -23,6 +23,12 @@ class LoraServingEvalModeTests(unittest.TestCase):
         self.assertIn("no adapter was loaded", notes)
         self.assertIn("does not observe base quantisation", notes)
 
+    def test_metadata_records_nondefault_request_controls(self):
+        decoding, _ = get_eval_metadata(
+            base_only=True, batch=5, reasoning_effort="low")
+        self.assertEqual(5, decoding["batch"])
+        self.assertEqual("low", decoding["reasoning_effort"])
+
     def test_paired_metadata_matches_the_two_executed_arms(self):
         decoding, notes = get_eval_metadata()
         self.assertEqual(["base", "lora"], decoding["arms"])
