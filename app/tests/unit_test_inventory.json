@@ -1812,6 +1812,7 @@
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_clean_adapter_load_is_returned",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_corrected_data_directories_override_legacy_layout",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_distill_eval_uses_the_same_corrected_layout",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_metadata_records_nondefault_request_controls",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_missing_adapter_keys_fail_instead_of_running_inert",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_nf4_loader_policy_preserves_bf16_compute",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales",
