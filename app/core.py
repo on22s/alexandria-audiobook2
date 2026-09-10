@@ -1386,7 +1386,7 @@ def _make_llm_client(timeout: float = None):
     Validates that the base_url is local/trusted.
     Reuses cached client if config hasn't changed to avoid connection pool leaks.
     """
-    from openai import OpenAI
+    from llm_provider import make_llm_client
     # None means "the shared answer", so this function stops being a second
     # opinion on how long a request may hang. An explicit argument still wins:
     # a caller that knows its request is quick may want a tighter bound.
@@ -1397,18 +1397,14 @@ def _make_llm_client(timeout: float = None):
     _validate_local_llm_base_url(base_url)
 
     # Create a hash of the config to detect changes
-    config_key = f"{llm_cfg.get('base_url')}:{llm_cfg.get('api_key')}:{llm_cfg.get('model_name')}:{timeout}"
+    config_key = json.dumps({"llm": llm_cfg, "timeout": timeout}, sort_keys=True)
 
     # Reuse cached client if config hasn't changed
     cached_client = _llm_client_cache.get(config_key)
     if cached_client is not None:
         return cached_client, llm_cfg.get("model_name", "")
 
-    client = OpenAI(
-        base_url=base_url,
-        api_key=llm_cfg.get("api_key", "local"),
-        timeout=timeout,
-    )
+    client = make_llm_client(llm_cfg, timeout)
     model_name = llm_cfg.get("model_name", "")
 
     # Cache the client, bounding the cache size to avoid memory growth

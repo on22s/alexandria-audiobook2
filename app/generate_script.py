@@ -7,9 +7,9 @@ import re
 import time
 import math
 from dataclasses import dataclass
-from openai import OpenAI
 from core import llm_timeout_seconds
 from config_settings import load_app_config
+from llm_provider import make_llm_client, merge_provider_extra_body
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
@@ -117,6 +117,7 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
         "top_p": params.top_p, "top_k": params.top_k, "min_p": params.min_p,
         "presence_penalty": params.presence_penalty, "banned_tokens": params.banned_tokens,
         "context_length": params.context_length, "hard_max_tokens": params.hard_max_tokens,
+        "provider_extra_body": params.provider_extra_body,
     }
     # Added ONLY when non-default. Every checkpoint written before this key
     # existed was a JSON run, so including it unconditionally would change
@@ -522,6 +523,7 @@ class LLMGenParams:
     # See response_codecs; the compact form drops ~25% of output tokens on real
     # scripts, all of it wrapper around prose the quality gate measures anyway.
     output_format: str = "json"
+    provider_extra_body: dict = None
 
 
 
@@ -554,13 +556,14 @@ def classify_length_finish(content, reasoning_tokens, already_escalated):
 
 def build_extra_body(params):
     """Collect non-standard sampling options for the OpenAI-compatible call."""
-    return {k: v for k, v in {
+    request_extra_body = {k: v for k, v in {
         "top_k": params.top_k,
         "min_p": params.min_p,
         "banned_tokens": params.banned_tokens if params.banned_tokens else None,
         "reasoning_effort": params.reasoning_effort,
         "seed": params.seed,
     }.items() if v is not None}
+    return merge_provider_extra_body(params.provider_extra_body, request_extra_body)
 
 
 def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
@@ -1569,11 +1572,7 @@ def main():
     # request into a failed one. What matters is that SOME finite number
     # exists, so a dead request becomes an error the retry loop can see rather
     # than a silent hang.
-    client = OpenAI(
-        base_url=base_url,
-        api_key=api_key,
-        timeout=llm_timeout_seconds(),
-    )
+    client = make_llm_client(llm_config, llm_timeout_seconds())
 
     # Split into chunks at natural boundaries
     chunks = split_into_chunks(book_content, max_size=chunk_size)
@@ -1618,6 +1617,7 @@ def main():
         banned_tokens=banned_tokens,
         context_length=lm_status.get("context_length"),
         output_format=args.output_format,
+        provider_extra_body=llm_config.get("provider_extra_body"),
     )
 
     fingerprint = get_generation_fingerprint(

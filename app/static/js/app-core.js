@@ -389,13 +389,34 @@
             document.getElementById('llm-url').value = p.base_url || '';
             document.getElementById('llm-key').value = p.api_key || 'local';
             document.getElementById('llm-model').value = p.model_name || '';
+            document.getElementById('llm-provider-headers').value =
+                JSON.stringify(p.provider_headers || {}, null, 2);
+            document.getElementById('llm-provider-extra-body').value =
+                JSON.stringify(p.provider_extra_body || {}, null, 2);
+        }
+
+        function getJsonObjectInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return {}; }
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (e) {
+                throw new Error(label + ' must be valid JSON.');
+            }
+            if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+                throw new Error(label + ' must be a JSON object.');
+            }
+            return parsed;
         }
 
         function syncCurrentLlmProfile() {
             llmProfiles[currentLlmMode] = {
                 base_url: document.getElementById('llm-url').value,
                 api_key: document.getElementById('llm-key').value,
-                model_name: document.getElementById('llm-model').value
+                model_name: document.getElementById('llm-model').value,
+                provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
+                provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
             };
         }
 
@@ -436,7 +457,9 @@
                 const res = await API.post('/api/llm/test', {
                     base_url: document.getElementById('llm-url').value,
                     api_key: document.getElementById('llm-key').value,
-                    model_name: document.getElementById('llm-model').value
+                    model_name: document.getElementById('llm-model').value,
+                    provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
+                    provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
                 });
                 if (res.ok) {
                     out.className = 'ms-2 small text-success';
@@ -659,7 +682,12 @@
 
             // Persist whatever's currently shown into the active profile first,
             // then send both profiles + the active one (mirrored server-side into `llm`).
-            syncCurrentLlmProfile();
+            try {
+                syncCurrentLlmProfile();
+            } catch (e) {
+                showToast(e.message, 'error');
+                return;
+            }
             const config = {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,

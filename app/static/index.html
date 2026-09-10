@@ -547,6 +547,14 @@
                             <label class="form-label">Model Name</label>
                             <input type="text" class="form-control" id="llm-model" placeholder="local-model">
                         </div>
+                        <details class="mb-3">
+                            <summary>Provider request options</summary>
+                            <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
+                            <label class="form-label mt-2" for="llm-provider-headers">Custom headers (JSON object)</label>
+                            <textarea class="form-control font-monospace" id="llm-provider-headers" rows="2" placeholder='{"X-Provider-Key": "..."}'></textarea>
+                            <label class="form-label mt-2" for="llm-provider-extra-body">Custom request body (JSON object)</label>
+                            <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"reasoning_effort": "none"}'></textarea>
+                        </details>
                         <div class="mb-3" id="llm-ssh-group" style="display:none;">
                             <label class="form-label">Remote SSH host alias</label>
                             <input type="text" class="form-control" id="llm-ssh" placeholder="tnr-0">

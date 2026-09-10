@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,8 @@ class LLMConfig(BaseModel):
     base_url: str
     api_key: str
     model_name: str
+    provider_headers: Dict[str, str] = Field(default_factory=dict)
+    provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class TTSConfig(BaseModel):

@@ -6,8 +6,8 @@ import time
 import re
 import argparse
 import shutil
-from openai import OpenAI
 from config_settings import load_app_config
+from llm_provider import make_llm_client
 
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed
@@ -760,8 +760,7 @@ def main():
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 
-    client = OpenAI(base_url=base_url, api_key=api_key,
-                    timeout=llm_timeout_seconds())
+    client = make_llm_client(llm_cfg, llm_timeout_seconds())
 
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}

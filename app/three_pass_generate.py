@@ -12,8 +12,8 @@ import time
 from collections import Counter
 from dataclasses import replace
 
-from openai import OpenAI
 from core import llm_timeout_seconds
+from llm_provider import make_llm_client
 
 from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
@@ -1742,13 +1742,13 @@ def main():
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=generation_settings["segment_output_ratio"],
         presegment_quotes=generation_settings["presegment_quotes"],
-        reasoning_effort=args.reasoning_effort)
+        reasoning_effort=args.reasoning_effort,
+        provider_extra_body=llm.get("provider_extra_body"))
     if narrator:
         attribute_system_prompt, _ = load_attribute_prompts()
         params.attribute_system_prompt = add_narrator_prior(
             attribute_system_prompt, narrator)
-    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
-                    timeout=llm_timeout_seconds())
+    client = make_llm_client(llm, llm_timeout_seconds())
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
     cfg_windows = gen.get("context_rescue_windows")

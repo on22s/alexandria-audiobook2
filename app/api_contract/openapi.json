@@ -932,6 +932,7 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JsonValue": {},
       "LLMConfig": {
         "properties": {
           "api_key": {
@@ -945,6 +946,20 @@
           "model_name": {
             "title": "Model Name",
             "type": "string"
+          },
+          "provider_extra_body": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provider Extra Body",
+            "type": "object"
+          },
+          "provider_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Provider Headers",
+            "type": "object"
           }
         },
         "required": [
