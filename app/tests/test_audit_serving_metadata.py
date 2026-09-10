@@ -2,8 +2,9 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from experiments.audit_serving_metadata import audit_artifact, summarize_base
+from experiments.audit_serving_metadata import audit_artifact, main, summarize_base
 
 
 class ServingMetadataAuditTests(unittest.TestCase):
@@ -53,6 +54,17 @@ class ServingMetadataAuditTests(unittest.TestCase):
         self.assertEqual({"rows": 2, "correct": 1, "unanswered": 1},
                          result["pooled"])
         self.assertEqual(result["pooled"], result["per_book"]["a"])
+
+    def test_main_allows_a_directory_without_legacy_scout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = os.path.join(directory, "audit.json")
+            with patch("sys.argv", ["audit_serving_metadata.py",
+                                    "--artifact-dir", directory,
+                                    "--out", out]):
+                main()
+            with open(out, encoding="utf-8") as handle:
+                report = json.load(handle)
+        self.assertEqual([], report["baseline_comparison"])
 
 
 if __name__ == "__main__":
