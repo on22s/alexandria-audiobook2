@@ -78,7 +78,9 @@ def main():
     scout_path = os.path.join(
         args.artifact_dir,
         "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json")
-    comparisons = [summarize_base(scout_path, "Llama 4 Scout")]
+    comparisons = []
+    if os.path.exists(scout_path):
+        comparisons.append(summarize_base(scout_path, "Llama 4 Scout"))
     llama33_path = os.path.join(
         args.artifact_dir,
         "lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.json")
