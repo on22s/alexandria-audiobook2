@@ -859,6 +859,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "http_status": error_details["status_code"],
                                   "retryable": error_details["retryable"],
                                   "next_retry_seconds": retry_delay,
+                                  "request": {
+                                      "model": model_name,
+                                      "system_prompt": sys_prompt,
+                                      "user_prompt": attempt_prompt,
+                                      "temperature": params.temperature,
+                                      "top_p": params.top_p,
+                                      "presence_penalty": params.presence_penalty,
+                                      "max_tokens": effective_max,
+                                      "extra_body": build_extra_body(params),
+                                  },
                                   "outcome": "api_error",
                                   "failure_codes": (["api_error"] if error_details["category"] == "api_error"
                                                     else ["api_error", error_details["category"]])})

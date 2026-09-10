@@ -145,6 +145,10 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual("rate_limited", attempts[0]["error_category"])
         self.assertTrue(attempts[0]["retryable"])
         self.assertEqual(0, attempts[0]["next_retry_seconds"])
+        self.assertEqual("model", attempts[0]["request"]["model"])
+        self.assertEqual("system", attempts[0]["request"]["system_prompt"])
+        self.assertEqual("user", attempts[0]["request"]["user_prompt"])
+        self.assertNotIn("api_key", attempts[0]["request"])
         self.assertIsNone(attempts[1]["next_retry_seconds"])
 
     def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
