@@ -1,8 +1,12 @@
+import json
 import unittest
 from unittest.mock import patch
 
+import httpx
+from openai import OpenAI
+
 from config_settings import LLMConfig
-from llm_provider import make_llm_client, merge_provider_extra_body
+from llm_provider import ConfiguredOpenAI, make_llm_client, merge_provider_extra_body
 
 
 class _FakeCompletions:
@@ -66,6 +70,47 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         _, kwargs = raw.chat.completions.calls[0]
         self.assertEqual(
             {"reasoning_effort": "none", "provider_flag": True}, kwargs["extra_body"])
+
+    def _configured_client_with_capture(self, provider_extra_body):
+        requests = []
+
+        def handle(request):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={
+                "id": "test", "object": "chat.completion", "created": 0,
+                "model": "model", "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop",
+                }],
+            })
+
+        raw_client = OpenAI(
+            base_url="http://provider.test/v1", api_key="key",
+            http_client=httpx.Client(transport=httpx.MockTransport(handle)),
+        )
+        self.addCleanup(raw_client.close)
+        return ConfiguredOpenAI(raw_client, provider_extra_body), requests
+
+    def test_formal_completion_arguments_override_provider_body_defaults(self):
+        client, requests = self._configured_client_with_capture(
+            {"temperature": 1.5, "top_p": 0.2, "provider_flag": True})
+
+        client.chat.completions.create(
+            model="model", messages=[{"role": "user", "content": "hello"}],
+            temperature=0.1, top_p=0.9)
+
+        self.assertEqual(0.1, requests[0]["temperature"])
+        self.assertEqual(0.9, requests[0]["top_p"])
+        self.assertTrue(requests[0]["provider_flag"])
+
+    def test_with_options_retains_provider_body_defaults(self):
+        client, requests = self._configured_client_with_capture({"provider_flag": True})
+
+        client.with_options(timeout=1).chat.completions.create(
+            model="model", messages=[{"role": "user", "content": "hello"}])
+
+        self.assertTrue(requests[0]["provider_flag"])
 
 
 if __name__ == "__main__":

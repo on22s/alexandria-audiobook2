@@ -1670,7 +1670,9 @@
   "test_llm_provider": [
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_client_sends_profile_headers_and_body_on_completions",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_explicit_generation_options_override_provider_defaults",
-    "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_keeps_json_provider_options"
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_formal_completion_arguments_override_provider_body_defaults",
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_keeps_json_provider_options",
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_with_options_retains_provider_body_defaults"
   ],
   "test_llm_review_regressions": [
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_registry_alias_resolves_via_shared_identity_normalization",

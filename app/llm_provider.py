@@ -38,8 +38,12 @@ class _ConfiguredCompletions:
         self._provider_extra_body = provider_extra_body
 
     def create(self, *args, **kwargs):
+        provider_extra_body = {
+            key: value for key, value in self._provider_extra_body.items()
+            if key not in kwargs
+        }
         kwargs["extra_body"] = merge_provider_extra_body(
-            self._provider_extra_body, kwargs.get("extra_body"))
+            provider_extra_body, kwargs.get("extra_body"))
         return self._completions.create(*args, **kwargs)
 
     def __getattr__(self, name):
@@ -59,7 +63,13 @@ class ConfiguredOpenAI:
     """Proxy an OpenAI client while applying one profile's completion defaults."""
     def __init__(self, client, provider_extra_body):
         self._client = client
-        self.chat = _ConfiguredChat(client.chat, provider_extra_body)
+        self._provider_extra_body = dict(provider_extra_body or {})
+        self.chat = _ConfiguredChat(client.chat, self._provider_extra_body)
+
+    def with_options(self, **kwargs):
+        """Return a configured timeout/retry variant without losing body defaults."""
+        return ConfiguredOpenAI(
+            self._client.with_options(**kwargs), self._provider_extra_body)
 
     def __getattr__(self, name):
         return getattr(self._client, name)
