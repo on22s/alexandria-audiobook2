@@ -35,6 +35,10 @@ class LLMConfig(BaseModel):
     request_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=3600)
     connect_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=300)
     request_interval_seconds: float = Field(default=0, ge=0, le=3600)
+    api_retry_limit: Optional[int] = Field(default=None, ge=0, le=10)
+    retry_initial_delay_seconds: float = Field(default=1, ge=0, le=60)
+    retry_multiplier: float = Field(default=2, ge=1, le=10)
+    retry_max_delay_seconds: float = Field(default=30, ge=0, le=300)
 
 
 class TTSConfig(BaseModel):

@@ -9,7 +9,8 @@ from pydantic import ValidationError
 
 from config_settings import LLMConfig
 from llm_provider import (ConfiguredOpenAI, get_profile_timeout, make_llm_client,
-                          merge_provider_extra_body)
+                          merge_provider_extra_body, classify_llm_error,
+                          get_retry_delay)
 
 
 class _FakeCompletions:
@@ -60,7 +61,11 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         base = {"base_url": "http://localhost:1234/v1", "api_key": "key", "model_name": "model"}
         for field, value in (("request_timeout_seconds", 0),
                              ("connect_timeout_seconds", 301),
-                             ("request_interval_seconds", -0.1)):
+                             ("request_interval_seconds", -0.1),
+                             ("api_retry_limit", 11),
+                             ("retry_initial_delay_seconds", -0.1),
+                             ("retry_multiplier", 0.9),
+                             ("retry_max_delay_seconds", 301)):
             with self.subTest(field=field):
                 with self.assertRaises(ValidationError):
                     LLMConfig(**base, **{field: value})
@@ -70,6 +75,16 @@ class ProviderRequestSettingsTest(unittest.TestCase):
             {"request_timeout_seconds": 45, "connect_timeout_seconds": 3}, 600)
         self.assertEqual(45, timeout.read)
         self.assertEqual(3, timeout.connect)
+
+    def test_error_classification_and_backoff_are_deterministic(self):
+        rate_limited = type("RateLimited", (Exception,), {"status_code": 429})("slow down")
+        policy = Exception("blocked by content policy")
+        self.assertEqual("rate_limited", classify_llm_error(rate_limited)["category"])
+        self.assertTrue(classify_llm_error(rate_limited)["retryable"])
+        self.assertEqual("content_policy", classify_llm_error(policy)["category"])
+        self.assertFalse(classify_llm_error(policy)["retryable"])
+        self.assertEqual(4, get_retry_delay(1, 2, 10, 3))
+        self.assertEqual(10, get_retry_delay(1, 2, 10, 8))
 
     def test_explicit_generation_options_override_provider_defaults(self):
         merged = merge_provider_extra_body(

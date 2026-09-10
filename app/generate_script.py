@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from core import llm_timeout_seconds
 from config_settings import load_app_config
 from llm_provider import make_llm_client, merge_provider_extra_body
+from llm_provider import classify_llm_error, get_retry_delay
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
@@ -117,7 +118,7 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
         "top_p": params.top_p, "top_k": params.top_k, "min_p": params.min_p,
         "presence_penalty": params.presence_penalty, "banned_tokens": params.banned_tokens,
         "context_length": params.context_length, "hard_max_tokens": params.hard_max_tokens,
-        "provider_extra_body": params.provider_extra_body,
+        "provider_extra_body": getattr(params, "provider_extra_body", None),
     }
     # Added ONLY when non-default. Every checkpoint written before this key
     # existed was a JSON run, so including it unconditionally would change
@@ -524,6 +525,10 @@ class LLMGenParams:
     # scripts, all of it wrapper around prose the quality gate measures anyway.
     output_format: str = "json"
     provider_extra_body: dict = None
+    api_retry_limit: int = None
+    retry_initial_delay_seconds: float = 0
+    retry_multiplier: float = 2
+    retry_max_delay_seconds: float = 30
 
 
 
@@ -835,6 +840,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                               f"beyond {effective_max} in the loaded context.")
 
         except Exception as e:
+            error_details = classify_llm_error(e)
+            api_retry_limit = (params.api_retry_limit if params.api_retry_limit is not None
+                               else max_retries)
+            can_retry = error_details["retryable"] and attempt < api_retry_limit
+            retry_delay = (get_retry_delay(
+                params.retry_initial_delay_seconds, params.retry_multiplier,
+                params.retry_max_delay_seconds, attempt + 1)
+                if can_retry else None)
             if attempt_observer:
                 attempt_observer({"attempt": attempt + 1,
                                   "elapsed_seconds": round(time.time() - t0, 3),
@@ -842,10 +855,19 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "effective_max_tokens": None, "prompt_tokens": None,
                                   "completion_tokens": None,
                                   "error": f"{type(e).__name__}: {e}",
+                                  "error_category": error_details["category"],
+                                  "http_status": error_details["status_code"],
+                                  "retryable": error_details["retryable"],
+                                  "next_retry_seconds": retry_delay,
                                   "outcome": "api_error",
-                                  "failure_codes": ["api_error"]})
-            print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
-            if attempt < max_retries:
+                                  "failure_codes": (["api_error"] if error_details["category"] == "api_error"
+                                                    else ["api_error", error_details["category"]])})
+            print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s "
+                  f"[{error_details['category']}]: {e}")
+            if can_retry:
+                if retry_delay:
+                    print(f"Retrying in {retry_delay:.1f}s...")
+                    time.sleep(retry_delay)
                 continue
             return []
 
@@ -1618,6 +1640,10 @@ def main():
         context_length=lm_status.get("context_length"),
         output_format=args.output_format,
         provider_extra_body=llm_config.get("provider_extra_body"),
+        api_retry_limit=llm_config.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm_config.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
     )
 
     fingerprint = get_generation_fingerprint(

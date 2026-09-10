@@ -395,6 +395,12 @@
                 p.connect_timeout_seconds ?? '';
             document.getElementById('llm-request-interval').value =
                 p.request_interval_seconds ?? 0;
+            document.getElementById('llm-api-retry-limit').value = p.api_retry_limit ?? '';
+            document.getElementById('llm-retry-initial-delay').value =
+                p.retry_initial_delay_seconds ?? 1;
+            document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
+            document.getElementById('llm-retry-max-delay').value =
+                p.retry_max_delay_seconds ?? 30;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
             document.getElementById('llm-provider-extra-body').value =
@@ -434,6 +440,10 @@
                 request_timeout_seconds: getOptionalNumberInput('llm-request-timeout', 'Request timeout'),
                 connect_timeout_seconds: getOptionalNumberInput('llm-connect-timeout', 'Connect timeout'),
                 request_interval_seconds: getOptionalNumberInput('llm-request-interval', 'Minimum interval') ?? 0,
+                api_retry_limit: getOptionalNumberInput('llm-api-retry-limit', 'API retry limit'),
+                retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
+                retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
+                retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
             };

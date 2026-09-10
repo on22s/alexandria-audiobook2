@@ -36,6 +36,32 @@ def merge_provider_extra_body(provider_extra_body, request_extra_body):
     return merged
 
 
+def classify_llm_error(error):
+    """Classify a failed provider request for retry policy and recovery logs."""
+    status_code = getattr(error, "status_code", None)
+    message = str(error)
+    lowered = message.lower()
+    if any(token in lowered for token in ("safety", "policy", "content filter", "nsfw")):
+        return {"category": "content_policy", "status_code": status_code, "retryable": False}
+    if status_code == 429:
+        return {"category": "rate_limited", "status_code": status_code, "retryable": True}
+    if isinstance(status_code, int) and 500 <= status_code <= 599:
+        return {"category": "server_error", "status_code": status_code, "retryable": True}
+    error_type = type(error).__name__.lower()
+    if "timeout" in error_type or "timeout" in lowered:
+        return {"category": "timeout", "status_code": status_code, "retryable": True}
+    if "connection" in error_type or "connect" in lowered:
+        return {"category": "connection_error", "status_code": status_code, "retryable": True}
+    return {"category": "api_error", "status_code": status_code, "retryable": True}
+
+
+def get_retry_delay(retry_initial_delay_seconds, retry_multiplier,
+                    retry_max_delay_seconds, retry_number):
+    """Return a bounded exponential delay for a numbered retry (starting at one)."""
+    return min(retry_max_delay_seconds,
+               retry_initial_delay_seconds * retry_multiplier ** max(0, retry_number - 1))
+
+
 class _RequestPacer:
     """Serialize request starts to honor one profile's minimum interval."""
     def __init__(self, interval_seconds):

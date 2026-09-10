@@ -1743,7 +1743,11 @@ def main():
         segment_output_ratio=generation_settings["segment_output_ratio"],
         presegment_quotes=generation_settings["presegment_quotes"],
         reasoning_effort=args.reasoning_effort,
-        provider_extra_body=llm.get("provider_extra_body"))
+        provider_extra_body=llm.get("provider_extra_body"),
+        api_retry_limit=llm.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30))
     if narrator:
         attribute_system_prompt, _ = load_attribute_prompts()
         params.attribute_system_prompt = add_narrator_prior(

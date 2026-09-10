@@ -561,6 +561,24 @@
                                 <input type="number" class="form-control" id="llm-request-interval" min="0" max="3600" step="0.1" value="0">
                             </div>
                         </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-api-retry-limit">API retries</label>
+                                <input type="number" class="form-control" id="llm-api-retry-limit" min="0" max="10" step="1" placeholder="Stage default">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-initial-delay">Initial backoff (s)</label>
+                                <input type="number" class="form-control" id="llm-retry-initial-delay" min="0" max="60" step="0.1" value="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-multiplier">Backoff multiplier</label>
+                                <input type="number" class="form-control" id="llm-retry-multiplier" min="1" max="10" step="0.1" value="2">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-max-delay">Maximum backoff (s)</label>
+                                <input type="number" class="form-control" id="llm-retry-max-delay" min="0" max="300" step="0.1" value="30">
+                            </div>
+                        </div>
                         <details class="mb-3">
                             <summary>Provider request options</summary>
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>

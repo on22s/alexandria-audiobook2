@@ -939,6 +939,19 @@
             "title": "Api Key",
             "type": "string"
           },
+          "api_retry_limit": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Retry Limit"
+          },
           "base_url": {
             "title": "Base Url",
             "type": "string"
@@ -993,6 +1006,27 @@
               }
             ],
             "title": "Request Timeout Seconds"
+          },
+          "retry_initial_delay_seconds": {
+            "default": 1,
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Retry Initial Delay Seconds",
+            "type": "number"
+          },
+          "retry_max_delay_seconds": {
+            "default": 30,
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Retry Max Delay Seconds",
+            "type": "number"
+          },
+          "retry_multiplier": {
+            "default": 2,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Retry Multiplier",
+            "type": "number"
           }
         },
         "required": [

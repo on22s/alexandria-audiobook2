@@ -894,6 +894,10 @@ def main():
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
         provider_extra_body=llm_config.get("provider_extra_body"),
+        api_retry_limit=llm_config.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm_config.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
     )
 
     print(f"Connecting to: {base_url}")
