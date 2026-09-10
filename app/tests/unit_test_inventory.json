@@ -1689,6 +1689,7 @@
     "tests.test_llm_review_regressions.LlmReviewTests.test_bracketed_trailing_prose_does_not_discard_valid_array",
     "tests.test_llm_review_regressions.LlmReviewTests.test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason",
     "tests.test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response",
+    "tests.test_llm_review_regressions.LlmReviewTests.test_context_budget_failure_keeps_its_recovery_record",
     "tests.test_llm_review_regressions.LlmReviewTests.test_context_clamped_truncation_does_not_retry",
     "tests.test_llm_review_regressions.LlmReviewTests.test_early_split_decider_stops_full_chunk_after_second_severe_failure",
     "tests.test_llm_review_regressions.LlmReviewTests.test_exhausted_ambiguous_arrays_use_quality_gated_raw_salvage",

@@ -135,7 +135,8 @@ class LlmReviewTests(unittest.TestCase):
             client, "model", "system", "user",
             generate_script.LLMGenParams(
                 max_tokens=100, temperature=0.0, api_retry_limit=1,
-                retry_initial_delay_seconds=0),
+                retry_initial_delay_seconds=0,
+                provider_extra_body={"gateway_token": "private"}),
             "llm_responses.log", "TEST", max_retries=4,
             attempt_observer=attempts.append)
 
@@ -149,7 +150,21 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual("system", attempts[0]["request"]["system_prompt"])
         self.assertEqual("user", attempts[0]["request"]["user_prompt"])
         self.assertNotIn("api_key", attempts[0]["request"])
+        self.assertEqual("[REDACTED]", attempts[0]["request"]["extra_body"]["gateway_token"])
         self.assertIsNone(attempts[1]["next_retry_seconds"])
+
+    def test_context_budget_failure_keeps_its_recovery_record(self):
+        attempts = []
+        result = generate_script.call_llm_for_entries(
+            object(), "model", "system", "user",
+            generate_script.LLMGenParams(context_length=1),
+            "llm_responses.log", "TEST", max_retries=0,
+            attempt_observer=attempts.append)
+
+        self.assertEqual([], result)
+        self.assertEqual(1, len(attempts))
+        self.assertIsNone(attempts[0]["request"]["max_tokens"])
+        self.assertEqual("api_error", attempts[0]["error_category"])
 
     def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
         source = " ".join(f"word{index}" for index in range(20))

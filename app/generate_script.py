@@ -559,6 +559,18 @@ def classify_length_finish(content, reasoning_tokens, already_escalated):
     return "truncated_output"
 
 
+def redact_recovery_value(value, key=None):
+    """Copy recovery data while removing values that are likely credentials."""
+    if key and any(token in key.lower() for token in ("api_key", "apikey", "token", "secret", "password", "authorization")):
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {item_key: redact_recovery_value(item_value, item_key)
+                for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [redact_recovery_value(item) for item in value]
+    return value
+
+
 def build_extra_body(params):
     """Collect non-standard sampling options for the OpenAI-compatible call."""
     request_extra_body = {k: v for k, v in {
@@ -717,6 +729,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         t0 = time.time()
         truncation_retry_available = False
         attempt_record = None
+        effective_max = None
         try:
             base_messages = [
                 {"role": "system", "content": sys_prompt},
@@ -867,7 +880,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                       "top_p": params.top_p,
                                       "presence_penalty": params.presence_penalty,
                                       "max_tokens": effective_max,
-                                      "extra_body": build_extra_body(params),
+                                      "extra_body": redact_recovery_value(build_extra_body(params)),
                                   },
                                   "outcome": "api_error",
                                   "failure_codes": (["api_error"] if error_details["category"] == "api_error"
