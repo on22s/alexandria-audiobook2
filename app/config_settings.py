@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,15 @@ class LLMConfig(BaseModel):
     base_url: str
     api_key: str
     model_name: str
+    provider_headers: Dict[str, str] = Field(default_factory=dict)
+    provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
+    request_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=3600)
+    connect_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=300)
+    request_interval_seconds: float = Field(default=0, ge=0, le=3600)
+    api_retry_limit: Optional[int] = Field(default=None, ge=0, le=10)
+    retry_initial_delay_seconds: float = Field(default=1, ge=0, le=60)
+    retry_multiplier: float = Field(default=2, ge=1, le=10)
+    retry_max_delay_seconds: float = Field(default=30, ge=0, le=300)
 
 
 class TTSConfig(BaseModel):

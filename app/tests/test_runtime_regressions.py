@@ -978,7 +978,9 @@ class RuntimeTests(unittest.TestCase):
              patch.object(voicelab_module, "_probe_voicelab_interpreter",
                           return_value={"python": "3.10", "torch": "2.7+rocm", "hip": "6.3",
                                         "gpu": "AMD Test", "vram": [12 * 1024**3, 16 * 1024**3],
-                                        "deps": {"librosa": True, "peft": True}}):
+                                        "deps": {"librosa": True, "peft": True}}), \
+             patch.object(voicelab_module.shutil, "disk_usage",
+                          return_value=SimpleNamespace(free=20 * 1024**3)):
             os.makedirs(os.path.join(tmp, "_deduped"))
             Path(tmp, "_deduped", "voice.zip").write_bytes(b"zip")
             cfg = dict(core_module.VOICELAB_DEFAULTS,

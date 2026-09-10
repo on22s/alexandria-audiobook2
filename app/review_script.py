@@ -9,8 +9,8 @@ import subprocess
 import argparse
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from openai import OpenAI
 from config_settings import load_app_config
+from llm_provider import make_llm_client
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
@@ -893,6 +893,11 @@ def main():
         min_p=min_p,
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
+        provider_extra_body=llm_config.get("provider_extra_body"),
+        api_retry_limit=llm_config.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm_config.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
     )
 
     print(f"Connecting to: {base_url}")
@@ -911,8 +916,7 @@ def main():
     gen_params.context_length = lm_status.get("context_length")
     gen_params.hard_max_tokens = 32768
 
-    client = OpenAI(base_url=base_url, api_key=api_key,
-                    timeout=llm_timeout_seconds())
+    client = make_llm_client(llm_config, llm_timeout_seconds())
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,

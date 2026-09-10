@@ -119,27 +119,52 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual("quality_rejected", attempts[0]["outcome"])
         self.assertIn("low_source_token_recall", attempts[0]["failure_codes"])
 
-    def test_deterministic_api_errors_retain_the_retry_budget(self):
+    def test_api_retry_policy_records_rate_limit_and_honors_profile_limit(self):
         calls = []
         attempts = []
 
-        def unavailable(**_kwargs):
+        def rate_limited(**_kwargs):
             calls.append(True)
-            raise ConnectionError("offline")
+            error = RuntimeError("too many requests")
+            error.status_code = 429
+            raise error
 
         client = SimpleNamespace(chat=SimpleNamespace(
-            completions=SimpleNamespace(create=unavailable)))
+            completions=SimpleNamespace(create=rate_limited)))
         result = generate_script.call_llm_for_entries(
             client, "model", "system", "user",
-            generate_script.LLMGenParams(max_tokens=100, temperature=0.0),
-            "llm_responses.log", "TEST", max_retries=2,
+            generate_script.LLMGenParams(
+                max_tokens=100, temperature=0.0, api_retry_limit=1,
+                retry_initial_delay_seconds=0,
+                provider_extra_body={"gateway_token": "private"}),
+            "llm_responses.log", "TEST", max_retries=4,
             attempt_observer=attempts.append)
 
         self.assertEqual([], result)
-        self.assertEqual(3, len(calls))
-        self.assertEqual(3, len(attempts))
-        self.assertTrue(all(
-            attempt["outcome"] == "api_error" for attempt in attempts))
+        self.assertEqual(2, len(calls))
+        self.assertEqual(2, len(attempts))
+        self.assertEqual("rate_limited", attempts[0]["error_category"])
+        self.assertTrue(attempts[0]["retryable"])
+        self.assertEqual(0, attempts[0]["next_retry_seconds"])
+        self.assertEqual("model", attempts[0]["request"]["model"])
+        self.assertEqual("system", attempts[0]["request"]["system_prompt"])
+        self.assertEqual("user", attempts[0]["request"]["user_prompt"])
+        self.assertNotIn("api_key", attempts[0]["request"])
+        self.assertEqual("[REDACTED]", attempts[0]["request"]["extra_body"]["gateway_token"])
+        self.assertIsNone(attempts[1]["next_retry_seconds"])
+
+    def test_context_budget_failure_keeps_its_recovery_record(self):
+        attempts = []
+        result = generate_script.call_llm_for_entries(
+            object(), "model", "system", "user",
+            generate_script.LLMGenParams(context_length=1),
+            "llm_responses.log", "TEST", max_retries=0,
+            attempt_observer=attempts.append)
+
+        self.assertEqual([], result)
+        self.assertEqual(1, len(attempts))
+        self.assertIsNone(attempts[0]["request"]["max_tokens"])
+        self.assertEqual("api_error", attempts[0]["error_category"])
 
     def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
         source = " ".join(f"word{index}" for index in range(20))

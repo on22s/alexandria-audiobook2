@@ -389,13 +389,63 @@
             document.getElementById('llm-url').value = p.base_url || '';
             document.getElementById('llm-key').value = p.api_key || 'local';
             document.getElementById('llm-model').value = p.model_name || '';
+            document.getElementById('llm-request-timeout').value =
+                p.request_timeout_seconds ?? '';
+            document.getElementById('llm-connect-timeout').value =
+                p.connect_timeout_seconds ?? '';
+            document.getElementById('llm-request-interval').value =
+                p.request_interval_seconds ?? 0;
+            document.getElementById('llm-api-retry-limit').value = p.api_retry_limit ?? '';
+            document.getElementById('llm-retry-initial-delay').value =
+                p.retry_initial_delay_seconds ?? 1;
+            document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
+            document.getElementById('llm-retry-max-delay').value =
+                p.retry_max_delay_seconds ?? 30;
+            document.getElementById('llm-provider-headers').value =
+                JSON.stringify(p.provider_headers || {}, null, 2);
+            document.getElementById('llm-provider-extra-body').value =
+                JSON.stringify(p.provider_extra_body || {}, null, 2);
+        }
+
+        function getJsonObjectInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return {}; }
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (e) {
+                throw new Error(label + ' must be valid JSON.');
+            }
+            if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+                throw new Error(label + ' must be a JSON object.');
+            }
+            return parsed;
+        }
+
+        function getOptionalNumberInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return null; }
+            const value = Number(raw);
+            if (!Number.isFinite(value)) {
+                throw new Error(label + ' must be a number.');
+            }
+            return value;
         }
 
         function syncCurrentLlmProfile() {
             llmProfiles[currentLlmMode] = {
                 base_url: document.getElementById('llm-url').value,
                 api_key: document.getElementById('llm-key').value,
-                model_name: document.getElementById('llm-model').value
+                model_name: document.getElementById('llm-model').value,
+                request_timeout_seconds: getOptionalNumberInput('llm-request-timeout', 'Request timeout'),
+                connect_timeout_seconds: getOptionalNumberInput('llm-connect-timeout', 'Connect timeout'),
+                request_interval_seconds: getOptionalNumberInput('llm-request-interval', 'Minimum interval') ?? 0,
+                api_retry_limit: getOptionalNumberInput('llm-api-retry-limit', 'API retry limit'),
+                retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
+                retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
+                retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
+                provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
+                provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
             };
         }
 
@@ -436,7 +486,9 @@
                 const res = await API.post('/api/llm/test', {
                     base_url: document.getElementById('llm-url').value,
                     api_key: document.getElementById('llm-key').value,
-                    model_name: document.getElementById('llm-model').value
+                    model_name: document.getElementById('llm-model').value,
+                    provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
+                    provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
                 });
                 if (res.ok) {
                     out.className = 'ms-2 small text-success';
@@ -659,7 +711,12 @@
 
             // Persist whatever's currently shown into the active profile first,
             // then send both profiles + the active one (mirrored server-side into `llm`).
-            syncCurrentLlmProfile();
+            try {
+                syncCurrentLlmProfile();
+            } catch (e) {
+                showToast(e.message, 'error');
+                return;
+            }
             const config = {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,

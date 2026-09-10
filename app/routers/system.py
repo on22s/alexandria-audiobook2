@@ -343,19 +343,24 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         process_state["lmstudio_optimize"]["running"] = False
 
 
-def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
+def _run_llm_test(profile: dict) -> dict:
     """Probe an OpenAI-compatible endpoint: list models, then a tiny completion.
 
     Returns a dict describing each step. On failure, writes a log file and
     includes its path so the user can hand it back for debugging.
     """
-    from openai import OpenAI
+    from llm_provider import make_llm_client
+    base_url = profile.get("base_url", "")
+    api_key = profile.get("api_key", "local")
+    model_name = profile.get("model_name", "")
     try:
         _validate_local_llm_base_url(base_url)
     except LLMConfigError as e:
         return {"ok": False, "step": "validate", "error": str(e)}
 
-    client = OpenAI(base_url=base_url, api_key=api_key or "local", timeout=30)
+    client = make_llm_client(
+        {**profile, "api_key": api_key or "local"}, timeout=30,
+        respect_profile_timeout=False)
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]
@@ -394,15 +399,14 @@ async def llm_test(profile: Optional[LLMConfig] = None):
         url = profile.base_url.rstrip("/")
         if not url.endswith("/v1"):
             url += "/v1"
-        base_url, api_key, model_name = url, profile.api_key, profile.model_name
+        profile_data = profile.model_dump()
+        profile_data["base_url"] = url
     else:
         cfg = _load_llm_config()
-        base_url = cfg.get("base_url", "")
-        api_key = cfg.get("api_key", "local")
-        model_name = cfg.get("model_name", "")
-    if not base_url:
+        profile_data = cfg
+    if not profile_data.get("base_url"):
         raise HTTPException(status_code=400, detail="No LLM base_url configured")
-    return await asyncio.to_thread(_run_llm_test, base_url, api_key, model_name)
+    return await asyncio.to_thread(_run_llm_test, profile_data)
 
 # Endpoints
 

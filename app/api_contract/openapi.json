@@ -932,19 +932,101 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JsonValue": {},
       "LLMConfig": {
         "properties": {
           "api_key": {
             "title": "Api Key",
             "type": "string"
           },
+          "api_retry_limit": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Retry Limit"
+          },
           "base_url": {
             "title": "Base Url",
             "type": "string"
           },
+          "connect_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 300.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connect Timeout Seconds"
+          },
           "model_name": {
             "title": "Model Name",
             "type": "string"
+          },
+          "provider_extra_body": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provider Extra Body",
+            "type": "object"
+          },
+          "provider_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Provider Headers",
+            "type": "object"
+          },
+          "request_interval_seconds": {
+            "default": 0,
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Request Interval Seconds",
+            "type": "number"
+          },
+          "request_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Timeout Seconds"
+          },
+          "retry_initial_delay_seconds": {
+            "default": 1,
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Retry Initial Delay Seconds",
+            "type": "number"
+          },
+          "retry_max_delay_seconds": {
+            "default": 30,
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Retry Max Delay Seconds",
+            "type": "number"
+          },
+          "retry_multiplier": {
+            "default": 2,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Retry Multiplier",
+            "type": "number"
           }
         },
         "required": [
