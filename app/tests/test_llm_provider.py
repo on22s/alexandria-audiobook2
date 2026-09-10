@@ -1,12 +1,15 @@
 import json
+import time
 import unittest
 from unittest.mock import patch
 
 import httpx
 from openai import OpenAI
+from pydantic import ValidationError
 
 from config_settings import LLMConfig
-from llm_provider import ConfiguredOpenAI, make_llm_client, merge_provider_extra_body
+from llm_provider import (ConfiguredOpenAI, get_profile_timeout, make_llm_client,
+                          merge_provider_extra_body)
 
 
 class _FakeCompletions:
@@ -32,6 +35,14 @@ class _FakeOpenAI:
         _FakeOpenAI.instances.append(self)
 
 
+class _PacedClient:
+    def __init__(self):
+        self.chat = _FakeChat()
+
+    def with_options(self, **kwargs):
+        return self
+
+
 class ProviderRequestSettingsTest(unittest.TestCase):
     def setUp(self):
         _FakeOpenAI.instances.clear()
@@ -44,6 +55,21 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         )
         self.assertEqual("reader", profile.provider_headers["X-Tenant"])
         self.assertEqual("fast", profile.provider_extra_body["nested"]["mode"])
+
+    def test_profile_rejects_invalid_timing_values(self):
+        base = {"base_url": "http://localhost:1234/v1", "api_key": "key", "model_name": "model"}
+        for field, value in (("request_timeout_seconds", 0),
+                             ("connect_timeout_seconds", 301),
+                             ("request_interval_seconds", -0.1)):
+            with self.subTest(field=field):
+                with self.assertRaises(ValidationError):
+                    LLMConfig(**base, **{field: value})
+
+    def test_profile_timeout_uses_request_and_connect_limits(self):
+        timeout = get_profile_timeout(
+            {"request_timeout_seconds": 45, "connect_timeout_seconds": 3}, 600)
+        self.assertEqual(45, timeout.read)
+        self.assertEqual(3, timeout.connect)
 
     def test_explicit_generation_options_override_provider_defaults(self):
         merged = merge_provider_extra_body(
@@ -111,6 +137,17 @@ class ProviderRequestSettingsTest(unittest.TestCase):
             model="model", messages=[{"role": "user", "content": "hello"}])
 
         self.assertTrue(requests[0]["provider_flag"])
+
+    def test_request_interval_applies_across_with_options_clients(self):
+        raw_client = _PacedClient()
+        client = ConfiguredOpenAI(raw_client, {}, request_interval_seconds=0.03)
+
+        client.chat.completions.create(model="model", messages=[])
+        first = time.monotonic()
+        client.with_options(timeout=1).chat.completions.create(model="model", messages=[])
+        second = time.monotonic()
+
+        self.assertGreaterEqual(second - first, 0.02)
 
 
 if __name__ == "__main__":

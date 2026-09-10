@@ -943,6 +943,19 @@
             "title": "Base Url",
             "type": "string"
           },
+          "connect_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 300.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connect Timeout Seconds"
+          },
           "model_name": {
             "title": "Model Name",
             "type": "string"
@@ -960,6 +973,26 @@
             },
             "title": "Provider Headers",
             "type": "object"
+          },
+          "request_interval_seconds": {
+            "default": 0,
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Request Interval Seconds",
+            "type": "number"
+          },
+          "request_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Timeout Seconds"
           }
         },
         "required": [

@@ -32,6 +32,9 @@ class LLMConfig(BaseModel):
     model_name: str
     provider_headers: Dict[str, str] = Field(default_factory=dict)
     provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
+    request_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=3600)
+    connect_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=300)
+    request_interval_seconds: float = Field(default=0, ge=0, le=3600)
 
 
 class TTSConfig(BaseModel):

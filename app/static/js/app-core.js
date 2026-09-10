@@ -389,6 +389,12 @@
             document.getElementById('llm-url').value = p.base_url || '';
             document.getElementById('llm-key').value = p.api_key || 'local';
             document.getElementById('llm-model').value = p.model_name || '';
+            document.getElementById('llm-request-timeout').value =
+                p.request_timeout_seconds ?? '';
+            document.getElementById('llm-connect-timeout').value =
+                p.connect_timeout_seconds ?? '';
+            document.getElementById('llm-request-interval').value =
+                p.request_interval_seconds ?? 0;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
             document.getElementById('llm-provider-extra-body').value =
@@ -410,11 +416,24 @@
             return parsed;
         }
 
+        function getOptionalNumberInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return null; }
+            const value = Number(raw);
+            if (!Number.isFinite(value)) {
+                throw new Error(label + ' must be a number.');
+            }
+            return value;
+        }
+
         function syncCurrentLlmProfile() {
             llmProfiles[currentLlmMode] = {
                 base_url: document.getElementById('llm-url').value,
                 api_key: document.getElementById('llm-key').value,
                 model_name: document.getElementById('llm-model').value,
+                request_timeout_seconds: getOptionalNumberInput('llm-request-timeout', 'Request timeout'),
+                connect_timeout_seconds: getOptionalNumberInput('llm-connect-timeout', 'Connect timeout'),
+                request_interval_seconds: getOptionalNumberInput('llm-request-interval', 'Minimum interval') ?? 0,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
             };

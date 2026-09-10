@@ -358,7 +358,9 @@ def _run_llm_test(profile: dict) -> dict:
     except LLMConfigError as e:
         return {"ok": False, "step": "validate", "error": str(e)}
 
-    client = make_llm_client({**profile, "api_key": api_key or "local"}, timeout=30)
+    client = make_llm_client(
+        {**profile, "api_key": api_key or "local"}, timeout=30,
+        respect_profile_timeout=False)
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]
