@@ -342,20 +342,26 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manifest_path = os.path.join(tmp, "manifest.json")
 
+            # Two different real clips: the gate now decodes and measures uploads,
+            # so opaque bytes no longer stand in for audio.
+            from tests.test_voice_reference_import import _tone, _wav_bytes
+
             async def upload(content):
                 source = _Upload([content])
                 source.filename = "Same Voice.wav"
-                return await voice_design_module.clone_voices_upload(source)
+                return await voice_design_module.clone_voices_upload(
+                    source, ref_text="Same voice.", rights_confirmed=True)
 
             with patch.object(voice_design_module, "CLONE_VOICES_DIR", tmp), \
                  patch.object(voice_design_module, "CLONE_VOICES_MANIFEST", manifest_path):
-                first = asyncio.run(upload(b"first"))
-                second = asyncio.run(upload(b"second"))
+                first = asyncio.run(upload(_wav_bytes(_tone(4.0, hz=220))))
+                second = asyncio.run(upload(_wav_bytes(_tone(4.0, hz=330))))
 
             self.assertNotEqual(first["voice_id"], second["voice_id"])
             manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-            self.assertEqual(b"first", Path(tmp, manifest[0]["filename"]).read_bytes())
-            self.assertEqual(b"second", Path(tmp, manifest[1]["filename"]).read_bytes())
+            self.assertNotEqual(manifest[0]["filename"], manifest[1]["filename"])
+            self.assertNotEqual(manifest[0]["sha256"], manifest[1]["sha256"])
+            self.assertTrue(all(Path(tmp, m["filename"]).exists() for m in manifest))
 
     def test_lora_zip_validation_rejects_insufficient_extraction_space(self):
         with tempfile.TemporaryDirectory() as tmp:

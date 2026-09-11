@@ -1,9 +1,10 @@
 import logging
 import os
 import shutil
+import time
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from core import (
@@ -19,6 +20,7 @@ from core import (
     project_manager,
 )
 from utils import get_unique_id
+from voice_reference_import import import_reference_audio
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -136,31 +138,70 @@ async def clone_voices_list():
     return _load_manifest(CLONE_VOICES_MANIFEST)
 
 @router.post("/api/clone_voices/upload")
-async def clone_voices_upload(file: UploadFile = File(...)):
-    """Upload an audio file for voice cloning."""
+async def clone_voices_upload(file: UploadFile = File(...),
+                              ref_text: str = Form(""),
+                              source_title: str = Form(""),
+                              source_url: str = Form(""),
+                              rights_basis: str = Form(""),
+                              rights_confirmed: bool = Form(False)):
+    """Import a reference clip for voice cloning.
+
+    The clip is decoded, normalised to what the engine reads (24 kHz mono
+    PCM16 WAV), measured, and refused if it is not one clean 3-30 s sentence
+    (see voice_reference_import). The exact transcript and a rights
+    confirmation are required; source title/URL/basis are recorded when given.
+    Every import is a new immutable id - a changed reference is a new voice."""
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTS:
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
+    # Called directly (tests) the Form defaults arrive as Form objects, not values.
+    def form_str(value):
+        return value.strip() if isinstance(value, str) else ""
+    ref_text, source_title, source_url, rights_basis = (
+        form_str(ref_text), form_str(source_title), form_str(source_url), form_str(rights_basis))
+    if not ref_text:
+        raise HTTPException(status_code=400, detail="The exact transcript of the clip is required (ref_text).")
+    if rights_confirmed is not True:
+        raise HTTPException(status_code=400, detail="Confirm you have the right to use this voice (rights_confirmed).")
 
     base_name = os.path.splitext(file.filename)[0]
     safe_name = _require_safe_filename(base_name, "Invalid filename")
 
     voice_id = get_unique_id(safe_name)
-    dest_filename = f"{voice_id}{ext}"
+    dest_filename = f"{voice_id}.wav"
     dest_path = os.path.join(CLONE_VOICES_DIR, dest_filename)
+    upload_path = os.path.join(CLONE_VOICES_DIR, f".upload_{voice_id}{ext}")
 
-    await _save_upload_limited(file, dest_path, 512 * 1024**2)
+    await _save_upload_limited(file, upload_path, 512 * 1024**2)
+    try:
+        measures, problems = import_reference_audio(upload_path, dest_path)
+    finally:
+        if os.path.exists(upload_path):
+            os.remove(upload_path)
+    if problems:
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        raise HTTPException(status_code=400, detail="Reference clip refused: " + "; ".join(problems))
 
     manifest = _load_manifest(CLONE_VOICES_MANIFEST)
     manifest.append({
         "id": voice_id,
         "name": base_name,
         "filename": dest_filename,
+        "ref_text": ref_text,
+        "source_title": source_title,
+        "source_url": source_url,
+        "rights_basis": rights_basis,
+        "rights_confirmed": True,
+        "imported_at": time.time(),
+        **measures,
     })
     _save_manifest(CLONE_VOICES_MANIFEST, manifest)
 
-    logger.info(f"Clone voice uploaded: '{base_name}' as {dest_filename}")
-    return {"status": "uploaded", "voice_id": voice_id, "filename": dest_filename}
+    logger.info(f"Clone voice imported: '{base_name}' as {dest_filename} "
+                f"({measures['duration_s']}s, sha256 {measures['sha256'][:12]})")
+    return {"status": "uploaded", "voice_id": voice_id, "filename": dest_filename,
+            "measures": measures}
 
 @router.delete("/api/clone_voices/{voice_id}")
 async def clone_voices_delete(voice_id: str):

@@ -378,7 +378,7 @@
                 const voice = (window._cloneVoicesCache || []).find(v => v.id === voiceId);
                 if (voice) {
                     refAudio.value = `clone_voices/${voice.filename}`;
-                    refText.value = '';
+                    refText.value = voice.ref_text || '';   // recorded at import; older uploads have none
                     refAudio.readOnly = true;
                     if (playBtn) playBtn.style.display = 'inline-block';
                     if (deleteBtn) deleteBtn.style.display = 'inline-block';
@@ -414,28 +414,79 @@
             card.querySelector('.clone-voice-file-input').click();
         };
 
-        window.handleCloneVoiceUpload = async (input) => {
+        // The import needs the exact transcript and a rights confirmation, so the
+        // file picker hands off to a small modal; the server refuses without them.
+        window.handleCloneVoiceUpload = (input) => {
             const file = input.files[0];
             if (!file) { return; }
             input.value = '';
+            _openCloneImportModal(file);
+        };
 
+        function _cloneImportFields() {
+            return {
+                refText: document.getElementById('clone-import-ref-text'),
+                sourceTitle: document.getElementById('clone-import-source-title'),
+                sourceUrl: document.getElementById('clone-import-source-url'),
+                rightsBasis: document.getElementById('clone-import-rights-basis'),
+                rightsConfirmed: document.getElementById('clone-import-rights-confirmed'),
+                submit: document.getElementById('clone-import-submit'),
+            };
+        }
+
+        function _refreshCloneImportSubmit() {
+            const f = _cloneImportFields();
+            f.submit.disabled = !(f.refText.value.trim() && f.rightsConfirmed.checked);
+        }
+
+        function _openCloneImportModal(file) {
+            const f = _cloneImportFields();
+            document.getElementById('clone-import-filename').textContent = file.name;
+            f.refText.value = '';
+            f.sourceTitle.value = '';
+            f.sourceUrl.value = '';
+            f.rightsBasis.value = '';
+            f.rightsConfirmed.checked = false;
+            f.refText.oninput = _refreshCloneImportSubmit;
+            f.rightsConfirmed.onchange = _refreshCloneImportSubmit;
+            _refreshCloneImportSubmit();
+            const modalEl = document.getElementById('cloneImportModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            f.submit.onclick = async () => {
+                f.submit.disabled = true;
+                const ok = await _submitCloneImport(file);
+                if (ok) { modal.hide(); } else { _refreshCloneImportSubmit(); }
+            };
+            modal.show();
+        }
+
+        async function _submitCloneImport(file) {
+            const f = _cloneImportFields();
             const formData = new FormData();
             formData.append('file', file);
-
+            formData.append('ref_text', f.refText.value.trim());
+            formData.append('source_title', f.sourceTitle.value.trim());
+            formData.append('source_url', f.sourceUrl.value.trim());
+            formData.append('rights_basis', f.rightsBasis.value.trim());
+            formData.append('rights_confirmed', f.rightsConfirmed.checked ? 'true' : 'false');
             try {
                 const res = await fetch('/api/clone_voices/upload', { method: 'POST', body: formData });
-                if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Upload failed', 'error'); return; }
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast(err.detail || 'Import failed', 'error');
+                    return false;
+                }
                 const result = await res.json();
-
-                // Refresh cache and rebuild voice cards
                 window._cloneVoicesCache = await API.get('/api/clone_voices/list');
                 await loadVoices();
-
-                showToast(`Uploaded "${file.name}"`, 'success');
+                const m = result.measures || {};
+                showToast(`Imported "${file.name}" (${m.duration_s ?? '?'} s, 24 kHz mono)`, 'success');
+                return true;
             } catch (e) {
-                showToast('Upload failed: ' + e.message, 'error');
+                showToast('Import failed: ' + e.message, 'error');
+                return false;
             }
-        };
+        }
 
         window.playCloneVoice = (btn) => {
             const card = btn.closest('.card-body');

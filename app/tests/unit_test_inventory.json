@@ -3359,6 +3359,14 @@
     "tests.test_voice_reference.WeakMedoidTest.test_a_weak_medoid_is_reported_but_not_recommended",
     "tests.test_voice_reference.WeakMedoidTest.test_the_threshold_sits_between_the_measured_cases"
   ],
+  "test_voice_reference_import": [
+    "tests.test_voice_reference_import.MeasureAndCheckTests.test_a_clean_sentence_length_clip_passes",
+    "tests.test_voice_reference_import.MeasureAndCheckTests.test_every_violated_rule_is_named",
+    "tests.test_voice_reference_import.MeasureAndCheckTests.test_import_refuses_non_audio_and_writes_nothing",
+    "tests.test_voice_reference_import.MeasureAndCheckTests.test_normalisation_yields_24k_mono_pcm16_from_any_input",
+    "tests.test_voice_reference_import.UploadRouteTests.test_a_valid_clip_is_normalised_and_recorded_with_provenance",
+    "tests.test_voice_reference_import.UploadRouteTests.test_refusals_leave_no_file_and_no_manifest_entry"
+  ],
   "test_voicelab_diagnostics": [
     "tests.test_voicelab_diagnostics.BundleTests.test_bundle_is_versioned_and_wraps_sections",
     "tests.test_voicelab_diagnostics.BundleTests.test_bundle_redacts_secrets_in_sections",

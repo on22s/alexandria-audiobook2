@@ -295,6 +295,31 @@
             "format": "binary",
             "title": "File",
             "type": "string"
+          },
+          "ref_text": {
+            "default": "",
+            "title": "Ref Text",
+            "type": "string"
+          },
+          "rights_basis": {
+            "default": "",
+            "title": "Rights Basis",
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "default": false,
+            "title": "Rights Confirmed",
+            "type": "boolean"
+          },
+          "source_title": {
+            "default": "",
+            "title": "Source Title",
+            "type": "string"
+          },
+          "source_url": {
+            "default": "",
+            "title": "Source Url",
+            "type": "string"
           }
         },
         "required": [
@@ -2732,7 +2757,7 @@
     },
     "/api/clone_voices/upload": {
       "post": {
-        "description": "Upload an audio file for voice cloning.",
+        "description": "Import a reference clip for voice cloning.\n\nThe clip is decoded, normalised to what the engine reads (24 kHz mono\nPCM16 WAV), measured, and refused if it is not one clean 3-30 s sentence\n(see voice_reference_import). The exact transcript and a rights\nconfirmation are required; source title/URL/basis are recorded when given.\nEvery import is a new immutable id - a changed reference is a new voice.",
         "operationId": "clone_voices_upload_api_clone_voices_upload_post",
         "requestBody": {
           "content": {
