@@ -1263,6 +1263,7 @@
     "tests.test_generation_dispatch.GenerationDispatchTests.test_default_output_and_stale_chunks_share_runtime_data_directory",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_explicit_batch_output_does_not_clear_active_book_chunks",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_narrator_metadata_uses_same_dispatch_and_is_normalized",
+    "tests.test_generation_dispatch.GenerationDispatchTests.test_only_failed_or_incomplete_manifest_is_recoverable",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_placeholder_narrator_is_rejected_before_dispatch",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_fallback"
   ],

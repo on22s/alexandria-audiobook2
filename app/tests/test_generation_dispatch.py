@@ -1,9 +1,11 @@
 import os
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from routers.script import build_generate_script_command
-from three_pass_generate import get_output_paths
+from routers.script import build_generate_script_command, get_script_recovery_manifest
+from three_pass_generate import get_output_paths, three_pass_manifest_path
 
 
 class GenerationDispatchTests(unittest.TestCase):
@@ -52,6 +54,30 @@ class GenerationDispatchTests(unittest.TestCase):
 
         self.assertEqual("/runtime/data/scripts/book.json", output)
         self.assertIsNone(chunks)
+
+    def test_only_failed_or_incomplete_manifest_is_recoverable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = os.path.join(directory, "annotated_script.json")
+            manifest_path = three_pass_manifest_path(output)
+            state_path = os.path.join(directory, "state.json")
+            with open(state_path, "w", encoding="utf-8") as handle:
+                handle.write('{"input_file_path":"book.txt",'
+                             '"script_generation_input_file":"book.txt"}')
+            with patch("routers.script.SCRIPT_PATH", output), \
+                 patch("routers.script.DATA_DIR", directory):
+                with open(manifest_path, "w", encoding="utf-8") as handle:
+                    handle.write('{"status":"complete"}')
+                self.assertIsNone(get_script_recovery_manifest())
+
+                with open(manifest_path, "w", encoding="utf-8") as handle:
+                    handle.write('{"status":"failed","failed_pass":"attribute"}')
+                self.assertEqual(
+                    "attribute", get_script_recovery_manifest()["failed_pass"])
+
+                with open(state_path, "w", encoding="utf-8") as handle:
+                    handle.write('{"input_file_path":"new-book.txt",'
+                                 '"script_generation_input_file":"book.txt"}')
+                self.assertIsNone(get_script_recovery_manifest())
 
 
 if __name__ == "__main__":

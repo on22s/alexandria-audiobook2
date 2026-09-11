@@ -3608,6 +3608,23 @@
         "summary": "Generate Script Pause"
       }
     },
+    "/api/generate_script/recovery": {
+      "get": {
+        "description": "Expose only recovery metadata; source text remains in the local checkpoint.",
+        "operationId": "generate_script_recovery_api_generate_script_recovery_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Recovery"
+      }
+    },
     "/api/generate_script/resume": {
       "post": {
         "operationId": "generate_script_resume_api_generate_script_resume_post",
@@ -3622,6 +3639,50 @@
           }
         },
         "summary": "Generate Script Resume"
+      }
+    },
+    "/api/generate_script/retry": {
+      "post": {
+        "description": "Resume the current failed three-pass run from its durable checkpoint.",
+        "operationId": "retry_generate_script_api_generate_script_retry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateScriptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Generate Script"
       }
     },
     "/api/llm/test": {

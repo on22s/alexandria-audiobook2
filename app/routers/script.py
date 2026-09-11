@@ -29,7 +29,8 @@ from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_three_pass_request_preflight,
-                                 resolve_three_pass_generation_settings)
+                                 resolve_three_pass_generation_settings,
+                                 three_pass_manifest_path)
 
 from core import (
     BASE_DIR,
@@ -779,6 +780,61 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
     return command
 
 
+def get_script_recovery_manifest() -> Optional[dict]:
+    """Return the active run's resumable manifest, if it is incomplete.
+
+    A three-pass run checkpoints accepted work after each unit.  Restarting the
+    same command resumes that checkpoint, but only a failed or diagnostic run
+    is a recovery candidate.  A completed manifest must never surface a
+    misleading Retry action.
+    """
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    if (not isinstance(state, dict)
+            or state.get("script_generation_input_file") != state.get("input_file_path")):
+        return None
+    manifest = safe_load_json(three_pass_manifest_path(SCRIPT_PATH), {})
+    if not isinstance(manifest, dict) or manifest.get("status") not in {
+            "failed", "incomplete"}:
+        return None
+    return manifest
+
+
+def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
+                            request: Optional[GenerateScriptRequest],
+                            require_recovery: bool = False):
+    """Queue the one production generation command, optionally from a checkpoint."""
+    if require_recovery and get_script_recovery_manifest() is None:
+        raise HTTPException(
+            status_code=409,
+            detail="No failed or incomplete three-pass generation is available to resume.")
+    check_global_gpu_lock("script")
+    options = {
+        "strip_front_matter": request is None or request.strip_front_matter,
+        "first_person_narrator": (request.first_person_narrator
+                                  if request is not None else None),
+    }
+    try:
+        command = build_generate_script_command(
+            input_file,
+            strip_front_matter=options["strip_front_matter"],
+            first_person_narrator=options["first_person_narrator"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    state_path = os.path.join(DATA_DIR, "state.json")
+    state = safe_load_json(state_path, {})
+    if isinstance(state, dict):
+        # Retry reads these instead of the current form.  Otherwise changing a
+        # checkbox after a failure changes the fingerprint and silently starts
+        # a new run instead of resuming the checkpoint.
+        state["script_generation_options"] = options
+        state["script_generation_input_file"] = input_file
+        atomic_json_write(state, state_path)
+    claim_gpu_task("script")
+    background_tasks.add_task(run_process, command, "script")
+    return {"status": "resuming" if require_recovery else "started"}
+
+
 @router.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks,
                            request: Optional[GenerateScriptRequest] = None):
@@ -794,19 +850,42 @@ async def generate_script(background_tasks: BackgroundTasks,
     if not input_file:
          raise HTTPException(status_code=400, detail="No input file found in state")
 
-    check_global_gpu_lock("script")
-    try:
-        command = build_generate_script_command(
-            input_file,
-            strip_front_matter=request is None or request.strip_front_matter,
-            first_person_narrator=(request.first_person_narrator
-                                   if request is not None else None),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    claim_gpu_task("script")
-    background_tasks.add_task(run_process, command, "script")
-    return {"status": "started"}
+    return start_script_generation(background_tasks, input_file, request)
+
+
+@router.get("/api/generate_script/recovery")
+async def generate_script_recovery():
+    """Expose only recovery metadata; source text remains in the local checkpoint."""
+    manifest = get_script_recovery_manifest()
+    if manifest is None:
+        return {"recoverable": False}
+    failures = manifest.get("diagnostic_failures") or []
+    return {
+        "recoverable": True,
+        "status": manifest["status"],
+        "failed_pass": manifest.get("failed_pass"),
+        "failed_chunk": manifest.get("failed_chunk"),
+        "failure_count": len(failures),
+    }
+
+
+@router.post("/api/generate_script/retry")
+async def retry_generate_script(background_tasks: BackgroundTasks,
+                                request: Optional[GenerateScriptRequest] = None):
+    """Resume the current failed three-pass run from its durable checkpoint."""
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    input_file = state.get("input_file_path") if isinstance(state, dict) else None
+    if not input_file:
+        raise HTTPException(status_code=400, detail="No input file found for recovery")
+    stored_options = state.get("script_generation_options") if isinstance(state, dict) else None
+    if isinstance(stored_options, dict):
+        try:
+            request = GenerateScriptRequest(**stored_options)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=409,
+                                detail="Saved recovery settings are invalid; start a new run.") from exc
+    return start_script_generation(background_tasks, input_file, request,
+                                   require_recovery=True)
 
 @router.post("/api/generate_script/cancel")
 async def generate_script_cancel():
