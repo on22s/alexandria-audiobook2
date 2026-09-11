@@ -137,6 +137,25 @@ class VoiceDriftPersistenceTests(unittest.TestCase):
             self.assertEqual(outcome[0], "completed")
             self.assertIsNone(chunks[0]["drift"])
 
+    def test_speaker_model_interpreter_prefers_the_running_env(self):
+        import importlib.util
+        import voice_reference
+        cfg = {"rocm_python": "/opt/rocm_py"}
+        # speechbrain importable here -> this interpreter, no cross-repo hop
+        with patch.object(importlib.util, "find_spec", return_value=object()):
+            self.assertEqual(voice_drift.get_speaker_model_python(cfg), sys.executable)
+        # not importable -> Voice Lab's configured interpreter when it exists
+        with patch.object(importlib.util, "find_spec", return_value=None), \
+             patch.object(voice_reference.os.path, "exists", side_effect=lambda p: p == "/opt/rocm_py"):
+            self.assertEqual(voice_drift.get_speaker_model_python(cfg), "/opt/rocm_py")
+        # then the sibling repo's env; None when nothing has it (-> NOT MEASURED)
+        with patch.object(importlib.util, "find_spec", return_value=None), \
+             patch.object(voice_reference.os.path, "exists", side_effect=lambda p: p == voice_reference.SIBLING_PY):
+            self.assertEqual(voice_drift.get_speaker_model_python(cfg), voice_reference.SIBLING_PY)
+        with patch.object(importlib.util, "find_spec", return_value=None), \
+             patch.object(voice_reference.os.path, "exists", return_value=False):
+            self.assertIsNone(voice_drift.get_speaker_model_python(cfg))
+
     def test_drift_check_is_exempt_from_the_gpu_lock(self):
         self.assertIn("drift_check", core_module.NON_GPU_TASKS)
         self.assertIn("drift_check", core_module.process_state)

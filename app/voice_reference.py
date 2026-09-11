@@ -31,6 +31,7 @@ occasionally poor reference. The caller logs which path was taken.
 """
 import json
 import os
+import sys
 import statistics
 import subprocess
 
@@ -42,6 +43,23 @@ SIBLING_PY = os.environ.get(
     os.path.join(os.path.dirname(REPO), "alexandria-audiobook.git",
                  "app", "env", "bin", "python"))
 
+
+def get_speaker_model_python(voicelab_config=None):
+    """The interpreter that has speechbrain, or None.
+
+    Since 2026-09-11 speechbrain is in app/env (requirements.txt), so the
+    running interpreter is preferred: the ECAPA worker then has no cross-repo
+    dependency. Older installs fall back to the Voice Lab's configured
+    `rocm_python`, then the sibling repo's env. This is the one place that
+    decision is made - `voice_drift` and `_speaker_similarities` both use it."""
+    import importlib.util
+    if importlib.util.find_spec("speechbrain") is not None:
+        return sys.executable
+    candidate = (voicelab_config or {}).get("rocm_python") or ""
+    if candidate and os.path.exists(candidate):
+        return candidate
+    return SIBLING_PY if os.path.exists(SIBLING_PY) else None
+
 # Bounded on purpose: this runs inside a save request. 12 clips is 66 pairwise
 # comparisons, enough to identify the majority speaker, and the cost grows
 # quadratically.
@@ -50,14 +68,15 @@ MAX_CLIPS = 12
 
 def _speaker_similarities(pairs, timeout=600):
     """Cosine similarity per pair, or None if the model is unavailable."""
-    if not pairs or not os.path.exists(SIBLING_PY):
+    python_bin = get_speaker_model_python()
+    if not pairs or not python_bin:
         return None
     script = os.path.join(APP, "experiments", "_ecapa_batch.py")
     if not os.path.exists(script):
         return None
     try:
         out = subprocess.run(
-            [SIBLING_PY, script],
+            [python_bin, script],
             input=json.dumps([[os.path.abspath(a), os.path.abspath(b)]
                               for a, b in pairs]),
             capture_output=True, text=True, timeout=timeout, cwd=APP)
