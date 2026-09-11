@@ -436,27 +436,30 @@ in UI) → LoRA training (`batch_train_lora.py`, UI only does one dataset) →
 profiling (`voice_profiler.py`, not in UI) → naming (`name_voices.py`, pure
 stdlib). See memory `voice_lora_pipeline` for the full script-by-script map.
 
-The `rocm_python` interpreter configured in the Voice Lab tab (typically the
-sibling `alexandria-audiobook.git`'s `app/env`) is the ONLY cross-repo
-dependency. Verified 2026-07-14 — do not repeat the old claim that `app/env`
+The Voice Lab's `rocm_python` defaults to the running interpreter since
+2026-09-11; `app/env` carries the whole stage stack except `llama_cpp`, which
+the profile stage needs as a HIP build (`~/Desktop/llama_build/build_llama_rocm.sh`
+with `PY=` pointed at `app/env`; never the PyPI wheel, it is CPU-only). The
+sibling `alexandria-audiobook.git` env is no longer required for anything. Verified 2026-07-14 — do not repeat the old claim that `app/env`
 "has no torch/librosa/peft", it is false:
 - `app/env` HAS torch 2.10.0+rocm7.0 (GPU works on the 9070 XT), librosa 0.11.0,
   peft 0.18.1, transformers, pandas, scipy, soundfile. (`app/env` in these
   bullets means THIS repo's env. The sibling `rocm_python` env runs its own,
   older torch — 2.7.0+rocm6.3, verified 2026-07-19 — the two are not in sync
   and don't need to be.)
-- `app/env` HAS **speechbrain** since 2026-09-11 (`requirements.txt`), so the
-  ECAPA worker (`experiments/_ecapa_batch.py`) runs in-repo;
+- `app/env` HAS **speechbrain, umap, matplotlib, seaborn** since 2026-09-11
+  (`requirements.txt`), so the ECAPA worker and the dedup stage run in-repo;
   `voice_reference.get_speaker_model_python` is the one resolver and prefers
-  the running interpreter. It still LACKS **umap, matplotlib, seaborn** — which
-  only `voice_analysis.py` (dedup) imports. That, not torch, is why
-  `rocm_python` still exists.
+  the running interpreter.
 - `batch_train_lora.py` imports no third-party module at top level (it drives
-  `app/train_lora.py` via `--python`). The train stage does not itself require
-  the sibling env, but Voice Lab deliberately continues to run it there.
-- `llama_cpp` 0.3.23 is present in the configured sibling environment and absent
-  from `app/env`. The profile stage runs under `rocm_python`, so its lazy import
-  resolves there. Verified 2026-07-14.
+  `app/train_lora.py` via `--python`); all stages now run under `app/env`.
+- `llama_cpp` 0.3.23 (profile stage) is in `app/env` as the HIP build for
+  gfx1201, built 2026-09-11 from `~/Desktop/llama_build/llama-cpp-python` with
+  that folder's `build_llama_rocm.sh` (`PY=` pointed at `app/env`); it loads
+  Qwen3-14B Q4_K_M fully on the 9070 XT at ~32 tok/s. It is deliberately NOT in
+  `requirements.txt`: the PyPI wheel is CPU-only and would overwrite it, so a
+  fresh install must run the build script once (the Voice Lab preflight
+  reports `llama_cpp` missing until then).
 
 ### Debugging LLM calls, concurrency, and remote (Thunder) runs
 

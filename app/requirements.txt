@@ -16,6 +16,14 @@ librosa==0.11.0
 # gate. Pure-Python on top of the torch that torch.js installed; the worker
 # (experiments/_ecapa_batch.py) pins CPU on purpose.
 speechbrain==1.1.1
+# Voice Lab dedup stage (voice_analysis.py): UMAP projection and the cluster
+# plots. Pinned explicitly - umap used to arrive only as a funasr dependency.
+umap-learn==0.5.12
+matplotlib==3.10.9
+seaborn==0.13.2
+# NOT here on purpose: llama-cpp-python. The profile stage needs the HIP build
+# (gfx1201); the PyPI wheel is CPU-only and would overwrite it on every update.
+# Build it with ~/Desktop/llama_build/build_llama_rocm.sh pointed at app/env.
 transformers==4.57.3
 peft==0.18.1
 python-multipart==0.0.32

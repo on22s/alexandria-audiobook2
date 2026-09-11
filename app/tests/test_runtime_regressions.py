@@ -764,14 +764,13 @@ class RuntimeTests(unittest.TestCase):
             preparer_module.get_preparer_diarization_args(True, True),
         )
 
-    def test_voicelab_defaults_do_not_guess_paths_inside_this_repo(self):
-        # rocm_python is a separate ML env living outside this repo. Deriving it
-        # from ROOT_DIR only ships a path that cannot resolve.
+    def test_voicelab_default_interpreter_is_the_running_one(self):
+        # app/env carries the Voice Lab stack now, so the default is the
+        # interpreter that is running - never a guessed sibling path that may
+        # not resolve. The preflight probe still reports what it lacks.
         value = core_module.VOICELAB_DEFAULTS["rocm_python"]
-        self.assertFalse(
-            value.startswith(core_module.ROOT_DIR),
-            f"rocm_python default must not be guessed from ROOT_DIR, got {value!r}",
-        )
+        self.assertEqual(value, sys.executable)
+        self.assertTrue(os.path.isfile(value) and os.access(value, os.X_OK))
 
     def test_voicelab_stage_scripts_ship_with_this_repo(self):
         # train/profile run scripts this repo owns; Voice Lab has no setting to

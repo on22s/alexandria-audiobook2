@@ -355,10 +355,14 @@ PREPARER_OUTPUT_DIR = os.path.join(DATA_DIR, "preparer_output")
 VOICELAB_CONFIG_PATH = os.path.join(DATA_DIR, "voicelab_config.json")
 
 VOICELAB_DEFAULTS = {
-    # Interpreter with the full Voice Lab ML stack, including speechbrain and
-    # llama_cpp. No default: this lives outside the repo, so any path derived
-    # from ROOT_DIR is a guess that cannot resolve. Empty means "not configured".
-    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", ""),
+    # Interpreter that runs the Voice Lab ML stages. Since 2026-09-11 app/env
+    # carries the whole stack (speechbrain, umap, matplotlib, seaborn, peft,
+    # librosa) except llama_cpp, which the profile stage needs and which must
+    # be the HIP build (see CLAUDE.md, "Voice Lab pipeline"). The default is
+    # therefore the interpreter that is running - it exists by definition -
+    # and the preflight probe reports per-stage what it lacks. A separate env
+    # can still be configured here or via ALEXANDRIA_ROCM_PYTHON.
+    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", sys.executable),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
     # Optional book folders used to enrich voice profiles with a prose sample.
