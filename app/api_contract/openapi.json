@@ -3290,6 +3290,23 @@
         "summary": "Export Audacity Endpoint"
       }
     },
+    "/api/export_zip": {
+      "get": {
+        "description": "One zip of whatever exported audio exists (MP3, M4B); 404 when nothing does.",
+        "operationId": "export_zip_api_export_zip_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Export Zip"
+      }
+    },
     "/api/find_nicknames": {
       "post": {
         "description": "Scan the working script for character nicknames/aliases and write character_aliases.json.",
@@ -3740,6 +3757,54 @@
           }
         },
         "summary": "Retry Generate Script"
+      }
+    },
+    "/api/llm/models": {
+      "get": {
+        "description": "The model ids the endpoint advertises (OpenAI-compatible /models), so the\nSetup tab can offer a picker. Errors are returned, not raised: an\nunreachable server is a normal state while the user is still typing.",
+        "operationId": "llm_models_api_llm_models_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "base_url",
+            "required": true,
+            "schema": {
+              "title": "Base Url",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "default": "local",
+              "title": "Api Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Llm Models"
       }
     },
     "/api/llm/test": {

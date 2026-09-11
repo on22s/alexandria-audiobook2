@@ -4,7 +4,7 @@ import time
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 from config_settings import load_app_config
 
@@ -125,17 +125,23 @@ async def merge_audio_endpoint(background_tasks: BackgroundTasks):
 
     def task():
         process_state["audio"]["start_time"] = time.time()
+        process_state["audio"]["cancel"] = False
         process_state["audio"]["logs"] = ["Starting merge..."]
         try:
-            success, msg = project_manager.merge_audio()
+            success, msg = project_manager.merge_audio(
+                cancel_check=lambda: process_state["audio"]["cancel"],
+                progress_callback=lambda m: process_state["audio"]["logs"].append(m))
             if success:
                 process_state["audio"]["logs"].append(f"Merge complete: {msg}")
+            elif msg == "Merge cancelled":
+                process_state["audio"]["logs"].append("Merge cancelled")
             else:
                 process_state["audio"]["logs"].append(f"Merge failed: {msg}")
         except Exception as e:
             process_state["audio"]["logs"].append(f"Merge error: {e}")
         finally:
             process_state["audio"]["running"] = False
+            process_state["audio"]["cancel"] = False
 
     # Claim the GPU/TTS slot atomically on the request thread: a merge shares
     # process_state["audio"] with generation, so without this two rapid POSTs (or
@@ -155,7 +161,8 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
         try:
-            success, msg = project_manager.export_audacity()
+            success, msg = project_manager.export_audacity(
+                progress_callback=lambda m: process_state["audacity_export"]["logs"].append(m))
             if success:
                 process_state["audacity_export"]["logs"].append(f"Export complete: {msg}")
             else:
@@ -167,6 +174,23 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(task)
     return {"status": "started"}
+
+@router.get("/api/export_zip")
+async def export_zip():
+    """One zip of whatever exported audio exists (MP3, M4B); 404 when nothing does."""
+    import io
+    import zipfile
+    members = [(path, name) for path, name in ((AUDIOBOOK_PATH, "audiobook.mp3"), (M4B_PATH, "audiobook.m4b"))
+               if os.path.exists(path)]
+    if not members:
+        raise HTTPException(status_code=404, detail="No exported audio found. Merge or export first.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:   # already-compressed audio
+        for path, name in members:
+            zf.write(path, name)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": "attachment; filename=alexandria_export.zip"})
 
 @router.get("/api/export_audacity")
 async def get_audacity_export():

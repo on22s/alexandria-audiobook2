@@ -113,8 +113,23 @@
         }
 
         // --- Navigation ---
+        // Remember the open tab across reloads. restoreTab() runs at the end of
+        // app-reports.js (the last script), synchronously during page load, so
+        // the Setup tab never gets a frame to flash.
+        const TAB_STORAGE_KEY = 'alexandria.activeTab';
+        function rememberTab(name) {
+            try { localStorage.setItem(TAB_STORAGE_KEY, name); } catch (e) { /* private mode */ }
+        }
+        function restoreTab() {
+            let name = null;
+            try { name = localStorage.getItem(TAB_STORAGE_KEY); } catch (e) { return; }
+            if (!name || name === 'setup') { return; }
+            const link = document.querySelector(`.nav-link[data-tab="${name}"]`);
+            if (link) { link.click(); }
+        }
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
+                if (e.target.dataset.tab) { rememberTab(e.target.dataset.tab); }
                 // Remove active class from all links
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                 // Add active to clicked
@@ -151,6 +166,35 @@
             });
         });
 
+        // --- LLM model picker: ask the Base URL what it serves ---
+        async function refreshLlmModels() {
+            const hint = document.getElementById('llm-model-hint');
+            const list = document.getElementById('llm-model-options');
+            const baseUrl = document.getElementById('llm-url').value.trim();
+            const apiKey = document.getElementById('llm-key').value.trim() || 'local';
+            if (!baseUrl) { hint.textContent = 'Set the Base URL first.'; return; }
+            hint.textContent = 'Fetching model list...';
+            try {
+                const r = await API.get(`/api/llm/models?base_url=${encodeURIComponent(baseUrl)}&api_key=${encodeURIComponent(apiKey)}`);
+                list.innerHTML = '';
+                (r.models || []).forEach(id => {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    list.appendChild(opt);
+                });
+                if (r.error) {
+                    hint.textContent = 'Could not list models: ' + r.error;
+                } else {
+                    hint.textContent = r.models.length ? `${r.models.length} model(s) available - start typing to pick one.` : 'Server reports no models loaded.';
+                }
+            } catch (e) {
+                hint.textContent = 'Could not list models: ' + e.message;
+            }
+        }
+        document.getElementById('llm-model-refresh').addEventListener('click', refreshLlmModels);
+        document.getElementById('llm-model').addEventListener('focus', () => {
+            if (!document.getElementById('llm-model-options').children.length) { refreshLlmModels(); }
+        });
         // --- Theme ---
         const THEMES = [
             { key: 'light',       icon: 'fa-sun',      label: 'Light'      },
@@ -3273,10 +3317,15 @@
                  await API.post('/api/merge', {});
                  // Switch to Result tab and poll
                  document.querySelector('[data-tab="audio"]').click();
-                 pollLogs('audio', 'audio-logs');
+                 const cancelBtn = document.getElementById('btn-cancel-merge');
+                 cancelBtn.style.display = '';
+                 pollLogs('audio', 'audio-logs', () => { cancelBtn.style.display = 'none'; });
              } catch (e) {
                  showToast("Merge failed: " + e.message, 'error');
              }
+        });
+        document.getElementById('btn-cancel-merge').addEventListener('click', async () => {
+            await cancelTask('/api/cancel_audio');
         });
 
 

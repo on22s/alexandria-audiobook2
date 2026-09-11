@@ -243,6 +243,17 @@ logger = logging.getLogger(__name__)
 # transparent for mono speech at this sample rate and what listeners expect.
 MP3_BITRATE = "128k"
 
+
+class ExportCancelled(Exception):
+    """Raised inside a merge/export when the caller's cancel_check fires."""
+
+
+def _loading_progress(progress_callback):
+    """Adapt a message-taking progress callback to the loader's (done, total)."""
+    if not progress_callback:
+        return None
+    return lambda done, total: progress_callback(f"Loading audio {done}/{total}")
+
 class ProjectManager:
     def __init__(self, root_dir):
         self.root_dir = root_dir
@@ -608,7 +619,7 @@ class ProjectManager:
             tts_cfg.get("pause_same_speaker_ms", SAME_SPEAKER_PAUSE_MS),
         )
 
-    def _load_chunks_with_audio(self):
+    def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None):
         """Load chunks and pair each with its AudioSegment.
 
         Returns (result, skipped_count): result is the list of (chunk, segment)
@@ -619,7 +630,11 @@ class ProjectManager:
         chunks = self.load_chunks()
         result = []
         skipped = 0
-        for chunk in chunks:
+        for position, chunk in enumerate(chunks):
+            if cancel_check and cancel_check():
+                raise ExportCancelled()
+            if progress_callback and position and position % 50 == 0:
+                progress_callback(position, len(chunks))
             path = chunk.get("audio_path")
             if not path:
                 skipped += 1
@@ -642,8 +657,15 @@ class ProjectManager:
                 skipped += 1
         return result, skipped
 
-    def merge_audio(self):
-        chunks_with_audio, skipped = self._load_chunks_with_audio()
+    def merge_audio(self, cancel_check=None, progress_callback=None):
+        """progress_callback(message) reports loading progress; cancel_check()
+        returning True aborts before the merge is written."""
+        try:
+            chunks_with_audio, skipped = self._load_chunks_with_audio(
+                cancel_check=cancel_check,
+                progress_callback=_loading_progress(progress_callback))
+        except ExportCancelled:
+            return False, "Merge cancelled"
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -666,10 +688,15 @@ class ProjectManager:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
 
-    def export_audacity(self):
+    def export_audacity(self, progress_callback=None, cancel_check=None):
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
-        chunks_with_audio, skipped = self._load_chunks_with_audio()
+        try:
+            chunks_with_audio, skipped = self._load_chunks_with_audio(
+                cancel_check=cancel_check,
+                progress_callback=_loading_progress(progress_callback))
+        except ExportCancelled:
+            return False, "Export cancelled"
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -694,6 +721,8 @@ class ProjectManager:
 
         speaker_tracks = {}
         for speaker in speakers_ordered:
+            if progress_callback:
+                progress_callback(f"Writing track: {speaker}")
             track_cursor = 0
             track = AudioSegment.empty()
 

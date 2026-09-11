@@ -81,3 +81,6 @@
                 contentEl.innerHTML = `<p class="text-danger">Failed to load report: ${escapeHtml(e.message || String(e))}</p>`;
             }
         }
+
+        // Last script: every tab loader is defined now, so reopen the remembered tab.
+        restoreTab();
