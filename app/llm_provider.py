@@ -20,9 +20,20 @@ def get_provider_headers(llm_config):
 
 
 def get_provider_extra_body(llm_config):
-    """Return a copied provider request-body mapping from one LLM profile."""
-    extra_body = (llm_config or {}).get("provider_extra_body") or {}
-    return dict(extra_body)
+    """Return a copied provider request-body mapping from one LLM profile.
+
+    The profile's `reasoning_effort` setting is folded in here - the ONE place
+    profile-level request options are assembled - so every caller that builds
+    a client through make_llm_client sends it. An explicit `reasoning_effort`
+    key in the custom request-body JSON wins over the setting: the JSON is the
+    escape hatch for values the dropdown does not offer.
+    """
+    llm_config = llm_config or {}
+    extra_body = dict(llm_config.get("provider_extra_body") or {})
+    effort = llm_config.get("reasoning_effort")
+    if effort and "reasoning_effort" not in extra_body:
+        extra_body["reasoning_effort"] = effort
+    return extra_body
 
 
 def merge_provider_extra_body(provider_extra_body, request_extra_body):

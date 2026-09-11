@@ -584,8 +584,18 @@
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
                             <label class="form-label mt-2" for="llm-provider-headers">Custom headers (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-headers" rows="2" placeholder='{"X-Provider-Key": "..."}'></textarea>
+                            <label class="form-label mt-2" for="llm-reasoning-effort">Reasoning effort</label>
+                            <select class="form-select" id="llm-reasoning-effort">
+                                <option value="">Server default</option>
+                                <option value="none">none — answer directly</option>
+                                <option value="low">low</option>
+                                <option value="medium">medium</option>
+                                <option value="high">high</option>
+                                <option value="xhigh">xhigh</option>
+                            </select>
+                            <div class="form-text">Sent as <code>reasoning_effort</code> on every request from this location (script generation, review, personas, nicknames). Attribution adapters are trained on direct answers, so <em>none</em> is the usual choice with them.</div>
                             <label class="form-label mt-2" for="llm-provider-extra-body">Custom request body (JSON object)</label>
-                            <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"reasoning_effort": "none"}'></textarea>
+                            <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"top_k": 40}'></textarea>
                         </details>
                         <div class="mb-3" id="llm-ssh-group" style="display:none;">
                             <label class="form-label">Remote SSH host alias</label>

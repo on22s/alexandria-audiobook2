@@ -764,14 +764,26 @@ class GenerateScriptRequest(BaseModel):
     first_person_narrator: Optional[str] = None
 
 
+def get_active_reasoning_effort() -> Optional[str]:
+    """The active LLM profile's reasoning_effort, or None."""
+    return get_active_llm_config(load_app_config(CONFIG_PATH)).get("reasoning_effort") or None
+
+
 def build_generate_script_command(input_file: str, output_path: Optional[str] = None,
                                   strip_front_matter: bool = True,
-                                  first_person_narrator: Optional[str] = None) -> List[str]:
-    """Build the one production command used by single and batch generation."""
+                                  first_person_narrator: Optional[str] = None,
+                                  reasoning_effort: Optional[str] = None) -> List[str]:
+    """Build the one production command used by single and batch generation.
+
+    `reasoning_effort` is passed explicitly so three_pass_generate records it
+    as `thinking_mode` in the run manifest; the request itself would carry it
+    anyway through the profile's request body."""
     command = [sys.executable, "-u", os.path.join(BASE_DIR, "three_pass_generate.py"),
                input_file, "--pass2-on-exhaustion", "fallback"]
     if output_path is not None:
         command.extend(["--output", output_path])
+    if reasoning_effort:
+        command.extend(["--reasoning-effort", reasoning_effort])
     if not strip_front_matter:
         command.append("--no-strip-front-matter")
     narrator = get_valid_narrator_name(first_person_narrator)
@@ -818,6 +830,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             input_file,
             strip_front_matter=options["strip_front_matter"],
             first_person_narrator=options["first_person_narrator"],
+            reasoning_effort=get_active_reasoning_effort(),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1456,6 +1469,7 @@ def _run_batch_script_job(job, state, log_path, total):
         job["input_path"], output_path=job["output_path"],
         strip_front_matter=job.get("strip_front_matter", True),
         first_person_narrator=job.get("first_person_narrator"),
+        reasoning_effort=get_active_reasoning_effort(),
     )
     rc, _ = _stream_subprocess_to_logs(
         command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",

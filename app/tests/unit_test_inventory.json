@@ -1265,6 +1265,7 @@
     "tests.test_generation_dispatch.GenerationDispatchTests.test_narrator_metadata_uses_same_dispatch_and_is_normalized",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_only_failed_or_incomplete_manifest_is_recoverable",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_placeholder_narrator_is_rejected_before_dispatch",
+    "tests.test_generation_dispatch.GenerationDispatchTests.test_reasoning_effort_is_passed_to_three_pass_when_set",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_fallback"
   ],
   "test_generation_failure_experiments": [
@@ -1676,8 +1677,10 @@
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_explicit_generation_options_override_provider_defaults",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_formal_completion_arguments_override_provider_body_defaults",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_keeps_json_provider_options",
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_reasoning_effort_reaches_every_completion",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_rejects_invalid_timing_values",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_timeout_uses_request_and_connect_limits",
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_reasoning_effort_setting_is_validated",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_request_interval_applies_across_with_options_clients",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_with_options_retains_provider_body_defaults"
   ],

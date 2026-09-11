@@ -112,6 +112,32 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         self.assertEqual(
             {"reasoning_effort": "none", "provider_flag": True}, kwargs["extra_body"])
 
+    def test_profile_reasoning_effort_reaches_every_completion(self):
+        from llm_provider import get_provider_extra_body
+        profile = {"base_url": "http://localhost:1234/v1", "api_key": "key",
+                   "reasoning_effort": "low"}
+        self.assertEqual({"reasoning_effort": "low"}, get_provider_extra_body(profile))
+        with patch("llm_provider.OpenAI", _FakeOpenAI):
+            client = make_llm_client(profile, timeout=30)
+            client.chat.completions.create(model="model", messages=[])       # a raw caller
+            client.chat.completions.create(model="model", messages=[],       # a run's own choice
+                                           extra_body={"reasoning_effort": "none"})
+        calls = _FakeOpenAI.instances[-1].chat.completions.calls
+        self.assertEqual({"reasoning_effort": "low"}, calls[0][1]["extra_body"])
+        self.assertEqual({"reasoning_effort": "none"}, calls[1][1]["extra_body"])
+        # the custom request-body JSON is the escape hatch and beats the dropdown
+        self.assertEqual({"reasoning_effort": "xhigh"}, get_provider_extra_body(
+            {"reasoning_effort": "low", "provider_extra_body": {"reasoning_effort": "xhigh"}}))
+        self.assertEqual({}, get_provider_extra_body({"reasoning_effort": None}))
+
+    def test_reasoning_effort_setting_is_validated(self):
+        from config_settings import LLMConfig
+        base = {"base_url": "http://x/v1", "api_key": "k", "model_name": "m"}
+        self.assertEqual("none", LLMConfig(**base, reasoning_effort="none").reasoning_effort)
+        self.assertIsNone(LLMConfig(**base).reasoning_effort)
+        with self.assertRaises(Exception):
+            LLMConfig(**base, reasoning_effort="max")
+
     def _configured_client_with_capture(self, provider_extra_body):
         requests = []
 
