@@ -520,3 +520,38 @@ class LlamaCppEnvironmentCaptureTest(unittest.TestCase):
         self.assertEqual(["some-model"], calls)
         self.assertEqual(32768, state["context_length"])
         self.assertNotIn("runtime", state)
+
+
+class StrictSharedSummaryTest(unittest.TestCase):
+    """The paired view on rows both arms answered, beside the full one."""
+
+    @staticmethod
+    def _row(arm, rid, predicted, correct):
+        return {"arm": arm, "id": rid, "predicted": predicted, "correct": correct,
+                "in_candidates": True}
+
+    def test_asymmetric_failures_are_listed_and_excluded(self):
+        from experiments.manifest import strict_shared_summary
+        rows = [
+            self._row("base", "a", "X", True),  self._row("lora", "a", "X", True),
+            self._row("base", "b", "X", False), self._row("lora", "b", "Y", True),
+            self._row("base", "c", None, False), self._row("lora", "c", "Y", True),   # base failed
+            self._row("base", "d", "Y", True),  self._row("lora", "d", None, False),  # lora failed
+            self._row("base", "e", None, False), self._row("lora", "e", None, False), # both failed
+        ]
+        strict = strict_shared_summary(rows)
+        self.assertEqual(strict["shared_ids"], 2)
+        self.assertEqual(strict["dropped_ids_by_arm"], {"base": ["c", "e"], "lora": ["d", "e"]})
+        self.assertEqual(strict["arms"]["base"], {"n": 2, "correct": 1, "accuracy": 0.5})
+        self.assertEqual(strict["arms"]["lora"], {"n": 2, "correct": 2, "accuracy": 1.0})
+        # rows c and d differ only because one arm produced no text: not counted
+        self.assertEqual((strict["paired"]["improved"], strict["paired"]["regressed"]), (1, 0))
+        self.assertEqual((strict["paired"]["first"], strict["paired"]["second"]), ("base", "lora"))
+
+    def test_only_two_arm_long_schema_artifacts_get_a_strict_block(self):
+        from experiments.manifest import strict_shared_summary
+        self.assertIsNone(strict_shared_summary([]))
+        self.assertIsNone(strict_shared_summary([{"lora": 0.5, "clone": 0.4}]))  # wide schema
+        self.assertIsNone(strict_shared_summary([self._row("base", "a", "X", True)]))
+        three = [self._row(a, "a", "X", True) for a in ("base", "lora", "other")]
+        self.assertIsNone(strict_shared_summary(three))

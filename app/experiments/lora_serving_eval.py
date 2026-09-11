@@ -35,7 +35,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
 APP = REPO + "/app/"
 sys.path.insert(0, APP)
 from openai import OpenAI
-from experiments.manifest import ExperimentRecord
+from experiments.manifest import ExperimentRecord, strict_shared_summary
 from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
@@ -264,6 +264,16 @@ def main():
         print(f"  pooled  lora {tl}/{nl} = {tl/max(nl,1)*100:.1f}%")
         print(f"  paired  {(tl/max(nl,1)-tb/max(nb,1))*100:+.1f} points  "
               f"+{y}/-{x} of {n}  p={p:.4g}")
+        strict = strict_shared_summary(record.rows)
+        if strict:
+            sa, sb = strict["arms"]["base"], strict["arms"]["lora"]
+            dropped = {a: len(v) for a, v in strict["dropped_ids_by_arm"].items() if v}
+            print(f"  strict  base {sa['correct']}/{sa['n']} = {100*(sa['accuracy'] or 0):.1f}%  "
+                  f"lora {sb['correct']}/{sb['n']} = {100*(sb['accuracy'] or 0):.1f}%  "
+                  f"{100*((sb['accuracy'] or 0)-(sa['accuracy'] or 0)):+.1f} points  "
+                  f"+{strict['paired']['improved']}/-{strict['paired']['regressed']} "
+                  f"of {strict['shared_ids']}  p={strict['paired']['p']:.4g}  "
+                  f"unanswered {dropped or 'none'}")
 
     out = record.write(os.path.join(
         REPO, "ab_test_runtime", "experiments",
