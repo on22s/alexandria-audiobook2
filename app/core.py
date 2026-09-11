@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 import aiofiles
 from fastapi import HTTPException, UploadFile
 
+from character_evidence import aliases_for
 from project import ProjectManager
 from config_settings import load_app_config
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
@@ -183,6 +184,31 @@ def _norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
 
+def add_known_label(known_as, name: str) -> list:
+    """Return `known_as` with `name` appended unless an equivalent spelling is
+    already there (compared with _norm_name). Generic labels ("Man 1") are not
+    identities and are never remembered."""
+    labels = [str(x) for x in (known_as or []) if str(x).strip()]
+    if not name or not name.strip() or is_generic_speaker(name):
+        return labels
+    if _norm_name(name) in {_norm_name(x) for x in labels}:
+        return labels
+    return labels + [name.strip()]
+
+
+def get_member_labels(entry: dict, aliases: Optional[dict] = None) -> list:
+    """Every speaker label a library member answers to: its display name, the
+    labels it was saved from or applied to (`known_as`), and any registered
+    alias of those. The one place that decides what a member is "known as"."""
+    labels = add_known_label(entry.get("known_as"), entry.get("name", ""))
+    out = list(labels)
+    if aliases:
+        for label in labels:
+            for alias in sorted(aliases_for(label, aliases)):
+                out = add_known_label(out, alias)
+    return out
+
+
 def get_cast_member_key(name: str, book_id: Optional[str]) -> str:
     """Return a cross-book key, scoping generic labels to one book."""
     key = _norm_name(name)
@@ -286,6 +312,7 @@ def _make_library_entry(display_name: str, config: dict, line_count: int,
         }
     entry.update({
         "name": display_name,
+        "known_as": add_known_label(entry.get("known_as"), display_name),
         "config": cfg,
         "line_count": line_count,
         "generic": is_generic_speaker(display_name),
