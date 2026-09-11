@@ -3197,6 +3197,14 @@
     "tests.test_tts_clip_view.RowsOf.test_the_asked_text_comes_from_source",
     "tests.test_tts_clip_view.RowsOf.test_wer_is_errors_over_words"
   ],
+  "test_tts_external_pool": [
+    "tests.test_tts_external_pool.ExternalPoolTests.test_a_hung_endpoint_is_reported_as_a_timeout_not_waited_for",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_batch_completes_every_chunk_across_the_pool",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_clone_chunks_go_through_the_pool_too",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_empty_pool_is_the_single_url_and_one_client",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_one_broken_endpoint_fails_its_chunks_and_the_rest_complete",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_round_robin_across_the_pool_with_one_client_per_url"
+  ],
   "test_tts_validation_manifest": [
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_kana_is_detected",
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_plain_english_is_not_flagged",

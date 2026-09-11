@@ -536,6 +536,7 @@
                 onLlmModeChange(true);
                 document.getElementById('tts-mode').value = config.tts.mode || 'external';
                 document.getElementById('tts-url').value = config.tts.url || 'http://127.0.0.1:7860';
+                document.getElementById('tts-external-urls').value = (config.tts.external_urls || []).join('\n');
                 document.getElementById('tts-device').value = config.tts.device || 'auto';
                 document.getElementById('tts-language').value = config.tts.language || 'English';
                 document.getElementById('parallel-workers').value = config.tts.parallel_workers || 2;
@@ -726,6 +727,7 @@
                 tts: {
                     mode: document.getElementById('tts-mode').value,
                     url: document.getElementById('tts-url').value,
+                    external_urls: document.getElementById('tts-external-urls').value.split('\n').map(u => u.trim()).filter(Boolean),
                     device: document.getElementById('tts-device').value,
                     language: document.getElementById('tts-language').value,
                     parallel_workers: parallelWorkers,

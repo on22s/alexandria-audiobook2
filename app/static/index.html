@@ -613,6 +613,9 @@
                                 <label class="form-label">TTS Server URL</label>
                                 <input type="text" class="form-control" id="tts-url" value="http://127.0.0.1:7860">
                                 <div class="form-text">URL for the Qwen3-TTS Gradio server</div>
+                                <label class="form-label mt-2" for="tts-external-urls">Server pool (one URL per line, optional)</label>
+                                <textarea class="form-control font-monospace" id="tts-external-urls" rows="2" placeholder="http://127.0.0.1:7860&#10;http://127.0.0.1:7861"></textarea>
+                                <div class="form-text">Batch rendering spreads lines across these servers, <em>parallel workers</em> per server. Empty = just the URL above.</div>
                             </div>
                             <div class="col-md-4" id="tts-device-group" style="display:none;">
                                 <label class="form-label">Device</label>
