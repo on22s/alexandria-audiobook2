@@ -237,6 +237,48 @@ def _checked_candidates(candidates):
     return candidates
 
 
+def strict_shared_summary(rows):
+    """The paired comparison on rows BOTH arms answered, beside the full one.
+
+    `summary` scores an arm's unanswered row as wrong - the honest "as served"
+    number, since a run that produced no text produced no attribution. But a
+    row that failed in one arm and not the other is an evaluator asymmetry,
+    not a model difference, and a reader comparing two artifacts wants to see
+    how much of the headline rests on such rows. On 2026-09-11 that was one
+    row in each of two Gemma artifacts (0.1-0.2 points) and was reported as
+    "repair required"; the number was never in doubt, only unstated.
+
+    -> None unless the rows carry exactly two arms in the long schema; else
+    {"arms": {arm: {n, correct, accuracy}}, "shared_ids": int,
+     "dropped_ids_by_arm": {arm: [ids that arm did not answer]},
+     "paired": {improved, regressed, p}} computed only on shared answered ids.
+    """
+    if not rows or not all(isinstance(r, dict) and "arm" in r for r in rows):
+        return None
+    by_arm = {}
+    for r in rows:
+        by_arm.setdefault(r["arm"], {})[r["id"]] = r
+    if len(by_arm) != 2:
+        return None
+    (arm_a, rows_a), (arm_b, rows_b) = sorted(by_arm.items())
+    dropped = {arm: sorted(i for i, r in arm_rows.items() if not r.get("predicted"))
+               for arm, arm_rows in by_arm.items()}
+    shared = sorted(i for i in set(rows_a) & set(rows_b)
+                    if rows_a[i].get("predicted") and rows_b[i].get("predicted"))
+    arms = {}
+    for arm, arm_rows in by_arm.items():
+        correct = sum(bool(arm_rows[i]["correct"]) for i in shared)
+        arms[arm] = {"n": len(shared), "correct": correct,
+                     "accuracy": correct / len(shared) if shared else None}
+    from experiments.stats import exact_mcnemar
+    regressed = sum(1 for i in shared if rows_a[i]["correct"] and not rows_b[i]["correct"])
+    improved = sum(1 for i in shared if rows_b[i]["correct"] and not rows_a[i]["correct"])
+    p = exact_mcnemar(regressed, improved)[0] if shared else None
+    return {"arms": arms, "shared_ids": len(shared), "dropped_ids_by_arm": dropped,
+            "paired": {"first": arm_a, "second": arm_b, "improved": improved,
+                       "regressed": regressed, "p": p}}
+
+
 def validate_stored_summary(doc):
     """-> problems where an artifact's stored summary disagrees with its rows.
 
@@ -783,7 +825,8 @@ class ExperimentRecord:
         self.meta["validation"] = problems or "ok"
         self.meta["finished"] = time.time()
         self.meta["elapsed_s"] = round(self.meta["finished"] - self.started, 1)
-        payload = {"meta": self.meta, "summary": self.summary(), "rows": self.rows}
+        payload = {"meta": self.meta, "summary": self.summary(),
+                   "strict": strict_shared_summary(self.rows), "rows": self.rows}
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=1, ensure_ascii=False)

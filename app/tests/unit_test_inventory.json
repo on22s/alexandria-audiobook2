@@ -1102,6 +1102,8 @@
     "tests.test_experiment_manifest.ReadInputsTest.test_an_edited_input_produces_a_different_hash",
     "tests.test_experiment_manifest.ReadInputsTest.test_declaring_no_inputs_is_an_empty_record_not_a_missing_field",
     "tests.test_experiment_manifest.ReadInputsTest.test_each_input_is_pinned_by_hash_under_a_relative_key",
+    "tests.test_experiment_manifest.StrictSharedSummaryTest.test_asymmetric_failures_are_listed_and_excluded",
+    "tests.test_experiment_manifest.StrictSharedSummaryTest.test_only_two_arm_long_schema_artifacts_get_a_strict_block",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_a_fully_tracked_harness_reports_none",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_an_untracked_harness_marks_the_tree_dirty"
   ],
