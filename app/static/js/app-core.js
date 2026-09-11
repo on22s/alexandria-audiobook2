@@ -845,7 +845,9 @@
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
             const pauseBtn = document.getElementById('btn-pause-script');
+            const retryBtn = document.getElementById('btn-retry-script');
             genBtn.disabled = true;
+            retryBtn.style.display = 'none';
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
             pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
@@ -863,6 +865,7 @@
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
+                    refreshScriptRecovery();
                 });
             } catch (e) {
                 genBtn.disabled = false;
@@ -969,6 +972,51 @@
             onSuccess: () => _resetPauseBtn('btn-pause-script'),
         });
         window.pauseResumeScript      = _scriptPauseResume;
+
+        async function refreshScriptRecovery() {
+            const retryBtn = document.getElementById('btn-retry-script');
+            try {
+                const recovery = await API.get('/api/generate_script/recovery');
+                retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
+                if (recovery.recoverable) {
+                    const location = recovery.failed_pass
+                        ? ` at ${recovery.failed_pass}`
+                        : '';
+                    showToast(`Generation can resume from its checkpoint${location}.`, 'warning');
+                }
+            } catch (e) {
+                retryBtn.style.display = 'none';
+                console.debug('Script recovery status unavailable', e);
+            }
+        }
+
+        window.retryScriptGeneration = async () => {
+            const genBtn = document.getElementById('btn-gen-script');
+            const retryBtn = document.getElementById('btn-retry-script');
+            const cancelBtn = document.getElementById('btn-cancel-script');
+            const pauseBtn = document.getElementById('btn-pause-script');
+            retryBtn.disabled = true;
+            try {
+                await API.post('/api/generate_script/retry', {
+                });
+                retryBtn.style.display = 'none';
+                genBtn.disabled = true;
+                cancelBtn.style.display = 'inline-block';
+                pauseBtn.style.display = 'inline-block';
+                _resetPauseBtn('btn-pause-script');
+                pollLogs('script', 'script-logs', () => {
+                    if (!scriptBatchPoller) { genBtn.disabled = false; }
+                    cancelBtn.style.display = 'none';
+                    pauseBtn.style.display = 'none';
+                    refreshScriptRecovery();
+                });
+            } catch (e) {
+                showToast('Resume failed: ' + (e.message || 'unknown error'), 'warning');
+                refreshScriptRecovery();
+            } finally {
+                retryBtn.disabled = false;
+            }
+        };
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
