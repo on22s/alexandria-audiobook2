@@ -3299,6 +3299,19 @@
     "tests.test_unseen_holdout.UnseenHoldout.test_the_whole_contributing_volume_is_dropped",
     "tests.test_unseen_holdout.UnseenHoldout.test_written_audio_matches_the_manifest"
   ],
+  "test_ux_fixes_from_fork": [
+    "tests.test_ux_fixes_from_fork.ExportProgressTests.test_loading_progress_is_none_without_callback",
+    "tests.test_ux_fixes_from_fork.ExportProgressTests.test_loading_progress_reports_every_fifty_chunks",
+    "tests.test_ux_fixes_from_fork.ExportZipRouteTests.test_404_when_nothing_exported",
+    "tests.test_ux_fixes_from_fork.ExportZipRouteTests.test_zip_holds_only_the_files_that_exist",
+    "tests.test_ux_fixes_from_fork.LlmModelsRouteTests.test_blank_base_url_is_400",
+    "tests.test_ux_fixes_from_fork.LlmModelsRouteTests.test_lists_sorted_unique_ids_and_appends_v1",
+    "tests.test_ux_fixes_from_fork.LlmModelsRouteTests.test_unreachable_endpoint_is_reported_not_raised",
+    "tests.test_ux_fixes_from_fork.MergeCancelTests.test_audacity_cancel_reports_export_cancelled",
+    "tests.test_ux_fixes_from_fork.MergeCancelTests.test_cancel_before_load_writes_nothing",
+    "tests.test_ux_fixes_from_fork.MergeCancelTests.test_cancel_mid_load_stops_at_the_flag",
+    "tests.test_ux_fixes_from_fork.MergeCancelTests.test_no_cancel_check_keeps_old_behaviour"
+  ],
   "test_verbalization": [
     "tests.test_verbalization.BracketedSpanTest.test_an_emoticon_is_not_treated_as_a_span",
     "tests.test_verbalization.BracketedSpanTest.test_bracketed_span_is_split_out",
