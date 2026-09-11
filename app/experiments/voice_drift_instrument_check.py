@@ -1,9 +1,9 @@
 """Hand-checkable instrument test for the voice-drift gate (Rule 21).
 
 Two halves of ONE voice's reference clip must score above the drift threshold
-and above that voice against a DIFFERENT voice. Needs the sibling interpreter
-that has speechbrain and two lora_models/*/ref_sample.wav clips, so it is a
-runnable probe, not a unit test - the release verifier forbids skipped unit
+and above that voice against a DIFFERENT voice. Needs an interpreter with
+speechbrain (app/env since 2026-09-11) and three lora_models/*/ref_sample.wav
+clips, so it is a runnable probe, not a unit test - the release verifier forbids skipped unit
 tests, and a unit test that cannot run here would have to skip.
 
     app/env/bin/python app/experiments/voice_drift_instrument_check.py [--repo DIR]

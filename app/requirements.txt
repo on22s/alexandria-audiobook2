@@ -12,6 +12,10 @@ gradio_client==2.0.3
 soundfile==0.13.1
 numpy==2.2.6
 librosa==0.11.0
+# Speaker embeddings (ECAPA) for the voice-drift check and the LoRA identity
+# gate. Pure-Python on top of the torch that torch.js installed; the worker
+# (experiments/_ecapa_batch.py) pins CPU on purpose.
+speechbrain==1.1.1
 transformers==4.57.3
 peft==0.18.1
 python-multipart==0.0.32

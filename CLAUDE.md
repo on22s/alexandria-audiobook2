@@ -445,9 +445,12 @@ dependency. Verified 2026-07-14 — do not repeat the old claim that `app/env`
   bullets means THIS repo's env. The sibling `rocm_python` env runs its own,
   older torch — 2.7.0+rocm6.3, verified 2026-07-19 — the two are not in sync
   and don't need to be.)
-- `app/env` LACKS **speechbrain, umap, matplotlib, seaborn** — which only
-  `voice_analysis.py` (dedup) imports. That, not torch, is why `rocm_python`
-  still exists.
+- `app/env` HAS **speechbrain** since 2026-09-11 (`requirements.txt`), so the
+  ECAPA worker (`experiments/_ecapa_batch.py`) runs in-repo;
+  `voice_reference.get_speaker_model_python` is the one resolver and prefers
+  the running interpreter. It still LACKS **umap, matplotlib, seaborn** — which
+  only `voice_analysis.py` (dedup) imports. That, not torch, is why
+  `rocm_python` still exists.
 - `batch_train_lora.py` imports no third-party module at top level (it drives
   `app/train_lora.py` via `--python`). The train stage does not itself require
   the sibling env, but Voice Lab deliberately continues to run it there.

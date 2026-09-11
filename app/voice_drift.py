@@ -38,14 +38,10 @@ def get_drift_threshold(app_config=None):
 
 
 def get_speaker_model_python(voicelab_config=None):
-    """Interpreter that has speechbrain: the Voice Lab's configured one, else
-    the sibling default `voice_reference` already resolves. None if neither
-    exists - the caller reports NOT MEASURED."""
-    candidate = (voicelab_config or {}).get("rocm_python") or ""
-    if candidate and os.path.exists(candidate):
-        return candidate
-    from voice_reference import SIBLING_PY
-    return SIBLING_PY if os.path.exists(SIBLING_PY) else None
+    """Interpreter that has speechbrain (see voice_reference.get_speaker_model_python,
+    the single resolver); None means the caller reports NOT MEASURED."""
+    from voice_reference import get_speaker_model_python as resolve
+    return resolve(voicelab_config)
 
 
 def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,

@@ -3329,6 +3329,7 @@
   "test_voice_drift": [
     "tests.test_voice_drift.VoiceDriftPersistenceTests.test_drift_check_is_exempt_from_the_gpu_lock",
     "tests.test_voice_drift.VoiceDriftPersistenceTests.test_results_are_written_onto_chunks_and_cleared_by_regeneration",
+    "tests.test_voice_drift.VoiceDriftPersistenceTests.test_speaker_model_interpreter_prefers_the_running_env",
     "tests.test_voice_drift.VoiceDriftScoringTests.test_indices_restrict_which_chunks_are_scored",
     "tests.test_voice_drift.VoiceDriftScoringTests.test_missing_reference_is_reported_per_chunk_not_flagged",
     "tests.test_voice_drift.VoiceDriftScoringTests.test_references_follow_voice_type_and_flags_follow_threshold",
