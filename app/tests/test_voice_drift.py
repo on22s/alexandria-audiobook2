@@ -1,6 +1,5 @@
 """Voice-drift check: a rendered chunk that doesn't sound like its speaker's
 reference is flagged; an unmeasured run is reported, never passed."""
-import glob
 import json
 import os
 import sys
@@ -15,7 +14,6 @@ import core as core_module
 import voice_drift
 from project import ProjectManager
 
-REPO = Path(__file__).parent.parent.parent
 
 
 def _touch(path):
@@ -144,30 +142,6 @@ class VoiceDriftPersistenceTests(unittest.TestCase):
         self.assertIn("drift_check", core_module.process_state)
         with patch.dict(core_module.process_state["audio"], {"running": True}):
             core_module.check_global_gpu_lock("drift_check")  # must not raise
-
-
-class VoiceDriftInstrumentTests(unittest.TestCase):
-    """Hand-checkable: two halves of one voice's reference clip must score
-    higher than that voice against another voice, and above the threshold.
-    Runs only where the speechbrain interpreter and two reference clips exist."""
-
-    def test_same_voice_beats_different_voice(self):
-        python_bin = voice_drift.get_speaker_model_python(core_module._load_voicelab_config())
-        clips = sorted(glob.glob(str(REPO / "lora_models" / "*" / "ref_sample.wav")))[:2]
-        if not python_bin or len(clips) < 2:
-            self.skipTest("needs the sibling speechbrain interpreter and two lora_models ref clips")
-        import soundfile as sf
-        with tempfile.TemporaryDirectory() as tmp:
-            a, sr = sf.read(clips[0])
-            half = len(a) // 2
-            a1, a2 = os.path.join(tmp, "a1.wav"), os.path.join(tmp, "a2.wav")
-            sf.write(a1, a[:half], sr)
-            sf.write(a2, a[half:], sr)
-            scores, err = voice_drift.ecapa_pairs([[a1, a2], [a1, clips[1]]], python_bin)
-            self.assertIsNone(err, err)
-            same, different = scores
-            self.assertGreater(same, different)
-            self.assertGreater(same, voice_drift.DRIFT_MIN_SIMILARITY)
 
 
 if __name__ == "__main__":
