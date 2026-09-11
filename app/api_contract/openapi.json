@@ -1647,6 +1647,20 @@
             "title": "Device",
             "type": "string"
           },
+          "external_timeout_seconds": {
+            "default": 300,
+            "maximum": 3600.0,
+            "minimum": 10.0,
+            "title": "External Timeout Seconds",
+            "type": "integer"
+          },
+          "external_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "External Urls",
+            "type": "array"
+          },
           "language": {
             "default": "English",
             "title": "Language",

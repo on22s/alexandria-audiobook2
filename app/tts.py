@@ -2,6 +2,7 @@ import os
 import re
 import json
 import tempfile
+import sys
 import threading
 import shutil
 
@@ -208,6 +209,12 @@ class TTSEngine:
         tts_config = config.get("tts", {})
         self._mode = tts_config.get("mode", "external")
         self._url = tts_config.get("url", "http://127.0.0.1:7860")
+        # External endpoint pool: one Gradio client per URL, each behind its
+        # own lock (gradio_client is not safe to share across threads), used
+        # round-robin. `url` alone is the one-endpoint pool.
+        self._external_urls = [u.strip() for u in (tts_config.get("external_urls") or []) if u and u.strip()] or [self._url]
+        self._external_timeout = int(tts_config.get("external_timeout_seconds", 300) or 300)
+        self._external_parallel_workers = max(1, int(tts_config.get("parallel_workers", 2) or 1))
         self._device = tts_config.get("device", "auto")
         self._compile_codec_enabled = tts_config.get("compile_codec", False)
 
@@ -233,7 +240,10 @@ class TTSEngine:
         self._local_lora_model = None
         self._custom_warmup_needed = True
         self._lora_adapter_path = None  # track which adapter is currently loaded
-        self._gradio_client = None
+        self._gradio_clients = {}       # url -> gradio_client.Client
+        self._external_locks = {}       # url -> threading.Lock
+        self._external_pool_lock = threading.Lock()
+        self._external_next = 0
 
         # Clone prompt cache: speaker_name -> (ref_audio_path, reusable voice_clone_prompt)
         self._clone_prompt_cache = {}
@@ -270,11 +280,14 @@ class TTSEngine:
 
     @staticmethod
     def _clear_gpu_cache():
-        """Free GPU memory: garbage-collect Python objects, then clear CUDA cache."""
+        """Free GPU memory: garbage-collect Python objects, then clear CUDA cache.
+        A no-op when torch was never imported - external mode holds no GPU
+        memory and should not pull torch in just to empty an unused cache."""
         import gc
         gc.collect()
-        import torch
-        torch.cuda.empty_cache()
+        torch = sys.modules.get("torch")
+        if torch is not None:
+            torch.cuda.empty_cache()
 
     @staticmethod
     def _reset_compile_cache():
@@ -785,17 +798,38 @@ class TTSEngine:
             print(f"LoRA adapter loaded from {adapter_path}")
             return model
 
+    def external_endpoints(self):
+        """The external endpoint pool, in round-robin order."""
+        return list(self._external_urls)
+
+    def _next_external_url(self):
+        """Round-robin over the pool; the ONE place an endpoint is chosen."""
+        with self._external_pool_lock:
+            url = self._external_urls[self._external_next % len(self._external_urls)]
+            self._external_next += 1
+            return url
+
+    def _external_endpoint(self, url=None):
+        """-> (client, lock) for one endpoint, creating the client on demand."""
+        url = url or self._next_external_url()
+        with self._external_pool_lock:
+            lock = self._external_locks.setdefault(url, threading.Lock())
+            client = self._gradio_clients.get(url)
+        if client is None:
+            from gradio_client import Client
+            with lock:
+                client = self._gradio_clients.get(url)
+                if client is None:
+                    print(f"Connecting to TTS server at {url}...")
+                    client = Client(url)
+                    with self._external_pool_lock:
+                        self._gradio_clients[url] = client
+                    print(f"Connected to external TTS server {url}.")
+        return client, lock
+
     def _init_external(self):
-        """Create Gradio client on demand."""
-        if self._gradio_client is not None:
-            return self._gradio_client
-
-        from gradio_client import Client
-
-        print(f"Connecting to TTS server at {self._url}...")
-        self._gradio_client = Client(self._url)
-        print("Connected to external TTS server.")
-        return self._gradio_client
+        """Create/return a Gradio client for the next endpoint in the pool."""
+        return self._external_endpoint()[0]
 
     # ── Clone prompt cache (local mode) ──────────────────────────
 
@@ -1219,7 +1253,7 @@ class TTSEngine:
             if self._mode == "local":
                 batch_results = self._local_batch_custom(custom_chunks, voice_config, output_dir, batch_seed)
             else:
-                batch_results = self._sequential_custom(custom_chunks, voice_config, output_dir, batch_seed)
+                batch_results = self._external_batch(custom_chunks, voice_config, output_dir, "custom")
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1229,20 +1263,7 @@ class TTSEngine:
             if self._mode == "local":
                 batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
             else:
-                batch_results = {"completed": [], "failed": []}
-                for chunk in clone_chunks:
-                    idx = chunk["index"]
-                    output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                    try:
-                        success = self.generate_clone_voice(
-                            chunk["text"], chunk["speaker"], voice_config, output_path
-                        )
-                        if success:
-                            batch_results["completed"].append(idx)
-                        else:
-                            batch_results["failed"].append((idx, "Clone voice generation failed"))
-                    except Exception as e:
-                        batch_results["failed"].append((idx, str(e)))
+                batch_results = self._external_batch(clone_chunks, voice_config, output_dir, "clone")
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1877,8 +1898,10 @@ class TTSEngine:
 
     # ── External backend methods ─────────────────────────────────
 
-    def _external_generate_custom(self, text, instruct_text, speaker, voice_config, output_path):
-        """Generate custom voice audio via external Gradio server."""
+    def _external_generate_custom(self, text, instruct_text, speaker, voice_config, output_path,
+                                  endpoint=None):
+        """Generate custom voice audio via an external Gradio server (a pool
+        endpoint when given, else the next one round-robin)."""
         try:
             voice_data = voice_config.get(speaker)
             if not voice_data:
@@ -1893,17 +1916,18 @@ class TTSEngine:
 
             print(f"TTS [external] generating with instruct='{instruct}' for text='{text[:50]}...'")
 
-            client = self._init_external()
+            client, lock = self._external_endpoint(endpoint)
 
-            result = client.predict(
-                text=text,
-                language=self._language,
-                speaker=voice,
-                instruct=instruct,
-                model_size="1.7B",
-                seed=seed,
-                api_name="/generate_custom_voice"
-            )
+            with lock:
+                result = client.predict(
+                    text=text,
+                    language=self._language,
+                    speaker=voice,
+                    instruct=instruct,
+                    model_size="1.7B",
+                    seed=seed,
+                    api_name="/generate_custom_voice"
+                )
 
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
@@ -1923,8 +1947,9 @@ class TTSEngine:
             traceback.print_exc()
             return False
 
-    def _external_generate_clone(self, text, speaker, voice_config, output_path):
-        """Generate voice-cloned audio via external Gradio server."""
+    def _external_generate_clone(self, text, speaker, voice_config, output_path, endpoint=None):
+        """Generate voice-cloned audio via an external Gradio server (a pool
+        endpoint when given, else the next one round-robin)."""
         try:
             from gradio_client import handle_file
 
@@ -1949,20 +1974,21 @@ class TTSEngine:
                 print(f"Warning: Reference audio not found for '{speaker}': {ref_audio}")
                 return False
 
-            client = self._init_external()
+            client, lock = self._external_endpoint(endpoint)
 
-            result = client.predict(
-                handle_file(ref_audio),
-                ref_text,
-                text,
-                "Auto",
-                False,       # use_xvector_only
-                "1.7B",
-                200,         # max_chunk_chars
-                0,           # chunk_gap
-                seed,
-                api_name="/generate_voice_clone"
-            )
+            with lock:
+                result = client.predict(
+                    handle_file(ref_audio),
+                    ref_text,
+                    text,
+                    "Auto",
+                    False,       # use_xvector_only
+                    "1.7B",
+                    200,         # max_chunk_chars
+                    0,           # chunk_gap
+                    seed,
+                    api_name="/generate_voice_clone"
+                )
 
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
@@ -2004,6 +2030,47 @@ class TTSEngine:
             except Exception as e:
                 results["failed"].append((idx, str(e)))
 
+        return results
+
+    def _external_batch(self, chunks, voice_config, output_dir, kind):
+        """External-mode batch: `parallel_workers` lines per pool endpoint at
+        once, each call on its own endpoint (round-robin) under that endpoint's
+        lock, with a per-call timeout. Same result shape as the local batches.
+
+        A call that times out is reported failed; its thread finishes in the
+        background (gradio_client has no cancel), which is why the executor is
+        not joined - waiting for it would hold the whole batch hostage."""
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+        results = {"completed": [], "failed": []}
+        if not chunks:
+            return results
+        generate = {
+            "custom": lambda c, out, ep: self._external_generate_custom(
+                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config, out, endpoint=ep),
+            "clone": lambda c, out, ep: self._external_generate_clone(
+                c.get("text", ""), c.get("speaker", ""), voice_config, out, endpoint=ep),
+        }[kind]
+        workers = self._external_parallel_workers * len(self._external_urls)
+        executor = ThreadPoolExecutor(max_workers=workers)
+        futures = {}
+        for chunk in chunks:
+            idx = chunk["index"]
+            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+            futures[idx] = executor.submit(generate, chunk, output_path, self._next_external_url())
+        for idx, future in futures.items():
+            try:
+                success = future.result(timeout=self._external_timeout)
+            except FutureTimeout:
+                results["failed"].append((idx, f"external TTS timed out after {self._external_timeout}s"))
+                continue
+            except Exception as e:                              # noqa: BLE001
+                results["failed"].append((idx, str(e)))
+                continue
+            if success:
+                results["completed"].append(idx)
+            else:
+                results["failed"].append((idx, f"{kind} voice generation failed"))
+        executor.shutdown(wait=False)
         return results
 
     def _sequential_custom(self, chunks, voice_config, output_dir, batch_seed=-1):

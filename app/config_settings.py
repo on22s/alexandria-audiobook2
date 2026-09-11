@@ -49,6 +49,10 @@ class LLMConfig(BaseModel):
 class TTSConfig(BaseModel):
     mode: Literal["local", "external"] = "local"
     url: str = "http://127.0.0.1:7860"
+    # External mode only: a pool of Gradio TTS servers. Empty means [url].
+    # Batch rendering runs parallel_workers lines per endpoint concurrently.
+    external_urls: List[str] = Field(default_factory=list)
+    external_timeout_seconds: int = Field(default=300, ge=10, le=3600)
     device: str = "auto"
     language: str = "English"
     parallel_workers: int = Field(default=2, ge=1)
