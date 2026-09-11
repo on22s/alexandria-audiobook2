@@ -788,6 +788,10 @@ def get_script_recovery_manifest() -> Optional[dict]:
     is a recovery candidate.  A completed manifest must never surface a
     misleading Retry action.
     """
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    if (not isinstance(state, dict)
+            or state.get("script_generation_input_file") != state.get("input_file_path")):
+        return None
     manifest = safe_load_json(three_pass_manifest_path(SCRIPT_PATH), {})
     if not isinstance(manifest, dict) or manifest.get("status") not in {
             "failed", "incomplete"}:
@@ -824,6 +828,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         # checkbox after a failure changes the fingerprint and silently starts
         # a new run instead of resuming the checkpoint.
         state["script_generation_options"] = options
+        state["script_generation_input_file"] = input_file
         atomic_json_write(state, state_path)
     claim_gpu_task("script")
     background_tasks.add_task(run_process, command, "script")
