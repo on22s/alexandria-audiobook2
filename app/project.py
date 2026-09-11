@@ -572,8 +572,9 @@ class ProjectManager:
                 # Shared MP3-export-with-WAV-fallback (raises on 0-duration audio,
                 # caught by the outer handler below).
                 audio_path = self._export_chunk_audio(temp_path, filename_base)
+                # New audio, so any earlier drift verdict no longer describes it.
                 self._update_chunk_fields(
-                    index, status="done", audio_path=audio_path, error=None)
+                    index, status="done", audio_path=audio_path, error=None, drift=None)
 
                 return True, audio_path
             else:
@@ -1179,6 +1180,7 @@ class ProjectManager:
             chunks[idx]["audio_path"] = self._export_chunk_audio(temp_path, filename_base)
             chunks[idx]["status"] = "done"
             chunks[idx]["error"] = None
+            chunks[idx]["drift"] = None  # new audio, old verdict gone
             print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
             self._remove_temp_file(temp_path)
             return "completed", idx, chunks[idx]["audio_path"]
