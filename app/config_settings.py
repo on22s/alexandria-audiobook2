@@ -32,6 +32,11 @@ class LLMConfig(BaseModel):
     model_name: str
     provider_headers: Dict[str, str] = Field(default_factory=dict)
     provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
+    # How much the model thinks before answering, sent as `reasoning_effort`
+    # on every chat completion for this profile (None = the server's default).
+    # Folded into the profile request body by llm_provider.get_provider_extra_body,
+    # so it reaches script generation, review, personas and nicknames alike.
+    reasoning_effort: Optional[Literal["none", "low", "medium", "high", "xhigh"]] = None
     request_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=3600)
     connect_timeout_seconds: Optional[float] = Field(default=None, gt=0, le=300)
     request_interval_seconds: float = Field(default=0, ge=0, le=3600)

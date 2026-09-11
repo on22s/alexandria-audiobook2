@@ -19,6 +19,14 @@ class GenerationDispatchTests(unittest.TestCase):
         self.assertEqual(
             ["--pass2-on-exhaustion", "fallback"], command[4:])
 
+    def test_reasoning_effort_is_passed_to_three_pass_when_set(self):
+        with_effort = build_generate_script_command("book.txt", reasoning_effort="low")
+        self.assertEqual(["--reasoning-effort", "low"],
+                         with_effort[with_effort.index("--reasoning-effort"):][:2])
+        self.assertNotIn("--reasoning-effort", build_generate_script_command("book.txt"))
+        self.assertNotIn("--reasoning-effort",
+                         build_generate_script_command("book.txt", reasoning_effort=None))
+
     def test_batch_generation_uses_same_dispatch_with_output(self):
         command = build_generate_script_command(
             "book.txt", output_path="scripts/book.json",

@@ -1007,6 +1007,24 @@
             "title": "Provider Headers",
             "type": "object"
           },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort"
+          },
           "request_interval_seconds": {
             "default": 0,
             "maximum": 3600.0,

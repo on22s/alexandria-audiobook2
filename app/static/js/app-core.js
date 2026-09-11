@@ -405,6 +405,7 @@
                 JSON.stringify(p.provider_headers || {}, null, 2);
             document.getElementById('llm-provider-extra-body').value =
                 JSON.stringify(p.provider_extra_body || {}, null, 2);
+            document.getElementById('llm-reasoning-effort').value = p.reasoning_effort || '';
         }
 
         function getJsonObjectInput(id, label) {
@@ -445,7 +446,8 @@
                 retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
                 retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
-                provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
+                provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
+                reasoning_effort: document.getElementById('llm-reasoning-effort').value || null
             };
         }
 
@@ -488,7 +490,8 @@
                     api_key: document.getElementById('llm-key').value,
                     model_name: document.getElementById('llm-model').value,
                     provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
-                    provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body')
+                    provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
+                    reasoning_effort: document.getElementById('llm-reasoning-effort').value || null
                 });
                 if (res.ok) {
                     out.className = 'ms-2 small text-success';
