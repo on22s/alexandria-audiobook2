@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from core import (
     CAST_MAJOR_LINE_THRESHOLD,
+    CHARACTER_ALIASES_PATH,
     SCRIPTS_DIR,
     SHARED_DEFAULT_NAMES,
     VOICE_CONFIG_PATH,
@@ -20,10 +21,12 @@ from core import (
     _norm_name,
     _script_line_counts,
     _warn_corrupted_json,
+    add_known_label,
     get_active_book_id,
     get_cast_adapter_usage,
     get_cast_member_key,
     get_cast_storage_pool,
+    get_member_labels,
     get_trait_assignment_metadata,
 )
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
@@ -95,22 +98,35 @@ async def _mutate_voice_library_async(mutator):
         raise HTTPException(status_code=503, detail="Voice library is busy (locked by another operation); please try again.")
 
 
+def _load_character_aliases() -> dict:
+    """The global alias registry ({"ALIAS": "CANONICAL"}), empty if absent."""
+    aliases = safe_load_json(CHARACTER_ALIASES_PATH, default={})
+    return aliases if isinstance(aliases, dict) else {}
+
+
 def _cast_match_pool(lib: dict, cast_name: str, book_id: Optional[str] = None,
-                     include_all_generic: bool = False) -> dict:
+                     include_all_generic: bool = False,
+                     aliases: Optional[dict] = None) -> dict:
     """Build the candidate pool for matching against a cast: shared first, cast
     members override on key collision (a cast-specific narrator beats the
-    shared narrator = "different narrator")."""
+    shared narrator = "different narrator"). Each candidate carries every
+    label it is known as (name, remembered labels, registered aliases)."""
+    aliases = _load_character_aliases() if aliases is None else aliases
+    def candidate(k, m, source):
+        entry = {"name": m.get("name", k), "known_as": m.get("known_as")}
+        return {"key": k, "name": entry["name"], "source": source,
+                "type": (m.get("config") or {}).get("type"),
+                "known_as": add_known_label(entry["known_as"], entry["name"]),
+                "labels": get_member_labels(entry, aliases)}
     pool = {}
     for k, m in lib["shared"].items():
-        pool[k] = {"key": k, "name": m.get("name", k), "source": "shared",
-                   "type": (m.get("config") or {}).get("type")}
+        pool[k] = candidate(k, m, "shared")
     for k, m in lib["casts"][cast_name].get("members", {}).items():
         if m.get("generic") and not include_all_generic and m.get("book_id") != book_id:
             continue
         if is_generic_speaker(m.get("name", k)) and not m.get("book_id"):
             continue  # legacy ambiguous generic entry
-        pool[k] = {"key": k, "name": m.get("name", k), "source": "cast",
-                   "type": (m.get("config") or {}).get("type")}
+        pool[k] = candidate(k, m, "cast")
     return pool
 
 
@@ -119,20 +135,52 @@ def _build_match_proposals(counts: Dict[str, int], pool: dict) -> List[dict]:
     sorted by line count descending. Shared by /match and /match_bulk."""
     proposals = []
     for char in sorted(counts, key=lambda n: counts[n], reverse=True):
-        best, best_score = None, 0.0
+        best, best_score, best_label = None, 0.0, None
         for cand in pool.values():
-            score = _name_similarity(char, cand["name"])
-            if score > best_score:
-                best, best_score = cand, score
+            # A member answers to its display name first, then every label it
+            # was saved from / applied to, then registered aliases of those.
+            for label in cand.get("labels") or [cand["name"]]:
+                score = _name_similarity(char, label)
+                if score > best_score:
+                    best, best_score, best_label = cand, score, label
         match = None
         if best and best_score >= 0.6:
             match = {
                 "key": best["key"], "name": best["name"], "source": best["source"],
                 "type": best["type"], "score": round(best_score, 3),
                 "exact": best_score >= 0.999,
+                "via": _match_via(best, best_label),
             }
         proposals.append({"character": char, "line_count": counts[char], "match": match})
     return proposals
+
+
+def _match_via(candidate: dict, label: Optional[str]) -> str:
+    """Which of a candidate's labels produced the match: its display name, a
+    remembered `known_as` label, or a registered alias."""
+    if label is None or _norm_name(label) == _norm_name(candidate["name"]):
+        return "name"
+    known = {_norm_name(x) for x in candidate.get("known_as") or []}
+    return "known_as" if _norm_name(label) in known else "alias"
+
+
+def _remember_applied_labels(cast_name: str, mapping: Dict[str, str],
+                             applied: List[str]) -> None:
+    """Record each applied character label on its library member (`known_as`)
+    so a renamed character matches by identity in the next book. One library
+    transaction; skips generic labels and members that no longer exist."""
+    wanted = {char: mapping[char] for char in applied if char in mapping}
+    if not wanted:
+        return
+    def remember(lib):
+        for char, key in wanted.items():
+            entry = (lib["casts"].get(cast_name, {}).get("members", {}).get(key)
+                     or lib["shared"].get(key))
+            if not entry or entry.get("generic") or is_generic_speaker(char):
+                continue
+            labels = add_known_label(entry.get("known_as"), entry.get("name", ""))
+            entry["known_as"] = add_known_label(labels, char)
+    _mutate_voice_library(remember)
 
 
 def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
@@ -216,7 +264,8 @@ async def voice_library_get():
                  "adapter_id": (m.get("config") or {}).get("adapter_id"),
                  "character_style": (m.get("config") or {}).get("character_style", ""),
                  "line_count": m.get("line_count", 0), "generic": bool(m.get("generic")),
-                 "book_id": m.get("book_id"), "assignments": m.get("assignments", {})}
+                 "book_id": m.get("book_id"), "assignments": m.get("assignments", {}),
+                 "known_as": add_known_label(m.get("known_as"), m.get("name", k))}
                 for k, m in sorted(members.items())
             ],
             "adapter_usage": adapter_usage,
@@ -404,6 +453,10 @@ async def voice_library_apply(request: LibraryApplyRequest):
             None, get_active_book_id())
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
+    try:
+        await asyncio.to_thread(_remember_applied_labels, cast_name, request.mapping, applied)
+    except TimeoutError:
+        logger.warning("Applied cast '%s' but could not record the labels (library locked).", cast_name)
 
     return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied)}
 
@@ -439,6 +492,11 @@ async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
                 continue
 
             results.append({"name": name, "applied": applied, "count": len(applied)})
+        applied_union = sorted({c for r in results for c in r["applied"]})
+        try:
+            _remember_applied_labels(cast_name, request.mapping, applied_union)
+        except TimeoutError:
+            logger.warning("Applied cast '%s' in bulk but could not record the labels (library locked).", cast_name)
         return results
 
     # Offload the per-book locking/read/write loop to a worker thread so

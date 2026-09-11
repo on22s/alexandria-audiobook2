@@ -2103,7 +2103,8 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2">
                     <span class="small">${escapeHtml(m.name)}${m.generic && m.book_id ? ` — ${escapeHtml(m.book_id)}` : ''}
                         <span class="text-muted">(${escapeHtml(m.type || 'custom')}${m.line_count ? ', ' + m.line_count + ' lines' : ''})</span>
-                        ${m.character_style ? `<span class="d-block text-muted">${escapeHtml(m.character_style)}</span>` : ''}</span>
+                        ${m.character_style ? `<span class="d-block text-muted">${escapeHtml(m.character_style)}</span>` : ''}
+                        ${_castKnownAsLine(m)}</span>
                     <button class="btn btn-sm btn-link text-danger p-0" title="Remove from library" data-cast="${escapeHtml(castName)}" data-key="${escapeHtml(m.key)}" onclick="deleteCastMember(this.dataset.cast, this.dataset.key)"><i class="fas fa-times"></i></button>
                 </li>`;
             const members = (cast && cast.members) || [];
@@ -2243,13 +2244,29 @@
 
         // Render the <tr> rows for a cast-match proposals table (shared by the
         // single-book and bulk apply flows).
+        // Labels a member has answered to in other books, besides its own name.
+        function _castKnownAsLine(m) {
+            const others = (m.known_as || []).filter(label => label.toLowerCase() !== (m.name || '').toLowerCase());
+            if (!others.length) { return ''; }
+            return `<span class="d-block text-muted fst-italic">known as ${escapeHtml(others.join(', '))}</span>`;
+        }
+
+        function _castMatchBadge(m) {
+            if (!m) { return '<span class="badge bg-light text-muted border">no match</span>'; }
+            const why = m.via === 'known_as' ? ' title="Matched a label this member was known as in another book"'
+                : (m.via === 'alias' ? ' title="Matched through the character alias registry"' : '');
+            const viaText = m.via === 'known_as' ? ' known as' : (m.via === 'alias' ? ' alias' : '');
+            if (m.exact) { return `<span class="badge bg-success"${why}>exact${viaText}</span>`; }
+            return `<span class="badge bg-warning text-dark" title="Fuzzy match — please confirm">~${m.score}${viaText}</span>`;
+        }
+
         function _renderCastMatchRows(proposals, pool) {
             const optionsFor = (selKey) => '<option value="">— skip —</option>' + pool.map(m =>
                 `<option value="${escapeHtml(m.key)}" ${m.key === selKey ? 'selected' : ''}>${escapeHtml(m.name)} (${m.source})</option>`).join('');
             return proposals.map(p => {
                 const m = p.match;
                 const fuzzy = m && !m.exact;
-                const badge = m ? (m.exact ? '<span class="badge bg-success">exact</span>' : `<span class="badge bg-warning text-dark" title="Fuzzy match — please confirm">~${m.score}</span>`) : '<span class="badge bg-light text-muted border">no match</span>';
+                const badge = _castMatchBadge(m);
                 return `<tr class="${fuzzy ? 'table-warning' : ''}">
                     <td><input type="checkbox" class="cast-apply-check" data-char="${escapeHtml(p.character)}" ${m ? 'checked' : ''}></td>
                     <td class="small">${escapeHtml(p.character)} <span class="text-muted">(${p.line_count})</span></td>

@@ -453,6 +453,64 @@ class VoicesTests(unittest.TestCase):
         self.assertEqual(config["Man"]["adapter_id"], "v2")
         self.assertEqual(config["Man"]["character_style"], "five")
 
+    def test_cast_member_matches_by_remembered_label_and_alias(self):
+        lib = {"shared": {}, "casts": {"series": {"members": {
+            "natsuki subaru": {"name": "NATSUKI SUBARU", "known_as": ["NATSUKI SUBARU", "Subaru"],
+                               "config": {"type": "lora", "adapter_id": "v1"}},
+            "rem": {"name": "REM", "config": {"type": "lora", "adapter_id": "v2"}},
+        }}}}
+        aliases = {"BARUSU": "NATSUKI SUBARU"}
+        pool = voice_library_module._cast_match_pool(lib, "series", "b2", aliases=aliases)
+        self.assertEqual(pool["natsuki subaru"]["labels"], ["NATSUKI SUBARU", "Subaru", "BARUSU"])
+        # A legacy member without known_as answers to its name only.
+        self.assertEqual(pool["rem"]["labels"], ["REM"])
+        by_char = {p["character"]: p["match"] for p in voice_library_module._build_match_proposals(
+            {"SUBARU": 50, "Barusu": 3, "Remu": 2, "EMILIA": 9}, pool)}
+        self.assertEqual((by_char["SUBARU"]["key"], by_char["SUBARU"]["score"], by_char["SUBARU"]["via"]),
+                         ("natsuki subaru", 1.0, "known_as"))
+        self.assertTrue(by_char["SUBARU"]["exact"])
+        self.assertEqual((by_char["Barusu"]["key"], by_char["Barusu"]["via"]), ("natsuki subaru", "alias"))
+        self.assertEqual((by_char["Remu"]["key"], by_char["Remu"]["via"]), ("rem", "name"))
+        self.assertFalse(by_char["Remu"]["exact"])
+        self.assertIsNone(by_char["EMILIA"])
+
+    def test_applying_a_cast_remembers_the_new_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            library_path = os.path.join(tmp, "voice_library.json")
+            with open(library_path, "w", encoding="utf-8") as f:
+                json.dump({"shared": {"narrator": {"name": "Narrator", "config": {}}},
+                           "casts": {"series": {"members": {
+                               "subaru": {"name": "Subaru", "config": {"adapter_id": "v1"}},
+                               "man 1::b1": {"name": "Man 1", "generic": True, "book_id": "b1",
+                                             "config": {"adapter_id": "v3"}},
+                           }}}}, f)
+            mapping = {"NATSUKI SUBARU": "subaru", "Man 2": "man 1::b1", "Chronicler": "narrator",
+                       "Ghost": "missing-key"}
+            with patch.object(voice_library_module, "VOICE_LIBRARY_PATH", library_path), \
+                 patch.object(core_module, "VOICE_LIBRARY_PATH", library_path):
+                for _ in range(2):  # idempotent
+                    voice_library_module._remember_applied_labels(
+                        "series", mapping, ["NATSUKI SUBARU", "Man 2", "Chronicler", "Ghost"])
+            with open(library_path, encoding="utf-8") as f:
+                lib = json.load(f)
+            self.assertEqual(lib["casts"]["series"]["members"]["subaru"]["known_as"],
+                             ["Subaru", "NATSUKI SUBARU"])
+            # Generic labels are not identities and are never remembered.
+            self.assertNotIn("known_as", lib["casts"]["series"]["members"]["man 1::b1"])
+            self.assertEqual(lib["shared"]["narrator"]["known_as"], ["Narrator", "Chronicler"])
+            # The next book's match sees the remembered label as exact.
+            pool = voice_library_module._cast_match_pool(lib, "series", "b3", aliases={})
+            match = voice_library_module._build_match_proposals({"Natsuki Subaru": 1}, pool)[0]["match"]
+            self.assertEqual((match["key"], match["exact"], match["via"]), ("subaru", True, "known_as"))
+
+    def test_library_entry_records_known_as_and_tolerates_legacy_entries(self):
+        entry = core_module._make_library_entry("Holo", {"type": "lora"}, 3, "b1")
+        self.assertEqual(entry["known_as"], ["Holo"])
+        resaved = core_module._make_library_entry("HOLO", {"type": "lora"}, 5, "b2", existing=entry)
+        self.assertEqual(resaved["known_as"], ["Holo"])  # same identity, different casing
+        self.assertEqual(core_module.get_member_labels({"name": "Holo"}), ["Holo"])
+        self.assertEqual(core_module.add_known_label(["Holo"], "Man 1"), ["Holo"])
+
     def test_stale_suggestion_is_rejected(self):
         with patch.object(voices_module, "_build_lora_candidates", return_value=[]), \
              patch.object(voices_module, "_script_line_counts", return_value={"Narrator": 2}), \
