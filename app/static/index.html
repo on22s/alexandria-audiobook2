@@ -1844,6 +1844,8 @@
                             <td class="align-middle text-muted px-1">|</td>
                             <td class="text-center align-top" style="min-width:120px;"><button class="btn btn-outline-success btn-sm w-100" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i>Regenerate All</button></td>
                             <td class="text-center align-top"><button class="btn btn-danger btn-sm w-100" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button></td>
+                            <td class="text-center align-top" style="min-width:120px;"><button class="btn btn-outline-secondary btn-sm w-100" id="btn-drift-check" onclick="runDriftCheck()" title="Score every rendered chunk against its speaker's reference voice and flag the ones that drifted"><i class="fas fa-fingerprint me-1"></i>Check Voices</button>
+                                <div class="form-check form-check-inline mt-1 mb-0 small"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">flagged only</label></div></td>
                             <td class="align-middle text-muted px-1">|</td>
                             <td class="text-center align-top" style="min-width:100px;"><button class="btn btn-warning btn-sm w-100" id="btn-merge"><i class="fas fa-file-audio me-1"></i>Merge All</button></td>
                         </tr>

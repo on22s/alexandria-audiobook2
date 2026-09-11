@@ -722,6 +722,26 @@
         "title": "DirectionSelection",
         "type": "object"
       },
+      "DriftCheckRequest": {
+        "properties": {
+          "indices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indices"
+          }
+        },
+        "title": "DriftCheckRequest",
+        "type": "object"
+      },
       "ExistingUploadRequest": {
         "properties": {
           "filename": {
@@ -2459,6 +2479,43 @@
           }
         },
         "summary": "Get Chunks"
+      }
+    },
+    "/api/chunks/drift_check": {
+      "post": {
+        "description": "Score done chunks against their speaker's reference voice (ECAPA cosine,\nCPU, sibling interpreter) and flag the ones that drifted. Never\nregenerates anything; the per-chunk Gen button is the fix.",
+        "operationId": "drift_check_endpoint_api_chunks_drift_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriftCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Drift Check Endpoint"
       }
     },
     "/api/chunks/restore": {

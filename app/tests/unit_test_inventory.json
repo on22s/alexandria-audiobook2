@@ -3326,6 +3326,16 @@
     "tests.test_voice_dataset_quality.VoiceDatasetQualityTests.test_stationary_noise_is_flagged_as_low_snr",
     "tests.test_voice_dataset_quality.VoiceDatasetQualityTests.test_summary_reports_cross_archive_pcm_duplicates"
   ],
+  "test_voice_drift": [
+    "tests.test_voice_drift.VoiceDriftInstrumentTests.test_same_voice_beats_different_voice",
+    "tests.test_voice_drift.VoiceDriftPersistenceTests.test_drift_check_is_exempt_from_the_gpu_lock",
+    "tests.test_voice_drift.VoiceDriftPersistenceTests.test_results_are_written_onto_chunks_and_cleared_by_regeneration",
+    "tests.test_voice_drift.VoiceDriftScoringTests.test_indices_restrict_which_chunks_are_scored",
+    "tests.test_voice_drift.VoiceDriftScoringTests.test_missing_reference_is_reported_per_chunk_not_flagged",
+    "tests.test_voice_drift.VoiceDriftScoringTests.test_references_follow_voice_type_and_flags_follow_threshold",
+    "tests.test_voice_drift.VoiceDriftScoringTests.test_threshold_comes_from_config_or_default",
+    "tests.test_voice_drift.VoiceDriftScoringTests.test_unmeasured_runs_flag_nothing_and_say_so"
+  ],
   "test_voice_feature_benchmark": [
     "tests.test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_comparison_reports_feature_drift",
     "tests.test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_operation_timing_covers_every_profiler_acoustic_operation",

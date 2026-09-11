@@ -439,6 +439,7 @@ process_state = {
     "audio": {"running": False, "logs": [], "cancel": False, "start_time": None},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
+    "drift_check": {"running": False, "logs": []},
     "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
                      "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
@@ -460,7 +461,9 @@ process_state = {
 # Tasks that don't touch the GPU/LLM and are exempt from the global GPU lock.
 # "voices" (suggest_voices) is intentionally NOT here: it runs local LLM
 # inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
-NON_GPU_TASKS = {"audacity_export", "m4b_export"}
+# "drift_check" scores audio with ECAPA under the sibling interpreter, which
+# pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
+NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 
 def check_global_gpu_lock(new_task_name: str):

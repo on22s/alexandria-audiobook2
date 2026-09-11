@@ -2546,6 +2546,52 @@
         }
 
         // Update only changed rows instead of full redraw
+        // --- Voice drift: a rendered chunk that doesn't sound like its speaker's reference ---
+        function _driftKey(drift) {
+            return drift ? `${drift.score}|${drift.flagged}|${drift.error || ''}` : '';
+        }
+
+        function _driftBadge(chunk) {
+            const d = chunk.drift;
+            if (!d || !d.flagged) { return ''; }
+            const title = `Voice drift: similarity ${d.score} to ${d.reference} (threshold ${d.threshold}). Regenerate with Gen.`;
+            return ` <span class="badge bg-warning text-dark drift-badge" title="${escapeHtml(title)}"><i class="fas fa-fingerprint me-1"></i>drift ${d.score}</span>`;
+        }
+
+        function applyDriftFilter() {
+            const only = document.getElementById('chk-drift-only');
+            const flaggedOnly = !!(only && only.checked);
+            document.querySelectorAll('#chunks-table-body tr[data-id]').forEach(tr => {
+                const flagged = !!tr.querySelector('.drift-badge');
+                tr.style.display = (flaggedOnly && !flagged) ? 'none' : '';
+            });
+        }
+
+        async function runDriftCheck(indices) {
+            const btn = document.getElementById('btn-drift-check');
+            try {
+                const res = await API.post('/api/chunks/drift_check', indices ? { indices } : {});
+                if (!res.measured) {
+                    showToast('Voice check not measured: no speechbrain interpreter configured (Voice Lab → rocm_python).', 'warning');
+                    return;
+                }
+                if (btn) { btn.disabled = true; }
+                _startPolling('logs:drift_check', () => API.get('/api/status/drift_check'), {
+                    doneCheck: s => !s.running,
+                    onTick: () => {},
+                    onDone: async (s) => {
+                        if (btn) { btn.disabled = false; }
+                        await loadChunks(true);
+                        const last = (s.logs || []).slice(-1)[0] || '';
+                        showToast(last.startsWith('NOT MEASURED') ? last : `Voice check: ${last}`, last.includes('0 flagged') ? 'success' : 'warning');
+                    },
+                });
+            } catch (e) {
+                if (btn) { btn.disabled = false; }
+                showToast('Voice check failed: ' + e.message, 'error');
+            }
+        }
+
         function updateChunkRow(chunk) {
             const tr = document.querySelector(`tr[data-id="${chunk.id}"]`);
             if (!tr) { return false; }
@@ -2559,7 +2605,12 @@
             if (badge) {
                 badge.className = `badge bg-${statusColor}`;
                 badge.innerText = chunk.status;
+                const oldDrift = tr.querySelector('.drift-badge');
+                if (oldDrift) { oldDrift.remove(); }
+                badge.insertAdjacentHTML('afterend', _driftBadge(chunk));
+                tr.classList.toggle('drift-flagged', !!(chunk.drift && chunk.drift.flagged));
             }
+            applyDriftFilter();
 
             // Update action area (button/progress)
             const actionContainer = tr.querySelector('.d-flex');
@@ -2662,7 +2713,8 @@
                     // Incremental update - only update changed rows
                     chunks.forEach((chunk, i) => {
                         const cached = cachedChunks[i];
-                        if (!cached || cached.status !== chunk.status || cached.audio_path !== chunk.audio_path) {
+                        if (!cached || cached.status !== chunk.status || cached.audio_path !== chunk.audio_path
+                                || _driftKey(cached.drift) !== _driftKey(chunk.drift)) {
                             updateChunkRow(chunk);
                         }
                     });
@@ -2697,7 +2749,7 @@
                                         <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0" step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
                                     </div>
                                 </td>
-                                <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span></td>
+                                <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span>${_driftBadge(chunk)}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         ${actionArea}
@@ -3120,6 +3172,9 @@
                         const failed = updated.filter(c => indices.includes(c.id) && c.status === 'error').length;
                         if (failed > 0) {
                             showToast(`Batch complete: ${completed} succeeded, ${failed} failed`, 'warning');
+                        }
+                        if (completed > 0) {
+                            runDriftCheck(indices);   // CPU-side, never blocks the next render
                         }
                     },
                 });
