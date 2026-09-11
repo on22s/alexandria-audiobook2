@@ -237,6 +237,12 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
 
 logger = logging.getLogger(__name__)
 
+# Explicit, because pydub/ffmpeg's unspecified default for 24 kHz mono is
+# 32 kbps (measured with ffprobe on 2026-09-11): every voiceline and the merged
+# audiobook were written at a rate that audibly degrades speech. 128 kbps is
+# transparent for mono speech at this sample rate and what listeners expect.
+MP3_BITRATE = "128k"
+
 class ProjectManager:
     def __init__(self, root_dir):
         self.root_dir = root_dir
@@ -654,7 +660,7 @@ class ProjectManager:
         )
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
-        final_audio.export(output_path, format="mp3")
+        final_audio.export(output_path, format="mp3", bitrate=MP3_BITRATE)
 
         if skipped:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
@@ -1118,7 +1124,7 @@ class ProjectManager:
         try:
             mp3_filename = f"{filename_base}.mp3"
             mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-            segment.export(mp3_filepath, format="mp3")
+            segment.export(mp3_filepath, format="mp3", bitrate=MP3_BITRATE)
 
             # Validate: conda ffmpeg often lacks libmp3lame, producing a tiny
             # (~428 byte) header-only file without raising an error.
