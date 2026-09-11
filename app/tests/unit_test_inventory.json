@@ -1850,6 +1850,9 @@
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
   ],
   "test_modernbooknlp_adapter": [],
+  "test_mp3_bitrate": [
+    "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
+  ],
   "test_multi_process_state": [
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
