@@ -943,7 +943,22 @@ def test_clone_voices_upload_and_delete():
     wav_bytes = wav_header + b'\x00' * data_size
 
     files = {"file": (f"{TEST_PREFIX}clone_test.wav", wav_bytes, "audio/wav")}
-    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files)
+    # Silence is refused by the reference gate now; the same request with the
+    # required transcript + rights fields but a silent clip is a 400.
+    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files,
+                      data={"ref_text": "test clip", "rights_confirmed": "true"})
+    assert_status(r, 400)
+    # A real 4 s tone with the required fields imports.
+    import math
+    tone = b"".join(struct.pack("<h", int(12000 * math.sin(2 * math.pi * 220 * i / sample_rate)))
+                    for i in range(sample_rate * 4))
+    wav_header = struct.pack('<4sI4s4sIHHIIHH4sI',
+        b'RIFF', 36 + len(tone), b'WAVE',
+        b'fmt ', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16,
+        b'data', len(tone))
+    files = {"file": (f"{TEST_PREFIX}clone_test.wav", wav_header + tone, "audio/wav")}
+    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files,
+                      data={"ref_text": "test clip", "rights_confirmed": "true"})
     assert_status(r, 200)
     data = r.json()
     assert_key(data, "voice_id")
