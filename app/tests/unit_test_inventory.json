@@ -2598,7 +2598,7 @@
     "tests.test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization",
     "tests.test_runtime_regressions.RuntimeTests.test_voice_design_logs_unexpected_failure_and_returns_sanitized_500",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_config_ignores_invalid_stored_shapes",
-    "tests.test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
+    "tests.test_runtime_regressions.RuntimeTests.test_voicelab_default_interpreter_is_the_running_one",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_passes_canonical_device_to_all_device_aware_stages",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_preflight_is_dispatched_off_event_loop",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_preflight_is_read_only_sanitized_and_stage_specific",
