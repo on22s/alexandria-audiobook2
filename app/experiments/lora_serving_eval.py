@@ -40,13 +40,39 @@ from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
-from three_pass_generate import (attribute_batch, build_roster,
+from three_pass_generate import (PassExhausted, attribute_batch, build_roster,
                                  get_deterministic_named_entry)
 
 M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
 INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
 SPECIAL = {"UNKNOWN", "UNNAMED", "NOT_DIALOGUE"}
 BATCH = 25
+
+
+def bind_last_attempt(entries, size):
+    """Align an exhausted window's final response to its sent entries by `n`.
+
+    validate_attribution rejects the whole response when ONE spoken line comes
+    back unnamed, so without this every gold row in the window was recorded as
+    batch_failed - including the lines the model answered. The rejected line
+    stays unanswered (None); nothing is invented for it. Returns None when the
+    response cannot be bound at all (no parseable entries), which keeps the
+    batch_failed path for genuine transport failures."""
+    if not entries:
+        return None
+    out = [None] * size
+    bound = 0
+    for item in entries:
+        try:
+            n = int(item.get("n"))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if 0 <= n < size and out[n] is None:
+            sp = item.get("speaker")
+            sp = sp.strip() if isinstance(sp, str) else None
+            out[n] = {"speaker": sp if sp and sp.upper() != "NARRATOR" else None}
+            bound += 1
+    return out if bound else None
 
 
 def norm(t):
@@ -202,12 +228,23 @@ def main():
                 ctx = [{"previous_context": seg[i - 1] if i else None,
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
+                why = f"{arm}|scale={scale}"
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
                                           roster, neighbor_contexts=ctx,
                                           source_text=src)
+                except PassExhausted as exc:
+                    # The model answered; one line failed the speaker check and
+                    # took the window with it. Score what it said, per row.
+                    out = bind_last_attempt(exc.last_entries, len(send))
+                    print(f"  {arm} window {k}: PassExhausted, "
+                          f"{'scoring last attempt' if out else 'nothing to bind'}",
+                          flush=True)
+                    why = f"{arm}|scale={scale}|exhausted_last_attempt"
                 except Exception as exc:
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
+                    out = None
+                if out is None:
                     for i in rows:
                         g = want[norm(seg[i].get("text"))]
                         if not record.done(arm, f"{book}:{g['id']}"):
@@ -230,7 +267,7 @@ def main():
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown; see distill_eval.
                                candidates=membership,
-                               provenance=f"{arm}|scale={scale}")
+                               provenance=why)
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
             arm_rows = [r for r in record.rows
