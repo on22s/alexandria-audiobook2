@@ -1,0 +1,18 @@
+{
+  "artifact": "lora_serving_eval__muse-glimmer-30b-task4k-a6000-gold-schema-checked-20260911.json",
+  "artifact_sha256": "8a14ee071207005f1376ba777ba8a792f3d09ec6c4424b1c2702a395d9f57233",
+  "fields": [
+    "rows[arm=lora]"
+  ],
+  "status": "PARTIAL INVALIDATION - do not read the lora arm as a result",
+  "valid_arms": [
+    "base"
+  ],
+  "correction": "Every LoRA-arm response was `{\"n\": 0, ...}]` - the leading `[` missing - so no window parsed and all 768 rows were recorded as batch_failed (0/768). The adapter was trained by the pre-fix Sep-9 Muse trainer, which labelled the answer without the template's ` to=user<|message|>` header; the schema grammar does not force the bracket. A training-format defect, not an evaluator or server failure. The template-fixed retrain of the same data is `muse-glimmer-30b-task4k-multin-tplfix-…-20260911`.",
+  "evidence": {
+    "lora_rows": 768,
+    "lora_unanswered": 768,
+    "lora_provenance": "lora|batch_failed on every row"
+  },
+  "measurement_changed": false
+}

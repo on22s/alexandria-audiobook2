@@ -1,0 +1,18 @@
+{
+  "artifact": "lora_serving_eval__muse-glimmer-30b-author-balanced-tplfix-a6000-gold-schema-checked-20260911.json",
+  "artifact_sha256": "bd5ad533473ff79096a55b9f1dad7540f68d4e29357f0025d7454d7f600be554",
+  "fields": [
+    "rows[arm=lora]"
+  ],
+  "status": "PARTIAL INVALIDATION - do not read the lora arm as a result",
+  "valid_arms": [
+    "base"
+  ],
+  "correction": "llama-server returned HTTP 500 'The model produced output that does not match the expected peg-native format' on every LoRA-arm request (llama.cpp's Muse peg-native parser; all 768 rows batch_failed). A serving-side parser failure: the adapter's answers were never seen by the evaluator. Not rerun; the other three template-fixed adapters served without this error on the same box, build and flags.",
+  "evidence": {
+    "lora_rows": 768,
+    "lora_unanswered": 768,
+    "lora_provenance": "lora|batch_failed on every row"
+  },
+  "measurement_changed": false
+}

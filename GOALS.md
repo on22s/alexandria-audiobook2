@@ -486,6 +486,117 @@ subset is scored against a full set.
 
 ---
 
+#### The four-book adapter campaign, one harness, three models — 2026-09-11/12
+
+The 2026-08-24 entry above ends with the adapter "not yet measured on index18,
+mushoku16 or owarimonogatari3 under the same harness". It now has been, along
+with every other adapter a current conclusion rests on. Between 2026-09-09
+and 2026-09-12 four rented GPUs ran **29 paired evaluations** on the full
+four-book gold (768 rows, equal coverage, the 2026-09-06 fix), all under one
+instrument: `lora_serving_eval_schema_checked_batch1_20260910.py` — llama.cpp
+`build-20260823b`, Q4_K_M base + f16 LoRA, batch 1, temperature 0, a JSON-schema
+grammar on the response, the base and LoRA arms sharing one server and
+differing only by adapter scale. Artifacts are the
+`lora_serving_eval__*-schema-checked-20260911.json` files in
+`ab_test_runtime/experiments/`; each carries the four gold sha256s it was scored
+against. The two `*-gold-verified-20260910` Gemma files are the earlier
+gold-verified harness (its base arm reads 48.3 / 50.7 rather than 45.4 on the
+same books) and are listed separately for that reason.
+
+**Per-book accuracy, LoRA arm, hard subset** (base arm in the first row of each
+model; every adapter below it shares that base run):
+
+| model / adapter | pooled | grimgar03 | index18 | mushoku16 | owari3 |
+|---|---:|---:|---:|---:|---:|
+| **Qwen3-14B** base | 44.3 | 53.8 | 53.4 | 37.6 | 22.2 |
+| mixed (Aug-3 LN+PDNC, 2 ep) seed 1 / seed 2 | 58.3 / **59.2** | 74.0 / 73.5 | 59.1 / 62.5 | 48.9 / 54.1 | 28.4 / 27.8 |
+| longcontext | 55.1 | 68.1 | 61.4 | 49.6 | 25.3 |
+| PDNC-only r16 / r32 | 53.8 / 53.4 | 68.3 / 68.8 | 54.5 / 58.0 | 48.9 / 42.1 | 22.8 / 23.5 |
+| hardcases | 50.9 | 63.1 | 55.7 | 43.6 | 25.3 |
+| **Gemma4-12B (QAT)** base | 45.4 | 54.0 | 53.4 | 39.1 | 25.9 |
+| author-balanced r8 seed 1 / seed 2 | 56.6 / 53.3 | 67.3 / 63.6 | 60.2 / 56.8 | 52.6 / 47.4 | 32.7 / 31.5 |
+| author-balanced r16 | 55.7 | 68.6 | 59.1 | 46.6 | 30.9 |
+| author-balanced r32 lr1e-4 seed 1 / seed 2 | 54.0 / 55.1 | 62.9 / 64.7 | 60.2 / 58.0 | 53.4 / 50.4 | 30.2 / 34.6 |
+| author+task4k 50:50 blend r8 | 57.0 | 69.9 | 54.5 | 54.1 | 30.2 |
+| task4k single-entry, Sep-10 recipe | 55.9 | 68.1 | 58.0 | 54.9 | 26.5 |
+| task4k single-entry, Sep-9 recipe | 50.8 | 59.7 | 52.3 | 50.4 | 29.0 |
+| mixed-r16 (single task4k + 3 sets) seed 1 / seed 2 | 52.0 / 55.6 | 62.6 / 67.5 | 58.0 / 58.0 | 43.6 / 49.6 | 30.2 / 30.9 |
+| longcontext / hardcases | 47.0 / 49.6 | 51.9 / 56.6 | 53.4 / 55.7 | 45.9 / 45.1 | 32.7 / 33.3 |
+| *gold-verified harness:* real-multin / QAT-multin | 57.6 / 57.6 | 67.0 / 67.3 | 58.0 / 58.0 | 56.4 / 52.6 | 35.8 / 38.3 |
+| **Muse-Glimmer-30B (UD-Q3_K_XL)** base, reasoning high / low | 55.6 / 54.2 | 58.7 / 58.4 | 59.1 / 56.8 | 54.1 / 49.6 | 47.5 / 46.3 |
+| longcontext (Sep-9 trainer) | **62.2** | 70.6 | **67.0** | **56.4** | **44.4** |
+| task4k multi-entry, template-fixed | 61.6 | 73.0 | 67.0 | 51.1 | 40.1 |
+| mixed, template-fixed | 59.9 | 69.1 | 62.5 | 51.9 | 43.2 |
+| hardcases, template-fixed | 53.9 | 65.5 | 62.5 | 44.4 | 29.6 |
+| longcontext, template-fixed (258 LoRA rows unanswered) | 42.3 | 55.3 | 38.6 | 30.1 | 23.5 |
+
+Sign test on shared rows: every paired gain of 5.3 points or more has
+p ≤ 2.5e-4; Gemma hardcases (+4.2) is p = 2.7e-3, Gemma longcontext (+1.6)
+p = 0.30, and Muse hardcases (−0.3, +76/−78) is a null. The strict view — shared answered
+rows only, `app/experiments/strict_shared_report.py` — moves no pooled figure
+by more than 0.3 points except Muse longcontext-tplfix, where dropping its 258
+unanswered rows turns −11.8 into +64/−23 on the 510 that remain: the adapter
+answers well when it answers, and fails to answer a third of the time.
+
+**What the numbers say, kept apart from what they measure:**
+
+- **No book reaches 75% on this harness.** The best per-book figures are
+  grimgar03 74.0 (Qwen mixed), index18 67.0 (Muse), mushoku16 56.4 (Muse
+  longcontext, Gemma real-multin), owarimonogatari3 44.4 (Muse longcontext).
+  The "two of four already clear it" line in this goal's target rests on the
+  three-book roster-batched arms from before 2026-09-06, whose grimgar03 base
+  arm reads 89.1%; on this instrument the same base models read **53.8–58.7**
+  on the same book. The gold is the same. The harness is not, and nobody has
+  yet run the *shipped* attribution path on the four books to say which of
+  the two is closer to what a listener gets. Until that is done, the target
+  line is a claim about the old instrument, and this table is a claim about
+  the new one. Neither should be quoted as the other.
+- **Seed spread is 1–4 points, and it is not the same for every model.** Two
+  seeds of the same recipe: Qwen mixed 58.3 / 59.2 (0.9 apart), Gemma
+  author-r8 56.6 / 53.3 (3.3), Gemma mixed-r16 52.0 / 55.6 (3.6), Gemma
+  author-r32 54.0 / 55.1 (1.1). A single-seed difference under ~3.5 points
+  between two Gemma adapters is inside seed noise, which puts Gemma's
+  task4k / hardcases / longcontext / author ordering within noise of one
+  another. Qwen's two seeds are tight enough that its adapters can be ranked.
+- **Recipe beat data-shape on Gemma.** task4k trained on the Sep-9 recipe
+  scores 50.8; the identical single-entry file on the Sep-10 recipe (max_len
+  4096, no warmup) scores 55.9. Multi-entry rows (real-multin, 57.6 on the
+  gold-verified harness) are 1.7 above single-entry — inside seed spread — so
+  "multi-entry helps" is not separable from "the recipe changed" on this data.
+- **Muse has the highest absolute accuracy and the smallest adapter lift.**
+  Its base arm is 10 points above the other two untuned (55.6 vs 44.3 / 45.4);
+  its best adapter adds +6.6, Qwen's adds +15.0. Which model "is best"
+  depends on whether the question is the shipped pipeline (Muse, 62.2) or
+  what the adapter contributes (Qwen). It is also a 30B model served at Q3 on
+  a 16 GB card at 26.8 tok/s locally, where Qwen3-14B Q4 runs at ~32.
+- **The "mixed" adapters were three different datasets.** Qwen's is the
+  2026-08-03 light-novel + PDNC set (29 files, 2 epochs, 2048 ctx); Gemma's is
+  single-entry task4k + longcontext + hardcases + author-balanced; Muse's is
+  multi-entry task4k + the same three. A same-data, same-recipe run of all
+  three (19,180 rows, 1 epoch, r16, 4096 ctx, one trainer script) was queued
+  2026-09-12 and is not in this table.
+
+**Three Muse artifacts are in the directory and cannot be scored**, each with
+an ARM_INVALID sidecar beside it saying why (the same convention as the
+2026-09-01 contract-arm invalidation). Sep-9 task4k and Sep-9 hardcases
+returned `{"n": 0, ...}]` — no leading `[` — on all 768 LoRA rows: the
+pre-fix Muse trainer labelled the answer without the template's
+` to=user<|message|>` header, and the schema grammar does *not* force the
+bracket (an earlier note in memory said it did; measured 2026-09-12, it does
+not). Sep-9 longcontext escaped this and is the 62.2 above. Template-fixed
+author-balanced drew an HTTP 500 "output does not match the expected
+peg-native format" from llama-server on every LoRA request — llama.cpp's Muse
+parser, not the adapter's answers. All three keep a valid base arm.
+
+**One instrument defect, fixed for the next campaign, not this one.** The two
+base-arm rows unanswered in every Gemma and Qwen run (`grimgar03-00194`,
+`owarimonogatari3-02689`) were a window where one spoken line came back
+`NARRATOR`, the validator rejected the whole response, and the harness
+recorded every gold row in the window as failed — including the lines the
+model got right. PR #535 scores such a window row by row and leaves only the
+rejected line unanswered. It changes the harness fingerprint, so it was held
+back until this table was complete rather than mixing two instruments in it.
+
 ### 1.3 Generalisation beyond the four books
 
 > **What this is.** Checking the app works on novels it has never encountered,
@@ -944,6 +1055,31 @@ answers behind the same 0.05 margin. It overrode 78 rows, gained 8, and lost 20:
 **346/600 to 334/600, p=0.0357 in the wrong direction**. Production stays
 unchanged. This rejects cheap nearest-profile LUAR reranking; it does not test
 the paper's substantially larger jointly trained BookNLP integration.
+
+#### Adapters trained on nothing but PDNC transfer to the light novels — 2026-09-12
+
+The 1.3 question has so far been asked in one direction: does what was built
+on the four Japanese novels hold on English public-domain ones? Two Qwen3-14B
+adapters trained **only** on PDNC (`qwen3_14b_pdnc_adapters_20260907`, r16
+seed 20260905 and r32 seed 20260904 — no light-novel row in either) were scored
+on the four-book light-novel gold under the 1.1 schema-checked harness
+(`lora_serving_eval__qwen3-14b-pdnc-r16-…` / `…-r32-…-20260911.json`):
+
+| arm | pooled | grimgar03 | index18 | mushoku16 | owari3 | paired |
+|---|---:|---:|---:|---:|---:|---|
+| base | 44.3 | 53.8 | 53.4 | 37.6 | 22.2 | — |
+| PDNC-only r16 | **53.8** | 68.3 | 54.5 | 48.9 | 22.8 | +95/−22, p = 5e-12 |
+| PDNC-only r32 | 53.4 | 68.8 | 58.0 | 42.1 | 23.5 | +94/−24, p = 6e-11 |
+
+Measured: +9.5 and +9.1 points on books, a language and a translation register
+the adapters never saw, against +14–15 for the adapter that did see light
+novels (Qwen mixed, 1.1). Inferred: roughly two-thirds of the light-novel gain
+is task learning that transfers across corpora, and the rest is corpus-specific.
+The gain is not uniform — grimgar03 takes +14.5 and owarimonogatari3 +0.6 —
+so the transfer claim is a pooled one, and owarimonogatari3 gets nothing from
+it. This is evidence that the skill moves between corpora; it is not the
+clean ≥3-book held-out number this goal's target asks for, which still has
+not been produced.
 
 **Target — a clean held-out number on ≥ 3 books, within 5 points of the
 development books' figure.**
