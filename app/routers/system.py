@@ -629,6 +629,28 @@ def _normalize_and_validate_llm(profile: "LLMConfig") -> "LLMConfig":
     return profile.model_copy(update={"base_url": url}, deep=True)
 
 
+def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
+    """A field the client did not send keeps its saved value.
+
+    The Setup tab posts the sections it knows; anything it does not render
+    (a three-pass temperature set by hand, a context-rescue window) arrived
+    here as a pydantic default and was written over the saved value on every
+    save. `model_fields_set` says which keys the client actually sent, so
+    the merge is decided by the request, not by whether a value happens to
+    equal its default."""
+    merged = config
+    for section in ("tts", "generation", "prompts"):
+        sent = getattr(config, section)
+        saved = (existing or {}).get(section)
+        if sent is None or not isinstance(saved, dict):
+            continue
+        keep = {key: value for key, value in saved.items()
+                if key not in sent.model_fields_set and key in type(sent).model_fields}
+        if keep:
+            merged = merged.model_copy(update={section: sent.model_copy(update=keep)}, deep=False)
+    return merged
+
+
 @router.post("/api/config")
 async def save_config(config: AppConfig):
     normalized_config = config.model_copy(deep=True)
@@ -653,6 +675,7 @@ async def save_config(config: AppConfig):
 
     with file_lock(CONFIG_PATH):
         existing = load_app_config_result(CONFIG_PATH)
+        normalized_config = keep_unsent_fields(normalized_config, existing.data)
         if existing.needs_backup:
             try:
                 backup_damaged_app_config(CONFIG_PATH)

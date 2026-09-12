@@ -86,6 +86,18 @@
             return Number.isFinite(v) ? v : def;
         }
 
+        // "2000, 4000, 6000" -> [2000, 4000, 6000]; an empty box means the default,
+        // anything that is not a positive integer is an error, not a silent drop.
+        function getIntListInput(id, label, def) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return def; }
+            const values = raw.split(',').map(t => t.trim()).filter(Boolean).map(t => parseInt(t, 10));
+            if (values.some(v => !Number.isInteger(v) || v <= 0)) {
+                throw new Error(`${label}: use positive whole numbers separated by commas.`);
+            }
+            return values;
+        }
+
         // --- Desktop notifications ---
         const TASK_LABELS = {
             script: 'Script generation',
@@ -599,6 +611,7 @@
                 document.getElementById('tts-mode').value = config.tts.mode || 'external';
                 document.getElementById('tts-url').value = config.tts.url || 'http://127.0.0.1:7860';
                 document.getElementById('tts-external-urls').value = (config.tts.external_urls || []).join('\n');
+                if (config.tts.external_timeout_seconds != null) { document.getElementById('tts-external-timeout').value = config.tts.external_timeout_seconds; }
                 document.getElementById('tts-device').value = config.tts.device || 'auto';
                 document.getElementById('tts-language').value = config.tts.language || 'English';
                 document.getElementById('parallel-workers').value = config.tts.parallel_workers || 2;
@@ -706,6 +719,16 @@
                         document.getElementById('banned-tokens').value = config.generation.banned_tokens.join(', ');
                     }
                     document.getElementById('merge-narrators').checked = !!config.generation.merge_narrators;
+                    const g = config.generation;
+                    const setIf = (id, v) => { if (v != null) { document.getElementById(id).value = v; } };
+                    setIf('tp-chunk-size', g.three_pass_chunk_size);
+                    setIf('tp-segment-output-ratio', g.three_pass_segment_output_ratio);
+                    setIf('tp-segment-temperature', g.three_pass_segment_temperature);
+                    setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
+                    setIf('tp-instruct-temperature', g.three_pass_instruct_temperature);
+                    document.getElementById('tp-presegment-quotes').checked = g.three_pass_presegment_quotes !== false;
+                    if (Array.isArray(g.context_rescue_windows)) { document.getElementById('context-rescue-windows').value = g.context_rescue_windows.join(', '); }
+                    setIf('context-rescue-retries', g.context_rescue_retries);
                 }
 
                 // Show previously loaded file
@@ -762,25 +785,10 @@
             document.getElementById('prompt-chevron').classList.replace('fa-chevron-down', 'fa-chevron-right');
         });
 
-        document.getElementById('config-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            let chunkSize = parseInt(document.getElementById('chunk-size').value) || 3000;
-
-            // Validate parallel workers
-            let parallelWorkers = parseInt(document.getElementById('parallel-workers').value) || 2;
-            parallelWorkers = Math.max(1, parallelWorkers);
-            document.getElementById('parallel-workers').value = parallelWorkers;
-
-            // Persist whatever's currently shown into the active profile first,
-            // then send both profiles + the active one (mirrored server-side into `llm`).
-            try {
-                syncCurrentLlmProfile();
-            } catch (e) {
-                showToast(e.message, 'error');
-                return;
-            }
-            const config = {
+        // The whole payload in one place, so a bad field (a non-numeric rescue
+        // window, malformed JSON) throws here and is shown, not swallowed.
+        function buildConfigPayload(chunkSize, parallelWorkers) {
+            return {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,
                 llm_local: llmProfiles.local,
@@ -791,6 +799,7 @@
                     mode: document.getElementById('tts-mode').value,
                     url: document.getElementById('tts-url').value,
                     external_urls: document.getElementById('tts-external-urls').value.split('\n').map(u => u.trim()).filter(Boolean),
+                    external_timeout_seconds: getNumFieldValue('tts-external-timeout', 300, true),
                     device: document.getElementById('tts-device').value,
                     language: document.getElementById('tts-language').value,
                     parallel_workers: parallelWorkers,
@@ -825,9 +834,45 @@
                     banned_tokens: document.getElementById('banned-tokens').value
                         ? document.getElementById('banned-tokens').value.split(',').map(t => t.trim()).filter(t => t)
                         : [],
-                    merge_narrators: document.getElementById('merge-narrators').checked
+                    merge_narrators: document.getElementById('merge-narrators').checked,
+                    three_pass_chunk_size: getNumFieldValue('tp-chunk-size', 3000, true),
+                    three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),
+                    three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
+                    three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
+                    three_pass_instruct_temperature: getNumFieldValue('tp-instruct-temperature', 0.1),
+                    three_pass_presegment_quotes: document.getElementById('tp-presegment-quotes').checked,
+                    context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
+                    context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
                 }
             };
+        }
+
+
+        document.getElementById('config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            let chunkSize = parseInt(document.getElementById('chunk-size').value) || 3000;
+
+            // Validate parallel workers
+            let parallelWorkers = parseInt(document.getElementById('parallel-workers').value) || 2;
+            parallelWorkers = Math.max(1, parallelWorkers);
+        document.getElementById('parallel-workers').value = parallelWorkers;
+
+            // Persist whatever's currently shown into the active profile first,
+            // then send both profiles + the active one (mirrored server-side into `llm`).
+            try {
+                syncCurrentLlmProfile();
+            } catch (e) {
+                showToast(e.message, 'error');
+                return;
+            }
+            let config;
+            try {
+                config = buildConfigPayload(chunkSize, parallelWorkers);
+            } catch (e) {
+                showToast(e.message, 'error');
+                return;
+            }
             try {
                 await API.post('/api/config', config);
                 savedLlmMode = currentLlmMode;
