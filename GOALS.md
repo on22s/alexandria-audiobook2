@@ -4221,6 +4221,96 @@ not have said that, and had not, across three backends and six weeks.
 **Still unlooked-at:** the honest retrains, both reference-rank campaigns, the
 21 identity gates, and the promoted adapters now shipping.
 
+#### Ten of the shipping adapters have now been heard, blind — 2026-09-12
+
+`shipping_voices_listening_20260912.json`. The gap this goal names last —
+*"the promoted adapters now shipping"* — was listened to for the first time:
+ten promoted adapters chosen to span the identity gate's ECAPA range (0.47 to
+0.73), each presented as the human `ref_sample.wav` beside the gate's own
+`identity_check/check_0.wav` (the exact audio the gate scored, not a fresh
+render), shuffled and labelled A–J with the key held off the page. One rater,
+the project owner, blind to both the names and the scores; 128 kbps MP3
+transcodes; on a phone, headphones not recorded; no free-text notes were left.
+
+| adapter | gate ECAPA | same voice /5 | defect ticked |
+|---|---:|---:|---|
+| husky_tenor_30s_m | 0.47 | 4 | — |
+| breathy_alto_50s_f_fantasy | 0.50 | 5 | — |
+| breathy_tenor_18s_m_supernatural | 0.53 | 3 | **words cut off** |
+| crisp_mezzo_30s_f | 0.56 | 5 | — |
+| breathy_mezzo_20s_f_scifi | 0.60 | **2** | — |
+| gravelly_baritone_50s_m_scifi | 0.63 | 5 | — |
+| husky_baritone_35s_m | 0.66 | 4 | — |
+| warm_bass_50s_m_fantasy | 0.69 | 5 | — |
+| crisp_tenor_20s_m | 0.72 | 5 | — |
+| silky_mezzo_30s_f_supernatural | 0.73 | 5 | — |
+
+Measured: 8 of 10 rated 4–5 as the same person with nothing wrong; the four
+highest-scoring all drew 5 and the lowest-scoring still drew 4. Spearman rho
+between gate ECAPA and the rating is 0.40 (p = 0.26; 0.42 against the
+shipped-adapter ECAPA) — a lean in the expected direction, not a result at
+n = 10. The two failures sit in the *middle* of the score range, and neither
+is something ECAPA can see: a cut-off word is a completion defect (the same
+kind 7.1 found blind in its `very_fast` arm), and an adapter at 0.60 that a
+listener hears as a different person is the case the 2026-09-06 check could
+not reach, because that check only had a +0.3 gap to test.
+
+What this changes: 10 of the ~21 promoted adapters are looked at; 11 are not,
+nor are the honest retrains or the reference-rank campaigns. What it does not
+settle: both failures are one rating each from one rater with no note, so they
+are leads for a second listener — ideally not the owner — rather than
+verdicts. The booth stays up for that; the store keeps every rater apart.
+
+#### The honest retrains, heard as same-line pairs — 2026-09-12
+
+`honest_retrains_listening_20260912.json`. A stronger design than the session
+above: for ten of the `retrain_honest` adapters, one held-out line played
+twice — the person's own recording and the adapter reading the same words —
+with a coin deciding which came first. The rater (project owner, blind to
+names, scores and the coin) said which clip was the human, whether the two
+were the same voice, and what gave the synthetic one away. Desktop, 128 kbps
+MP3, headphones not recorded.
+
+| adapter | role | held-out ECAPA | picked the human | same voice /5 | what was heard |
+|---|---|---:|---|---:|---|
+| husky_tenor_30s_m_literary | control | 0.73 | ✓ | 5 | clean |
+| warm_baritone_40s_m_2 | control | 0.71 | ✓ | 5 | clean |
+| husky_baritone_20s_m_anime | failure | 0.69 | ✓ | **1** | "went into a doomloop" — robotic, cracking, cut off, noise, mumbled |
+| warm_baritone_40s_m_fantasy | failure | 0.67 | **✗** | **1** | "one is female and the other is male" |
+| warm_tenor_25s_m_military | failure | 0.65 | can't tell | 5 | clean |
+| breathy_tenor_18s_m_supernatural | failure | 0.54 | ✓ | **1** | wrong sex, "said tongue incorrectly" |
+| warm_tenor_20s_m | control | **0.38** | ✓ | **1** | "one is female and the other is male" |
+| velvety_mezzo_30s_f_gothic | failure | **0.20** | **✗** | 5 | clean |
+| warm_alto_50s_f_gothic | — | — | ✓ | 5 | clean |
+| silky_baritone_45s_m | — | — | ✓ | 5 | clean |
+
+Measured: 7 of 10 human clips identified, 2 wrong, 1 undecidable. Six pairs
+rated 5/5 the same voice; four rated 1/5. **Three renders came out the wrong
+sex** for the person on the same line, and one looped into noise. Measured
+against the metric: the adapter with the LOWEST held-out ECAPA in the study
+(0.20) was rated 5/5 and its render was taken for the human; two adapters at
+0.67 and 0.69 — above the 0.45 gate — were rated 1/5 with a defect no listener
+could miss. Only the control that collapsed to 0.38 was caught by both the
+metric and the ear.
+
+Inference: on these ten, held-out ECAPA and a listener disagree in both
+directions, which is a stronger form of what the first session found (rho
+0.40 at n = 10). The metric separates catastrophic collapse from working; it
+does not see a wrong-sex render or a looping one, which are the two failures
+that end an audiobook. Not settled: each is one render at one seed, so "this
+adapter is broken" and "this render was" are not yet separated — a second
+seed on the four 1/5 pairs is the next cheap step — and a pitch check on the
+three wrong-sex pairs would say whether the adapter learned another speaker
+from a multi-voice source (memory `lora_datasets_are_tone_mixtures`) or the
+render simply drifted.
+
+Both sessions together: 20 pairs heard, 4 defects found that no number in
+this document reports, one rater. **Still OPEN**; the remaining unheard sets
+are the 11 other promoted adapters, the 12 other honest retrains, both
+reference-rank campaigns and the 21 gates.
+
+
+
 **The gates could not be looked at, and now can.** `verify_adapter_identity.py`
 records one number and a verdict - `median_ecapa`, `passed` - with no rows and
 no clip paths, so nothing said which audio a gate had scored. The audio was

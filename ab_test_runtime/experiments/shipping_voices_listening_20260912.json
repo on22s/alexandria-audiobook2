@@ -1,0 +1,129 @@
+{
+ "what": "blind listening: ten promoted adapters, human reference vs identity-gate render (check_0)",
+ "page": "https://claude.ai/code/artifact/49221a2b-7cd8-4bdf-a488-a7dd054002f2",
+ "rated_at": "2026-09-12T18:40-18:45Z",
+ "rater": "project owner, blind to slot identity and to scores",
+ "device": "Android phone (user agent recorded per row); speaker/headphones not recorded",
+ "clip_format": "128 kbps MP3 transcodes of ref_sample.wav and identity_check/check_0.wav",
+ "shuffle_seed": 20260912,
+ "rows": [
+  {
+   "slot": "D",
+   "adapter": "husky_tenor_30s_m",
+   "gate_ecapa": 0.4662,
+   "shipped_ecapa": 0.4363,
+   "same_voice_1to5": 4,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "J",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "gate_ecapa": 0.5034,
+   "shipped_ecapa": 0.2913,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "B",
+   "adapter": "breathy_tenor_18s_m_supernatural",
+   "gate_ecapa": 0.5271,
+   "shipped_ecapa": 0.3973,
+   "same_voice_1to5": 3,
+   "artifacts": [
+    "cutoff"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "H",
+   "adapter": "crisp_mezzo_30s_f",
+   "gate_ecapa": 0.5613,
+   "shipped_ecapa": 0.4581,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "A",
+   "adapter": "breathy_mezzo_20s_f_scifi",
+   "gate_ecapa": 0.5955,
+   "shipped_ecapa": 0.4861,
+   "same_voice_1to5": 2,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "C",
+   "adapter": "gravelly_baritone_50s_m_scifi",
+   "gate_ecapa": 0.634,
+   "shipped_ecapa": 0.6336,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "I",
+   "adapter": "husky_baritone_35s_m",
+   "gate_ecapa": 0.6591,
+   "shipped_ecapa": 0.5864,
+   "same_voice_1to5": 4,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "G",
+   "adapter": "warm_bass_50s_m_fantasy",
+   "gate_ecapa": 0.6889,
+   "shipped_ecapa": 0.6804,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "E",
+   "adapter": "crisp_tenor_20s_m",
+   "gate_ecapa": 0.7218,
+   "shipped_ecapa": 0.6396,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  },
+  {
+   "slot": "F",
+   "adapter": "silky_mezzo_30s_f_supernatural",
+   "gate_ecapa": 0.7331,
+   "shipped_ecapa": 0.7176,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": ""
+  }
+ ],
+ "spearman_gate_ecapa_vs_same_voice": {
+  "rho": 0.398,
+  "p": 0.255
+ },
+ "spearman_shipped_ecapa_vs_same_voice": {
+  "rho": 0.418,
+  "p": 0.229
+ }
+}
