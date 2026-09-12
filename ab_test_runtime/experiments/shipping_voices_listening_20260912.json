@@ -35,10 +35,14 @@
    "gate_ecapa": 0.5271,
    "shipped_ecapa": 0.3973,
    "same_voice_1to5": 3,
-   "artifacts": [
-    "cutoff"
-   ],
-   "notes": ""
+   "artifacts": [],
+   "notes": "The HUMAN reference clip (ref_sample.wav) starts abruptly, mid-word; the render has no defect. (correction, chat 2026-09-12)",
+   "reference_clip_defect": "starts_mid_word",
+   "pitch_check": {
+    "human_median_f0_hz": 110.4,
+    "render_median_f0_hz": 167.8,
+    "semitones": 7.2
+   }
   },
   {
    "slot": "H",
@@ -60,7 +64,12 @@
    "artifacts": [
     "clean"
    ],
-   "notes": ""
+   "notes": "Nothing wrong with the render; the adapter just sounds like a different person. (chat, 2026-09-12)",
+   "pitch_check": {
+    "human_median_f0_hz": 163.9,
+    "render_median_f0_hz": 178.8,
+    "semitones": 1.5
+   }
   },
   {
    "slot": "C",
@@ -104,7 +113,12 @@
    "artifacts": [
     "clean"
    ],
-   "notes": ""
+   "notes": "",
+   "pitch_check": {
+    "human_median_f0_hz": 175.7,
+    "render_median_f0_hz": 210.1,
+    "semitones": 3.1
+   }
   },
   {
    "slot": "F",
@@ -125,5 +139,8 @@
  "spearman_shipped_ecapa_vs_same_voice": {
   "rho": 0.418,
   "p": 0.229
- }
+ },
+ "corrections": [
+  "2026-09-12: slot B's 'words cut off' belongs to the human reference clip, which STARTS mid-word (the transcript opens 'AH ... VAMPIRE'); the render has no defect. Artifacts for that row cleared."
+ ]
 }

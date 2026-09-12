@@ -603,6 +603,75 @@ model got right. PR #535 scores such a window row by row and leaves only the
 rejected line unanswered. It changes the harness fingerprint, so it was held
 back until this table was complete rather than mixing two instruments in it.
 
+#### The shipped path on the same gold: the gap between instruments is the window — 2026-09-12
+
+The entry above ends with "nobody has yet run the *shipped* attribution path
+on the current four-book gold to say which instrument is closer to what a
+listener gets." It has now been run, locally, on the RX 9070 XT, and the
+question of what separates the two instruments has an answer.
+
+Three runs, one server, one adapter, the same four gold files (same sha256s as
+the campaign table): `/usr/bin/llama-server` serving the same
+`Qwen3-14B-Q4_K_M.gguf` bytes as the cloud evals, `adapter_mixed.gguf` (the
+Qwen "mixed" seed-1 adapter, 58.3 pooled in the table above), temperature 0,
+reasoning budget 0, the base and LoRA arms toggling the adapter on one server.
+The harness is the in-repo `lora_serving_eval.py`, which drives the app's own
+attribution code — **no JSON-schema grammar** — and its `--batch-size` is the
+number of segmented entries per request, i.e. the window the model sees.
+Batch 25 is the shipped configuration. Batch 1 is the cloud harness's window
+with the grammar removed, so the two runs together separate the window from
+the grammar. Artifacts:
+`lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json`
+and `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json`.
+
+| harness | window | grammar | base | mixed adapter | paired lift |
+|---|---:|---|---:|---:|---:|
+| in-repo, **shipped path** | 25 entries | none | **60.9** | **68.8** | +7.8 (+126/−66, p = 1.8e-5) |
+| in-repo | 1 entry | none | 45.7 | 59.5 | +13.8 (+132/−26, p = 2.8e-18) |
+| cloud, schema-checked (table above) | 1 entry | JSON schema | 44.3 | 58.3 | +14.0 |
+
+Per book, shipped path (base / adapter): grimgar03 72.7 / **82.6**, index18
+65.9 / 65.9, mushoku16 54.9 / 69.2, owarimonogatari3 35.2 / 37.0. At batch 1
+the same server reads grimgar03 53.8 / 74.5, index18 53.4 / 58.0, mushoku16
+42.1 / 51.9, owarimonogatari3 25.3 / 30.9. Against the cloud run that is
+identical on grimgar03's base arm (53.8 both) and within 1.1 points on
+index18, while mushoku16 and owarimonogatari3 read 2.5–4.5 points higher
+locally on both arms — the two books where the grammar, the llama.cpp build
+or the harness differ enough to show.
+
+**What the numbers say, kept apart from what they measure:**
+
+- **The 16-point gap between the campaign table and the shipped product is
+  window context, not the grammar.** Measured: shrinking the window from 25
+  entries to 1 costs the base arm 15.2 points and the adapter 9.3; the
+  grammar on top of that costs 1.2–1.4 more, inside what a different
+  llama.cpp build and harness could account for. Every figure in the campaign
+  table is a claim about a model shown one line with prev/next context, which
+  the product never does. The table's *ordering* of adapters is unaffected
+  by this — every adapter there was scored on the same window — but its
+  absolute figures should not be quoted as what a listener gets.
+- **The adapter's lift shrinks when it has context.** +13.8 at batch 1,
+  +7.8 at batch 25. An inference, offered as one: part of what the adapter
+  learned is to compensate for a missing window, so the single-line harness
+  makes every adapter look larger than it is in the product. It is still a
+  real lift on the shipped path, and on the shipped path grimgar03 with the
+  adapter is the first book to clear 75 on the current gold. That is one of
+  four; the target line's "two of four" still rests on the old gold.
+- **The shipped window has its own failure mode.** At batch 25 the harness
+  hit `max_tokens=2000` truncations on mushoku16 and owarimonogatari3 and
+  left 24 base / 27 LoRA rows unanswered across the four books, against
+  9 / 6 at batch 1; the strict shared-row view (727 rows) reads 63.3 / 71.5,
+  the same +8.2. Owarimonogatari3 took 1,593 s for its base arm at batch 25
+  — the whole batch-1 run of all four books took 13 minutes, the batch-25 run
+  99. Long windows on a hard book cost retries as well as accuracy.
+- **This does not change which model to ship.** One model, one adapter,
+  one seed on the shipped path; nothing here ranks Qwen against Gemma or
+  Muse at batch 25. It says only that the campaign harness under-reads the
+  product by roughly 15 points on the base arm and 9 on the adapter, and
+  that the correction is the window, so a batch-25 rerun of the campaign's
+  top adapters is the comparison that would settle the ranking for the
+  product rather than for the harness.
+
 ### 1.3 Generalisation beyond the four books
 
 > **What this is.** Checking the app works on novels it has never encountered,
@@ -2878,6 +2947,42 @@ did not separate the paths.
 
 Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
 `app/experiments/generation_realtime_rate.py`.
+
+**The adapter cost is the unmerged forward pass, and merging removes it —
+2026-09-12.** `tts._init_local_lora` wraps the talker in
+`PeftModel.from_pretrained` and leaves it there, so every decoder step
+computes `W·x + B·A·x` for every targeted module. `peft`'s `merge_and_unload`
+folds `B·A` into `W` once. Same engine, same adapter
+(`breathy_alto_50s_f_fantasy`), same seed, same six lines, three arms in one
+process on the RX 9070 XT — `app/experiments/lora_merge_speed_probe.py`:
+
+| arm | n | median | worst | best |
+|---|---:|---:|---:|---:|
+| LoRA unmerged (as shipped) | 6 | **1.250x** | 1.272x | 1.226x |
+| LoRA merged | 6 | **0.835x** | 0.844x | 0.828x |
+| stock voice, no adapter | 6 | 0.928x | 1.005x | 0.828x |
+
+The merge itself took 0.03 s. Merged, the adapter path runs at the stock
+model's speed and inside this goal's target on both the median and the worst
+case; unmerged it reproduces the 1.23x measured over 4,251 clips above, so
+the six lines are standing in for the production figure rather than
+contradicting it. A second, one-line run sixteen minutes later
+(`lora_merge_speed_probe__9070xt-20260912-fixed.json`) reads 1.241x / 0.826x / 0.821x. n = 6 on one adapter: the *ordering* and the
+size of the gap are what this measures; the third decimal is not.
+
+What this does not yet show: that the merged model's audio is the same. The
+probe keeps every wav (`lora_merge_speed_probe__9070xt-20260912_wavs/`, not
+committed) and they have not been compared. `merge_and_unload` is
+mathematically the same forward pass in exact arithmetic; in bfloat16 it is
+not guaranteed to be bit-identical, and the engine already reloads the base
+model whenever the adapter changes, so a merged talker cannot be un-merged
+without that reload. Closing this goal is a change to `tts.py` plus a
+listening or waveform check on the merged output, not this probe. It is not
+in this entry.
+
+Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.json`
+(six lines),
+`lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
 
 ---
 

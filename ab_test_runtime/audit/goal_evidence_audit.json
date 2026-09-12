@@ -1,10 +1,9 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 15,
+ "goals_scored": 16,
  "goals_citing_no_artifact": [
   "2.5",
   "3.1",
-  "4.1",
   "6.6",
   "7.2",
   "2.2",
@@ -24,16 +23,16 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 7,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
     "supported_structure": 2,
     "exploratory": 1,
-    "provisional": 4
+    "provisional": 6
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 4,
    "no_commit": 1,
    "artifacts": [
     {
@@ -59,6 +58,18 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "be3e7ead"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "6ed99112"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "6ed99112"
     },
     {
      "name": "two_stage_attribution_w16000.json",
@@ -356,6 +367,27 @@
     },
     {
      "name": "japanese_accent_calibration_key.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    }
+   ]
+  },
+  {
+   "goal": "4.1",
+   "title": "Faster than real time",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 1
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 1,
+   "artifacts": [
+    {
+     "name": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
