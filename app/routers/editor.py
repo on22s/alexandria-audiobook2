@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from config_settings import load_app_config
 
 from core import (
@@ -242,7 +242,7 @@ class ChapterExportRequest(BaseModel):
     format: str = "mp3"
     per_chunk_chapters: bool = False
     template: str = DEFAULT_CHAPTER_TEMPLATE
-    padding: int = 2
+    padding: int = Field(2, ge=0, le=6)
     book_name: str = ""
     series_name: str = ""
     volume_number: str = ""
@@ -259,8 +259,6 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
-    if not 0 <= request.padding <= 6:
-        raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
     claim_gpu_task("chapter_export")
     state = process_state["chapter_export"]
 
@@ -304,10 +302,12 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
     """The filenames an export would produce, without decoding any audio."""
     if format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
+    if not 0 <= padding <= 6:
+        raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
     return {"fields": list(CHAPTER_TEMPLATE_FIELDS),
             "chapters": project_manager.preview_chapter_filenames(
                 fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
-                padding=max(0, min(padding, 6)), book_name=book_name,
+                padding=padding, book_name=book_name,
                 series_name=series_name, volume_number=volume_number)}
 
 

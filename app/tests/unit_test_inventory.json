@@ -303,8 +303,10 @@
     "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_fail_mode_gives_the_chunk_up_and_never_signals",
     "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_for_operator_prints_the_marker_the_app_watches_for",
     "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_mode_freezes_then_retries_with_a_fresh_budget",
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_resume_keeps_quality_feedback_and_attempt_history",
     "tests.test_auto_pause_on_api_exhaustion.ConfigTests.test_default_is_fail_and_pause_is_accepted",
     "tests.test_auto_pause_on_api_exhaustion.ConfigTests.test_other_values_are_rejected",
+    "tests.test_auto_pause_on_api_exhaustion.FrontendAutoPauseTests.test_batch_pollers_sync_pause_button_and_prefixed_markers_notify",
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_marker_sets_paused_and_the_resume_line_clears_it",
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_ordinary_output_leaves_paused_alone"
   ],
@@ -504,6 +506,7 @@
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
   ],
   "test_chapter_export": [
+    "tests.test_chapter_export.ExportChaptersTests.test_changed_only_decodes_only_the_changed_chapter",
     "tests.test_chapter_export.ExportChaptersTests.test_grouping_matches_the_m4b_grouping",
     "tests.test_chapter_export.ExportChaptersTests.test_preview_needs_no_audio_and_matches_the_export_names",
     "tests.test_chapter_export.ExportChaptersTests.test_subset_and_cancel",
@@ -513,6 +516,7 @@
     "tests.test_chapter_export.FilenameTemplateTests.test_every_field_and_padding_widths",
     "tests.test_chapter_export.FilenameTemplateTests.test_filesystem_hostile_titles_cannot_escape_or_break",
     "tests.test_chapter_export.FilenameTemplateTests.test_unknown_fields_and_empty_titles_still_yield_a_name",
+    "tests.test_chapter_export.RouteTests.test_preview_rejects_the_same_invalid_padding_as_export",
     "tests.test_chapter_export.RouteTests.test_zip_404s_when_nothing_is_exported_and_serves_only_listed_files"
   ],
   "test_character_distinctiveness": [

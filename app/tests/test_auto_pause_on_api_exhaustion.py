@@ -70,6 +70,35 @@ class AutoPauseTests(unittest.TestCase):
         self.assertEqual([], out)
         self.assertEqual([GOOD], remaining)
 
+    def test_resume_keeps_quality_feedback_and_attempt_history(self):
+        client, _ = _client([GOOD, RATE_LIMITED("429"), GOOD])
+        requests, attempts = [], []
+        original_create = client.chat.completions.create
+
+        def create(**kwargs):
+            requests.append(kwargs)
+            return original_create(**kwargs)
+
+        client.chat.completions.create = create
+        quality_calls = 0
+
+        def validate(entries):
+            nonlocal quality_calls
+            quality_calls += 1
+            return {"passed": quality_calls > 1,
+                    "findings": [{"code": "forced_rejection", "message": "add detail"}],
+                    "metrics": {}}
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(gs, "REPO", tmp, create=True), \
+                patch.object(os, "kill", lambda *_args: None):
+            out = gs.call_llm_for_entries(
+                client, "m", "sys", "user", _params("pause"), log_name="t.log",
+                label="T", max_retries=1, validate_entries=validate,
+                attempt_observer=attempts.append)
+        self.assertEqual(GOOD, out)
+        self.assertEqual([1, 2, 3], [row["attempt"] for row in attempts])
+        self.assertIn("Failures: add detail", requests[2]["messages"][1]["content"])
+
     def test_pause_for_operator_prints_the_marker_the_app_watches_for(self):
         import io
         from contextlib import redirect_stdout
@@ -105,6 +134,17 @@ class ReaderMirrorsTheMarkerTests(unittest.TestCase):
     def test_ordinary_output_leaves_paused_alone(self):
         rc, state = self._stream("print('chunk 3/40 ok')")
         self.assertFalse(state["paused"])
+
+
+class FrontendAutoPauseTests(unittest.TestCase):
+    def test_batch_pollers_sync_pause_button_and_prefixed_markers_notify(self):
+        source_path = os.path.join(os.path.dirname(__file__), "..", "static", "js", "app-core.js")
+        with open(source_path, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("syncPauseButton('batch_script', state);", source)
+        self.assertIn("syncPauseButton('batch_review', state);", source)
+        self.assertIn("l.includes('[AUTO-PAUSE]')", source)
+        self.assertIn("_autoPauseNotified[taskName] = false;", source)
 
 
 class ConfigTests(unittest.TestCase):
