@@ -228,7 +228,14 @@ def get_deterministic_named_entry(entry):
 class PassExhausted(Exception):
     """A pass-2/3 batch could not produce valid output within its retry budget.
     In testing mode (on_exhaustion='fail') this aborts the book so the real
-    failure rate is visible."""
+    failure rate is visible. `last_entries` is the final attempt's parsed
+    response (or None): it failed validation, so it must never be used as a
+    result, but an evaluator may score it row by row rather than lose the
+    whole window."""
+
+    def __init__(self, *args, last_entries=None):
+        super().__init__(*args)
+        self.last_entries = last_entries
 
 
 def build_attribute_request(frozen_batch, params, roster,
@@ -262,6 +269,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     validated = {}
 
     def validate(entries):
+        validated["last"] = entries
         report = validate_attribution(frozen_batch, entries, source_text)
         if report["passed"]:
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
@@ -303,7 +311,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
     if on_exhaustion == "fail":
-        raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
+        raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch",
+                            last_entries=validated.get("last"))
     seeded = [{**{k: v for k, v in e.items() if k != "type"},
                "speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN"}
               for e in frozen_batch]
