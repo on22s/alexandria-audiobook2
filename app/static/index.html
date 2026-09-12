@@ -642,6 +642,11 @@
                                 <textarea class="form-control font-monospace" id="tts-external-urls" rows="2" placeholder="http://127.0.0.1:7860&#10;http://127.0.0.1:7861"></textarea>
                                 <div class="form-text">Batch rendering spreads lines across these servers, <em>parallel workers</em> per server. Empty = just the URL above.</div>
                             </div>
+                            <div class="col-md-4" id="tts-external-timeout-group">
+                                <label class="form-label" for="tts-external-timeout">External call timeout (s)</label>
+                                <input type="number" class="form-control" id="tts-external-timeout" min="10" max="3600" step="10" value="300">
+                                <div class="form-text">A line that takes longer than this on an external server is failed, not waited on.</div>
+                            </div>
                             <div class="col-md-4" id="tts-device-group" style="display:none;">
                                 <label class="form-label">Device</label>
                                 <select class="form-select" id="tts-device">
@@ -793,6 +798,46 @@
                                 <label class="form-check-label" for="merge-narrators">Merge consecutive narrator lines</label>
                                 <div class="form-text">During script review, combine adjacent NARRATOR entries that share the same instruct into a single longer entry. Disable for better per-line voice direction control.</div>
                             </div>
+                            <details class="mb-3">
+                                <summary class="text-muted small">Three-pass generation &amp; context rescue</summary>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-chunk-size">Three-pass chunk size (chars)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="12000" step="100" value="3000">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-segment-output-ratio" min="1.25" max="6" step="0.25" value="3">
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <label class="form-check d-inline-flex align-items-center mb-1">
+                                            <input type="checkbox" class="form-check-input me-1" id="tp-presegment-quotes" checked>
+                                            <small>Pre-segment quotes</small>
+                                        </label>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-segment-temperature">Segment temperature</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-segment-temperature" min="0" max="2" step="0.05" value="0.1">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-temperature">Attribute temperature</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-temperature" min="0" max="2" step="0.05" value="0.1">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-instruct-temperature">Instruct temperature</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-instruct-temperature" min="0" max="2" step="0.05" value="0.1">
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small mb-1" for="context-rescue-windows">Context rescue windows (chars, comma-separated)</label>
+                                        <input type="text" class="form-control form-control-sm font-monospace" id="context-rescue-windows" value="2000, 4000, 6000">
+                                        <div class="form-text">When a line cannot be attributed from its chunk, it is retried with this much surrounding text, smallest first.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="context-rescue-retries">Rescue retries per window</label>
+                                        <input type="number" class="form-control form-control-sm" id="context-rescue-retries" min="0" max="10" step="1" value="2">
+                                    </div>
+                                </div>
+                            </details>
                             <div class="mb-3">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div class="form-check form-switch mb-0">

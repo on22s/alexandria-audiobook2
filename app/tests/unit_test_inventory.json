@@ -701,6 +701,11 @@
     "tests.test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
   ],
+  "test_config_save_keeps_unsent_fields": [
+    "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_a_field_sent_at_its_default_value_is_applied_not_kept",
+    "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_hand_set_three_pass_and_rescue_values_survive_a_save_that_omits_them",
+    "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_keep_unsent_fields_ignores_unknown_saved_keys"
+  ],
   "test_constant_predictions_are_rejected": [
     "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_a_constant_answer_is_rejected",
     "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_a_small_arm_is_not_judged",
