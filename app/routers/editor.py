@@ -25,6 +25,7 @@ from core import (
     project_manager,
 )
 from utils import safe_load_json
+from project import CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS, DEFAULT_CHAPTER_TEMPLATE
 import voice_drift
 
 
@@ -236,6 +237,126 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
 
     background_tasks.add_task(task)
     return {"status": "started"}
+
+class ChapterExportRequest(BaseModel):
+    format: str = "mp3"
+    per_chunk_chapters: bool = False
+    template: str = DEFAULT_CHAPTER_TEMPLATE
+    padding: int = 2
+    book_name: str = ""
+    series_name: str = ""
+    volume_number: str = ""
+    chapters: Optional[List[int]] = None     # indices to export; None = all
+    changed_only: bool = False
+
+
+def _chapter_export_dir():
+    return os.path.join(DATA_DIR, CHAPTER_EXPORT_DIR)
+
+
+@router.post("/api/export_chapters")
+async def export_chapters(request: ChapterExportRequest, background_tasks: BackgroundTasks):
+    """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
+    if request.format not in ("mp3", "wav"):
+        raise HTTPException(status_code=400, detail="format must be mp3 or wav")
+    if not 0 <= request.padding <= 6:
+        raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
+    claim_gpu_task("chapter_export")
+    state = process_state["chapter_export"]
+
+    def task():
+        state["cancel"] = False
+        state["logs"] = ["Starting chapter export..."]
+        try:
+            success, msg = project_manager.export_chapters(
+                fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
+                template=request.template, padding=request.padding,
+                book_name=request.book_name, series_name=request.series_name,
+                volume_number=request.volume_number, chapters=request.chapters,
+                changed_only=request.changed_only,
+                progress_callback=lambda m: state["logs"].append(m),
+                cancel_check=lambda: state["cancel"])
+            state["logs"].append(f"Export complete: {msg}" if success else f"Export failed: {msg}")
+        except Exception as e:
+            state["logs"].append(f"Export error: {e}")
+        finally:
+            state["running"] = False
+            state["cancel"] = False
+
+    background_tasks.add_task(task)
+    return {"status": "started"}
+
+
+@router.post("/api/export_chapters/cancel")
+async def cancel_chapter_export():
+    state = process_state["chapter_export"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No chapter export is running.")
+    state["cancel"] = True
+    return {"status": "cancelling"}
+
+
+@router.get("/api/export_chapters/preview")
+async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: bool = False,
+                                    template: str = DEFAULT_CHAPTER_TEMPLATE, padding: int = 2,
+                                    book_name: str = "", series_name: str = "",
+                                    volume_number: str = ""):
+    """The filenames an export would produce, without decoding any audio."""
+    if format not in ("mp3", "wav"):
+        raise HTTPException(status_code=400, detail="format must be mp3 or wav")
+    return {"fields": list(CHAPTER_TEMPLATE_FIELDS),
+            "chapters": project_manager.preview_chapter_filenames(
+                fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
+                padding=max(0, min(padding, 6)), book_name=book_name,
+                series_name=series_name, volume_number=volume_number)}
+
+
+@router.get("/api/chapter_exports")
+async def list_chapter_exports():
+    manifest = safe_load_json(os.path.join(_chapter_export_dir(), "manifest.json"), {}) or {}
+    rows = []
+    for row in manifest.get("chapters", []):
+        path = os.path.join(_chapter_export_dir(), row.get("file", ""))
+        rows.append({**row, "exists": os.path.isfile(path),
+                     "bytes": os.path.getsize(path) if os.path.isfile(path) else 0})
+    return {**manifest, "chapters": rows}
+
+
+def _exported_chapter_path(name):
+    safe = os.path.basename(name)
+    path = os.path.join(_chapter_export_dir(), safe)
+    if safe != name or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="No such exported chapter")
+    return path, safe
+
+
+@router.get("/api/chapter_exports/file/{name}")
+async def download_chapter(name: str):
+    path, safe = _exported_chapter_path(name)
+    media = "audio/mpeg" if safe.lower().endswith(".mp3") else "audio/wav"
+    return FileResponse(path, filename=safe, media_type=media)
+
+
+@router.get("/api/chapter_exports/zip")
+async def download_chapters_zip(names: Optional[str] = None):
+    """All exported chapters, or the comma-separated `names`, in one zip."""
+    import io
+    import zipfile
+    manifest = safe_load_json(os.path.join(_chapter_export_dir(), "manifest.json"), {}) or {}
+    wanted = set(n for n in (names or "").split(",") if n) or None
+    members = [(row["file"]) for row in manifest.get("chapters", [])
+               if (wanted is None or row["file"] in wanted)
+               and os.path.isfile(os.path.join(_chapter_export_dir(), row["file"]))]
+    if not members:
+        raise HTTPException(status_code=404, detail="No exported chapters found. Export first.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:   # already-compressed audio
+        for name in members:
+            zf.write(os.path.join(_chapter_export_dir(), name), name)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": "attachment; filename=chapters.zip"})
+
 
 @router.get("/api/audiobook_m4b")
 async def get_audiobook_m4b():
