@@ -595,16 +595,16 @@
   {
    "goal": "6.5",
    "title": "Someone has looked at the audio",
-   "cited": 3,
+   "cited": 4,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
     "supported_structure": 2,
-    "exploratory": 1
+    "exploratory": 2
    },
    "dirty_artifacts": 2,
-   "no_commit": 1,
+   "no_commit": 2,
    "artifacts": [
     {
      "name": "audio_views.json",
@@ -620,6 +620,12 @@
     },
     {
      "name": "listening_verdicts.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "shipping_voices_listening_20260912.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
