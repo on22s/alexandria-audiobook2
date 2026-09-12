@@ -1062,6 +1062,30 @@ answers behind the same 0.05 margin. It overrode 78 rows, gained 8, and lost 20:
 unchanged. This rejects cheap nearest-profile LUAR reranking; it does not test
 the paper's substantially larger jointly trained BookNLP integration.
 
+**The "sixth author" was already in the artifacts — 2026-09-12.** The Austen
+comparison above ends by saying a sixth author remains untested. It does not:
+`adapter_author_heldout_balanced` excluded Austen, Chopin **and Doyle** from
+training, and the 2,494-row result at the top of this section pools two books
+by those other two authors. Read per book from
+`pdnc_new_adapter_adapter_author_heldout_balanced_full_b5.json`:
+
+| held-out author | book | rows | base | balanced | delta |
+|---|---|---:|---:|---:|---:|
+| Doyle | The Sign of the Four | 640 | 65.8 | 79.4 | **+13.6** |
+| Chopin | The Awakening | 584 | 82.7 | 94.9 | **+12.2** |
+| Austen | Pride and Prejudice | 1,270 | 79.3 | 91.3 | +12.0 |
+
+Doyle's roster was clean (the `_group`/`_unknowable` defect recorded above
+touched only *The Awakening*), so +13.6 on *The Sign of the Four* is a
+held-out-author number with no caveat, on the hardest base rate of the three.
+Measured: the adapter's gain on two non-Austen authors it never saw (+12.2,
++13.6) matches its gain on Austen (+12.0 here, +9.4 across the five) and on
+its own training novels (+9.3). Inferred: the transfer is not tied to the
+Austen register. What this still leaves open is unchanged from before —
+Chopin's number carries the roster caveat, all three books are the
+top-third-easy ones, and the 25-book base-model gap (71.0 vs 83.6) is a
+statement about the base model, which no adapter measurement here addresses.
+
 #### Adapters trained on nothing but PDNC transfer to the light novels — 2026-09-12
 
 The 1.3 question has so far been asked in one direction: does what was built
