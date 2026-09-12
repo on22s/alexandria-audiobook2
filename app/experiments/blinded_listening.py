@@ -25,6 +25,9 @@ class ListeningPackageError(RuntimeError):
     """The source arms cannot support a blinded listening package."""
 
 
+from experiments.instruct_listening import identical_arms
+
+
 def _load_document(path, expected_script=None):
     try:
         with open(path, encoding="utf-8") as handle:
@@ -88,6 +91,14 @@ def _source_groups(instruction_doc, casting_doc, control_doc):
         if set(files or {}) != {"none", "per_char", "per_line"}:
             raise ListeningPackageError(
                 f"instruction comparison {index} has wrong arms")
+        # Two arms that are the same bytes cannot be compared by a listener.
+        # The 2026-08-22 package carried four such sets and a person rated
+        # them; the source now records this, and the package refuses it.
+        hollow = identical_arms({arm: os.path.join(REPO, path)
+                                 for arm, path in files.items()})
+        if hollow:
+            raise ListeningPackageError(
+                f"instruction comparison {index} has identical renders for {hollow}")
         groups.append({"kind": "instruction_delivery",
                        "source_id": f"instruction_{index:02d}",
                        "arms": dict(files)})

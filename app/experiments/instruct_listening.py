@@ -54,6 +54,36 @@ def get_character_instruction(entry, speaker):
     return constant_for(speaker)
 
 
+def arm_requests(entry, per_char, per_line):
+    """The instruction and voice entry each arm actually sends.
+
+    The engine folds the entry's own `character_style`/`default_style` into
+    EVERY request (`tts.generate_lora_voice`, `_local_generate_custom`), so an
+    arm that passed "" as its instruction was not "none" - it was the standing
+    direction, and the "per_char" arm was that same direction sent twice. The
+    2026-08-22 listening session rated four sets in which those two arms were
+    byte-identical files (goal 7.1). Each arm here clears the entry's styles
+    and states its whole instruction explicitly, so "none" is silence,
+    "per_char" is the standing direction once, and "per_line" is the
+    annotator's line direction once.
+    """
+    bare = {k: v for k, v in entry.items()
+            if k not in ("character_style", "default_style")}
+    return {"none": ("", bare),
+            "per_char": (per_char, bare),
+            "per_line": (per_line, bare)}
+
+
+def identical_arms(arm_files):
+    """Arm names whose rendered bytes match another arm's: a hollow comparison."""
+    import hashlib
+    digests = {}
+    for arm, path in arm_files.items():
+        with open(path, "rb") as fh:
+            digests.setdefault(hashlib.sha256(fh.read()).hexdigest(), []).append(arm)
+    return sorted(arm for arms in digests.values() if len(arms) > 1 for arm in arms)
+
+
 def pick_lines(script_path, speaker, count):
     """Lines whose instruction actually asks for something.
 
@@ -142,13 +172,13 @@ def main():
         per_char = get_character_instruction(entry, speaker)
 
         pieces, rate, arms_done, arm_files = [], None, [], {}
+        requests = arm_requests(entry, per_char, instruct)
         for arm in ARMS:
-            text_instruct = {"none": "", "per_char": per_char,
-                             "per_line": instruct}[arm]
+            text_instruct, arm_entry = requests[arm]
             wav = os.path.join(args.out_dir, f"line{n}_{arm}.wav")
             try:
                 render(engine, chunk["text"], text_instruct, speaker, vc,
-                       entry, wav)
+                       arm_entry, wav)
             except GenerationFailed as exc:
                 print(f"  line {n} {arm}: FAILED {str(exc)[:60]}")
                 published = False
@@ -173,12 +203,18 @@ def main():
         if len(arms_done) != len(ARMS):
             print(f"  line {n}: DROPPED, only {arms_done} rendered")
             continue
+        hollow = identical_arms({a: os.path.join(REPO, f) for a, f in arm_files.items()})
+        if hollow:
+            # Two arms that produced the same bytes cannot be compared by
+            # anyone; record it and refuse to call the source complete.
+            print(f"  line {n}: HOLLOW, identical renders for {hollow}")
+            published = False
         joined = os.path.join(args.out_dir, f"compare_line{n}.wav")
         sf.write(joined, np.concatenate(pieces), rate or 24000)
         manifest.append({"line": n, "speaker": speaker,
                          "text": chunk["text"], "per_line_instruct": instruct,
                          "per_char_instruct": per_char, "arms": list(ARMS),
-                         "arm_files": arm_files,
+                         "arm_files": arm_files, "identical_arms": hollow,
                          "file": os.path.relpath(joined, REPO)})
         print(f"  line {n} [{speaker}] {instruct[:44]:46} -> "
               f"{os.path.basename(joined)}")
