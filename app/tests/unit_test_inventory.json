@@ -414,6 +414,7 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_failed_manifest_write_removes_all_new_outputs",
     "tests.test_blinded_listening.BlindedListeningTests.test_input_hashes_fail_loudly_for_missing_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_rejects_asymmetric_casting_arms",
+    "tests.test_blinded_listening.BlindedListeningTests.test_rejects_instruction_arms_that_rendered_the_same_bytes",
     "tests.test_blinded_listening.BlindedListeningTests.test_rejects_source_without_provenance",
     "tests.test_blinded_listening.BlindedListeningTests.test_rejects_truncated_wav_during_full_decode",
     "tests.test_blinded_listening.BlindedListeningTests.test_response_analysis_rejects_missing_listener_and_rating",
@@ -1536,6 +1537,9 @@
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
   ],
   "test_instruct_listening": [
+    "tests.test_instruct_listening.ArmRequestTests.test_every_arm_strips_the_styles_the_engine_would_re_add",
+    "tests.test_instruct_listening.ArmRequestTests.test_identical_renders_are_named_and_distinct_ones_are_not",
+    "tests.test_instruct_listening.ArmRequestTests.test_the_three_arms_send_three_different_instructions",
     "tests.test_instruct_listening.CharacterInstructionTests.test_configured_character_style_wins",
     "tests.test_instruct_listening.CharacterInstructionTests.test_missing_style_uses_the_shared_character_constant",
     "tests.test_instruct_listening.CharacterInstructionTests.test_unknown_speaker_still_gets_a_nonempty_arm"

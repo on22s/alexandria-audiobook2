@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,12 +11,12 @@ from experiments import blinded_listening as blind
 from experiments.provenance import file_sha256, input_sha256
 
 
-def write_wav(path, frames=320):
+def write_wav(path, frames=320, sample=b"\x00\x00"):
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(16000)
-        handle.writeframes(b"\x00\x00" * frames)
+        handle.writeframes(sample * frames)
 
 
 def provenance(script):
@@ -32,9 +33,11 @@ class BlindedListeningTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def source(self, name):
+    def source(self, name, sample=None):
         path = self.audio / f"{name}.wav"
-        write_wav(path)
+        # Distinct bytes per file: a fixture whose arms were all the same
+        # silence could never show the hollow-arm refusal failing.
+        write_wav(path, sample=sample or hashlib.sha256(name.encode()).digest()[:2])
         return os.path.relpath(path, blind.REPO)
 
     def documents(self):
@@ -135,6 +138,16 @@ class BlindedListeningTests(unittest.TestCase):
         with self.assertRaisesRegex(blind.ListeningPackageError,
                                     "source artifact changed"):
             blind.validate_package(public_path, key_path, package)
+
+    def test_rejects_instruction_arms_that_rendered_the_same_bytes(self):
+        instruction, casting, controls = self.documents()
+        same = self.source("line0_none_again", sample=b"\x07\x00")
+        instruction["comparisons"][0]["arm_files"]["none"] = same
+        instruction["comparisons"][0]["arm_files"]["per_char"] = self.source(
+            "line0_per_char_again", sample=b"\x07\x00")
+        with self.assertRaisesRegex(blind.ListeningPackageError,
+                                    r"identical renders for \['none', 'per_char'\]"):
+            blind._source_groups(instruction, casting, controls)
 
     def test_rejects_asymmetric_casting_arms(self):
         instruction, casting, controls = self.documents()
