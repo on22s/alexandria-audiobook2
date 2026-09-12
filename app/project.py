@@ -643,7 +643,7 @@ class ProjectManager:
             tts_cfg.get("pause_same_speaker_ms", SAME_SPEAKER_PAUSE_MS),
         )
 
-    def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None):
+    def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None):
         """Load chunks and pair each with its AudioSegment.
 
         Returns (result, skipped_count): result is the list of (chunk, segment)
@@ -651,7 +651,7 @@ class ProjectManager:
         dropped (missing audio_path, missing file, or a failed audio load) so
         callers can report a partial export instead of a silent blanket success.
         """
-        chunks = self.load_chunks()
+        chunks = self.load_chunks() if chunks is None else chunks
         result = []
         skipped = 0
         for position, chunk in enumerate(chunks):
@@ -997,6 +997,95 @@ class ProjectManager:
             chapters.append((title, start_ms, end_ms))
         return chapters
 
+    def _export_changed_chapters(self, fmt, per_chunk_chapters, template, padding,
+                                 book_name, series_name, volume_number, chapters,
+                                 progress_callback=None, cancel_check=None):
+        """Render only changed chapter groups when a complete prior export exists.
+
+        Returning ``None`` asks ``export_chapters`` to use the full-render path:
+        old manifests or incomplete audio cannot safely be incrementally updated.
+        """
+        chunks = self.load_chunks()
+        if not chunks:
+            return None
+        for chunk in chunks:
+            path = chunk.get("audio_path")
+            full_path = os.path.join(self.root_dir, path) if path else ""
+            if not path or not os.path.isfile(full_path):
+                return None
+        groups = self._chapter_groups(chunks, per_chunk_chapters)
+        wanted = set(range(len(groups))) if chapters is None else set(chapters)
+        out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
+        manifest_path = os.path.join(out_dir, "manifest.json")
+        previous = {row.get("index"): row for row in
+                    (safe_load_json(manifest_path, {}) or {}).get("chapters", [])}
+        plans = []
+        for index, (title, first, last) in enumerate(groups):
+            old = previous.get(index)
+            if not old or not os.path.isfile(os.path.join(out_dir, old.get("file", ""))):
+                return None
+            try:
+                old_start, old_end = int(old["start_ms"]), int(old["end_ms"])
+            except (KeyError, TypeError, ValueError):
+                return None
+            filename = build_chapter_filename(
+                template, index + 1, title, fmt, padding=padding,
+                book_name=book_name, series_name=series_name,
+                volume_number=volume_number)
+            fingerprint = self._chapter_fingerprint(chunks[first:last + 1])
+            reuse = (index not in wanted or
+                     (old.get("fingerprint") == fingerprint and old.get("file") == filename
+                      and os.path.isfile(os.path.join(out_dir, filename))))
+            plans.append((index, title, first, last, old, old_start, old_end,
+                          filename, fingerprint, reuse))
+
+        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+        rows, written, reused, offset = [], 0, 0, 0
+        for (index, title, first, last, old, old_start, old_end,
+             filename, fingerprint, reuse) in plans:
+            if cancel_check and cancel_check():
+                return False, "Export cancelled"
+            if reuse:
+                row = dict(old)
+                if offset:
+                    row["start_ms"] = old_start + offset
+                    row["end_ms"] = old_end + offset
+                rows.append(row)
+                if index in wanted:
+                    reused += 1
+                continue
+            pairs, skipped = self._load_chunks_with_audio(
+                cancel_check=cancel_check, chunks=chunks[first:last + 1])
+            if skipped or not pairs:
+                return None
+            piece = combine_audio_with_pauses(
+                [segment for _, segment in pairs], [chunk["speaker"] for chunk, _ in pairs],
+                pause_ms, same_speaker_pause_ms,
+                [chunk.get("pause_after") for chunk, _ in pairs])
+            start_ms = old_start + offset
+            end_ms = start_ms + len(piece)
+            if progress_callback:
+                progress_callback(f"Writing chapter {index + 1}/{len(groups)}: {title[:60]}")
+            path = os.path.join(out_dir, filename)
+            if fmt == "mp3":
+                piece.export(path, format="mp3", bitrate=MP3_BITRATE)
+            else:
+                piece.export(path, format="wav")
+            rows.append({"index": index, "number": index + 1, "title": title,
+                         "file": filename, "start_ms": start_ms, "end_ms": end_ms,
+                         "chunks": [first, last], "fingerprint": fingerprint})
+            offset += len(piece) - (old_end - old_start)
+            written += 1
+
+        atomic_json_write({"format": fmt, "template": template, "padding": padding,
+                           "per_chunk_chapters": per_chunk_chapters,
+                           "book_name": book_name, "series_name": series_name,
+                           "volume_number": volume_number, "chapters": rows}, manifest_path)
+        note = f"{written} chapter file(s) written"
+        if reused:
+            note += f", {reused} unchanged and kept"
+        return True, note
+
     def export_chapters(self, fmt="mp3", per_chunk_chapters=False,
                         template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                         book_name="", series_name="", volume_number="",
@@ -1013,6 +1102,12 @@ class ProjectManager:
         """
         if fmt not in ("mp3", "wav"):
             return False, f"Unsupported format: {fmt}"
+        if changed_only:
+            incremental = self._export_changed_chapters(
+                fmt, per_chunk_chapters, template, padding, book_name, series_name,
+                volume_number, chapters, progress_callback, cancel_check)
+            if incremental is not None:
+                return incremental
         try:
             chunks_with_audio, skipped = self._load_chunks_with_audio(
                 cancel_check=cancel_check,

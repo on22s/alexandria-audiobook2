@@ -473,6 +473,8 @@
           },
           "padding": {
             "default": 2,
+            "maximum": 6.0,
+            "minimum": 0.0,
             "title": "Padding",
             "type": "integer"
           },

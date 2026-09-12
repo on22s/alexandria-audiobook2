@@ -1325,6 +1325,7 @@
                     });
                     logEl.scrollTop = logEl.scrollHeight;
 
+                    syncPauseButton('batch_script', state);
                     if (state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
@@ -1709,6 +1710,7 @@
                 doneCheck: state => !state.running,
                 onTick: state => {
                     if (logEl) { logEl.innerText = (state.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+                    syncPauseButton('batch_review', state);
                     const colours = { pending: 'secondary', running: 'primary', done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
                     (state.tasks || []).forEach(t => {
                         // Map by name (the list shows all scripts; only selected ones are tasks)
@@ -3635,13 +3637,14 @@
                 btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
                 btn.classList.remove('btn-outline-warning');
                 btn.classList.add('btn-outline-success');
-                if (!_autoPauseNotified[taskName] && status.logs.some(l => l.startsWith('[AUTO-PAUSE]'))) {
+                if (!_autoPauseNotified[taskName] && status.logs.some(l => l.includes('[AUTO-PAUSE]'))) {
                     _autoPauseNotified[taskName] = true;
                     showToast(`${TASK_LABELS[taskName] || taskName} paused itself: retries ran out. Fix the provider, then press Resume.`, 'warning', 8000);
                     notifyJobDone(taskName, 'Paused: API retries ran out. Press Resume when the provider is back.');
                 }
             } else if (!status.paused && showsResume) {
                 _resetPauseBtn(PAUSE_BUTTON_FOR_TASK[taskName]);
+                _autoPauseNotified[taskName] = false;
             }
             if (!status.running) { _autoPauseNotified[taskName] = false; }
         }

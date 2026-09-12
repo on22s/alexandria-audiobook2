@@ -727,7 +727,8 @@ def pause_for_operator(error_details):
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
-                         retry_decider=None, near_miss_sink=None, codec=None):
+                         retry_decider=None, near_miss_sink=None, codec=None,
+                         _resume_state=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -739,31 +740,45 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     if codec is None:
         from response_codecs import get_codec
         codec = get_codec("json")
-    retry_feedback = None
-    requested_max = params.max_tokens
-    consecutive_severe = 0
-    response_fingerprints = {}
+    resume_state = _resume_state or {}
+    retry_feedback = resume_state.get("retry_feedback")
+    requested_max = resume_state.get("requested_max", params.max_tokens)
+    consecutive_severe = resume_state.get("consecutive_severe", 0)
+    response_fingerprints = dict(resume_state.get("response_fingerprints", {}))
+    attempt_offset = resume_state.get("attempt_offset", 0)
     # Prompts already sent on this batch. At temperature 0 the model is
     # deterministic, so re-sending a prompt it has already rejected must
     # produce the same rejected answer - the retry cannot succeed and only
     # costs wall time. Observed on owarimonogatari3's pass-2: attempts 3 and 4
     # sent the same 764-token prompt and got the same 325-token completion,
     # then the batch was failed anyway. Rule 10: decide the policy once.
-    attempted_prompts = set()
+    attempted_prompts = set(resume_state.get("attempted_prompts", ()))
+    # Persists across attempts: a reasoning model gets exactly one larger
+    # budget before the batch is failed (Rule 10 - one retry policy).
+    reasoning_escalated = resume_state.get("reasoning_escalated", False)
 
-    def _retry_same_request():
-        """The whole call again, fresh budget - used after a failover or an
-        operator resume, both of which change the provider, not the request."""
+    def _retry_same_request(preserve_retry_state=False):
+        """Retry after an external event, preserving same-provider state on resume."""
+        state = None
+        if preserve_retry_state:
+            state = {
+                "retry_feedback": retry_feedback,
+                "requested_max": requested_max,
+                "consecutive_severe": consecutive_severe,
+                "response_fingerprints": response_fingerprints,
+                "attempted_prompts": tuple(attempted_prompts),
+                "reasoning_escalated": reasoning_escalated,
+                "attempt_offset": attempt_offset + attempt + 1,
+            }
         return call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, params, log_name, label,
             max_retries=max_retries, validate_entries=validate_entries,
             transform_entries=transform_entries, attempt_observer=attempt_observer,
-            retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec)
+            retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec,
+            _resume_state=state)
 
-    # Persists across attempts: a reasoning model gets exactly one larger
-    # budget before the batch is failed (Rule 10 - one retry policy).
-    reasoning_escalated = False
     for attempt in range(max_retries + 1):
+        attempt_number = attempt_offset + attempt + 1
         t0 = time.time()
         truncation_retry_available = False
         attempt_record = None
@@ -833,7 +848,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 _rotate_log_if_large(log_path)
             with open(log_path, "a", encoding="utf-8") as lf:
                 lf.write(f"\n{'='*80}\n")
-                lf.write(f"{label} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
+                lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason}\n")
                 if usage:
                     lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
                 lf.write(f"{'─'*80}\n")
@@ -846,7 +861,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f" | took {time.time() - t0:.1f}s")
             if attempt_observer:
                 attempt_record = {
-                    "attempt": attempt + 1,
+                    "attempt": attempt_number,
                     "elapsed_seconds": round(time.time() - t0, 3),
                     "finish_reason": finish_reason,
                     "requested_max_tokens": requested_max,
@@ -900,7 +915,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 params.retry_max_delay_seconds, attempt + 1)
                 if can_retry else None)
             if attempt_observer:
-                attempt_observer({"attempt": attempt + 1,
+                attempt_observer({"attempt": attempt_number,
                                   "elapsed_seconds": round(time.time() - t0, 3),
                                   "finish_reason": None, "requested_max_tokens": requested_max,
                                   "effective_max_tokens": None, "prompt_tokens": None,
@@ -923,7 +938,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "outcome": "api_error",
                                   "failure_codes": (["api_error"] if error_details["category"] == "api_error"
                                                     else ["api_error", error_details["category"]])})
-            print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s "
+            print(f"Error calling LLM API (attempt {attempt_number}) after {time.time() - t0:.1f}s "
                   f"[{error_details['category']}]: {e}")
             if can_retry:
                 if retry_delay:
@@ -943,10 +958,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if (error_details["retryable"]
                     and getattr(params, "on_api_exhaustion", "fail") == "pause"
                     and pause_for_operator(error_details)):
-                # Resumed by the operator: the provider is presumably back, so
-                # the request is tried again with a fresh budget rather than
-                # given up. Nothing about the chunk changed while frozen.
-                return _retry_same_request()
+                # The same provider resumes with a fresh API budget, while the
+                # quality feedback and deterministic-response guard remain valid.
+                return _retry_same_request(preserve_retry_state=True)
             return []
 
         # Clean and extract the payload region for whichever wire format
@@ -959,7 +973,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 attempt_record["failure_codes"] = ["adjacent_array_overlap"]
             retry_feedback = f"adjacent_array_overlap: {exc}"
             print(f"Warning: {label} repeats text across adjacent arrays "
-                  f"(attempt {attempt + 1}): {exc}")
+                  f"(attempt {attempt_number}): {exc}")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
                 print("Retrying...")
                 continue
@@ -970,7 +984,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 attempt_record["outcome"] = "response_rejected"
                 attempt_record["failure_codes"] = ["missing_json_array"]
             print(f"Warning: Could not find {codec.name} payload in {label} "
-                  f"response (attempt {attempt + 1})")
+                  f"response (attempt {attempt_number})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
                 print("Retrying...")
                 continue
@@ -997,7 +1011,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         attempt_record["failure_codes"] = ["unresolved_deterministic_repairs"]
                     retry_feedback = "unresolved_safe_repair"
                     print(f"Warning: {label} has unresolved deterministic repairs "
-                          f"(attempt {attempt + 1}): {transformed['unresolved']}")
+                          f"(attempt {attempt_number}): {transformed['unresolved']}")
                     if attempt < max_retries:
                         print("Retrying...")
                         continue
@@ -1040,7 +1054,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     elif attempt < max_retries:
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
-                          f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
+                          f"(attempt {attempt_number}): {retry_feedback}; metrics={metrics}")
                     retry_evidence = max(consecutive_severe, repeat_count)
                     if (retry_decider
                             and retry_decider(quality, retry_evidence) == "split"):
@@ -1059,14 +1073,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     continue
                 return []
             if attempt > 0:
-                print(f"  Succeeded on retry {attempt + 1}")
+                print(f"  Succeeded on retry {attempt_number}")
             if attempt_record is not None:
                 if attempt_record.get("failure_codes"):
                     attempt_record["recovery_codes"] = attempt_record.pop("failure_codes")
                 attempt_record["outcome"] = "accepted"
             return entries
 
-        print(f"Warning: Could not parse {label} response as JSON (attempt {attempt + 1})")
+        print(f"Warning: Could not parse {label} response as JSON (attempt {attempt_number})")
         if attempt_record is not None:
             attempt_record["outcome"] = "response_rejected"
             attempt_record["failure_codes"] = ["malformed_json"]
