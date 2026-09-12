@@ -10,7 +10,7 @@ import argparse
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
-from llm_provider import make_llm_client
+from llm_provider import make_llm_client, make_run_client
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
@@ -917,7 +917,7 @@ def main():
     gen_params.context_length = lm_status.get("context_length")
     gen_params.hard_max_tokens = 32768
 
-    client = make_llm_client(llm_config, llm_timeout_seconds())
+    client = make_run_client(config, llm_config, llm_timeout_seconds())
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,

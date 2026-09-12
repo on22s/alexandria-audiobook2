@@ -204,6 +204,19 @@ def get_active_llm_config(config):
     return block if isinstance(block, dict) else {}
 
 
+def get_failover_llm_config(config):
+    """The profile a run switches to when `llm_failover` is on: whichever of
+    llm_local / llm_remote is NOT active. {} when failover is off or the other
+    profile is not configured, so callers never half-fail over."""
+    if not isinstance(config, dict) or not config.get("llm_failover"):
+        return {}
+    other = "remote" if (config.get("llm_mode") or "local") == "local" else "local"
+    block = config.get(f"llm_{other}")
+    if not isinstance(block, dict) or not block.get("base_url") or not block.get("model_name"):
+        return {}
+    return block
+
+
 def find_lms_binary():
     """Return the path to the `lms` CLI, or None if it isn't available."""
     return shutil.which("lms")

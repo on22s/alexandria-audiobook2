@@ -49,12 +49,22 @@
         // that, since there's no way for the app to check your actual Thunder
         // balance automatically. Local has no cloud cost, so it's a no-op there.
         async function confirmIfRemote(taskLabel) {
-            if (!currentIsRemote) { return true; }
-            return await showConfirm(
-                `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
-                `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
-                `to Local in Setup first?`
-            );
+            if (currentIsRemote) {
+                return await showConfirm(
+                    `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
+                    `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
+                    `to Local in Setup first?`
+                );
+            }
+            if (failoverIsRemote) {
+                // Server-computed: failover is on and the other profile is remote.
+                return await showConfirm(
+                    `${taskLabel} runs on Local, but failover is on: if Local gives up (retries run out ` +
+                    `or a content-policy refusal) the rest of the run switches to your REMOTE LLM and ` +
+                    `bills your account. Continue, or Cancel and turn failover off in Setup?`
+                );
+            }
+            return true;
         }
 
         function escapeHtml(str) {
@@ -405,6 +415,7 @@
         // that a bare `currentLlmMode === 'remote'` check would miss. Updated
         // from /api/config's response on load and after a successful save.
         let currentIsRemote = false;
+        let failoverIsRemote = false;   // server-computed: llm_failover on AND the other profile is remote
 
         function renderConfigWarnings(config) {
             const banner = document.getElementById('config-warning-banner');
@@ -578,6 +589,8 @@
                 currentLlmMode = config.llm_mode || 'local';
                 savedLlmMode = currentLlmMode;
                 currentIsRemote = !!config.is_remote;
+                failoverIsRemote = !!config.failover_is_remote;
+                document.getElementById('llm-failover').checked = !!config.llm_failover;
                 renderActiveLlmModeBadge();
                 document.getElementById('llm-mode').value = currentLlmMode;
                 document.getElementById('llm-ssh').value = config.llm_remote_ssh || '';
@@ -773,6 +786,7 @@
                 llm_local: llmProfiles.local,
                 llm_remote: llmProfiles.remote,
                 llm_remote_ssh: document.getElementById('llm-ssh').value.trim() || null,
+                llm_failover: document.getElementById('llm-failover').checked,
                 tts: {
                     mode: document.getElementById('tts-mode').value,
                     url: document.getElementById('tts-url').value,
@@ -824,6 +838,7 @@
                 try {
                     const savedConfig = await API.get('/api/config');
                     currentIsRemote = !!savedConfig.is_remote;
+                    failoverIsRemote = !!savedConfig.failover_is_remote;
                     renderConfigWarnings(savedConfig);
                 }
                 catch (e) { console.debug('is_remote refresh after save failed', e); }
@@ -892,6 +907,11 @@
                 statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Please select a text file first using the file picker above.</span>';
                 return;
             }
+
+            // Single-book runs were never gated: a remote ACTIVE profile is a
+            // visible choice in Setup. A remote FAILOVER target is not, so the
+            // same prompt covers it here.
+            if (failoverIsRemote && !(await confirmIfRemote('this script generation'))) { return; }
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
@@ -1311,6 +1331,7 @@
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
+            if (failoverIsRemote && !(await confirmIfRemote('this review'))) { return; }
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);

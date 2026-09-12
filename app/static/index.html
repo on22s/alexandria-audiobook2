@@ -612,6 +612,11 @@
                             <label class="form-label mt-2" for="llm-provider-extra-body">Custom request body (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"top_k": 40}'></textarea>
                         </details>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="llm-failover">
+                            <label class="form-check-label" for="llm-failover">Fail over to the other profile when this one gives up</label>
+                            <div class="form-text">If retries run out (rate limit, outage) or the provider refuses on content policy, the rest of the run switches to the other profile - Remote if Local is active, and vice versa. You are asked to confirm before a run when that would mean a billed endpoint.</div>
+                        </div>
                         <div class="mb-3" id="llm-ssh-group" style="display:none;">
                             <label class="form-label">Remote SSH host alias</label>
                             <input type="text" class="form-control" id="llm-ssh" placeholder="tnr-0">

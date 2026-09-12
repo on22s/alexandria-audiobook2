@@ -20,6 +20,7 @@ from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
+                               get_failover_llm_config,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_active_llm_config, get_current_status)
 
@@ -578,6 +579,12 @@ async def get_config():
     # so the frontend doesn't have to re-derive it from llm_mode alone (which
     # can drift from the actual active base_url) - see lmstudio_settings.is_remote_llm.
     config["is_remote"] = is_remote_llm(config["llm_mode"], config.get("llm", {}).get("base_url", ""))
+    # Same question for the profile a failover would switch TO, decided here
+    # (Rule 15) so the frontend can warn before a run that might land on a
+    # billed endpoint without the user having chosen it as active.
+    other = get_failover_llm_config(config)
+    other_mode = "remote" if config["llm_mode"] == "local" else "local"
+    config["failover_is_remote"] = bool(other) and is_remote_llm(other_mode, other.get("base_url", ""))
     config["config_warnings"] = [
         {"field": warning.field, "message": warning.message}
         for warning in load_result.warnings
