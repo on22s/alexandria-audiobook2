@@ -4068,6 +4068,49 @@ indistinguishable from its NOT-LOOKING state. Zero skips because zero ran.
 A hash of nothing equalling a hash of nothing. An index that is perfectly
 consistent with an incomplete set.
 
+**FIFTH AUDIT TRANCHE, 2026-09-12.** Three more, all from the four-GPU adapter
+campaign, and all of the shape the fourth tranche named — the rejecting case
+was never constructed:
+
+- **A wait that could never end.** The cloud Muse queues waited for a seeded
+  checkpoint with `test -s marker`, and the helper that delivers the seed
+  created the marker with `touch`. A zero-byte file never satisfies `-s`, so
+  the queue would have waited forever on a seed that had arrived — and did,
+  for 1.5 h on 2026-09-11, until a person read the log. It had passed every
+  earlier run only because every earlier run was unseeded and never reached
+  that line. Not repo code, so not a repo test; it is here because the
+  discipline applies to a shell script exactly as it does to a guard.
+- **A validator that rejected the right thing at the wrong granularity.** One
+  spoken line in a 10-line attribution window came back `NARRATOR`;
+  `validate_attribution` rejected the response, four identical retries at
+  temperature 0 returned the identical response, and `lora_serving_eval`
+  recorded *every* gold row in the window as `batch_failed` — the nine the
+  model got right included. The two base-arm rows unanswered in every Gemma and
+  Qwen artifact of the campaign are this. Fixed in #535 with the rejecting
+  case constructed first: the exception now carries the rejected response, the
+  harness scores it row by row, and the test asserts that the `NARRATOR` line
+  alone stays unanswered while the rest are scored. It changes the harness
+  fingerprint and was held out of the campaign rather than mixed into it.
+- **The all-empty-arm guard exists, and the boxes that produce artifacts do
+  not have it.** `require_any_prediction` (third tranche) lives in
+  `experiments/manifest.py`; the three A6000 instances ran an `app/` from
+  2026-07-29 and the A100 one from 2026-08-30; all four predate it. Three Muse artifacts with 0/768 LoRA answers
+  were therefore written with `validation: "ok"` and `git.commit: null`. The
+  local structural audit caught all three on commit
+  (`artifacts_that_generated_nothing` 12 → 15), which is the guard doing its
+  job — one hop later than it should. A guard audited on the machine that runs
+  tests is not a guard on the machine that runs measurements; the
+  per-instance `harness_sha256` in every artifact records that they differ
+  and nothing yet refuses on it.
+
+**What this tranche adds to the rule.** The first two are the same defect the
+fourth tranche demonstrated from the inside — a check whose failing branch was
+never exercised — but they were found by their *cost* (idle GPU hours, two rows
+per artifact), not by an audit. The third is new: a rejecting test that passes
+in the repository says nothing about a copy of the code that never received
+it. An artifact whose `git.commit` is null was produced by code the repository
+cannot identify, and the campaign produced thirty-one of them.
+
 **Target — every guard, linter and comparison relied on carries a test that
 fails without the fix, and any comparison of two identifiers requires them to
 EXIST before equality means anything.**
