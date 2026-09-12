@@ -4093,7 +4093,7 @@ was never constructed:
   fingerprint and was held out of the campaign rather than mixed into it.
 - **The all-empty-arm guard exists, and the boxes that produce artifacts do
   not have it.** `require_any_prediction` (third tranche) lives in
-  `experiments/manifest.py`; the three A6000 instances ran an `app/` from
+  `app/experiments/manifest.py`; the three A6000 instances ran an `app/` from
   2026-07-29 and the A100 one from 2026-08-30; all four predate it. Three Muse artifacts with 0/768 LoRA answers
   were therefore written with `validation: "ok"` and `git.commit: null`. The
   local structural audit caught all three on commit
