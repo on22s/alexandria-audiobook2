@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 942,
-    "exploratory": 367,
+    "exploratory": 368,
     "provisional": 200,
     "artifacts_that_generated_nothing": 15
   },
@@ -9412,6 +9412,21 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "honest_retrains_listening_20260912.json",
+      "bytes": 5661,
+      "sha256": "a9fc0bf159d24d80351747aef4485cad5bf2dc1f1218633871c0c264d85dbb4e",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 10,
+      "has_rows": true,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "identity_recheck__breathy_alto_50s_f_fantasy__seed20260902.json",

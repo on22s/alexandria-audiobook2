@@ -1045,6 +1045,7 @@ half_rescue__warm_baritone_40s_m_1__half.json,supported_structure,provenance,yes
 hnr_length_probe.json,exploratory,git+naming,no,hnr_length_probe.py,ba25ff88,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 homograph_listening_ratings.json,exploratory,none,no,,567bb25c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 homograph_probe.json,supported_structure,provenance,yes,,,,20260822,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+honest_retrains_listening_20260912.json,exploratory,none,no,,,6.5,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 identity_recheck__breathy_alto_50s_f_fantasy__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__husky_baritone_20s_m_supernatural__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__husky_tenor_30s_m__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
