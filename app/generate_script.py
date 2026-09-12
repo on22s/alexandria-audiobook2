@@ -7,7 +7,7 @@ import re
 import time
 import math
 from dataclasses import dataclass
-from core import llm_timeout_seconds
+from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
 from config_settings import load_app_config
 from llm_provider import make_llm_client, merge_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay
@@ -529,6 +529,12 @@ class LLMGenParams:
     retry_initial_delay_seconds: float = 0
     retry_multiplier: float = 2
     retry_max_delay_seconds: float = 30
+    # What to do when the API retry budget runs out on a RETRYABLE error (rate
+    # limit, 5xx, timeout): "fail" gives the chunk up as today; "pause" freezes
+    # the run in place so an operator can fix the provider and press Resume,
+    # which retries the same request with a fresh budget. A non-retryable
+    # error (content policy) never pauses - retrying it cannot succeed.
+    on_api_exhaustion: str = "fail"
 
 
 
@@ -694,6 +700,28 @@ def _build_retry_feedback_message(quality):
     if messages:
         return " ".join(messages)
     return json.dumps(findings, ensure_ascii=False)
+
+
+def pause_for_operator(error_details):
+    """Freeze this process until the operator resumes it. Returns True once
+    resumed, False where a self-stop is impossible (Windows) so the caller
+    falls back to failing the chunk.
+
+    The marker line is the contract with the app: core.py's output reader sets
+    the task's `paused` flag when it sees it, so the UI shows Paused and its
+    Resume button (SIGCONT) is what wakes this process. Frozen, not exited:
+    every accepted chunk, the checkpoint and the retry history stay exactly as
+    they are, which is the point of pausing instead of failing."""
+    if sys.platform == "win32":
+        return False
+    import signal
+    print(f"{AUTO_PAUSE_MARKER} API retries exhausted "
+          f"({error_details['category']}, HTTP {error_details['status_code']}). "
+          "Paused; fix the provider and press Resume to retry this request.",
+          flush=True)
+    os.kill(os.getpid(), signal.SIGSTOP)
+    print(f"{AUTO_PAUSE_MARKER} resumed; retrying with a fresh budget.", flush=True)
+    return True
 
 
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
@@ -892,6 +920,20 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print(f"Retrying in {retry_delay:.1f}s...")
                     time.sleep(retry_delay)
                 continue
+            if (error_details["retryable"]
+                    and getattr(params, "on_api_exhaustion", "fail") == "pause"
+                    and pause_for_operator(error_details)):
+                # Resumed by the operator: the provider is presumably back, so
+                # the request is tried again with a fresh budget rather than
+                # given up. Nothing about the chunk changed while frozen.
+                return call_llm_for_entries(
+                    client, model_name, sys_prompt, user_prompt, params,
+                    log_name, label, max_retries=max_retries,
+                    validate_entries=validate_entries,
+                    transform_entries=transform_entries,
+                    attempt_observer=attempt_observer,
+                    retry_decider=retry_decider, near_miss_sink=near_miss_sink,
+                    codec=codec)
             return []
 
         # Clean and extract the payload region for whichever wire format
@@ -1667,6 +1709,7 @@ def main():
         retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm_config.get("retry_multiplier", 2),
         retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
+        on_api_exhaustion=llm_config.get("on_api_exhaustion", "fail"),
     )
 
     fingerprint = get_generation_fingerprint(

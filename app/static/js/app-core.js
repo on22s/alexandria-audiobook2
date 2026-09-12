@@ -440,6 +440,7 @@
             document.getElementById('llm-request-interval').value =
                 p.request_interval_seconds ?? 0;
             document.getElementById('llm-api-retry-limit').value = p.api_retry_limit ?? '';
+            document.getElementById('llm-on-api-exhaustion').value = p.on_api_exhaustion || 'fail';
             document.getElementById('llm-retry-initial-delay').value =
                 p.retry_initial_delay_seconds ?? 1;
             document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
@@ -486,6 +487,7 @@
                 connect_timeout_seconds: getOptionalNumberInput('llm-connect-timeout', 'Connect timeout'),
                 request_interval_seconds: getOptionalNumberInput('llm-request-interval', 'Minimum interval') ?? 0,
                 api_retry_limit: getOptionalNumberInput('llm-api-retry-limit', 'API retry limit'),
+                on_api_exhaustion: document.getElementById('llm-on-api-exhaustion').value || 'fail',
                 retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
                 retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
                 retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
@@ -3480,6 +3482,32 @@
             return () => { _pollGen[key] = (_pollGen[key] || 0) + 1; };
         }
 
+        // A run can pause ITSELF (retries exhausted with "pause and wait for me"
+        // set), so the Pause/Resume button follows the server's `paused` flag
+        // rather than only its own clicks.
+        const PAUSE_BUTTON_FOR_TASK = { script: 'btn-pause-script', batch_script: 'btn-pause-batch-script',
+                                        review: 'btn-pause-review', batch_review: 'btn-pause-batch-review',
+                                        nicknames: 'btn-pause-nick' };
+        const _autoPauseNotified = {};
+        function syncPauseButton(taskName, status) {
+            const btn = document.getElementById(PAUSE_BUTTON_FOR_TASK[taskName] || '');
+            if (!btn) { return; }
+            const showsResume = btn.classList.contains('btn-outline-success');
+            if (status.paused && !showsResume) {
+                btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                btn.classList.remove('btn-outline-warning');
+                btn.classList.add('btn-outline-success');
+                if (!_autoPauseNotified[taskName] && status.logs.some(l => l.startsWith('[AUTO-PAUSE]'))) {
+                    _autoPauseNotified[taskName] = true;
+                    showToast(`${TASK_LABELS[taskName] || taskName} paused itself: retries ran out. Fix the provider, then press Resume.`, 'warning', 8000);
+                    notifyJobDone(taskName, 'Paused: API retries ran out. Press Resume when the provider is back.');
+                }
+            } else if (!status.paused && showsResume) {
+                _resetPauseBtn(PAUSE_BUTTON_FOR_TASK[taskName]);
+            }
+            if (!status.running) { _autoPauseNotified[taskName] = false; }
+        }
+
         async function pollLogs(taskName, elementId, onDone) {
             const el = document.getElementById(elementId);
             _startPolling(`logs:${taskName}`, () => API.get(`/api/status/${taskName}`), {
@@ -3487,6 +3515,7 @@
                 onTick: status => {
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
+                    syncPauseButton(taskName, status);
                 },
                 onDone: status => {
                     notifyJobDone(taskName);

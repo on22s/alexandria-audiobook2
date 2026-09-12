@@ -1018,6 +1018,15 @@
             "title": "Model Name",
             "type": "string"
           },
+          "on_api_exhaustion": {
+            "default": "fail",
+            "enum": [
+              "fail",
+              "pause"
+            ],
+            "title": "On Api Exhaustion",
+            "type": "string"
+          },
           "provider_extra_body": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"

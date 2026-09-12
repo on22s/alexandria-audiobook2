@@ -983,6 +983,11 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             entry = f"{log_prefix}{log_line}" if log_prefix else log_line
             own_lines.append(entry)
             state["logs"].append(entry)
+            # The child froze itself (generate_script.pause_for_operator) after
+            # exhausting API retries. Mirror that here so the UI shows Paused
+            # and its Resume button - SIGCONT via _resume_task - wakes it.
+            if log_line.startswith(AUTO_PAUSE_MARKER):
+                state["paused"] = "resumed" not in log_line
             if len(state["logs"]) > max_logs:
                 state["logs"].pop(0)
             if log_fh:
@@ -1406,6 +1411,13 @@ _llm_client_cache: dict = {}
 # legitimately takes minutes and a timeout shorter than the work turns slow
 # into failed. The number matters less than its existence: a finite timeout
 # converts a dead request into an error a retry loop can act on.
+# Printed by a generation subprocess that has frozen itself after exhausting
+# API retries (generate_script.pause_for_operator); the output reader below
+# turns it into the task's `paused` flag. Lives here, not in generate_script,
+# because generate_script imports core and not the other way round.
+AUTO_PAUSE_MARKER = "[AUTO-PAUSE]"
+
+
 def llm_timeout_seconds():
     """-> seconds any single LLM request may take before it is an error."""
     try:
