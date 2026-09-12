@@ -83,7 +83,7 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 16,
+   "cited": 17,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json",
@@ -91,12 +91,12 @@
    ],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "exploratory": 5,
+    "exploratory": 6,
     "provisional": 8,
     "supported_structure": 1
    },
    "dirty_artifacts": 2,
-   "no_commit": 5,
+   "no_commit": 6,
    "artifacts": [
     {
      "name": "distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json",
@@ -163,6 +163,12 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "06aa7847"
+    },
+    {
+     "name": "pdnc_new_adapter_adapter_author_heldout_balanced_full_b5.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     },
     {
      "name": "pdnc_sequence__pilot__local-llamacpp.json",

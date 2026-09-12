@@ -1,0 +1,18 @@
+{
+  "artifact": "lora_serving_eval__muse-glimmer-30b-hardcases-a6000-gold-schema-checked-20260911.json",
+  "artifact_sha256": "454056ffcd32cce4fb85cd1fb9a30e7552585e39d3ae5865f570f287094da2e7",
+  "fields": [
+    "rows[arm=lora]"
+  ],
+  "status": "PARTIAL INVALIDATION - do not read the lora arm as a result",
+  "valid_arms": [
+    "base"
+  ],
+  "correction": "Same defect as the Sep-9 task4k artifact: every LoRA-arm response lacked the leading `[` (pre-fix Muse trainer), 0/768 rows answered. The template-fixed retrain is `muse-glimmer-30b-hardcases-tplfix-…-20260911`.",
+  "evidence": {
+    "lora_rows": 768,
+    "lora_unanswered": 768,
+    "lora_provenance": "lora|batch_failed on every row"
+  },
+  "measurement_changed": false
+}
