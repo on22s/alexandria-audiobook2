@@ -1984,6 +1984,70 @@
                                     </div>
                                 </div>
                             </div>
+                            <a class="text-decoration-none d-block mt-3" data-bs-toggle="collapse" href="#chapter-options" role="button" aria-expanded="false">
+                                <i class="fas fa-list-ol me-1"></i>Chapter-by-Chapter Export <i class="fas fa-chevron-down fa-xs ms-1"></i>
+                            </a>
+                            <div class="collapse mt-2" id="chapter-options">
+                                <div class="border rounded p-3 text-start" style="background: var(--bg-card-header);">
+                                    <div class="row g-2">
+                                        <div class="col-md-8">
+                                            <label class="form-label small mb-1" for="chapter-template">Filename template</label>
+                                            <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
+                                            <div class="form-text">Fields: <code>{chapter_number}</code> <code>{chapter_name}</code> <code>{book_name}</code> <code>{series_name}</code> <code>{volume_number}</code>. The extension is added for you.</div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small mb-1" for="chapter-padding">Number padding</label>
+                                            <select class="form-select form-select-sm" id="chapter-padding">
+                                                <option value="0">1</option><option value="2" selected>01</option><option value="3">001</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small mb-1" for="chapter-format">Format</label>
+                                            <select class="form-select form-select-sm" id="chapter-format">
+                                                <option value="mp3" selected>MP3</option><option value="wav">WAV</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small mb-1" for="chapter-book-name">Book name</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-book-name" placeholder="for {book_name}">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small mb-1" for="chapter-series-name">Series name</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-series-name" placeholder="for {series_name}">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small mb-1" for="chapter-volume">Volume</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-volume" placeholder="3">
+                                        </div>
+                                        <div class="col-md-2 d-flex flex-column justify-content-end">
+                                            <label class="form-check d-inline-flex align-items-center mb-1" title="Same chapter detection as the M4B export">
+                                                <input type="checkbox" class="form-check-input me-1" id="chapter-per-chunk">
+                                                <small class="text-muted">Per-chunk</small>
+                                            </label>
+                                            <label class="form-check d-inline-flex align-items-center mb-0" title="Skip chapters whose audio has not changed since they were last exported">
+                                                <input type="checkbox" class="form-check-input me-1" id="chapter-changed-only" checked>
+                                                <small class="text-muted">Changed only</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                                        <button class="btn btn-outline-secondary btn-sm" type="button" id="chapter-preview-btn">
+                                            <i class="fas fa-eye me-1"></i>Preview names
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm" type="button" id="chapter-export-btn">
+                                            <i class="fas fa-list-ol me-1"></i>Export chapters
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" type="button" id="chapter-cancel-btn" style="display:none;">
+                                            <i class="fas fa-stop me-1"></i>Cancel
+                                        </button>
+                                        <a class="btn btn-outline-dark btn-sm" id="chapter-zip-link" href="/api/chapter_exports/zip" download="chapters.zip" style="display:none;">
+                                            <i class="fas fa-file-archive me-1"></i>Download all (zip)
+                                        </a>
+                                        <span id="chapter-status" class="small d-inline-block"></span>
+                                    </div>
+                                    <div id="chapter-list" class="mt-2 small"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

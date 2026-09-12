@@ -493,6 +493,18 @@
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
   ],
+  "test_chapter_export": [
+    "tests.test_chapter_export.ExportChaptersTests.test_grouping_matches_the_m4b_grouping",
+    "tests.test_chapter_export.ExportChaptersTests.test_preview_needs_no_audio_and_matches_the_export_names",
+    "tests.test_chapter_export.ExportChaptersTests.test_subset_and_cancel",
+    "tests.test_chapter_export.ExportChaptersTests.test_unsupported_format_is_refused_before_any_work",
+    "tests.test_chapter_export.ExportChaptersTests.test_writes_one_file_per_chapter_with_a_manifest_and_reuses_unchanged_ones",
+    "tests.test_chapter_export.FilenameTemplateTests.test_default_template_pads_and_adds_the_extension",
+    "tests.test_chapter_export.FilenameTemplateTests.test_every_field_and_padding_widths",
+    "tests.test_chapter_export.FilenameTemplateTests.test_filesystem_hostile_titles_cannot_escape_or_break",
+    "tests.test_chapter_export.FilenameTemplateTests.test_unknown_fields_and_empty_titles_still_yield_a_name",
+    "tests.test_chapter_export.RouteTests.test_zip_404s_when_nothing_is_exported_and_serves_only_listed_files"
+  ],
   "test_character_distinctiveness": [
     "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
     "tests.test_character_distinctiveness.ManifestTest.test_clips_are_grouped_by_the_chunk_speaker",

@@ -435,6 +435,66 @@
         "title": "CastMatchBulkRequest",
         "type": "object"
       },
+      "ChapterExportRequest": {
+        "properties": {
+          "book_name": {
+            "default": "",
+            "title": "Book Name",
+            "type": "string"
+          },
+          "changed_only": {
+            "default": false,
+            "title": "Changed Only",
+            "type": "boolean"
+          },
+          "chapters": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapters"
+          },
+          "format": {
+            "default": "mp3",
+            "title": "Format",
+            "type": "string"
+          },
+          "padding": {
+            "default": 2,
+            "title": "Padding",
+            "type": "integer"
+          },
+          "per_chunk_chapters": {
+            "default": false,
+            "title": "Per Chunk Chapters",
+            "type": "boolean"
+          },
+          "series_name": {
+            "default": "",
+            "title": "Series Name",
+            "type": "string"
+          },
+          "template": {
+            "default": "{chapter_number} - {chapter_name}",
+            "title": "Template",
+            "type": "string"
+          },
+          "volume_number": {
+            "default": "",
+            "title": "Volume Number",
+            "type": "string"
+          }
+        },
+        "title": "ChapterExportRequest",
+        "type": "object"
+      },
       "ChunkRestoreRequest": {
         "properties": {
           "at_index": {
@@ -2466,6 +2526,104 @@
         "summary": "Cancel Persona"
       }
     },
+    "/api/chapter_exports": {
+      "get": {
+        "operationId": "list_chapter_exports_api_chapter_exports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Chapter Exports"
+      }
+    },
+    "/api/chapter_exports/file/{name}": {
+      "get": {
+        "operationId": "download_chapter_api_chapter_exports_file__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Chapter"
+      }
+    },
+    "/api/chapter_exports/zip": {
+      "get": {
+        "description": "All exported chapters, or the comma-separated `names`, in one zip.",
+        "operationId": "download_chapters_zip_api_chapter_exports_zip_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "names",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Names"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Chapters Zip"
+      }
+    },
     "/api/character_aliases": {
       "get": {
         "description": "Return the current alias map { alias: canonical }.",
@@ -3288,6 +3446,158 @@
           }
         },
         "summary": "Export Audacity Endpoint"
+      }
+    },
+    "/api/export_chapters": {
+      "post": {
+        "description": "Write chapters as separate MP3/WAV files (CPU only, no GPU lock).",
+        "operationId": "export_chapters_api_export_chapters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChapterExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Chapters"
+      }
+    },
+    "/api/export_chapters/cancel": {
+      "post": {
+        "operationId": "cancel_chapter_export_api_export_chapters_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Chapter Export"
+      }
+    },
+    "/api/export_chapters/preview": {
+      "get": {
+        "description": "The filenames an export would produce, without decoding any audio.",
+        "operationId": "preview_chapter_filenames_api_export_chapters_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "mp3",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "per_chunk_chapters",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Per Chunk Chapters",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "template",
+            "required": false,
+            "schema": {
+              "default": "{chapter_number} - {chapter_name}",
+              "title": "Template",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "padding",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "title": "Padding",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_name",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Book Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "series_name",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Series Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "volume_number",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Volume Number",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Chapter Filenames"
       }
     },
     "/api/export_zip": {

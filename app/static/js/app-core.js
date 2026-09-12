@@ -3361,6 +3361,78 @@
             }
         };
 
+        // --- Chapter-by-chapter export ---
+        function chapterExportParams() {
+            return {
+                format: document.getElementById('chapter-format').value,
+                per_chunk_chapters: document.getElementById('chapter-per-chunk').checked,
+                template: document.getElementById('chapter-template').value.trim() || '{chapter_number} - {chapter_name}',
+                padding: parseInt(document.getElementById('chapter-padding').value, 10),
+                book_name: document.getElementById('chapter-book-name').value.trim(),
+                series_name: document.getElementById('chapter-series-name').value.trim(),
+                volume_number: document.getElementById('chapter-volume').value.trim(),
+                changed_only: document.getElementById('chapter-changed-only').checked
+            };
+        }
+        function renderChapterList(rows, exported) {
+            const el = document.getElementById('chapter-list');
+            if (!rows.length) { el.innerHTML = '<span class="text-muted">No chapters found. Generate audio first.</span>'; return; }
+            el.innerHTML = '<ol class="mb-0 ps-3">' + rows.map(r => {
+                const name = escapeHtml(r.file);
+                if (exported && r.exists) {
+                    return `<li><a href="/api/chapter_exports/file/${encodeURIComponent(r.file)}" download="${name}">${name}</a> <span class="text-muted">${(r.bytes / 1048576).toFixed(1)} MB</span></li>`;
+                }
+                return `<li><span class="font-monospace">${name}</span></li>`;
+            }).join('') + '</ol>';
+            document.getElementById('chapter-zip-link').style.display = exported && rows.some(r => r.exists) ? '' : 'none';
+        }
+        async function loadChapterExports() {
+            try {
+                const m = await API.get('/api/chapter_exports');
+                if (m.chapters && m.chapters.length) { renderChapterList(m.chapters, true); }
+            } catch (e) { /* nothing exported yet */ }
+        }
+        document.getElementById('chapter-preview-btn').addEventListener('click', async () => {
+            const p = chapterExportParams();
+            const q = new URLSearchParams({ format: p.format, per_chunk_chapters: p.per_chunk_chapters, template: p.template,
+                                            padding: p.padding, book_name: p.book_name, series_name: p.series_name, volume_number: p.volume_number });
+            try {
+                const r = await API.get('/api/export_chapters/preview?' + q.toString());
+                renderChapterList(r.chapters, false);
+                document.getElementById('chapter-status').textContent = `${r.chapters.length} chapter(s) would be written.`;
+            } catch (e) { showToast('Preview failed: ' + e.message, 'error'); }
+        });
+        document.getElementById('chapter-export-btn').addEventListener('click', async () => {
+            const statusEl = document.getElementById('chapter-status');
+            const cancelBtn = document.getElementById('chapter-cancel-btn');
+            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting...</span>';
+            cancelBtn.style.display = '';
+            try {
+                await API.post('/api/export_chapters', chapterExportParams());
+                _startPolling('chapter_export', () => API.get('/api/status/chapter_export'), {
+                    doneCheck: status => !status.running,
+                    onTick: status => { const last = status.logs[status.logs.length - 1] || ''; if (last.startsWith('Writing')) { statusEl.textContent = last; } },
+                    onDone: status => {
+                        cancelBtn.style.display = 'none';
+                        const last = status.logs[status.logs.length - 1] || 'Unknown error';
+                        if (last.startsWith('Export complete')) {
+                            statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(last.replace('Export complete: ', ''))}</span>`;
+                            loadChapterExports();
+                        } else {
+                            statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(last)}</span>`;
+                        }
+                    }
+                });
+            } catch (e) {
+                cancelBtn.style.display = 'none';
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
+            }
+        });
+        document.getElementById('chapter-cancel-btn').addEventListener('click', async () => {
+            await cancelTask('/api/export_chapters/cancel');
+        });
+        loadChapterExports();
+
         // Handle M4B cover image upload
         document.getElementById('m4b-cover-input').addEventListener('change', async (e) => {
             const file = e.target.files[0];

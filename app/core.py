@@ -470,6 +470,7 @@ process_state = {
     "audio": {"running": False, "logs": [], "cancel": False, "start_time": None},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
+    "chapter_export": {"running": False, "logs": [], "cancel": False},
     "drift_check": {"running": False, "logs": []},
     "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
@@ -494,7 +495,7 @@ process_state = {
 # inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
 # "drift_check" scores audio with ECAPA under the sibling interpreter, which
 # pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
-NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check"}
+NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "chapter_export"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 
 def check_global_gpu_lock(new_task_name: str):

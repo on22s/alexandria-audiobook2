@@ -1,4 +1,5 @@
 import os
+import hashlib
 import json
 import shutil
 import subprocess
@@ -15,7 +16,7 @@ from verbalization import (SET_APART_HINT, VERBALIZE, classify,
                            extract_delivery_cues, is_pictographic_kana,
                            split_bracketed_spans, strip_emoji_dividers)
 from utils import (atomic_json_write, safe_load_json, is_oom_failure,
-                   get_app_config_path, is_nonverbal_text)
+                   get_app_config_path, is_nonverbal_text, secure_filename)
 from config_settings import load_app_config
 from audio_validation import remove_stale_audio, validate_generated_audio
 from tts import (
@@ -242,6 +243,29 @@ logger = logging.getLogger(__name__)
 # audiobook were written at a rate that audibly degrades speech. 128 kbps is
 # transparent for mono speech at this sample rate and what listeners expect.
 MP3_BITRATE = "128k"
+CHAPTER_EXPORT_DIR = "chapter_exports"
+DEFAULT_CHAPTER_TEMPLATE = "{chapter_number} - {chapter_name}"
+CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
+                           "series_name", "volume_number")
+
+
+def build_chapter_filename(template, number, title, ext, padding=2, book_name="",
+                           series_name="", volume_number=""):
+    """One chapter's filename from a template such as
+    "{chapter_number} - {chapter_name}". Unknown fields are left as text rather
+    than raising, the number is zero-padded to `padding` digits, and the
+    result goes through secure_filename so a chapter called "Part 1/2: ?!"
+    cannot escape the export directory or fail on the filesystem. The
+    extension is added here, never by the template."""
+    values = {"chapter_number": str(number).zfill(max(int(padding or 0), 0)),
+              "chapter_name": (title or "").strip() or f"chapter {number}",
+              "book_name": book_name or "", "series_name": series_name or "",
+              "volume_number": str(volume_number or "")}
+    name = template or DEFAULT_CHAPTER_TEMPLATE
+    for field, value in values.items():
+        name = name.replace("{" + field + "}", value)
+    name = secure_filename(re.sub(r"\s+", " ", name).strip(" ._-")) or f"chapter_{number}"
+    return f"{name}.{ext}"
 
 
 class ExportCancelled(Exception):
@@ -915,24 +939,19 @@ class ProjectManager:
         re.IGNORECASE
     )
 
-    def _build_m4b_chapters(self, timeline, per_chunk_chapters):
-        """Build chapter list from timeline entries.
-
-        Returns:
-            list of (title, start_ms, end_ms) tuples
+    def _chapter_groups(self, chunks, per_chunk_chapters):
+        """Chapter boundaries from chunk TEXT alone: list of
+        (title, first_index, last_index) over `chunks`. The one place chapter
+        structure is decided, shared by the M4B export and the per-chapter
+        export (and by filename previews, which have no audio to hand).
         """
         if per_chunk_chapters:
-            chapters = []
-            for chunk, segment, start_ms in timeline:
-                end_ms = start_ms + len(segment)
-                text_preview = chunk.get("text", "")[:80]
-                title = f"[{chunk['speaker']}] {text_preview}"
-                chapters.append((title, start_ms, end_ms))
-            return chapters
+            return [(f"[{c['speaker']}] {c.get('text', '')[:80]}", i, i)
+                    for i, c in enumerate(chunks)]
 
         # Smart grouping: detect chapter headings
         heading_indices = []
-        for i, (chunk, _, _) in enumerate(timeline):
+        for i, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
             # Starts with a heading keyword, or short structural text in its
             # own right (likely a stylized chapter title with no keyword,
@@ -947,38 +966,155 @@ class ProjectManager:
 
         # If no headings detected, fall back to per-chunk
         if not heading_indices:
-            print("  M4B: No chapter headings detected, falling back to per-chunk chapters")
-            return self._build_m4b_chapters(timeline, per_chunk_chapters=True)
+            print("  Chapters: no chapter headings detected, falling back to per-chunk chapters")
+            return self._chapter_groups(chunks, per_chunk_chapters=True)
 
-        chapters = []
-
+        groups = []
         # Pre-heading chunks → "Introduction"
         if heading_indices[0] > 0:
-            start_ms = timeline[0][2]
-            last_before = heading_indices[0] - 1
-            end_ms = timeline[last_before][2] + len(timeline[last_before][1])
-            chapters.append(("Introduction", start_ms, end_ms))
-
+            groups.append(("Introduction", 0, heading_indices[0] - 1))
         # Each heading starts a chapter that runs until the next heading
         for idx, head_i in enumerate(heading_indices):
-            title = timeline[head_i][0].get("text", "").strip()
-            # Truncate long titles
+            title = chunks[head_i].get("text", "").strip()
             if len(title) > 120:
                 title = title[:117] + "..."
+            last = (heading_indices[idx + 1] - 1 if idx + 1 < len(heading_indices)
+                    else len(chunks) - 1)
+            groups.append((title, head_i, last))
+        return groups
 
-            start_ms = timeline[head_i][2]
+    def _build_m4b_chapters(self, timeline, per_chunk_chapters):
+        """Build chapter list from timeline entries.
 
-            # End = start of next heading, or end of last chunk
-            if idx + 1 < len(heading_indices):
-                next_head_i = heading_indices[idx + 1]
-                last_in_group = next_head_i - 1
-            else:
-                last_in_group = len(timeline) - 1
-
-            end_ms = timeline[last_in_group][2] + len(timeline[last_in_group][1])
+        Returns:
+            list of (title, start_ms, end_ms) tuples
+        """
+        chunks = [chunk for chunk, _, _ in timeline]
+        chapters = []
+        for title, first, last in self._chapter_groups(chunks, per_chunk_chapters):
+            start_ms = timeline[first][2]
+            end_ms = timeline[last][2] + len(timeline[last][1])
             chapters.append((title, start_ms, end_ms))
-
         return chapters
+
+    def export_chapters(self, fmt="mp3", per_chunk_chapters=False,
+                        template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
+                        book_name="", series_name="", volume_number="",
+                        chapters=None, changed_only=False,
+                        progress_callback=None, cancel_check=None):
+        """Write each chapter as its own audio file under chapter_exports/.
+
+        `chapters` restricts the export to those chapter indices (0-based, in
+        the order `_chapter_groups` returns); `changed_only` skips a chapter
+        whose source chunk audio is unchanged since the file in the manifest
+        was written. Returns (success, message); the manifest at
+        chapter_exports/manifest.json lists every chapter with its file,
+        times and the fingerprint the changed-only check compares.
+        """
+        if fmt not in ("mp3", "wav"):
+            return False, f"Unsupported format: {fmt}"
+        try:
+            chunks_with_audio, skipped = self._load_chunks_with_audio(
+                cancel_check=cancel_check,
+                progress_callback=_loading_progress(progress_callback))
+        except ExportCancelled:
+            return False, "Export cancelled"
+        if not chunks_with_audio:
+            return False, "No audio segments found"
+
+        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+        timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
+        chunks = [chunk for chunk, _, _ in timeline]
+        groups = self._chapter_groups(chunks, per_chunk_chapters)
+        wanted = set(range(len(groups))) if chapters is None else set(chapters)
+
+        out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
+        os.makedirs(out_dir, exist_ok=True)
+        manifest_path = os.path.join(out_dir, "manifest.json")
+        previous = {row["index"]: row for row in
+                    (safe_load_json(manifest_path, {}) or {}).get("chapters", [])}
+
+        # One combined render, sliced per chapter, so chapter files carry the
+        # same pauses at the same offsets as the M4B and the single MP3.
+        final_audio = combine_audio_with_pauses(
+            [seg for _, seg, _ in timeline], [c["speaker"] for c in chunks],
+            pause_ms, same_speaker_pause_ms, [c.get("pause_after") for c in chunks])
+
+        rows, written, reused = [], 0, 0
+        for index, (title, first, last) in enumerate(groups):
+            if cancel_check and cancel_check():
+                return False, "Export cancelled"
+            start_ms = timeline[first][2]
+            end_ms = timeline[last][2] + len(timeline[last][1])
+            fingerprint = self._chapter_fingerprint(chunks[first:last + 1])
+            filename = build_chapter_filename(
+                template, index + 1, title, fmt, padding=padding,
+                book_name=book_name, series_name=series_name,
+                volume_number=volume_number)
+            path = os.path.join(out_dir, filename)
+            row = {"index": index, "number": index + 1, "title": title,
+                   "file": filename, "start_ms": start_ms, "end_ms": end_ms,
+                   "chunks": [first, last], "fingerprint": fingerprint}
+            old = previous.get(index)
+            if index not in wanted:
+                if old and os.path.exists(os.path.join(out_dir, old["file"])):
+                    rows.append(old)
+                continue
+            if (changed_only and old and old.get("fingerprint") == fingerprint
+                    and old.get("file") == filename
+                    and os.path.exists(path)):
+                rows.append(old)
+                reused += 1
+                continue
+            if progress_callback:
+                progress_callback(f"Writing chapter {index + 1}/{len(groups)}: {title[:60]}")
+            piece = final_audio[start_ms:end_ms]
+            if fmt == "mp3":
+                piece.export(path, format="mp3", bitrate=MP3_BITRATE)
+            else:
+                piece.export(path, format="wav")
+            rows.append(row)
+            written += 1
+
+        atomic_json_write({"format": fmt, "template": template, "padding": padding,
+                           "per_chunk_chapters": per_chunk_chapters,
+                           "book_name": book_name, "series_name": series_name,
+                           "volume_number": volume_number,
+                           "chapters": rows}, manifest_path)
+        note = f"{written} chapter file(s) written"
+        if reused:
+            note += f", {reused} unchanged and kept"
+        if skipped:
+            note += f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
+        return True, note
+
+    def _chapter_fingerprint(self, chunks):
+        """What a chapter's audio is made of: each chunk's audio file and its
+        size/mtime, plus the pause it carries. Same fingerprint, same output,
+        which is what changed-only export relies on."""
+        parts = []
+        for c in chunks:
+            path = c.get("audio_path") or ""
+            full = path if os.path.isabs(path) else os.path.join(self.root_dir, path)
+            try:
+                st = os.stat(full)
+                parts.append(f"{path}|{st.st_size}|{int(st.st_mtime)}|{c.get('pause_after')}")
+            except OSError:
+                parts.append(f"{path}|missing|{c.get('pause_after')}")
+        return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+
+    def preview_chapter_filenames(self, fmt="mp3", per_chunk_chapters=False,
+                                  template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
+                                  book_name="", series_name="", volume_number=""):
+        """The filenames an export would write, from chunk text alone (no
+        audio decoded), so the template can be checked before rendering."""
+        chunks = [c for c in self.load_chunks() if c.get("audio_path")]
+        groups = self._chapter_groups(chunks, per_chunk_chapters) if chunks else []
+        return [{"number": i + 1, "title": title,
+                 "file": build_chapter_filename(template, i + 1, title, fmt, padding=padding,
+                                                book_name=book_name, series_name=series_name,
+                                                volume_number=volume_number)}
+                for i, (title, _, _) in enumerate(groups)]
 
     def generate_chunks_parallel(self, indices, max_workers=2, progress_callback=None,
                                   cancel_check=None):
