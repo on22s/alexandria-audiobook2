@@ -544,13 +544,19 @@ answers well when it answers, and fails to answer a third of the time.
   grimgar03 74.0 (Qwen mixed), index18 67.0 (Muse), mushoku16 56.4 (Muse
   longcontext, Gemma real-multin), owarimonogatari3 44.4 (Muse longcontext).
   The "two of four already clear it" line in this goal's target rests on the
-  three-book roster-batched arms from before 2026-09-06, whose grimgar03 base
-  arm reads 89.1%; on this instrument the same base models read **53.8–58.7**
-  on the same book. The gold is the same. The harness is not, and nobody has
-  yet run the *shipped* attribution path on the four books to say which of
-  the two is closer to what a listener gets. Until that is done, the target
-  line is a claim about the old instrument, and this table is a claim about
-  the new one. Neither should be quoted as the other.
+  three-book roster-batched arms from before 2026-09-06. On this instrument
+  the base models read **53.8–58.7** on grimgar03; in `results_index.csv` the
+  earlier grimgar03 base arms read 64.4–68.8 (n=385, the 2026-08-23 gold) and
+  one local run 79.7. (The 2026-09-06 coverage note above says grimgar03's
+  base arm "reads 89.1%"; no artifact in the index carries that number for a
+  base arm — the only 89.1 in this document is the PDNC adapter in 1.3, and
+  the note appears to have picked it up by mistake. Treat that sentence as
+  unsupported.) The gold changed too — 385 scoreable rows then, 396 now — so
+  the 10–15 point drop is some mix of harness and gold, and nobody has yet
+  run the *shipped* attribution path on the current four-book gold to say
+  which instrument is closer to what a listener gets. Until that is done, the
+  target line is a claim about the old instrument, and this table is a claim
+  about the new one. Neither should be quoted as the other.
 - **Seed spread is 1–4 points, and it is not the same for every model.** Two
   seeds of the same recipe: Qwen mixed 58.3 / 59.2 (0.9 apart), Gemma
   author-r8 56.6 / 53.3 (3.3), Gemma mixed-r16 52.0 / 55.6 (3.6), Gemma
