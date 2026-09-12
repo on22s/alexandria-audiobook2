@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import replace
 
 from core import llm_timeout_seconds
-from llm_provider import make_llm_client
+from llm_provider import make_llm_client, make_run_client
 
 from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
@@ -1762,7 +1762,7 @@ def main():
         attribute_system_prompt, _ = load_attribute_prompts()
         params.attribute_system_prompt = add_narrator_prior(
             attribute_system_prompt, narrator)
-    client = make_llm_client(llm, llm_timeout_seconds())
+    client = make_run_client(config, llm, llm_timeout_seconds())
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
     cfg_windows = gen.get("context_rescue_windows")

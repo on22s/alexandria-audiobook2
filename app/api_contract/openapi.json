@@ -16,6 +16,11 @@
           "llm": {
             "$ref": "#/components/schemas/LLMConfig"
           },
+          "llm_failover": {
+            "default": false,
+            "title": "Llm Failover",
+            "type": "boolean"
+          },
           "llm_local": {
             "anyOf": [
               {

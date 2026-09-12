@@ -148,6 +148,95 @@ def get_profile_timeout(llm_config, default_timeout):
     return httpx.Timeout(request_timeout, connect=connect_timeout)
 
 
+class FailoverClient:
+    """Two configured clients, one active. `failover()` switches to the second
+    for the rest of the process and every later request goes there, with the
+    second profile's model substituted for the one the caller named - the
+    caller only knows the primary's model name.
+
+    Sticky on purpose: a provider that is rate-limiting or refusing will keep
+    doing so for the next chunk, and flapping between profiles would send the
+    same book to both. One switch, logged, for the run."""
+
+    def __init__(self, primary, primary_model, secondary, secondary_model,
+                 primary_label="primary", secondary_label="secondary"):
+        self._pair = [(primary, primary_model, primary_label),
+                      (secondary, secondary_model, secondary_label)]
+        self._active = 0
+        self.chat = _FailoverChat(self)
+
+    @property
+    def switched(self):
+        return self._active == 1
+
+    @property
+    def active_model(self):
+        return self._pair[self._active][1]
+
+    def failover(self, error_details):
+        """Switch to the secondary. Returns True when a switch happened, False
+        when this client is already on the secondary (nothing left to try)."""
+        if self.switched:
+            return False
+        self._active = 1
+        _, model, label = self._pair[1]
+        print(f"[FAILOVER] switched to the {label} profile ({model}) after "
+              f"{error_details.get('category')} (HTTP {error_details.get('status_code')}); "
+              "it serves the rest of this run.", flush=True)
+        return True
+
+    def _client(self):
+        return self._pair[self._active][0]
+
+    def with_options(self, **kwargs):
+        p, pm, pl = self._pair[0]
+        s, sm, sl = self._pair[1]
+        clone = FailoverClient(p.with_options(**kwargs), pm, s.with_options(**kwargs), sm, pl, sl)
+        clone._active = self._active
+        return clone
+
+    def __getattr__(self, name):
+        return getattr(self._client(), name)
+
+
+class _FailoverChat:
+    def __init__(self, owner):
+        self._owner = owner
+        self.completions = _FailoverCompletions(owner)
+
+    def __getattr__(self, name):
+        return getattr(self._owner._client().chat, name)
+
+
+class _FailoverCompletions:
+    def __init__(self, owner):
+        self._owner = owner
+
+    def create(self, *args, **kwargs):
+        if self._owner.switched and "model" in kwargs:
+            kwargs["model"] = self._owner.active_model
+        return self._owner._client().chat.completions.create(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._owner._client().chat.completions, name)
+
+
+def make_run_client(config, active_llm_config, timeout):
+    """The client a generation run should use: the active profile's, wrapped
+    with the failover profile's when `llm_failover` is on and the other profile
+    is configured (lmstudio_settings.get_failover_llm_config decides which)."""
+    from lmstudio_settings import get_failover_llm_config
+    primary = make_llm_client(active_llm_config, timeout)
+    other = get_failover_llm_config(config)
+    if not other:
+        return primary
+    mode = (config.get("llm_mode") or "local")
+    return FailoverClient(primary, active_llm_config.get("model_name", ""),
+                          make_llm_client(other, timeout), other.get("model_name", ""),
+                          primary_label=mode,
+                          secondary_label="remote" if mode == "local" else "local")
+
+
 def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     """Create an OpenAI-compatible client with the profile's provider options."""
     llm_config = llm_config or {}

@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass
 from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
 from config_settings import load_app_config
-from llm_provider import make_llm_client, merge_provider_extra_body
+from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
@@ -750,6 +750,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     # sent the same 764-token prompt and got the same 325-token completion,
     # then the batch was failed anyway. Rule 10: decide the policy once.
     attempted_prompts = set()
+
+    def _retry_same_request():
+        """The whole call again, fresh budget - used after a failover or an
+        operator resume, both of which change the provider, not the request."""
+        return call_llm_for_entries(
+            client, model_name, sys_prompt, user_prompt, params, log_name, label,
+            max_retries=max_retries, validate_entries=validate_entries,
+            transform_entries=transform_entries, attempt_observer=attempt_observer,
+            retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec)
+
     # Persists across attempts: a reasoning model gets exactly one larger
     # budget before the batch is failed (Rule 10 - one retry policy).
     reasoning_escalated = False
@@ -920,20 +930,23 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print(f"Retrying in {retry_delay:.1f}s...")
                     time.sleep(retry_delay)
                 continue
+            # Order of last resorts: the other profile first (a fresh provider
+            # is more likely to answer than the same one later), then the
+            # operator, then giving up.
+            switch = getattr(client, "failover", None)
+            if switch is not None and switch(error_details):
+                # The other profile takes this request and the rest of the
+                # run, with a fresh budget: the failure was the provider's.
+                # Content-policy refusals qualify too - that is the case a
+                # second provider exists for.
+                return _retry_same_request()
             if (error_details["retryable"]
                     and getattr(params, "on_api_exhaustion", "fail") == "pause"
                     and pause_for_operator(error_details)):
                 # Resumed by the operator: the provider is presumably back, so
                 # the request is tried again with a fresh budget rather than
                 # given up. Nothing about the chunk changed while frozen.
-                return call_llm_for_entries(
-                    client, model_name, sys_prompt, user_prompt, params,
-                    log_name, label, max_retries=max_retries,
-                    validate_entries=validate_entries,
-                    transform_entries=transform_entries,
-                    attempt_observer=attempt_observer,
-                    retry_decider=retry_decider, near_miss_sink=near_miss_sink,
-                    codec=codec)
+                return _retry_same_request()
             return []
 
         # Clean and extract the payload region for whichever wire format
@@ -1659,7 +1672,7 @@ def main():
     # request into a failed one. What matters is that SOME finite number
     # exists, so a dead request becomes an error the retry loop can see rather
     # than a silent hang.
-    client = make_llm_client(llm_config, llm_timeout_seconds())
+    client = make_run_client(config, llm_config, llm_timeout_seconds())
 
     # Split into chunks at natural boundaries
     chunks = split_into_chunks(book_content, max_size=chunk_size)

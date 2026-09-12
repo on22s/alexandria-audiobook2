@@ -119,6 +119,10 @@ class AppConfig(BaseModel):
     llm_local: Optional[LLMConfig] = None
     llm_remote: Optional[LLMConfig] = None
     llm_remote_ssh: Optional[str] = None
+    # When the active profile's retries run out (or it refuses on content
+    # policy), switch this run to the OTHER profile for the rest of the run.
+    # Off by default: the other profile may be a rented endpoint that bills.
+    llm_failover: bool = False
     tts: TTSConfig
     prompts: Optional[PromptConfig] = None
     generation: Optional[GenerationConfig] = None
