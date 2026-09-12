@@ -1,0 +1,186 @@
+{
+ "what": "blind same-line test: human held-out clip vs honest-retrain render of the same line, human position randomised",
+ "page": "https://claude.ai/code/artifact/312ba14f-6eb3-4e93-b467-6d1ca820ebba",
+ "rated_at": "2026-09-12T19:21-19:28Z",
+ "rater": "project owner, blind to adapter identity, scores and clip order",
+ "device": "desktop Firefox; headphones not recorded",
+ "clip_format": "128 kbps MP3 transcodes",
+ "shuffle_seed": 20260913,
+ "unrated": [],
+ "rows": [
+  {
+   "slot": "A",
+   "adapter": "husky_tenor_30s_m_literary",
+   "role": "control",
+   "new_ecapa_heldout": 0.7252,
+   "old_ecapa_contaminated": 0.7369,
+   "human_is": "1",
+   "picked_human": "1",
+   "picked_correctly": true,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "shifting his gaze to Hana, \u201cbut that you know isn\u2019t really *yours*?\u201d \u201cI don\u2019t *understand*,\u201d Hana said."
+  },
+  {
+   "slot": "B",
+   "adapter": "husky_baritone_20s_m_anime",
+   "role": "failure",
+   "new_ecapa_heldout": 0.6851,
+   "old_ecapa_contaminated": 0.0274,
+   "human_is": "2",
+   "picked_human": "2",
+   "picked_correctly": true,
+   "same_voice_1to5": 1,
+   "artifacts": [
+    "robotic",
+    "cracking",
+    "cutoff",
+    "noise",
+    "mumble"
+   ],
+   "notes": "clip one just failed to sound what and went into a doomloop",
+   "text": "WHAT WOULD BE THE POINT ... IN HAVING A SPLIT PERSONALITY *OTHERWISE* SO I AM ALSO UNSURE OF HOW YOU FEEL ABOUT THIS TYRANNICAL TIGER'S PRESENCE OR ABOUT MY LINE OF REASONING?"
+  },
+  {
+   "slot": "C",
+   "adapter": "warm_alto_50s_f_gothic",
+   "role": null,
+   "new_ecapa_heldout": null,
+   "old_ecapa_contaminated": null,
+   "human_is": "2",
+   "picked_human": "2",
+   "picked_correctly": true,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "clever *lunatic*; so I shall go, if I may, and cheer myself with a few happy words with that sweet *soul* Madam Mina. ..."
+  },
+  {
+   "slot": "D",
+   "adapter": "warm_tenor_25s_m_military",
+   "role": "failure",
+   "new_ecapa_heldout": 0.6492,
+   "old_ecapa_contaminated": 0.4039,
+   "human_is": "2",
+   "picked_human": "cannot_tell",
+   "picked_correctly": null,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "flat plains were where *L\u00f6we* and *Dinosauria* reigned supreme. .... So while the Federacy was able to reach a stalemate for the time being,"
+  },
+  {
+   "slot": "E",
+   "adapter": "warm_tenor_20s_m",
+   "role": "control",
+   "new_ecapa_heldout": 0.3818,
+   "old_ecapa_contaminated": 0.7248,
+   "human_is": "2",
+   "picked_human": "2",
+   "picked_correctly": true,
+   "same_voice_1to5": 1,
+   "artifacts": [],
+   "notes": "one is female and the other is male",
+   "text": "because I ... didn\u2019t ... know ... what *he* was *really* like at that point. .... I might even have told *Maori* she should break up with him right away."
+  },
+  {
+   "slot": "F",
+   "adapter": "warm_baritone_40s_m_fantasy",
+   "role": "failure",
+   "new_ecapa_heldout": 0.6691,
+   "old_ecapa_contaminated": 0.099,
+   "human_is": "1",
+   "picked_human": "2",
+   "picked_correctly": false,
+   "same_voice_1to5": 1,
+   "artifacts": [],
+   "notes": "one is female and the other is male",
+   "text": "but was hardly human. .... Lawrence found himself utterly unable to form words. .... Icicles dangled from the figure\u2019s *eyebrows*,"
+  },
+  {
+   "slot": "G",
+   "adapter": "warm_baritone_40s_m_2",
+   "role": "control",
+   "new_ecapa_heldout": 0.713,
+   "old_ecapa_contaminated": 0.7302,
+   "human_is": "1",
+   "picked_human": "1",
+   "picked_correctly": true,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "That was the one *reassuring* fact of this *debacle*. If it were a diversion, targeting the Hall of Sarcophagi was a stroke of *tactical* genius. ..."
+  },
+  {
+   "slot": "H",
+   "adapter": "silky_baritone_45s_m",
+   "role": null,
+   "new_ecapa_heldout": null,
+   "old_ecapa_contaminated": null,
+   "human_is": "1",
+   "picked_human": "1",
+   "picked_correctly": true,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "I turned to run down ... again towards the vault, where I might find the new entrance; but at the moment there seemed to come a violent puff of *wind*,"
+  },
+  {
+   "slot": "I",
+   "adapter": "breathy_tenor_18s_m_supernatural",
+   "role": "failure",
+   "new_ecapa_heldout": 0.537,
+   "old_ecapa_contaminated": 0.3973,
+   "human_is": "2",
+   "picked_human": "2",
+   "picked_correctly": true,
+   "same_voice_1to5": 1,
+   "artifacts": [],
+   "notes": "one is female and the other is male,and it said tongue incorrectly",
+   "text": "MY TONGUE SLIPPED AND I FEEL LIKE I ENDED UP SAYING SOMETHING THAT DIDN'T MAKE *MUCH* SENSE JUST NOW ... YE WELL YOU DON'T NEED TO WORRY ABOUT IT,"
+  },
+  {
+   "slot": "J",
+   "adapter": "velvety_mezzo_30s_f_gothic",
+   "role": "failure",
+   "new_ecapa_heldout": 0.1961,
+   "old_ecapa_contaminated": 0.0614,
+   "human_is": "1",
+   "picked_human": "2",
+   "picked_correctly": false,
+   "same_voice_1to5": 5,
+   "artifacts": [
+    "clean"
+   ],
+   "notes": "",
+   "text": "Here\u2019s his head all cut and full of *broken* glass. .... \u2019E\u2019s been a getting over some *bloomin*\u2019 wall or other."
+  }
+ ],
+ "summary": {
+  "n": 10,
+  "picked_correctly": 7,
+  "picked_wrong": 2,
+  "cannot_tell": 1,
+  "same_voice_5": 6,
+  "same_voice_1": 4,
+  "wrong_sex_reported": [
+   "warm_tenor_20s_m",
+   "warm_baritone_40s_m_fantasy",
+   "breathy_tenor_18s_m_supernatural"
+  ],
+  "broken_render": [
+   "husky_baritone_20s_m_anime"
+  ]
+ }
+}
