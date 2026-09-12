@@ -298,6 +298,16 @@
     "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_corrected_metadata_is_not_flagged",
     "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_main_allows_a_directory_without_legacy_scout"
   ],
+  "test_auto_pause_on_api_exhaustion": [
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_content_policy_never_pauses_even_in_pause_mode",
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_fail_mode_gives_the_chunk_up_and_never_signals",
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_for_operator_prints_the_marker_the_app_watches_for",
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_mode_freezes_then_retries_with_a_fresh_budget",
+    "tests.test_auto_pause_on_api_exhaustion.ConfigTests.test_default_is_fail_and_pause_is_accepted",
+    "tests.test_auto_pause_on_api_exhaustion.ConfigTests.test_other_values_are_rejected",
+    "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_marker_sets_paused_and_the_resume_line_clears_it",
+    "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_ordinary_output_leaves_paused_alone"
+  ],
   "test_batch_identity_and_selection": [
     "tests.test_batch_identity_and_selection.BatchIdentity.test_a_hash_may_be_supplied_without_the_prompt_text",
     "tests.test_batch_identity_and_selection.BatchIdentity.test_comparing_two_nulls_must_not_read_as_agreement",

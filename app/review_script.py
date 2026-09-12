@@ -898,6 +898,7 @@ def main():
         retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm_config.get("retry_multiplier", 2),
         retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
+        on_api_exhaustion=llm_config.get("on_api_exhaustion", "fail"),
     )
 
     print(f"Connecting to: {base_url}")
