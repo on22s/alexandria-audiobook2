@@ -2345,6 +2345,13 @@
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
   ],
+  "test_recipes": [
+    "tests.test_recipes.ChainsUseWorkingRatesTest.test_every_chain_that_trains_uses_a_listed_rate",
+    "tests.test_recipes.ChainsUseWorkingRatesTest.test_the_scanner_sees_a_multiline_invocation",
+    "tests.test_recipes.RecipesFileTest.test_the_file_lists_the_trainer_default_as_working",
+    "tests.test_recipes.RecipesFileTest.test_the_parser_reads_status_not_prose",
+    "tests.test_recipes.RecipesFileTest.test_the_runaway_rate_is_not_listed_as_working"
+  ],
   "test_record_stamps_every_gold": [
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_changed_second_gold_changes_the_record",
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_single_path_still_produces_the_singular_fields",
