@@ -796,17 +796,24 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             messages = base_messages if not retry_feedback else [
                 base_messages[0], {"role": "user", "content": attempt_prompt}
             ]
-            # Only when the sampler is deterministic. Above 0 a repeated prompt
-            # is a legitimate second sample and must still be sent.
-            if not params.temperature:
-                if attempt_prompt in attempted_prompts:
-                    print(f"  {label}: identical prompt already rejected at "
-                          f"temperature 0; further retries cannot differ",
-                          flush=True)
-                    break
             effective_max = get_effective_max_tokens(
                 requested_max, params.context_length, messages,
                 params.hard_max_tokens, scale_to_context=False)
+            # Only when the sampler is deterministic. Above 0 a repeated prompt
+            # is a legitimate second sample and must still be sent. The key is
+            # the prompt AND the completion budget: a truncated response raises
+            # requested_max for the retry, and that retry is a different
+            # request even though its prompt is byte-identical. Keyed on the
+            # prompt alone, this guard cancelled every budget escalation at
+            # temperature 0 - measured 2026-09-12 on Muse at batch 25, where
+            # 70% of windows hit max_tokens and none was ever re-sent larger.
+            attempt_key = (attempt_prompt, effective_max)
+            if not params.temperature:
+                if attempt_key in attempted_prompts:
+                    print(f"  {label}: identical prompt and budget already "
+                          f"rejected at temperature 0; further retries cannot "
+                          f"differ", flush=True)
+                    break
             response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
@@ -819,7 +826,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if not params.temperature:
                 # Only a real response proves this deterministic prompt cannot
                 # differ. Connection/API failures must retain their retry budget.
-                attempted_prompts.add(attempt_prompt)
+                attempted_prompts.add(attempt_key)
 
             choice = response.choices[0]
             # An OpenAI-compatible server may return JSON null for content when

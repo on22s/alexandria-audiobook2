@@ -25,9 +25,17 @@ class LoraServingEvalModeTests(unittest.TestCase):
 
     def test_metadata_records_nondefault_request_controls(self):
         decoding, _ = get_eval_metadata(
-            base_only=True, batch=5, reasoning_effort="low")
+            base_only=True, batch=5, reasoning_effort="low", max_tokens=6000)
         self.assertEqual(5, decoding["batch"])
         self.assertEqual("low", decoding["reasoning_effort"])
+        self.assertEqual(6000, decoding["max_tokens"])
+
+    def test_default_budget_is_the_products_not_a_smaller_one(self):
+        """2000 was half the product's room; Muse overflowed 70% of windows."""
+        from generate_script import LLMGenParams
+        decoding, _ = get_eval_metadata()
+        self.assertEqual(LLMGenParams().max_tokens, decoding["max_tokens"])
+        self.assertGreaterEqual(decoding["max_tokens"], 4096)
 
     def test_paired_metadata_matches_the_two_executed_arms(self):
         decoding, notes = get_eval_metadata()

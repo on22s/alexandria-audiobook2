@@ -136,3 +136,41 @@ class DeterministicRetryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BudgetEscalationIsNotARepeatTest(DeterministicRetryTest):
+    """A truncated response raises the completion budget for the retry. That
+    retry has a byte-identical prompt but is a different request, and the
+    temperature-0 guard must let it through.
+
+    Measured 2026-09-12: Muse at batch 25 hit max_tokens=2000 on 70% of
+    windows; the loop announced "Token budget: 2000 -> 3000" and then the
+    guard, keyed on the prompt alone, cancelled the retry - so no window was
+    ever re-sent with the larger budget and 257 of 385 rows went unanswered.
+    """
+
+    def test_truncated_then_larger_budget_is_sent_and_succeeds(self):
+        calls = []
+
+        class _TruncatesUntilBigger(_CountingClient):
+            def _create(self, **kwargs):
+                calls.append(kwargs["max_tokens"])
+                if len(calls) == 1:
+                    r = _Response('[{"n": 0, "speaker": "NARR')   # cut off
+                    r.choices[0].finish_reason = "length"
+                    return r
+                return _Response('[{"n": 0, "speaker": "NARRATOR"}]')
+
+        client = _TruncatesUntilBigger()
+        out = generate_script.call_llm_for_entries(
+            client, "m", "sys", "user", _params(0.0),
+            max_retries=3, log_name="retry.log", label="ATTRIBUTE")
+        self.assertEqual(2, len(calls), f"budgets sent: {calls}")
+        self.assertGreater(calls[1], calls[0], "retry must carry the raised budget")
+        self.assertEqual([{"n": 0, "speaker": "NARRATOR"}], out)
+
+    def test_same_prompt_same_budget_is_still_blocked(self):
+        """The original guard case must survive: an identical request at
+        temperature 0 is sent once."""
+        prompts = self._run(temperature=0.0)
+        self.assertEqual(1, len(prompts))
