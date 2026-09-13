@@ -4503,11 +4503,32 @@ probe cannot separate them. Cue detectors are regexes over 200-char windows,
 hand-checked on six rows only; PDNC only, since the Japanese gold has no
 context fields.
 
-**The test that separates the readings** is the usual-suspect arm of
-`two_stage_attribution.py --drop-top-speakers 2`: the same 1,213
-minor-speaker rows asked twice, with and without the two most frequent
-names in the shown cast. If minor-speaker accuracy rises toward 75% once
-the usual suspects cannot be chosen, the model was defaulting to them.
+**The test that separates the readings, run the same day: the model
+defaults to the usual suspects.** `two_stage_attribution.py
+--drop-top-speakers 2` asked the same 1,213 minor-speaker rows twice —
+full cast, then with the book's two most frequent speakers removed from
+the shown cast (Qwen3-14B Q4, reasoning off, local llama.cpp):
+
+| book | full cast | usual suspects removed |
+|---|---:|---:|
+| Pride and Prejudice (725) | 62.8% | 68.1% |
+| The Sign of the Four (255) | 43.1% | 52.2% |
+| The Awakening (233) | 55.4% | 62.7% |
+| **pooled, paired** | **57.2%** | **63.7%** (+105/−26, p=2e-12) |
+
+In the control arm **52.4% of wrong answers named a usual suspect**; of
+the 105 rows the removal fixed, 81 had. So roughly half the selection
+errors on minor speakers are a prior toward the leads, and removing the
+prior recovers a fifth of those rows. It does not reach the leads' 74.5%,
+so line distinctiveness carries the rest. The prior cannot be removed in
+production (the leads may be speaking), which makes the lever a prompt
+or training signal that gives the model a reason to prefer a minor name
+when one fits — the author-balanced and play-script sets are already
+shaped that way. A K=5 arm is queued to see whether the effect grows
+with the number of suspects removed.
+
+**Evidence** — `two_stage_attribution__usual_suspects_control_20260913.json`,
+`two_stage_attribution__usual_suspects_dropped_20260913.json`.
 
 ---
 
