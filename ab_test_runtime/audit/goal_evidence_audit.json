@@ -204,16 +204,22 @@
   {
    "goal": "2.1",
    "title": "Speaker similarity against a human ceiling",
-   "cited": 1,
+   "cited": 2,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 1
+    "supported_structure": 2
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "hifitts_9017_score.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "092d783c"
+    },
     {
      "name": "reference_audit.json",
      "classification": "supported_structure",

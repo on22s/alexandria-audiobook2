@@ -1239,6 +1239,13 @@ different held-out line).
 | English | 0.809 | 0.757 | 0.690 | 93% |
 | Japanese | 0.796 | 0.779 | 0.755 | 98% |
 | Chinese | *0.691 — anchor invalid* | 0.765 | 0.720 | — |
+| English, second reader (Hi-Fi TTS 9017, 2026-09-13) | 0.751 | 0.646 | 0.555 | **86%** |
+
+The second English reader (`hifitts_9017_score.json`, 150 held-out lines,
+same instrument; built for 2.9) reads further from the target than LJSpeech
+on both arms — clone 86% of ceiling, LoRA 74% — with a 5.2 s clone prompt,
+inside the short-prompt band the next paragraph names. One reader, one
+prompt; it widens the English gap, it does not explain it.
 
 **Every eval set clones from a reference below the published useful range,
 measured 2026-08-20** (`reference_audit.json`). Qwen's own cloning guide puts
