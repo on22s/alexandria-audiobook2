@@ -91,8 +91,12 @@
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
-            const values = raw.split(',').map(t => t.trim()).filter(Boolean).map(t => parseInt(t, 10));
-            if (values.some(v => !Number.isInteger(v) || v <= 0)) {
+            const tokens = raw.split(',').map(t => t.trim());
+            if (tokens.some(t => !/^[1-9]\d*$/.test(t))) {
+                throw new Error(`${label}: use positive whole numbers separated by commas.`);
+            }
+            const values = tokens.map(Number);
+            if (values.some(v => !Number.isSafeInteger(v))) {
                 throw new Error(`${label}: use positive whole numbers separated by commas.`);
             }
             return values;
@@ -197,7 +201,7 @@
             if (!baseUrl) { hint.textContent = 'Set the Base URL first.'; return; }
             hint.textContent = 'Fetching model list...';
             try {
-                const r = await API.get(`/api/llm/models?base_url=${encodeURIComponent(baseUrl)}&api_key=${encodeURIComponent(apiKey)}`);
+                const r = await API.post('/api/llm/models', { base_url: baseUrl, api_key: apiKey });
                 list.innerHTML = '';
                 (r.models || []).forEach(id => {
                     const opt = document.createElement('option');

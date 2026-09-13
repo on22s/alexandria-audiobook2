@@ -1288,6 +1288,24 @@
         "title": "LibrarySaveRequest",
         "type": "object"
       },
+      "LlmModelsRequest": {
+        "properties": {
+          "api_key": {
+            "default": "local",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url"
+        ],
+        "title": "LlmModelsRequest",
+        "type": "object"
+      },
       "LoraDatasetSample": {
         "properties": {
           "emotion": {
@@ -4086,30 +4104,19 @@
       }
     },
     "/api/llm/models": {
-      "get": {
+      "post": {
         "description": "The model ids the endpoint advertises (OpenAI-compatible /models), so the\nSetup tab can offer a picker. Errors are returned, not raised: an\nunreachable server is a normal state while the user is still typing.",
-        "operationId": "llm_models_api_llm_models_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "base_url",
-            "required": true,
-            "schema": {
-              "title": "Base Url",
-              "type": "string"
+        "operationId": "llm_models_api_llm_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlmModelsRequest"
+              }
             }
           },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "default": "local",
-              "title": "Api Key",
-              "type": "string"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {

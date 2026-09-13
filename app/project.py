@@ -268,6 +268,34 @@ def build_chapter_filename(template, number, title, ext, padding=2, book_name=""
     return f"{name}.{ext}"
 
 
+def build_chapter_filenames(groups, template, ext, padding=2, book_name="",
+                            series_name="", volume_number=""):
+    """Build one unique filename per chapter group or reject the template.
+
+    A custom template may omit ``{chapter_number}``, and chapter titles may
+    repeat. Writing both groups to one path silently replaces the earlier
+    chapter, so uniqueness is an export precondition rather than a best-effort
+    cleanup after audio has already been rendered.
+    """
+    filenames = [build_chapter_filename(
+        template, index + 1, title, ext, padding=padding,
+        book_name=book_name, series_name=series_name,
+        volume_number=volume_number)
+        for index, (title, _, _) in enumerate(groups)]
+    seen, duplicates = set(), set()
+    for name in filenames:
+        if name in seen:
+            duplicates.add(name)
+        seen.add(name)
+    duplicates = sorted(duplicates)
+    if duplicates:
+        raise ValueError(
+            "Chapter template produces duplicate filenames: "
+            + ", ".join(duplicates)
+            + ". Include {chapter_number} to make each chapter unique.")
+    return filenames
+
+
 class ExportCancelled(Exception):
     """Raised inside a merge/export when the caller's cancel_check fires."""
 
@@ -1014,6 +1042,12 @@ class ProjectManager:
             if not path or not os.path.isfile(full_path):
                 return None
         groups = self._chapter_groups(chunks, per_chunk_chapters)
+        try:
+            filenames = build_chapter_filenames(
+                groups, template, fmt, padding=padding, book_name=book_name,
+                series_name=series_name, volume_number=volume_number)
+        except ValueError as exc:
+            return False, str(exc)
         wanted = set(range(len(groups))) if chapters is None else set(chapters)
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         manifest_path = os.path.join(out_dir, "manifest.json")
@@ -1028,10 +1062,7 @@ class ProjectManager:
                 old_start, old_end = int(old["start_ms"]), int(old["end_ms"])
             except (KeyError, TypeError, ValueError):
                 return None
-            filename = build_chapter_filename(
-                template, index + 1, title, fmt, padding=padding,
-                book_name=book_name, series_name=series_name,
-                volume_number=volume_number)
+            filename = filenames[index]
             fingerprint = self._chapter_fingerprint(chunks[first:last + 1])
             reuse = (index not in wanted or
                      (old.get("fingerprint") == fingerprint and old.get("file") == filename
@@ -1121,6 +1152,12 @@ class ProjectManager:
         timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
         chunks = [chunk for chunk, _, _ in timeline]
         groups = self._chapter_groups(chunks, per_chunk_chapters)
+        try:
+            filenames = build_chapter_filenames(
+                groups, template, fmt, padding=padding, book_name=book_name,
+                series_name=series_name, volume_number=volume_number)
+        except ValueError as exc:
+            return False, str(exc)
         wanted = set(range(len(groups))) if chapters is None else set(chapters)
 
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
@@ -1142,10 +1179,7 @@ class ProjectManager:
             start_ms = timeline[first][2]
             end_ms = timeline[last][2] + len(timeline[last][1])
             fingerprint = self._chapter_fingerprint(chunks[first:last + 1])
-            filename = build_chapter_filename(
-                template, index + 1, title, fmt, padding=padding,
-                book_name=book_name, series_name=series_name,
-                volume_number=volume_number)
+            filename = filenames[index]
             path = os.path.join(out_dir, filename)
             row = {"index": index, "number": index + 1, "title": title,
                    "file": filename, "start_ms": start_ms, "end_ms": end_ms,
@@ -1205,10 +1239,10 @@ class ProjectManager:
         audio decoded), so the template can be checked before rendering."""
         chunks = [c for c in self.load_chunks() if c.get("audio_path")]
         groups = self._chapter_groups(chunks, per_chunk_chapters) if chunks else []
-        return [{"number": i + 1, "title": title,
-                 "file": build_chapter_filename(template, i + 1, title, fmt, padding=padding,
-                                                book_name=book_name, series_name=series_name,
-                                                volume_number=volume_number)}
+        filenames = build_chapter_filenames(
+            groups, template, fmt, padding=padding, book_name=book_name,
+            series_name=series_name, volume_number=volume_number)
+        return [{"number": i + 1, "title": title, "file": filenames[i]}
                 for i, (title, _, _) in enumerate(groups)]
 
     def generate_chunks_parallel(self, indices, max_workers=2, progress_callback=None,
