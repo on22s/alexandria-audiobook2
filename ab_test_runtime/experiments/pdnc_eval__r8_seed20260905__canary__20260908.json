@@ -1,0 +1,2444 @@
+{
+ "PrideAndPrejudice": {
+  "base": {
+   "n": 50,
+   "correct": 48,
+   "rows": [
+    {
+     "id": "PrideAndPrejudice-00000",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00001",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00002",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00003",
+     "expected": "MR. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00004",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00005",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00006",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00007",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00008",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00009",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00010",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00011",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00012",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00013",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00014",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00015",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00016",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00017",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00018",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00019",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00020",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00021",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00022",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00023",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00024",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00025",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00026",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00027",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00028",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00029",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00030",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00031",
+     "expected": "MRS. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00032",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00033",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00034",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00035",
+     "expected": "KITTY",
+     "predicted": "KITTY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "PrideAndPrejudice-00036",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00037",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00038",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00039",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00040",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00041",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00042",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00043",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00044",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00045",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00046",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00047",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00048",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00049",
+     "expected": "LYDIA",
+     "predicted": "LYDIA",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    }
+   ]
+  },
+  "lora": {
+   "n": 50,
+   "correct": 48,
+   "rows": [
+    {
+     "id": "PrideAndPrejudice-00000",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00001",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00002",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00003",
+     "expected": "MR. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00004",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00005",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00006",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00007",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00008",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00009",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00010",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00011",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00012",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00013",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00014",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00015",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00016",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00017",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00018",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00019",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00020",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00021",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00022",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00023",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00024",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00025",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00026",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00027",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00028",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00029",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00030",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00031",
+     "expected": "MRS. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00032",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00033",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00034",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00035",
+     "expected": "KITTY",
+     "predicted": "KITTY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "PrideAndPrejudice-00036",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00037",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00038",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00039",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00040",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00041",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00042",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00043",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00044",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00045",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00046",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00047",
+     "expected": "MR. BENNET",
+     "predicted": "MR. BENNET",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "PrideAndPrejudice-00048",
+     "expected": "MRS. BENNET",
+     "predicted": "MRS. BENNET",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "PrideAndPrejudice-00049",
+     "expected": "LYDIA",
+     "predicted": "LYDIA",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    }
+   ]
+  }
+ },
+ "TheAwakening": {
+  "base": {
+   "n": 50,
+   "correct": 36,
+   "rows": [
+    {
+     "id": "TheAwakening-00000",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00001",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00002",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00003",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00004",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00005",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00006",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00007",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00008",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00009",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00010",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00011",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "EDNA PONTELLIER",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00012",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "EDNA PONTELLIER",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00013",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00014",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00015",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00016",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00017",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00018",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00019",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "ROBERT LEBRUN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00020",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00021",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00022",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00023",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00024",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00025",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00026",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00027",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00028",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00029",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00030",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00031",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00032",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00033",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00034",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00035",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00036",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00037",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00038",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00039",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00040",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00041",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "ROBERT LEBRUN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00042",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00043",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00044",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00045",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "TheAwakening-00046",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00047",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "TheAwakening-00048",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00049",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    }
+   ]
+  },
+  "lora": {
+   "n": 50,
+   "correct": 33,
+   "rows": [
+    {
+     "id": "TheAwakening-00000",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00001",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00002",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "ROBERT LEBRUN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00003",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00004",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00005",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00006",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00007",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "ROBERT LEBRUN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00008",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00009",
+     "expected": "LEONCE PONTELLIER",
+     "predicted": "LEONCE PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00010",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00011",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "EDNA PONTELLIER",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00012",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "EDNA PONTELLIER",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00013",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00014",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00015",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00016",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00017",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00018",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00019",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "ROBERT LEBRUN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00020",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00021",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00022",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00023",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00024",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00025",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00026",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00027",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00028",
+     "expected": "EDNA PONTELLIER",
+     "predicted": "EDNA PONTELLIER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00029",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00030",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00031",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00032",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00033",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00034",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00035",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00036",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00037",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00038",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00039",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ROBERT LEBRUN",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00040",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00041",
+     "expected": "MADAME RATIGNOLLE",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheAwakening-00042",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00043",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00044",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "ALCEE AROBIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00045",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "TheAwakening-00046",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00047",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "TheAwakening-00048",
+     "expected": "ROBERT LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheAwakening-00049",
+     "expected": "MADAME LEBRUN",
+     "predicted": "MADAME RATIGNOLLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    }
+   ]
+  }
+ },
+ "TheSignOfTheFour": {
+  "base": {
+   "n": 50,
+   "correct": 46,
+   "rows": [
+    {
+     "id": "TheSignOfTheFour-00000",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00001",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00002",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00003",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00004",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00005",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00006",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00007",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00008",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00009",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00010",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00011",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00012",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00013",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00014",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00015",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00016",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00017",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00018",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00019",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00020",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00021",
+     "expected": "DR. WATSON",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00022",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00023",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00024",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00025",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00026",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00027",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00028",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00029",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00030",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00031",
+     "expected": "DR. WATSON",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00032",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00033",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00034",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00035",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00036",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00037",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00038",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00039",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00040",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00041",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00042",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00043",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00044",
+     "expected": "MRS. HUDSON",
+     "predicted": "MRS. HUDSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "TheSignOfTheFour-00045",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00046",
+     "expected": "MISS MORSTAN",
+     "predicted": "MISS MORSTAN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheSignOfTheFour-00047",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00048",
+     "expected": "MISS MORSTAN",
+     "predicted": "MISS MORSTAN",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheSignOfTheFour-00049",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    }
+   ]
+  },
+  "lora": {
+   "n": 50,
+   "correct": 42,
+   "rows": [
+    {
+     "id": "TheSignOfTheFour-00000",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00001",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00002",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00003",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00004",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00005",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00006",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00007",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00008",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00009",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00010",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00011",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00012",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00013",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00014",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00015",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00016",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00017",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00018",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00019",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00020",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00021",
+     "expected": "DR. WATSON",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00022",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00023",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00024",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00025",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00026",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00027",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00028",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00029",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00030",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00031",
+     "expected": "DR. WATSON",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00032",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00033",
+     "expected": "DR. WATSON",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00034",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "DR. WATSON",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00035",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00036",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00037",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00038",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00039",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00040",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00041",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00042",
+     "expected": "DR. WATSON",
+     "predicted": "DR. WATSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00043",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00044",
+     "expected": "MRS. HUDSON",
+     "predicted": "MRS. HUDSON",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "TheSignOfTheFour-00045",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00046",
+     "expected": "MISS MORSTAN",
+     "predicted": "MISS MORSTAN",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheSignOfTheFour-00047",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "TheSignOfTheFour-00048",
+     "expected": "MISS MORSTAN",
+     "predicted": "MISS MORSTAN",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "TheSignOfTheFour-00049",
+     "expected": "MR. SHERLOCK HOLMES",
+     "predicted": "MR. SHERLOCK HOLMES",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,1067 @@
+{
+ "experiment": "ref_clip_edges",
+ "finished": 1789242916.0129137,
+ "summary": {
+  "adapters": 75,
+  "measured": 75,
+  "starts_abrupt": 22,
+  "ends_abrupt": 27,
+  "either": 40,
+  "transcript_starts_fragment": 21,
+  "transcript_ends_fragment": 6,
+  "threshold": 0.5,
+  "edge_seconds": 0.05
+ },
+ "rows": [
+  {
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "duration_s": 8.92,
+   "head_rms_ratio": 0.277,
+   "tail_rms_ratio": 0.1,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "BEFORE",
+    "last": "UP",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_baritone_30s_m_fantasy",
+   "duration_s": 7.08,
+   "head_rms_ratio": 0.151,
+   "tail_rms_ratio": 1.703,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "He",
+    "last": "prince",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_literary",
+   "duration_s": 8.7,
+   "head_rms_ratio": 1.456,
+   "tail_rms_ratio": 0.215,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "and",
+    "last": "school",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_1",
+   "duration_s": 8.9,
+   "head_rms_ratio": 0.279,
+   "tail_rms_ratio": 0.327,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "It",
+    "last": "p",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_2",
+   "duration_s": 8.56,
+   "head_rms_ratio": 0.046,
+   "tail_rms_ratio": 0.194,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Logan",
+    "last": "him",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_mezzo_20s_f_scifi",
+   "duration_s": 9.44,
+   "head_rms_ratio": 0.404,
+   "tail_rms_ratio": 0.114,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "He",
+    "last": "it",
+    "starts_fragment": false,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "breathy_tenor_18s_m_supernatural",
+   "duration_s": 12.4,
+   "head_rms_ratio": 1.304,
+   "tail_rms_ratio": 0.126,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "AH",
+    "last": "IT",
+    "starts_fragment": false,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "breathy_tenor_20s_m_fantasy",
+   "duration_s": 10.72,
+   "head_rms_ratio": 0.694,
+   "tail_rms_ratio": 1.245,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "I",
+    "last": "help",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "breathy_tenor_50s_m_fantasy",
+   "duration_s": 8.62,
+   "head_rms_ratio": 0.173,
+   "tail_rms_ratio": 0.192,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "All",
+    "last": "tasks",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "bright_tenor_30s_m",
+   "duration_s": 7.64,
+   "head_rms_ratio": 0.151,
+   "tail_rms_ratio": 0.008,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "She",
+    "last": "thought",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "crisp_mezzo_30s_f",
+   "duration_s": 12.34,
+   "head_rms_ratio": 0.111,
+   "tail_rms_ratio": 0.225,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Spirit",
+    "last": "heirs",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "crisp_tenor_20s_m",
+   "duration_s": 8.32,
+   "head_rms_ratio": 0.192,
+   "tail_rms_ratio": 0.983,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "But",
+    "last": "this",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "crisp_tenor_30s_m_fantasy",
+   "duration_s": 9.42,
+   "head_rms_ratio": 1.019,
+   "tail_rms_ratio": 0.563,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "but",
+    "last": "breathed",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "gravelly_baritone_50s_m_scifi",
+   "duration_s": 12.0,
+   "head_rms_ratio": 0.899,
+   "tail_rms_ratio": 0.422,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "the",
+    "last": "Sack",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_alto_40s_f",
+   "duration_s": 11.0,
+   "head_rms_ratio": 0.212,
+   "tail_rms_ratio": 0.951,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "only",
+    "last": "tether",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_20s_m_anime",
+   "duration_s": 9.68,
+   "head_rms_ratio": 0.438,
+   "tail_rms_ratio": 0.009,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "MAYBE",
+    "last": "ABOUT",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_20s_m_supernatural",
+   "duration_s": 7.72,
+   "head_rms_ratio": 0.125,
+   "tail_rms_ratio": 0.209,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Crying",
+    "last": "life",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_35s_m",
+   "duration_s": 11.98,
+   "head_rms_ratio": 0.05,
+   "tail_rms_ratio": 0.165,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Dandelion",
+    "last": "matrons",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_40s_m_1",
+   "duration_s": 11.18,
+   "head_rms_ratio": 0.346,
+   "tail_rms_ratio": 0.475,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "and",
+    "last": "faces",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_40s_m_2",
+   "duration_s": 8.58,
+   "head_rms_ratio": 0.27,
+   "tail_rms_ratio": 1.105,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "The",
+    "last": "us",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_40s_m_military",
+   "duration_s": 7.74,
+   "head_rms_ratio": 0.694,
+   "tail_rms_ratio": 0.328,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "No",
+    "last": "container",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_40s_m_scifi",
+   "duration_s": 7.52,
+   "head_rms_ratio": 0.416,
+   "tail_rms_ratio": 0.251,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "For",
+    "last": "them",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_50s_m_gothic",
+   "duration_s": 9.16,
+   "head_rms_ratio": 0.179,
+   "tail_rms_ratio": 0.012,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "I",
+    "last": "alight",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_baritone_50s_m_military",
+   "duration_s": 8.3,
+   "head_rms_ratio": 0.046,
+   "tail_rms_ratio": 0.071,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Arion",
+    "last": "favorite",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_soprano_20s_f",
+   "duration_s": 10.18,
+   "head_rms_ratio": 0.315,
+   "tail_rms_ratio": 0.852,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "AND",
+    "last": "TRASH",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_tenor_30s_m",
+   "duration_s": 12.34,
+   "head_rms_ratio": 0.253,
+   "tail_rms_ratio": 0.137,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "any",
+    "last": "possible",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_tenor_30s_m_fantasy",
+   "duration_s": 12.82,
+   "head_rms_ratio": 1.147,
+   "tail_rms_ratio": 0.006,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "his",
+    "last": "watching",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "husky_tenor_30s_m_literary",
+   "duration_s": 7.02,
+   "head_rms_ratio": 0.152,
+   "tail_rms_ratio": 0.501,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "The",
+    "last": "river",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_alto_40s_f",
+   "duration_s": 10.58,
+   "head_rms_ratio": 0.733,
+   "tail_rms_ratio": 0.753,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "A",
+    "last": "worry",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_alto_40s_f_cyberpunk",
+   "duration_s": 7.8,
+   "head_rms_ratio": 0.394,
+   "tail_rms_ratio": 0.5,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "which",
+    "last": "whatsoever",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_alto_40s_f_literary_1",
+   "duration_s": 7.1,
+   "head_rms_ratio": 0.235,
+   "tail_rms_ratio": 0.554,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "I",
+    "last": "question",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_alto_40s_f_literary_2",
+   "duration_s": 7.98,
+   "head_rms_ratio": 0.262,
+   "tail_rms_ratio": 0.403,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "The",
+    "last": "Shoten",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_baritone_30s_m",
+   "duration_s": 9.02,
+   "head_rms_ratio": 0.21,
+   "tail_rms_ratio": 0.5,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Evan",
+    "last": "girlfriends",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_baritone_30s_m_fantasy",
+   "duration_s": 8.1,
+   "head_rms_ratio": 0.081,
+   "tail_rms_ratio": 0.078,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "She",
+    "last": "spine",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_baritone_40s_m_scifi",
+   "duration_s": 10.84,
+   "head_rms_ratio": 0.164,
+   "tail_rms_ratio": 0.522,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "Inhaling",
+    "last": "puzzle",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_baritone_45s_m",
+   "duration_s": 7.32,
+   "head_rms_ratio": 0.379,
+   "tail_rms_ratio": 0.448,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "there",
+    "last": "shuts",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_mezzo_10s_f_fantasy",
+   "duration_s": 10.14,
+   "head_rms_ratio": 0.393,
+   "tail_rms_ratio": 0.16,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "She",
+    "last": "papyrus",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_mezzo_30s_f",
+   "duration_s": 8.12,
+   "head_rms_ratio": 0.548,
+   "tail_rms_ratio": 0.82,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "Other",
+    "last": "Nadel",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "silky_mezzo_30s_f_fantasy",
+   "duration_s": 7.44,
+   "head_rms_ratio": 0.174,
+   "tail_rms_ratio": 0.326,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "but",
+    "last": "it",
+    "starts_fragment": true,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "silky_mezzo_30s_f_supernatural",
+   "duration_s": 9.58,
+   "head_rms_ratio": 0.071,
+   "tail_rms_ratio": 0.237,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "As",
+    "last": "outside",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "velvety_mezzo_30s_f_gothic",
+   "duration_s": 7.8,
+   "head_rms_ratio": 0.165,
+   "tail_rms_ratio": 1.395,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "They",
+    "last": "wine",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_alto_40s_f_1",
+   "duration_s": 8.34,
+   "head_rms_ratio": 0.28,
+   "tail_rms_ratio": 0.418,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "It",
+    "last": "muster",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_alto_40s_f_2",
+   "duration_s": 12.68,
+   "head_rms_ratio": 0.458,
+   "tail_rms_ratio": 0.581,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "I",
+    "last": "Igneous",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_alto_40s_f_3",
+   "duration_s": 7.2,
+   "head_rms_ratio": 0.499,
+   "tail_rms_ratio": 0.81,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "It",
+    "last": "different",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_alto_50s_f_anime",
+   "duration_s": 10.8,
+   "head_rms_ratio": 0.173,
+   "tail_rms_ratio": 0.421,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "and",
+    "last": "nuts",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_alto_50s_f_gothic",
+   "duration_s": 10.8,
+   "head_rms_ratio": 0.149,
+   "tail_rms_ratio": 0.346,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "If",
+    "last": "post",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_20s_m_postapoc",
+   "duration_s": 7.22,
+   "head_rms_ratio": 0.327,
+   "tail_rms_ratio": 0.085,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "I",
+    "last": "said",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_1",
+   "duration_s": 10.4,
+   "head_rms_ratio": 0.303,
+   "tail_rms_ratio": 0.404,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Unless",
+    "last": "speciality",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_2",
+   "duration_s": 7.68,
+   "head_rms_ratio": 0.239,
+   "tail_rms_ratio": 0.252,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "I",
+    "last": "it",
+    "starts_fragment": false,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_3",
+   "duration_s": 7.6,
+   "head_rms_ratio": 0.226,
+   "tail_rms_ratio": 0.112,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "We",
+    "last": "stuff",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_1",
+   "duration_s": 8.98,
+   "head_rms_ratio": 0.114,
+   "tail_rms_ratio": 0.838,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "offered",
+    "last": "conversation",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_2",
+   "duration_s": 7.5,
+   "head_rms_ratio": 0.672,
+   "tail_rms_ratio": 1.146,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "realizing",
+    "last": "others",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_30s_m_scifi",
+   "duration_s": 7.38,
+   "head_rms_ratio": 0.565,
+   "tail_rms_ratio": 0.151,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "The",
+    "last": "hand",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_1",
+   "duration_s": 10.02,
+   "head_rms_ratio": 0.232,
+   "tail_rms_ratio": 0.359,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Lord",
+    "last": "convenient",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_2",
+   "duration_s": 9.9,
+   "head_rms_ratio": 0.291,
+   "tail_rms_ratio": 1.47,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "Within",
+    "last": "fury",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_3",
+   "duration_s": 7.62,
+   "head_rms_ratio": 0.454,
+   "tail_rms_ratio": 0.699,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "Huskins",
+    "last": "plan",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_4",
+   "duration_s": 8.14,
+   "head_rms_ratio": 0.141,
+   "tail_rms_ratio": 0.087,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "D",
+    "last": "Noble",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_5",
+   "duration_s": 8.86,
+   "head_rms_ratio": 1.131,
+   "tail_rms_ratio": 0.865,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "AND",
+    "last": "PLACE",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_fantasy",
+   "duration_s": 9.32,
+   "head_rms_ratio": 0.222,
+   "tail_rms_ratio": 0.955,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "and",
+    "last": "snow",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_gothic",
+   "duration_s": 8.24,
+   "head_rms_ratio": 0.638,
+   "tail_rms_ratio": 0.316,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Already",
+    "last": "her",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_military",
+   "duration_s": 9.58,
+   "head_rms_ratio": 0.098,
+   "tail_rms_ratio": 0.019,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "In",
+    "last": "switchback",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_40s_m_scifi",
+   "duration_s": 13.08,
+   "head_rms_ratio": 0.388,
+   "tail_rms_ratio": 0.099,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "as",
+    "last": "it",
+    "starts_fragment": true,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "warm_baritone_50s_m",
+   "duration_s": 9.14,
+   "head_rms_ratio": 0.934,
+   "tail_rms_ratio": 0.801,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "until",
+    "last": "water",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_baritone_50s_m_gothic",
+   "duration_s": 9.16,
+   "head_rms_ratio": 0.686,
+   "tail_rms_ratio": 0.428,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "whilst",
+    "last": "enter",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_bass_50s_m_fantasy",
+   "duration_s": 8.5,
+   "head_rms_ratio": 0.591,
+   "tail_rms_ratio": 0.471,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "But",
+    "last": "simple",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_mezzo_20s_f_anime",
+   "duration_s": 10.5,
+   "head_rms_ratio": 0.681,
+   "tail_rms_ratio": 0.34,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "A",
+    "last": "IN",
+    "starts_fragment": false,
+    "ends_fragment": true
+   }
+  },
+  {
+   "adapter": "warm_mezzo_30s_f",
+   "duration_s": 10.3,
+   "head_rms_ratio": 1.242,
+   "tail_rms_ratio": 0.441,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "where",
+    "last": "exercise",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_mezzo_30s_f_fantasy_1",
+   "duration_s": 9.18,
+   "head_rms_ratio": 0.568,
+   "tail_rms_ratio": 0.876,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "and",
+    "last": "tire",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_mezzo_30s_f_fantasy_2",
+   "duration_s": 7.68,
+   "head_rms_ratio": 0.319,
+   "tail_rms_ratio": 1.622,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "People",
+    "last": "glance",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_20s_m",
+   "duration_s": 8.42,
+   "head_rms_ratio": 0.892,
+   "tail_rms_ratio": 0.377,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "That",
+    "last": "condition",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_20s_m_scifi",
+   "duration_s": 9.38,
+   "head_rms_ratio": 0.544,
+   "tail_rms_ratio": 0.022,
+   "starts_abrupt": true,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "Against",
+    "last": "back",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_25s_m_military",
+   "duration_s": 12.52,
+   "head_rms_ratio": 1.275,
+   "tail_rms_ratio": 1.478,
+   "starts_abrupt": true,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "all",
+    "last": "base",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_30s_m_1",
+   "duration_s": 10.42,
+   "head_rms_ratio": 0.135,
+   "tail_rms_ratio": 0.931,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "and",
+    "last": "land",
+    "starts_fragment": true,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_30s_m_2",
+   "duration_s": 9.86,
+   "head_rms_ratio": 0.465,
+   "tail_rms_ratio": 0.91,
+   "starts_abrupt": false,
+   "ends_abrupt": true,
+   "transcript": {
+    "first": "Above",
+    "last": "community",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  },
+  {
+   "adapter": "warm_tenor_30s_m_gothic",
+   "duration_s": 8.04,
+   "head_rms_ratio": 0.308,
+   "tail_rms_ratio": 0.177,
+   "starts_abrupt": false,
+   "ends_abrupt": false,
+   "transcript": {
+    "first": "He",
+    "last": "there",
+    "starts_fragment": false,
+    "ends_fragment": false
+   }
+  }
+ ]
+}

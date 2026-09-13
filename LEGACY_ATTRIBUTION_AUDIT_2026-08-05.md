@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 202 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 208 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 118
-- `historical_only`: 38
+- `historical_only`: 44
 - `provisional`: 11
 - `supported_measurement`: 35
 
@@ -89,6 +89,7 @@ All 202 legacy-metadata artifacts are listed exactly once. Classification descri
 | `distill_eval__qwen35_9b_bf16_author_heldout_balanced-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-effort-low-a6000-tnr4-20260906.json` | distill_eval | historical_only | 778 | 0 | 578 | False |  |
 | `distill_eval__qwen38-multientry-thinking-low-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-low-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-medium-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
@@ -120,14 +121,17 @@ All 202 legacy-metadata artifacts are listed exactly once. Classification descri
 | `joint_scene__index18__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 297 | 0 | 0 | False |  |
 | `joint_scene__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | historical_only | 417 | 2 | 0 | False |  |
 | `joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | historical_only | 486 | 1 | 0 | False |  |
+| `lora_serving_eval__local-4book-base-20260907.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
 | `lora_serving_eval__local-hardcases-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
 | `lora_serving_eval__local-longcontext-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
+| `lora_serving_eval__local-owarimonogatari3-diagnostic-20260907.json` | lora_serving_eval | historical_only | 162 | 5 | 0 | False |  |
 | `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | exploratory | 450 | 0 | 266 | False | saved summary differs from row recomputation |
 | `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | exploratory | 1094 | 0 | 324 | True | saved summary differs from row recomputation |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen3-14b-base-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
 | `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -197,9 +201,11 @@ All 202 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
+| `two_stage_attribution_restricted.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_riqua.json` | two_stage_attribution | supported_measurement | 1287 | None | None | False |  |
 | `two_stage_attribution_w16000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
+| `two_stage_attribution_w3200_eight.json` | two_stage_attribution | historical_only | 7643 | 0 | 6373 | False |  |
 | `two_stage_attribution_w8000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021.json` | two_stage_attribution | exploratory | 380 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021_train.json` | two_stage_attribution | exploratory | 200 | None | None | False | recorded commit is unavailable from current history |

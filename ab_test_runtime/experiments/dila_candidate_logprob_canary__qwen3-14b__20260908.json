@@ -1,0 +1,556 @@
+{
+  "seed": 20260907,
+  "model": "/home/ubuntu/.cache/huggingface/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18",
+  "summary": {
+    "alternative_fixes": {
+      "n": 10,
+      "correct": 5
+    },
+    "alternative_breaks": {
+      "n": 10,
+      "correct": 9
+    }
+  },
+  "rows": [
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-01155",
+      "expected": "LADY CATHERINE DE BOURGH",
+      "proposal": "ELIZABETH",
+      "choices": [
+        "ELIZABETH",
+        "CATHERINE"
+      ],
+      "scores_sum_tokens_mean": {
+        "ELIZABETH": [
+          -12.750040411949158,
+          4,
+          -3.1875101029872894
+        ],
+        "CATHERINE": [
+          -1.3232231140136719e-05,
+          3,
+          -4.410743713378906e-06
+        ]
+      },
+      "picked": "CATHERINE",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_thesignofthefour_w3200:TheSignOfTheFour-00143",
+      "expected": "A HIGH PIPING VOICE",
+      "proposal": "MRS. BERNSTONE",
+      "choices": [
+        "MRS. BERNSTONE",
+        "SHOLTO",
+        "SHERLOCK HOLMES"
+      ],
+      "scores_sum_tokens_mean": {
+        "MRS. BERNSTONE": [
+          -23.000012516975403,
+          6,
+          -3.8333354194959006
+        ],
+        "SHOLTO": [
+          -0.0009243488311767578,
+          3,
+          -0.00030811627705891925
+        ],
+        "SHERLOCK HOLMES": [
+          -11.253618359565735,
+          5,
+          -2.250723671913147
+        ]
+      },
+      "picked": "SHOLTO",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00370",
+      "expected": "ELIZABETH",
+      "proposal": "GEORGE WICKHAM",
+      "choices": [
+        "GEORGE WICKHAM",
+        "ELIZABETH",
+        "WICKHAM"
+      ],
+      "scores_sum_tokens_mean": {
+        "GEORGE WICKHAM": [
+          -10.750000715255737,
+          6,
+          -1.7916667858759563
+        ],
+        "ELIZABETH": [
+          -10.000088930130005,
+          4,
+          -2.500022232532501
+        ],
+        "WICKHAM": [
+          -6.711483001708984e-05,
+          3,
+          -2.2371610005696613e-05
+        ]
+      },
+      "picked": "WICKHAM",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00026",
+      "expected": "MRS. BENNET",
+      "proposal": "MR. BENNET",
+      "choices": [
+        "MR. BENNET",
+        "BENNET"
+      ],
+      "scores_sum_tokens_mean": {
+        "MR. BENNET": [
+          -9.655952453613281e-06,
+          4,
+          -2.4139881134033203e-06
+        ],
+        "BENNET": [
+          -20.750088453292847,
+          3,
+          -6.916696151097615
+        ]
+      },
+      "picked": "MR. BENNET",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_theawakening_w3200:TheAwakening-00467",
+      "expected": "ROBERT LEBRUN",
+      "proposal": "EDNA PONTELLIER",
+      "choices": [
+        "EDNA PONTELLIER",
+        "ROBERT"
+      ],
+      "scores_sum_tokens_mean": {
+        "EDNA PONTELLIER": [
+          -0.007376670837402344,
+          7,
+          -0.0010538101196289062
+        ],
+        "ROBERT": [
+          -5.0000022649765015,
+          2,
+          -2.5000011324882507
+        ]
+      },
+      "picked": "EDNA PONTELLIER",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-01029",
+      "expected": "GEORGE WICKHAM",
+      "proposal": "ELIZABETH",
+      "choices": [
+        "ELIZABETH",
+        "DARCY",
+        "WICKHAM"
+      ],
+      "scores_sum_tokens_mean": {
+        "ELIZABETH": [
+          -2.1252059936523438,
+          4,
+          -0.5313014984130859
+        ],
+        "DARCY": [
+          -10.376358032226562,
+          3,
+          -3.4587860107421875
+        ],
+        "WICKHAM": [
+          -0.12695372104644775,
+          3,
+          -0.04231790701548258
+        ]
+      },
+      "picked": "WICKHAM",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_thesignofthefour_w3200:TheSignOfTheFour-00014",
+      "expected": "MR. SHERLOCK HOLMES",
+      "proposal": "DR. WATSON",
+      "choices": [
+        "DR. WATSON",
+        "HOLMES"
+      ],
+      "scores_sum_tokens_mean": {
+        "DR. WATSON": [
+          -19.125,
+          5,
+          -3.825
+        ],
+        "HOLMES": [
+          -3.2186508178710938e-06,
+          3,
+          -1.0728836059570312e-06
+        ]
+      },
+      "picked": "HOLMES",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_thesignofthefour_w3200:TheSignOfTheFour-00150",
+      "expected": "MR. SHERLOCK HOLMES",
+      "proposal": "THADDEUS SHOLTO",
+      "choices": [
+        "THADDEUS SHOLTO",
+        "HOLMES"
+      ],
+      "scores_sum_tokens_mean": {
+        "THADDEUS SHOLTO": [
+          -20.750001549720764,
+          7,
+          -2.9642859356743947
+        ],
+        "HOLMES": [
+          -1.1920928955078125e-06,
+          3,
+          -3.973642985026042e-07
+        ]
+      },
+      "picked": "HOLMES",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00086",
+      "expected": "CHARLOTTE LUCAS",
+      "proposal": "ELIZABETH",
+      "choices": [
+        "ELIZABETH",
+        "LIZZY",
+        "CHARLOTTE LUCAS"
+      ],
+      "scores_sum_tokens_mean": {
+        "ELIZABETH": [
+          -0.0019310712814331055,
+          4,
+          -0.00048276782035827637
+        ],
+        "LIZZY": [
+          -6.251331448554993,
+          3,
+          -2.083777149518331
+        ],
+        "CHARLOTTE LUCAS": [
+          -12.75,
+          6,
+          -2.125
+        ]
+      },
+      "picked": "ELIZABETH",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_fixes",
+      "id": "attribution_gold_pdnc_thesignofthefour_w3200:TheSignOfTheFour-00590",
+      "expected": "WOODEN-LEGGED MAN",
+      "proposal": "SMALL",
+      "choices": [
+        "SMALL",
+        "JONATHAN SMALL"
+      ],
+      "scores_sum_tokens_mean": {
+        "SMALL": [
+          -0.000992417335510254,
+          2,
+          -0.000496208667755127
+        ],
+        "JONATHAN SMALL": [
+          -7.000003814697266,
+          5,
+          -1.400000762939453
+        ]
+      },
+      "picked": "SMALL",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00530",
+      "expected": "MR. BENNET",
+      "proposal": "MR. BENNET",
+      "choices": [
+        "MR. BENNET",
+        "BENNET",
+        "JANE"
+      ],
+      "scores_sum_tokens_mean": {
+        "MR. BENNET": [
+          -3.4570693969726562e-06,
+          4,
+          -8.642673492431641e-07
+        ],
+        "BENNET": [
+          -19.250125288963318,
+          3,
+          -6.416708429654439
+        ],
+        "JANE": [
+          -26.250000715255737,
+          2,
+          -13.125000357627869
+        ]
+      },
+      "picked": "MR. BENNET",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00584",
+      "expected": "ELIZABETH",
+      "proposal": "ELIZABETH",
+      "choices": [
+        "ELIZABETH",
+        "MISS KING"
+      ],
+      "scores_sum_tokens_mean": {
+        "ELIZABETH": [
+          -2.193450927734375e-05,
+          4,
+          -5.4836273193359375e-06
+        ],
+        "MISS KING": [
+          -20.00000011920929,
+          2,
+          -10.000000059604645
+        ]
+      },
+      "picked": "ELIZABETH",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00120",
+      "expected": "ELIZABETH",
+      "proposal": "ELIZABETH",
+      "choices": [
+        "ELIZABETH",
+        "SIR WILLIAM",
+        "SIR WILLIAM LUCAS"
+      ],
+      "scores_sum_tokens_mean": {
+        "ELIZABETH": [
+          -7.724761962890625e-05,
+          4,
+          -1.9311904907226562e-05
+        ],
+        "SIR WILLIAM": [
+          -9.5,
+          4,
+          -2.375
+        ],
+        "SIR WILLIAM LUCAS": [
+          -9.50860595703125,
+          7,
+          -1.3583722795758928
+        ]
+      },
+      "picked": "ELIZABETH",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00074",
+      "expected": "CHARLOTTE LUCAS",
+      "proposal": "CHARLOTTE LUCAS",
+      "choices": [
+        "CHARLOTTE LUCAS",
+        "MR. ROBINSON"
+      ],
+      "scores_sum_tokens_mean": {
+        "CHARLOTTE LUCAS": [
+          -5.960464477539062e-07,
+          6,
+          -9.934107462565105e-08
+        ],
+        "MR. ROBINSON": [
+          -26.62500011920929,
+          5,
+          -5.3250000238418576
+        ]
+      },
+      "picked": "CHARLOTTE LUCAS",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00928",
+      "expected": "JANE",
+      "proposal": "JANE",
+      "choices": [
+        "JANE",
+        "PEN",
+        "ELIZABETH"
+      ],
+      "scores_sum_tokens_mean": {
+        "JANE": [
+          -3.5762786865234375e-07,
+          2,
+          -1.7881393432617188e-07
+        ],
+        "PEN": [
+          -26.37500262260437,
+          2,
+          -13.187501311302185
+        ],
+        "ELIZABETH": [
+          -14.750062346458435,
+          4,
+          -3.6875155866146088
+        ]
+      },
+      "picked": "JANE",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_theawakening_w3200:TheAwakening-00094",
+      "expected": "ROBERT LEBRUN",
+      "proposal": "ROBERT LEBRUN",
+      "choices": [
+        "ROBERT LEBRUN",
+        "PONTELLIER",
+        "EDNA PONTELLIER"
+      ],
+      "scores_sum_tokens_mean": {
+        "ROBERT LEBRUN": [
+          -5.750000596046448,
+          5,
+          -1.1500001192092895
+        ],
+        "PONTELLIER": [
+          -20.9765625,
+          5,
+          -4.1953125
+        ],
+        "EDNA PONTELLIER": [
+          -0.0031859874725341797,
+          7,
+          -0.0004551410675048828
+        ]
+      },
+      "picked": "EDNA PONTELLIER",
+      "picked_correct": false
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00097",
+      "expected": "CHARLOTTE LUCAS",
+      "proposal": "CHARLOTTE",
+      "choices": [
+        "CHARLOTTE",
+        "JANE"
+      ],
+      "scores_sum_tokens_mean": {
+        "CHARLOTTE": [
+          -3.5762786865234375e-07,
+          3,
+          -1.1920928955078125e-07
+        ],
+        "JANE": [
+          -27.000000596046448,
+          2,
+          -13.500000298023224
+        ]
+      },
+      "picked": "CHARLOTTE",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_theawakening_w3200:TheAwakening-00136",
+      "expected": "EDNA PONTELLIER",
+      "proposal": "EDNA PONTELLIER",
+      "choices": [
+        "EDNA PONTELLIER",
+        "ROBERT"
+      ],
+      "scores_sum_tokens_mean": {
+        "EDNA PONTELLIER": [
+          -0.10583746433258057,
+          7,
+          -0.015119637761797224
+        ],
+        "ROBERT": [
+          -5.250000953674316,
+          2,
+          -2.625000476837158
+        ]
+      },
+      "picked": "EDNA PONTELLIER",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_theawakening_w3200:TheAwakening-00287",
+      "expected": "MADEMOISELLE REISZ",
+      "proposal": "MADEMOISELLE REISZ",
+      "choices": [
+        "MADEMOISELLE REISZ",
+        "EDNA",
+        "EDNA PONTELLIER"
+      ],
+      "scores_sum_tokens_mean": {
+        "MADEMOISELLE REISZ": [
+          -2.8848648071289062e-05,
+          9,
+          -3.2054053412543403e-06
+        ],
+        "EDNA": [
+          -19.12501037120819,
+          2,
+          -9.562505185604095
+        ],
+        "EDNA PONTELLIER": [
+          -19.125104784965515,
+          7,
+          -2.732157826423645
+        ]
+      },
+      "picked": "MADEMOISELLE REISZ",
+      "picked_correct": true
+    },
+    {
+      "class": "alternative_breaks",
+      "id": "attribution_gold_pdnc_theawakening_w3200:TheAwakening-00388",
+      "expected": "EDNA PONTELLIER",
+      "proposal": "EDNA PONTELLIER",
+      "choices": [
+        "EDNA PONTELLIER",
+        "MAID",
+        "ALCEE AROBIN"
+      ],
+      "scores_sum_tokens_mean": {
+        "EDNA PONTELLIER": [
+          -0.0015206336975097656,
+          7,
+          -0.00021723338535853794
+        ],
+        "MAID": [
+          -17.75,
+          2,
+          -8.875
+        ],
+        "ALCEE AROBIN": [
+          -16.750030755996704,
+          5,
+          -3.3500061511993406
+        ]
+      },
+      "picked": "EDNA PONTELLIER",
+      "picked_correct": true
+    }
+  ]
+}

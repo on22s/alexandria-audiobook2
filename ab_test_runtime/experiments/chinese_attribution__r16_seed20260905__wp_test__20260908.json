@@ -1,0 +1,21 @@
+{
+ "dataset": "wp_test.json",
+ "results": {
+  "0.0": {
+   "correct": 84,
+   "n": 150,
+   "unparsed": 1,
+   "api_errors": 0,
+   "unparsed_samples": [
+    "0"
+   ]
+  },
+  "1.0": {
+   "correct": 81,
+   "n": 150,
+   "unparsed": 0,
+   "api_errors": 0,
+   "unparsed_samples": []
+  }
+ }
+}
