@@ -28,6 +28,9 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 python="${PYTHON:-$REPO/app/env/bin/python}"
 [ -x "$python" ] || python="/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python"
+# app/config.json is per-machine and untracked, so a worktree has none.
+config="${CONFIG:-$REPO/app/config.json}"
+[ -f "$config" ] || config="/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json"
 STAGE_LOG_DIR="$runtime/logs/hifitts_9017_20260913"
 corpus="$runtime/corpora/hifitts/9017"
 work="$runtime/hifitts_9017_eval"
@@ -36,25 +39,31 @@ source "$REPO/run_chains/lib/stage.sh"
 
 [ -s "$corpus/metadata.csv" ] || { stage_note "REFUSING: no corpus at $corpus - run hifitts_fetch.py first"; exit 1; }
 
+# Each stage is skipped when its output exists, so a failed later stage can
+# be rerun without retraining (a retrained adapter is not the same adapter).
+[ -s "$corpus/split.json" ] || \
 run_stage prepare 10m -- \
     "$python" -u "$REPO/app/experiments/ljspeech_prepare.py" \
     --root "$corpus" --out "$corpus/split.json" \
     --test-books antoinetteromances4 celebratedcrimesv1
 
+[ -s "$work/build.json" ] || \
 run_stage build 30m -- \
     "$python" -u "$REPO/app/experiments/ljspeech_build.py" \
     --split "$corpus/split.json" --out "$work"
 
+[ -s "$work/adapter/adapter_model.safetensors" ] || \
 run_stage train 1h --needs-vram -- \
     "$REPO/gpu_job.sh" "hifitts_9017_train" \
     "$python" -u "$REPO/app/train_lora.py" \
     --data_dir "$work/train" --output_dir "$work/adapter" \
     --epochs 6 --lr 5e-6 --lora_r 32 --lora_alpha 128 --seed 1234
 
+[ -s "$runtime/experiments/hifitts_9017_generate.json" ] || \
 run_stage generate 3h --needs-vram -- \
     "$REPO/gpu_job.sh" "hifitts_9017_generate" \
     "$python" -u "$REPO/app/experiments/ljspeech_generate.py" \
-    --build "$work/build.json" --adapter "$work/adapter" \
+    --build "$work/build.json" --adapter "$work/adapter" --config "$config" \
     --out-dir "$work/generated" --limit 0 --arms lora clone --seed 1234 \
     --out "$runtime/experiments/hifitts_9017_generate.json"
 
