@@ -5,6 +5,7 @@ import tempfile
 import sys
 import threading
 import shutil
+import uuid
 
 import numpy as np
 import soundfile as sf
@@ -1899,7 +1900,7 @@ class TTSEngine:
     # ── External backend methods ─────────────────────────────────
 
     def _external_generate_custom(self, text, instruct_text, speaker, voice_config, output_path,
-                                  endpoint=None):
+                                  endpoint=None, cancelled=None):
         """Generate custom voice audio via an external Gradio server (a pool
         endpoint when given, else the next one round-robin)."""
         try:
@@ -1919,6 +1920,8 @@ class TTSEngine:
             client, lock = self._external_endpoint(endpoint)
 
             with lock:
+                if cancelled and cancelled.is_set():
+                    return False
                 result = client.predict(
                     text=text,
                     language=self._language,
@@ -1938,6 +1941,8 @@ class TTSEngine:
                 print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
                 return False
 
+            if cancelled and cancelled.is_set():
+                return False
             shutil.copy(generated_audio_filepath, output_path)
             return True
 
@@ -1947,7 +1952,8 @@ class TTSEngine:
             traceback.print_exc()
             return False
 
-    def _external_generate_clone(self, text, speaker, voice_config, output_path, endpoint=None):
+    def _external_generate_clone(self, text, speaker, voice_config, output_path, endpoint=None,
+                                 cancelled=None):
         """Generate voice-cloned audio via an external Gradio server (a pool
         endpoint when given, else the next one round-robin)."""
         try:
@@ -1977,6 +1983,8 @@ class TTSEngine:
             client, lock = self._external_endpoint(endpoint)
 
             with lock:
+                if cancelled and cancelled.is_set():
+                    return False
                 result = client.predict(
                     handle_file(ref_audio),
                     ref_text,
@@ -1999,6 +2007,8 @@ class TTSEngine:
                 print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
                 return False
 
+            if cancelled and cancelled.is_set():
+                return False
             shutil.copy(generated_audio_filepath, output_path)
             return True
 
@@ -2033,8 +2043,8 @@ class TTSEngine:
         return results
 
     def _external_batch(self, chunks, voice_config, output_dir, kind):
-        """External-mode batch: `parallel_workers` lines per pool endpoint at
-        once, each call on its own endpoint (round-robin) under that endpoint's
+        """External-mode batch submits up to `parallel_workers` lines per
+        pool endpoint. Each endpoint serializes requests through its client
         lock, with a per-call timeout. Same result shape as the local batches.
 
         A call that times out is reported failed; its thread finishes in the
@@ -2045,28 +2055,52 @@ class TTSEngine:
         if not chunks:
             return results
         generate = {
-            "custom": lambda c, out, ep: self._external_generate_custom(
-                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config, out, endpoint=ep),
-            "clone": lambda c, out, ep: self._external_generate_clone(
-                c.get("text", ""), c.get("speaker", ""), voice_config, out, endpoint=ep),
+            "custom": lambda c, out, ep, cancelled: self._external_generate_custom(
+                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config, out,
+                endpoint=ep, cancelled=cancelled),
+            "clone": lambda c, out, ep, cancelled: self._external_generate_clone(
+                c.get("text", ""), c.get("speaker", ""), voice_config, out,
+                endpoint=ep, cancelled=cancelled),
         }[kind]
         workers = self._external_parallel_workers * len(self._external_urls)
         executor = ThreadPoolExecutor(max_workers=workers)
         futures = {}
+
+        def render_to_staging(chunk, staging_path, endpoint, cancelled):
+            try:
+                return generate(chunk, staging_path, endpoint, cancelled)
+            finally:
+                if cancelled.is_set():
+                    try:
+                        os.remove(staging_path)
+                    except FileNotFoundError:
+                        pass
+
         for chunk in chunks:
             idx = chunk["index"]
             output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-            futures[idx] = executor.submit(generate, chunk, output_path, self._next_external_url())
-        for idx, future in futures.items():
+            staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
+            cancelled = threading.Event()
+            future = executor.submit(render_to_staging, chunk, staging_path,
+                                     self._next_external_url(), cancelled)
+            futures[idx] = (future, cancelled, staging_path, output_path)
+        for idx, (future, cancelled, staging_path, output_path) in futures.items():
             try:
                 success = future.result(timeout=self._external_timeout)
             except FutureTimeout:
+                cancelled.set()
+                future.cancel()
+                try:
+                    os.remove(staging_path)
+                except FileNotFoundError:
+                    pass
                 results["failed"].append((idx, f"external TTS timed out after {self._external_timeout}s"))
                 continue
             except Exception as e:                              # noqa: BLE001
                 results["failed"].append((idx, str(e)))
                 continue
-            if success:
+            if success and os.path.exists(staging_path):
+                os.replace(staging_path, output_path)
                 results["completed"].append(idx)
             else:
                 results["failed"].append((idx, f"{kind} voice generation failed"))

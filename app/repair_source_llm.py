@@ -148,7 +148,6 @@ def main():
     args = parser.parse_args()
 
     import json as _json
-    from openai import OpenAI
 
     with open(args.source, encoding="utf-8") as handle:
         text = handle.read()
@@ -165,11 +164,10 @@ def main():
     with open(os.path.join(APP, "config.json"), encoding="utf-8") as handle:
         config = _json.load(handle)
     from lmstudio_settings import get_active_llm_config
+    from llm_provider import make_llm_client
     llm = get_active_llm_config(config)
     model_name = llm.get("model_name")
-    client = OpenAI(base_url=llm.get("base_url"),
-                    timeout=llm_timeout_seconds(),
-                    api_key=llm.get("api_key") or "local")
+    client = make_llm_client(llm, llm_timeout_seconds())
     print(f"  endpoint {llm.get('base_url')} model {model_name}")
 
     decisions = {}

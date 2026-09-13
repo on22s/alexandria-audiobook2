@@ -123,6 +123,18 @@ class ExternalPoolTests(unittest.TestCase):
         self.assertEqual(1, len(result["failed"]))
         self.assertIn("timed out after 1s", result["failed"][0][1])
 
+    def test_timed_out_call_never_publishes_its_late_audio(self):
+        _FakeClient.behaviour_for = {"http://one:7860": "hang"}
+        engine = _engine(["http://one:7860"], timeout=1)
+        result = engine.generate_batch(self._chunks(1), self.voice_config, self.tmp.name)
+        self.assertEqual([], result["completed"])
+        self.assertEqual([0], [index for index, _ in result["failed"]])
+
+        # The client writes only after its delayed request returns. The batch
+        # has already declared failure, so that late result must stay private.
+        time.sleep(5.2)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "temp_batch_0.wav")))
+
 
 if __name__ == "__main__":
     unittest.main()
