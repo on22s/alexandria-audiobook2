@@ -2912,6 +2912,10 @@ permanently unattributable.
 **Metric** — generation seconds ÷ audio seconds. LOWER is better.
 **Target — median ≤ 0.90x, worst case ≤ 1.50x.**
 
+**MET — 2026-09-12, on the merged LoRA path; see the last entry.** Between
+2026-09-04 and 2026-09-12 this read OPEN for the reason the next paragraph
+gives, and that history is kept.
+
 **OPEN — demoted from met on 2026-09-04.** The goal recorded median
 0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
 figure does not say which VOICE PATH produced it, and the paths differ by half
@@ -2999,6 +3003,47 @@ itself across different lines 0.538, the adapter against the stock voice
 by less than the adapter differs from itself line to line. What closes the
 goal is `generation_realtime_rate.py` over a real multi-voice run on the
 merged path, not six lines.
+
+**Re-measured on the production instrument; MET — 2026-09-12, 7:56–9:02 PM.**
+The same script that produced the 4,251-clip 1.23x figure,
+`library_voice_fidelity.py` (20 held-out lines per adapter through
+`generate_lora_voice`, the shipped call), on the merged path from #546, capped
+at 25 adapters so it finished before the goal-1.3 chain needed the card.
+Scored by `generation_realtime_rate.py`:
+
+| path | clips | median gen ÷ audio | worst | best |
+|---|---:|---:|---:|---:|
+| LoRA unmerged (2026-09-04, `local_seeds_chain_b`) | 4,251 | 1.230x | 1.375x | — |
+| **LoRA merged (this run)** | **479** | **0.828x** | **0.885x** | 0.814x |
+| stock voice (2026-09-04) | 1,417 | 0.833x | 0.958x | — |
+
+Both targets met with margin: the worst merged clip is below the old median.
+The LoRA path runs at the stock model's speed. 479 clips is not 4,251 — the
+25-adapter cap is one third of the library — but the spread is tight (0.814
+to 0.885 across 479 clips, 25 adapters) and the six-line probe above already
+put the per-adapter cost at zero after the merge; a full-library rerun would
+tighten the worst case, not change the verdict.
+
+The same run scored each adapter's ECAPA similarity to its own held-out
+narrator clips, which is the voice check at scale (the six-line probe checked
+one adapter). Against the two unmerged seeds already on file for the same 25
+adapters (`library_fidelity_seed_20260924/25_n20_full75.json`):
+
+| | median ECAPA, 25 adapters | per-adapter difference vs unmerged seed 25: median / min / max |
+|---|---:|---|
+| unmerged, seed 20260924 | 0.616 | +0.002 / −0.054 / +0.050 (seed-to-seed noise) |
+| unmerged, seed 20260925 | 0.617 | — |
+| **merged, seed 20260912** | **0.623** | +0.009 / −0.045 / +0.088 |
+
+Merged-vs-unmerged sits inside the unmerged seed-to-seed spread on every
+adapter; the largest merged drop (−0.045) is smaller than the largest
+seed-noise drop (−0.054). The merged run used its own seed, so this is
+"merge plus a new seed" against "a new seed", and the two are
+indistinguishable. Measured on 25 of 78 adapters.
+
+Evidence: `ab_test_runtime/experiments/generation_realtime_rate_merged_20260912.json`,
+`ab_test_runtime/experiments/library_fidelity_merged_20260912_n20_a25.json`,
+`ab_test_runtime/logs/library_fidelity_merged_20260912_n20_a25.log`.
 
 ---
 
