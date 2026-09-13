@@ -932,6 +932,7 @@
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_resume_preserves_training_state_rng_and_sample_order"
   ],
+  "test_dracor_trainset": [],
   "test_duplicate_classification": [
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_block_the_source_repeats_is_kept",
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_duplicated_pair_is_removed_not_refused",

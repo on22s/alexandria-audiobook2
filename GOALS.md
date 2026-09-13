@@ -4447,6 +4447,50 @@ by losing the right name and `closed-oracle` wins by keeping it, that curve is
 the one measurement that would say whether a small, honest candidate set is
 reachable at all.
 
+#### Registered before the run: play-script adapters, English vs. mixed (2026-09-13)
+
+A play carries the speaker of every line as part of the text
+(`<sp who="#id">` in TEI), so the label needs no annotator, and the sources
+are out of copyright. `app/experiments/dracor_trainset.py` builds two
+adapter training sets of the same size from DraCor, rows shaped exactly like
+the PDNC author-balanced set so `distill_train.py` consumes them unchanged
+(`ab_test_runtime/corpora/PROVENANCE.md` has the licences; every TEI file
+used carries a CC0 statement and any NC layer refuses the play — `ibs` turned
+out to be CC BY-NC 4.0 per file despite the registry's CC0 and was dropped;
+plays with more than 120 named characters are skipped, PDNC's largest being 113):
+
+| arm | corpora | rows | plays | Qwen3 tokens |
+|---|---|---|---|---|
+| English | `lacy`, `am` | 4,000 | 144 | 320,056 |
+| mixed | the same + `ger`, `rus`, `dutch`, `pol`, `ar`, equal rows per language (en/de/ru/nl/pl/es ≈ 667 each) | 4,000 | 1,071 | 463,469 |
+
+Rows are matched; tokens are not (Dutch rows run ~190 tokens against
+English's ~80), which is recorded here so it is not discovered later.
+
+**What plays teach and do not teach.** The neighbouring lines a row sees
+carry no speaker label, so the only route from text to name is the content
+of the line — address forms, register, what the character knows. There is
+no narrative frame, so nothing here trains the `said X` parsing that the
+novel sets supply. The prediction, written before either adapter exists:
+
+- Both arms should move this goal's metric — the pick among roster names
+  already present — before they move recall, because content-selection is
+  what the training signal is. A lift confined to frame-heavy rows would
+  contradict the mechanism and should be treated as noise.
+- Mixed vs. English is a diversity question. If the English arm wins, the
+  extra languages diluted the signal at a fixed row budget; if mixed wins
+  or ties, character voice transfers across languages and the cheaper,
+  larger pool is the one to grow.
+- A null on both is not a null on plays: it would say the 4k-row budget or
+  the Qwen3-14B "mixed" recipe (`RECIPES.md`) is the limit, and the next
+  step is a larger set, not a different corpus.
+
+Model and recipe are the one *works* row in `RECIPES.md` for attribution:
+Qwen3-14B, `distill_train.py --epochs 2 --max_len 2048`, one seed each,
+scored by the product harness (batch 25, four clean-gold books, paired
+base/LoRA) against that row's +7.8. Results go in `RECIPES.md` as rows only
+once the paired artifact exists.
+
 ---
 
 **The arm is written "open-roster" rather than by its bare code name.**
