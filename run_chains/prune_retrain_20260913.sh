@@ -47,7 +47,7 @@ run_stage prune 2h -- \
 # Two zips in one folder: the original (control retrain) and the pruned copy.
 [ -s "$work/zips/${base}_control.zip" ] || cp "$ZIP" "$work/zips/${base}_control.zip"
 [ -s "$work/zips/${base}_pruned.zip" ] || \
-    ( cd "$work/pruned" && zip -q -r "$work/zips/${base}_pruned.zip" train val )
+    ( cd "$work/pruned" && zip -q -r "$work/zips/${base}_pruned.zip" metadata.jsonl train val )
 
 [ -s "$work/models/manifest.json" ] || \
 run_stage train 3h --needs-vram -- \

@@ -122,6 +122,14 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     kept = collections.Counter()
+    # The library zips carry a ROOT metadata.jsonl (all rows) beside the split
+    # ones; batch_train_lora's extractor flattens train/ up to the root when
+    # the root file is missing, which breaks every audio_filepath in it.
+    with open(os.path.join(args.out, "metadata.jsonl"), "w", encoding="utf-8") as root:
+        for r in rows:
+            if r["id"] not in dropped:
+                root.write(json.dumps({k: v for k, v in r.items()
+                                       if k not in ("split", "id", "hypothesis")}, ensure_ascii=False) + "\n")
     for split in ("train", "val"):
         os.makedirs(os.path.join(args.out, split), exist_ok=True)
         with open(os.path.join(args.out, split, "metadata.jsonl"), "w", encoding="utf-8") as fh:
