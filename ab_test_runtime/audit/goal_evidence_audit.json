@@ -3,12 +3,12 @@
  "goals_scored": 16,
  "goals_citing_no_artifact": [
   "2.5",
-  "3.1",
   "6.6",
   "7.2",
   "2.2",
   "2.3",
   "2.8",
+  "3.1",
   "3.3",
   "3.4",
   "4.2",
@@ -398,27 +398,6 @@
    ]
   },
   {
-   "goal": "4.1",
-   "title": "Faster than real time",
-   "cited": 1,
-   "not_in_audit": [],
-   "not_experiment_artifacts": [],
-   "weakest_evidence": "exploratory",
-   "classifications": {
-    "exploratory": 1
-   },
-   "dirty_artifacts": 0,
-   "no_commit": 1,
-   "artifacts": [
-    {
-     "name": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
-     "classification": "exploratory",
-     "dirty": null,
-     "commit": ""
-    }
-   ]
-  },
-  {
    "goal": "5.2",
    "title": "Names pronounced consistently",
    "cited": 5,
@@ -552,114 +531,6 @@
     },
     {
      "name": "japanese_text_boundary_n50.json",
-     "classification": "exploratory",
-     "dirty": null,
-     "commit": ""
-    }
-   ]
-  },
-  {
-   "goal": "5.5",
-   "title": "Foreign words are said as foreign words",
-   "cited": 16,
-   "not_in_audit": [],
-   "not_experiment_artifacts": [
-    "pronunciation.json"
-   ],
-   "weakest_evidence": "exploratory",
-   "classifications": {
-    "exploratory": 3,
-    "supported_structure": 12
-   },
-   "dirty_artifacts": 1,
-   "no_commit": 3,
-   "artifacts": [
-    {
-     "name": "lexicon_attributed.json",
-     "classification": "exploratory",
-     "dirty": null,
-     "commit": ""
-    },
-    {
-     "name": "lexicon_candidates.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "2895204d"
-    },
-    {
-     "name": "respelling_e_row__ay.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "bf476bb7"
-    },
-    {
-     "name": "respelling_e_row__ay_n1200.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "449fd3e5"
-    },
-    {
-     "name": "respelling_e_row__ay_n1600.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "107ad75f"
-    },
-    {
-     "name": "respelling_e_row__e.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "7ce3e452"
-    },
-    {
-     "name": "respelling_e_row__ei.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "bf476bb7"
-    },
-    {
-     "name": "respelling_earcheck.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "8b6b4597"
-    },
-    {
-     "name": "respelling_five_terms_ja.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "a357961b"
-    },
-    {
-     "name": "respelling_five_terms_unattributed.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "a357961b"
-    },
-    {
-     "name": "respelling_measure_rescored.json",
-     "classification": "exploratory",
-     "dirty": null,
-     "commit": ""
-    },
-    {
-     "name": "respelling_measure_shipped_neither_20260913.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "2895204d"
-    },
-    {
-     "name": "respelling_pauses.json",
-     "classification": "supported_structure",
-     "dirty": true,
-     "commit": "8b6b4597"
-    },
-    {
-     "name": "shipped_book_lexicon_coverage.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "2895204d"
-    },
-    {
-     "name": "shipped_term_triage.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
@@ -849,6 +720,135 @@
    "artifacts": [
     {
      "name": "chapter_validation.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    }
+   ]
+  },
+  {
+   "goal": "4.1",
+   "title": "Faster than real time",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 1
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 1,
+   "artifacts": [
+    {
+     "name": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    }
+   ]
+  },
+  {
+   "goal": "5.5",
+   "title": "Foreign words are said as foreign words",
+   "cited": 16,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [
+    "pronunciation.json"
+   ],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 3,
+    "supported_structure": 12
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 3,
+   "artifacts": [
+    {
+     "name": "lexicon_attributed.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "lexicon_candidates.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "2895204d"
+    },
+    {
+     "name": "respelling_e_row__ay.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "bf476bb7"
+    },
+    {
+     "name": "respelling_e_row__ay_n1200.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "449fd3e5"
+    },
+    {
+     "name": "respelling_e_row__ay_n1600.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "107ad75f"
+    },
+    {
+     "name": "respelling_e_row__e.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "7ce3e452"
+    },
+    {
+     "name": "respelling_e_row__ei.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "bf476bb7"
+    },
+    {
+     "name": "respelling_earcheck.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "8b6b4597"
+    },
+    {
+     "name": "respelling_five_terms_ja.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a357961b"
+    },
+    {
+     "name": "respelling_five_terms_unattributed.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a357961b"
+    },
+    {
+     "name": "respelling_measure_rescored.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "respelling_measure_shipped_neither_20260913.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "2895204d"
+    },
+    {
+     "name": "respelling_pauses.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "8b6b4597"
+    },
+    {
+     "name": "shipped_book_lexicon_coverage.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "2895204d"
+    },
+    {
+     "name": "shipped_term_triage.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
