@@ -392,19 +392,24 @@ def _run_llm_test(profile: dict) -> dict:
             "is_remote": not is_local_llm_endpoint(base_url)}
 
 
-@router.get("/api/llm/models")
-async def llm_models(base_url: str, api_key: str = "local"):
+class LlmModelsRequest(BaseModel):
+    base_url: str
+    api_key: str = "local"
+
+
+@router.post("/api/llm/models")
+async def llm_models(request: LlmModelsRequest):
     """The model ids the endpoint advertises (OpenAI-compatible /models), so the
     Setup tab can offer a picker. Errors are returned, not raised: an
     unreachable server is a normal state while the user is still typing."""
-    url = base_url.strip().rstrip("/")
+    url = request.base_url.strip().rstrip("/")
     if not url:
         raise HTTPException(status_code=400, detail="base_url is required")
     if not url.endswith("/v1"):
         url += "/v1"
     def fetch():
         from llm_provider import make_llm_client
-        client = make_llm_client({"base_url": url, "api_key": api_key or "local"}, timeout=10)
+        client = make_llm_client({"base_url": url, "api_key": request.api_key or "local"}, timeout=10)
         return sorted({m.id for m in client.models.list().data})
     try:
         return {"models": await asyncio.to_thread(fetch)}

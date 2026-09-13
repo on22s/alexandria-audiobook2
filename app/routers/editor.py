@@ -304,11 +304,14 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
-    return {"fields": list(CHAPTER_TEMPLATE_FIELDS),
-            "chapters": project_manager.preview_chapter_filenames(
-                fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
-                padding=padding, book_name=book_name,
-                series_name=series_name, volume_number=volume_number)}
+    try:
+        chapters = project_manager.preview_chapter_filenames(
+            fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
+            padding=padding, book_name=book_name,
+            series_name=series_name, volume_number=volume_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"fields": list(CHAPTER_TEMPLATE_FIELDS), "chapters": chapters}
 
 
 @router.get("/api/chapter_exports")

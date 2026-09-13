@@ -126,10 +126,17 @@ class _FakeClient:
 
 
 class LlmModelsRouteTests(unittest.TestCase):
+    def test_model_listing_accepts_the_key_only_in_a_post_body(self):
+        routes = [route for route in system_module.router.routes
+                  if route.path == "/api/llm/models"]
+        self.assertEqual(1, len(routes))
+        self.assertEqual({"POST"}, routes[0].methods)
+
     def test_lists_sorted_unique_ids_and_appends_v1(self):
         _FakeClient.made.clear()
         with patch("llm_provider.make_llm_client", _FakeClient):
-            result = asyncio.run(system_module.llm_models("http://h:1234/", "k"))
+            result = asyncio.run(system_module.llm_models(
+                system_module.LlmModelsRequest(base_url="http://h:1234/", api_key="k")))
         self.assertEqual({"models": ["alpha", "zeta"]}, result)
         self.assertEqual("http://h:1234/v1", _FakeClient.made[0][0]["base_url"])
         self.assertEqual("k", _FakeClient.made[0][0]["api_key"])
@@ -138,13 +145,14 @@ class LlmModelsRouteTests(unittest.TestCase):
         def boom(*a, **k):
             raise ConnectionError("refused")
         with patch("llm_provider.make_llm_client", boom):
-            result = asyncio.run(system_module.llm_models("http://h:1234/v1"))
+            result = asyncio.run(system_module.llm_models(
+                system_module.LlmModelsRequest(base_url="http://h:1234/v1")))
         self.assertEqual([], result["models"])
         self.assertIn("refused", result["error"])
 
     def test_blank_base_url_is_400(self):
         with self.assertRaises(HTTPException) as ctx:
-            asyncio.run(system_module.llm_models("  "))
+            asyncio.run(system_module.llm_models(system_module.LlmModelsRequest(base_url="  ")))
         self.assertEqual(400, ctx.exception.status_code)
 
 

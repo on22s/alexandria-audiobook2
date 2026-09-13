@@ -154,7 +154,7 @@
   {
     "index": 18,
     "methods": [
-      "GET"
+      "POST"
     ],
     "name": "llm_models",
     "path": "/api/llm/models",

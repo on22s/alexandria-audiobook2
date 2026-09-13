@@ -18,7 +18,8 @@ from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from project import (CHAPTER_EXPORT_DIR, ProjectManager, build_chapter_filename)
+from project import (CHAPTER_EXPORT_DIR, ProjectManager, build_chapter_filename,
+                     build_chapter_filenames)
 from routers import editor as editor_module
 
 HAVE_FFMPEG = bool(shutil.which("ffmpeg"))
@@ -46,6 +47,11 @@ class FilenameTemplateTests(unittest.TestCase):
         self.assertEqual("chapter 4.mp3", build_chapter_filename("{chapter_name}", 4, "   ", "mp3"))
         self.assertEqual("02 - chapter 2.mp3", build_chapter_filename("", 2, "", "mp3"))
         self.assertTrue(build_chapter_filename("???", 2, "", "mp3").endswith(".mp3"))
+
+    def test_duplicate_names_are_rejected_before_an_export_can_overwrite_audio(self):
+        groups = [("Chapter 1", 0, 0), ("Chapter 2", 1, 1)]
+        with self.assertRaisesRegex(ValueError, "duplicate filenames"):
+            build_chapter_filenames(groups, "{book_name}", "mp3", book_name="Novel")
 
 
 def _tone(path, seconds, hz=220.0, rate=24000):
@@ -153,6 +159,16 @@ class ExportChaptersTests(unittest.TestCase):
             pm = ProjectManager(tmp)
             with patch.object(pm, "load_chunks", side_effect=AssertionError("must not load")):
                 self.assertEqual((False, "Unsupported format: ogg"), pm.export_chapters(fmt="ogg"))
+
+    def test_duplicate_template_refuses_before_it_can_write_over_a_chapter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm, chunks = _project(tmp)
+            with patch.object(pm, "load_chunks", return_value=chunks):
+                ok, message = pm.export_chapters(fmt="wav", template="{book_name}",
+                                                  book_name="Novel")
+            self.assertFalse(ok)
+            self.assertIn("duplicate filenames", message)
+            self.assertFalse(os.path.exists(os.path.join(tmp, CHAPTER_EXPORT_DIR)))
 
 
 class RouteTests(unittest.TestCase):
