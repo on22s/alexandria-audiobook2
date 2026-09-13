@@ -1680,6 +1680,11 @@
     "tests.test_library_fidelity_control_arm.VoiceEntry.test_control_arm_routes_away_from_the_lora_generator",
     "tests.test_library_fidelity_control_arm.VoiceEntry.test_default_arm_loads_the_adapter"
   ],
+  "test_library_time_split": [
+    "tests.test_library_time_split.TimeSplitTest.test_a_gap_that_leaves_too_few_training_clips_is_refused",
+    "tests.test_library_time_split.TimeSplitTest.test_the_random_split_shape_it_replaces_would_have_neighbours",
+    "tests.test_library_time_split.TimeSplitTest.test_val_is_the_latest_block_and_train_ends_before_the_gap"
+  ],
   "test_limit_zero_means_all": [
     "tests.test_limit_zero_means_all.LimitConventionTest.test_no_script_slices_rows_by_a_bare_limit",
     "tests.test_limit_zero_means_all.LimitConventionTest.test_slicing_semantics_directly",
