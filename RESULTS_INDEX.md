@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-13 from `ab_test_runtime/experiments/` — 1571 artifacts, 1709 arms.
+Generated 2026-09-13 from `ab_test_runtime/experiments/` — 1574 artifacts, 1709 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1906,6 +1906,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 |---|---|
 | `adapter_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_listening_ratings.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `adapter_listening_v2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `adapter_listening_v2_ratings.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `adapter_stop_check_aishell3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_ljspeech.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2782,6 +2784,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_hyphen_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_measure.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_measure_shipped_neither_20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_none_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_none_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_none_allrows_n3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

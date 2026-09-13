@@ -6,6 +6,11 @@
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_an_adapter_absent_from_the_manifest_still_resolves_by_path",
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_the_tracked_manifest_names_a_real_dataset_for_every_adapter"
   ],
+  "test_adapter_listening_controls": [
+    "tests.test_adapter_listening_controls.ForeignClipTest.test_a_generated_control_is_found_only_at_the_foreign_path",
+    "tests.test_adapter_listening_controls.ForeignClipTest.test_no_generated_control_means_none_so_the_builder_still_refuses",
+    "tests.test_adapter_listening_controls.HoldoutLinesTest.test_lines_come_in_val_order_which_is_check_index_order"
+  ],
   "test_adapter_provenance": [
     "tests.test_adapter_provenance.BackfillTest.test_a_correct_digest_is_left_alone",
     "tests.test_adapter_provenance.BackfillTest.test_a_meta_with_no_adapter_beside_it_is_not_invented",
@@ -1918,6 +1923,10 @@
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
+  ],
+  "test_measure_respellings_terms": [
+    "tests.test_measure_respellings_terms.RowsForTermsTest.test_a_term_that_does_not_romanise_is_refused",
+    "tests.test_measure_respellings_terms.RowsForTermsTest.test_known_terms_keep_their_row_and_unknown_ones_are_built"
   ],
   "test_modernbooknlp_adapter": [],
   "test_mp3_bitrate": [
