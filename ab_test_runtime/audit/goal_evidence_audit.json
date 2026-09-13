@@ -336,13 +336,13 @@
   {
    "goal": "2.9",
    "title": "Pitch-carried meaning survives synthesis",
-   "cited": 7,
+   "cited": 8,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
     "exploratory": 2,
-    "supported_structure": 5
+    "supported_structure": 6
    },
    "dirty_artifacts": 1,
    "no_commit": 2,
@@ -388,6 +388,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "ff62f3f2"
+    },
+    {
+     "name": "prosody_time_split__warm_baritone_30s_m_1.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "88436803"
     }
    ]
   },

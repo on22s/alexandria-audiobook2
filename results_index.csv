@@ -1952,6 +1952,7 @@ prosody_second_english__silky_baritone_40s_m_scifi.json,supported_structure,prov
 prosody_second_english__warm_baritone_30s_m_1.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_second_english__warm_baritone_30s_m_scifi.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_second_english__warm_baritone_50s_m.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+prosody_time_split__warm_baritone_30s_m_1.json,supported_structure,provenance,yes,,,2.9,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 qwen38_forced_choice__qwen38-fp8-author-balanced-forced-choice-a6000-20260902b.json,exploratory,none,no,,36157227,,,qwen38_forced_choice,owarimonogatari3,qwen/qwen3.8-27b,local-lmstudio,instance-d2ijtkhu-main,lmstudio,32768,1,f16?,base,8,1,12.5,ok,False,,19.4,09-02 19:17,http://127.0.0.1:8090/v1,
 qwen38_forced_choice__qwen38-fp8-author-balanced-forced-choice-a6000-20260902b.json,exploratory,none,no,,36157227,,,qwen38_forced_choice,owarimonogatari3,qwen/qwen3.8-27b,local-lmstudio,instance-d2ijtkhu-main,lmstudio,32768,1,f16?,tuned,8,1,12.5,ok,False,,19.4,09-02 19:17,http://127.0.0.1:8090/v1,
 realizable_router.json,exploratory,git+naming,no,realizable_router.py,7f3578a5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -2677,6 +2678,7 @@ tight_rebuild__velvety_mezzo_30s_f_gothic__rebuilt.json,supported_structure,prov
 tight_rebuild__velvety_mezzo_30s_f_gothic__shipped.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tight_rebuild__warm_baritone_40s_m_1__rebuilt.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tight_rebuild__warm_baritone_40s_m_1__shipped.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+time_split__warm_baritone_30s_m_1_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tone_spread_sensitivity.json,supported_structure,provenance,yes,,,2.7,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 training_composition.json,exploratory,git+naming,no,training_composition.py,e544836e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 training_determinism.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly

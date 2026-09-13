@@ -2838,9 +2838,32 @@ both arms, as 6.1 requires.
   the split: those held-out lines come from the same audiobook, session and
   recording chain as the training clips, which is the leak the split-by-work
   design exists to prevent, and same-session material predicts exactly a
-  higher correlation. It is testable without new audio — re-split one
-  private narrator by chapter — and until it is tested the eight-narrator
+  higher correlation. It was tested the same day, as far as the data allows
+  — see the next bullet — and until the rest is tested the eight-narrator
   figure must not be quoted as "English prosody is fine on our own voices".
+- **One narrator re-split by time, 2026-09-13: adjacency is part of it, not
+  all of it.** The private datasets' val split is clip-level random:
+  `val/sample_1600` ends at 14684.9 s of the audiobook and
+  `train/sample_1601` starts at 14684.9 s — neighbouring sentences of one
+  paragraph on opposite sides. `library_time_split.py` re-split
+  `warm_baritone_30s_m_1` by time: train on the earliest 150 clips
+  (244.6–267.5 min of the book), a 293 s gap, val the last 20 (272.4–275.5
+  min); library recipe, seed 1234, stop gate 1.0x
+  (`run_chains/private_narrator_time_split_20260913.sh`).
+
+  | split, same narrator | LoRA f0 corr median / mean | clone median / mean |
+  |---|---|---|
+  | random clips, neighbours across the split (08-20) | 0.600 / 0.543 | 0.690 / 0.605 |
+  | time-ordered, 293 s gap | **0.519 / 0.458** | **0.517 / 0.582** |
+  | the two public sets | 0.26–0.31 | 0.28–0.34 |
+
+  Removing adjacency cost 0.08 (LoRA) and 0.17 (clone) on the medians and
+  less on the means, and the narrator still sits 0.15–0.2 above both public
+  sets. So adjacency explains part of the private premium; what remains is
+  either the session (the zip covers 31 minutes of one recording, so the gap
+  can be no wider) or genuinely better prosody on the narrator's own
+  material, and only a different chapter of the same book could separate
+  those. n = 20 lines, one narrator, one seed.
 - **Arm order flips between sets and is small everywhere.** LoRA over clone
   by 0.009 on Hi-Fi, clone over LoRA by 0.066 on LJSpeech and 0.063 on the
   private set (medians). With per-set spreads this wide the arm is not the
@@ -2852,7 +2875,9 @@ both arms, as 6.1 requires.
   merged and unmerged alike. Retrained at 1e-6 it passes the stop gate at
   1.1x. `RECIPES.md` and `test_recipes.py` exist because of that morning.
 
-Evidence: `ab_test_runtime/experiments/hifitts_9017_generate.json`,
+Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generate.json`,
+`prosody_time_split__warm_baritone_30s_m_1.json`, `app/experiments/library_time_split.py`;
+`ab_test_runtime/experiments/hifitts_9017_generate.json`,
 `prosody_hifitts_9017.json`, `hifitts_9017_score.json`,
 `prosody_second_english__*.json` (eight files), `second_english__*_generate.json`;
 `run_chains/hifitts_9017_20260913.sh`; corpus provenance in
