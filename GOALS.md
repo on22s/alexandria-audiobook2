@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-08-24
+**Last updated:** 2026-09-13
 
 ## How to read this
 
@@ -2885,206 +2885,6 @@ Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generat
 
 ---
 
-## 3. Reliability — does a run finish and produce the right thing
-
-
-### 3.1 Chunk completion on script generation
-
-> **What this is.** A novel is too long to process at once, so it is cut into
-> chunks. This tracks how many chunks get through without the app giving up on
-> them.
->
-> **Why it matters.** A failed chunk is a hole in the audiobook. Runs take
-> hours, so failures discovered at the end are expensive in wall-clock time and
-> in patience.
->
-> **Why 99% is reachable.** The failures have been studied and sort into two
-> named groups: one is a near-miss against a threshold and is fixable by
-> adjusting that threshold; the other is the model occasionally losing the plot
-> for no reason connected to the text. Neither is mysterious. One book in the
-> most recent run completed 9 chunks out of 9 cleanly, so clean runs plainly
-> happen.
-
-**Metric** — chunks completing without exhausting retries.
-**Probe** — `logs/review_responses.log`, per-run logs.
-**Current** — every saved book carries a `<name>.json.generation_quality.json`
-recording `total_chunks`, `accepted_chunk_count` and, on newer runs,
-`model_name`. Read across all 34 of them 2026-08-08
-(`chunk_completion.py`), no inference required:
-
-| model | books | chunks | completion | worst book |
-|---|---|---|---|---|
-| gemma-4-e4b-uncensored | 19 | 1313 | **100.00%** | 100% |
-| *unrecorded* | 15 | 1586 | 25.28% | 1.0% |
-
-**MET on the only model that can be attributed** — gemma-4-e4b completes every
-chunk of every book, 1313 for 1313, against a 99% target.
-
-**The development set was MET before broader shipped-model reliability was.**
-All four development books completed every chunk on qwen3-14b on 2026-08-10:
-
-| book | chunks | completion |
-|---|---|---|
-| grimgar03 (run A) | 49/49 | 100% |
-| grimgar03 (run B) | 49/49 | 100% |
-| index18 | 81/81 | 100% |
-| mushoku16 | 45/45 | 100% |
-| owarimonogatari3 | 110/110 | 100% |
-
-Two of these were ungeneratable 24 hours earlier. grimgar03 failed at chunk 1
-of 49 because the repair logic refused a book for faithfully reproducing its
-own repeated title; index18 was refused at the source gate over 6,662
-replacement characters. Both are fixed, and grimgar03 was run twice because one
-success does not distinguish a reliable book from a lucky one.
-
-The unseen-book run on 2026-08-12 then found two new deterministic blockers:
-
-| book | accepted chunks | result |
-|---|---:|---|
-| mushoku18 | 58/58 | written |
-| mushoku23 | 120/120 | written, 11,387 entries |
-| arc4_volume10wn | 132/154 | failed at chunk 133 |
-| grimgar06 | 24/70 | failed at chunk 25 |
-
-That is **334/402 = 83.1%** completion across the four unseen books, below the
-99% target. Both failures exhausted the fixed retry policy and preserve valid
-checkpoints. `arc4` repeatedly expanded a short repetitive passage until the
-16,384-token ceiling; `grimgar06` repeatedly omitted parts of one passage even
-after adaptive splitting. Retrying either unchanged is not a new measurement.
-At that point the overall status was therefore **OPEN**: the development books
-were 100%, but the shipped model had not generalised that reliability to these
-unseen formats.
-
-**Both blockers are now diagnosed without retrying them unchanged.** Arc4's
-source contained extreme repeated phrases (up to 41 repeats) and confusable
-Cyrillic characters. Source normalization collapsed the pathological repeats;
-the completed artifact now records **154/154**, with chunk 133 accepted on its
-first attempt at 99.1% source-token recall. Grimgar's single-pass outputs ended
-normally but repeatedly omitted the same prose: full-chunk recall stayed
-82.7–85.8%, and recursive halves/quarters were no more reliable, ruling out a
-context ceiling. The production three-pass path deterministically presegments
-quotes and completed the entire **71,602-word, 3,305-entry** book across 142
-chunks.
-
-**MET on an unseen four-book current-path rerun, 2026-08-16.** The clean
-qwen3-14b campaign in `unseen_three_pass_20260815` completed **807/807 chunks
-(100%)**, 411,746 words and 15,728 entries with no failure codes: mushoku18
-110/110, grimgar06 142/142, mushoku23 241/241, and arc4_volume10wn 314/314.
-This clears the 99% target on every book and confirms that the three-pass escape
-path generalises across the four previously unseen formats.
-
-**The qwen2.5-14b figures this goal used to quote are still not in the evidence
-tree**, and the 15 historical failures remain unattributable - their manifests
-record no model. That is now impossible for new runs, since both failure call
-sites record `model_name`.
-
-**The 15 failures cannot be attributed to any model, and that is the finding.**
-All 15 have `status: failed` with `failure: chunk_failed_after_retries` after 8
-to 33 attempts — genuine exhaustion, not interrupted runs. None records
-`model_name`. All 15 response logs survive in `logs/responses/`, and none of
-them names a model either: they record chunk, attempt, finish_reason and token
-counts only. So the worst generation failures this app has ever produced are
-permanently unattributable.
-
----
-
-## 4. Speed and cost
-
-### 4.1 Faster than real time
-
-**Metric** — generation seconds ÷ audio seconds. LOWER is better.
-**Target — median ≤ 0.90x, worst case ≤ 1.50x.**
-
-**OPEN — demoted from met on 2026-09-04.** The goal recorded median
-0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
-figure does not say which VOICE PATH produced it, and the paths differ by half
-again. Measured the same day on the same RX 9070 XT, from the raw seconds in
-the TTS logs:
-
-| path | clips | median | worst | verdict |
-|---|---|---|---|---|
-| **LoRA voices** | 4,251 | **1.23x** | 1.38x | **MISSES** the 0.90x target |
-| stock voice | 1,417 | 0.83x | 0.96x | meets it |
-
-**The LoRA path is what the product ships.** Multi-voice audiobooks assign a
-LoRA per character, so the arm that misses is the arm in use, and it misses by
-37%. It is also slower than the 1.21x this goal recorded as its WORST case,
-across 4,251 consecutive clips rather than 300.
-
-**The cost is the adapter, not the card.** Same machine, same day, same
-validation clips, differing only in whether a LoRA is applied: 1.23x against
-0.83x. Applying an adapter costs about **50% more generation time**, and
-nothing here had recorded that.
-
-**A trap worth naming, because it inverts the answer.** `tts.py` logs
-`17.9s -> 14.5s audio (0.81x real-time)` — that is audio ÷ generation, where
-HIGHER is better. This goal measures generation ÷ audio, where LOWER is
-better. Read one as the other and a 1.23x failure reads as a 0.81x pass.
-`generation_realtime_rate.py` parses the raw seconds and reports only this
-goal's convention.
-
-**What would close it** is either a faster LoRA path or an explicit decision
-that 1.23x is acceptable for multi-voice work — a target change is a legitimate
-outcome, but it has to be made rather than inherited from a measurement that
-did not separate the paths.
-
-Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
-`app/experiments/generation_realtime_rate.py`.
-
-**The adapter cost is the unmerged forward pass, and merging removes it —
-2026-09-12.** `tts._init_local_lora` wraps the talker in
-`PeftModel.from_pretrained` and leaves it there, so every decoder step
-computes `W·x + B·A·x` for every targeted module. `peft`'s `merge_and_unload`
-folds `B·A` into `W` once. Same engine, same adapter
-(`breathy_alto_50s_f_fantasy`), same seed, same six lines, three arms in one
-process on the RX 9070 XT — `app/experiments/lora_merge_speed_probe.py`:
-
-| arm | n | median | worst | best |
-|---|---:|---:|---:|---:|
-| LoRA unmerged (as shipped) | 6 | **1.250x** | 1.272x | 1.226x |
-| LoRA merged | 6 | **0.835x** | 0.844x | 0.828x |
-| stock voice, no adapter | 6 | 0.928x | 1.005x | 0.828x |
-
-The merge itself took 0.03 s. Merged, the adapter path runs at the stock
-model's speed and inside this goal's target on both the median and the worst
-case; unmerged it reproduces the 1.23x measured over 4,251 clips above, so
-the six lines are standing in for the production figure rather than
-contradicting it. A second, one-line run sixteen minutes later
-(`lora_merge_speed_probe__9070xt-20260912-fixed.json`) reads 1.241x / 0.826x / 0.821x. n = 6 on one adapter: the *ordering* and the
-size of the gap are what this measures; the third decimal is not.
-
-What this does not yet show: that the merged model's audio is the same. The
-probe keeps every wav (`lora_merge_speed_probe__9070xt-20260912_wavs/`, not
-committed) and they have not been compared. `merge_and_unload` is
-mathematically the same forward pass in exact arithmetic; in bfloat16 it is
-not guaranteed to be bit-identical, and the engine already reloads the base
-model whenever the adapter changes, so a merged talker cannot be un-merged
-without that reload. Closing this goal is a change to `tts.py` plus a
-listening or waveform check on the merged output, not this probe. It is not
-in this entry.
-
-Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.json`
-(six lines),
-`lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
-
-**The merge is shipped; the goal stays OPEN until re-measured — 2026-09-12.**
-`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
-serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
-which fails against the unmerged code). The audio check the previous entry
-asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
-(sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
-different waveform — sample correlation ≈ 0, envelope correlation 0.82,
-identical duration on all six lines — so bf16 rounding of the merged weights
-changes the token path. ECAPA speaker similarity, six lines: merged vs
-unmerged on the same line **0.714** (min 0.508), the unmerged adapter against
-itself across different lines 0.538, the adapter against the stock voice
-0.057. The merged render is the same voice, differing from the unmerged one
-by less than the adapter differs from itself line to line. What closes the
-goal is `generation_realtime_rate.py` over a real multi-voice run on the
-merged path, not six lines.
-
----
-
 ## 5. Text handling
 
 
@@ -3858,347 +3658,6 @@ segment — 1 of 10 boundaries, a 17-second median error.
 So the reachable path is probably not to pick one. Words and boundaries can
 come from different passes, and the failure modes are exactly complementary.
 That hybrid is untested; nothing measured rules it out.
-
----
-
-### 5.5 Foreign words are said as foreign words
-
-> **What this is.** Ordinary Japanese and Chinese words that appear inside
-> English prose — not character names, which 5.2 already covers. A translated
-> light novel keeps the words the translator chose to leave untranslated.
->
-> **Why it matters.** These are not mispronounced occasionally, they are
-> mispronounced *every time, identically*, which is why 5.2's consistency
-> metric cannot see them. Measured 2026-08-16 by rendering each in a carrier
-> sentence and transcribing with an English and a Japanese ASR:
->
->     arigatou   heard as "Ara got to"   parsed as three English words
->     kawaii     heard as "Kauai"        the Hawaiian island
->     senpai     heard correctly         needs no entry at all
->
-> **Why this is reachable.** The mechanism already exists and ships empty by
-> design (5.2's `pronunciation.py`). What was missing was knowing *which*
-> words need an entry, and that is now measured rather than guessed.
-
-**Metric** — `recovers_word`: the term's kana reading appears **unbroken and
-in order** in the transcript, compared on readings so 人間 and ニンゲン count as
-the same word. Not WER: a respelling that works makes the ASR hear Japanese,
-which WER punishes.
-
-> **This definition is the goal's second one, and the first was wrong.** Until
-> 2026-08-17 the score asked whether each kana appeared *anywhere*, in any
-> order, so タナカ scored a perfect 1.0 against a transcript holding タ, ナ and
-> カ in three unrelated words. Of 768 terms scoring 1.0, **only 51% contained
-> the word**; the rest were the mispronunciations this goal exists to catch
-> (`フタバ` → フォータバー, `セイイチ` → セイチー) scored as successes. The
-> generation was checked before the scoring was blamed: 12 of 12 stored WAVs
-> re-transcribe byte-identically, 0 of 12 plain/respelled pairs are the same
-> audio, 0 render errors across 5,880 terms. The audio was always fine; the
-> question asked of it was not. See Rule 21 and
-> `app/experiments/rescore_respellings.py`.
-
-**Probe** — `app/experiments/measure_respellings.py`, over candidates found by
-`discover_foreign_terms.py` and `lexicon_corpus_scan.py`. Finished runs are
-re-scored without regenerating audio by `rescore_respellings.py`.
-**Current** — 9,381 candidates scanned from 6,501 EPUBs; **6,060 measured and
-re-scored**. On the shipped books: 82 terms present, every one in a measured
-state — 10 entries, 60 recorded unfixable, 12 the plain form already says.
-**MET on the target as written, 2026-09-13**; see the last entry for what
-that does and does not cover.
-
-**Evidence** — `respelling_measure_rescored.json` (7,775 terms, the -eh
-baseline every arm below is paired against) and `respelling_e_row__ay_n1600.json`
-(1,419 terms, the whole pool containing an -eh mora). The three /e/-row arms
-are `respelling_e_row__e.json`, `respelling_e_row__ei.json` and
-`respelling_e_row__ay.json`; `respelling_e_row__ay_n1200.json` is **partial**
-(1,129 of 1,200 terms) and is labelled so in the structural audit — it is
-superseded by the n1600 run and should not be quoted.
-
-**A LISTENER OVERTURNED THE ROW CHANGE THE SAME DAY, and the metric with it.**
-Eight terms, three takes each, positions rotated, key hidden until each answer
-was saved (`respelling_earcheck.json`). On the four terms that justified the
-change — the ones where ASR heard the whole word in `-ay` and not in `-eh` —
-the listener chose the `-ay` take **0 times**, and chose the *un-respelled*
-take 3 of 4. Across all eight: no respelling 4, `-eh` 1, `-ay` 1, "none
-sounded right" 2. The listener's choice matched the recogniser's in **2 of 8**.
-`respell()` is back to `-eh`; `-ay` is not disproven, it is unsupported by the
-only instrument that measures what this goal claims.
-
-**Six of the eight notes named the same thing unprompted — pauses.** "Weird
-pauses", "sounded robotic", "the biggest problem is the pausing". That is a
-mechanism, and it measures: over 400 terms, respelled clips pause internally
-where plain ones do not — **341 of 384 discordant terms, sign test p=1.1e-58**
-(`respelling_pauses.json`) — and the two vowel rows are indistinguishable
-(p=0.10). So the pause belongs to the *form* of a respelling, not its vowels.
-
-**Why that would fool the metric.** `recovers_word` asks whether the reading
-appears unbroken and in order in the transcript. A voice that says the pieces
-cleanly, with gaps between them, satisfies that exactly — while a listener
-hears a chopped non-word. The metric and the ear then diverge systematically,
-which is what happened. **The hyphen is the suspect** (`seh-n-seh-ee`), and
-`--separator none|space|dot` arms are queued to test it, with a second
-listening test to follow. Until that lands, no respelling figure in this goal
-should be read as a claim about how anything sounds.
-
-**The /e/ row was measured and changed, 2026-08-18 — and reverted.** Paired on identical
-terms against the shipped `-eh`, with the plain (no respelling) arm as an
-explicit noise floor:
-
-    arm    recovery   vs -eh    McNemar p    plain control p
-    -ay      14.0%     2x        2.5e-11        0.77
-    -ei      10.5%     -         0.25           0.51
-    -e        2.0%     0.25x     1.9e-4         0.39
-
-`-ay` held at 391, 780 and 1,419 terms as the sample grew and the control is
-null at every size, so this is not the TTS→ASR drift that flips 34 verdicts in
-391 on identical input. `respell()` now defaults to `-ay`; `-eh` stays
-selectable so the comparison remains reproducible. **This changes no audio
-today**: `pronunciation.json` ships 42 names with empty respellings and nothing
-in the app calls `respell()` — the table feeds the measurement, not the
-product.
-
-**The result that matters is not a list of respellings, it is when to use
-one** — and the honest answer is *rarely*:
-
-| | terms | outcome |
-|---|---|---|
-| plain spelling already said it right | 967 | respelling **breaks 72%** of them |
-| plain spelling got it wrong | 5,093 | respelling **rescues 13%** of them |
-| net across all 6,060 | | **687 recovered against 701 lost** |
-
-**Respelling is roughly break-even, and actively harmful applied broadly.** The
-entry rule stands and is now the stronger claim: respell only where the plain
-form demonstrably fails, and even there expect it to work about one time in
-eight. Rule B (vowel absorption) is worse — 7 recoveries in 268 terms.
-
-The useful output is the near-miss list: terms where the phonemes moved the
-right way and one specific thing is still wrong — `カワラマチ` → こわらマチ,
-`サカキバラ` → さっかきばら, `ウチガタナ` → うちがたんな. Those are fixable by a
-hand-written entry in a way that "the model has no idea" is not.
-
-**BOTH HALVES NOW EXIST, over the measured corpus (2026-08-20,
-`lexicon_candidates.json`, built by `lexicon_from_measurements.py` from
-artifacts already on disk - no GPU, no regeneration).** Of 7,607 measured terms:
-
-| | |
-|---|---|
-| the plain reading already says the word | 933 — *an entry here would do harm* |
-| measured to help → **entry** | **1,056** |
-| recorded as one respelling could not fix | **5,618** |
-
-Every term the plain reading fails is now in one of the two required states.
-The 933 are excluded on measurement, not taste: respelling breaks **69.7%** of
-the words the engine already said correctly.
-
-**How far to trust the 1,056 is a separate question, and the answer is "less
-than it looks".** Restricted to terms that more than one arm actually measured,
-a rescue reproduced only **101 of 380 times (26.6%)**. Some of that gap is a
-real separator effect - the hyphen rescues 15.2% against the no-separator
-form's 10.2% - and the rest is the pipeline's own churn, which is not small: 34
-of 391 verdicts flipped on IDENTICAL input in the plain control. Each entry
-therefore records `arms_measuring`, `arms_rescuing` and `corroborated`, and
-**101** of the 1,056 are corroborated by more than one arm while **676** were
-measured only once and cannot be corroborated either way.
-
-**So the lexicon is not written from this file automatically.** Shipping 1,056
-entries built on single readings would be the 38%-versus-13% mistake wearing a
-different hat. `--write-lexicon` exists and is off by default.
-
-**Target — every term in the shipped books whose plain form does not produce
-the word either has a measured entry or is recorded as one respelling could
-not fix.**
-
-**THE SCAN HAS NOW BEEN RUN — 2026-09-04, and the goal stays open at 78.0%.**
-`shipped_book_lexicon_coverage.py` discovers the foreign terms in the 29 saved
-scripts using `discover_foreign_terms`' own detector and roster filter -
-imported, not reimplemented - and asks of each which state it is in:
-
-| | terms |
-|---|---|
-| foreign terms in the shipped books | **82** |
-| has a measured entry | 9 |
-| recorded as one respelling could not fix | 55 |
-| **in NEITHER state** | **18** |
-
-**Coverage over the shipped books is 78.0%, not the 87.7% this goal records
-over the measured corpus**, and the two are different populations: 6,674 terms
-were measured, of which only 82 occur in a book we ship. The eighteen are
-`barusu, basuru, daichi, deka, gauaa, gaurururu, kuchibashi, makoto, manga,
-mano, maringo, masaharu, masahiro, meimei, nezumi, pachinko, subara, tsundere`.
-Several read as names the roster filter did not catch, which is worth checking
-before any of them is measured — a name has its own discovery path.
-
-**THE EIGHTEEN TRIAGED — 2026-09-04, and only FIVE are this goal's kind of
-word.** All eighteen occur only in the Re:Zero scripts. Classified from the
-context sentence, the SudachiDict reading, and a web lookup for the cases the
-offline tools got wrong:
-
-| class | terms | n |
-|---|---|---|
-| **loanword — in scope** | `manga`, `pachinko`, `deka`, `kuchibashi`, `meimei` | **5** |
-| name — character | `baru`, `barusu`, `basuru`, `subara` | 4 |
-| name — real person | `daichi`, `makoto`, `masaharu`, `masahiro`, `nezumi` | 5 |
-| name — place | `maringo` | 1 |
-| not Japanese | `mano` | 1 |
-| onomatopoeia | `gauaa`, `gaurururu` | 2 |
-
-**The names are not roster failures.** `barusu` is Ram's nickname for Subaru
-with the *su* moved to the end; the rest are afterword credits. None of them
-SPEAKS, so no roster would ever have held them — they are mentioned, not
-labelled, and belong to the name path rather than to a loanword lexicon.
-
-**THE OFFLINE TOOLS WERE WRONG ABOUT TWO, both in the direction that would have
-put the wrong word in the lexicon.** SudachiDict returns `nezumi` as the common
-noun ネズミ, "rat" — it is the author's pen name, Nezumi-iro Neko 鼠色猫. And it
-tags `mano` a proper noun; the line reads "mano a mano", which is Spanish, and
-it was flagged only because it is absent from an ENGLISH dictionary. A
-dictionary lookup of a romanised string cannot tell which sense is on the page.
-
-**So MET requires five terms, not eighteen** — and the other thirteen recorded
-as out of scope, which this triage does. Measuring them would put an author's
-credits and a Spanish idiom into a Japanese-loanword lexicon.
-
-Evidence: `ab_test_runtime/experiments/shipped_term_triage.json`.
-
-**THE EIGHTEEN WERE TRIAGED, THEN THE IN-SCOPE FIVE WERE MEASURED — 2026-09-04.
-Coverage moves 78.0% -> 81.7%, and the more useful result is that the question
-was mis-framed.** Thirteen of the eighteen are not foreign loanwords at all:
-nine are names (`masaharu`, `masahiro`, `makoto`, `nezumi`, `subara`, `barusu`,
-`basuru`, `maringo`, `daichi` - among them a character nickname, afterword
-credits and an author's pen name), one is a place, `mano` is Spanish, and
-`gauaa`/`gaurururu` are growls. **That triage is a judgement, not a
-measurement** - made from the surrounding sentences, a dictionary and a web
-search, and recorded here so it can be disputed. It matters that it was made:
-measuring all eighteen would have written a pen name and a Spanish idiom into a
-Japanese-loanword lexicon, which is the failure this goal exists to prevent.
-
-The five in scope were measured on the local card
-(`respelling_five_terms_ja.json`, `respelling_five_terms_unattributed.json`;
-two passes, because `--verdict` is an exact match and `meimei` is attributed
-`unattributed`, and because `--min-books 20` would silently have dropped `deka`
-at 6 books and `kuchibashi` at 4):
-
-| term | books | plain says it | respelled | outcome |
-|---|---|---|---|---|
-| kuchibashi | 4 | no (0.25) | クチバシ, clean | **entry** |
-| manga | 3602 | **yes** (1.0) | マネガブ | **harm** |
-| pachinko | 111 | **yes** (1.0) | シーナコー | **harm** |
-| deka | 6 | no | no | no change |
-| meimei | 58 | no | no | no change |
-
-**One entry from five terms, and two of the five were made worse** - the two
-the engine already pronounced correctly. That is this goal's 69.7% harm rate
-reproduced on the terms that actually ship, and it is the entry rule earning
-its keep rather than a new finding.
-
-**Three of the five never needed measuring, and the scan should have said so.**
-`manga`, `pachinko` and `deka` were already in
-`respelling_measure_rescored.json`. They counted as `NEITHER` because
-`shipped_book_lexicon_coverage.py` defines that state as *absent from the entry
-list and absent from the unfixable list* - and a term whose plain form already
-works is absent from both by design, since an entry would do it harm. **The
-scan reports a correctly-handled term as uncovered.** Nine of the fifteen still
-listed are in exactly that state. The 81.7% is therefore a floor, and the
-instrument, not the lexicon, is what needs the next fix (goal 6.6).
-
-**`deka` disagrees with itself across arms** - `plain_recovers_word` is `True`
-in the rescored baseline and `False` in today's run, same word, same plain
-spelling, no respelling involved. That is the 34-in-391 churn this goal already
-records, landing on one term in five. Its new verdict is not load-bearing and
-no entry rests on it.
-
-Rebuilt `lexicon_candidates.json` over the three arms it already named in
-`arms_read` plus the two new ones: 1,057 entries, 5,620 recorded unfixable, 931
-excluded because the plain reading already works.
-
-**Two of the fifteen that remain are unexplained**: `tsundere` left the list
-and `baru` joined it, and neither term was measured today. Until that is traced
-the fifteen should be read as approximately, not exactly, the remainder.
-
-**THE SCAN WAS THE PROBLEM, AND IT IS FIXED — coverage 81.7% -> 95.1%,
-2026-09-04.** Goal 5.5 reaches its conclusions in THREE states, and the scan
-knew two. `lexicon_candidates.json` stored the third — the engine already says
-the word, so an entry would do harm — as a bare count, so the consumer had no
-way to recognise a term in it and filed each one under `NEITHER`. Eleven of
-the fifteen were in that state:
-
-| | before | after |
-|---|---:|---:|
-| with a measured entry | 10 | 10 |
-| recorded as one respelling could not fix | 57 | 57 |
-| plain reading already says it | *not representable* | **11** |
-| in neither state | 15 | **4** |
-| coverage | 81.7% | **95.1%** |
-
-Nothing was measured to earn those 13.4 points. The terms were already
-finished; the instrument could not say so. `plain_already_works` is now written
-as a list beside its count, and a candidates file predating the key returns an
-empty set and prints a note rather than silently reporting the old number —
-a scan whose answer depends on which version wrote its input is worse than one
-that refuses.
-
-**A second instance of the same defect turned up while testing this one.** Run
-from a worktree, where `scripts/` is not checked out, the scan printed `0 books
-scanned, coverage None` and exited 0. It now refuses. Both bugs have the shape
-6.6 names: a check reporting success or a gap where it has simply not looked.
-
-**The four that remain are the ones triage said not to measure** — `basuru` and
-`subara` (name fragments), `gauaa` and `gaurururu` (growls). The scan now reads
-`shipped_term_triage.json` and reports that judgement **beside** the coverage
-figure, never inside it: knowing a term is a growl stops it being re-triaged,
-but it was decided by reading sentences and looking words up, not by measuring,
-and folding it into `coverage_percent` would let a judgement close a
-measurement goal. Zero of the four are unexplained.
-
-**5.5 stayed OPEN at this point.** Four terms in the shipped books had no
-measurement, and the target asks for measurement. The remaining work was
-smaller than it had ever been, and honestly sized rather than inflated by an
-instrument that could not see its own third answer.
-
-**THE FOUR WERE MEASURED — 2026-09-13, and the target is met.** They were
-never in `lexicon_attributed.json` at all: the corpus scan's book threshold
-dropped them, so no flag of `measure_respellings.py` could reach them.
-`--terms` now builds a row for a named term by the same romkan rule the
-detector uses, with the book count from the coverage scan, and refuses a
-term that does not romanise. One carrier sentence each, plain and respelled,
-whisper.cpp `ggml-base` in Japanese, scored on readings
-(`respelling_measure_shipped_neither_20260913.json`):
-
-| term | triage | plain heard | respelled heard | state |
-|---|---|---|---|---|
-| basuru | name fragment | バスル | バスルー | **plain already works** |
-| subara | name fragment | スーパー | スーパーラー | could not fix |
-| gauaa | growl | an unrelated sentence | an unrelated sentence | could not fix |
-| gaurururu | growl | ガワー・ロー・ルー | グロー! ×5 | could not fix |
-
-Respelling helped none and hurt none. Fed in as a sixth arm of
-`lexicon_from_measurements.py`, the coverage scan reads **82 of 82 shipped
-terms in a known state: 10 entries, 60 unfixable, 12 plain-already-works,
-NEITHER 0 (100.0%)** (`shipped_book_lexicon_coverage.json`). That is the
-target sentence satisfied literally: every term whose plain form fails has
-an entry or a could-not-fix record.
-
-What it does not cover, kept next to the number: the measurement is one
-carrier sentence per term through one ASR model; "could not fix" means one
-respelling rule failed once, not that no spelling could ever work; the two
-growls are onomatopoeia the triage already judged out of scope for a lexicon,
-and recording them as unfixable is bookkeeping, not a finding; and an entry
-is "confirmed by ear" only through 7.1, which this goal has never claimed to
-replace. The goal is met on what it measures.
-
-**A note on how this was nearly got wrong.** The first version parsed the
-discovery script's stdout with awk and returned three terms that were words
-from the report's own prose — `candidate`, `only;`, `scripts,` — and missed two
-real ones. Importing the detector changed the answer from 80/17 to 82/18. The
-scan is cheap; parsing a human-readable report is not the cheap way to do it. Both halves matter, and the second is now the larger: **87% of that
-band was not rescued** by either derivation rule, so most of this goal's
-output will be recorded failures rather than entries. A word a respelling
-cannot help needs saying so, rather than leaving a blank that reads as an
-oversight.
-
-**Not settled by the ASR.** Kana agreement shows the phonemes moved; it does
-not show the result sounds natural in an English sentence. Entries are
-proposed by measurement and confirmed by ear — see 7.1.
 
 ---
 
@@ -5346,6 +4805,106 @@ sign test p = 0.79. Fourteen runs cannot answer it; more rendered audio can.
 Recorded because the aggregate is tempting and wrong, not because the question
 is settled.
 
+### 3.1 Chunk completion on script generation
+
+> **What this is.** A novel is too long to process at once, so it is cut into
+> chunks. This tracks how many chunks get through without the app giving up on
+> them.
+>
+> **Why it matters.** A failed chunk is a hole in the audiobook. Runs take
+> hours, so failures discovered at the end are expensive in wall-clock time and
+> in patience.
+>
+> **Why 99% is reachable.** The failures have been studied and sort into two
+> named groups: one is a near-miss against a threshold and is fixable by
+> adjusting that threshold; the other is the model occasionally losing the plot
+> for no reason connected to the text. Neither is mysterious. One book in the
+> most recent run completed 9 chunks out of 9 cleanly, so clean runs plainly
+> happen.
+
+**Metric** — chunks completing without exhausting retries.
+**Probe** — `logs/review_responses.log`, per-run logs.
+**Current** — every saved book carries a `<name>.json.generation_quality.json`
+recording `total_chunks`, `accepted_chunk_count` and, on newer runs,
+`model_name`. Read across all 34 of them 2026-08-08
+(`chunk_completion.py`), no inference required:
+
+| model | books | chunks | completion | worst book |
+|---|---|---|---|---|
+| gemma-4-e4b-uncensored | 19 | 1313 | **100.00%** | 100% |
+| *unrecorded* | 15 | 1586 | 25.28% | 1.0% |
+
+**MET on the only model that can be attributed** — gemma-4-e4b completes every
+chunk of every book, 1313 for 1313, against a 99% target.
+
+**The development set was MET before broader shipped-model reliability was.**
+All four development books completed every chunk on qwen3-14b on 2026-08-10:
+
+| book | chunks | completion |
+|---|---|---|
+| grimgar03 (run A) | 49/49 | 100% |
+| grimgar03 (run B) | 49/49 | 100% |
+| index18 | 81/81 | 100% |
+| mushoku16 | 45/45 | 100% |
+| owarimonogatari3 | 110/110 | 100% |
+
+Two of these were ungeneratable 24 hours earlier. grimgar03 failed at chunk 1
+of 49 because the repair logic refused a book for faithfully reproducing its
+own repeated title; index18 was refused at the source gate over 6,662
+replacement characters. Both are fixed, and grimgar03 was run twice because one
+success does not distinguish a reliable book from a lucky one.
+
+The unseen-book run on 2026-08-12 then found two new deterministic blockers:
+
+| book | accepted chunks | result |
+|---|---:|---|
+| mushoku18 | 58/58 | written |
+| mushoku23 | 120/120 | written, 11,387 entries |
+| arc4_volume10wn | 132/154 | failed at chunk 133 |
+| grimgar06 | 24/70 | failed at chunk 25 |
+
+That is **334/402 = 83.1%** completion across the four unseen books, below the
+99% target. Both failures exhausted the fixed retry policy and preserve valid
+checkpoints. `arc4` repeatedly expanded a short repetitive passage until the
+16,384-token ceiling; `grimgar06` repeatedly omitted parts of one passage even
+after adaptive splitting. Retrying either unchanged is not a new measurement.
+At that point the overall status was therefore **open**: the development books
+were 100%, but the shipped model had not generalised that reliability to these
+unseen formats.
+
+**Both blockers are now diagnosed without retrying them unchanged.** Arc4's
+source contained extreme repeated phrases (up to 41 repeats) and confusable
+Cyrillic characters. Source normalization collapsed the pathological repeats;
+the completed artifact now records **154/154**, with chunk 133 accepted on its
+first attempt at 99.1% source-token recall. Grimgar's single-pass outputs ended
+normally but repeatedly omitted the same prose: full-chunk recall stayed
+82.7–85.8%, and recursive halves/quarters were no more reliable, ruling out a
+context ceiling. The production three-pass path deterministically presegments
+quotes and completed the entire **71,602-word, 3,305-entry** book across 142
+chunks.
+
+**MET on an unseen four-book current-path rerun, 2026-08-16.** The clean
+qwen3-14b campaign in `unseen_three_pass_20260815` completed **807/807 chunks
+(100%)**, 411,746 words and 15,728 entries with no failure codes: mushoku18
+110/110, grimgar06 142/142, mushoku23 241/241, and arc4_volume10wn 314/314.
+This clears the 99% target on every book and confirms that the three-pass escape
+path generalises across the four previously unseen formats.
+
+**The qwen2.5-14b figures this goal used to quote are still not in the evidence
+tree**, and the 15 historical failures remain unattributable - their manifests
+record no model. That is now impossible for new runs, since both failure call
+sites record `model_name`.
+
+**The 15 failures cannot be attributed to any model, and that is the finding.**
+All 15 have `status: failed` with `failure: chunk_failed_after_retries` after 8
+to 33 attempts — genuine exhaustion, not interrupted runs. None records
+`model_name`. All 15 response logs survive in `logs/responses/`, and none of
+them names a model either: they record chunk, attempt, finish_reason and token
+counts only. So the worst generation failures this app has ever produced are
+permanently unattributable.
+
+---
+
 ### 3.2 Every generated file is real audio
 
 > **What this is.** Confirming that every audio file the app claims to have
@@ -5524,6 +5083,101 @@ now derives a stable per-character seed. **MET for TTS.**
 ## 4. Speed and cost
 
 
+### 4.1 Faster than real time
+
+**Metric** — generation seconds ÷ audio seconds. LOWER is better.
+**Target — median ≤ 0.90x, worst case ≤ 1.50x.**
+
+**Open — demoted from met on 2026-09-04.** The goal recorded median
+0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
+figure does not say which VOICE PATH produced it, and the paths differ by half
+again. Measured the same day on the same RX 9070 XT, from the raw seconds in
+the TTS logs:
+
+| path | clips | median | worst | verdict |
+|---|---|---|---|---|
+| **LoRA voices** | 4,251 | **1.23x** | 1.38x | **MISSES** the 0.90x target |
+| stock voice | 1,417 | 0.83x | 0.96x | meets it |
+
+**The LoRA path is what the product ships.** Multi-voice audiobooks assign a
+LoRA per character, so the arm that misses is the arm in use, and it misses by
+37%. It is also slower than the 1.21x this goal recorded as its WORST case,
+across 4,251 consecutive clips rather than 300.
+
+**The cost is the adapter, not the card.** Same machine, same day, same
+validation clips, differing only in whether a LoRA is applied: 1.23x against
+0.83x. Applying an adapter costs about **50% more generation time**, and
+nothing here had recorded that.
+
+**A trap worth naming, because it inverts the answer.** `tts.py` logs
+`17.9s -> 14.5s audio (0.81x real-time)` — that is audio ÷ generation, where
+HIGHER is better. This goal measures generation ÷ audio, where LOWER is
+better. Read one as the other and a 1.23x failure reads as a 0.81x pass.
+`generation_realtime_rate.py` parses the raw seconds and reports only this
+goal's convention.
+
+**What would close it** is either a faster LoRA path or an explicit decision
+that 1.23x is acceptable for multi-voice work — a target change is a legitimate
+outcome, but it has to be made rather than inherited from a measurement that
+did not separate the paths.
+
+Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
+`app/experiments/generation_realtime_rate.py`.
+
+**The adapter cost is the unmerged forward pass, and merging removes it —
+2026-09-12.** `tts._init_local_lora` wraps the talker in
+`PeftModel.from_pretrained` and leaves it there, so every decoder step
+computes `W·x + B·A·x` for every targeted module. `peft`'s `merge_and_unload`
+folds `B·A` into `W` once. Same engine, same adapter
+(`breathy_alto_50s_f_fantasy`), same seed, same six lines, three arms in one
+process on the RX 9070 XT — `app/experiments/lora_merge_speed_probe.py`:
+
+| arm | n | median | worst | best |
+|---|---:|---:|---:|---:|
+| LoRA unmerged (as shipped) | 6 | **1.250x** | 1.272x | 1.226x |
+| LoRA merged | 6 | **0.835x** | 0.844x | 0.828x |
+| stock voice, no adapter | 6 | 0.928x | 1.005x | 0.828x |
+
+The merge itself took 0.03 s. Merged, the adapter path runs at the stock
+model's speed and inside this goal's target on both the median and the worst
+case; unmerged it reproduces the 1.23x measured over 4,251 clips above, so
+the six lines are standing in for the production figure rather than
+contradicting it. A second, one-line run sixteen minutes later
+(`lora_merge_speed_probe__9070xt-20260912-fixed.json`) reads 1.241x / 0.826x / 0.821x. n = 6 on one adapter: the *ordering* and the
+size of the gap are what this measures; the third decimal is not.
+
+What this does not yet show: that the merged model's audio is the same. The
+probe keeps every wav (`lora_merge_speed_probe__9070xt-20260912_wavs/`, not
+committed) and they have not been compared. `merge_and_unload` is
+mathematically the same forward pass in exact arithmetic; in bfloat16 it is
+not guaranteed to be bit-identical, and the engine already reloads the base
+model whenever the adapter changes, so a merged talker cannot be un-merged
+without that reload. Closing this goal is a change to `tts.py` plus a
+listening or waveform check on the merged output, not this probe. It is not
+in this entry.
+
+Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.json`
+(six lines),
+`lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
+
+**The merge is shipped; the goal stays open until re-measured — 2026-09-12.**
+`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
+serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
+which fails against the unmerged code). The audio check the previous entry
+asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
+(sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
+different waveform — sample correlation ≈ 0, envelope correlation 0.82,
+identical duration on all six lines — so bf16 rounding of the merged weights
+changes the token path. ECAPA speaker similarity, six lines: merged vs
+unmerged on the same line **0.714** (min 0.508), the unmerged adapter against
+itself across different lines 0.538, the adapter against the stock voice
+0.057. The merged render is the same voice, differing from the unmerged one
+by less than the adapter differs from itself line to line. What closes the
+goal is `generation_realtime_rate.py` over a real multi-voice run on the
+merged path, not six lines.
+
+---
+
 ### 4.2 Local should not need the cloud
 
 > **What this is.** Keeping the version that runs on your own machine roughly as
@@ -5700,6 +5354,347 @@ of ours. Taken with the fact that every other factor on their list already has
 a gate here, it argues the remaining context-dependent character work is worth
 more than it looks, and it is the reason this goal is recorded as MET *with*
 an exclusion rather than simply MET.
+
+---
+
+### 5.5 Foreign words are said as foreign words
+
+> **What this is.** Ordinary Japanese and Chinese words that appear inside
+> English prose — not character names, which 5.2 already covers. A translated
+> light novel keeps the words the translator chose to leave untranslated.
+>
+> **Why it matters.** These are not mispronounced occasionally, they are
+> mispronounced *every time, identically*, which is why 5.2's consistency
+> metric cannot see them. Measured 2026-08-16 by rendering each in a carrier
+> sentence and transcribing with an English and a Japanese ASR:
+>
+>     arigatou   heard as "Ara got to"   parsed as three English words
+>     kawaii     heard as "Kauai"        the Hawaiian island
+>     senpai     heard correctly         needs no entry at all
+>
+> **Why this is reachable.** The mechanism already exists and ships empty by
+> design (5.2's `pronunciation.py`). What was missing was knowing *which*
+> words need an entry, and that is now measured rather than guessed.
+
+**Metric** — `recovers_word`: the term's kana reading appears **unbroken and
+in order** in the transcript, compared on readings so 人間 and ニンゲン count as
+the same word. Not WER: a respelling that works makes the ASR hear Japanese,
+which WER punishes.
+
+> **This definition is the goal's second one, and the first was wrong.** Until
+> 2026-08-17 the score asked whether each kana appeared *anywhere*, in any
+> order, so タナカ scored a perfect 1.0 against a transcript holding タ, ナ and
+> カ in three unrelated words. Of 768 terms scoring 1.0, **only 51% contained
+> the word**; the rest were the mispronunciations this goal exists to catch
+> (`フタバ` → フォータバー, `セイイチ` → セイチー) scored as successes. The
+> generation was checked before the scoring was blamed: 12 of 12 stored WAVs
+> re-transcribe byte-identically, 0 of 12 plain/respelled pairs are the same
+> audio, 0 render errors across 5,880 terms. The audio was always fine; the
+> question asked of it was not. See Rule 21 and
+> `app/experiments/rescore_respellings.py`.
+
+**Probe** — `app/experiments/measure_respellings.py`, over candidates found by
+`discover_foreign_terms.py` and `lexicon_corpus_scan.py`. Finished runs are
+re-scored without regenerating audio by `rescore_respellings.py`.
+**Current** — 9,381 candidates scanned from 6,501 EPUBs; **6,060 measured and
+re-scored**. On the shipped books: 82 terms present, every one in a measured
+state — 10 entries, 60 recorded unfixable, 12 the plain form already says.
+**MET on the target as written, 2026-09-13**; see the last entry for what
+that does and does not cover.
+
+**Evidence** — `respelling_measure_rescored.json` (7,775 terms, the -eh
+baseline every arm below is paired against) and `respelling_e_row__ay_n1600.json`
+(1,419 terms, the whole pool containing an -eh mora). The three /e/-row arms
+are `respelling_e_row__e.json`, `respelling_e_row__ei.json` and
+`respelling_e_row__ay.json`; `respelling_e_row__ay_n1200.json` is **partial**
+(1,129 of 1,200 terms) and is labelled so in the structural audit — it is
+superseded by the n1600 run and should not be quoted.
+
+**A LISTENER OVERTURNED THE ROW CHANGE THE SAME DAY, and the metric with it.**
+Eight terms, three takes each, positions rotated, key hidden until each answer
+was saved (`respelling_earcheck.json`). On the four terms that justified the
+change — the ones where ASR heard the whole word in `-ay` and not in `-eh` —
+the listener chose the `-ay` take **0 times**, and chose the *un-respelled*
+take 3 of 4. Across all eight: no respelling 4, `-eh` 1, `-ay` 1, "none
+sounded right" 2. The listener's choice matched the recogniser's in **2 of 8**.
+`respell()` is back to `-eh`; `-ay` is not disproven, it is unsupported by the
+only instrument that measures what this goal claims.
+
+**Six of the eight notes named the same thing unprompted — pauses.** "Weird
+pauses", "sounded robotic", "the biggest problem is the pausing". That is a
+mechanism, and it measures: over 400 terms, respelled clips pause internally
+where plain ones do not — **341 of 384 discordant terms, sign test p=1.1e-58**
+(`respelling_pauses.json`) — and the two vowel rows are indistinguishable
+(p=0.10). So the pause belongs to the *form* of a respelling, not its vowels.
+
+**Why that would fool the metric.** `recovers_word` asks whether the reading
+appears unbroken and in order in the transcript. A voice that says the pieces
+cleanly, with gaps between them, satisfies that exactly — while a listener
+hears a chopped non-word. The metric and the ear then diverge systematically,
+which is what happened. **The hyphen is the suspect** (`seh-n-seh-ee`), and
+`--separator none|space|dot` arms are queued to test it, with a second
+listening test to follow. Until that lands, no respelling figure in this goal
+should be read as a claim about how anything sounds.
+
+**The /e/ row was measured and changed, 2026-08-18 — and reverted.** Paired on identical
+terms against the shipped `-eh`, with the plain (no respelling) arm as an
+explicit noise floor:
+
+    arm    recovery   vs -eh    McNemar p    plain control p
+    -ay      14.0%     2x        2.5e-11        0.77
+    -ei      10.5%     -         0.25           0.51
+    -e        2.0%     0.25x     1.9e-4         0.39
+
+`-ay` held at 391, 780 and 1,419 terms as the sample grew and the control is
+null at every size, so this is not the TTS→ASR drift that flips 34 verdicts in
+391 on identical input. `respell()` now defaults to `-ay`; `-eh` stays
+selectable so the comparison remains reproducible. **This changes no audio
+today**: `pronunciation.json` ships 42 names with empty respellings and nothing
+in the app calls `respell()` — the table feeds the measurement, not the
+product.
+
+**The result that matters is not a list of respellings, it is when to use
+one** — and the honest answer is *rarely*:
+
+| | terms | outcome |
+|---|---|---|
+| plain spelling already said it right | 967 | respelling **breaks 72%** of them |
+| plain spelling got it wrong | 5,093 | respelling **rescues 13%** of them |
+| net across all 6,060 | | **687 recovered against 701 lost** |
+
+**Respelling is roughly break-even, and actively harmful applied broadly.** The
+entry rule stands and is now the stronger claim: respell only where the plain
+form demonstrably fails, and even there expect it to work about one time in
+eight. Rule B (vowel absorption) is worse — 7 recoveries in 268 terms.
+
+The useful output is the near-miss list: terms where the phonemes moved the
+right way and one specific thing is still wrong — `カワラマチ` → こわらマチ,
+`サカキバラ` → さっかきばら, `ウチガタナ` → うちがたんな. Those are fixable by a
+hand-written entry in a way that "the model has no idea" is not.
+
+**BOTH HALVES NOW EXIST, over the measured corpus (2026-08-20,
+`lexicon_candidates.json`, built by `lexicon_from_measurements.py` from
+artifacts already on disk - no GPU, no regeneration).** Of 7,607 measured terms:
+
+| | |
+|---|---|
+| the plain reading already says the word | 933 — *an entry here would do harm* |
+| measured to help → **entry** | **1,056** |
+| recorded as one respelling could not fix | **5,618** |
+
+Every term the plain reading fails is now in one of the two required states.
+The 933 are excluded on measurement, not taste: respelling breaks **69.7%** of
+the words the engine already said correctly.
+
+**How far to trust the 1,056 is a separate question, and the answer is "less
+than it looks".** Restricted to terms that more than one arm actually measured,
+a rescue reproduced only **101 of 380 times (26.6%)**. Some of that gap is a
+real separator effect - the hyphen rescues 15.2% against the no-separator
+form's 10.2% - and the rest is the pipeline's own churn, which is not small: 34
+of 391 verdicts flipped on IDENTICAL input in the plain control. Each entry
+therefore records `arms_measuring`, `arms_rescuing` and `corroborated`, and
+**101** of the 1,056 are corroborated by more than one arm while **676** were
+measured only once and cannot be corroborated either way.
+
+**So the lexicon is not written from this file automatically.** Shipping 1,056
+entries built on single readings would be the 38%-versus-13% mistake wearing a
+different hat. `--write-lexicon` exists and is off by default.
+
+**Target — every term in the shipped books whose plain form does not produce
+the word either has a measured entry or is recorded as one respelling could
+not fix.**
+
+**THE SCAN HAS NOW BEEN RUN — 2026-09-04, and the goal stays open at 78.0%.**
+`shipped_book_lexicon_coverage.py` discovers the foreign terms in the 29 saved
+scripts using `discover_foreign_terms`' own detector and roster filter -
+imported, not reimplemented - and asks of each which state it is in:
+
+| | terms |
+|---|---|
+| foreign terms in the shipped books | **82** |
+| has a measured entry | 9 |
+| recorded as one respelling could not fix | 55 |
+| **in NEITHER state** | **18** |
+
+**Coverage over the shipped books is 78.0%, not the 87.7% this goal records
+over the measured corpus**, and the two are different populations: 6,674 terms
+were measured, of which only 82 occur in a book we ship. The eighteen are
+`barusu, basuru, daichi, deka, gauaa, gaurururu, kuchibashi, makoto, manga,
+mano, maringo, masaharu, masahiro, meimei, nezumi, pachinko, subara, tsundere`.
+Several read as names the roster filter did not catch, which is worth checking
+before any of them is measured — a name has its own discovery path.
+
+**THE EIGHTEEN TRIAGED — 2026-09-04, and only FIVE are this goal's kind of
+word.** All eighteen occur only in the Re:Zero scripts. Classified from the
+context sentence, the SudachiDict reading, and a web lookup for the cases the
+offline tools got wrong:
+
+| class | terms | n |
+|---|---|---|
+| **loanword — in scope** | `manga`, `pachinko`, `deka`, `kuchibashi`, `meimei` | **5** |
+| name — character | `baru`, `barusu`, `basuru`, `subara` | 4 |
+| name — real person | `daichi`, `makoto`, `masaharu`, `masahiro`, `nezumi` | 5 |
+| name — place | `maringo` | 1 |
+| not Japanese | `mano` | 1 |
+| onomatopoeia | `gauaa`, `gaurururu` | 2 |
+
+**The names are not roster failures.** `barusu` is Ram's nickname for Subaru
+with the *su* moved to the end; the rest are afterword credits. None of them
+SPEAKS, so no roster would ever have held them — they are mentioned, not
+labelled, and belong to the name path rather than to a loanword lexicon.
+
+**THE OFFLINE TOOLS WERE WRONG ABOUT TWO, both in the direction that would have
+put the wrong word in the lexicon.** SudachiDict returns `nezumi` as the common
+noun ネズミ, "rat" — it is the author's pen name, Nezumi-iro Neko 鼠色猫. And it
+tags `mano` a proper noun; the line reads "mano a mano", which is Spanish, and
+it was flagged only because it is absent from an ENGLISH dictionary. A
+dictionary lookup of a romanised string cannot tell which sense is on the page.
+
+**So MET requires five terms, not eighteen** — and the other thirteen recorded
+as out of scope, which this triage does. Measuring them would put an author's
+credits and a Spanish idiom into a Japanese-loanword lexicon.
+
+Evidence: `ab_test_runtime/experiments/shipped_term_triage.json`.
+
+**THE EIGHTEEN WERE TRIAGED, THEN THE IN-SCOPE FIVE WERE MEASURED — 2026-09-04.
+Coverage moves 78.0% -> 81.7%, and the more useful result is that the question
+was mis-framed.** Thirteen of the eighteen are not foreign loanwords at all:
+nine are names (`masaharu`, `masahiro`, `makoto`, `nezumi`, `subara`, `barusu`,
+`basuru`, `maringo`, `daichi` - among them a character nickname, afterword
+credits and an author's pen name), one is a place, `mano` is Spanish, and
+`gauaa`/`gaurururu` are growls. **That triage is a judgement, not a
+measurement** - made from the surrounding sentences, a dictionary and a web
+search, and recorded here so it can be disputed. It matters that it was made:
+measuring all eighteen would have written a pen name and a Spanish idiom into a
+Japanese-loanword lexicon, which is the failure this goal exists to prevent.
+
+The five in scope were measured on the local card
+(`respelling_five_terms_ja.json`, `respelling_five_terms_unattributed.json`;
+two passes, because `--verdict` is an exact match and `meimei` is attributed
+`unattributed`, and because `--min-books 20` would silently have dropped `deka`
+at 6 books and `kuchibashi` at 4):
+
+| term | books | plain says it | respelled | outcome |
+|---|---|---|---|---|
+| kuchibashi | 4 | no (0.25) | クチバシ, clean | **entry** |
+| manga | 3602 | **yes** (1.0) | マネガブ | **harm** |
+| pachinko | 111 | **yes** (1.0) | シーナコー | **harm** |
+| deka | 6 | no | no | no change |
+| meimei | 58 | no | no | no change |
+
+**One entry from five terms, and two of the five were made worse** - the two
+the engine already pronounced correctly. That is this goal's 69.7% harm rate
+reproduced on the terms that actually ship, and it is the entry rule earning
+its keep rather than a new finding.
+
+**Three of the five never needed measuring, and the scan should have said so.**
+`manga`, `pachinko` and `deka` were already in
+`respelling_measure_rescored.json`. They counted as `NEITHER` because
+`shipped_book_lexicon_coverage.py` defines that state as *absent from the entry
+list and absent from the unfixable list* - and a term whose plain form already
+works is absent from both by design, since an entry would do it harm. **The
+scan reports a correctly-handled term as uncovered.** Nine of the fifteen still
+listed are in exactly that state. The 81.7% is therefore a floor, and the
+instrument, not the lexicon, is what needs the next fix (goal 6.6).
+
+**`deka` disagrees with itself across arms** - `plain_recovers_word` is `True`
+in the rescored baseline and `False` in today's run, same word, same plain
+spelling, no respelling involved. That is the 34-in-391 churn this goal already
+records, landing on one term in five. Its new verdict is not load-bearing and
+no entry rests on it.
+
+Rebuilt `lexicon_candidates.json` over the three arms it already named in
+`arms_read` plus the two new ones: 1,057 entries, 5,620 recorded unfixable, 931
+excluded because the plain reading already works.
+
+**Two of the fifteen that remain are unexplained**: `tsundere` left the list
+and `baru` joined it, and neither term was measured today. Until that is traced
+the fifteen should be read as approximately, not exactly, the remainder.
+
+**THE SCAN WAS THE PROBLEM, AND IT IS FIXED — coverage 81.7% -> 95.1%,
+2026-09-04.** Goal 5.5 reaches its conclusions in THREE states, and the scan
+knew two. `lexicon_candidates.json` stored the third — the engine already says
+the word, so an entry would do harm — as a bare count, so the consumer had no
+way to recognise a term in it and filed each one under `NEITHER`. Eleven of
+the fifteen were in that state:
+
+| | before | after |
+|---|---:|---:|
+| with a measured entry | 10 | 10 |
+| recorded as one respelling could not fix | 57 | 57 |
+| plain reading already says it | *not representable* | **11** |
+| in neither state | 15 | **4** |
+| coverage | 81.7% | **95.1%** |
+
+Nothing was measured to earn those 13.4 points. The terms were already
+finished; the instrument could not say so. `plain_already_works` is now written
+as a list beside its count, and a candidates file predating the key returns an
+empty set and prints a note rather than silently reporting the old number —
+a scan whose answer depends on which version wrote its input is worse than one
+that refuses.
+
+**A second instance of the same defect turned up while testing this one.** Run
+from a worktree, where `scripts/` is not checked out, the scan printed `0 books
+scanned, coverage None` and exited 0. It now refuses. Both bugs have the shape
+6.6 names: a check reporting success or a gap where it has simply not looked.
+
+**The four that remain are the ones triage said not to measure** — `basuru` and
+`subara` (name fragments), `gauaa` and `gaurururu` (growls). The scan now reads
+`shipped_term_triage.json` and reports that judgement **beside** the coverage
+figure, never inside it: knowing a term is a growl stops it being re-triaged,
+but it was decided by reading sentences and looking words up, not by measuring,
+and folding it into `coverage_percent` would let a judgement close a
+measurement goal. Zero of the four are unexplained.
+
+**5.5 stayed open at this point.** Four terms in the shipped books had no
+measurement, and the target asks for measurement. The remaining work was
+smaller than it had ever been, and honestly sized rather than inflated by an
+instrument that could not see its own third answer.
+
+**THE FOUR WERE MEASURED — 2026-09-13, and the target is met.** They were
+never in `lexicon_attributed.json` at all: the corpus scan's book threshold
+dropped them, so no flag of `measure_respellings.py` could reach them.
+`--terms` now builds a row for a named term by the same romkan rule the
+detector uses, with the book count from the coverage scan, and refuses a
+term that does not romanise. One carrier sentence each, plain and respelled,
+whisper.cpp `ggml-base` in Japanese, scored on readings
+(`respelling_measure_shipped_neither_20260913.json`):
+
+| term | triage | plain heard | respelled heard | state |
+|---|---|---|---|---|
+| basuru | name fragment | バスル | バスルー | **plain already works** |
+| subara | name fragment | スーパー | スーパーラー | could not fix |
+| gauaa | growl | an unrelated sentence | an unrelated sentence | could not fix |
+| gaurururu | growl | ガワー・ロー・ルー | グロー! ×5 | could not fix |
+
+Respelling helped none and hurt none. Fed in as a sixth arm of
+`lexicon_from_measurements.py`, the coverage scan reads **82 of 82 shipped
+terms in a known state: 10 entries, 60 unfixable, 12 plain-already-works,
+NEITHER 0 (100.0%)** (`shipped_book_lexicon_coverage.json`). That is the
+target sentence satisfied literally: every term whose plain form fails has
+an entry or a could-not-fix record.
+
+What it does not cover, kept next to the number: the measurement is one
+carrier sentence per term through one ASR model; "could not fix" means one
+respelling rule failed once, not that no spelling could ever work; the two
+growls are onomatopoeia the triage already judged out of scope for a lexicon,
+and recording them as unfixable is bookkeeping, not a finding; and an entry
+is "confirmed by ear" only through 7.1, which this goal has never claimed to
+replace. The goal is met on what it measures.
+
+**A note on how this was nearly got wrong.** The first version parsed the
+discovery script's stdout with awk and returned three terms that were words
+from the report's own prose — `candidate`, `only;`, `scripts,` — and missed two
+real ones. Importing the detector changed the answer from 80/17 to 82/18. The
+scan is cheap; parsing a human-readable report is not the cheap way to do it. Both halves matter, and the second is now the larger: **87% of that
+band was not rescued** by either derivation rule, so most of this goal's
+output will be recorded failures rather than entries. A word a respelling
+cannot help needs saying so, rather than leaving a blank that reads as an
+oversight.
+
+**Not settled by the ASR.** Kana agreement shows the phonemes moved; it does
+not show the result sounds natural in an English sentence. Entries are
+proposed by measurement and confirmed by ear — see 7.1.
 
 ---
 
