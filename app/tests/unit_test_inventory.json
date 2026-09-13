@@ -1863,6 +1863,10 @@
     "tests.test_lora_evaluation.LoraEvaluationTests.test_resume_requires_version_probes_and_audio_files",
     "tests.test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"
   ],
+  "test_lora_merge_into_talker": [
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_merged_talker_still_exposes_config_for_the_vram_estimator",
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_served_talker_is_the_merged_module_not_the_peft_wrapper"
+  ],
   "test_lora_review_integration": [
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_serves_distinct_blind_samples_over_http",
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",

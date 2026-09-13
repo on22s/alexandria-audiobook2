@@ -2984,6 +2984,22 @@ Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.j
 (six lines),
 `lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
 
+**The merge is shipped; the goal stays OPEN until re-measured — 2026-09-12.**
+`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
+serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
+which fails against the unmerged code). The audio check the previous entry
+asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
+(sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
+different waveform — sample correlation ≈ 0, envelope correlation 0.82,
+identical duration on all six lines — so bf16 rounding of the merged weights
+changes the token path. ECAPA speaker similarity, six lines: merged vs
+unmerged on the same line **0.714** (min 0.508), the unmerged adapter against
+itself across different lines 0.538, the adapter against the stock voice
+0.057. The merged render is the same voice, differing from the unmerged one
+by less than the adapter differs from itself line to line. What closes the
+goal is `generation_realtime_rate.py` over a real multi-voice run on the
+merged path, not six lines.
+
 ---
 
 ## 5. Text handling
