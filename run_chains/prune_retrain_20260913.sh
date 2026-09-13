@@ -60,7 +60,7 @@ run_stage train 3h --needs-vram -- \
 run_stage fidelity 2h --needs-vram -- \
     "$REPO/gpu_job.sh" "prune_fidelity_${ADAPTER}" \
     "$python" -u "$REPO/app/experiments/library_voice_fidelity.py" \
-    --models "$work/models" --zips "$work/zips" --lines 20 \
+    --models "$work/models" --zips "$work/zips" --lines 20 --ecapa-python "$python" \
     --work "$work/fidelity_work" \
     --out "$runtime/experiments/prune_retrain__${ADAPTER}__fidelity.json"
 stage_commit_artifacts prune_retrain "$REPO"
