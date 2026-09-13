@@ -1,0 +1,942 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "5957-blackpoodle_01_anstey_64kb_22",
+ "test_books": [
+  "6056"
+ ],
+ "corpus": "LibriQuote-test reader 4992 (quotes)",
+ "rows": [
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_1",
+   "book": "6056",
+   "text": "'but what shall we talk about? A city man like you will not care to hear about cattle and crops.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_1.wav",
+   "human_seconds": 5.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_1__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_15",
+   "book": "6056",
+   "text": "'it's so painful having anything in one's eye.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_15.wav",
+   "human_seconds": 2.65525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_15__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_17",
+   "book": "6056",
+   "text": "'the princess shook her head, and sprang up, clapping her hand on her eye. \"Oh dear!\" she cried, \"I've got something in my eye, and how it does smart!\"'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_17.wav",
+   "human_seconds": 9.095125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_19",
+   "book": "6056",
+   "text": "'perfectly true. Well, what did the poor thing do?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_19.wav",
+   "human_seconds": 3.6752083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_21",
+   "book": "6056",
+   "text": "'and then she just twisted up the corner of her headcloth and fished a hundred more of them out of the princess's eye, and popped them all into her pocket with the other.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_21.wav",
+   "human_seconds": 8.135208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_21__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_23",
+   "book": "6056",
+   "text": "'I can't think of anything more now,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_23.wav",
+   "human_seconds": 1.7752083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_23__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_24",
+   "book": "6056",
+   "text": "'Besides, that is the end; what do you say to it?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_24.wav",
+   "human_seconds": 2.905125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_24__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_26",
+   "book": "6056",
+   "text": "'and no doubt perfectly true!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_26.wav",
+   "human_seconds": 2.20525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_26__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_28",
+   "book": "6056",
+   "text": "'I am so anxious to hear your story. I am sure it will be very interesting.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_28.wav",
+   "human_seconds": 4.755125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_3",
+   "book": "6056",
+   "text": "'I'll tell you what we will do. We will each tell the other the wildest tale we can imagine, and he who first throws doubt on the other's story shall pay him a hundred rupees.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_3.wav",
+   "human_seconds": 10.74525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_38",
+   "book": "6056",
+   "text": "'Wheat does when it gets a fair chance,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_38.wav",
+   "human_seconds": 1.88525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_38__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_39",
+   "book": "6056",
+   "text": "'Yes; and the next thing we knew was that there was a crop of wheat on that horse's back as big as anything you ever saw in a hundred-acre field, and we had to hire twenty men to reap it!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_39.wav",
+   "human_seconds": 10.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_40",
+   "book": "6056",
+   "text": "'One generally has to hire extra hands for reaping,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_40.wav",
+   "human_seconds": 2.875208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_40__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_41",
+   "book": "6056",
+   "text": "'And we got four hundred maunds of wheat off that mare's back!",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_41.wav",
+   "human_seconds": 3.425125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_41__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_44",
+   "book": "6056",
+   "text": "'\"I haven't tasted food for a week. Oh! great master, let me have the loan of sixteen maunds of wheat from your store, and I will repay you.\"'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_44.wav",
+   "human_seconds": 9.45525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_44__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_44__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_45",
+   "book": "6056",
+   "text": "'\"Certainly, neighbour,\" answered my father; \"take what you need, and repay it as you can.\"'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_45.wav",
+   "human_seconds": 4.325125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_45__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_47",
+   "book": "6056",
+   "text": "'Well, he took the wheat away with him,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_47.wav",
+   "human_seconds": 2.125125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_47__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_47__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_48",
+   "book": "6056",
+   "text": "'but he never repaid it, and it's a debt to this day. Sometimes I wonder whether I shall not go to law about it.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_48.wav",
+   "human_seconds": 7.96525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_48__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_48__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_5",
+   "book": "6056",
+   "text": "'I've seen that kind of thing myself.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_5.wav",
+   "human_seconds": 2.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_5__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_50",
+   "book": "6056",
+   "text": "'The wheat is the cheaper; I'll pay you for the wheat,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_50.wav",
+   "human_seconds": 2.175125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_50__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_50__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_51",
+   "book": "6056",
+   "text": "'Give me the money; or, if not that, give me at least the wheat.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_51.wav",
+   "human_seconds": 5.05525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_51__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_51__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_6",
+   "book": "6056",
+   "text": "'No less than one hundred and one camels,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_6.wav",
+   "human_seconds": 2.745125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_6__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_8",
+   "book": "6056",
+   "text": "'Amazing, the strength of that kite!",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_8.wav",
+   "human_seconds": 2.2952083333333335,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_8__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_9",
+   "book": "6056",
+   "text": "'But -- well -- yes, doubtless; yes -- well -- one hundred and one camels -- and what did he do with them?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_05_lang_64kb_9.wav",
+   "human_seconds": 6.775125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_05_lang_64kb_9__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_0",
+   "book": "6056",
+   "text": "'seek their father's wits in the place where he had lost them.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_0.wav",
+   "human_seconds": 3.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_11",
+   "book": "6056",
+   "text": "'Then we shall both rue it for ever,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_11.wav",
+   "human_seconds": 2.07525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_11__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_12",
+   "book": "6056",
+   "text": "'for I can only be the wife of him who will burn my skin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_12.wav",
+   "human_seconds": 4.135208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_12__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_14",
+   "book": "6056",
+   "text": "'Ah, fool that I was! This must be the skin she wished me to burn,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_14.wav",
+   "human_seconds": 3.875208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_14__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_15",
+   "book": "6056",
+   "text": "'You shall tell your story first,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_15.wav",
+   "human_seconds": 1.775125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_15__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_17",
+   "book": "6056",
+   "text": "'I can no longer live without my beloved fox; help me, I entreat you, to find him.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_17.wav",
+   "human_seconds": 5.175208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_19",
+   "book": "6056",
+   "text": "'Oh, forgive me my wickedness,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_19.wav",
+   "human_seconds": 1.77525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_20",
+   "book": "6056",
+   "text": "'for indeed I have repented of it long ago, and come to the aid of your father who has been sorely smitten by that mad archduke from whom you have just saved me! There is no time to pursue him,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_20.wav",
+   "human_seconds": 13.445125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_20__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_21",
+   "book": "6056",
+   "text": "'From the moment that the king knew of my cruelty to your sister,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_21.wav",
+   "human_seconds": 3.02525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_21__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_28",
+   "book": "6056",
+   "text": "'We must return and seek him, and also look for my sister.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_28.wav",
+   "human_seconds": 3.85525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_3",
+   "book": "6056",
+   "text": "'how that will help us to bring back our lost prince and princess.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_3.wav",
+   "human_seconds": 3.265125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_30",
+   "book": "6056",
+   "text": "'Why do you waste the few moments that are left you in this manner?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_30.wav",
+   "human_seconds": 3.385125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_30__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_30__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_31",
+   "book": "6056",
+   "text": "'Place the collar you wear round his neck, and he will be cured at once. But you must act quickly.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_31.wav",
+   "human_seconds": 6.745125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_31__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_33",
+   "book": "6056",
+   "text": "'But I have not got it, I lost it in the forest!",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_33.wav",
+   "human_seconds": 2.93525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_33__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_34",
+   "book": "6056",
+   "text": "'The collar is lost! The collar is lost!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_34.wav",
+   "human_seconds": 2.18525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_34__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_35",
+   "book": "6056",
+   "text": "'What collar are you talking about?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_35.wav",
+   "human_seconds": 1.5952083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_35__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_35__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_36",
+   "book": "6056",
+   "text": "'Here is one that I picked up among some cinders, before that madman shot me -- perhaps it may be the one you want, or, at all events, it may do as well.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_36.wav",
+   "human_seconds": 9.865125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_36__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_38",
+   "book": "6056",
+   "text": "'The thought of the sufferings that the enchanted nymph may be undergoing tortures me!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_38.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_38__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_39",
+   "book": "6056",
+   "text": "'They are far worse than you can imagine,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_39.wav",
+   "human_seconds": 2.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_40",
+   "book": "6056",
+   "text": "'but if you still possess your comb, you may yet relieve her of them. Ah! that is well,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_40.wav",
+   "human_seconds": 7.165125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_40__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_5",
+   "book": "6056",
+   "text": "'I must have something about me which frightens all beasts,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_5.wav",
+   "human_seconds": 3.285125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_5__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_7",
+   "book": "6056",
+   "text": "'Prince, will you trust me whatever happens, knowing that my heart is yours, and as I feel that yours is mine? But, beware, for if you give the smallest sign of fear, when the tent is opened, you will lose me for ever.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_7.wav",
+   "human_seconds": 14.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_7__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_8",
+   "book": "6056",
+   "text": "'Quick! prince! quick! the time is flying, comb me at once or I shall vanish from your sight.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_8.wav",
+   "human_seconds": 5.915208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_8__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_9",
+   "book": "6056",
+   "text": "'Enough, so far you have obeyed my orders. Now burn my skin.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_07_lang_64kb_9.wav",
+   "human_seconds": 4.035125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_07_lang_64kb_9__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_0",
+   "book": "6056",
+   "text": "'Who will reign over us when you are dead? For dead you surely will be,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_0.wav",
+   "human_seconds": 4.08525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_1",
+   "book": "6056",
+   "text": "'Stay with us, and we will make you happy.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_1.wav",
+   "human_seconds": 2.52525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_1__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_10",
+   "book": "6056",
+   "text": "'I am going to seek Zoulvisia,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_10.wav",
+   "human_seconds": 2.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_10__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_11",
+   "book": "6056",
+   "text": "'she has slain my brothers and many of my subjects, and I mean to avenge them.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_11.wav",
+   "human_seconds": 4.315125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_11__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_12",
+   "book": "6056",
+   "text": "'What a pity we did not know! Twice this day has she passed our door, and we might have kept her prisoner.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_12.wav",
+   "human_seconds": 6.7752083333333335,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_12__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_13",
+   "book": "6056",
+   "text": "'Forget Zoulvisia, and stay with us,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_13.wav",
+   "human_seconds": 2.2752083333333335,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_13__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_14",
+   "book": "6056",
+   "text": "'you shall be our big brother, and we will be your little brothers.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_14.wav",
+   "human_seconds": 3.15525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_14__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_17",
+   "book": "6056",
+   "text": "'Perhaps he may be able to give me some counsel,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_17.wav",
+   "human_seconds": 2.595125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_18",
+   "book": "6056",
+   "text": "'Are you a bird or a snake that you can enter here?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_18.wav",
+   "human_seconds": 2.67525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_18__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_19",
+   "book": "6056",
+   "text": "'Zoulvisia? The world's curse?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_19.wav",
+   "human_seconds": 2.24525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_2",
+   "book": "6056",
+   "text": "'I am too late to help you, my poor friends,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_2.wav",
+   "human_seconds": 2.425125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_2__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_20",
+   "book": "6056",
+   "text": "'Out of all the thousands she has slain I am the only one who has escaped, though why she spared me only to condemn me to this living death I cannot guess.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_20.wav",
+   "human_seconds": 8.735208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_20__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_22",
+   "book": "6056",
+   "text": "'Take heed then to my counsel,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_22.wav",
+   "human_seconds": 1.785125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_22__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_25",
+   "book": "6056",
+   "text": "'and are worthy to be my husband, for you are the first man who has not died at the sound of my voice!",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_25.wav",
+   "human_seconds": 5.385125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_25__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_25__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_26",
+   "book": "6056",
+   "text": "'Ask of me what you will, and I will grant it to you,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_26.wav",
+   "human_seconds": 2.9952083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_26__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_27",
+   "book": "6056",
+   "text": "'I have finished with hunting, and with riding about my lands,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_27.wav",
+   "human_seconds": 3.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_27__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_28",
+   "book": "6056",
+   "text": "'The care of providing for us all belongs henceforth to you.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_28.wav",
+   "human_seconds": 3.7950833333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_29",
+   "book": "6056",
+   "text": "'This is your master, O my steed of flame,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_29.wav",
+   "human_seconds": 2.525125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_29__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_3",
+   "book": "6056",
+   "text": "'but at least I can avenge you! Those that have set the snare will certainly return to see to its working. I will hide myself somewhere, and discover who they are!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_3.wav",
+   "human_seconds": 9.88525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_30",
+   "book": "6056",
+   "text": "'and you will serve him as you have served me.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_30.wav",
+   "human_seconds": 2.245125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_30__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_30__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_31",
+   "book": "6056",
+   "text": "'Bring her hither, old crone, and you shall have gold enough to stand up in,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_31.wav",
+   "human_seconds": 3.325125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_31__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_33",
+   "book": "6056",
+   "text": "'Who are you, and why have you come here?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_33.wav",
+   "human_seconds": 1.8352083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_33__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_36",
+   "book": "6056",
+   "text": "'But mount behind me, good woman,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_36.wav",
+   "human_seconds": 1.825125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_36__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_37",
+   "book": "6056",
+   "text": "'for you have walked far, and it is still a long way to the palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_37.wav",
+   "human_seconds": 3.6552083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_37__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_39",
+   "book": "6056",
+   "text": "'but as your kind heart pities my sorrows, ride slowly, and lame as I am, I think I can manage to keep up.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_39.wav",
+   "human_seconds": 7.535208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_4",
+   "book": "6056",
+   "text": "'There was a horse for every dead man,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_4.wav",
+   "human_seconds": 2.1152083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_4__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_40",
+   "book": "6056",
+   "text": "'Why, one would think she was a witch to hear you talk! And even if she were, what harm could she do to us?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_40.wav",
+   "human_seconds": 5.875083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_40__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_43",
+   "book": "6056",
+   "text": "'it may be that she is a witch, as they say; but I am sure she never would work a spell to harm a fly! And as for her tales, they would pass many a dull hour for you, when my lord was absent!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_43.wav",
+   "human_seconds": 10.45525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_43__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_44",
+   "book": "6056",
+   "text": "'It was so clever of him to guess your secret so as to win your heart,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_44.wav",
+   "human_seconds": 3.995125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_44__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_44__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_45",
+   "book": "6056",
+   "text": "'And of course he told you his, in return?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_45.wav",
+   "human_seconds": 2.605125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_45__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_46",
+   "book": "6056",
+   "text": "'No, I don't think he has got any,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_46.wav",
+   "human_seconds": 2.455125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_46__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_46__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_48",
+   "book": "6056",
+   "text": "'That is nonsense! Every man has a secret, which he always tells to the woman he loves. And if he has not told it to you, it is that he does not love you!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_48.wav",
+   "human_seconds": 10.275208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_48__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_48__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_49",
+   "book": "6056",
+   "text": "'It is my sabre that gives me strength, and day and night it lies by my side. But now that I have told you, swear upon this ring, that I will give you in exchange for yours, that you will reveal it to nobody.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_49.wav",
+   "human_seconds": 13.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_49__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_49__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_50",
+   "book": "6056",
+   "text": "'I give you your choice -- will you come with me, or shall the serpents slay you also?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_50.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_50__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_50__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_51",
+   "book": "6056",
+   "text": "'Something terrible must have happened to our little brother,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_51.wav",
+   "human_seconds": 2.965125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_51__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_51__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_52",
+   "book": "6056",
+   "text": "'we must hasten to his rescue ere it be too late.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_52.wav",
+   "human_seconds": 2.7952083333333335,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_52__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_52__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_53",
+   "book": "6056",
+   "text": "'How stupid! Of course there are fish to catch,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_53.wav",
+   "human_seconds": 3.04525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_53__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_53__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_57",
+   "book": "6056",
+   "text": "'but now that you are saved you will soon find out.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_57.wav",
+   "human_seconds": 2.885125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_57__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_57__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_59",
+   "book": "6056",
+   "text": "'Oh, my poor horse! How much cleverer were you than I! If I had acted like you I should never have lost Zoulvisia; but we will seek her together, you and I.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_59.wav",
+   "human_seconds": 10.91525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_59__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_59__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_60",
+   "book": "6056",
+   "text": "'You are in luck to have passed this way just now,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_60.wav",
+   "human_seconds": 2.455125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_60__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_60__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_62",
+   "book": "6056",
+   "text": "'Ay, so she says, though the old witch -- -- But what ails you?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_62.wav",
+   "human_seconds": 4.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_62__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_62__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_67",
+   "book": "6056",
+   "text": "'Oh, you shall be paid, never fear -- as much as your heart can desire! Here is a handful of gold: you shall have as much again if you will do my bidding.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_67.wav",
+   "human_seconds": 9.03525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_67__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_67__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_68",
+   "book": "6056",
+   "text": "'Then go and buy a dress such as ladies wear at court, and manage to get admitted into the palace, and into the presence of Zoulvisia. When there, show her this ring, and after that she will tell you what to do.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_68.wav",
+   "human_seconds": 13.595208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_68__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_68__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_7",
+   "book": "6056",
+   "text": "'Who are you that lure men into your power and then poison them? But you shall do so no longer. Return to your house, wherever it may be, and we will fight before it!'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_7.wav",
+   "human_seconds": 9.275208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_7__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_70",
+   "book": "6056",
+   "text": "'where is the owner of this ring?'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_70.wav",
+   "human_seconds": 1.8552083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_70__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_70__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_72",
+   "book": "6056",
+   "text": "'waiting for orders from you.'",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_72.wav",
+   "human_seconds": 1.645125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_72__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_72__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_8",
+   "book": "6056",
+   "text": "'I accept your challenge. Mount and follow me. I am Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_8.wav",
+   "human_seconds": 4.7752083333333335,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_8__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_9",
+   "book": "6056",
+   "text": "'I ACCEPT YOUR CHALLENGE. MOUNT AND FOLLOW ME. I AM ZOULVISIA.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_19_lang_64kb_9.wav",
+   "human_seconds": 1.485125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_19_lang_64kb_9__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_23_lang_64kb_0",
+   "book": "6056",
+   "text": "'If we sleep in this dreadful place,",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_23_lang_64kb_0.wav",
+   "human_seconds": 2.415208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_23_lang_64kb_10",
+   "book": "6056",
+   "text": "'I am very much afraid that it is a robbers",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_23_lang_64kb_10.wav",
+   "human_seconds": 2.775125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_10__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_23_lang_64kb_100",
+   "book": "6056",
+   "text": "'Why, here is a poor blind fellow!",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_23_lang_64kb_100.wav",
+   "human_seconds": 2.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_100__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_100__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_23_lang_64kb_101",
+   "book": "6056",
+   "text": "'No doubt that is the work of the robbers. Let us take him to Arabia with us. Would you like to come, my good man?",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/quotes/human/6056-olivefairybook_23_lang_64kb_101.wav",
+   "human_seconds": 6.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_101__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes/6056-olivefairybook_23_lang_64kb_101__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T17:11:50",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c6e7ee95941761acde889e44c2ebc7654438f796",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "b753cae14a87fa61fdf1e0c1e14c0a5d3c5bcd9b1b52e232f5004db2d434e651"
+  },
+  "args": {
+   "build": "ab_test_runtime/libriquote_4992_eval/quotes/build.json",
+   "adapter": "ab_test_runtime/libriquote_4992_eval/narration/adapter",
+   "config": "config.json",
+   "out_dir": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_quotes",
+   "seed": 1234,
+   "limit": 100,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/libriquote_4992_narration_adapter_on_quotes_generate.json"
+  },
+  "seed": 1234
+ }
+}
