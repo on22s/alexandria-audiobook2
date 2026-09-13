@@ -783,11 +783,25 @@ class TTSEngine:
                 Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-Base", load_kwargs,
             )
 
-            # Wrap the talker with the LoRA adapter
+            # Apply the adapter, then fold it into the base weights.
+            #
+            # Left as a PeftModel, every decoder step computes W.x + B.A.x
+            # for every targeted module, and that is the whole of the LoRA
+            # path's speed cost: measured on the RX 9070 XT (goal 4.1),
+            # unmerged runs at 1.25x realtime, merged at 0.835x -- the stock
+            # model's speed. merge_and_unload adds B.A into W once (0.03 s)
+            # and returns the plain talker module. The merged weights are
+            # bf16-rounded, so the audio is not bit-identical to the unmerged
+            # render, but it is the same voice: ECAPA similarity 0.714
+            # merged-vs-unmerged on the same line, against 0.538 for the
+            # adapter across different lines (2026-09-12, six lines).
+            # This model instance is fresh from _load_model and cached only
+            # here, so merging in place cannot leak into the stock/clone
+            # paths; switching adapters reloads the base anyway.
             model.model.talker = PeftModel.from_pretrained(
                 model.model.talker,
                 adapter_path,
-            )
+            ).merge_and_unload()
             model.model.talker.eval()
 
             if self._compile_codec_enabled:
