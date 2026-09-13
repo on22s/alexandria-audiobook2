@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-13 from `ab_test_runtime/experiments/` — 1566 artifacts, 1709 arms.
+Generated 2026-09-13 from `ab_test_runtime/experiments/` — 1569 artifacts, 1709 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2284,6 +2284,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `half_rescue__breathy_alto_50s_f_fantasy__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__velvety_mezzo_30s_f_gothic__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `half_rescue__warm_baritone_40s_m_1__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `hifitts_9017_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `hifitts_9017_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `homograph_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `homograph_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2482,6 +2484,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_fidelity_zh_n100.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_hifitts_9017.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__husky_baritone_50s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__husky_soprano_20s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__silky_alto_40s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

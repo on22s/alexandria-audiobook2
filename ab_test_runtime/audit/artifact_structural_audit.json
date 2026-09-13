@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 947,
+    "supported_structure": 950,
     "exploratory": 411,
     "provisional": 208,
     "artifacts_that_generated_nothing": 15
@@ -9741,6 +9741,42 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "hifitts_9017_generate.json",
+      "bytes": 80892,
+      "sha256": "357bbf8fa0557334154dbd9afcf6d7f6148c8764720ecbcab350ec17585ca91f",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": 1234,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T09:13:54",
+      "commit": "ff62f3f20da950c2915806971e7c33883ded9f2b",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "hifitts_9017_score.json",
+      "bytes": 93289,
+      "sha256": "733bb013d06799249bbe2a513de35977947c6ebd5a7991f184f3a763958b4977",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T09:21:23",
+      "commit": "092d783cfc97d7dc5734c40a1d5266c1f6c68247",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "hnr_length_probe.json",
       "bytes": 1027,
       "sha256": "1004a01d363f6e6af6f81678c819b1386c67bb4bbbb7c85117c24126435ba27b",
@@ -14785,6 +14821,24 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-16T18:07:10",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_hifitts_9017.json",
+      "bytes": 105883,
+      "sha256": "90507bce08b9dcc5850540d13e634697e43adab3132e316dd668c11caf6e12b0",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T09:15:41",
+      "commit": "ff62f3f20da950c2915806971e7c33883ded9f2b",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
