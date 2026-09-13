@@ -1535,6 +1535,14 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
   ],
+  "test_hifitts_fetch": [
+    "tests.test_hifitts_fetch.ParseFileTest.test_a_slug_with_a_dash_is_refused",
+    "tests.test_hifitts_fetch.ParseFileTest.test_an_unrecognised_name_is_refused_not_guessed",
+    "tests.test_hifitts_fetch.ParseFileTest.test_real_paths_yield_speaker_book_and_a_split_safe_id",
+    "tests.test_hifitts_fetch.PerBookCapTest.test_cap_counts_across_calls_and_stops_writing_a_full_book",
+    "tests.test_hifitts_fetch.PrepareIdentityTest.test_corpus_json_overrides_the_ljspeech_defaults",
+    "tests.test_hifitts_fetch.WriteRowsTest.test_only_usable_rows_are_written_and_prepare_reads_them_back"
+  ],
   "test_holdout_leak": [
     "tests.test_holdout_leak.HoldoutLeak.test_a_file_against_itself_is_a_total_leak",
     "tests.test_holdout_leak.HoldoutLeak.test_an_empty_side_refuses_rather_than_reporting_clean",
