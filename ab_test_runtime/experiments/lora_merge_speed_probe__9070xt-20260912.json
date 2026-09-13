@@ -1,0 +1,170 @@
+{
+  "experiment": "lora_merge_speed_probe",
+  "adapter": "breathy_alto_50s_f_fantasy",
+  "seed": 20260912,
+  "lines": [
+    "The rain had not stopped for three days, and the road to the village was mud to the ankle.",
+    "\"You can't be serious,\" she said, though the look on his face told her he was.",
+    "He counted the coins twice, then a third time, and the number did not change.",
+    "Somewhere behind the hill a bell rang, slow and uneven, like a hand that had forgotten the rhythm.",
+    "Nobody had asked the boy his name, and by the time anyone thought to, he had gone.",
+    "\"Then it's settled,\" the captain said. \"We leave at first light, whatever the weather.\""
+  ],
+  "arms": {
+    "lora_unmerged": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 6.006,
+        "audio_s": 4.72,
+        "gen_over_audio": 1.272
+      },
+      {
+        "line": 1,
+        "ok": true,
+        "gen_s": 5.865,
+        "audio_s": 4.72,
+        "gen_over_audio": 1.243
+      },
+      {
+        "line": 2,
+        "ok": true,
+        "gen_s": 6.383,
+        "audio_s": 5.12,
+        "gen_over_audio": 1.247
+      },
+      {
+        "line": 3,
+        "ok": true,
+        "gen_s": 8.337,
+        "audio_s": 6.8,
+        "gen_over_audio": 1.226
+      },
+      {
+        "line": 4,
+        "ok": true,
+        "gen_s": 5.303,
+        "audio_s": 4.24,
+        "gen_over_audio": 1.251
+      },
+      {
+        "line": 5,
+        "ok": true,
+        "gen_s": 5.501,
+        "audio_s": 4.4,
+        "gen_over_audio": 1.25
+      }
+    ],
+    "lora_merged": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 3.939,
+        "audio_s": 4.72,
+        "gen_over_audio": 0.835
+      },
+      {
+        "line": 1,
+        "ok": true,
+        "gen_s": 3.846,
+        "audio_s": 4.56,
+        "gen_over_audio": 0.844
+      },
+      {
+        "line": 2,
+        "ok": true,
+        "gen_s": 4.241,
+        "audio_s": 5.12,
+        "gen_over_audio": 0.828
+      },
+      {
+        "line": 3,
+        "ok": true,
+        "gen_s": 5.724,
+        "audio_s": 6.88,
+        "gen_over_audio": 0.832
+      },
+      {
+        "line": 4,
+        "ok": true,
+        "gen_s": 4.027,
+        "audio_s": 4.8,
+        "gen_over_audio": 0.839
+      },
+      {
+        "line": 5,
+        "ok": true,
+        "gen_s": 3.983,
+        "audio_s": 4.8,
+        "gen_over_audio": 0.83
+      }
+    ],
+    "stock": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 4.765,
+        "audio_s": 5.44,
+        "gen_over_audio": 0.876
+      },
+      {
+        "line": 1,
+        "ok": true,
+        "gen_s": 5.792,
+        "audio_s": 6.24,
+        "gen_over_audio": 0.928
+      },
+      {
+        "line": 2,
+        "ok": true,
+        "gen_s": 6.188,
+        "audio_s": 6.16,
+        "gen_over_audio": 1.005
+      },
+      {
+        "line": 3,
+        "ok": true,
+        "gen_s": 8.656,
+        "audio_s": 9.92,
+        "gen_over_audio": 0.873
+      },
+      {
+        "line": 4,
+        "ok": true,
+        "gen_s": 5.898,
+        "audio_s": 7.12,
+        "gen_over_audio": 0.828
+      },
+      {
+        "line": 5,
+        "ok": true,
+        "gen_s": 4.679,
+        "audio_s": 4.88,
+        "gen_over_audio": 0.959
+      }
+    ]
+  },
+  "started": 1789247583.697735,
+  "merge_s": 0.031,
+  "summary": {
+    "lora_unmerged": {
+      "n": 6,
+      "median": 1.25,
+      "worst": 1.272,
+      "best": 1.226
+    },
+    "lora_merged": {
+      "n": 6,
+      "median": 0.835,
+      "worst": 0.844,
+      "best": 0.828
+    },
+    "stock": {
+      "n": 6,
+      "median": 0.928,
+      "worst": 1.005,
+      "best": 0.828
+    }
+  },
+  "finished": 1789247709.8318167
+}

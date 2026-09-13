@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 200 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 202 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 118
-- `historical_only`: 36
+- `historical_only`: 38
 - `provisional`: 11
 - `supported_measurement`: 35
 
@@ -128,6 +128,8 @@ All 200 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
+| `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
+| `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
 | `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |

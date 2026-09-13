@@ -1,9 +1,9 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "55cc73ca028152e2de24a505be7b1053f96d75a23cc634376fcb5807a476b2d9",
+  "source_structural_sha256": "19189bef5b4204901d422da18a64189e6bb453519224498bba0c507ad126986e",
   "summary": {
     "exploratory": 118,
-    "historical_only": 36,
+    "historical_only": 38,
     "provisional": 11,
     "supported_measurement": 35
   },
@@ -2597,6 +2597,48 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "historical_only",
+      "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "historical_only",
+      "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

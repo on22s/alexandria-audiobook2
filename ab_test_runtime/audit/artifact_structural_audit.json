@@ -2,8 +2,8 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 942,
-    "exploratory": 368,
-    "provisional": 200,
+    "exploratory": 370,
+    "provisional": 202,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -10956,6 +10956,36 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
+      "bytes": 1148,
+      "sha256": "ffdc49cf9acdf1d35c560f2c719034467dd1dfcd782894d4093ada9169daee16",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lora_merge_speed_probe__9070xt-20260912.json",
+      "bytes": 3664,
+      "sha256": "a04f06c2a16f2016e3581dd26175e0332270b94b4980dc246548ec2c3fad67ba",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -11740,6 +11770,42 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json",
+      "bytes": 1326974,
+      "sha256": "68a95d3ae1c5e159e088c34b25b9bb17cc42c38926222cc95c9ec355c0c011a4",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1536,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "6ed991121ce7d54547553e49558aea67abc45fec",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json",
+      "bytes": 1327914,
+      "sha256": "a826a79ebe8a71e5c7f88ba3985bf7e3466dd0e9cc31b10d658f717541f6dd7b",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1536,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "6ed991121ce7d54547553e49558aea67abc45fec",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "lora_serving_eval__qwen3-14b-mixed-seed2-a6000-gold-schema-checked-20260911.json",
@@ -20713,8 +20779,8 @@
     },
     {
       "artifact": "shipping_voices_listening_20260912.json",
-      "bytes": 2619,
-      "sha256": "4acb0bd1a2192334cef4ec4155b1c1c9db38f8c7b478320e0c1146606dc2452e",
+      "bytes": 3434,
+      "sha256": "33bcffee3be06d9d3c5569d6d9316478a10462faf5c1fe38323cbc18d6190b1a",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},

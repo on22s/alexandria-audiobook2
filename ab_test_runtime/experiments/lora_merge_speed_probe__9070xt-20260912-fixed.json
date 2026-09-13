@@ -1,0 +1,60 @@
+{
+  "experiment": "lora_merge_speed_probe",
+  "adapter": "breathy_alto_50s_f_fantasy",
+  "seed": 20260912,
+  "lines": [
+    "The rain had not stopped for three days, and the road to the village was mud to the ankle."
+  ],
+  "arms": {
+    "lora_unmerged": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 5.856,
+        "audio_s": 4.72,
+        "gen_over_audio": 1.241
+      }
+    ],
+    "lora_merged": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 3.899,
+        "audio_s": 4.72,
+        "gen_over_audio": 0.826
+      }
+    ],
+    "stock": [
+      {
+        "line": 0,
+        "ok": true,
+        "gen_s": 4.469,
+        "audio_s": 5.44,
+        "gen_over_audio": 0.821
+      }
+    ]
+  },
+  "started": 1789248607.2395425,
+  "merge_s": 0.029,
+  "summary": {
+    "lora_unmerged": {
+      "n": 1,
+      "median": 1.241,
+      "worst": 1.241,
+      "best": 1.241
+    },
+    "lora_merged": {
+      "n": 1,
+      "median": 0.826,
+      "worst": 0.826,
+      "best": 0.826
+    },
+    "stock": {
+      "n": 1,
+      "median": 0.821,
+      "worst": 0.821,
+      "best": 0.821
+    }
+  },
+  "finished": 1789248688.344511
+}
