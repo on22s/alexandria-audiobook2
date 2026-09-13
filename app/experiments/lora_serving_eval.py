@@ -131,10 +131,17 @@ def get_eval_arms(base_only=False):
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
 
 
-def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none"):
+# The product's own default (generate_script.LLMGenParams.max_tokens). This
+# harness used to pin 2000 - half the product's room - which Qwen never
+# noticed and Muse overflowed on 70% of batch-25 windows (2026-09-12).
+MAX_TOKENS = 4096
+
+
+def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none",
+                      max_tokens=MAX_TOKENS):
     """Describe only settings this evaluator controls or directly observes."""
     arms = get_eval_arms(base_only)
-    decoding = {"temperature": 0.0, "batch": batch, "max_tokens": 2000,
+    decoding = {"temperature": 0.0, "batch": batch, "max_tokens": max_tokens,
                 "reasoning_effort": reasoning_effort,
                 "arms": [arm for arm, _ in arms]}
     if base_only:
@@ -163,6 +170,9 @@ def main():
                          "/lora-adapters state")
     ap.add_argument("--batch-size", type=int, default=BATCH,
                     help="segmented entries per attribution request")
+    ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS,
+                    help="completion budget per request before escalation "
+                         "(default: the product's own)")
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
@@ -175,13 +185,15 @@ def main():
         ap.error("--batch-size must be at least 1")
 
     client = OpenAI(base_url=args.base_url, api_key="local")
-    params = LLMGenParams(max_tokens=2000, context_length=32768,
+    if args.max_tokens < 1:
+        ap.error("--max-tokens must be at least 1")
+    params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8,
                           reasoning_effort=args.reasoning_effort)
     _env = os.environ.get("EXPERIMENT_ENV")
     decoding, notes = get_eval_metadata(
-        args.base_only, args.batch_size, args.reasoning_effort)
+        args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens)
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
