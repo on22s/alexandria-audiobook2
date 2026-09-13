@@ -2228,6 +2228,34 @@ two score lower, and the value falls monotonically at 1, 2, 4 and 8 clusters,
 so the number can be read as *how much of a mixture is this*. A single clip
 returns no statistic rather than a perfect 1.0.
 
+**A second instrument agrees with the mixture diagnosis and does not improve
+on it (2026-09-13).** Two audiobook-TTS papers prune character speech before
+training by prosody alone: Chalamandaris et al. (LREC 2014) by Mahalanobis
+distance in (F0 mean, F0 std), Piits et al. (LREC 2022) naming lower HNR,
+steeper spectral slope and larger loudness swings as what separates a
+narrator's character speech from narration. `dataset_prosodic_spread.py`
+measured those on 40 seeded clips from every shipped dataset (74 scored):
+
+| feature | r vs ECAPA fidelity | partial r, controlling tone-spread tightness |
+|---|---:|---:|
+| across-clip F0 spread | −0.37 (p=0.001) | +0.08 |
+| between/within F0 ratio | −0.39 (p=6e-4) | −0.05 |
+| alpha-ratio spread | −0.43 (p=1e-4) | −0.14 |
+| F0 outliers beyond 2 SD | −0.19 | −0.25 (p=0.03) |
+
+The five REBUILD datasets carry 2.6× the across-clip pitch spread of working
+ones (44.6 vs 17.1 Hz, Mann–Whitney p=0.02, n=5/59), so the papers' signature
+is present. But once the ECAPA tightness above (r=0.58) is held fixed, every
+prosodic feature falls to |r|≤0.25: they measure the same mixture, more
+coarsely. Not adopted as a detector. The papers' remaining claim — that
+*removing* the outlying clips and retraining gives a better voice, which the
+audit never tried — is `run_chains/prune_retrain_20260913.sh`
+(`prune_prosodic_clips.py`, both rules, one REBUILD adapter, paired against
+a fresh retrain on the original data). Prediction: it helps a prosodic
+mixture and not a two-person one.
+
+**Evidence** — `dataset_prosodic_spread.json`.
+
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
@@ -4446,6 +4474,40 @@ The size-versus-recall curve it proposed was never run. Given `closed-6` fails
 by losing the right name and `closed-oracle` wins by keeping it, that curve is
 the one measurement that would say whether a small, honest candidate set is
 reachable at all.
+
+#### The selection gap is not a cue-parsing failure — a registered null (2026-09-13)
+
+Borrowing the shape of grammar-book-guided probing (Li et al., LREC 2026:
+models pass "which sentence shows this rule" and fail minimal pairs), the
+2,494 rows of `two_stage_attribution_w3200.json` (roster recall 100%, so every
+error is a selection) were stratified by the cue a reader would use
+(`selection_cue_probe.py`):
+
+| cue | n | accuracy |
+|---|---:|---:|
+| tag names the speaker | 453 | 63.8% |
+| tag with pronoun only | 236 | 67.4% |
+| no tag detected | 1,805 | 65.9% |
+| another roster name inside the quote (addressee) | 845 | 69.1% |
+| nearest roster mention is the speaker | 850 | 66.6% |
+| nearest mention is someone else | 1,644 | 65.1% |
+
+No cue class falls toward chance; all sit in 62–71%. Of the 857 wrong picks,
+6.0% named the addressee and 14.6% the nearest other mention — 79% are
+neither classic confusion. What does separate is how much the true speaker
+talks: the top two speakers of a book are attributed at 74.5% (n=1,281),
+everyone else at 54–60% (n=1,213), and 55% of wrong picks name a more
+frequent speaker than the right one. Two readings fit — a prior toward the
+frequent names, or major characters having more distinctive lines — and the
+probe cannot separate them. Cue detectors are regexes over 200-char windows,
+hand-checked on six rows only; PDNC only, since the Japanese gold has no
+context fields.
+
+**The test that separates the readings** is the usual-suspect arm of
+`two_stage_attribution.py --drop-top-speakers 2`: the same 1,213
+minor-speaker rows asked twice, with and without the two most frequent
+names in the shown cast. If minor-speaker accuracy rises toward 75% once
+the usual suspects cannot be chosen, the model was defaulting to them.
 
 ---
 

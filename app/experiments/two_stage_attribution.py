@@ -388,6 +388,21 @@ def main():
                          "candidates for 7.3 points of recall; the run beats "
                          "the unrestricted arm only above 70.7%% on retained "
                          "rows (candidate_restriction.json)")
+    ap.add_argument("--drop-top-speakers", type=int, default=0, metavar="K",
+                    help="THE USUAL-SUSPECT TEST. Keep only quotes whose "
+                         "speaker is NOT one of the book's K most frequent "
+                         "gold speakers, and remove those K from the shown "
+                         "cast. The 2026-09-13 cue probe found accuracy "
+                         "74.5%% for a book's top-2 speakers against 54-60%% "
+                         "for everyone else, with 55%% of wrong picks naming "
+                         "a MORE frequent speaker; if minor-speaker accuracy "
+                         "rises once the frequent names are gone, the model "
+                         "was defaulting to them. Pair with "
+                         "--keep-top-in-roster for the control arm on the "
+                         "same rows.")
+    ap.add_argument("--keep-top-in-roster", action="store_true",
+                    help="control arm for --drop-top-speakers: same minor-"
+                         "speaker rows, full cast shown")
     ap.add_argument("--prompt-variant", default="control",
                     choices=list(PROMPT_VARIANTS),
                     help="control is byte-identical to the shipped prompt")
@@ -474,6 +489,22 @@ def main():
             entries = random.Random(args.seed).sample(entries, args.limit)
         groups = alias_groups(fixture)
         roster = roster_lines(fixture)
+        if args.drop_top_speakers:
+            # Rank by gold quote count on the WHOLE fixture, not the sample.
+            counts = {}
+            for e in fixture["entries"]:
+                counts[e.get("expected_speaker")] = counts.get(e.get("expected_speaker"), 0) + 1
+            top = [n for n, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:args.drop_top_speakers]]
+            entries = [e for e in entries
+                       if not any(same_speaker(e.get("expected_speaker"), t, groups) for t in top)]
+            if not args.keep_top_in_roster:
+                roster = [line for line in roster
+                          if not any(same_speaker(roster_names([line])[0], t, groups) for t in top)]
+            print(f"{book}: top-{args.drop_top_speakers} speakers {top} -> "
+                  f"{len(entries)} minor-speaker rows, cast {len(roster)}", flush=True)
+            record.meta.setdefault("drop_top_speakers", {})[book] = {
+                "k": args.drop_top_speakers, "dropped": top, "rows": len(entries),
+                "cast_shown": len(roster), "kept_in_roster": bool(args.keep_top_in_roster)}
         for index, entry in enumerate(entries, 1):
             gold_id = f"{book}:{entry['id']}"
             if record.done("single", gold_id):
