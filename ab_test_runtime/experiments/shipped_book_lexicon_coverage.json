@@ -1,26 +1,16 @@
 {
  "note": "Maps goal 5.5's measured terms onto the SHIPPED books. The candidate record counts books over the whole library; this names which saved scripts each term actually occurs in.",
  "shipped_books": 29,
- "terms_measured_total": 7608,
+ "terms_measured_total": 7612,
  "terms_present_in_shipped_books": 82,
  "present_with_entry": 10,
- "present_recorded_unfixable": 57,
- "present_plain_already_works": 11,
+ "present_recorded_unfixable": 60,
+ "present_plain_already_works": 12,
  "third_state_available": true,
- "present_in_neither_state": 4,
- "coverage_percent": 95.1,
- "terms_in_neither_state": [
-  "basuru",
-  "gauaa",
-  "gaurururu",
-  "subara"
- ],
- "neither_state_with_a_triage_judgement": {
-  "basuru": "name_character",
-  "gauaa": "onomatopoeia",
-  "gaurururu": "onomatopoeia",
-  "subara": "name_character"
- },
+ "present_in_neither_state": 0,
+ "coverage_percent": 100.0,
+ "terms_in_neither_state": [],
+ "neither_state_with_a_triage_judgement": {},
  "neither_state_unexplained": [],
  "per_book": [
   {
@@ -867,24 +857,21 @@
  },
  "provenance": {
   "script": "shipped_book_lexicon_coverage.py",
-  "written": "2026-09-04T17:56:02",
+  "written": "2026-09-13T10:07:45",
   "host": "mitch-linux",
   "git": {
-   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
-   "branch": "agent/coverage-third-state-20260904",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M app/experiments/lexicon_from_measurements.py",
-    " M app/experiments/shipped_book_lexicon_coverage.py"
-   ],
+   "commit": "2895204dadf8a15e99fcd69d9fa25756c16b348c",
+   "branch": "exp/measure-neither-terms",
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "ea78a81756ce04b9b0dd27425d02876b378dce0b54618ce9068738b443e6ebef"
+   "harness_sha256": "4aeca55f27a9a64ae9163614f13305223b0fd3bd5109002f391133483bd66063"
   },
   "args": {
    "scripts": "scripts",
-   "candidates": "ab_test_runtime/experiments/lexicon_candidates.json",
-   "triage": "ab_test_runtime/experiments/shipped_term_triage.json",
-   "out": "ab_test_runtime/experiments/shipped_book_lexicon_coverage.json"
+   "candidates": "../ab_test_runtime/experiments/lexicon_candidates.json",
+   "triage": "../ab_test_runtime/experiments/shipped_term_triage.json",
+   "out": "../ab_test_runtime/experiments/shipped_book_lexicon_coverage.json"
   }
  }
 }

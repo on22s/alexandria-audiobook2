@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 950,
+    "supported_structure": 951,
     "exploratory": 411,
     "provisional": 208,
     "artifacts_that_generated_nothing": 15
@@ -10390,8 +10390,8 @@
     },
     {
       "artifact": "lexicon_candidates.json",
-      "bytes": 1982435,
-      "sha256": "abdf8ea737692bb3271c5773fb7f89bce6ddd72b5331a2b272a69e6ccdc2675b",
+      "bytes": 1983443,
+      "sha256": "7eb0f9946955a04be0a01507212e97abdb68c8b8d6df9363c9e19c5e10760c93",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -10400,9 +10400,9 @@
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-09-04T17:55:15",
-      "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
-      "dirty": true,
+      "written": "2026-09-13T10:07:36",
+      "commit": "2895204dadf8a15e99fcd69d9fa25756c16b348c",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
@@ -20388,6 +20388,24 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "respelling_measure_shipped_neither_20260913.json",
+      "bytes": 5641,
+      "sha256": "b68399510be1080e9a60a5f7449024032100f114cc03230e17178ea69d3c4c19",
+      "completeness": "complete",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": "complete",
+      "row_count": 4,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T10:06:11",
+      "commit": "2895204dadf8a15e99fcd69d9fa25756c16b348c",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "respelling_none_allrows.json",
       "bytes": 463490,
       "sha256": "17d8dccd123a759ebabcc1a3b591e8ace1456723a495bebd5236250b7337b3f2",
@@ -21547,8 +21565,8 @@
     },
     {
       "artifact": "shipped_book_lexicon_coverage.json",
-      "bytes": 18517,
-      "sha256": "7b55385c2d4886a0c3dc481e816d53f4c450c0d495929af6b48866da438df6fa",
+      "bytes": 18234,
+      "sha256": "514e246cc5ba7059784a010562e5e7237d0e4f72bfdc3c8ee9afee85ea31feac",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -21557,9 +21575,9 @@
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-09-04T17:56:02",
-      "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
-      "dirty": true,
+      "written": "2026-09-13T10:07:45",
+      "commit": "2895204dadf8a15e99fcd69d9fa25756c16b348c",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
