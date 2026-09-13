@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 954,
-    "exploratory": 412,
+    "exploratory": 413,
     "provisional": 208,
     "artifacts_that_generated_nothing": 15
   },
@@ -21565,6 +21565,21 @@
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "second_rater_ratings.json",
+      "bytes": 4915,
+      "sha256": "cd82c5aea15f9a8a445ba4367ba0bde84cbdc3ba9fe366f703829f95715bd247",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 11,
+      "has_rows": true,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "seed_instruction_controls.json",

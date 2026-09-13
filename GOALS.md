@@ -4210,6 +4210,41 @@ question and none is measured anywhere in this document.
 (committed after rating; the manifest carries its hash from before). One
 rater, computer speakers, four lines per class.
 
+**A naive listener, on content-neutral controls — 2026-09-13, and the
+prediction holds.** A separate package had been waiting since 2026-09-06 for
+a rater who is not the project owner (`second_rater_listening.json`, built by
+`second_rater_package.py`): the same eight comparison pairs, but its three
+controls pair the reference against one more recording of the same narrator
+and one of a stranger, **both different sentences from the reference**, so
+content cannot carry the answer in either direction. A friend of the owner
+rated it blind on a page with the clips embedded; the shared link served a
+pinned older version on which trials 9–11 would not play, so those three
+were re-served alone and rated the same day, and the three "can't tell"
+answers the dead trials produced are discarded. Key hash recorded in the
+manifest before rating, verified after.
+
+| class | 09-06 owner | 09-13 owner (v2) | **09-13 naive listener** | registered prediction |
+|---|---|---|---|---|
+| controls | 3/3, by content | 3/3, by voice, same words | **3/3, different words** | rejected in all 3 |
+| large gap (+0.315) | shipped 4/4 | shipped 2, rebuilt 1, same 1 | **shipped 3, can't tell 1, rebuilt 0** | shipped clearly and consistently |
+| no gap (+0.017) | shipped 2, can't tell 2 | shipped 3, rebuilt 1 | shipped 2, rebuilt 1, can't tell 1 | near chance |
+
+Measured, kept apart from what it means: the listener who has never heard
+these voices passed the only controls in this project that content could
+not have passed for him, then heard the 0.315 gap in three of four pairs
+and never picked the other arm, and read the 0.017 gap as noise. That is the
+prediction as registered, on the rater the goal has wanted since it was
+written. Three sittings over one week now read 4/4, 2/4 and 3/4 on the
+large-gap class — 9 of 12 for the arm ECAPA scores higher, 1 against, 2 can't
+tell — which is the pooled reading to quote, and the reason the owner's
+second sitting is not read as a refutation. n=4 per class per sitting, two
+adapters, three sittings; the claim it supports is that ECAPA's direction is
+audible at a 0.3 gap, not that its magnitude is.
+
+**Evidence** — `second_rater_ratings.json`, `second_rater_listening.json`,
+`second_rater_concealed_key.json`; both rating pages are named in the
+ratings artifact.
+
 ---
 
 # Part II — Met
