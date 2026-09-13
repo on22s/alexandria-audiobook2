@@ -1,0 +1,3202 @@
+{
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "summary": {
+  "lora": {
+   "ecapa": null,
+   "f0_corr": 0.5773354985236463,
+   "mcd": 462.5482435585728,
+   "dur_ratio": 1.1884153316894677,
+   "n": 150
+  },
+  "clone": {
+   "ecapa": null,
+   "f0_corr": 0.46738300905278213,
+   "mcd": 408.9559616253519,
+   "dur_ratio": 1.1940075055976338,
+   "n": 150
+  },
+  "human_vs_human": {
+   "ecapa": null,
+   "f0_corr": 0.6770768024402471,
+   "mcd": 559.9141248429053,
+   "dur_ratio": 1.1045870361481935,
+   "n": 150
+  }
+ },
+ "rows": [
+  {
+   "id": "antoinetteromances4-01_0005",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.380041666666667,
+   "lora": {
+    "f0_corr": 0.7350012183640117,
+    "mcd": 412.55297800820773,
+    "dur_ratio": 1.059660602323974
+   },
+   "clone": {
+    "f0_corr": 0.4141099624402075,
+    "mcd": 344.47972101383164,
+    "dur_ratio": 1.0787535861496311
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8992705745192484,
+    "mcd": 498.8486807574834,
+    "dur_ratio": 0.9761337702179284,
+    "anchor_seconds": 8.18
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0011",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.180041666666666,
+   "lora": {
+    "f0_corr": -0.2381431708923759,
+    "mcd": 516.7282855071777,
+    "dur_ratio": 0.9584303258438985
+   },
+   "clone": {
+    "f0_corr": 0.1504340590107972,
+    "mcd": 415.08563891032463,
+    "dur_ratio": 0.9584303258438985
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8491663648227006,
+    "mcd": 540.695057725086,
+    "dur_ratio": 1.053789457062668,
+    "anchor_seconds": 8.62
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0014",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.620041666666667,
+   "lora": {
+    "f0_corr": -0.18107737806137578,
+    "mcd": 476.853625045695,
+    "dur_ratio": 1.178648595086064
+   },
+   "clone": {
+    "f0_corr": 0.4073124153515826,
+    "mcd": 418.7148849561322,
+    "dur_ratio": 1.085841619095035
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8838099246523698,
+    "mcd": 533.8026250789247,
+    "dur_ratio": 0.40371517925764083,
+    "anchor_seconds": 8.78
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0021",
+   "book": "antoinetteromances4",
+   "human_seconds": 3.4800416666666667,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 478.3699695995721,
+    "dur_ratio": 1.2873409082745657
+   },
+   "clone": {
+    "f0_corr": 0.07277936718327237,
+    "mcd": 438.3202453787171,
+    "dur_ratio": 1.3792938302941775
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7464174038583381,
+    "mcd": 519.5878320584865,
+    "dur_ratio": 1.5229822439865424,
+    "anchor_seconds": 11.42
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0022",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.300041666666667,
+   "lora": {
+    "f0_corr": 0.8224103085137164,
+    "mcd": 445.10968280456257,
+    "dur_ratio": 0.920747478400327
+   },
+   "clone": {
+    "f0_corr": 0.4769905449355752,
+    "mcd": 458.12292739945957,
+    "dur_ratio": 0.9660301412724742
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7014254885583805,
+    "mcd": 567.5762479242346,
+    "dur_ratio": 1.1547079032397543,
+    "anchor_seconds": 11.78
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0025",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.12,
+   "lora": {
+    "f0_corr": 0.20080508674380165,
+    "mcd": 365.4756809158088,
+    "dur_ratio": 0.8627450980392157
+   },
+   "clone": {
+    "f0_corr": -0.18643054399389555,
+    "mcd": 311.0444876059699,
+    "dur_ratio": 1.0849673202614378
+   },
+   "human_vs_human": {
+    "f0_corr": 0.915892468047462,
+    "mcd": 534.9153764423647,
+    "dur_ratio": 0.9248366013071896,
+    "anchor_seconds": 14.16
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0031",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.66,
+   "lora": {
+    "f0_corr": 0.18686223671083194,
+    "mcd": 477.201409634041,
+    "dur_ratio": 1.1448763250883394
+   },
+   "clone": {
+    "f0_corr": -0.07836298557063616,
+    "mcd": 396.1183052938457,
+    "dur_ratio": 1.0318021201413428
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6837866200552088,
+    "mcd": 536.5218300993662,
+    "dur_ratio": 1.5017741460541814,
+    "anchor_seconds": 8.5
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0036",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.500041666666666,
+   "lora": {
+    "f0_corr": 0.8557555942761151,
+    "mcd": 453.53153355622436,
+    "dur_ratio": 1.0823476355508062
+   },
+   "clone": {
+    "f0_corr": 0.8321268254924612,
+    "mcd": 423.9018048480456,
+    "dur_ratio": 1.0729408189175544
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5671365096351518,
+    "mcd": 584.9254600903279,
+    "dur_ratio": 0.7717609227405748,
+    "anchor_seconds": 10.6
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0039",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.56,
+   "lora": {
+    "f0_corr": 0.8002495448759669,
+    "mcd": 435.1473553159197,
+    "dur_ratio": 1.3780487804878048
+   },
+   "clone": {
+    "f0_corr": 0.8557156270269326,
+    "mcd": 469.93963743986797,
+    "dur_ratio": 1.1341463414634148
+   },
+   "human_vs_human": {
+    "f0_corr": 0.871236422789558,
+    "mcd": 522.5982633274554,
+    "dur_ratio": 0.6158600101626016,
+    "anchor_seconds": 9.56
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0041",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.040041666666666,
+   "lora": {
+    "f0_corr": 0.8130343915339379,
+    "mcd": 488.967231226195,
+    "dur_ratio": 1.1088994544198185
+   },
+   "clone": {
+    "f0_corr": 0.18813691292513496,
+    "mcd": 373.22705527534606,
+    "dur_ratio": 1.3663225420529903
+   },
+   "human_vs_human": {
+    "f0_corr": 0.856693788177395,
+    "mcd": 511.1270418036024,
+    "dur_ratio": 1.3663225420529903,
+    "anchor_seconds": 10.34
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0046",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.52,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 469.0204121273399,
+    "dur_ratio": 0.9565217391304349
+   },
+   "clone": {
+    "f0_corr": -0.23623621451318186,
+    "mcd": 365.88046900074914,
+    "dur_ratio": 1.0579710144927537
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6658924696821973,
+    "mcd": 421.6385809417505,
+    "dur_ratio": 0.8731959541062803,
+    "anchor_seconds": 18.34
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0048",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.820041666666667,
+   "lora": {
+    "f0_corr": 0.9272418667399367,
+    "mcd": 384.84124241211236,
+    "dur_ratio": 0.9958420138138502
+   },
+   "clone": {
+    "f0_corr": -0.07286566090689345,
+    "mcd": 412.2952088057702,
+    "dur_ratio": 1.1120235820921327
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8969703347846711,
+    "mcd": 429.5364118804948,
+    "dur_ratio": 2.804963650037603,
+    "anchor_seconds": 13.52
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0051",
+   "book": "antoinetteromances4",
+   "human_seconds": 13.520041666666666,
+   "lora": {
+    "f0_corr": 0.9124136857388747,
+    "mcd": 403.99898598207335,
+    "dur_ratio": 0.6449684265026304
+   },
+   "clone": {
+    "f0_corr": 0.67138136468263,
+    "mcd": 369.6103907657781,
+    "dur_ratio": 0.6923055587230069
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8891478163595011,
+    "mcd": 371.1910253297887,
+    "dur_ratio": 0.5902379492173656,
+    "anchor_seconds": 7.98
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0052",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.980041666666667,
+   "lora": {
+    "f0_corr": 0.8503875963547322,
+    "mcd": 364.782970114203,
+    "dur_ratio": 0.9122759384088429
+   },
+   "clone": {
+    "f0_corr": 0.8917027950487671,
+    "mcd": 357.5633706672021,
+    "dur_ratio": 0.9523759796575831
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8437624135334159,
+    "mcd": 497.34063017721684,
+    "dur_ratio": 0.6716809122759384,
+    "anchor_seconds": 14.26
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0055",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.360041666666667,
+   "lora": {
+    "f0_corr": 0.7888794613209846,
+    "mcd": 472.39006148499925,
+    "dur_ratio": 1.2089458259808306
+   },
+   "clone": {
+    "f0_corr": 0.13439689649597142,
+    "mcd": 401.8996266278459,
+    "dur_ratio": 1.0895437690938348
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9474827701794878,
+    "mcd": 474.954633099143,
+    "dur_ratio": 1.6604426271561943,
+    "anchor_seconds": 8.9
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0057",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.900041666666667,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 414.64990071482083,
+    "dur_ratio": 0.7550526448846213
+   },
+   "clone": {
+    "f0_corr": 0.16110046295601885,
+    "mcd": 392.7405259677038,
+    "dur_ratio": 0.8719060304024794
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6359182211591614,
+    "mcd": 500.18799349045355,
+    "dur_ratio": 0.9146071413523346,
+    "anchor_seconds": 8.14
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0063",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.140041666666667,
+   "lora": {
+    "f0_corr": 0.6580464402266515,
+    "mcd": 508.85547706508885,
+    "dur_ratio": 1.0122798306724474
+   },
+   "clone": {
+    "f0_corr": 0.4974520431668653,
+    "mcd": 468.44658161415146,
+    "dur_ratio": 0.9533120735458971
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7166203148105721,
+    "mcd": 615.9030297981271,
+    "dur_ratio": 0.7592098730043355,
+    "anchor_seconds": 10.82
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0065",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.18,
+   "lora": {
+    "f0_corr": 0.7614478874455177,
+    "mcd": 389.6782222197132,
+    "dur_ratio": 1.0097087378640777
+   },
+   "clone": {
+    "f0_corr": 0.7198809718999831,
+    "mcd": 321.1298189405314,
+    "dur_ratio": 1.0614886731391586
+   },
+   "human_vs_human": {
+    "f0_corr": -0.06663535598659152,
+    "mcd": 658.0954107269729,
+    "dur_ratio": 0.7508158036677455,
+    "anchor_seconds": 10.42
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0071",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.640041666666667,
+   "lora": {
+    "f0_corr": 0.8376640433719056,
+    "mcd": 451.17079688674573,
+    "dur_ratio": 1.2930918364598019
+   },
+   "clone": {
+    "f0_corr": 0.8278961632962798,
+    "mcd": 434.9782894583675,
+    "dur_ratio": 1.1724032650568872
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8812763707733693,
+    "mcd": 534.4818406014355,
+    "dur_ratio": 1.2456784691229426,
+    "anchor_seconds": 14.18
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0074",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.78,
+   "lora": {
+    "f0_corr": 0.06281564171015419,
+    "mcd": 446.3372377575267,
+    "dur_ratio": 1.134948096885813
+   },
+   "clone": {
+    "f0_corr": 0.80499705671609,
+    "mcd": 404.952090068163,
+    "dur_ratio": 1.217993079584775
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7277306022437185,
+    "mcd": 535.8441609109184,
+    "dur_ratio": 1.453294405997693,
+    "anchor_seconds": 8.4
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0078",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.400041666666667,
+   "lora": {
+    "f0_corr": 0.9469497438298102,
+    "mcd": 322.48438415039544,
+    "dur_ratio": 0.9618999905754436
+   },
+   "clone": {
+    "f0_corr": 0.4150344471647808,
+    "mcd": 363.45633263468847,
+    "dur_ratio": 0.9428524660095932
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8628349613214991,
+    "mcd": 454.14781796823274,
+    "dur_ratio": 1.1857133645170412,
+    "anchor_seconds": 9.96
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0081",
+   "book": "antoinetteromances4",
+   "human_seconds": 9.960041666666667,
+   "lora": {
+    "f0_corr": 0.8214304414847889,
+    "mcd": 459.9811054984706,
+    "dur_ratio": 0.9236909149476449
+   },
+   "clone": {
+    "f0_corr": 0.803909376061124,
+    "mcd": 416.0851798769115,
+    "dur_ratio": 0.9156630034178237
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8847572391472243,
+    "mcd": 513.8441381866853,
+    "dur_ratio": 0.9096389322333825,
+    "anchor_seconds": 9.06
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0082",
+   "book": "antoinetteromances4",
+   "human_seconds": 9.060041666666667,
+   "lora": {
+    "f0_corr": 0.4719539694347995,
+    "mcd": 439.2338476582889,
+    "dur_ratio": 0.9448080168873396
+   },
+   "clone": {
+    "f0_corr": 0.42660008645697145,
+    "mcd": 384.9868086777681,
+    "dur_ratio": 0.9801279427522869
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8537818307280906,
+    "mcd": 512.6349049494371,
+    "dur_ratio": 1.0794698331961314,
+    "anchor_seconds": 9.78
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0085",
+   "book": "antoinetteromances4",
+   "human_seconds": 9.780041666666667,
+   "lora": {
+    "f0_corr": 0.524775754353257,
+    "mcd": 463.7092700657007,
+    "dur_ratio": 1.0143106070611492
+   },
+   "clone": {
+    "f0_corr": 0.3673022124271602,
+    "mcd": 373.0317485973312,
+    "dur_ratio": 0.9161515160552316
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8377773019405096,
+    "mcd": 492.70771960732105,
+    "dur_ratio": 0.5664597543466499,
+    "anchor_seconds": 12.5
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0087",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.54,
+   "lora": {
+    "f0_corr": 0.07453406701079106,
+    "mcd": 374.6052606529305,
+    "dur_ratio": 1.068592057761733
+   },
+   "clone": {
+    "f0_corr": 0.7881271301953773,
+    "mcd": 296.28777478437,
+    "dur_ratio": 0.9530685920577617
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8250160734082486,
+    "mcd": 482.6783843092825,
+    "dur_ratio": 1.256325210589651,
+    "anchor_seconds": 12.1
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0091",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.960041666666666,
+   "lora": {
+    "f0_corr": 0.7226048744991136,
+    "mcd": 459.06136474125486,
+    "dur_ratio": 0.9999940134458007
+   },
+   "clone": {
+    "f0_corr": 0.6623233767426547,
+    "mcd": 394.9454811949894,
+    "dur_ratio": 1.0804533018839686
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7890296063545321,
+    "mcd": 555.0723095393529,
+    "dur_ratio": 0.7385073125759545,
+    "anchor_seconds": 14.64
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0094",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.140041666666667,
+   "lora": {
+    "f0_corr": 0.8837725487475382,
+    "mcd": 466.19033964044377,
+    "dur_ratio": 0.9182804938351666
+   },
+   "clone": {
+    "f0_corr": 0.8556496840560703,
+    "mcd": 443.69563059188187,
+    "dur_ratio": 1.0427931031687487
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8249841012120785,
+    "mcd": 549.0543522351091,
+    "dur_ratio": 1.8482421510850267,
+    "anchor_seconds": 9.5
+   }
+  },
+  {
+   "id": "antoinetteromances4-01_0097",
+   "book": "antoinetteromances4",
+   "human_seconds": 9.500041666666666,
+   "lora": {
+    "f0_corr": 0.7960595757711569,
+    "mcd": 429.44728680813773,
+    "dur_ratio": 1.1705211819246406
+   },
+   "clone": {
+    "f0_corr": 0.8751555205869972,
+    "mcd": 457.3971344206276,
+    "dur_ratio": 0.9178907110056536
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7802411069667566,
+    "mcd": 525.15243233063,
+    "dur_ratio": 0.526317867026899,
+    "anchor_seconds": 10.52
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0005",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.000041666666666,
+   "lora": {
+    "f0_corr": 0.8390726620791228,
+    "mcd": 491.32562496527515,
+    "dur_ratio": 1.2319897334188883
+   },
+   "clone": {
+    "f0_corr": 0.9318022863223249,
+    "mcd": 458.17077003819594,
+    "dur_ratio": 1.519987333438888
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7384061551964939,
+    "mcd": 595.8370024005989,
+    "dur_ratio": 1.103990800076666,
+    "anchor_seconds": 15.86
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0006",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.52,
+   "lora": {
+    "f0_corr": 0.6561804812214397,
+    "mcd": 489.99315358906847,
+    "dur_ratio": 1.2028985507246377
+   },
+   "clone": {
+    "f0_corr": 0.42198679587162813,
+    "mcd": 366.66738903367667,
+    "dur_ratio": 1.1594202898550727
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7789693579811271,
+    "mcd": 532.5504224981689,
+    "dur_ratio": 1.8731959541062801,
+    "anchor_seconds": 10.34
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0010",
+   "book": "antoinetteromances4",
+   "human_seconds": 10.340041666666666,
+   "lora": {
+    "f0_corr": 0.7374311570598949,
+    "mcd": 481.7286071843587,
+    "dur_ratio": 1.0290093930956115
+   },
+   "clone": {
+    "f0_corr": 0.7711606770225087,
+    "mcd": 384.0320176817916,
+    "dur_ratio": 1.013535567635527
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5794365483555229,
+    "mcd": 526.5722481520909,
+    "dur_ratio": 1.1818134195139447,
+    "anchor_seconds": 12.22
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0011",
+   "book": "antoinetteromances4",
+   "human_seconds": 12.22,
+   "lora": {
+    "f0_corr": 0.5016964958239221,
+    "mcd": 445.7029127814502,
+    "dur_ratio": 1.0081833060556464
+   },
+   "clone": {
+    "f0_corr": 0.5680105409664621,
+    "mcd": 407.66065818459555,
+    "dur_ratio": 0.9361702127659574
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8525774403401618,
+    "mcd": 494.10321581124606,
+    "dur_ratio": 0.6939477632296781,
+    "anchor_seconds": 8.48
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0012",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.480041666666667,
+   "lora": {
+    "f0_corr": 0.8975163923157711,
+    "mcd": 419.05273551958874,
+    "dur_ratio": 0.9245237592189504
+   },
+   "clone": {
+    "f0_corr": 0.4838645643236063,
+    "mcd": 401.15082607250116,
+    "dur_ratio": 1.066032497874912
+   },
+   "human_vs_human": {
+    "f0_corr": 0.024104267006685498,
+    "mcd": 556.0913436868549,
+    "dur_ratio": 0.6933928194142127,
+    "anchor_seconds": 14.44
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0018",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.88,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 491.9629020336537,
+    "dur_ratio": 1.1564625850340136
+   },
+   "clone": {
+    "f0_corr": 0.7512485851190387,
+    "mcd": 444.34949560748134,
+    "dur_ratio": 1.08843537414966
+   },
+   "human_vs_human": {
+    "f0_corr": 0.17931887036229138,
+    "mcd": 657.5338103104643,
+    "dur_ratio": 1.4557893990929707,
+    "anchor_seconds": 8.56
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0022",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.560041666666667,
+   "lora": {
+    "f0_corr": 0.910596504368408,
+    "mcd": 470.60006266058315,
+    "dur_ratio": 1.0934526214338909
+   },
+   "clone": {
+    "f0_corr": -0.07397378853747374,
+    "mcd": 507.49835806109047,
+    "dur_ratio": 0.9065376434110036
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5348144224356891,
+    "mcd": 581.1014228111931,
+    "dur_ratio": 0.9345797576919894,
+    "anchor_seconds": 8.0
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0026",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.000041666666666,
+   "lora": {
+    "f0_corr": 0.6047773075215161,
+    "mcd": 453.5535102433618,
+    "dur_ratio": 0.9399951041921657
+   },
+   "clone": {
+    "f0_corr": 0.7438095439443613,
+    "mcd": 395.74367072313345,
+    "dur_ratio": 1.049994531278483
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7040973608485631,
+    "mcd": 562.8580546878353,
+    "dur_ratio": 0.5825021744678414,
+    "anchor_seconds": 12.9
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0027",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.660041666666666,
+   "lora": {
+    "f0_corr": 0.16856403034020936,
+    "mcd": 461.54369949841305,
+    "dur_ratio": 0.9098631092354326
+   },
+   "clone": {
+    "f0_corr": 0.3631273423048132,
+    "mcd": 369.0994210751801,
+    "dur_ratio": 0.9785320231399933
+   },
+   "human_vs_human": {
+    "f0_corr": 0.42927581658905384,
+    "mcd": 525.8169811088464,
+    "dur_ratio": 1.7682334743072756,
+    "anchor_seconds": 8.24
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0028",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.240041666666666,
+   "lora": {
+    "f0_corr": 0.5866638939948793,
+    "mcd": 501.2876713022702,
+    "dur_ratio": 1.097081831099155
+   },
+   "clone": {
+    "f0_corr": 0.7729610673534166,
+    "mcd": 372.32430076351915,
+    "dur_ratio": 0.9902862546204763
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7228708236245971,
+    "mcd": 609.1490174799063,
+    "dur_ratio": 1.0606793048174312,
+    "anchor_seconds": 8.74
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0029",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.740041666666666,
+   "lora": {
+    "f0_corr": 0.8573345667201013,
+    "mcd": 453.1084003262642,
+    "dur_ratio": 1.0343200118229794
+   },
+   "clone": {
+    "f0_corr": 0.7362629768911231,
+    "mcd": 345.7339619440341,
+    "dur_ratio": 1.0617798351457135
+   },
+   "human_vs_human": {
+    "f0_corr": 0.19944363648167104,
+    "mcd": 615.3654209888987,
+    "dur_ratio": 0.5858143315487626,
+    "anchor_seconds": 8.94
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0034",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.120041666666666,
+   "lora": {
+    "f0_corr": 0.9315234903974813,
+    "mcd": 525.4505936531367,
+    "dur_ratio": 0.968742116356475
+   },
+   "clone": {
+    "f0_corr": -0.1574807233265526,
+    "mcd": 496.39122792115677,
+    "dur_ratio": 1.0156248728444592
+   },
+   "human_vs_human": {
+    "f0_corr": 0.3073559790600654,
+    "mcd": 556.2540367737232,
+    "dur_ratio": 0.7460958162775368,
+    "anchor_seconds": 9.94
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0036",
+   "book": "antoinetteromances4",
+   "human_seconds": 3.8200416666666666,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 465.22664550895314,
+    "dur_ratio": 1.1937042571525178
+   },
+   "clone": {
+    "f0_corr": 0.12581515307646998,
+    "mcd": 372.7479962967749,
+    "dur_ratio": 1.4868947764531364
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6062268058163844,
+    "mcd": 544.0679403266952,
+    "dur_ratio": 1.6020767661783795,
+    "anchor_seconds": 10.14
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0039",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.12,
+   "lora": {
+    "f0_corr": 0.49333439205895707,
+    "mcd": 362.05975868278017,
+    "dur_ratio": 1.0065359477124183
+   },
+   "clone": {
+    "f0_corr": 0.6000930095933154,
+    "mcd": 390.96676365094896,
+    "dur_ratio": 1.0588235294117647
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8598013244030717,
+    "mcd": 548.3176880592283,
+    "dur_ratio": 0.6568695533769063,
+    "anchor_seconds": 10.68
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0040",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.020041666666667,
+   "lora": {
+    "f0_corr": 0.752623658630057,
+    "mcd": 491.6512454320518,
+    "dur_ratio": 1.373120096184741
+   },
+   "clone": {
+    "f0_corr": -0.07269896550820017,
+    "mcd": 411.0215449825646,
+    "dur_ratio": 1.0547154361998736
+   },
+   "human_vs_human": {
+    "f0_corr": 0.25551667485651103,
+    "mcd": 575.8707838380446,
+    "dur_ratio": 1.6566992464837635,
+    "anchor_seconds": 12.38
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0041",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.66,
+   "lora": {
+    "f0_corr": 0.8057001227114443,
+    "mcd": 452.7616934859015,
+    "dur_ratio": 1.129129129129129
+   },
+   "clone": {
+    "f0_corr": 0.8367311470835876,
+    "mcd": 458.4966716566204,
+    "dur_ratio": 1.2132132132132132
+   },
+   "human_vs_human": {
+    "f0_corr": 0.754202223929199,
+    "mcd": 601.5678570138165,
+    "dur_ratio": 0.8588588588588588,
+    "anchor_seconds": 13.46
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0043",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.72,
+   "lora": {
+    "f0_corr": 0.3530441712150986,
+    "mcd": 349.6889456031383,
+    "dur_ratio": 0.965034965034965
+   },
+   "clone": {
+    "f0_corr": 0.6830528602529267,
+    "mcd": 280.5544348554801,
+    "dur_ratio": 1.132867132867133
+   },
+   "human_vs_human": {
+    "f0_corr": 0.18863882687977673,
+    "mcd": 534.893680906875,
+    "dur_ratio": 1.3531541375291376,
+    "anchor_seconds": 7.74
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0047",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.7400416666666665,
+   "lora": {
+    "f0_corr": 0.5671853828373782,
+    "mcd": 481.1606808557743,
+    "dur_ratio": 1.1472806455606936
+   },
+   "clone": {
+    "f0_corr": 0.011745637074998438,
+    "mcd": 406.6286442026861,
+    "dur_ratio": 0.9819068588132062
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7974008934683909,
+    "mcd": 575.5232804013465,
+    "dur_ratio": 0.7183423861843982,
+    "anchor_seconds": 9.92
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0050",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.56,
+   "lora": {
+    "f0_corr": 0.4271916269815969,
+    "mcd": 404.9487631069972,
+    "dur_ratio": 1.0791366906474822
+   },
+   "clone": {
+    "f0_corr": 0.5985087409042397,
+    "mcd": 419.5656029838095,
+    "dur_ratio": 1.1798561151079137
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8884312344193338,
+    "mcd": 496.67458192354536,
+    "dur_ratio": 0.7841801558752998,
+    "anchor_seconds": 9.9
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0051",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.360041666666667,
+   "lora": {
+    "f0_corr": 0.12368042074033565,
+    "mcd": 492.7507358094366,
+    "dur_ratio": 1.2843913953421697
+   },
+   "clone": {
+    "f0_corr": 0.7755776800541947,
+    "mcd": 421.0918815625761,
+    "dur_ratio": 1.155952255807953
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7988523991376627,
+    "mcd": 553.3458509873427,
+    "dur_ratio": 1.2706300589635038,
+    "anchor_seconds": 11.78
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0052",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.54,
+   "lora": {
+    "f0_corr": 0.7762490917177748,
+    "mcd": 407.27266891061214,
+    "dur_ratio": 1.1552346570397112
+   },
+   "clone": {
+    "f0_corr": 0.5899278373633015,
+    "mcd": 365.3800424969441,
+    "dur_ratio": 1.2418772563176894
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8159602184048538,
+    "mcd": 539.1810092429994,
+    "dur_ratio": 1.1263537906137184,
+    "anchor_seconds": 13.06
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0059",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.24,
+   "lora": {
+    "f0_corr": 0.8787672850961726,
+    "mcd": 431.6793028815255,
+    "dur_ratio": 1.1666666666666667
+   },
+   "clone": {
+    "f0_corr": 0.4542579629726581,
+    "mcd": 412.7137498921494,
+    "dur_ratio": 1.0
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7911465461468487,
+    "mcd": 576.2628029523133,
+    "dur_ratio": 1.0929553952991453,
+    "anchor_seconds": 11.9
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0063",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.820041666666667,
+   "lora": {
+    "f0_corr": 0.19299819731849593,
+    "mcd": 503.55276955288406,
+    "dur_ratio": 1.0087914907655744
+   },
+   "clone": {
+    "f0_corr": -0.23367059341653126,
+    "mcd": 437.8879278615951,
+    "dur_ratio": 1.1143626932875532
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8946840069245817,
+    "mcd": 588.919734692214,
+    "dur_ratio": 0.744869593905218,
+    "anchor_seconds": 10.08
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0065",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.080041666666666,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 555.1700565955762,
+    "dur_ratio": 0.9448741398118454
+   },
+   "clone": {
+    "f0_corr": -0.739515105899001,
+    "mcd": 562.9719211052,
+    "dur_ratio": 1.070857358453425
+   },
+   "human_vs_human": {
+    "f0_corr": 0.061368365612792616,
+    "mcd": 629.6718225879164,
+    "dur_ratio": 0.9842520976698026,
+    "anchor_seconds": 11.16
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0067",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.000041666666666,
+   "lora": {
+    "f0_corr": 0.7936276468779335,
+    "mcd": 403.12497922623544,
+    "dur_ratio": 0.9919917334022217
+   },
+   "clone": {
+    "f0_corr": 0.6586686728899737,
+    "mcd": 313.34039539132334,
+    "dur_ratio": 1.2639894667544438
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8633017183279021,
+    "mcd": 638.139266765132,
+    "dur_ratio": 1.2319897334188883,
+    "anchor_seconds": 13.28
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0078",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.16,
+   "lora": {
+    "f0_corr": 0.7615826309457563,
+    "mcd": 484.84470461429765,
+    "dur_ratio": 0.8831168831168832
+   },
+   "clone": {
+    "f0_corr": 0.8035571932693858,
+    "mcd": 402.19839711225626,
+    "dur_ratio": 0.974025974025974
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9251309044871452,
+    "mcd": 594.7092562826087,
+    "dur_ratio": 1.15585091991342,
+    "anchor_seconds": 7.12
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0079",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.120041666666666,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 460.0550952404536,
+    "dur_ratio": 1.19100426612672
+   },
+   "clone": {
+    "f0_corr": 0.8687240497313883,
+    "mcd": 371.6934667537364,
+    "dur_ratio": 1.0224659265804859
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8164981606914232,
+    "mcd": 565.5548144350597,
+    "dur_ratio": 1.09831403140197,
+    "anchor_seconds": 7.82
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0080",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.820041666666667,
+   "lora": {
+    "f0_corr": 0.7737577229454387,
+    "mcd": 438.29320796191905,
+    "dur_ratio": 1.0127823274598922
+   },
+   "clone": {
+    "f0_corr": 0.8575747601286069,
+    "mcd": 370.83780514291834,
+    "dur_ratio": 1.115083572657861
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8649075373342937,
+    "mcd": 537.1982341053988,
+    "dur_ratio": 0.8286400861035481,
+    "anchor_seconds": 10.14
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0081",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.48,
+   "lora": {
+    "f0_corr": -0.36785004140217403,
+    "mcd": 499.4712442229596,
+    "dur_ratio": 1.0493827160493827
+   },
+   "clone": {
+    "f0_corr": 0.4391623972860834,
+    "mcd": 388.16876588120755,
+    "dur_ratio": 1.0493827160493827
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8095745002071246,
+    "mcd": 586.4768080243578,
+    "dur_ratio": 0.5648212448559671,
+    "anchor_seconds": 10.46
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0082",
+   "book": "antoinetteromances4",
+   "human_seconds": 3.660041666666667,
+   "lora": {
+    "f0_corr": 0.19572569514576613,
+    "mcd": 465.5460337808699,
+    "dur_ratio": 1.377033503716943
+   },
+   "clone": {
+    "f0_corr": 0.7993138298737177,
+    "mcd": 367.6297945534481,
+    "dur_ratio": 1.2896028050682482
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5619832883650114,
+    "mcd": 591.7357964553274,
+    "dur_ratio": 1.8579137304903177,
+    "anchor_seconds": 17.76
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0086",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.800041666666667,
+   "lora": {
+    "f0_corr": 0.40337662924894574,
+    "mcd": 430.36384118001155,
+    "dur_ratio": 0.9999938725865649
+   },
+   "clone": {
+    "f0_corr": 0.8812722670851224,
+    "mcd": 356.21395990421456,
+    "dur_ratio": 0.9999938725865649
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7649949938178859,
+    "mcd": 558.7826209769469,
+    "dur_ratio": 1.6117548299336402,
+    "anchor_seconds": 10.96
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0089",
+   "book": "antoinetteromances4",
+   "human_seconds": 10.96,
+   "lora": {
+    "f0_corr": -0.048640130315456234,
+    "mcd": 488.9563600291462,
+    "dur_ratio": 0.9927007299270073
+   },
+   "clone": {
+    "f0_corr": 0.8419307922328163,
+    "mcd": 457.33565592697227,
+    "dur_ratio": 0.948905109489051
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7093637548012718,
+    "mcd": 541.3934852768641,
+    "dur_ratio": 0.7792008819951338,
+    "anchor_seconds": 8.54
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0091",
+   "book": "antoinetteromances4",
+   "human_seconds": 8.540041666666667,
+   "lora": {
+    "f0_corr": 0.34387849712935253,
+    "mcd": 462.0478512615516,
+    "dur_ratio": 1.0304399373539357
+   },
+   "clone": {
+    "f0_corr": 0.5552601499449622,
+    "mcd": 358.794158864116,
+    "dur_ratio": 1.0398075731480623
+   },
+   "human_vs_human": {
+    "f0_corr": 0.567776945145239,
+    "mcd": 487.33092863591725,
+    "dur_ratio": 0.7002307756109699,
+    "anchor_seconds": 11.56
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0092",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.98,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 403.4028039128837,
+    "dur_ratio": 1.0836120401337792
+   },
+   "clone": {
+    "f0_corr": 0.7942354787813953,
+    "mcd": 367.53546817560647,
+    "dur_ratio": 0.9498327759197324
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6519745056642665,
+    "mcd": 542.036244802375,
+    "dur_ratio": 0.9331103678929765,
+    "anchor_seconds": 9.3
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0093",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.58,
+   "lora": {
+    "f0_corr": 0.5790283605662959,
+    "mcd": 347.33064558127404,
+    "dur_ratio": 1.0179211469534049
+   },
+   "clone": {
+    "f0_corr": 0.606861489093015,
+    "mcd": 359.0879389067777,
+    "dur_ratio": 1.1326164874551972
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7008467683187604,
+    "mcd": 561.915072061067,
+    "dur_ratio": 0.6666741338112305,
+    "anchor_seconds": 11.06
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0101",
+   "book": "antoinetteromances4",
+   "human_seconds": 3.7200416666666665,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 547.7939493979587,
+    "dur_ratio": 1.1612773154422555
+   },
+   "clone": {
+    "f0_corr": 0.015210785578229266,
+    "mcd": 535.687559443086,
+    "dur_ratio": 1.1827936515047994
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7234751533512024,
+    "mcd": 555.1075472125456,
+    "dur_ratio": 1.973107380069668,
+    "anchor_seconds": 7.34
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0111",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.340041666666667,
+   "lora": {
+    "f0_corr": 0.8932571942196735,
+    "mcd": 397.8944808289109,
+    "dur_ratio": 0.9809208621658596
+   },
+   "clone": {
+    "f0_corr": 0.6789103954450981,
+    "mcd": 435.1345160573362,
+    "dur_ratio": 0.9046270173307371
+   },
+   "human_vs_human": {
+    "f0_corr": 0.4883794618465434,
+    "mcd": 615.1969174346422,
+    "dur_ratio": 0.6485033577239003,
+    "anchor_seconds": 8.88
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0114",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.760041666666667,
+   "lora": {
+    "f0_corr": 0.6618385234899559,
+    "mcd": 470.11245198605764,
+    "dur_ratio": 1.1428471389431114
+   },
+   "clone": {
+    "f0_corr": -0.08322854578566194,
+    "mcd": 514.6985580443923,
+    "dur_ratio": 1.176460290088497
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9150912792254314,
+    "mcd": 649.9484794282654,
+    "dur_ratio": 0.8655473954184574,
+    "anchor_seconds": 10.78
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0120",
+   "book": "antoinetteromances4",
+   "human_seconds": 4.120041666666666,
+   "lora": {
+    "f0_corr": 0.014924547852090412,
+    "mcd": 541.9948686515384,
+    "dur_ratio": 1.2427058787835885
+   },
+   "clone": {
+    "f0_corr": -0.38028052911779675,
+    "mcd": 492.89351398791814,
+    "dur_ratio": 1.1650367613596142
+   },
+   "human_vs_human": {
+    "f0_corr": 0.4242374908293387,
+    "mcd": 662.6550344340052,
+    "dur_ratio": 1.6164885063864647,
+    "anchor_seconds": 11.72
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0131",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.66,
+   "lora": {
+    "f0_corr": 0.13248204276198633,
+    "mcd": 432.41282753067236,
+    "dur_ratio": 1.057057057057057
+   },
+   "clone": {
+    "f0_corr": 0.7986961413181672,
+    "mcd": 369.1719816296201,
+    "dur_ratio": 1.141141141141141
+   },
+   "human_vs_human": {
+    "f0_corr": 0.58254879490203,
+    "mcd": 589.6515724314739,
+    "dur_ratio": 0.759766016016016,
+    "anchor_seconds": 10.96
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0133",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.060041666666667,
+   "lora": {
+    "f0_corr": 0.21703932712074422,
+    "mcd": 476.4493289761384,
+    "dur_ratio": 1.1067102543622005
+   },
+   "clone": {
+    "f0_corr": 0.6349321188555884,
+    "mcd": 396.0691506140862,
+    "dur_ratio": 1.1699508403257548
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5884901214745927,
+    "mcd": 624.9245301559682,
+    "dur_ratio": 1.1659983037030328,
+    "anchor_seconds": 13.74
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0141",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.9,
+   "lora": {
+    "f0_corr": 0.9285485744534883,
+    "mcd": 445.75183316816987,
+    "dur_ratio": 1.166101694915254
+   },
+   "clone": {
+    "f0_corr": 0.03553824183794895,
+    "mcd": 387.853594884008,
+    "dur_ratio": 1.1932203389830507
+   },
+   "human_vs_human": {
+    "f0_corr": 0.867248260160807,
+    "mcd": 493.22128995066134,
+    "dur_ratio": 1.3288206214689264,
+    "anchor_seconds": 7.84
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0142",
+   "book": "antoinetteromances4",
+   "human_seconds": 7.840041666666667,
+   "lora": {
+    "f0_corr": 0.8975088147092153,
+    "mcd": 414.3475689762048,
+    "dur_ratio": 0.9489745483920685
+   },
+   "clone": {
+    "f0_corr": 0.48628131910008565,
+    "mcd": 420.5338892588811,
+    "dur_ratio": 0.9387705209900032
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8211613646149845,
+    "mcd": 534.9731531059905,
+    "dur_ratio": 0.41071210293312643,
+    "anchor_seconds": 9.36
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0146",
+   "book": "antoinetteromances4",
+   "human_seconds": 3.22,
+   "lora": {
+    "f0_corr": 0.6297317457006323,
+    "mcd": 585.67824362735,
+    "dur_ratio": 1.5652173913043477
+   },
+   "clone": {
+    "f0_corr": -0.03063615095988896,
+    "mcd": 469.67638578029806,
+    "dur_ratio": 1.391304347826087
+   },
+   "human_vs_human": {
+    "f0_corr": 0.814391848550282,
+    "mcd": 548.3268254877823,
+    "dur_ratio": 1.9068322981366457,
+    "anchor_seconds": 11.22
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0154",
+   "book": "antoinetteromances4",
+   "human_seconds": 6.14,
+   "lora": {
+    "f0_corr": 0.6688629391668308,
+    "mcd": 419.3459766882588,
+    "dur_ratio": 0.7687296416938111
+   },
+   "clone": {
+    "f0_corr": 0.8444262949167584,
+    "mcd": 366.2859599648089,
+    "dur_ratio": 1.01628664495114
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8841516103653779,
+    "mcd": 527.361300251681,
+    "dur_ratio": 0.8273683496199783,
+    "anchor_seconds": 10.16
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0155",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.080041666666666,
+   "lora": {
+    "f0_corr": 0.7242333905454367,
+    "mcd": 523.6467715393699,
+    "dur_ratio": 0.9448741398118454
+   },
+   "clone": {
+    "f0_corr": -0.2375307778385277,
+    "mcd": 632.4207359658103,
+    "dur_ratio": 1.1810926747648067
+   },
+   "human_vs_human": {
+    "f0_corr": 0.43501401707249016,
+    "mcd": 658.7400445968026,
+    "dur_ratio": 1.0,
+    "anchor_seconds": 12.24
+   }
+  },
+  {
+   "id": "antoinetteromances4-02_0158",
+   "book": "antoinetteromances4",
+   "human_seconds": 5.080041666666666,
+   "lora": {
+    "f0_corr": 0.45136065112394935,
+    "mcd": 500.68938059572196,
+    "dur_ratio": 1.4015633073875708
+   },
+   "clone": {
+    "f0_corr": 0.7450988875116874,
+    "mcd": 385.7441374997632,
+    "dur_ratio": 1.259832186415794
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6645812929438163,
+    "mcd": 582.6459762470676,
+    "dur_ratio": 1.409445460585133,
+    "anchor_seconds": 7.16
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-01_0008",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.160041666666666,
+   "lora": {
+    "f0_corr": 0.7022069787636,
+    "mcd": 488.7604910478357,
+    "dur_ratio": 1.3407743204473903
+   },
+   "clone": {
+    "f0_corr": 0.2753457298343696,
+    "mcd": 401.8879119758536,
+    "dur_ratio": 1.3296012011103286
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8672127868161729,
+    "mcd": 565.3378590801632,
+    "dur_ratio": 1.1312841522104735,
+    "anchor_seconds": 8.1
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-01_0016",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 8.100041666666666,
+   "lora": {
+    "f0_corr": 0.5838286655387319,
+    "mcd": 481.32791922761567,
+    "dur_ratio": 1.4123384138970478
+   },
+   "clone": {
+    "f0_corr": 0.7589634844976844,
+    "mcd": 435.00832582607563,
+    "dur_ratio": 1.2049320733946842
+   },
+   "human_vs_human": {
+    "f0_corr": 0.839592950622992,
+    "mcd": 611.2911118846015,
+    "dur_ratio": 0.7777737768838638,
+    "anchor_seconds": 10.48
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-01_0021",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.3,
+   "lora": {
+    "f0_corr": 0.613385043674032,
+    "mcd": 505.37702201972553,
+    "dur_ratio": 1.1555555555555557
+   },
+   "clone": {
+    "f0_corr": 0.7762746910852487,
+    "mcd": 441.65090837454625,
+    "dur_ratio": 1.2952380952380953
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8230734537261043,
+    "mcd": 576.6166323010873,
+    "dur_ratio": 0.6634986772486773,
+    "anchor_seconds": 14.6
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-01_0032",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.180041666666667,
+   "lora": {
+    "f0_corr": 0.4571871860419601,
+    "mcd": 452.0616258828445,
+    "dur_ratio": 1.358838129603971
+   },
+   "clone": {
+    "f0_corr": 0.5507477027791622,
+    "mcd": 491.6829218510388,
+    "dur_ratio": 1.1674624455497853
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9007550222257652,
+    "mcd": 549.9608788648776,
+    "dur_ratio": 2.4928080860437993,
+    "anchor_seconds": 10.42
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0004",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 10.420041666666666,
+   "lora": {
+    "f0_corr": 0.6077088103886316,
+    "mcd": 499.43431963988,
+    "dur_ratio": 1.2053694602948646
+   },
+   "clone": {
+    "f0_corr": 0.8846411569826597,
+    "mcd": 382.4640115126287,
+    "dur_ratio": 1.1823369228370009
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7905056135713069,
+    "mcd": 530.6191918293342,
+    "dur_ratio": 0.38004086675917004,
+    "anchor_seconds": 11.12
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0014",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.9600416666666667,
+   "lora": {
+    "f0_corr": 0.6881000367888044,
+    "mcd": 562.5064745522438,
+    "dur_ratio": 1.4545301501457266
+   },
+   "clone": {
+    "f0_corr": -0.38113826516914967,
+    "mcd": 402.56651833646083,
+    "dur_ratio": 1.5151355730684652
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7101629726194999,
+    "mcd": 565.7193350076388,
+    "dur_ratio": 1.8080723056365147,
+    "anchor_seconds": 7.16
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0017",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.160041666666666,
+   "lora": {
+    "f0_corr": 0.8251531934353513,
+    "mcd": 477.4410445551945,
+    "dur_ratio": 1.2513893657508979
+   },
+   "clone": {
+    "f0_corr": 0.45778311681063943,
+    "mcd": 443.62501466967257,
+    "dur_ratio": 1.273741423758009
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7557757168750692,
+    "mcd": 563.8003812940921,
+    "dur_ratio": 0.48184659074376895,
+    "anchor_seconds": 7.78
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0018",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.4500416666666665,
+   "lora": {
+    "f0_corr": 0.4591541184917708,
+    "mcd": 506.82767080523007,
+    "dur_ratio": 1.576792550814604
+   },
+   "clone": {
+    "f0_corr": 0.7873299133511652,
+    "mcd": 384.07974317400806,
+    "dur_ratio": 1.4376637963309622
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7180382380650059,
+    "mcd": 591.8577694118708,
+    "dur_ratio": 1.2550693832200095,
+    "anchor_seconds": 12.99
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0021",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.330041666666666,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 485.544256772667,
+    "dur_ratio": 1.311765668151769
+   },
+   "clone": {
+    "f0_corr": -0.06114571989420938,
+    "mcd": 466.02342927885815,
+    "dur_ratio": 1.1824366586156794
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7648930906769648,
+    "mcd": 543.3941135441008,
+    "dur_ratio": 1.9999903773058383,
+    "anchor_seconds": 8.66
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0022",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 8.660041666666666,
+   "lora": {
+    "f0_corr": 0.6868009871558123,
+    "mcd": 520.3164365537965,
+    "dur_ratio": 1.2009180094399086
+   },
+   "clone": {
+    "f0_corr": 0.7701014493586762,
+    "mcd": 423.8681135089158,
+    "dur_ratio": 1.191680178598063
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7959958243630413,
+    "mcd": 544.5663753396615,
+    "dur_ratio": 1.1131634278126068,
+    "anchor_seconds": 9.64
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0024",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.640041666666667,
+   "lora": {
+    "f0_corr": 0.6235430587647014,
+    "mcd": 511.8931800438957,
+    "dur_ratio": 1.2282104589796896
+   },
+   "clone": {
+    "f0_corr": 0.2810787390572136,
+    "mcd": 383.54274352668324,
+    "dur_ratio": 1.3692886873760053
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8425229959849271,
+    "mcd": 579.3751985522229,
+    "dur_ratio": 0.9585064034128483,
+    "anchor_seconds": 9.24
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0025",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.240041666666666,
+   "lora": {
+    "f0_corr": 0.6957437987095101,
+    "mcd": 451.8027320738158,
+    "dur_ratio": 1.3073534120066197
+   },
+   "clone": {
+    "f0_corr": 0.028081576310658565,
+    "mcd": 397.6733081992972,
+    "dur_ratio": 1.1947998069994272
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8364190759221202,
+    "mcd": 556.1763920603186,
+    "dur_ratio": 0.571430504011075,
+    "anchor_seconds": 14.92
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0027",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.2800416666666665,
+   "lora": {
+    "f0_corr": 0.829090879698975,
+    "mcd": 501.7527898449706,
+    "dur_ratio": 1.28786862477411
+   },
+   "clone": {
+    "f0_corr": 0.6697151499786022,
+    "mcd": 392.76308838744086,
+    "dur_ratio": 1.2272630424317992
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7809030797336576,
+    "mcd": 576.9586532806532,
+    "dur_ratio": 1.8257510594139883,
+    "anchor_seconds": 9.64
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0033",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.640041666666667,
+   "lora": {
+    "f0_corr": 0.8440795301969087,
+    "mcd": 446.6160933335502,
+    "dur_ratio": 1.136924546487956
+   },
+   "clone": {
+    "f0_corr": 0.8773259447188877,
+    "mcd": 439.3132729987964,
+    "dur_ratio": 1.1037296692182348
+   },
+   "human_vs_human": {
+    "f0_corr": 0.648084074112119,
+    "mcd": 599.0972369086505,
+    "dur_ratio": 0.5601678761761921,
+    "anchor_seconds": 10.62
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0034",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.400041666666667,
+   "lora": {
+    "f0_corr": 0.8445172616207335,
+    "mcd": 473.2116803171278,
+    "dur_ratio": 1.3629524463545806
+   },
+   "clone": {
+    "f0_corr": 0.9332208532801821,
+    "mcd": 432.070197389203,
+    "dur_ratio": 1.4666553498815595
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6944252267891905,
+    "mcd": 566.0703059813267,
+    "dur_ratio": 0.9666669238663282,
+    "anchor_seconds": 9.04
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0035",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.220041666666667,
+   "lora": {
+    "f0_corr": 0.05350846229966047,
+    "mcd": 458.2367000996083,
+    "dur_ratio": 1.3026715942561122
+   },
+   "clone": {
+    "f0_corr": 0.087979930515756,
+    "mcd": 390.3848968864938,
+    "dur_ratio": 1.5172292686041777
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5976908122388137,
+    "mcd": 527.7335918919948,
+    "dur_ratio": 0.731802907064918,
+    "anchor_seconds": 16.58
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0041",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.8200416666666666,
+   "lora": {
+    "f0_corr": 0.8338644557539882,
+    "mcd": 485.06034792817104,
+    "dur_ratio": 1.5078369564031806
+   },
+   "clone": {
+    "f0_corr": 0.6855643315068791,
+    "mcd": 354.007411484258,
+    "dur_ratio": 1.3402995168028273
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8532070822526769,
+    "mcd": 526.2543124970211,
+    "dur_ratio": 3.3402777020320458,
+    "anchor_seconds": 12.76
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0042",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 12.76,
+   "lora": {
+    "f0_corr": 0.7733459441081861,
+    "mcd": 463.0303356948378,
+    "dur_ratio": 1.0407523510971786
+   },
+   "clone": {
+    "f0_corr": 0.5510829215062812,
+    "mcd": 466.0581046487552,
+    "dur_ratio": 1.0094043887147337
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8052746546757621,
+    "mcd": 531.4364528109217,
+    "dur_ratio": 0.4858934169278997,
+    "anchor_seconds": 11.92
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0044",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.2,
+   "lora": {
+    "f0_corr": 0.26574871408570583,
+    "mcd": 500.5454778106491,
+    "dur_ratio": 1.2516129032258063
+   },
+   "clone": {
+    "f0_corr": 0.8791784341349554,
+    "mcd": 421.92090405476375,
+    "dur_ratio": 1.1096774193548387
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5235861586438733,
+    "mcd": 479.43754926493,
+    "dur_ratio": 0.9225806451612902,
+    "anchor_seconds": 13.3
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0045",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.72,
+   "lora": {
+    "f0_corr": 0.6682454347809831,
+    "mcd": 437.605323596934,
+    "dur_ratio": 1.3146853146853146
+   },
+   "clone": {
+    "f0_corr": 0.6294923913943882,
+    "mcd": 443.8682108450317,
+    "dur_ratio": 1.2447552447552448
+   },
+   "human_vs_human": {
+    "f0_corr": 0.692977382087171,
+    "mcd": 545.2189283142379,
+    "dur_ratio": 1.3251821095571095,
+    "anchor_seconds": 7.58
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0046",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.580041666666666,
+   "lora": {
+    "f0_corr": 0.5413614654606751,
+    "mcd": 449.24186228970154,
+    "dur_ratio": 1.287591866799325
+   },
+   "clone": {
+    "f0_corr": 0.9001336730517462,
+    "mcd": 389.2754021963076,
+    "dur_ratio": 1.1187273596781022
+   },
+   "human_vs_human": {
+    "f0_corr": 0.3767282432309668,
+    "mcd": 586.3029157301847,
+    "dur_ratio": 0.41160723610798094,
+    "anchor_seconds": 8.22
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0049",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.12,
+   "lora": {
+    "f0_corr": 0.5958382409577236,
+    "mcd": 502.24058795392796,
+    "dur_ratio": 1.358974358974359
+   },
+   "clone": {
+    "f0_corr": 0.8988227580327933,
+    "mcd": 410.8269411836693,
+    "dur_ratio": 1.5128205128205128
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5115397987014768,
+    "mcd": 590.3740384491401,
+    "dur_ratio": 1.6346287393162393,
+    "anchor_seconds": 11.2
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0057",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.100041666666667,
+   "lora": {
+    "f0_corr": 0.616338658971873,
+    "mcd": 463.57591046742095,
+    "dur_ratio": 1.2705778547560886
+   },
+   "clone": {
+    "f0_corr": 0.40028618378698183,
+    "mcd": 467.96004868760923,
+    "dur_ratio": 1.3333224401761423
+   },
+   "human_vs_human": {
+    "f0_corr": 0.4114483168390519,
+    "mcd": 552.2144030393231,
+    "dur_ratio": 1.1960686595697747,
+    "anchor_seconds": 13.06
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0059",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.1,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 404.1534788125472,
+    "dur_ratio": 1.1934426229508197
+   },
+   "clone": {
+    "f0_corr": 0.5668350192572327,
+    "mcd": 416.33137500318065,
+    "dur_ratio": 1.3508196721311476
+   },
+   "human_vs_human": {
+    "f0_corr": 0.36529305740930657,
+    "mcd": 588.7514185723893,
+    "dur_ratio": 1.14099043715847,
+    "anchor_seconds": 12.54
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0062",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.960041666666666,
+   "lora": {
+    "f0_corr": 0.1937604834584016,
+    "mcd": 475.9270897903238,
+    "dur_ratio": 1.1953951425099227
+   },
+   "clone": {
+    "f0_corr": 0.7361140107429396,
+    "mcd": 415.7208073413445,
+    "dur_ratio": 1.2183835106351137
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5705550375228058,
+    "mcd": 518.1553175542659,
+    "dur_ratio": 0.8017193383660299,
+    "anchor_seconds": 10.73
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0066",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.58,
+   "lora": {
+    "f0_corr": 0.7342558767941861,
+    "mcd": 503.9497556795975,
+    "dur_ratio": 1.1612903225806452
+   },
+   "clone": {
+    "f0_corr": 0.9263013447251908,
+    "mcd": 385.79565853922514,
+    "dur_ratio": 1.2616487455197132
+   },
+   "human_vs_human": {
+    "f0_corr": 0.4752229874396847,
+    "mcd": 556.159241809802,
+    "dur_ratio": 0.9229465352449223,
+    "anchor_seconds": 16.7
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0069",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.150041666666667,
+   "lora": {
+    "f0_corr": 0.29333717892190503,
+    "mcd": 461.4438438048311,
+    "dur_ratio": 1.1650391178064903
+   },
+   "clone": {
+    "f0_corr": 0.1338950364332382,
+    "mcd": 428.3817220629225,
+    "dur_ratio": 1.413580796271875
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6317530947942939,
+    "mcd": 523.6035679028224,
+    "dur_ratio": 2.242700301777494,
+    "anchor_seconds": 11.55
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0070",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 11.55,
+   "lora": {
+    "f0_corr": 0.6694287096960141,
+    "mcd": 465.1840041757013,
+    "dur_ratio": 1.232900432900433
+   },
+   "clone": {
+    "f0_corr": 0.3957498032509058,
+    "mcd": 420.17551462513416,
+    "dur_ratio": 1.2190512265512266
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5151361186682553,
+    "mcd": 526.5279199089522,
+    "dur_ratio": 0.6857178932178932,
+    "anchor_seconds": 7.92
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-02_0076",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.920041666666667,
+   "lora": {
+    "f0_corr": 0.5439511865815801,
+    "mcd": 458.9142287122322,
+    "dur_ratio": 1.3030234478985274
+   },
+   "clone": {
+    "f0_corr": 0.5123956944604036,
+    "mcd": 412.5790313942385,
+    "dur_ratio": 1.323225361819435
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7912145726946258,
+    "mcd": 577.7492048556983,
+    "dur_ratio": 0.8838389949547824,
+    "anchor_seconds": 7.0
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0011",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.000041666666666,
+   "lora": {
+    "f0_corr": 0.7646311088177485,
+    "mcd": 497.778805020335,
+    "dur_ratio": 1.4514199320242143
+   },
+   "clone": {
+    "f0_corr": 0.47797018786474343,
+    "mcd": 373.7006786553928,
+    "dur_ratio": 1.3371348980065594
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8123323064832133,
+    "mcd": 575.4603961494521,
+    "dur_ratio": 1.342855102052964,
+    "anchor_seconds": 9.4
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0012",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.400041666666667,
+   "lora": {
+    "f0_corr": 0.786668210530308,
+    "mcd": 475.7537129408385,
+    "dur_ratio": 1.336164290051906
+   },
+   "clone": {
+    "f0_corr": 0.5840522804888636,
+    "mcd": 431.42654755014064,
+    "dur_ratio": 1.2765900860368526
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7689982507271435,
+    "mcd": 571.3187043668954,
+    "dur_ratio": 0.8617027406793409,
+    "anchor_seconds": 8.1
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0013",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 8.100041666666666,
+   "lora": {
+    "f0_corr": 0.7769590175080253,
+    "mcd": 437.7833394486083,
+    "dur_ratio": 1.2543145354190566
+   },
+   "clone": {
+    "f0_corr": 0.6587564405315485,
+    "mcd": 405.1411645513179,
+    "dur_ratio": 1.2246850582044333
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5253835182044478,
+    "mcd": 590.7379892572354,
+    "dur_ratio": 0.5345702954202911,
+    "anchor_seconds": 14.93
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0014",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.330041666666666,
+   "lora": {
+    "f0_corr": 0.32022022112157905,
+    "mcd": 483.82768538693836,
+    "dur_ratio": 1.3487168137335093
+   },
+   "clone": {
+    "f0_corr": 0.46502811369626007,
+    "mcd": 461.5453864082999,
+    "dur_ratio": 1.3487168137335093
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7033142923561075,
+    "mcd": 623.5912621834261,
+    "dur_ratio": 2.4480230174844353,
+    "anchor_seconds": 10.6
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0017",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 10.600041666666666,
+   "lora": {
+    "f0_corr": 0.5321970645624273,
+    "mcd": 443.62698273120725,
+    "dur_ratio": 1.1849010027476308
+   },
+   "clone": {
+    "f0_corr": 0.8248672098176758,
+    "mcd": 426.81031864468184,
+    "dur_ratio": 1.0565996202845114
+   },
+   "human_vs_human": {
+    "f0_corr": 0.63949168859672,
+    "mcd": 619.3849055218723,
+    "dur_ratio": 1.0037735700724448,
+    "anchor_seconds": 10.64
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0026",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 10.640041666666667,
+   "lora": {
+    "f0_corr": 0.8355144603915764,
+    "mcd": 436.6174504237314,
+    "dur_ratio": 1.2706717157279301
+   },
+   "clone": {
+    "f0_corr": 0.6848189832164798,
+    "mcd": 418.214716174671,
+    "dur_ratio": 1.2706717157279301
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7065570438511078,
+    "mcd": 580.2269474692755,
+    "dur_ratio": 0.8890981786568819,
+    "anchor_seconds": 9.46
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0027",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.460041666666667,
+   "lora": {
+    "f0_corr": 0.7662179750174182,
+    "mcd": 464.0152099171304,
+    "dur_ratio": 1.2938632229421116
+   },
+   "clone": {
+    "f0_corr": 0.4620777320890941,
+    "mcd": 368.4137156354656,
+    "dur_ratio": 1.1754705097317224
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7728521885355196,
+    "mcd": 581.2718944269843,
+    "dur_ratio": 0.5285433027514853,
+    "anchor_seconds": 11.7
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0029",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.000041666666666,
+   "lora": {
+    "f0_corr": -0.05035507378210369,
+    "mcd": 490.86205275663775,
+    "dur_ratio": 1.3599886667611103
+   },
+   "clone": {
+    "f0_corr": 0.17400426202571473,
+    "mcd": 400.12424768911615,
+    "dur_ratio": 1.3439888000933327
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6297799506615378,
+    "mcd": 566.830258885368,
+    "dur_ratio": 1.3399888334263883,
+    "anchor_seconds": 9.84
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0030",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.7,
+   "lora": {
+    "f0_corr": 0.6180725785378007,
+    "mcd": 466.22468700008505,
+    "dur_ratio": 1.0865671641791046
+   },
+   "clone": {
+    "f0_corr": 0.7480276999893753,
+    "mcd": 376.468733774642,
+    "dur_ratio": 1.2776181592039801
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9088786824785009,
+    "mcd": 570.6323663359733,
+    "dur_ratio": 0.46865671641791046,
+    "anchor_seconds": 12.06
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0033",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.14,
+   "lora": {
+    "f0_corr": 0.2342385666780441,
+    "mcd": 508.90716210967867,
+    "dur_ratio": 1.2484076433121019
+   },
+   "clone": {
+    "f0_corr": 0.4131622562518424,
+    "mcd": 377.8999830964474,
+    "dur_ratio": 1.2484076433121019
+   },
+   "human_vs_human": {
+    "f0_corr": -0.48487260184599046,
+    "mcd": 617.7320149843734,
+    "dur_ratio": 1.1369559447983013,
+    "anchor_seconds": 8.92
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0034",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.5700416666666666,
+   "lora": {
+    "f0_corr": 0.4190168968470946,
+    "mcd": 556.3036600395624,
+    "dur_ratio": 1.5237917391253606
+   },
+   "clone": {
+    "f0_corr": -0.013494739219393039,
+    "mcd": 459.12326496238194,
+    "dur_ratio": 1.1652641775889636
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5483247514720991,
+    "mcd": 581.3522100810432,
+    "dur_ratio": 1.4985936205226364,
+    "anchor_seconds": 9.67
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0035",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.350041666666667,
+   "lora": {
+    "f0_corr": 0.8506536878055609,
+    "mcd": 461.3196684937132,
+    "dur_ratio": 1.3457839113402543
+   },
+   "clone": {
+    "f0_corr": 0.683801921128908,
+    "mcd": 365.23623342908724,
+    "dur_ratio": 1.4055965296220434
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5793440853140153,
+    "mcd": 585.5086623251101,
+    "dur_ratio": 0.8074781349054914,
+    "anchor_seconds": 16.42
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0037",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.320041666666667,
+   "lora": {
+    "f0_corr": 0.6275772195640139,
+    "mcd": 533.5779849123213,
+    "dur_ratio": 1.499985532546947
+   },
+   "clone": {
+    "f0_corr": -0.40172524372082324,
+    "mcd": 497.29222523518484,
+    "dur_ratio": 1.5185038724549338
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9099333732276284,
+    "mcd": 614.0608773430415,
+    "dur_ratio": 2.8008989110830336,
+    "anchor_seconds": 12.1
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0038",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 12.1,
+   "lora": {
+    "f0_corr": 0.2729129075384169,
+    "mcd": 445.4328666237248,
+    "dur_ratio": 1.2429752066115702
+   },
+   "clone": {
+    "f0_corr": 0.37886868025698983,
+    "mcd": 411.2287068883956,
+    "dur_ratio": 1.1371900826446282
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8197366381355875,
+    "mcd": 553.7694059447746,
+    "dur_ratio": 0.674383608815427,
+    "anchor_seconds": 8.16
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0042",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 8.160041666666666,
+   "lora": {
+    "f0_corr": 0.6681322125598457,
+    "mcd": 484.79512820706645,
+    "dur_ratio": 1.4803845977093664
+   },
+   "clone": {
+    "f0_corr": 0.4409321435659262,
+    "mcd": 445.1958089260096,
+    "dur_ratio": 1.2843071675491855
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5846341781805624,
+    "mcd": 536.5364499850525,
+    "dur_ratio": 1.159312912005147,
+    "anchor_seconds": 9.46
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0043",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.460041666666667,
+   "lora": {
+    "f0_corr": 0.7286605024726622,
+    "mcd": 476.16335089170354,
+    "dur_ratio": 1.4545390480133544
+   },
+   "clone": {
+    "f0_corr": 0.7101251152086959,
+    "mcd": 390.302894322548,
+    "dur_ratio": 1.2515845155720773
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6461692777125688,
+    "mcd": 576.4227313813116,
+    "dur_ratio": 0.5560273254610401,
+    "anchor_seconds": 11.35
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0045",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.260041666666667,
+   "lora": {
+    "f0_corr": 0.8636765765364385,
+    "mcd": 519.3037283183703,
+    "dur_ratio": 1.231929404868466
+   },
+   "clone": {
+    "f0_corr": 0.7200429785901612,
+    "mcd": 434.65201297107933,
+    "dur_ratio": 1.3231834348587226
+   },
+   "human_vs_human": {
+    "f0_corr": 0.12992394440971386,
+    "mcd": 573.5527822190338,
+    "dur_ratio": 1.1577855055013822,
+    "anchor_seconds": 12.01
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0046",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.09,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 465.2869993960172,
+    "dur_ratio": 1.3399014778325125
+   },
+   "clone": {
+    "f0_corr": 0.5247536010561976,
+    "mcd": 391.4829815056395,
+    "dur_ratio": 1.1954022988505748
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8814671456196499,
+    "mcd": 571.6758138182272,
+    "dur_ratio": 0.9720853858784894,
+    "anchor_seconds": 10.66
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0052",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.92,
+   "lora": {
+    "f0_corr": 0.7235888399103976,
+    "mcd": 497.09152981725356,
+    "dur_ratio": 1.3513513513513513
+   },
+   "clone": {
+    "f0_corr": 0.6691782395218534,
+    "mcd": 383.8763065275106,
+    "dur_ratio": 1.2567567567567568
+   },
+   "human_vs_human": {
+    "f0_corr": -0.013786874268519652,
+    "mcd": 571.1270995189101,
+    "dur_ratio": 0.800682713963964,
+    "anchor_seconds": 9.44
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0055",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.7400416666666665,
+   "lora": {
+    "f0_corr": 0.7986394302098622,
+    "mcd": 420.43023801805367,
+    "dur_ratio": 1.2320566802331203
+   },
+   "clone": {
+    "f0_corr": 0.8255270132046056,
+    "mcd": 359.9677327006998,
+    "dur_ratio": 1.552728966869138
+   },
+   "human_vs_human": {
+    "f0_corr": 0.751141528932539,
+    "mcd": 556.9079017893228,
+    "dur_ratio": 0.9915612556148417,
+    "anchor_seconds": 12.22
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0056",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.7000416666666665,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 417.9757372740291,
+    "dur_ratio": 1.3106266788414997
+   },
+   "clone": {
+    "f0_corr": 0.5521377481592981,
+    "mcd": 374.65870289531915,
+    "dur_ratio": 1.3787111816384607
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7568712336903792,
+    "mcd": 552.5295740365226,
+    "dur_ratio": 1.599994680898219,
+    "anchor_seconds": 7.52
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0057",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.520041666666667,
+   "lora": {
+    "f0_corr": 0.9426333669692142,
+    "mcd": 417.88066115846,
+    "dur_ratio": 1.2021209988863093
+   },
+   "clone": {
+    "f0_corr": 0.1860488822443802,
+    "mcd": 403.2931079116282,
+    "dur_ratio": 1.244673954599099
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7816926749080838,
+    "mcd": 549.5219542840318,
+    "dur_ratio": 0.5425557260875106,
+    "anchor_seconds": 10.04
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0068",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.080041666666666,
+   "lora": {
+    "f0_corr": 0.5092735613763231,
+    "mcd": 446.9447596098449,
+    "dur_ratio": 1.2548891453314408
+   },
+   "clone": {
+    "f0_corr": 0.6164025099295828,
+    "mcd": 439.7797972997358,
+    "dur_ratio": 1.2156738595398333
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5702901662381683,
+    "mcd": 567.6833198434439,
+    "dur_ratio": 1.4607693957373802,
+    "anchor_seconds": 10.7
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0076",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.96,
+   "lora": {
+    "f0_corr": 0.32335190574351536,
+    "mcd": 459.16000211102966,
+    "dur_ratio": 1.3691275167785235
+   },
+   "clone": {
+    "f0_corr": 0.8801108623709472,
+    "mcd": 426.7543694667669,
+    "dur_ratio": 1.610738255033557
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6957320511198423,
+    "mcd": 594.7861512582859,
+    "dur_ratio": 0.7953090044742729,
+    "anchor_seconds": 9.12
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0078",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.7400416666666665,
+   "lora": {
+    "f0_corr": 0.8495172443413228,
+    "mcd": 385.3292513848056,
+    "dur_ratio": 1.1645467251518533
+   },
+   "clone": {
+    "f0_corr": 0.10192676441436459,
+    "mcd": 345.07637166910104,
+    "dur_ratio": 1.367076590395654
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5981533837018819,
+    "mcd": 542.4612992352618,
+    "dur_ratio": 0.9240513005335749,
+    "anchor_seconds": 10.87
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0084",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.380041666666667,
+   "lora": {
+    "f0_corr": 0.7826749776370141,
+    "mcd": 457.9159997866684,
+    "dur_ratio": 1.4794379809933316
+   },
+   "clone": {
+    "f0_corr": 0.7242430674365871,
+    "mcd": 391.1684665289515,
+    "dur_ratio": 1.4063793152652657
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7199540510902821,
+    "mcd": 564.2914126469993,
+    "dur_ratio": 1.4817210642973335,
+    "anchor_seconds": 13.76
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0085",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.49,
+   "lora": {
+    "f0_corr": 0.05157038233504971,
+    "mcd": 487.5860737563085,
+    "dur_ratio": 1.0970724191063175
+   },
+   "clone": {
+    "f0_corr": 0.3204437466620339,
+    "mcd": 421.98252312424296,
+    "dur_ratio": 1.2942989214175655
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5498225580116354,
+    "mcd": 571.3890859960649,
+    "dur_ratio": 1.1201913199794555,
+    "anchor_seconds": 7.27
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0086",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 7.270041666666667,
+   "lora": {
+    "f0_corr": 0.5654683409070502,
+    "mcd": 442.84027356201557,
+    "dur_ratio": 1.2984794906035613
+   },
+   "clone": {
+    "f0_corr": 0.7384300800472532,
+    "mcd": 375.38611249612603,
+    "dur_ratio": 1.1774405236100205
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7411699743044138,
+    "mcd": 597.4833795915899,
+    "dur_ratio": 1.341125967870427,
+    "anchor_seconds": 9.75
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0090",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.750041666666666,
+   "lora": {
+    "f0_corr": 0.602171274166686,
+    "mcd": 480.6399411454147,
+    "dur_ratio": 1.2964047162191616
+   },
+   "clone": {
+    "f0_corr": 0.6320191539838055,
+    "mcd": 394.45679277248064,
+    "dur_ratio": 1.3128149025004168
+   },
+   "human_vs_human": {
+    "f0_corr": 0.892946893706137,
+    "mcd": 554.8322060321196,
+    "dur_ratio": 0.5046175016346085,
+    "anchor_seconds": 11.62
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0093",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.920041666666667,
+   "lora": {
+    "f0_corr": 0.7564785825395535,
+    "mcd": 500.4346103441944,
+    "dur_ratio": 1.3495820665475393
+   },
+   "clone": {
+    "f0_corr": 0.31644261797748235,
+    "mcd": 381.4539976471607,
+    "dur_ratio": 1.3658420914457023
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8090640972526341,
+    "mcd": 578.5979548218409,
+    "dur_ratio": 1.3617770852211617,
+    "anchor_seconds": 15.06
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0096",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.7,
+   "lora": {
+    "f0_corr": 0.7172844649278862,
+    "mcd": 439.9031760145182,
+    "dur_ratio": 1.182089552238806
+   },
+   "clone": {
+    "f0_corr": 0.5816468207910983,
+    "mcd": 382.1361184033656,
+    "dur_ratio": 1.3492537313432835
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8849915401472525,
+    "mcd": 555.8252805108068,
+    "dur_ratio": 1.2477674129353236,
+    "anchor_seconds": 8.36
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0097",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 8.360041666666667,
+   "lora": {
+    "f0_corr": 0.8508001880312751,
+    "mcd": 449.81367788274736,
+    "dur_ratio": 1.3779835626816053
+   },
+   "clone": {
+    "f0_corr": 0.528929345374879,
+    "mcd": 410.76129227390476,
+    "dur_ratio": 1.2248742779392048
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7365652429874535,
+    "mcd": 554.3949215025528,
+    "dur_ratio": 1.239233257410001,
+    "anchor_seconds": 10.36
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0098",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 10.360041666666667,
+   "lora": {
+    "f0_corr": 0.8535063880711038,
+    "mcd": 426.47134347463407,
+    "dur_ratio": 1.212350336428827
+   },
+   "clone": {
+    "f0_corr": 0.8133846232695362,
+    "mcd": 401.0320863599077,
+    "dur_ratio": 1.1660184764379165
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8702456291066436,
+    "mcd": 559.0765181661284,
+    "dur_ratio": 0.9806950583371205,
+    "anchor_seconds": 10.16
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0105",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 10.160041666666666,
+   "lora": {
+    "f0_corr": 0.8571259047501304,
+    "mcd": 458.1821566799324,
+    "dur_ratio": 1.4645609228964778
+   },
+   "clone": {
+    "f0_corr": 0.8904056282073893,
+    "mcd": 400.15053536818675,
+    "dur_ratio": 1.283459303398526
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8642914509967358,
+    "mcd": 560.4570196155033,
+    "dur_ratio": 0.37204981934949416,
+    "anchor_seconds": 8.13
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0107",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.7800416666666665,
+   "lora": {
+    "f0_corr": 0.8786677421203066,
+    "mcd": 526.3480297129591,
+    "dur_ratio": 1.5026289392753607
+   },
+   "clone": {
+    "f0_corr": -0.35100111961632185,
+    "mcd": 423.8517129961267,
+    "dur_ratio": 1.5237927271524785
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5171819692460341,
+    "mcd": 614.8423383481407,
+    "dur_ratio": 1.1507919886244642,
+    "anchor_seconds": 14.09
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0108",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.350041666666667,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 449.41800379705705,
+    "dur_ratio": 1.416078390053735
+   },
+   "clone": {
+    "f0_corr": 0.27426550624376667,
+    "mcd": 431.7385321619983,
+    "dur_ratio": 1.3792971331692225
+   },
+   "human_vs_human": {
+    "f0_corr": 0.2396413184133754,
+    "mcd": 536.6035515116641,
+    "dur_ratio": 2.239068591297018,
+    "anchor_seconds": 9.74
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0110",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 9.740041666666666,
+   "lora": {
+    "f0_corr": -0.22634143907105922,
+    "mcd": 437.49459670630324,
+    "dur_ratio": 1.2073870320541065
+   },
+   "clone": {
+    "f0_corr": 0.47306673849654973,
+    "mcd": 387.2482285276564,
+    "dur_ratio": 1.1416788942552436
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6867387331884627,
+    "mcd": 553.0300239696317,
+    "dur_ratio": 0.560576828470104,
+    "anchor_seconds": 8.95
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0111",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.460041666666666,
+   "lora": {
+    "f0_corr": 0.23878258048611103,
+    "mcd": 468.6417945749503,
+    "dur_ratio": 1.6117093123526227
+   },
+   "clone": {
+    "f0_corr": 0.11287408901634244,
+    "mcd": 411.04464627629335,
+    "dur_ratio": 1.391930769759083
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7861181995512111,
+    "mcd": 552.3292066288471,
+    "dur_ratio": 0.6391968925756061,
+    "anchor_seconds": 9.5
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0113",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.4900416666666665,
+   "lora": {
+    "f0_corr": 0.36580109938162136,
+    "mcd": 455.5857680709777,
+    "dur_ratio": 1.3753417461587134
+   },
+   "clone": {
+    "f0_corr": -0.1933333199303477,
+    "mcd": 388.977006580761,
+    "dur_ratio": 1.512875920774585
+   },
+   "human_vs_human": {
+    "f0_corr": 0.5413103884401569,
+    "mcd": 580.4572575274432,
+    "dur_ratio": 0.8853762490896718,
+    "anchor_seconds": 12.59
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0116",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 3.09,
+   "lora": {
+    "f0_corr": null,
+    "mcd": 519.924042570664,
+    "dur_ratio": 1.4498381877022655
+   },
+   "clone": {
+    "f0_corr": 0.7125869902764347,
+    "mcd": 403.8716242856136,
+    "dur_ratio": 2.097087378640777
+   },
+   "human_vs_human": {
+    "f0_corr": 0.4884030778420735,
+    "mcd": 597.1348921241245,
+    "dur_ratio": 0.9449838187702265,
+    "anchor_seconds": 9.5
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0117",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 2.92,
+   "lora": {
+    "f0_corr": 0.39791697253116093,
+    "mcd": 486.8054562061528,
+    "dur_ratio": 1.534246575342466
+   },
+   "clone": {
+    "f0_corr": 0.22038833289045298,
+    "mcd": 421.82807715237715,
+    "dur_ratio": 1.6164383561643836
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7066694959599383,
+    "mcd": 598.2254793659952,
+    "dur_ratio": 2.2534246575342465,
+    "anchor_seconds": 11.4
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0121",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.58,
+   "lora": {
+    "f0_corr": 0.0022568658707412333,
+    "mcd": 449.2345523468584,
+    "dur_ratio": 1.2644376899696048
+   },
+   "clone": {
+    "f0_corr": -0.018421799984615413,
+    "mcd": 441.3969347193542,
+    "dur_ratio": 1.1914893617021276
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8270516880376402,
+    "mcd": 550.1641983648551,
+    "dur_ratio": 0.7325291286727457,
+    "anchor_seconds": 10.06
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0124",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 4.820041666666667,
+   "lora": {
+    "f0_corr": 0.20675043060164677,
+    "mcd": 409.85129810714665,
+    "dur_ratio": 1.1452183158859277
+   },
+   "clone": {
+    "f0_corr": -0.0698809361351029,
+    "mcd": 380.9383420957658,
+    "dur_ratio": 1.2448025172673127
+   },
+   "human_vs_human": {
+    "f0_corr": 0.26289131581129777,
+    "mcd": 610.046078670865,
+    "dur_ratio": 1.087136176208712,
+    "anchor_seconds": 11.94
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0128",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 5.2400416666666665,
+   "lora": {
+    "f0_corr": 0.5265555453772979,
+    "mcd": 512.0081710678517,
+    "dur_ratio": 1.480904254896192
+   },
+   "clone": {
+    "f0_corr": 0.7545763195878491,
+    "mcd": 378.59419337350823,
+    "dur_ratio": 1.3282337131543165
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6890508792918107,
+    "mcd": 589.04072361799,
+    "dur_ratio": 1.2786157870882071,
+    "anchor_seconds": 13.14
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0129",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.7,
+   "lora": {
+    "f0_corr": 0.5902949133881678,
+    "mcd": 503.9208439184806,
+    "dur_ratio": 1.1582089552238806
+   },
+   "clone": {
+    "f0_corr": 0.2326536142996329,
+    "mcd": 486.9376443392334,
+    "dur_ratio": 1.1462686567164178
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8838453922664058,
+    "mcd": 613.7953764702892,
+    "dur_ratio": 0.9611940298507463,
+    "anchor_seconds": 14.82
+   }
+  },
+  {
+   "id": "celebratedcrimesv1-03_0131",
+   "book": "celebratedcrimesv1",
+   "human_seconds": 6.44,
+   "lora": {
+    "f0_corr": 0.76476272070205,
+    "mcd": 439.6778798274032,
+    "dur_ratio": 1.2670807453416149
+   },
+   "clone": {
+    "f0_corr": -0.14903122976263386,
+    "mcd": 403.07559025343613,
+    "dur_ratio": 1.2919254658385093
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7717884381274641,
+    "mcd": 618.6391507760454,
+    "dur_ratio": 1.3012487060041407,
+    "anchor_seconds": 8.38
+   }
+  }
+ ],
+ "anchor_invalid": [],
+ "ecapa_error": "sibling interpreter not found at /home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/6ef982f4-1dea-43af-affb-24c484d1182e/scratchpad/alexandria-audiobook.git/app/env/bin/python",
+ "source": "ab_test_runtime/experiments/hifitts_9017_generate.json",
+ "provenance": {
+  "script": "ljspeech_score.py",
+  "written": "2026-09-13T09:17:44",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "ff62f3f20da950c2915806971e7c33883ded9f2b",
+   "branch": "feat/hifitts-second-english",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "8f80d41d4ce9c49eab25950e3dd63501903e1c9ec57876336d7233c0b70d0edc"
+  },
+  "args": {
+   "generated": "ab_test_runtime/experiments/hifitts_9017_generate.json",
+   "limit": 0,
+   "out": "ab_test_runtime/experiments/hifitts_9017_score.json"
+  }
+ }
+}

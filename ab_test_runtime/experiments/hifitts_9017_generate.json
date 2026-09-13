@@ -1,0 +1,1393 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "dartagnan03part3-01_0108",
+ "test_books": [
+  "antoinetteromances4",
+  "celebratedcrimesv1"
+ ],
+ "corpus": "Hi-Fi TTS reader 9017 (John Van Stan)",
+ "rows": [
+  {
+   "id": "antoinetteromances4-01_0005",
+   "book": "antoinetteromances4",
+   "text": "Through the clumps he looked for the village spire and the blue smoke of the chimneys, filtering from the cottages through the natural trellis of the limbs.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0005.wav",
+   "human_seconds": 8.380041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0005__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0005__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0011",
+   "book": "antoinetteromances4",
+   "text": "Apart from them, Gilbert, for such was the young man's name, simply so for he had no other, saw no living things:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0011.wav",
+   "human_seconds": 8.180041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0011__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0011__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0014",
+   "book": "antoinetteromances4",
+   "text": "A robust peasant woman was suckling a baby, while another child, a sturdy boy of four or five, was saying a prayer in a loud voice.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0014.wav",
+   "human_seconds": 8.620041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0014__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0014__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0021",
+   "book": "antoinetteromances4",
+   "text": "Instead of one babe at the breast, you are to have the pair.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0021.wav",
+   "human_seconds": 3.4800416666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0021__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0021__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0022",
+   "book": "antoinetteromances4",
+   "text": "In the rude country-made crib he laid his burden, a little boy.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0022.wav",
+   "human_seconds": 5.300041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0022__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0022__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0025",
+   "book": "antoinetteromances4",
+   "text": "\"Your sister?\" inquired the visitor, pointing to the spinner who was also a spinster.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0025.wav",
+   "human_seconds": 6.12,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0025__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0025__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0031",
+   "book": "antoinetteromances4",
+   "text": "The child you see is son of one of my master's farmers, the farmer being ruined.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0031.wav",
+   "human_seconds": 5.66,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0031__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0031__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0036",
+   "book": "antoinetteromances4",
+   "text": "Madeline instantly seized the babe and supplied it with the nourishment it craved with a generous impetuosity deeply affecting the young man.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0036.wav",
+   "human_seconds": 8.500041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0036__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0036__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0039",
+   "book": "antoinetteromances4",
+   "text": "I see that he will fare well here, and I trust he will bring into this cabin a dream of happiness together with his own.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0039.wav",
+   "human_seconds": 6.56,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0039__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0039__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0041",
+   "book": "antoinetteromances4",
+   "text": "but he is rich, and he adds a few pieces for sugar and toys.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0041.wav",
+   "human_seconds": 4.040041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0041__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0041__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0046",
+   "book": "antoinetteromances4",
+   "text": "\"But if the little thing should not live?\" queried the nurse timidly.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0046.wav",
+   "human_seconds": 5.52,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0046__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0046__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0048",
+   "book": "antoinetteromances4",
+   "text": "such a misfortune as seldom happens, responded the gentleman;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0048.wav",
+   "human_seconds": 4.820041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0048__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0048__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0051",
+   "book": "antoinetteromances4",
+   "text": "\"Then we are to keep the child?\" \"Probably, and be parents to it,\" said Gilbert, in a stifled voice and losing color.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0051.wav",
+   "human_seconds": 13.520041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0051__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0051__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0052",
+   "book": "antoinetteromances4",
+   "text": "\"Dear, dear, is he an outcast?\" Gilbert had not expected such feeling and questions:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0052.wav",
+   "human_seconds": 7.980041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0052__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0052__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0055",
+   "book": "antoinetteromances4",
+   "text": "the poor father died on the shock of hearing that his wife gave up her life in bearing him the child.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0055.wav",
+   "human_seconds": 5.360041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0055__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0055__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0057",
+   "book": "antoinetteromances4",
+   "text": "\"So that the child can reckon on no love from his parents,\" continued Gilbert, breathing painfully.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0057.wav",
+   "human_seconds": 8.900041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0057__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0057__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0063",
+   "book": "antoinetteromances4",
+   "text": "Gilbert made it clear that the keep-money would be paid until the boy was a man and able to live alone with his mind and arm.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0063.wav",
+   "human_seconds": 8.140041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0063__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0063__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0065",
+   "book": "antoinetteromances4",
+   "text": "Look at that, said the women together, he thinks it a little dear just like us.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0065.wav",
+   "human_seconds": 6.18,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0065__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0065__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0071",
+   "book": "antoinetteromances4",
+   "text": "he pressed his nails into his flesh to keep down the tears flowing from his aching breast.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0071.wav",
+   "human_seconds": 4.640041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0071__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0071__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0074",
+   "book": "antoinetteromances4",
+   "text": "So many emotions oppressed the father of eighteen years that little more would have prostrated him.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0074.wav",
+   "human_seconds": 5.78,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0074__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0074__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0078",
+   "book": "antoinetteromances4",
+   "text": "what did you say his name is? Call him Gilbert, replied the young man with manly pride.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0078.wav",
+   "human_seconds": 8.400041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0078__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0078__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0081",
+   "book": "antoinetteromances4",
+   "text": "For fifteen years education and training was to be given him, and the balance was to be devoted to fitting him in a trade or buying a plot of land.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0081.wav",
+   "human_seconds": 9.960041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0081__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0081__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0082",
+   "book": "antoinetteromances4",
+   "text": "At his eighteenth year some two thousand livres were to be paid the nurse and her husband, who would have the other sum yearly from the intermediary.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0082.wav",
+   "human_seconds": 9.060041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0082__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0082__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0085",
+   "book": "antoinetteromances4",
+   "text": "Three years before she had seen Gilbert, returned a man of twenty-seven, stiff, dogmatic of speech, cold at the outset.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0085.wav",
+   "human_seconds": 9.780041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0085__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0085__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0087",
+   "book": "antoinetteromances4",
+   "text": "He shook the good widow's hand and said: Rely on me if ever in need.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0087.wav",
+   "human_seconds": 5.54,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0087__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0087__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0091",
+   "book": "antoinetteromances4",
+   "text": "for philosophy was a great power at this revolutionary period and had glided into the bosom of the Church.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0091.wav",
+   "human_seconds": 6.960041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0091__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0091__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0094",
+   "book": "antoinetteromances4",
+   "text": "At her dying hour she remembered the pledge of Gilbert to be the friend at need.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0094.wav",
+   "human_seconds": 5.140041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0094__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0094__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-01_0097",
+   "book": "antoinetteromances4",
+   "text": "Not able to write, she sent for the parish priest, who wrote a letter for her, and this was given to Abbe Fortier to be sent off by the post.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-01_0097.wav",
+   "human_seconds": 9.500041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0097__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-01_0097__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0005",
+   "book": "antoinetteromances4",
+   "text": "But, we know, youth can feel deep impressions, leaving everlasting memories.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0005.wav",
+   "human_seconds": 5.000041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0005__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0005__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0006",
+   "book": "antoinetteromances4",
+   "text": "The previous passing of the young man of mystery through the cottage had impressed its trace.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0006.wav",
+   "human_seconds": 5.52,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0006__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0006__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0010",
+   "book": "antoinetteromances4",
+   "text": "The poor lad, without clearly knowing what he was saying, faltered words of eternal remembrance, and profound thanks such as he had heard his mother use.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0010.wav",
+   "human_seconds": 10.340041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0010__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0010__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0011",
+   "book": "antoinetteromances4",
+   "text": "Therefore, as soon as he perceived the doctor coming among the grassy graves and broken crosses, he understood that he came at his mother's appeal and he could not say no to him as to the others.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0011.wav",
+   "human_seconds": 12.22,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0011__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0011__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0012",
+   "book": "antoinetteromances4",
+   "text": "He made him no resistance except to turn his head to look backwards as Doctor Gilbert grasped his hand and led him from the cemetery.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0012.wav",
+   "human_seconds": 8.480041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0012__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0012__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0018",
+   "book": "antoinetteromances4",
+   "text": "Indeed the old maid had no attractions for a boy who cherished true motherly affections:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0018.wav",
+   "human_seconds": 5.88,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0018__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0018__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0022",
+   "book": "antoinetteromances4",
+   "text": "Nobody suspected she accumulated them and she stuffed the gold in the cushion and frame of an old armchair in which she sat at work.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0022.wav",
+   "human_seconds": 8.560041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0022__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0022__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0026",
+   "book": "antoinetteromances4",
+   "text": "She was going around her seat of revenue when the doctor and his ward appeared at the door, and she had to welcome the relic of her family.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0026.wav",
+   "human_seconds": 8.000041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0026__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0026__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0027",
+   "book": "antoinetteromances4",
+   "text": "The interview would have been affecting if it had not been so grotesque.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0027.wav",
+   "human_seconds": 4.660041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0027__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0027__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0028",
+   "book": "antoinetteromances4",
+   "text": "The doctor, a man of keen observation, and physiognomist, read the character of the hypocritical old maid at a glance.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0028.wav",
+   "human_seconds": 8.240041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0028__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0028__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0029",
+   "book": "antoinetteromances4",
+   "text": "With her long nose, thin lips and small bright eyes, she collected in one person cupidity, selfishness and hypocrisy.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0029.wav",
+   "human_seconds": 8.740041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0029__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0029__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0034",
+   "book": "antoinetteromances4",
+   "text": "This is saying nothing for his washing, for he is a dirty little chap.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0034.wav",
+   "human_seconds": 5.120041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0034__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0034__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0036",
+   "book": "antoinetteromances4",
+   "text": "but it is fair to say that he tore his clothes worse than he soiled them.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0036.wav",
+   "human_seconds": 3.8200416666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0036__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0036__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0039",
+   "book": "antoinetteromances4",
+   "text": "In short, said the doctor, you refuse to shelter your nephew in your house -",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0039.wav",
+   "human_seconds": 6.12,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0039__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0039__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0040",
+   "book": "antoinetteromances4",
+   "text": "the orphan boy who will have to beg for alms at the doors of others.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0040.wav",
+   "human_seconds": 4.020041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0040__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0040__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0041",
+   "book": "antoinetteromances4",
+   "text": "Mean as she was, she felt the disgrace befalling her as if she drove her next of kin to this step.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0041.wav",
+   "human_seconds": 6.66,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0041__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0041__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0043",
+   "book": "antoinetteromances4",
+   "text": "\"Good,\" said the doctor, delighted to find a moist spot in this desert.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0043.wav",
+   "human_seconds": 5.72,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0043__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0043__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0047",
+   "book": "antoinetteromances4",
+   "text": "He resolved to tear this recruit from the enemy with all the warmth that the Augustines would have shown to deprive him of a disciple.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0047.wav",
+   "human_seconds": 7.7400416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0047__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0047__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0050",
+   "book": "antoinetteromances4",
+   "text": "Meanwhile I must apprentice the boy to some craft, which he can choose for himself.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0050.wav",
+   "human_seconds": 5.56,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0050__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0050__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0051",
+   "book": "antoinetteromances4",
+   "text": "In my absence he will grow up and then we will see what to make of him.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0051.wav",
+   "human_seconds": 4.360041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0051__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0051__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0052",
+   "book": "antoinetteromances4",
+   "text": "Kiss your good aunt goodbye, and let us try our luck elsewhere, concluded the doctor.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0052.wav",
+   "human_seconds": 5.54,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0052__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0052__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0059",
+   "book": "antoinetteromances4",
+   "text": "The text may be so, but it nowhere says that the orphan is to be bound out as a servant.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0059.wav",
+   "human_seconds": 6.24,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0059__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0059__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0063",
+   "book": "antoinetteromances4",
+   "text": "I would give it, assuredly, but only on condition that the boy should be brought up to some livelihood.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0063.wav",
+   "human_seconds": 6.820041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0063__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0063__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0065",
+   "book": "antoinetteromances4",
+   "text": "I vow it, as true as the sheep are tempered for the storm-wind.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0065.wav",
+   "human_seconds": 5.080041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0065__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0065__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0067",
+   "book": "antoinetteromances4",
+   "text": "\"Well,\" replied Gilbert, drawing out a bag rounded with coin;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0067.wav",
+   "human_seconds": 5.000041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0067__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0067__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0078",
+   "book": "antoinetteromances4",
+   "text": "he had foreseen the sorrow, disappointment and tribulations awaiting him under her roof.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0078.wav",
+   "human_seconds": 6.16,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0078__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0078__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0079",
+   "book": "antoinetteromances4",
+   "text": "In the first place, as soon as the doctor had turned his back, there was no longer a question about his learning any trade.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0079.wav",
+   "human_seconds": 7.120041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0079__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0079__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0080",
+   "book": "antoinetteromances4",
+   "text": "When the good notary made a remark on this agreement, the tender aunt rejoined that her nephew was too delicate to be put out to work.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0080.wav",
+   "human_seconds": 7.820041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0080__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0080__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0081",
+   "book": "antoinetteromances4",
+   "text": "The lawyer had admired his client's sensitive heart and deferred the apprenticeship question for another year.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0081.wav",
+   "human_seconds": 6.48,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0081__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0081__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0082",
+   "book": "antoinetteromances4",
+   "text": "He was only twelve so that it would not waste much valuable time.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0082.wav",
+   "human_seconds": 3.660041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0082__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0082__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0086",
+   "book": "antoinetteromances4",
+   "text": "He had foreseen a storm when he came back at nightfall, but he expected to parry it with the proceeds of his skill.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0086.wav",
+   "human_seconds": 6.800041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0086__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0086__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0089",
+   "book": "antoinetteromances4",
+   "text": "Happily he had a hard head, too, and though the blow staggered him, he had the sense left to hold out as a peace-offering and buckler the talisman he had prepared.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0089.wav",
+   "human_seconds": 10.96,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0089__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0089__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0091",
+   "book": "antoinetteromances4",
+   "text": "\"What is this?\" challenged his aunt, continuing to grumble for form's sake but opening her eyes more widely than her mouth.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0091.wav",
+   "human_seconds": 8.540041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0091__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0091__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0092",
+   "book": "antoinetteromances4",
+   "text": "\"Birds, you see, good Aunt Angelique,\" replied Pitou as she grabbed the lot.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0092.wav",
+   "human_seconds": 5.98,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0092__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0092__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0093",
+   "book": "antoinetteromances4",
+   "text": "\"Good to eat?\" questioned the old maid who was greedy in all her senses of the word.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0093.wav",
+   "human_seconds": 5.58,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0093__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0093__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0101",
+   "book": "antoinetteromances4",
+   "text": "then you run up, wring their necks, and there you have them.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0101.wav",
+   "human_seconds": 3.7200416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0101__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0101__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0111",
+   "book": "antoinetteromances4",
+   "text": "\"Very true,\" returned the aunt, amazed at the brightness her nephew was for once displaying:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0111.wav",
+   "human_seconds": 7.340041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0111__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0111__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0114",
+   "book": "antoinetteromances4",
+   "text": "But, on the days when you ought not to go to the pools, you go elsewhere.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0114.wav",
+   "human_seconds": 4.760041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0114__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0114__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0120",
+   "book": "antoinetteromances4",
+   "text": "I will go snaring hares and rabbits when I have wire for snares.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0120.wav",
+   "human_seconds": 4.120041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0120__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0120__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0131",
+   "book": "antoinetteromances4",
+   "text": "She thought it wicked to squander a piece that might bring a hundred per cent, and she popped it into her pouch.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0131.wav",
+   "human_seconds": 6.66,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0131__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0131__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0133",
+   "book": "antoinetteromances4",
+   "text": "In it she put the bread and cheese for his meals, and away he went to his hunting ground.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0133.wav",
+   "human_seconds": 5.060041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0133__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0133__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0141",
+   "book": "antoinetteromances4",
+   "text": "\"Here I am, with my bag,\" said he with the calmness of having well spent his day.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0141.wav",
+   "human_seconds": 5.9,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0141__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0141__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0142",
+   "book": "antoinetteromances4",
+   "text": "\"And what have you in the bag?\" cried the aunt, stretching out her hand in sharp curiosity.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0142.wav",
+   "human_seconds": 7.840041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0142__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0142__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0146",
+   "book": "antoinetteromances4",
+   "text": "But when he challenged me with the bag, I just answered him:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0146.wav",
+   "human_seconds": 3.22,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0146__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0146__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0154",
+   "book": "antoinetteromances4",
+   "text": "\"But the game?\" said the woman, bent on the first principle.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0154.wav",
+   "human_seconds": 6.14,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0154__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0154__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0155",
+   "book": "antoinetteromances4",
+   "text": "The moon will be up at twelve and I will go and see how many I have snared.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0155.wav",
+   "human_seconds": 5.080041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0155__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0155__clone.wav"
+  },
+  {
+   "id": "antoinetteromances4-02_0158",
+   "book": "antoinetteromances4",
+   "text": "But brought up in the woods, Ange was not to be scared at what terrifies the town boy.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/antoinetteromances4-02_0158.wav",
+   "human_seconds": 5.080041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0158__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/antoinetteromances4-02_0158__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-01_0008",
+   "book": "celebratedcrimesv1",
+   "text": "Space does not permit us to consider in detail the material here collected, although each title will be found to present points of special interest.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-01_0008.wav",
+   "human_seconds": 7.160041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0008__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0008__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-01_0016",
+   "book": "celebratedcrimesv1",
+   "text": "Mary, it should be remembered, was closely allied to France by education and marriage, and the French never forgave Elizabeth the part she played in the tragedy.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-01_0016.wav",
+   "human_seconds": 8.100041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0016__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0016__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-01_0021",
+   "book": "celebratedcrimesv1",
+   "text": "An especially interesting volume is number six, containing, among other material, the famous Man in the Iron Mask.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-01_0021.wav",
+   "human_seconds": 6.3,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0021__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0021__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-01_0032",
+   "book": "celebratedcrimesv1",
+   "text": "has interpolated the poetry of history with its most thorough prose.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-01_0032.wav",
+   "human_seconds": 4.180041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0032__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-01_0032__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0004",
+   "book": "celebratedcrimesv1",
+   "text": "The man on the bed was Lorenzo the Magnificent, who at the beginning of the year had been attacked by a severe and deep-seated fever, to which was added the gout, a hereditary ailment in his family.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0004.wav",
+   "human_seconds": 10.420041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0004__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0004__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0014",
+   "book": "celebratedcrimesv1",
+   "text": "He did not work, like the German monk, by reasoning, but by enthusiasm.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0014.wav",
+   "human_seconds": 3.9600416666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0014__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0014__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0017",
+   "book": "celebratedcrimesv1",
+   "text": "Yet, although hitherto he had bowed his head before the authority of the Church, he had already raised it against the temporal power.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0017.wav",
+   "human_seconds": 7.160041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0017__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0017__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0018",
+   "book": "celebratedcrimesv1",
+   "text": "To him religion and liberty appeared as two virgins equally sacred;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0018.wav",
+   "human_seconds": 3.4500416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0018__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0018__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0021",
+   "book": "celebratedcrimesv1",
+   "text": "But Lorenzo on his deathbed sent for him, and that was another matter.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0021.wav",
+   "human_seconds": 4.330041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0021__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0021__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0022",
+   "book": "celebratedcrimesv1",
+   "text": "The austere preacher set forth at once, bareheaded and barefoot, hoping to save not only the soul of the dying man but also the liberty of the republic.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0022.wav",
+   "human_seconds": 8.660041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0022__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0022__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0024",
+   "book": "celebratedcrimesv1",
+   "text": "so that, when he heard the sound of his steps, his pale face took a yet more deathlike tinge, while at the same time he raised himself on his elbow and ordered his three friends to go away.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0024.wav",
+   "human_seconds": 9.640041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0024__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0024__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0025",
+   "book": "celebratedcrimesv1",
+   "text": "They obeyed at once, and scarcely had they left by one door than the curtain of the other was raised, and the monk, pale, immovable, solemn, appeared on the threshold.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0025.wav",
+   "human_seconds": 9.240041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0025__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0025__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0027",
+   "book": "celebratedcrimesv1",
+   "text": "The monk glanced round the room as though to assure himself that he was really alone with the dying man;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0027.wav",
+   "human_seconds": 5.2800416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0027__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0027__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0033",
+   "book": "celebratedcrimesv1",
+   "text": "\"You believe, then, that God will forgive my sins?\" cried the dying man, renewing his hope as he heard from the lips of the monk such unexpected words.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0033.wav",
+   "human_seconds": 9.640041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0033__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0033__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0034",
+   "book": "celebratedcrimesv1",
+   "text": "\"Your sins and also your crimes, God will forgive them all,\" replied Savonarola.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0034.wav",
+   "human_seconds": 5.400041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0034__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0034__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0035",
+   "book": "celebratedcrimesv1",
+   "text": "God will forgive your vanities, your adulterous pleasures, your obscene festivals;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0035.wav",
+   "human_seconds": 5.220041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0035__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0035__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0041",
+   "book": "celebratedcrimesv1",
+   "text": "Then at last, when he had finished, Lorenzo asked in a doubtful tone:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0041.wav",
+   "human_seconds": 3.8200416666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0041__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0041__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0042",
+   "book": "celebratedcrimesv1",
+   "text": "Then do you believe, my father, that God will forgive me everything, both my sins and my crimes? Everything, said Savonarola, but on three conditions.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0042.wav",
+   "human_seconds": 12.76,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0042__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0042__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0044",
+   "book": "celebratedcrimesv1",
+   "text": "The first, said Savonarola, is that you feel a complete faith in the power and the mercy of God.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0044.wav",
+   "human_seconds": 6.2,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0044__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0044__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0045",
+   "book": "celebratedcrimesv1",
+   "text": "My father, replied Lorenzo eagerly, I feel this faith in the very depths of my heart.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0045.wav",
+   "human_seconds": 5.72,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0045__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0045__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0046",
+   "book": "celebratedcrimesv1",
+   "text": "The second, said Savonarola, is that you give back the property of others which you have unjustly confiscated and kept.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0046.wav",
+   "human_seconds": 7.580041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0046__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0046__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0049",
+   "book": "celebratedcrimesv1",
+   "text": "Lorenzo shut his eyes, as though to reflect more at his ease;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0049.wav",
+   "human_seconds": 3.12,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0049__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0049__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0057",
+   "book": "celebratedcrimesv1",
+   "text": "My father, my father, said the dying man, do not leave me thus:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0057.wav",
+   "human_seconds": 5.100041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0057__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0057__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0059",
+   "book": "celebratedcrimesv1",
+   "text": "But, my father, cried Lorenzo, Florence is free, Florence is happy.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0059.wav",
+   "human_seconds": 6.1,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0059__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0059__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0062",
+   "book": "celebratedcrimesv1",
+   "text": "poor in money, because from the funds of the republic you have kept up the magnificence of your family and the credit of your business houses;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0062.wav",
+   "human_seconds": 6.960041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0062__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0062__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0066",
+   "book": "celebratedcrimesv1",
+   "text": "\"It is not I who desire it; it is the Lord,\" replied Savonarola coldly.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0066.wav",
+   "human_seconds": 5.58,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0066__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0066__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0069",
+   "book": "celebratedcrimesv1",
+   "text": "then die as you have lived!\" cried the monk, \"in the midst of your courtiers and flatterers;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0069.wav",
+   "human_seconds": 5.150041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0069__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0069__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0070",
+   "book": "celebratedcrimesv1",
+   "text": "let them ruin your soul as they have ruined your body! And at these words, the austere Dominican, without listening to the cries of the dying man, left the room as he had entered it, with face and step unaltered;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0070.wav",
+   "human_seconds": 11.55,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0070__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0070__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-02_0076",
+   "book": "celebratedcrimesv1",
+   "text": "Since his death was to bring about many calamities, says Niccolo Macchiavelli, it was the will of Heaven to show this by omens only too certain:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-02_0076.wav",
+   "human_seconds": 7.920041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0076__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-02_0076__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0011",
+   "book": "celebratedcrimesv1",
+   "text": "the multitude thronging it was so great as to overflow into all the neighbouring streets, which started from this centre like the rays of a star.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0011.wav",
+   "human_seconds": 7.000041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0011__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0011__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0012",
+   "book": "celebratedcrimesv1",
+   "text": "The crowds of people, looking like a motley moving carpet, were climbing up into the basilica, grouping themselves upon the stones, hanging on the columns, standing up against the walls;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0012.wav",
+   "human_seconds": 9.400041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0012__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0012__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0013",
+   "book": "celebratedcrimesv1",
+   "text": "they entered by the doors of houses and reappeared at the windows, so numerous and so densely packed that one might have said each window was walled up with heads.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0013.wav",
+   "human_seconds": 8.100041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0013__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0013__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0014",
+   "book": "celebratedcrimesv1",
+   "text": "Now all this multitude had its eyes fixed on one single point in the Vatican;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0014.wav",
+   "human_seconds": 4.330041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0014__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0014__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0017",
+   "book": "celebratedcrimesv1",
+   "text": "since her foundation down to our own day-that is to say, in the course of nearly twenty-six centuries-she has constantly elected her kings, consuls, tribunes, emperors, and popes:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0017.wav",
+   "human_seconds": 10.600041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0017__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0017__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0026",
+   "book": "celebratedcrimesv1",
+   "text": "lastly, as he had been obliged to wall up the door of the Conclave and the window of the balcony from which the pontifical election is proclaimed, he had not had a single moment for busying himself with the police;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0026.wav",
+   "human_seconds": 10.640041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0026__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0026__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0027",
+   "book": "celebratedcrimesv1",
+   "text": "so that the assassinations had continued in goodly fashion, and there were loud cries for an energetic hand which should make all these swords and all these daggers retire into their sheaths.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0027.wav",
+   "human_seconds": 9.460041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0027__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0027__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0029",
+   "book": "celebratedcrimesv1",
+   "text": "This smoke announced that Rome was still without a master, and that the world still had no pope;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0029.wav",
+   "human_seconds": 5.000041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0029__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0029__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0030",
+   "book": "celebratedcrimesv1",
+   "text": "for this was the smoke of the voting tickets which were being burned, a proof that the cardinals had not yet come to an agreement.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0030.wav",
+   "human_seconds": 6.7,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0030__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0030__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0033",
+   "book": "celebratedcrimesv1",
+   "text": "were less in a hurry than the rest to get back to their homes;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0033.wav",
+   "human_seconds": 3.14,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0033__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0033__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0034",
+   "book": "celebratedcrimesv1",
+   "text": "again, little by little, these last groups insensibly diminished;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0034.wav",
+   "human_seconds": 3.5700416666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0034__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0034__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0035",
+   "book": "celebratedcrimesv1",
+   "text": "for half-past nine had just struck, and at this hour the streets of Rome began already to be far from safe;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0035.wav",
+   "human_seconds": 5.350041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0035__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0035__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0037",
+   "book": "celebratedcrimesv1",
+   "text": "one after another the doors were closed, one after another the windows were darkened;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0037.wav",
+   "human_seconds": 4.320041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0037__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0037__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0038",
+   "book": "celebratedcrimesv1",
+   "text": "at last, when ten o'clock struck, with the single exception of one window in the Vatican where a lamp might be seen keeping obstinate vigil, all the houses, piazzas, and streets were plunged in the deepest obscurity.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0038.wav",
+   "human_seconds": 12.1,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0038__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0038__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0042",
+   "book": "celebratedcrimesv1",
+   "text": "the last lamp which still kept vigil in the Vatican went out, and at the same instant an object thrown out of the window fell a few paces off from the young man in the cloak:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0042.wav",
+   "human_seconds": 8.160041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0042__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0042__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0043",
+   "book": "celebratedcrimesv1",
+   "text": "he, guided by the silvery sound it had made in touching the flags, lost no time in laying his hands upon it in spite of the darkness, and when he had it in his possession hurried quickly away.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0043.wav",
+   "human_seconds": 9.460041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0043__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0043__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0045",
+   "book": "celebratedcrimesv1",
+   "text": "but there he turned to the right and took a street at the other end of which was set up a Madonna with a lamp:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0045.wav",
+   "human_seconds": 5.260041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0045__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0045__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0046",
+   "book": "celebratedcrimesv1",
+   "text": "he approached the light, and drew from his pocket the object he had picked up, which was nothing else than a Roman crown piece;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0046.wav",
+   "human_seconds": 6.09,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0046__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0046__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0052",
+   "book": "celebratedcrimesv1",
+   "text": "When he arrived at this place, he gave three rapid knocks on the door of a house of good appearance, which immediately opened;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0052.wav",
+   "human_seconds": 5.92,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0052__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0052__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0055",
+   "book": "celebratedcrimesv1",
+   "text": "good, my sister, replied the young man, kissing the one and giving his hand to the other.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0055.wav",
+   "human_seconds": 4.7400416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0055__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0055__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0056",
+   "book": "celebratedcrimesv1",
+   "text": "Our father has gained three votes to-day, but he still needs six to have the majority.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0056.wav",
+   "human_seconds": 4.7000416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0056__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0056__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0057",
+   "book": "celebratedcrimesv1",
+   "text": "\"Then is there no means of buying them?\" cried the elder of the two women, while the younger, instead of speaking, asked him with a look.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0057.wav",
+   "human_seconds": 7.520041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0057__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0057__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0068",
+   "book": "celebratedcrimesv1",
+   "text": "My father has provided for everything, and proposes an easy method;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0068.wav",
+   "human_seconds": 4.080041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0068__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0068__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0076",
+   "book": "celebratedcrimesv1",
+   "text": "And by the grace of God, added the younger, with a strangely mocking smile, our father will be pope.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0076.wav",
+   "human_seconds": 5.96,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0076__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0076__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0078",
+   "book": "celebratedcrimesv1",
+   "text": "\"And for Christendom,\" replied his sister, with a still more ironical expression.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0078.wav",
+   "human_seconds": 4.7400416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0078__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0078__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0084",
+   "book": "celebratedcrimesv1",
+   "text": "At the same time she cast on her brother a look so wanton that the young man blushed under it:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0084.wav",
+   "human_seconds": 4.380041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0084__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0084__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0085",
+   "book": "celebratedcrimesv1",
+   "text": "but as at the moment he had to think of other things than his illicit loves, he ordered that four servants should be awakened;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0085.wav",
+   "human_seconds": 6.49,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0085__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0085__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0086",
+   "book": "celebratedcrimesv1",
+   "text": "and while they were getting armed to accompany him, he drew up and signed the six deeds of gift which were to be carried the next day to the cardinals;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0086.wav",
+   "human_seconds": 7.270041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0086__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0086__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0090",
+   "book": "celebratedcrimesv1",
+   "text": "at the ordinary time, that is, at ten o'clock in the morning,-the smoke rose again as usual, evoking laughter and murmuring, as it announced that none of the cardinals had secured the majority.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0090.wav",
+   "human_seconds": 9.750041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0090__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0090__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0093",
+   "book": "celebratedcrimesv1",
+   "text": "In the midst of the agitation excited in the crowd by this new report a solemn chanting was heard;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0093.wav",
+   "human_seconds": 4.920041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0093__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0093__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0096",
+   "book": "celebratedcrimesv1",
+   "text": "As soon as the silver crucifix was perceived which went in front, the most profound silence prevailed, and everyone fell on his knees;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0096.wav",
+   "human_seconds": 6.7,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0096__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0096__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0097",
+   "book": "celebratedcrimesv1",
+   "text": "thus a supreme calm followed the tumult and uproar which had been heard a few minutes before, and which at each appearance of the smoke had assumed a more threatening character:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0097.wav",
+   "human_seconds": 8.360041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0097__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0097__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0098",
+   "book": "celebratedcrimesv1",
+   "text": "there was a shrewd suspicion that the procession, as well as having a religious end in view, had a political object also, and that its influence was intended to be as great on earth as in heaven.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0098.wav",
+   "human_seconds": 10.360041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0098__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0098__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0105",
+   "book": "celebratedcrimesv1",
+   "text": "The people received it with the usual bursts of laughter, without suspecting, for all their irreverence, that this procession, more efficacious than the former, had just settled the election of the new pope.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0105.wav",
+   "human_seconds": 10.160041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0105__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0105__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0107",
+   "book": "celebratedcrimesv1",
+   "text": "but, as on the evening before, the waiting of the whole day was lost;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0107.wav",
+   "human_seconds": 3.7800416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0107__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0107__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0108",
+   "book": "celebratedcrimesv1",
+   "text": "for, as half-past eight struck, the daily smoke reappeared at the top of the chimney.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0108.wav",
+   "human_seconds": 4.350041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0108__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0108__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0110",
+   "book": "celebratedcrimesv1",
+   "text": "Besides, it had been very hot that day, and they were so broken with fatigue and roasted by the sun, these dwellers in shade and idleness, that they had no strength left to complain.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0110.wav",
+   "human_seconds": 9.740041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0110__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0110__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0111",
+   "book": "celebratedcrimesv1",
+   "text": "The morning of the next day, which was the eleventh of August, fourteen ninety two, arose stormy and dark;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0111.wav",
+   "human_seconds": 5.460041666666666,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0111__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0111__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0113",
+   "book": "celebratedcrimesv1",
+   "text": "Moreover, this disposition of the weather was a real blessing from Heaven;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0113.wav",
+   "human_seconds": 3.4900416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0113__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0113__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0116",
+   "book": "celebratedcrimesv1",
+   "text": "but to this crowd what mattered rain, lightning, or thunder?",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0116.wav",
+   "human_seconds": 3.09,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0116__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0116__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0117",
+   "book": "celebratedcrimesv1",
+   "text": "They were preoccupied with a concern of a very different nature;",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0117.wav",
+   "human_seconds": 2.92,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0117__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0117__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0121",
+   "book": "celebratedcrimesv1",
+   "text": "Nine o'clock, half-past nine, a quarter to ten struck, without anything happening to confirm or destroy their hopes.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0121.wav",
+   "human_seconds": 6.58,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0121__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0121__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0124",
+   "book": "celebratedcrimesv1",
+   "text": "ten o'clock struck slowly, each stroke vibrating in the heart of the multitude.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0124.wav",
+   "human_seconds": 4.820041666666667,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0124__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0124__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0128",
+   "book": "celebratedcrimesv1",
+   "text": "but no one paid any attention to it, so great were the transports of joy and impatience among all the people.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0128.wav",
+   "human_seconds": 5.2400416666666665,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0128__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0128__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0129",
+   "book": "celebratedcrimesv1",
+   "text": "At last a little stone was detached from the walled window which gave on the balcony and upon which all eyes were fixed:",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0129.wav",
+   "human_seconds": 6.7,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0129__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0129__clone.wav"
+  },
+  {
+   "id": "celebratedcrimesv1-03_0131",
+   "book": "celebratedcrimesv1",
+   "text": "little by little the aperture grew larger, and in a few minutes it was large enough to allow a man to come out on the balcony.",
+   "human_wav": "ab_test_runtime/hifitts_9017_eval/human/celebratedcrimesv1-03_0131.wav",
+   "human_seconds": 6.44,
+   "lora_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0131__lora.wav",
+   "clone_wav": "ab_test_runtime/hifitts_9017_eval/generated/celebratedcrimesv1-03_0131__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T09:13:54",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "ff62f3f20da950c2915806971e7c33883ded9f2b",
+   "branch": "feat/hifitts-second-english",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "8f80d41d4ce9c49eab25950e3dd63501903e1c9ec57876336d7233c0b70d0edc"
+  },
+  "args": {
+   "build": "ab_test_runtime/hifitts_9017_eval/build.json",
+   "adapter": "ab_test_runtime/hifitts_9017_eval/adapter",
+   "config": "config.json",
+   "out_dir": "ab_test_runtime/hifitts_9017_eval/generated",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/hifitts_9017_generate.json"
+  },
+  "seed": 1234
+ }
+}
