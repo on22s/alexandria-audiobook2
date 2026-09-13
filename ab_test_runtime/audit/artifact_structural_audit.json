@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 952,
+    "supported_structure": 954,
     "exploratory": 412,
     "provisional": 208,
     "artifacts_that_generated_nothing": 15
@@ -15021,6 +15021,24 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "prosody_time_split__warm_baritone_30s_m_1.json",
+      "bytes": 14746,
+      "sha256": "74ffc4235bb5852aefe7a219153662b40b810cb7d0386a3f0dd58b2d5af1d66e",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T09:53:37",
+      "commit": "88436803d8be3bce38740af66101c9f7f928fd14",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "qwen38_forced_choice__qwen38-fp8-author-balanced-forced-choice-a6000-20260902b.json",
       "bytes": 15638,
       "sha256": "9e35432313411060a1d81f5577f59473963a3c627982a8ffd3bdd388425aa6ed",
@@ -26254,6 +26272,24 @@
       "identity_contract": "tts_provenance",
       "written": "2026-09-05T15:51:21",
       "commit": "cd410045236886f874caaea3579f3acccebdbc5d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "time_split__warm_baritone_30s_m_1_generate.json",
+      "bytes": 11759,
+      "sha256": "f7a0a6814d0f4091887e333715bc614209cb2f21017bdaa491db30ba4666cf54",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T09:53:17",
+      "commit": "88436803d8be3bce38740af66101c9f7f928fd14",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
