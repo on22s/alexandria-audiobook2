@@ -2379,6 +2379,9 @@
   "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
   ],
+  "test_repair_source_llm": [
+    "tests.test_repair_source_llm.RepairSourceLLMTests.test_cli_passes_the_active_profile_to_the_shared_client_factory"
+  ],
   "test_repair_structural_check": [
     "tests.test_repair_structural_check.InlineQuotePairingTest.test_a_mid_sentence_quoted_phrase_gets_its_opener",
     "tests.test_repair_structural_check.InlineQuotePairingTest.test_balanced_speech_is_untouched",
@@ -3266,7 +3269,8 @@
     "tests.test_tts_external_pool.ExternalPoolTests.test_clone_chunks_go_through_the_pool_too",
     "tests.test_tts_external_pool.ExternalPoolTests.test_empty_pool_is_the_single_url_and_one_client",
     "tests.test_tts_external_pool.ExternalPoolTests.test_one_broken_endpoint_fails_its_chunks_and_the_rest_complete",
-    "tests.test_tts_external_pool.ExternalPoolTests.test_round_robin_across_the_pool_with_one_client_per_url"
+    "tests.test_tts_external_pool.ExternalPoolTests.test_round_robin_across_the_pool_with_one_client_per_url",
+    "tests.test_tts_external_pool.ExternalPoolTests.test_timed_out_call_never_publishes_its_late_audio"
   ],
   "test_tts_validation_manifest": [
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_kana_is_detected",
