@@ -1,0 +1,29 @@
+{
+ "summary": {},
+ "rows": [],
+ "provenance": {
+  "script": "prose_vs_nonprose.py",
+  "written": "2026-09-04T13:05:23",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "93e2dcd5527b9190a0b4d7969a4f40af869a8e38",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "0a3470fd337b181737be3dbb3ab32b4575cd3cc7e61764f1e0c38599ff31194a"
+  },
+  "args": {
+   "script": "chunks.json",
+   "voice_config": "voice_config.json",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/wider_tts_pilot_lora",
+   "limit": 6,
+   "pool_library": true,
+   "voice": "breathy_alto_50s_f_fantasy",
+   "seed": 20260904,
+   "out": "ab_test_runtime/experiments/wider_tts_pilot_lora.json"
+  },
+  "seed": 20260904
+ }
+}
