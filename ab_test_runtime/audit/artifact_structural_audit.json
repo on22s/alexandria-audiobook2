@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 950,
+    "supported_structure": 951,
     "exploratory": 411,
     "provisional": 208,
     "artifacts_that_generated_nothing": 15
@@ -42,6 +42,24 @@
       "dirty": null,
       "classification": "exploratory",
       "reason": "embedded provenance is incomplete"
+    },
+    {
+      "artifact": "adapter_listening_v2.json",
+      "bytes": 5629,
+      "sha256": "9d744a1b9fad9ea5eb1a0c5fc43a1db441c667d806fd2bb8f02eb41dd58bf815",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-13T10:00:21",
+      "commit": "1b85d7078bbbb0499ff24e2b51643f6ff5ceefef",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "adapter_stop_check_aishell3.json",
@@ -1053,8 +1071,8 @@
     },
     {
       "artifact": "audio_views.json",
-      "bytes": 8864,
-      "sha256": "a79bc9aa839e2f1a466b8c0070b3d03deebde21a3991b96c86527b34f04fee9f",
+      "bytes": 29606,
+      "sha256": "fd7c186e54d238e3949c9204c124936f925bf1c5f029363fa379be22c2a0ab33",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -1063,9 +1081,9 @@
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-20T07:21:29",
-      "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
-      "dirty": true,
+      "written": "2026-09-13T10:15:11",
+      "commit": "1b85d7078bbbb0499ff24e2b51643f6ff5ceefef",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },

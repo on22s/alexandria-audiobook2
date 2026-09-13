@@ -653,14 +653,14 @@
     "supported_structure": 2,
     "exploratory": 3
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 1,
    "no_commit": 3,
    "artifacts": [
     {
      "name": "audio_views.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "02421630"
+     "dirty": false,
+     "commit": "1b85d707"
     },
     {
      "name": "character_distinctiveness.json",
