@@ -3901,7 +3901,10 @@ which WER punishes.
 `discover_foreign_terms.py` and `lexicon_corpus_scan.py`. Finished runs are
 re-scored without regenerating audio by `rescore_respellings.py`.
 **Current** — 9,381 candidates scanned from 6,501 EPUBs; **6,060 measured and
-re-scored**. **OPEN.**
+re-scored**. On the shipped books: 82 terms present, every one in a measured
+state — 10 entries, 60 recorded unfixable, 12 the plain form already says.
+**MET on the target as written, 2026-09-13**; see the last entry for what
+that does and does not cover.
 
 **Evidence** — `respelling_measure_rescored.json` (7,775 terms, the -eh
 baseline every arm below is paired against) and `respelling_e_row__ay_n1600.json`
@@ -4147,10 +4150,41 @@ but it was decided by reading sentences and looking words up, not by measuring,
 and folding it into `coverage_percent` would let a judgement close a
 measurement goal. Zero of the four are unexplained.
 
-**5.5 stays OPEN.** Four terms in the shipped books have no measurement, and
-the target asks for measurement. The remaining work is smaller than it has ever
-been, and it is now honestly sized rather than inflated by an instrument that
-could not see its own third answer.
+**5.5 stayed OPEN at this point.** Four terms in the shipped books had no
+measurement, and the target asks for measurement. The remaining work was
+smaller than it had ever been, and honestly sized rather than inflated by an
+instrument that could not see its own third answer.
+
+**THE FOUR WERE MEASURED — 2026-09-13, and the target is met.** They were
+never in `lexicon_attributed.json` at all: the corpus scan's book threshold
+dropped them, so no flag of `measure_respellings.py` could reach them.
+`--terms` now builds a row for a named term by the same romkan rule the
+detector uses, with the book count from the coverage scan, and refuses a
+term that does not romanise. One carrier sentence each, plain and respelled,
+whisper.cpp `ggml-base` in Japanese, scored on readings
+(`respelling_measure_shipped_neither_20260913.json`):
+
+| term | triage | plain heard | respelled heard | state |
+|---|---|---|---|---|
+| basuru | name fragment | バスル | バスルー | **plain already works** |
+| subara | name fragment | スーパー | スーパーラー | could not fix |
+| gauaa | growl | an unrelated sentence | an unrelated sentence | could not fix |
+| gaurururu | growl | ガワー・ロー・ルー | グロー! ×5 | could not fix |
+
+Respelling helped none and hurt none. Fed in as a sixth arm of
+`lexicon_from_measurements.py`, the coverage scan reads **82 of 82 shipped
+terms in a known state: 10 entries, 60 unfixable, 12 plain-already-works,
+NEITHER 0 (100.0%)** (`shipped_book_lexicon_coverage.json`). That is the
+target sentence satisfied literally: every term whose plain form fails has
+an entry or a could-not-fix record.
+
+What it does not cover, kept next to the number: the measurement is one
+carrier sentence per term through one ASR model; "could not fix" means one
+respelling rule failed once, not that no spelling could ever work; the two
+growls are onomatopoeia the triage already judged out of scope for a lexicon,
+and recording them as unfixable is bookkeeping, not a finding; and an entry
+is "confirmed by ear" only through 7.1, which this goal has never claimed to
+replace. The goal is met on what it measures.
 
 **A note on how this was nearly got wrong.** The first version parsed the
 discovery script's stdout with awk and returned three terms that were words
@@ -4671,6 +4705,44 @@ nine terms of the respelling separator comparison
 held in a file the page never contained. It produced a usable result at
 p=0.020, agreed with the pause measurement, and its free-text notes identified
 the mechanism. As there, the notes here found more than the ratings did.
+
+**Second sitting with a real positive control — 2026-09-13, and the first
+verdict does not reproduce.** The 09-06 package's controls differed in
+content as well as voice; `adapter_listening_controls.py` now has the foreign
+narrator read the reference line itself, and `adapter_listening.py` builds
+only from those. Same eight comparison pairs, three new controls, slots
+reshuffled (seed 20260913), rated blind on a page whose answers were saved as
+made; the sealed key's sha256 was in the public manifest before the first
+rating and matched after the last.
+
+| class | 09-06 sitting | 09-13 sitting | registered prediction |
+|---|---|---|---|
+| controls, same words | 3/3 — but rejected by content | **3/3, rejected by voice** ("B was a woman") | rejected in all 3 |
+| large gap (+0.315 ECAPA) | shipped 4 of 4 | shipped 2, rebuilt 1, same 1 | shipped clearly and consistently |
+| no gap (+0.017) | shipped 2, cannot tell 2 | shipped 3, rebuilt 1 | near chance |
+
+The controls now certify the package, and on the certified sitting the
+large-gap class is near chance, which is the falsifier the prediction
+registered: *"both classes near chance means ECAPA is not measuring audible
+speaker identity at this scale."* Pooled over both sittings the large-gap
+class is 6 shipped, 1 rebuilt, 1 same — suggestive of the direction ECAPA
+gives, not the clear preference it predicted. A 4-of-4 and a 2-of-4 from the
+same rater on the same clips a week apart is the measurement's own
+repeatability, and it is wider than the effect. What this is not: it is not
+evidence that the 0.315 gap is spurious; it is evidence that four lines and
+one rater cannot see it, and that the 09-06 HELD was one draw.
+
+The notes again found what the ratings could not: *journal* said as "johnal"
+on **both** baritone arms (sets 00 and 08 — shipped and rebuilt alike, so it
+is the base model or the text, not the adapter), *bloody* as "bloudly",
+*shone* wrong on the foreign voice, and both alto arms losing the deeper
+register the human opens with (sets 04, 06). None of those is a speaker-identity
+question and none is measured anywhere in this document.
+
+**Evidence** — `adapter_listening_v2_ratings.json`,
+`adapter_listening_v2.json`, `adapter_listening_v2_concealed_key.json`
+(committed after rating; the manifest carries its hash from before). One
+rater, computer speakers, four lines per class.
 
 ---
 

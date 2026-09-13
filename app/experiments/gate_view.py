@@ -47,19 +47,23 @@ def val_clips(dataset, limit):
     return clips
 
 
-def pair(adapter, dataset, limit):
+def pair(adapter, dataset, limit, clips_dir=None, pattern="check_%d.wav"):
     """-> rows in voice_compare_view's shape, or a refusal saying what is
     missing. Never silently renders a partial set: a view built from three of
-    six clips would be a highlight reel of whatever survived."""
-    work = os.path.join(adapter, "identity_check")
+    six clips would be a highlight reel of whatever survived.
+
+    `clips_dir`/`pattern` exist for the honest retrains, whose gate clips are
+    `gen_<i>.wav` beside the dataset rather than `identity_check/check_<i>.wav`
+    under the adapter; the pairing rule - clip i is val line i - is the same."""
+    work = clips_dir or os.path.join(adapter, "identity_check")
     if not os.path.isdir(work):
-        raise SystemExit("no identity_check/ under %s - this adapter's gate "
-                         "clips were not kept, so there is nothing to look at "
-                         "without re-running the gate" % adapter)
+        raise SystemExit("no %s - this adapter's gate clips were not kept, so "
+                         "there is nothing to look at without re-running the "
+                         "gate" % work)
     clips = val_clips(dataset, limit)
     rows, missing = [], []
     for index, (human_wav, text) in enumerate(clips):
-        generated = os.path.join(work, "check_%d.wav" % index)
+        generated = os.path.join(work, pattern % index)
         if not os.path.exists(generated):
             missing.append(os.path.basename(generated))
             continue
@@ -83,10 +87,20 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--pick", default="spread",
                         choices=["spread", "best", "worst", "first"])
+    parser.add_argument("--clips-dir", default=None,
+                        help="where the gate clips are, if not "
+                             "<adapter>/identity_check")
+    parser.add_argument("--pattern", default="check_%d.wav",
+                        help="clip filename with %%d for the val line index")
     args = parser.parse_args()
 
     rows = pair(os.path.abspath(args.adapter), os.path.abspath(args.dataset),
-                args.lines)
+                args.lines, os.path.abspath(args.clips_dir) if args.clips_dir else None,
+                args.pattern)
+    # Absolute: voice_compare_view runs with cwd=REPO, and a relative --out
+    # given from another directory pointed it at a pairs file that was not
+    # there (every one of 60 renders failed that way on 2026-09-13).
+    args.out = os.path.abspath(args.out)
     bridge = os.path.splitext(args.out)[0] + "_pairs.json"
     with open(bridge, "w", encoding="utf-8") as handle:
         # Stamped like any other artifact: this file says which held-out clips

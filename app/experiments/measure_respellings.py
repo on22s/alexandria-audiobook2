@@ -357,6 +357,32 @@ def score_recovery(expected_kana, heard):
     }
 
 
+def rows_for_terms(candidates, wanted, term_books, verdict):
+    """-> candidate rows for exactly `wanted`, bypassing the book threshold.
+
+    A term the corpus scan never listed (its threshold dropped it, but the
+    shipped-book scan found it) gets a row built here: kana by the same
+    romkan rule `discover_foreign_terms` applies, book count from the
+    coverage scan's `term_to_books`. A term that does not romanise cleanly is
+    refused rather than measured against a reading that is not a reading.
+    """
+    import romkan
+    known = {c["term"].lower(): c for c in candidates}
+    rows = []
+    for term in sorted({t.lower() for t in wanted}):
+        if term in known:
+            rows.append(known[term])
+            continue
+        kana = romkan.to_katakana(term)
+        if any(ch.isascii() and ch.isalpha() for ch in kana):
+            raise SystemExit(f"{term!r} does not romanise cleanly ({kana}); "
+                             f"it is not a term this measure can read")
+        rows.append({"term": term, "kana": kana,
+                     "books": len(term_books.get(term, [])), "series": 0,
+                     "verdict": verdict, "source": "--terms"})
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--candidates", default=os.path.join(
@@ -364,6 +390,16 @@ def main():
     ap.add_argument("--verdict", default="ja",
                     help="only measure terms attributed to this language")
     ap.add_argument("--min-books", type=int, default=20)
+    ap.add_argument("--terms", nargs="*", default=None,
+                    help="measure exactly these terms, ignoring --min-books. A "
+                         "term absent from the candidates file (the shipped-book "
+                         "scan finds terms the corpus scan's threshold dropped) "
+                         "gets a row built here: kana by the same romkan rule "
+                         "discover_foreign_terms uses, book count from "
+                         "--term-books when given, else 0")
+    ap.add_argument("--term-books", default=None,
+                    help="a shipped_book_lexicon_coverage.json whose "
+                         "term_to_books supplies the book count for --terms")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--rule", choices=("a", "b"), default="a")
     ap.add_argument("--separator", choices=tuple(SEPARATORS), default="hyphen",
@@ -400,8 +436,15 @@ def main():
     global SEPARATOR
     SEPARATOR = SEPARATORS[args.separator]
     table = e_row(args.e_spelling)
-    terms = [c for c in candidates
-             if c.get("verdict") == args.verdict and c["books"] >= args.min_books]
+    if args.terms:
+        term_books = {}
+        if args.term_books:
+            with open(args.term_books, encoding="utf-8") as handle:
+                term_books = json.load(handle).get("term_to_books", {})
+        terms = rows_for_terms(candidates, args.terms, term_books, args.verdict)
+    else:
+        terms = [c for c in candidates
+                 if c.get("verdict") == args.verdict and c["books"] >= args.min_books]
     if args.only_e_row:
         e_kana = {k for k, v in MORA_SPELLING.items() if v.endswith("eh")}
         terms = [c for c in terms if any(ch in e_kana for ch in c["kana"])]

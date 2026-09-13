@@ -1,0 +1,204 @@
+{
+ "note": "Second sitting of the blinded adapter-fidelity package, with controls that are the foreign narrator reading THIS line. Unblinded against the sealed key; the key's sha256 matches the value adapter_listening_v2.json recorded before rating.",
+ "package": "adapter_listening_v2.json",
+ "key_sha256": "59b72499621a83eca049c8f6768bea04a2266022b07256262962334e5a228d1f",
+ "key_sha256_verified": true,
+ "rater": "the project owner, not a naive listener",
+ "device": "computer speakers",
+ "rated_at": "2026-09-13T15:12-15:24Z",
+ "page": "https://claude.ai/code/artifact/b2e9bf62-a92e-4ce9-9fd1-c52e2027216d",
+ "registered_prediction": {
+  "large_gap_sets": "the shipped arm is chosen clearly and consistently (ECAPA gap +0.315)",
+  "no_gap_sets": "near chance (ECAPA gap +0.017 - the metric says there is nothing to hear)",
+  "controls": "the foreign narrator is rejected in all 3; if not, nothing else in this package is readable",
+  "falsifies_ecapa_if": "both classes come out near chance, which would mean the metric does not track audible speaker identity at this scale"
+ },
+ "results": {
+  "large": {
+   "n": 4,
+   "shipped": 2,
+   "rebuilt": 1,
+   "foreign": 0,
+   "same": 1
+  },
+  "none": {
+   "n": 4,
+   "shipped": 3,
+   "rebuilt": 1,
+   "foreign": 0,
+   "same": 0
+  },
+  "control": {
+   "n": 3,
+   "shipped": 3,
+   "rebuilt": 0,
+   "foreign": 0,
+   "same": 0
+  }
+ },
+ "verdict": "NOT HELD on this sitting. The controls pass for the right reason (rejected as 'a woman', on identical words), so the package is readable. Where ECAPA reports a 0.315 gap the rater chose the higher-scoring arm 2 of 4, the other arm once, and could not tell once; where it reports 0.017, 3 of 4 for the higher arm. Both classes near chance is the registered falsifier. The 2026-09-06 sitting on the same eight comparison pairs read 4 of 4 and 2/0/2; pooled over both sittings the large-gap class is 6 shipped, 1 rebuilt, 1 same. One rater, four lines per class, speakers not headphones.",
+ "first_sitting": "adapter_listening_ratings.json (2026-09-06): large 4/4 shipped, no-gap 2 shipped / 2 cannot tell, controls 3/3 but by content",
+ "defects_heard": [
+  "'journal' -> 'johnal' on BOTH baritone arms (sets 00 and 08)",
+  "'bloody' -> 'bloudly' (set 05, alto)",
+  "'shone' wrong on the foreign voice (set 09)",
+  "both alto arms miss the deeper opening register (sets 04, 06)",
+  "'so' vowel off on the rebuilt baritone (set 02)"
+ ],
+ "rows": [
+  {
+   "set": "set_00",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "choice": "A",
+   "picked": "rebuilt",
+   "notes": "journal was pronounced \"john\"al"
+  },
+  {
+   "set": "set_01",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "choice": "B",
+   "picked": "shipped",
+   "notes": ""
+  },
+  {
+   "set": "set_02",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "choice": "same",
+   "picked": "same",
+   "notes": "had we done so the o in so sounded off in B,"
+  },
+  {
+   "set": "set_03",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 3,
+   "gap_class": "large",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "choice": "A",
+   "picked": "shipped",
+   "notes": "A really sounded like the narrator"
+  },
+  {
+   "set": "set_04",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 0,
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "choice": "A",
+   "picked": "shipped",
+   "notes": "A is the closest however both clips failed to replicate the more deeper voice in the beginning of the clip"
+  },
+  {
+   "set": "set_05",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 1,
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "choice": "B",
+   "picked": "rebuilt",
+   "notes": "! pronounced bloody like it was bloudly"
+  },
+  {
+   "set": "set_06",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 2,
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "choice": "A",
+   "picked": "shipped",
+   "notes": "a sounded closest how it had the same problem as set 4"
+  },
+  {
+   "set": "set_07",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "line": 3,
+   "gap_class": "none",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "choice": "B",
+   "picked": "shipped",
+   "notes": ""
+  },
+  {
+   "set": "set_08",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 0,
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "shipped",
+    "B": "foreign"
+   },
+   "choice": "A",
+   "picked": "shipped",
+   "notes": "B was a woman so not close at all, A had the problem of mispronouncing journal as johnal"
+  },
+  {
+   "set": "set_09",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 1,
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "shipped",
+    "B": "foreign"
+   },
+   "choice": "A",
+   "picked": "shipped",
+   "notes": "B is woman and pronounced shone unlike the other 2"
+  },
+  {
+   "set": "set_10",
+   "adapter": "warm_baritone_40s_m_1",
+   "line": 2,
+   "gap_class": "control",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "foreign",
+    "B": "shipped"
+   },
+   "choice": "B",
+   "picked": "shipped",
+   "notes": "A is a woman not a man and is not close"
+  }
+ ]
+}

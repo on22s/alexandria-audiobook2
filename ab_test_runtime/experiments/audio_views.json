@@ -12,15 +12,106 @@
     "median_ecapa": 0.3934,
     "passed": false
    },
-   "looked_at": true,
-   "observation": {
-    "sounds_like_same_person": 2,
-    "freedom_from_defects": 5,
-    "note": "The first one cracked in the very beginning like the voice cracked but overall it sounded more like a child then the generator one did",
-    "rated_at": "2026-08-22",
-    "rater": "project owner",
-    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
-   }
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "breathy_baritone_40s_m_literary",
+   "view": "ab_test_runtime/reports/gate_view__breathy_baritone_40s_m_literary.html",
+   "tracked_in_git": false,
+   "bytes": 8996446,
+   "sha256": "181df83a621874e75ae2cb3b28beacbbf61a211d29a6e893c28cfb580c6e5b54",
+   "explains": {
+    "artifact": "gate_promote__breathy_baritone_40s_m_literary.json",
+    "median_ecapa": 0.6845,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "breathy_baritone_40s_m_military_1",
+   "view": "ab_test_runtime/reports/gate_view__breathy_baritone_40s_m_military_1.html",
+   "tracked_in_git": false,
+   "bytes": 9323665,
+   "sha256": "060f5cf684d7b0c31f5ed89bd3dba7304b2702d54b3b2345e0d58ecb2d863fc7",
+   "explains": {
+    "artifact": "gate_promote__breathy_baritone_40s_m_military_1.json",
+    "median_ecapa": 0.7135,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "breathy_baritone_40s_m_military_2",
+   "view": "ab_test_runtime/reports/gate_view__breathy_baritone_40s_m_military_2.html",
+   "tracked_in_git": false,
+   "bytes": 9208737,
+   "sha256": "43257f191076ea5491e2e9b068dcb55c8af6958e52134eb9c22db90410ffe254",
+   "explains": {
+    "artifact": "gate_promote__breathy_baritone_40s_m_military_2.json",
+    "median_ecapa": 0.7072,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "breathy_tenor_20s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__breathy_tenor_20s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8426786,
+   "sha256": "1b62e2ee9793a0837887cfe5d1ac9984ffc9d5fcaf5ddcdfda23819405de4fe2",
+   "explains": {
+    "artifact": "gate_promote__breathy_tenor_20s_m_fantasy.json",
+    "median_ecapa": 0.6737,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "breathy_tenor_50s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__breathy_tenor_50s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8834685,
+   "sha256": "b838ece57c4c4a92a6d563462002e482fdb553e85c9baf4d5e7d730536176708",
+   "explains": {
+    "artifact": "gate_promote__breathy_tenor_50s_m_fantasy.json",
+    "median_ecapa": 0.6804,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "crisp_tenor_30s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__crisp_tenor_30s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8697093,
+   "sha256": "b1e3cf75ed2d085eb2cc4980c637d1e232083e44d8577e209ebc7dacbd7f5ed9",
+   "explains": {
+    "artifact": "gate_promote__crisp_tenor_30s_m_fantasy.json",
+    "median_ecapa": 0.5597,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_alto_40s_f",
+   "view": "ab_test_runtime/reports/gate_view__husky_alto_40s_f.html",
+   "tracked_in_git": false,
+   "bytes": 8906055,
+   "sha256": "ca7f703660e380dfbe52804fb9cf50aee42f77c60d5aa1390c1976a983de7d76",
+   "explains": {
+    "artifact": "gate_promote__husky_alto_40s_f.json",
+    "median_ecapa": 0.7046,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
   },
   {
    "arm": "husky_baritone_20s_m_anime",
@@ -33,15 +124,408 @@
     "median_ecapa": 0.7524,
     "passed": true
    },
-   "looked_at": true,
-   "observation": {
-    "sounds_like_same_person": 4,
-    "freedom_from_defects": 1,
-    "note": "The generated one had an issue where it kept repeating the same word over and over where the first one did not. And then it had cracking and then was just saying random nonsense not even words.",
-    "rated_at": "2026-08-22",
-    "rater": "project owner",
-    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
-   }
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_20s_m_supernatural",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_20s_m_supernatural.html",
+   "tracked_in_git": false,
+   "bytes": 9090135,
+   "sha256": "9e49ca48d950693c2a4b8f0d14c72a704e65d32f6c27bddebecd8f0a88219b81",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_20s_m_supernatural.json",
+    "median_ecapa": 0.0622,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_40s_m_1",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_40s_m_1.html",
+   "tracked_in_git": false,
+   "bytes": 9350835,
+   "sha256": "7825e626f423d58bcb9b2998524c1dc99e279fd5a7bf6a1034a18e76a0206510",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_40s_m_1.json",
+    "median_ecapa": 0.5798,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_40s_m_2",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_40s_m_2.html",
+   "tracked_in_git": false,
+   "bytes": 9490577,
+   "sha256": "047e4c88f80abe5bd69384427ab70ce89079e41df557d5d66ffe7a76d88e3eff",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_40s_m_2.json",
+    "median_ecapa": 0.5584,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_40s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_40s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 9007456,
+   "sha256": "88381c2f4a06a293d2e47f09755104f4c161690e290404a84d718e171008779d",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_40s_m_scifi.json",
+    "median_ecapa": 0.5499,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_50s_m_gothic",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_50s_m_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 9053947,
+   "sha256": "bb8059ebca4bb62f616a71ea860163d5bc29d726b2fdcaecc14961feb51f5e6b",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_50s_m_gothic.json",
+    "median_ecapa": 0.6572,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_50s_m_military",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_50s_m_military.html",
+   "tracked_in_git": false,
+   "bytes": 8800064,
+   "sha256": "1b6c7a77594e0bbcce741fdc0b88c376e63fede577482314c0baeff1b9a36030",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_50s_m_military.json",
+    "median_ecapa": 0.6537,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_soprano_20s_f",
+   "view": "ab_test_runtime/reports/gate_view__husky_soprano_20s_f.html",
+   "tracked_in_git": false,
+   "bytes": 9460317,
+   "sha256": "da8becb396838d45f096af3fac2fd73053da944d366df9b7593aa11cab1118fc",
+   "explains": {
+    "artifact": "gate_promote__husky_soprano_20s_f.json",
+    "median_ecapa": 0.611,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_tenor_30s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__husky_tenor_30s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8936325,
+   "sha256": "ab511ce5f8fff4b65f93326655c0a4d94c62d381296713c278e46f1c8e47dd74",
+   "explains": {
+    "artifact": "gate_promote__husky_tenor_30s_m_fantasy.json",
+    "median_ecapa": 0.7053,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_tenor_30s_m_literary",
+   "view": "ab_test_runtime/reports/gate_view__husky_tenor_30s_m_literary.html",
+   "tracked_in_git": false,
+   "bytes": 9366601,
+   "sha256": "6a5eb38c9e6f57b285e860808ceb9cca5b9b0b1d24454b7af65ea745aa00631f",
+   "explains": {
+    "artifact": "gate_promote__husky_tenor_30s_m_literary.json",
+    "median_ecapa": 0.5985,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__breathy_alto_50s_f_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__retrain__breathy_alto_50s_f_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 9307809,
+   "sha256": "6c59a55537eed03c6ed8f1f494029ca395a5c01600d914492179351fcc6b01a7",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__breathy_baritone_30s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__retrain__breathy_baritone_30s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 2847633,
+   "sha256": "0df124cbe75fcde1372039e8dea4b69d7a0426f8bbe2794114d35f66d8379787",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__husky_baritone_20s_m_supernatural",
+   "view": "ab_test_runtime/reports/gate_view__retrain__husky_baritone_20s_m_supernatural.html",
+   "tracked_in_git": false,
+   "bytes": 8844754,
+   "sha256": "3dc508e5555abe4945324f4e23988bdef27aef16048bc05218275d408aceebe8",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__husky_baritone_40s_m_military",
+   "view": "ab_test_runtime/reports/gate_view__retrain__husky_baritone_40s_m_military.html",
+   "tracked_in_git": false,
+   "bytes": 9743002,
+   "sha256": "4df7b6b0d2a1e2734ac91badaf6bac61f69666f4f8c7d465adee869ca4dbb739",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__husky_tenor_30s_m",
+   "view": "ab_test_runtime/reports/gate_view__retrain__husky_tenor_30s_m.html",
+   "tracked_in_git": false,
+   "bytes": 8343561,
+   "sha256": "6bd5873e385105afab99d0139076b11c41198311e04905cce7a0ee40200052ca",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__silky_baritone_30s_m",
+   "view": "ab_test_runtime/reports/gate_view__retrain__silky_baritone_30s_m.html",
+   "tracked_in_git": false,
+   "bytes": 8824756,
+   "sha256": "cb3dd8344cbeb0becf5d37af6d762349bb5eb5443fcc07b43830c896b205f0cb",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_baritone_20s_m_postapoc",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_baritone_20s_m_postapoc.html",
+   "tracked_in_git": false,
+   "bytes": 8906184,
+   "sha256": "72a9e9fbc892681899724990a2a567721ed39b5f9c029380b7fc760f339242e1",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_baritone_30s_m_3",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_baritone_30s_m_3.html",
+   "tracked_in_git": false,
+   "bytes": 10186045,
+   "sha256": "248c11f720fd40aae2705807ee83a394a2936c23ecf49ef800921ca7c5a14e87",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_baritone_40s_m_1",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_baritone_40s_m_1.html",
+   "tracked_in_git": false,
+   "bytes": 9620458,
+   "sha256": "09c867f3fcada21e2837205916497a3b40a2da7a3b663dd3096b36c94b3dfefc",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_baritone_50s_m_gothic",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_baritone_50s_m_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 9149397,
+   "sha256": "4ed2434c12631316e2bea354e1a33408f1c8abf10a478be3ae6f84bef8d586c3",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_mezzo_30s_f_fantasy_2",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_mezzo_30s_f_fantasy_2.html",
+   "tracked_in_git": false,
+   "bytes": 7690389,
+   "sha256": "789c6d41aeeb58b3814e50d0daadf7cc20d074cfa31567bdb79c0a2a7a1a6292",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "retrain__warm_tenor_20s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__retrain__warm_tenor_20s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 8312572,
+   "sha256": "a01a4c1c0813ca3fcce0ed3368ddf7c373c6979376c48ff0f1bf3cad20e2ad6b",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_alto_40s_f",
+   "view": "ab_test_runtime/reports/gate_view__silky_alto_40s_f.html",
+   "tracked_in_git": false,
+   "bytes": 8945899,
+   "sha256": "41b9866c16e71c48d9419ccfa2465f173a312712abd6ba88ebd1393f8cc41e1b",
+   "explains": {
+    "artifact": "gate_promote__silky_alto_40s_f.json",
+    "median_ecapa": 0.7117,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_alto_40s_f_cyberpunk",
+   "view": "ab_test_runtime/reports/gate_view__silky_alto_40s_f_cyberpunk.html",
+   "tracked_in_git": false,
+   "bytes": 9281638,
+   "sha256": "077755efc6f88187f4174b341e99e31288e840c02ecfef50e3099441cfec027b",
+   "explains": {
+    "artifact": "gate_promote__silky_alto_40s_f_cyberpunk.json",
+    "median_ecapa": 0.6983,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_baritone_30s_m_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__silky_baritone_30s_m_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 9725427,
+   "sha256": "9034c6e7e3044db822276c59d8c1fbf0c00a43f6fed3a1f50901413682bb3856",
+   "explains": {
+    "artifact": "gate_promote__silky_baritone_30s_m_fantasy.json",
+    "median_ecapa": 0.6428,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_baritone_40s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__silky_baritone_40s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 9497289,
+   "sha256": "71c529e25f061dd48b326c147edf4615a695cc69c932fc098acd85441ed986ed",
+   "explains": {
+    "artifact": "gate_promote__silky_baritone_40s_m_scifi.json",
+    "median_ecapa": 0.6944,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_baritone_45s_m",
+   "view": "ab_test_runtime/reports/gate_view__silky_baritone_45s_m.html",
+   "tracked_in_git": false,
+   "bytes": 8602174,
+   "sha256": "7d78be447f50f66335a57ace0a943c5ce35bda29c09af8fc2e00ea1479c58860",
+   "explains": {
+    "artifact": "gate_promote__silky_baritone_45s_m.json",
+    "median_ecapa": 0.1241,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_mezzo_10s_f_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__silky_mezzo_10s_f_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8912554,
+   "sha256": "2943340c86603fd946eaecb90588da149b47ca82084a49067603f7e9e795c80f",
+   "explains": {
+    "artifact": "gate_promote__silky_mezzo_10s_f_fantasy.json",
+    "median_ecapa": 0.6624,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "silky_mezzo_30s_f_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__silky_mezzo_30s_f_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 8486426,
+   "sha256": "1e90d2a19a76bd2da5d5c590340da339fb074b984dd05419e23545e26890fe2b",
+   "explains": {
+    "artifact": "gate_promote__silky_mezzo_30s_f_fantasy.json",
+    "median_ecapa": 0.6025,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "velvety_mezzo_30s_f_gothic",
+   "view": "ab_test_runtime/reports/gate_view__velvety_mezzo_30s_f_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 9659209,
+   "sha256": "ab5dee22f5f5446480e3aa33ab1ba62aed7e473f1bffbce09369e5919f5d5eae",
+   "explains": {
+    "artifact": "gate_promote__velvety_mezzo_30s_f_gothic.json",
+    "median_ecapa": 0.2609,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_alto_40s_f_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_alto_40s_f_1.html",
+   "tracked_in_git": false,
+   "bytes": 9920730,
+   "sha256": "148c4c9c46774882b4009ea47e00297236141d16d7b8ffeca72c9c7542bc3dd0",
+   "explains": {
+    "artifact": "gate_promote__warm_alto_40s_f_1.json",
+    "median_ecapa": 0.6087,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_alto_40s_f_2",
+   "view": "ab_test_runtime/reports/gate_view__warm_alto_40s_f_2.html",
+   "tracked_in_git": false,
+   "bytes": 9281207,
+   "sha256": "0028ffbb840e1b9e9f15ff6752e2f617caed09819a734f57ea590b9915e5bde7",
+   "explains": {
+    "artifact": "gate_promote__warm_alto_40s_f_2.json",
+    "median_ecapa": 0.6847,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_alto_50s_f_anime",
+   "view": "ab_test_runtime/reports/gate_view__warm_alto_50s_f_anime.html",
+   "tracked_in_git": false,
+   "bytes": 9257917,
+   "sha256": "ae38f43e0b3afb87af8d5a9f1c69ef68b86eac5d04e3b58e00b8e08c516bfd81",
+   "explains": {
+    "artifact": "gate_promote__warm_alto_50s_f_anime.json",
+    "median_ecapa": 0.7002,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
   },
   {
    "arm": "warm_alto_50s_f_gothic",
@@ -54,15 +538,176 @@
     "median_ecapa": 0.0342,
     "passed": false
    },
-   "looked_at": true,
-   "observation": {
-    "sounds_like_same_person": 3,
-    "freedom_from_defects": 5,
-    "note": null,
-    "rated_at": "2026-08-22",
-    "rater": "project owner",
-    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
-   }
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_1.html",
+   "tracked_in_git": false,
+   "bytes": 9041862,
+   "sha256": "6ccaf4cefdb81877037ae303ac73e66fefd89454386743230ae46be7ef684117",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_1.json",
+    "median_ecapa": 0.5863,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_2",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_2.html",
+   "tracked_in_git": false,
+   "bytes": 9754259,
+   "sha256": "426572fb4ef8088e144196fa3c269144db9fb55a6973d8f9693b7f8e2d1e4ef3",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_2.json",
+    "median_ecapa": 0.5587,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_3",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_3.html",
+   "tracked_in_git": false,
+   "bytes": 9401106,
+   "sha256": "63a74ec51255f3ce473f93a8f4e32dc925f919bfd52a021005207a1f4cd517be",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_3.json",
+    "median_ecapa": 0.5634,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_fantasy_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_fantasy_1.html",
+   "tracked_in_git": false,
+   "bytes": 8806357,
+   "sha256": "508082df5b3d6eb63a8065bce00b839ca736d380f8d297e1e513c31bf9942302",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_fantasy_1.json",
+    "median_ecapa": 0.6545,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_fantasy_2",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_fantasy_2.html",
+   "tracked_in_git": false,
+   "bytes": 8906152,
+   "sha256": "71caf5472d001be8e63c47c02f3149f587abc565fba5f48cf0845ce51ae541fe",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_fantasy_2.json",
+    "median_ecapa": 0.7084,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_30s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_30s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 9401693,
+   "sha256": "88e48585804eb5e9e365e3e4bc66f892e991096cf664eb54c96250080f702af7",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_30s_m_scifi.json",
+    "median_ecapa": 0.6666,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_1.html",
+   "tracked_in_git": false,
+   "bytes": 9339799,
+   "sha256": "434098a584997a190cf0b1bc1bd647d7eff616aca08939a8fb649aa2655d79e9",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_1.json",
+    "median_ecapa": 0.6521,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_2",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_2.html",
+   "tracked_in_git": false,
+   "bytes": 9971857,
+   "sha256": "8d08a2f4496d0ff5c276ccbb75001fe39917e8dd8c7ab10acd18c95fab2951ca",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_2.json",
+    "median_ecapa": 0.7513,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_4",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_4.html",
+   "tracked_in_git": false,
+   "bytes": 8752715,
+   "sha256": "1c7d813034d9ef0c71db3de5a7c3a2b6d0f5e3015abc011a847d3f7322790c08",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_4.json",
+    "median_ecapa": 0.5977,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_5",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_5.html",
+   "tracked_in_git": false,
+   "bytes": 9387636,
+   "sha256": "263d0e6dae521202959ced49a32e75a89ff8e8590a0c5d98bc50c72eb2de8afe",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_5.json",
+    "median_ecapa": 0.6002,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_military",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_military.html",
+   "tracked_in_git": false,
+   "bytes": 9278071,
+   "sha256": "ca5f3f46300b9a346004948ec69390195e443f8545307cb276d93710509da958",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_military.json",
+    "median_ecapa": 0.6906,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_40s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_40s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 10280150,
+   "sha256": "b1bc56f1d9a7bad626c13119b6eda3be509e5f271ed33f75379012d8126f5ee3",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_40s_m_scifi.json",
+    "median_ecapa": 0.7022,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
   },
   {
    "arm": "warm_baritone_50s_m",
@@ -75,15 +720,134 @@
     "median_ecapa": 0.7807,
     "passed": true
    },
-   "looked_at": true,
-   "observation": {
-    "sounds_like_same_person": 5,
-    "freedom_from_defects": 4,
-    "note": "Both of them sounded alike but the narrator one had additional audio where it said please in a very realistic way.",
-    "rated_at": "2026-08-22",
-    "rater": "project owner",
-    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
-   }
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_50s_m_gothic",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_50s_m_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 8794857,
+   "sha256": "85e715dbeb0f305cb331096f00724e8937081570279da4233c99a41b39505bc0",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_50s_m_gothic.json",
+    "median_ecapa": 0.5399,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_mezzo_20s_f_anime",
+   "view": "ab_test_runtime/reports/gate_view__warm_mezzo_20s_f_anime.html",
+   "tracked_in_git": false,
+   "bytes": 8672096,
+   "sha256": "f6bd60ca87cc9cffac9e35a8141f8e0ef99ff7b2c10408db2e1f3ee698f7f105",
+   "explains": {
+    "artifact": "gate_promote__warm_mezzo_20s_f_anime.json",
+    "median_ecapa": 0.6317,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_mezzo_30s_f",
+   "view": "ab_test_runtime/reports/gate_view__warm_mezzo_30s_f.html",
+   "tracked_in_git": false,
+   "bytes": 9698817,
+   "sha256": "9f741003f15cb660b92c451003da709dd3ebcc828e41e2d06a2c06218b48ac1b",
+   "explains": {
+    "artifact": "gate_promote__warm_mezzo_30s_f.json",
+    "median_ecapa": 0.5351,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_mezzo_30s_f_fantasy_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_mezzo_30s_f_fantasy_1.html",
+   "tracked_in_git": false,
+   "bytes": 8754779,
+   "sha256": "d3be341deff226920b27a0273dd3e3a89ef51cd0302e7c7401ccb882b549576d",
+   "explains": {
+    "artifact": "gate_promote__warm_mezzo_30s_f_fantasy_1.json",
+    "median_ecapa": 0.6555,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_tenor_20s_m",
+   "view": "ab_test_runtime/reports/gate_view__warm_tenor_20s_m.html",
+   "tracked_in_git": false,
+   "bytes": 9015479,
+   "sha256": "5fdc6a3629932e77ee595d2f8098be66f1bfe810b1a252c01bd6a59b9347fdb4",
+   "explains": {
+    "artifact": "gate_promote__warm_tenor_20s_m.json",
+    "median_ecapa": 0.1358,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_tenor_20s_m_scifi",
+   "view": "ab_test_runtime/reports/gate_view__warm_tenor_20s_m_scifi.html",
+   "tracked_in_git": false,
+   "bytes": 8547048,
+   "sha256": "d33fdb05f89cf7744adf753e670da083ac6725ca80b657f34ad0de40ef25f40e",
+   "explains": {
+    "artifact": "gate_promote__warm_tenor_20s_m_scifi.json",
+    "median_ecapa": 0.5484,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_tenor_30s_m_1",
+   "view": "ab_test_runtime/reports/gate_view__warm_tenor_30s_m_1.html",
+   "tracked_in_git": false,
+   "bytes": 8677584,
+   "sha256": "87ceb3e9e8474d9edf9623920748fcbec4a44b8131c67d670d726cd1922e36b4",
+   "explains": {
+    "artifact": "gate_promote__warm_tenor_30s_m_1.json",
+    "median_ecapa": 0.7124,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_tenor_30s_m_2",
+   "view": "ab_test_runtime/reports/gate_view__warm_tenor_30s_m_2.html",
+   "tracked_in_git": false,
+   "bytes": 9818630,
+   "sha256": "4fb12af57cd8defa20d7c4bb1bd8d3f7ac8b4ffa9d5c25ca6c0026188e6e4c90",
+   "explains": {
+    "artifact": "gate_promote__warm_tenor_30s_m_2.json",
+    "median_ecapa": 0.6044,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_tenor_30s_m_gothic",
+   "view": "ab_test_runtime/reports/gate_view__warm_tenor_30s_m_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 9492258,
+   "sha256": "4a992484842a766909a13978a64c64fdfdfa0c686fed56e548148e93dccf81e3",
+   "explains": {
+    "artifact": "gate_promote__warm_tenor_30s_m_gothic.json",
+    "median_ecapa": 0.5094,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
   },
   {
    "arm": "aishell3",
@@ -148,20 +912,15 @@
  ],
  "provenance": {
   "script": "record_views.py",
-  "written": "2026-08-20T07:21:29",
+  "written": "2026-09-13T10:15:11",
   "host": "mitch-linux",
   "git": {
-   "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
-   "branch": "agent/promote-met-goals-20260820",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M GOALS.md"
-   ],
-   "untracked_harness_files": [
-    "app/experiments/gate_view.py",
-    "app/experiments/record_views.py"
-   ],
-   "harness_sha256": "9eb61131d2cae6b8dfdb89a9c958fe58632f2bb2eb7d09b713cf7eaf6056a741"
+   "commit": "1b85d7078bbbb0499ff24e2b51643f6ff5ceefef",
+   "branch": "feat/adapter-listening-controls",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "78df6bd5f9b77f57a61639a203c19759219e54032e1734d379a35bd2f7742064"
   },
   "args": {
    "repo": "alexandria-audiobook2.git",
@@ -170,46 +929,7 @@
     "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/voice_compare/*.html",
     "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/asr_clip_view/*.html"
    ],
-   "out": "ab_test_runtime/experiments/audio_views.json"
-  }
- },
- "listening_round_2026_08_22": {
-  "what": "first human ratings of the identity gate's own audio, scores concealed until rated",
-  "arms": 4,
-  "ecapa_vs_sounds_like_same_person_spearman": 0.8,
-  "ecapa_vs_freedom_from_defects_spearman": -0.6,
-  "reading": "ECAPA does the job it claims and no other. Ranked by the listener, the four arms fall in almost the gate's own order on IDENTITY (rho +0.80, one inversion between the two failures) - the first outside check this gate has had. On USABILITY the relationship inverts (rho -0.60): both arms the gate FAILED were rated 5, completely clean, and the worst clip in the set is one the gate PASSED. husky_baritone_20s_m_anime scored 0.7524, cleared the 0.45 threshold, and repeats a word, cracks, and degenerates into non-words. A degenerate generation keeps the target speaker's timbre, so speaker similarity cannot see it, and nothing else in the promotion path looks. n=4, so no rate is claimed - but the failure mode is demonstrated, not estimated.",
-  "open_question": "warm_alto_50s_f_gothic is the largest disagreement: ECAPA 0.0342, 'a different person entirely', against a listener's 3. That adapter is one of three traced the same day to the full-cast Dracula, so a dataset mixing two cast members would make BOTH readings correct. Testable, and untested.",
-  "reference_mismatch_hypothesis": {
-   "asked": "does a reference clip that is not the validation speaker explain the 0.0342 on warm_alto_50s_f_gothic?",
-   "median_f0_hz": {
-    "warm_alto_50s_f_gothic": {
-     "ref": 107.8,
-     "val": 142.7,
-     "semitones": 4.85,
-     "ecapa": 0.0342
-    },
-    "breathy_alto_50s_f_fantasy": {
-     "ref": 157.4,
-     "val": 202.4,
-     "semitones": 4.35,
-     "ecapa": 0.3934
-    },
-    "husky_baritone_20s_m_anime": {
-     "ref": 229.2,
-     "val": 223.9,
-     "semitones": 0.4,
-     "ecapa": 0.7524
-    },
-    "warm_baritone_50s_m": {
-     "ref": 82.0,
-     "val": 103.9,
-     "semitones": 4.1,
-     "ecapa": 0.7807
-    }
-   },
-   "verdict": "NOT SUPPORTED",
-   "reading": "Three of the four order correctly - the wider the ref/val gap the lower the score - and warm_baritone_50s_m breaks it outright: a 4.10 semitone gap with the HIGHEST score in the set, 0.7807, passed. One counterexample in four is not a pattern, and this is recorded so the idea is not proposed a second time as though untested. What survives is narrower and not about the gate at all: THREE OF FOUR datasets have a reference clip 4+ semitones from their own validation audio, and the generated clip tracks the reference (warm_alto: ref 107.8, generated 109.4, val 142.7). Median f0 is a crude proxy for speaker identity; settling this needs ECAPA between ref and val, which needs speechbrain and therefore the sibling interpreter."
+   "out": "../ab_test_runtime/experiments/audio_views.json"
   }
  }
 }
