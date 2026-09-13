@@ -4681,6 +4681,44 @@ held in a file the page never contained. It produced a usable result at
 p=0.020, agreed with the pause measurement, and its free-text notes identified
 the mechanism. As there, the notes here found more than the ratings did.
 
+**Second sitting with a real positive control — 2026-09-13, and the first
+verdict does not reproduce.** The 09-06 package's controls differed in
+content as well as voice; `adapter_listening_controls.py` now has the foreign
+narrator read the reference line itself, and `adapter_listening.py` builds
+only from those. Same eight comparison pairs, three new controls, slots
+reshuffled (seed 20260913), rated blind on a page whose answers were saved as
+made; the sealed key's sha256 was in the public manifest before the first
+rating and matched after the last.
+
+| class | 09-06 sitting | 09-13 sitting | registered prediction |
+|---|---|---|---|
+| controls, same words | 3/3 — but rejected by content | **3/3, rejected by voice** ("B was a woman") | rejected in all 3 |
+| large gap (+0.315 ECAPA) | shipped 4 of 4 | shipped 2, rebuilt 1, same 1 | shipped clearly and consistently |
+| no gap (+0.017) | shipped 2, cannot tell 2 | shipped 3, rebuilt 1 | near chance |
+
+The controls now certify the package, and on the certified sitting the
+large-gap class is near chance, which is the falsifier the prediction
+registered: *"both classes near chance means ECAPA is not measuring audible
+speaker identity at this scale."* Pooled over both sittings the large-gap
+class is 6 shipped, 1 rebuilt, 1 same — suggestive of the direction ECAPA
+gives, not the clear preference it predicted. A 4-of-4 and a 2-of-4 from the
+same rater on the same clips a week apart is the measurement's own
+repeatability, and it is wider than the effect. What this is not: it is not
+evidence that the 0.315 gap is spurious; it is evidence that four lines and
+one rater cannot see it, and that the 09-06 HELD was one draw.
+
+The notes again found what the ratings could not: *journal* said as "johnal"
+on **both** baritone arms (sets 00 and 08 — shipped and rebuilt alike, so it
+is the base model or the text, not the adapter), *bloody* as "bloudly",
+*shone* wrong on the foreign voice, and both alto arms losing the deeper
+register the human opens with (sets 04, 06). None of those is a speaker-identity
+question and none is measured anywhere in this document.
+
+**Evidence** — `adapter_listening_v2_ratings.json`,
+`adapter_listening_v2.json`, `adapter_listening_v2_concealed_key.json`
+(committed after rating; the manifest carries its hash from before). One
+rater, computer speakers, four lines per class.
+
 ---
 
 # Part II — Met

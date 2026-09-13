@@ -115,10 +115,13 @@ def _foreign_clip(adapter, index):
     arm differing - are the part of that package that stands.
 
     Generating the foreign voice on the trained adapter's own held-out line
-    needs a TTS pass, which is why this returns None and the caller refuses
-    rather than silently rebuilding the broken control.
+    needs a TTS pass - `adapter_listening_controls.py` - which writes
+    `<holdout>/<adapter>/foreign_<FOREIGN>/check_<index>.wav`. This returns
+    that path when it carries audio and None otherwise, so the caller still
+    refuses rather than silently rebuilding the broken control.
     """
-    return None
+    path = os.path.join(HOLDOUT, adapter, f"foreign_{FOREIGN}", f"check_{index}.wav")
+    return path if _wav_ok(path) else None
 
 
 def _reference(adapter, index):

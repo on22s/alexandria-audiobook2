@@ -671,14 +671,14 @@
     "supported_structure": 2,
     "exploratory": 3
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 1,
    "no_commit": 3,
    "artifacts": [
     {
      "name": "audio_views.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "02421630"
+     "dirty": false,
+     "commit": "1b85d707"
     },
     {
      "name": "character_distinctiveness.json",
@@ -709,16 +709,18 @@
   {
    "goal": "7.1",
    "title": "A listener prefers what we ship",
-   "cited": 4,
+   "cited": 7,
    "not_in_audit": [],
-   "not_experiment_artifacts": [],
+   "not_experiment_artifacts": [
+    "adapter_listening_v2_concealed_key.json"
+   ],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 2,
-    "exploratory": 2
+    "supported_structure": 3,
+    "exploratory": 3
    },
    "dirty_artifacts": 1,
-   "no_commit": 2,
+   "no_commit": 3,
    "artifacts": [
     {
      "name": "adapter_listening.json",
@@ -728,6 +730,18 @@
     },
     {
      "name": "adapter_listening_ratings.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "adapter_listening_v2.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "1b85d707"
+    },
+    {
+     "name": "adapter_listening_v2_ratings.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
