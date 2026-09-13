@@ -387,6 +387,12 @@ core 5-step flow Setup → Script → Voices → Editor → Result, plus
 Designer/Dataset/Training/Preparer/Voice Lab tabs.
 
 ### Key files
+- `RECIPES.md` — the training/serving settings that produced working
+  results, each with its evidence and the look-alike failure. **Read it before
+  copying any recipe out of a `training_meta.json`** — that file records what
+  a run used, not whether it worked (a 5e-6 runaway was copied from one on
+  2026-09-13). `app/tests/test_recipes.py` refuses chains that train with an
+  unlisted learning rate.
 - `app/app.py` — all FastAPI routes + background-task orchestration.
 - `app/generate_script.py` / `app/review_script.py` — LLM annotation and
   review passes (single-book and batch variants).

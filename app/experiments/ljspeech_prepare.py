@@ -64,6 +64,31 @@ def load_metadata(root):
     return rows
 
 
+LJSPEECH_IDENTITY = {"corpus": "LJSpeech-1.1",
+                     "licence": "public domain (LibriVox recordings, Gutenberg texts)",
+                     "sample_rate_native": 22050}
+
+
+def corpus_identity(root):
+    """What the split records about its source: name, licence, native rate.
+
+    LJSpeech carries none of this in-tree, so its values are the defaults. A
+    corpus written by `hifitts_fetch.py` (or any other fetcher) ships a
+    `corpus.json` beside `metadata.csv`, and those values win - otherwise a
+    44.1 kHz reader would be recorded as 22.05 kHz public-domain LJSpeech, and
+    the build would resample from the wrong rate.
+    """
+    path = os.path.join(root, "corpus.json")
+    identity = dict(LJSPEECH_IDENTITY)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        for key in identity:
+            if key in doc:
+                identity[key] = doc[key]
+    return identity
+
+
 def split_by_book(rows, test_books, min_chars, max_chars):
     """Hold out whole source works, never individual clips."""
     usable = [r for r in rows
@@ -152,10 +177,11 @@ def main():
     assert not ({r["book"] for r in train} & {r["book"] for r in test}), \
         "a source work appears on both sides"
 
-    doc = {"corpus": "LJSpeech-1.1",
-           "licence": "public domain (LibriVox recordings, Gutenberg texts)",
+    identity = corpus_identity(args.root)
+    doc = {"corpus": identity["corpus"],
+           "licence": identity["licence"],
            "root": os.path.relpath(args.root, REPO),
-           "sample_rate_native": 22050,
+           "sample_rate_native": identity["sample_rate_native"],
            "test_books": test_books,
            "selection": {"min_chars": args.min_chars,
                          "max_chars": args.max_chars,

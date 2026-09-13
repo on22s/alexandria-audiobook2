@@ -44,3 +44,24 @@ wrongly denied on 2026-08-03 before being found — see the note in that file.
 Place the directories as `ab_test_runtime/corpora/aozora` and
 `ab_test_runtime/corpora/chinese`. The experiments fail loudly with a missing
 path rather than silently scoring nothing.
+
+## hifitts/<reader>/ — English, a second public human-read reference set
+
+Hi-Fi Multi-Speaker English TTS Dataset (Bakhturina, Lavrukhin, Ginsburg,
+Zhang; Interspeech 2021; OpenSLR 109). LibriVox audio, Gutenberg text,
+**CC BY 4.0**, 44.1 kHz, human transcripts (raw and normalised). Fetched per
+reader from the parquet mirror `MikhailT/hifi-tts` by
+`app/experiments/hifitts_fetch.py`, which reads each shard's `speaker`
+column before deciding to download it, so one reader costs a few gigabytes
+of transfer and never the 41 GB tarball. Written LJSpeech-shaped
+(`wavs/<id>.wav`, `metadata.csv`, plus `corpus.json` naming the corpus,
+licence and native rate) so `ljspeech_prepare.py` and everything after it
+run unchanged; `id = <book_slug>-<chapter>_<seq>` so the split-by-source-work
+rule holds.
+
+| reader | name | sex | clean hours | works fetched (2026-09-13, ≤400 clips each) |
+| --- | --- | --- | --- | --- |
+| 9017 | John Van Stan | M | 58.0 | dartagnan01, dartagnan03part1, dartagnan03part3, zarathustra, antoinetteromances4, celebratedcrimesv1, historyofforestry |
+
+Used by goal 2.9 (`run_chains/hifitts_9017_20260913.sh`) as the public
+counterpart to the eight private narrators of `second_english_eval_20260820`.

@@ -1535,6 +1535,15 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
   ],
+  "test_hifitts_fetch": [
+    "tests.test_hifitts_fetch.ParseFileTest.test_a_slug_with_a_dash_is_refused",
+    "tests.test_hifitts_fetch.ParseFileTest.test_an_unrecognised_name_is_refused_not_guessed",
+    "tests.test_hifitts_fetch.ParseFileTest.test_real_paths_yield_speaker_book_and_a_split_safe_id",
+    "tests.test_hifitts_fetch.PerBookCapTest.test_cap_counts_across_calls_and_stops_writing_a_full_book",
+    "tests.test_hifitts_fetch.PrepareIdentityTest.test_corpus_json_overrides_the_ljspeech_defaults",
+    "tests.test_hifitts_fetch.ResumeTest.test_clips_already_written_are_skipped_and_counted",
+    "tests.test_hifitts_fetch.WriteRowsTest.test_only_usable_rows_are_written_and_prepare_reads_them_back"
+  ],
   "test_holdout_leak": [
     "tests.test_holdout_leak.HoldoutLeak.test_a_file_against_itself_is_a_total_leak",
     "tests.test_holdout_leak.HoldoutLeak.test_an_empty_side_refuses_rather_than_reporting_clean",
@@ -2335,6 +2344,13 @@
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_fails_when_nothing_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
+  ],
+  "test_recipes": [
+    "tests.test_recipes.ChainsUseWorkingRatesTest.test_every_chain_that_trains_uses_a_listed_rate",
+    "tests.test_recipes.ChainsUseWorkingRatesTest.test_the_scanner_sees_a_multiline_invocation",
+    "tests.test_recipes.RecipesFileTest.test_the_file_lists_the_trainer_default_as_working",
+    "tests.test_recipes.RecipesFileTest.test_the_parser_reads_status_not_prose",
+    "tests.test_recipes.RecipesFileTest.test_the_runaway_rate_is_not_listed_as_working"
   ],
   "test_record_stamps_every_gold": [
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_changed_second_gold_changes_the_record",

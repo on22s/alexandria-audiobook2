@@ -2795,10 +2795,68 @@ Japanese stayed inside 0.025. **The arms are close; the languages are not.**
 **What it does NOT settle, and cannot.** The question above is whether English
 is weak because of the ARM or because of the EVAL SET, and more draws from the
 same LJSpeech recordings cannot tell those apart - both predict the same score
-at any n. Only a second English reference set can, and there is not one on
-disk: `ljspeech` is the only English source among the five generate artifacts.
-Generating one is the experiment that would close this, and it is a GPU job
-nobody has queued.
+at any n. Only a second English reference set can. (When this paragraph was
+written it said none existed and nobody had queued the job. Both halves were
+wrong: eight private narrators had been scored on 2026-08-20/24 and never
+written up, and a public reader was added on 2026-09-13. Both follow.)
+
+**Two more English sets, 2026-09-13.** Same instrument throughout
+(`prosody_fidelity.py`, f0 correlation in semitones after DTW, GPE), the LoRA
+arm trained by the recipe in `RECIPES.md`.
+
+| English set | holdout | arm | n | f0 corr median / mean | GPE mean |
+|---|---|---|---:|---|---:|
+| LJSpeech — public, F, non-fiction | whole works | LoRA | 150 | 0.308 / 0.289 | 0.473 |
+| | | clone | 150 | 0.374 / 0.343 | 0.472 |
+| **Hi-Fi TTS reader 9017 — public, M, fiction** (Dumas) | whole works | LoRA | 143 | **0.346 / 0.263** | 0.558 |
+| | | clone | 149 | **0.337 / 0.278** | 0.496 |
+| eight private narrators, 20 lines each (`second_english_eval_20260820`) | val split *inside the one book the adapter trained on* | LoRA | 159 | 0.457 / 0.437 | 0.400 (median) |
+| | | clone | 159 | 0.520 / 0.450 | 0.329 (median) |
+
+Per private narrator the LoRA median runs 0.28–0.63 and the clone 0.02–0.69
+(`prosody_second_english__*.json`); the private transcripts are ASR output
+from the preparer, the public ones are human.
+
+Hi-Fi 9017 is the LJSpeech design on a different reader: `hifitts_fetch.py`
+pulls one reader from the CC BY 4.0 parquet mirror, `ljspeech_prepare.py`
+holds out two whole works (`antoinetteromances4`, `celebratedcrimesv1`, both
+separate LibriVox projects from the D'Artagnan volumes it trains on),
+`ljspeech_build.py` resamples both sides to 24 kHz, and the ceiling/floor
+anchors come from `ljspeech_score.py`: ECAPA LoRA 0.555, clone 0.646,
+human-vs-human 0.751 (LJSpeech: 0.690 / 0.757 / 0.833) — the ceiling bounds
+both arms, as 6.1 requires.
+
+**What the numbers say, kept apart from what they measure:**
+
+- **A second public reader reads like the first.** Opposite sex, fiction
+  rather than non-fiction, human transcripts, held-out works: both arms land
+  within a few points of LJSpeech on f0 correlation. Two public English sets
+  agree; the English deficit against Japanese (0.72, also a whole-novel
+  holdout — `kokoro_generate.json`) is not an LJSpeech artifact.
+- **The private set is the outlier, ~0.15 higher on both arms.** Measured,
+  not explained. The hypothesis that separates it from the public sets is
+  the split: those held-out lines come from the same audiobook, session and
+  recording chain as the training clips, which is the leak the split-by-work
+  design exists to prevent, and same-session material predicts exactly a
+  higher correlation. It is testable without new audio — re-split one
+  private narrator by chapter — and until it is tested the eight-narrator
+  figure must not be quoted as "English prosody is fine on our own voices".
+- **Arm order flips between sets and is small everywhere.** LoRA over clone
+  by 0.009 on Hi-Fi, clone over LoRA by 0.066 on LJSpeech and 0.063 on the
+  private set (medians). With per-set spreads this wide the arm is not the
+  variable that matters for English prosody; the language is.
+- **The 2.3 gate paid for itself.** The first Hi-Fi adapter was trained at
+  lr 5e-6 — copied from `ljspeech_eval/adapter/training_meta.json`, the
+  runaway adapter, whose metadata is indistinguishable from the working
+  `adapter_lr1e6` — and produced 163.8 s of audio for every held-out line,
+  merged and unmerged alike. Retrained at 1e-6 it passes the stop gate at
+  1.1x. `RECIPES.md` and `test_recipes.py` exist because of that morning.
+
+Evidence: `ab_test_runtime/experiments/hifitts_9017_generate.json`,
+`prosody_hifitts_9017.json`, `hifitts_9017_score.json`,
+`prosody_second_english__*.json` (eight files), `second_english__*_generate.json`;
+`run_chains/hifitts_9017_20260913.sh`; corpus provenance in
+`ab_test_runtime/corpora/PROVENANCE.md`.
 
 ---
 

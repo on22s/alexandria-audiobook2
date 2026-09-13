@@ -116,12 +116,20 @@ def ecapa_scores(pairs):
     `voice_data_saturation.embedder()` silently falls back to acoustic distance
     when it is missing. Failing loudly is the point.
     """
-    if not os.path.exists(SIBLING_PY):
-        return None, f"sibling interpreter not found at {SIBLING_PY}"
+    # ONE resolver (voice_reference.get_speaker_model_python): since
+    # 2026-09-11 speechbrain lives in app/env, so this is normally the running
+    # interpreter; the sibling-repo path is its last fallback. Resolving the
+    # sibling here directly reported no ECAPA at all from a worktree on
+    # 2026-09-13, where no sibling checkout exists beside it.
+    from voice_reference import get_speaker_model_python
+    python = get_speaker_model_python()
+    if not python:
+        return None, (f"no interpreter with speechbrain: not this one, no "
+                      f"Voice Lab rocm_python, no sibling at {SIBLING_PY}")
     script = os.path.join(APP, "experiments", "_ecapa_batch.py")
     payload = json.dumps([[a, b] for a, b in pairs])
     try:
-        out = subprocess.run([SIBLING_PY, script], input=payload,
+        out = subprocess.run([python, script], input=payload,
                              capture_output=True, text=True, timeout=3600,
                              cwd=APP)
     except subprocess.SubprocessError as exc:

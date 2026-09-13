@@ -336,15 +336,15 @@
   {
    "goal": "2.9",
    "title": "Pitch-carried meaning survives synthesis",
-   "cited": 4,
+   "cited": 7,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
     "exploratory": 2,
-    "supported_structure": 2
+    "supported_structure": 5
    },
-   "dirty_artifacts": 0,
+   "dirty_artifacts": 1,
    "no_commit": 2,
    "artifacts": [
     {
@@ -366,10 +366,28 @@
      "commit": "29ccc772"
     },
     {
+     "name": "hifitts_9017_score.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "092d783c"
+    },
+    {
      "name": "japanese_accent_calibration_key.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
+    },
+    {
+     "name": "kokoro_generate.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "41095b49"
+    },
+    {
+     "name": "prosody_hifitts_9017.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "ff62f3f2"
     }
    ]
   },
