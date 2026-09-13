@@ -6,6 +6,11 @@
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_an_adapter_absent_from_the_manifest_still_resolves_by_path",
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_the_tracked_manifest_names_a_real_dataset_for_every_adapter"
   ],
+  "test_adapter_listening_controls": [
+    "tests.test_adapter_listening_controls.ForeignClipTest.test_a_generated_control_is_found_only_at_the_foreign_path",
+    "tests.test_adapter_listening_controls.ForeignClipTest.test_no_generated_control_means_none_so_the_builder_still_refuses",
+    "tests.test_adapter_listening_controls.HoldoutLinesTest.test_lines_come_in_val_order_which_is_check_index_order"
+  ],
   "test_adapter_provenance": [
     "tests.test_adapter_provenance.BackfillTest.test_a_correct_digest_is_left_alone",
     "tests.test_adapter_provenance.BackfillTest.test_a_meta_with_no_adapter_beside_it_is_not_invented",
