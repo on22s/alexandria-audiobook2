@@ -1,0 +1,222 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": [
+  "warm_baritone_30s_m_1"
+ ],
+ "corpus": "warm_baritone_30s_m_1",
+ "rows": [
+  {
+   "id": "sample_1780",
+   "book": "warm_baritone_30s_m_1",
+   "text": "as if it were dragging itself out of standby to activation. .... Rusty metal made shrill complaints *as* the door slid open to her left.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1780.wav",
+   "human_seconds": 10.0,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1780__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1780__clone.wav"
+  },
+  {
+   "id": "sample_1781",
+   "book": "warm_baritone_30s_m_1",
+   "text": "This was it, she thought ... as a brighter, purple glow spilled out and flowed over her. .... Whatever was *calling* her was right here.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1781.wav",
+   "human_seconds": 9.28,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1781__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1781__clone.wav"
+  },
+  {
+   "id": "sample_1782",
+   "book": "warm_baritone_30s_m_1",
+   "text": "As soon as she stepped inside, however, her eager anticipation turned to *bafflement*. Most of the space was taken up by an enormous mirrored sphere, ...",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1782.wav",
+   "human_seconds": 10.58,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1782__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1782__clone.wav"
+  },
+  {
+   "id": "sample_1783",
+   "book": "warm_baritone_30s_m_1",
+   "text": "leaving very little room for anything else, including *herself*. The sphere was actually too big for the room ...",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1783.wav",
+   "human_seconds": 7.02,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1783__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1783__clone.wav"
+  },
+  {
+   "id": "sample_1784",
+   "book": "warm_baritone_30s_m_1",
+   "text": "the top passed through the ceiling and the bottom penetrated the floor. .... Weird, but also *incredibly* beautiful.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1784.wav",
+   "human_seconds": 7.9,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1784__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1784__clone.wav"
+  },
+  {
+   "id": "sample_1785",
+   "book": "warm_baritone_30s_m_1",
+   "text": "The surface sparkled with flashes of *purple* light as some kind of energy danced on it. .... Or",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1785.wav",
+   "human_seconds": 7.58,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1785__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1785__clone.wav"
+  },
+  {
+   "id": "sample_1786",
+   "book": "warm_baritone_30s_m_1",
+   "text": "within *it*? After a second or two, she realised the light was sparkling in rhythm with the *thrumming*. ....",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1786.wav",
+   "human_seconds": 7.02,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1786__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1786__clone.wav"
+  },
+  {
+   "id": "sample_1787",
+   "book": "warm_baritone_30s_m_1",
+   "text": "So were *her* nerves ... every part of her, in fact, was *vibrating* in time with whatever was inside that sphere.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1787.wav",
+   "human_seconds": 7.36,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1787__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1787__clone.wav"
+  },
+  {
+   "id": "sample_1788",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Careful ... but *unafraid*, she pressed her hand to the surface. Light danced around her hand and sent long flickering threads out from each point of ... contact.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1788.wav",
+   "human_seconds": 11.0,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1788__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1788__clone.wav"
+  },
+  {
+   "id": "sample_1789",
+   "book": "warm_baritone_30s_m_1",
+   "text": "It tingled ... in a *lovely* way, as if it *welcomed* her touch, but she could get no sense of what the sphere was made of,",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1789.wav",
+   "human_seconds": 8.1,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1789__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1789__clone.wav"
+  },
+  {
+   "id": "sample_1790",
+   "book": "warm_baritone_30s_m_1",
+   "text": "whether it was cloth or plastic or metal or even if it might be alive. .... Alita closed her eyes and immediately had a sense of the sparkling brightness flowing around her and *through* her.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1790.wav",
+   "human_seconds": 13.02,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1790__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1790__clone.wav"
+  },
+  {
+   "id": "sample_1791",
+   "book": "warm_baritone_30s_m_1",
+   "text": "After a moment, she reached out and put her *other* hand on the wall. .... Her eyes were still *closed* but she felt the keypad take form under her fingers,",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1791.wav",
+   "human_seconds": 10.2,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1791__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1791__clone.wav"
+  },
+  {
+   "id": "sample_1792",
+   "book": "warm_baritone_30s_m_1",
+   "text": "which *knew* what to do. .... They danced over the keys in a *precise*, *perfect* pattern that felt *sensible*, *agreeable*,",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1792.wav",
+   "human_seconds": 7.84,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1792__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1792__clone.wav"
+  },
+  {
+   "id": "sample_1793",
+   "book": "warm_baritone_30s_m_1",
+   "text": "irrevocably *correct*. .... Because *sense* memory stays in the core and moves with it from body to body.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1793.wav",
+   "human_seconds": 8.74,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1793__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1793__clone.wav"
+  },
+  {
+   "id": "sample_1794",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Thus there is no need to relearn *motions* from one *incarnation* to the next. .... The cyborg embodies an answer and a challenge to what was once referred to as",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1794.wav",
+   "human_seconds": 10.82,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1794__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1794__clone.wav"
+  },
+  {
+   "id": "sample_1795",
+   "book": "warm_baritone_30s_m_1",
+   "text": "\u201cThe Hard Problem\u201d. ... Consciousness is, in fact, *always* embodied in the cyber core and *easily* adapts to inhabit any corporeal",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1795.wav",
+   "human_seconds": 9.58,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1795__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1795__clone.wav"
+  },
+  {
+   "id": "sample_1796",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Oh, ... not now professor. .... I\u2019ve got my hands full with The words evaporated from Alita\u2019s *mind* as she opened her *eyes*.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1796.wav",
+   "human_seconds": 9.3,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1796__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1796__clone.wav"
+  },
+  {
+   "id": "sample_1797",
+   "book": "warm_baritone_30s_m_1",
+   "text": "At the same moment, the sphere flickered, then collapsed in on itself. .... She jumped, startled but unafraid as she looked around.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1797.wav",
+   "human_seconds": 9.74,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1797__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1797__clone.wav"
+  },
+  {
+   "id": "sample_1798",
+   "book": "warm_baritone_30s_m_1",
+   "text": "The part of the room that had been contained in the sphere was *shiny*, *polished*, completely untouched by damp, rust, or *corrosion*.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1798.wav",
+   "human_seconds": 9.4,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1798__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1798__clone.wav"
+  },
+  {
+   "id": "sample_1799",
+   "book": "warm_baritone_30s_m_1",
+   "text": "It was as if no time had passed here at all, she *marvelled*. .... No, not as if it was the case that no time had passed here.",
+   "human_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/data/val/sample_1799.wav",
+   "human_seconds": 10.58,
+   "lora_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1799__lora.wav",
+   "clone_wav": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated/sample_1799__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T09:53:17",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "88436803d8be3bce38740af66101c9f7f928fd14",
+   "branch": "exp/private-narrator-time-split",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "9be6c44eb75e2b14b3ec5d3945204a7209af04068c0af5e47740463153b0eff6"
+  },
+  "args": {
+   "build": "ab_test_runtime/time_split/warm_baritone_30s_m_1/build.json",
+   "adapter": "ab_test_runtime/time_split/warm_baritone_30s_m_1/adapter",
+   "config": "config.json",
+   "out_dir": "ab_test_runtime/time_split/warm_baritone_30s_m_1/generated",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generate.json"
+  },
+  "seed": 1234
+ }
+}
