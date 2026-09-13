@@ -114,3 +114,25 @@ class PerBookCapTest(unittest.TestCase):
             self.assertEqual(2, len(k2), "one more dartagnan01 to reach 4, plus zarathustra")
             self.assertEqual({"dartagnan01": 4, "zarathustra": 1}, dict(counts))
             self.assertEqual(5, len(os.listdir(os.path.join(tmp, "wavs"))))
+
+
+class ResumeTest(unittest.TestCase):
+    def test_clips_already_written_are_skipped_and_counted(self):
+        import collections
+        rows = [_row(f"audio/9017_clean/1/dartagnan01_01_dumas_{i:04d}.flac", LINE)
+                for i in range(3)]
+        with tempfile.TemporaryDirectory() as tmp:
+            have, counts = set(), collections.Counter()
+            k1, _, _ = hifitts_fetch.write_rows(rows, tmp, 60, 220, decode=_silence,
+                                                per_book=counts, have=have)
+            self.assertEqual(3, len(k1))
+            # Second pass over the same rows plus one new one: only the new
+            # one is written, and metadata.csv gains exactly one line.
+            rows.append(_row("audio/9017_clean/1/dartagnan01_02_dumas_0000.flac", LINE))
+            k2, _, _ = hifitts_fetch.write_rows(rows, tmp, 60, 220, decode=_silence,
+                                                per_book=counts, have=have)
+            self.assertEqual(["dartagnan01-02_0000"], [r["id"] for r in k2])
+            self.assertEqual(4, counts["dartagnan01"])
+            lines = Path(tmp, "metadata.csv").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(4, len(lines))
+            self.assertEqual(4, len(set(l.split("|")[0] for l in lines)))

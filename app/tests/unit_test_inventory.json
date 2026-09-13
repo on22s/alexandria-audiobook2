@@ -1541,6 +1541,7 @@
     "tests.test_hifitts_fetch.ParseFileTest.test_real_paths_yield_speaker_book_and_a_split_safe_id",
     "tests.test_hifitts_fetch.PerBookCapTest.test_cap_counts_across_calls_and_stops_writing_a_full_book",
     "tests.test_hifitts_fetch.PrepareIdentityTest.test_corpus_json_overrides_the_ljspeech_defaults",
+    "tests.test_hifitts_fetch.ResumeTest.test_clips_already_written_are_skipped_and_counted",
     "tests.test_hifitts_fetch.WriteRowsTest.test_only_usable_rows_are_written_and_prepare_reads_them_back"
   ],
   "test_holdout_leak": [

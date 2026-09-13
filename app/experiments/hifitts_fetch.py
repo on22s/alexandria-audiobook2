@@ -86,7 +86,7 @@ def usable(text, min_chars, max_chars):
 
 
 def write_rows(rows, out, min_chars, max_chars, decode=None,
-               max_per_book=0, per_book=None):
+               max_per_book=0, per_book=None, have=None):
     """Write the reader's rows LJSpeech-style. -> (kept rows, per-book counts).
 
     `rows` are dicts with speaker, file, text, text_normalized and audio
@@ -116,6 +116,8 @@ def write_rows(rows, out, min_chars, max_chars, decode=None,
             if not usable(normalized, min_chars, max_chars):
                 continue
             _, clip_id, book = parse_file(row["file"])
+            if have is not None and clip_id in have:
+                continue                        # resumed: already written
             if max_per_book and per_book[book] >= max_per_book:
                 continue
             audio, rate = decode(row["audio"])
@@ -128,6 +130,8 @@ def write_rows(rows, out, min_chars, max_chars, decode=None,
             kept.append({"id": clip_id, "book": book, "seconds":
                          round(len(audio) / float(rate), 3)})
             per_book[book] += 1
+            if have is not None:
+                have.add(clip_id)
     return kept, per_book, rate_seen
 
 
@@ -194,25 +198,27 @@ def iter_reader_rows(fs, names, speaker, log=print, scratch=None):
         local = _with_backoff(lambda: hf_hub_download(
             HF_REPO, name, repo_type="dataset", local_dir=scratch),
             f"download {name}", log)
+        # Row groups one at a time: a whole shard's audio column is several
+        # hundred MB and the first version was killed for memory pressure.
         try:
-            table = pq.read_table(local, columns=["speaker", "file", "text",
-                                                  "text_normalized", "audio"])
+            pf = pq.ParquetFile(local)
+            for batch in pf.iter_batches(batch_size=256, columns=[
+                    "speaker", "file", "text", "text_normalized", "audio"]):
+                rows = []
+                for rec in batch.to_pylist():
+                    if str(rec["speaker"]) != speaker:
+                        continue
+                    audio = rec["audio"]
+                    rec["audio"] = audio["bytes"] if isinstance(audio, dict) else audio
+                    rec["speaker"] = str(rec["speaker"])
+                    rows.append(rec)
+                if rows:
+                    yield name, rows
         finally:
             try:
                 os.remove(local)
             except OSError:
                 pass
-        rows = []
-        for i, s in enumerate(table.column("speaker").to_pylist()):
-            if str(s) != speaker:
-                continue
-            audio = table.column("audio")[i].as_py()
-            rows.append({"speaker": str(s),
-                         "file": table.column("file")[i].as_py(),
-                         "text": table.column("text")[i].as_py(),
-                         "text_normalized": table.column("text_normalized")[i].as_py(),
-                         "audio": audio["bytes"] if isinstance(audio, dict) else audio})
-        yield name, rows
 
 
 def main():
@@ -233,13 +239,27 @@ def main():
     ap.add_argument("--max-per-book", type=int, default=400,
                     help="usable clips kept per source work, in corpus "
                          "order; 0 = all")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue into an existing <out>: clips already in "
+                         "metadata.csv are skipped and counted")
     args = ap.parse_args()
     out = args.out or os.path.join(REPO, "ab_test_runtime", "corpora",
                                    "hifitts", args.speaker)
     os.makedirs(out, exist_ok=True)
     meta = os.path.join(out, "metadata.csv")
+    have, per_book = set(), collections.Counter()
     if os.path.exists(meta):
-        sys.exit(f"refusing to append to an existing {meta}; remove it first")
+        if not args.resume:
+            sys.exit(f"refusing to append to an existing {meta}; pass --resume "
+                     f"to continue it or remove it first")
+        with open(meta, encoding="utf-8") as fh:
+            for line in fh:
+                clip_id = line.split("|", 1)[0].strip()
+                if clip_id:
+                    have.add(clip_id)
+                    per_book[clip_id.split("-")[0]] += 1
+        print(f"resuming: {len(have)} clips already written across "
+              f"{len(per_book)} books")
 
     from huggingface_hub import HfApi, HfFileSystem
     api, fs = HfApi(), HfFileSystem()
@@ -248,19 +268,20 @@ def main():
           f"({READERS.get(args.speaker, '?')})")
 
     t0 = time.time()
-    kept_all, per_book, rates, shards = [], collections.Counter(), set(), []
+    kept_all, rates, shards = [], set(), []
     for name, rows in iter_reader_rows(fs, names, args.speaker,
                                        scratch=os.path.join(out, "_shards")):
         kept, _, rate_seen = write_rows(rows, out, args.min_chars,
                                         args.max_chars,
                                         max_per_book=args.max_per_book,
-                                        per_book=per_book)
+                                        per_book=per_book, have=have)
         kept_all += kept
         rates |= rate_seen
-        shards.append(name)
-        print(f"    kept {len(kept)} usable of {len(rows)}; total {len(kept_all)} "
-              f"across {len(per_book)} books")
-        if args.max_rows and len(kept_all) >= args.max_rows \
+        if name not in shards:
+            shards.append(name)
+            print(f"    {name.split('-')[1]}: total {len(have)} clips across "
+                  f"{len(per_book)} books")
+        if args.max_rows and len(have) >= args.max_rows \
                 and len(per_book) >= args.min_books:
             print(f"  reached --max-rows {args.max_rows} with "
                   f"{len(per_book)} books; stopping")
@@ -269,8 +290,13 @@ def main():
         os.rmdir(os.path.join(out, "_shards"))
     except OSError:
         pass
-    if not kept_all:
+    if not have:
         sys.exit(f"no usable rows for reader {args.speaker}")
+    if not rates and have:
+        # A resume that found nothing new still has to name the rate.
+        import soundfile as sf
+        first = sorted(have)[0]
+        rates = {sf.info(os.path.join(out, "wavs", first + ".wav")).samplerate}
     if len(rates) != 1:
         sys.exit(f"mixed native sample rates {sorted(rates)}; refusing to "
                  f"write a corpus.json that names one")
@@ -281,8 +307,9 @@ def main():
            "source": f"https://huggingface.co/datasets/{HF_REPO}",
            "sample_rate_native": rates.pop(),
            "shards_read": shards,
-           "rows_kept": len(kept_all),
-           "seconds_kept": round(sum(r["seconds"] for r in kept_all), 1),
+           "rows_kept": len(have),
+           "seconds_kept_this_run": round(sum(r["seconds"] for r in kept_all), 1),
+           "resumed": bool(args.resume),
            "per_book": dict(sorted(per_book.items())),
            "selection": {"min_chars": args.min_chars,
                          "max_chars": args.max_chars,
@@ -293,8 +320,7 @@ def main():
     doc["provenance"] = provenance(__file__, args)
     with open(os.path.join(out, "corpus.json"), "w", encoding="utf-8") as fh:
         json.dump(doc, fh, indent=1)
-    print(f"\n  {len(kept_all)} clips, {doc['seconds_kept']} s, "
-          f"{len(per_book)} books -> {out}")
+    print(f"\n  {len(have)} clips, {len(per_book)} books -> {out}")
     for book, n in sorted(per_book.items(), key=lambda kv: -kv[1]):
         print(f"    {book:36} {n}")
 
