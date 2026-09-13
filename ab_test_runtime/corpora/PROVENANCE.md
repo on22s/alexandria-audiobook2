@@ -65,3 +65,19 @@ rule holds.
 
 Used by goal 2.9 (`run_chains/hifitts_9017_20260913.sh`) as the public
 counterpart to the eight private narrators of `second_english_eval_20260820`.
+
+## libriquote/<reader>/{quotes,narration}/ — one LibriVox reader's character speech beside their narration
+
+LibriQuote (Michel, Epure, Cerisara; Findings of ACL 2026), test split. Every
+character quotation is paired with the nearest narration utterance by the same
+reader, both at 16 kHz under the dataset's `test_audios/`. Fetched per reader
+by `app/experiments/libriquote_fetch.py`, which writes the two halves as
+separate LJSpeech-shaped corpora (`wavs/<id>.wav`, `metadata.csv`,
+`corpus.json`) with `id = <book>-<chapter>_<n>` so the split-by-source-work
+rule holds. **CC BY-NC 4.0** — evidence only; nothing trained on it ships.
+
+| reader | books (LibriVox ids) | used by |
+| --- | --- | --- |
+| 4992 | 3762 (Les Misérables vol. 5), 5957, 6056 | `run_chains/libriquote_4992_20260913.sh` — quotes-trained vs narration-trained adapter, cross-scored on the third book |
+
+Reconstruct with `python app/experiments/libriquote_fetch.py --speaker 4992 --out ab_test_runtime/corpora/libriquote/4992`.
