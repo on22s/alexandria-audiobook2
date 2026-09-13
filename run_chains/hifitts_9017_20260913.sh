@@ -19,9 +19,14 @@
 # fiction register the product ships and share no recording session with
 # training.
 #
-# THE TRAINING RECIPE IS LJSPEECH'S, from ljspeech_eval/adapter/training_meta:
-# 6 epochs, lr 5e-6, r 32, alpha 128, 200 clips. Same recipe, same seed, so a
-# difference between the two English sets is the set and not the adapter.
+# THE TRAINING RECIPE IS LJSPEECH'S - the one that WORKED. ljspeech_eval has
+# two adapters: `adapter` (lr 5e-6, training_meta looks ordinary, never stops:
+# 163.8 s of audio for every held-out line) and `adapter_lr1e6`, which is what
+# ljspeech_generate.json and every 2.9 number came from. The first run of this
+# chain copied the recipe from the wrong one and reproduced the runaway a
+# third time (goal 2.3, test_training_defaults.py). So: 6 epochs, lr 1e-6
+# (the trainer's default, stated here on purpose), r 32, alpha 128, 200 clips,
+# and the 2.3 stop gate runs BEFORE any line is generated.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -57,7 +62,16 @@ run_stage train 1h --needs-vram -- \
     "$REPO/gpu_job.sh" "hifitts_9017_train" \
     "$python" -u "$REPO/app/train_lora.py" \
     --data_dir "$work/train" --output_dir "$work/adapter" \
-    --epochs 6 --lr 5e-6 --lora_r 32 --lora_alpha 128 --seed 1234
+    --epochs 6 --lr 1e-6 --lora_r 32 --lora_alpha 128 --seed 1234
+
+# Goal 2.3 gate: a runaway adapter burns ~140 s per line and produces nothing
+# scoreable, so refuse it here rather than 150 lines later.
+[ -s "$work/stop_check/verify_adapter_stops.json" ] || \
+run_stage stop_gate 30m --needs-vram -- \
+    "$REPO/gpu_job.sh" "hifitts_9017_stop_gate" \
+    "$python" -u "$REPO/app/experiments/verify_adapter_stops.py" \
+    --build "$work/build.json" --adapter "$work/adapter" --config "$config" \
+    --lines 5 --seed 1234 --max-ratio 3.0 --out "$work/stop_check/verify_adapter_stops.json"
 
 [ -s "$runtime/experiments/hifitts_9017_generate.json" ] || \
 run_stage generate 3h --needs-vram -- \
