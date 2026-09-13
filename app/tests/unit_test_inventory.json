@@ -1914,6 +1914,10 @@
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
   ],
+  "test_measure_respellings_terms": [
+    "tests.test_measure_respellings_terms.RowsForTermsTest.test_a_term_that_does_not_romanise_is_refused",
+    "tests.test_measure_respellings_terms.RowsForTermsTest.test_known_terms_keep_their_row_and_unknown_ones_are_built"
+  ],
   "test_modernbooknlp_adapter": [],
   "test_mp3_bitrate": [
     "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
