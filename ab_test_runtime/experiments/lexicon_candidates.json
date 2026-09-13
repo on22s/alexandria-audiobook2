@@ -5,10 +5,11 @@
   "respelling_hyphen_allrows_n1600.json",
   "respelling_none_allrows_n1600.json",
   "respelling_five_terms_ja.json",
-  "respelling_five_terms_unattributed.json"
+  "respelling_five_terms_unattributed.json",
+  "respelling_measure_shipped_neither_20260913.json"
  ],
- "terms_measured": 7608,
- "plain_already_says_the_word": 931,
+ "terms_measured": 7612,
+ "plain_already_says_the_word": 932,
  "plain_already_works": [
   "abura",
   "aburi",
@@ -57,6 +58,7 @@
   "baru",
   "barusu",
   "basu",
+  "basuru",
   "bato",
   "batsunanda",
   "beniko",
@@ -952,7 +954,7 @@
   "agreement_pct": 26.6,
   "terms_measured_once_only": 677
  },
- "recorded_as_unfixable": 5620,
+ "recorded_as_unfixable": 5623,
  "coverage_of_the_failing_band": 87.8,
  "entries": {
   "ababababa": {
@@ -20948,6 +20950,16 @@
    "respelled_heard": "「さて、かっそん」と言っても、"
   },
   {
+   "term": "gauaa",
+   "kana": "ガウアア",
+   "books": 3,
+   "arms_tried": [
+    "respelling_measure_shipped_neither_20260913.json"
+   ],
+   "plain_heard": "「あなたはあなたのことを言っているのか?」",
+   "respelled_heard": "「かわいいね」と言って、あなたが、あなたのことを言っているのか?"
+  },
+  {
    "term": "gaudi",
    "kana": "ガウヂ",
    "books": 4,
@@ -20978,6 +20990,16 @@
    ],
    "plain_heard": "「ガランを行く」と言っていました。",
    "respelled_heard": "She paused and said \"God Row\" before going on."
+  },
+  {
+   "term": "gaurururu",
+   "kana": "ガウルルル",
+   "books": 2,
+   "arms_tried": [
+    "respelling_measure_shipped_neither_20260913.json"
+   ],
+   "plain_heard": "「ガワー・ロー・ルー」を見つけた",
+   "respelled_heard": "「グロー!グロー!グロー!グロー!グロー!」"
   },
   {
    "term": "gazami",
@@ -57745,6 +57767,16 @@
    "respelled_heard": "「スウマー」を見つけた"
   },
   {
+   "term": "subara",
+   "kana": "スバラ",
+   "books": 4,
+   "arms_tried": [
+    "respelling_measure_shipped_neither_20260913.json"
+   ],
+   "plain_heard": "スーパーを前に行く",
+   "respelled_heard": "「スーパーラー」の「スーパーラー」を行きましょう。"
+  },
+  {
    "term": "subarashii",
    "kana": "スバラシイ",
    "books": 24,
@@ -68400,28 +68432,26 @@
  ],
  "provenance": {
   "script": "lexicon_from_measurements.py",
-  "written": "2026-09-04T17:55:15",
+  "written": "2026-09-13T10:07:36",
   "host": "mitch-linux",
   "git": {
-   "commit": "589733acf92bfccd074df0ebf96ab9108418fef4",
-   "branch": "agent/coverage-third-state-20260904",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M app/experiments/lexicon_from_measurements.py",
-    " M app/experiments/shipped_book_lexicon_coverage.py"
-   ],
+   "commit": "2895204dadf8a15e99fcd69d9fa25756c16b348c",
+   "branch": "exp/measure-neither-terms",
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "d955690529532193e8705737ffd48f47b74ad2f6d18fde0723bbcd9ac5e7308b"
+   "harness_sha256": "4aeca55f27a9a64ae9163614f13305223b0fd3bd5109002f391133483bd66063"
   },
   "args": {
    "arms": [
-    "ab_test_runtime/experiments/respelling_measure_rescored.json",
-    "ab_test_runtime/experiments/respelling_hyphen_allrows_n1600.json",
-    "ab_test_runtime/experiments/respelling_none_allrows_n1600.json",
-    "ab_test_runtime/experiments/respelling_five_terms_ja.json",
-    "ab_test_runtime/experiments/respelling_five_terms_unattributed.json"
+    "../ab_test_runtime/experiments/respelling_measure_rescored.json",
+    "../ab_test_runtime/experiments/respelling_hyphen_allrows_n1600.json",
+    "../ab_test_runtime/experiments/respelling_none_allrows_n1600.json",
+    "../ab_test_runtime/experiments/respelling_five_terms_ja.json",
+    "../ab_test_runtime/experiments/respelling_five_terms_unattributed.json",
+    "../ab_test_runtime/experiments/respelling_measure_shipped_neither_20260913.json"
    ],
-   "out": "ab_test_runtime/experiments/lexicon_candidates.json",
+   "out": "../ab_test_runtime/experiments/lexicon_candidates.json",
    "write_lexicon": null
   }
  }
