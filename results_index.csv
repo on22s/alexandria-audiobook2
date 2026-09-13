@@ -2,7 +2,7 @@ artifact,evidence_status,resolution_tier,replayable,producer,added_commit,cited_
 adapter_listening.json,supported_structure,provenance,yes,,,7.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_listening_ratings.json,exploratory,git+naming,no,adapter_listening.py,9c040bc2,7.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_listening_v2.json,supported_structure,provenance,yes,,,7.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-adapter_listening_v2_ratings.json,exploratory,git+naming,no,adapter_listening.py,,7.1,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+adapter_listening_v2_ratings.json,exploratory,git+naming,no,adapter_listening.py,66ab3803,7.1,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 adapter_stop_check_aishell3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_stop_check_kokoro.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 adapter_stop_check_ljspeech.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -1126,7 +1126,7 @@ kansai_otsuka_listening_package.json,supported_structure,provenance,yes,,,,20260
 kokoro_generate.json,supported_structure,provenance,yes,,,2.9,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 kokoro_same_speaker_generate.json,supported_structure,provenance,yes,,,2.4,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 kokoro_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-lexicon_attributed.json,exploratory,none,no,,a3f6a384,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+lexicon_attributed.json,exploratory,none,no,,a3f6a384,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_attributed_v2.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_backmatter_probe.json,exploratory,git+naming,no,lexicon_backmatter_probe.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_candidates.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -2292,6 +2292,7 @@ respelling_five_terms_unattributed.json,supported_structure,provenance,yes,,,5.5
 respelling_hyphen_allrows_n1600.json,supported_structure,provenance,yes,,,5.2,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_measure.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 respelling_measure_rescored.json,exploratory,none,no,,0cbbe0d5,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+respelling_measure_shipped_neither_20260913.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_none_allrows.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_none_allrows_n1600.json,supported_structure,provenance,yes,,,5.2,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_none_allrows_n3200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -2408,7 +2409,7 @@ second_rater_listening.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,
 seed_instruction_controls.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 segmentation_classifier.json,exploratory,git+naming,no,segmentation_classifier.py,3ddd0df4,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 selection_gap_recheck.json,exploratory,git+naming,no,selection_gap_recheck.py,803be47d,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-shipped_book_lexicon_coverage.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+shipped_book_lexicon_coverage.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 shipped_term_triage.json,exploratory,none,no,,fd183d87,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 shipping_readiness.json,exploratory,git+naming,no,shipping_readiness.py,edba0ca7,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 shipping_voices_listening_20260912.json,exploratory,none,no,,f4280519,6.5,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
