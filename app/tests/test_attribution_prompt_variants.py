@@ -1,8 +1,10 @@
 import json
+from unittest.mock import patch
 import unittest
 from types import SimpleNamespace
 
 import three_pass_generate as tp
+import experiments.attribution_prompt_variants as apv
 from experiments.attribution_prompt_variants import (VARIANTS, make_provider,
                                                      passage_text, roster_line)
 from generate_script import LLMGenParams
@@ -69,3 +71,33 @@ class PromptVariants(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VariantProviderKeepsNarrationTests(unittest.TestCase):
+    """The harness sends SPOKEN lines only and carries the narration in each
+    entry's previous/next context. A provider that rebuilds the request
+    without them shows the model dialogue with no narration - the 2026-09-14
+    run scored 25% on four arms against 63% for the canonical prompt."""
+
+    def test_aliases_request_is_the_canonical_request_with_contexts(self):
+        from three_pass_generate import build_attribute_request
+        frozen = [{"type": "SPOKEN", "text": "Tell us already."},
+                  {"type": "SPOKEN", "text": "Fine."}]
+        ctx = [{"previous_context": {"type": "NARRATOR", "text": "Haruhiro sighed."},
+                "next_context": {"type": "NARRATOR", "text": "Ranta grinned."}},
+               {"previous_context": {"type": "NARRATOR", "text": "Ranta grinned."},
+                "next_context": None}]
+        params = LLMGenParams(max_tokens=64, context_length=4096)
+        _, canonical = build_attribute_request(frozen, params, ["HARUHIRO", "RANTA"], ctx)
+        bodies = []
+        with patch.object(apv, "call_llm_for_entries",
+                          lambda c, m, s, body, p, **kw: bodies.append(body)):
+            apv.make_provider("aliases")(None, "m", "sys", "user", params, "l", "A", 1, None, None,
+                                          frozen, roster=["HARUHIRO", "RANTA"], neighbor_contexts=ctx)
+            apv.make_provider("passage")(None, "m", "sys", "user", params, "l", "A", 1, None, None,
+                                          frozen, roster=["HARUHIRO", "RANTA"], neighbor_contexts=ctx)
+        self.assertEqual(canonical, bodies[0])
+        self.assertIn("Haruhiro sighed.", bodies[1])
+        self.assertIn("Ranta grinned.", bodies[1])
+        self.assertEqual(1, bodies[1].count("Ranta grinned."), "shared context is interleaved once")
+

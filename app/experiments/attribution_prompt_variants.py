@@ -49,13 +49,28 @@ def roster_line(roster, alias_groups=None):
     return ", ".join(parts) or "(none yet)"
 
 
-def passage_text(frozen_batch):
-    out = []
+def passage_text(frozen_batch, neighbor_contexts=None):
+    """The batch as running prose. The harness sends only the SPOKEN lines and
+    carries the narration in each entry's previous/next context, so those are
+    interleaved here; without them the four variant arms of 2026-09-14 saw
+    dialogue with no narration at all and scored 25% against 63%."""
+    neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
+    out, seen = [], set()
+
+    def narration(ctx_entry):
+        text = (ctx_entry or {}).get("text") if isinstance(ctx_entry, dict) else None
+        if text and ctx_entry.get("type") == "NARRATOR" and text not in seen:
+            seen.add(text)
+            out.append(text)
+
     for i, e in enumerate(frozen_batch):
+        ctx = neighbor_contexts[i] if i < len(neighbor_contexts) else {}
+        narration(ctx.get("previous_context"))
         if e["type"] == "SPOKEN":
             out.append(f'|{i}|"{e["text"]}"|{i}|')
         else:
             out.append(f"[{i}] {e['text']}")
+        narration(ctx.get("next_context"))
     return "\n\n".join(out)
 
 
@@ -68,16 +83,16 @@ def make_provider(variant, alias_groups=None):
 
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
-                 roster=None, **_ignored):
+                 roster=None, neighbor_contexts=None, **_ignored):
         roster = list(roster or [])
         if variant in ("aliases", "michel"):
             roster_str = roster_line(roster, alias_groups)
         else:
             roster_str = ", ".join(roster) or "(none yet)"
         if variant in ("passage", "michel"):
-            body = f"{PASSAGE_INSTRUCTION}\n\nROSTER: {roster_str}\n\nPASSAGE:\n{passage_text(frozen_batch)}"
+            body = f"{PASSAGE_INSTRUCTION}\n\nROSTER: {roster_str}\n\nPASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}"
         else:
-            _, canonical = build_attribute_request(frozen_batch, params, roster)
+            _, canonical = build_attribute_request(frozen_batch, params, roster, neighbor_contexts)
             body = canonical.replace(f"ESTABLISHED ROSTER: {', '.join(roster) or '(none yet)'}",
                                      f"ESTABLISHED ROSTER: {roster_str}")
         if variant in ("incremental", "michel") and memory["previous"]:
