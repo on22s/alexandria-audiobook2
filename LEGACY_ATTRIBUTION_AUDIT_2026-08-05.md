@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 212 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 215 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 118
-- `historical_only`: 48
+- `historical_only`: 51
 - `provisional`: 11
 - `supported_measurement`: 35
 
@@ -132,6 +132,9 @@ All 212 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen3-14b-base-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
+| `lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-chapter-20260914.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
+| `lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-control-20260914.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
+| `lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-fixed-20260914.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__qwen3-14b-dracor-en-a6000-product-batch25-20260913.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-dracor-mixed-a6000-product-batch25-20260913.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
