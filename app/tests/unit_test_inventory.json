@@ -728,7 +728,9 @@
   ],
   "test_config_secret_redaction": [
     "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_get_shape_masks_credentials_without_mutating_input",
-    "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_sentinel_round_trip_preserves_saved_secret"
+    "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_sentinel_round_trip_preserves_saved_secret",
+    "tests.test_config_secret_redaction.RedactedKeyResolutionTests.test_sentinel_resolves_to_the_matching_profile_key",
+    "tests.test_config_secret_redaction.RedactionKeepsNonJsonObjects.test_pydantic_values_survive_redaction"
   ],
   "test_constant_predictions_are_rejected": [
     "tests.test_constant_predictions_are_rejected.ConstantPredictions.test_a_constant_answer_is_rejected",
