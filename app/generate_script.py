@@ -611,8 +611,15 @@ def is_schema_rejection(error):
     if status not in (400, 422):
         return False
     text = str(error).lower()
+    # The second list is what a server says when it refuses the FEATURE, as
+    # opposed to a bad schema ("JSON schema error at #: ..."). "must be one
+    # of" / "but got" is llama.cpp's own wording for a response_format type it
+    # does not know (`response_format type must be one of "text" or
+    # "json_object", but got: json_schema` on a build older than json_schema
+    # support), and the usual OpenAI-compatible gateway phrasing.
     return any(k in text for k in ("response_format", "json_schema")) and any(
-        k in text for k in ("not supported", "unsupported", "unknown", "unexpected"))
+        k in text for k in ("not supported", "unsupported", "unknown", "unexpected",
+                            "must be one of", "but got", "must be 'text'", "invalid parameter"))
 
 
 def create_completion(client, response_format, schema_rejected_by=None, **kwargs):

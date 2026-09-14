@@ -85,6 +85,19 @@ class StructuredOutput(unittest.TestCase):
         tp.attribute_batch(accepting, "m", frozen, _params(), roster=[])
         self.assertIn("response_format", accepting.calls[0])
 
+    def test_real_server_wordings_for_an_unsupported_response_format(self):
+        """Captured from a live llama.cpp server (2026-09-14) and the usual
+        gateway phrasing; a bad SCHEMA must still not count."""
+        old_llamacpp = _ApiError(400, 'Error code: 400 - {\'error\': {\'code\': 400, \'message\': '
+                                      '\'response_format type must be one of "text" or "json_object", '
+                                      'but got: json_schema\', \'type\': \'invalid_request_error\'}}')
+        gateway = _ApiError(400, "Invalid parameter: response_format.type must be 'text' or 'json_object'")
+        bad_schema = _ApiError(400, "Unable to generate parser for this template. Automatic parser "
+                                    "generation failed: JSON schema error at #: unrecognized type nonsense")
+        self.assertTrue(gs.is_schema_rejection(old_llamacpp))
+        self.assertTrue(gs.is_schema_rejection(gateway))
+        self.assertFalse(gs.is_schema_rejection(bad_schema))
+
     def test_other_errors_are_not_mistaken_for_schema_rejection(self):
         self.assertFalse(gs.is_schema_rejection(_ApiError(400, "context length exceeded")))
         self.assertFalse(gs.is_schema_rejection(_ApiError(500, "json_schema grammar failed")))
