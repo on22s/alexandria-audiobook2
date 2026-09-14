@@ -1180,6 +1180,15 @@
             "minimum": 1.0,
             "title": "Retry Multiplier",
             "type": "number"
+          },
+          "structured_output": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "off"
+            ],
+            "title": "Structured Output",
+            "type": "string"
           }
         },
         "required": [

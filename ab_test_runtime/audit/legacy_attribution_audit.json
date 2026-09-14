@@ -1,6 +1,6 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "86bda54e9cdb77d7a21fe3f14bad1c259a9647f8fb1c8fa9ce27438a117d60af",
+  "source_structural_sha256": "330d788f9586a848f8925cddc2565238dcfffa34e818e94d669c6778625c53a7",
   "summary": {
     "exploratory": 118,
     "historical_only": 48,

@@ -149,11 +149,14 @@ MAX_TOKENS = 4096
 
 
 def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none",
-                      max_tokens=MAX_TOKENS):
+                      max_tokens=MAX_TOKENS, structured_output="auto"):
     """Describe only settings this evaluator controls or directly observes."""
     arms = get_eval_arms(base_only)
     decoding = {"temperature": 0.0, "batch": batch, "max_tokens": max_tokens,
                 "reasoning_effort": reasoning_effort,
+                # The product's own default since 2026-09-14 (#522 s9.1); the
+                # server may still refuse it, which the run log records.
+                "structured_output": structured_output,
                 "arms": [arm for arm, _ in arms]}
     if base_only:
         notes = (
@@ -187,6 +190,9 @@ def main():
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
+    ap.add_argument("--structured-output", default="auto", choices=("auto", "off"),
+                    help="request-level JSON schema on attribution calls "
+                         "(the product default is auto)")
     ap.add_argument("--input-dir",
                     help="directory containing corrected <book>.txt inputs")
     ap.add_argument("--checkpoint-dir", help="directory containing corrected "
@@ -209,10 +215,12 @@ def main():
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8,
-                          reasoning_effort=args.reasoning_effort)
+                          reasoning_effort=args.reasoning_effort,
+                          structured_output=args.structured_output)
     _env = os.environ.get("EXPERIMENT_ENV")
     decoding, notes = get_eval_metadata(
-        args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens)
+        args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens,
+        args.structured_output)
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
