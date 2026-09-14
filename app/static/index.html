@@ -1157,6 +1157,17 @@
                             <span class="input-group-text">Batch</span>
                             <input class="form-control" id="persona-batch-size" type="number" min="1" max="200" value="40">
                         </div>
+                        <div class="input-group input-group-sm" style="width: auto;" title="Sample spoken lines per character fed to the persona prompt">
+                            <span class="input-group-text">Context</span>
+                            <select class="form-select" id="persona-context-lines" onchange="onPersonaContextChange()">
+                                <option value="10" selected>10 lines</option>
+                                <option value="25">25 lines</option>
+                                <option value="50">50 lines</option>
+                                <option value="100">100 lines</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <input class="form-control" id="persona-context-custom" type="number" min="1" max="200" value="10" style="width: 80px; display:none;">
+                        </div>
                         <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
                         <span id="persona-status" class="text-muted small"></span>
                     </div>

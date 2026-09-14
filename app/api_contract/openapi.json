@@ -877,6 +877,13 @@
             "default": 40,
             "title": "Batch Size",
             "type": "integer"
+          },
+          "context_lines": {
+            "default": 8,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Context Lines",
+            "type": "integer"
           }
         },
         "title": "GeneratePersonasRequest",
@@ -3808,7 +3815,8 @@
                 "$ref": "#/components/schemas/GeneratePersonasRequest",
                 "default": {
                   "advanced": false,
-                  "batch_size": 40
+                  "batch_size": 40,
+                  "context_lines": 8
                 }
               }
             }

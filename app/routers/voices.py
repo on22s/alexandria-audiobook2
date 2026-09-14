@@ -9,7 +9,7 @@ import sys
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from config_settings import load_app_config
 
 from core import (
@@ -96,6 +96,8 @@ class VoiceSuggestionApplyBulkRequest(BaseModel):
 class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
     batch_size: int = 40
+    # Sample spoken lines per character in the persona prompt (#522 12.1).
+    context_lines: int = Field(default=8, ge=1, le=200)
 
 
 @router.get("/api/voices")
@@ -161,7 +163,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
         project_manager.engine = None
         gc.collect()
 
-    command = [sys.executable, "-u", "generate_personas.py"]
+    command = [sys.executable, "-u", "generate_personas.py",
+               "--context-lines", str(request.context_lines)]
     if request.advanced:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])

@@ -1748,6 +1748,21 @@
             }
         }
 
+        function getPersonaContextLines() {
+            const select = document.getElementById('persona-context-lines');
+            const custom = document.getElementById('persona-context-custom');
+            const raw = select && select.value === 'custom' ? custom?.value : select?.value;
+            return Math.max(1, Math.min(parseInt(raw || '10', 10) || 10, 200));
+        }
+
+        function onPersonaContextChange() {
+            const select = document.getElementById('persona-context-lines');
+            const custom = document.getElementById('persona-context-custom');
+            if (custom) {
+                custom.style.display = select && select.value === 'custom' ? '' : 'none';
+            }
+        }
+
         async function generatePersonas() {
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
@@ -1755,12 +1770,13 @@
             const batchInput = document.getElementById('persona-batch-size');
             const advanced = !!(advancedToggle && advancedToggle.checked);
             const batchSize = Math.max(1, Math.min(parseInt(batchInput?.value || '40', 10) || 40, 200));
+            const contextLines = getPersonaContextLines();
             try {
                 statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${advanced ? 'Starting advanced...' : 'Starting...'}`;
                 if (cancelButton) {
                     cancelButton.style.display = '';
                 }
-                await API.post('/api/generate_personas', { advanced, batch_size: batchSize });
+                await API.post('/api/generate_personas', { advanced, batch_size: batchSize, context_lines: contextLines });
                 pollPersonaStatus();
             } catch (e) {
                 showToast('Failed to start persona generation: ' + e.message, 'error');
