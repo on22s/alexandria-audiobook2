@@ -370,8 +370,11 @@ case "$dirty_state" in
         if mkdir -p "$patch_dir" 2>/dev/null; then
             {
                 git -C "$(dirname "$0")" diff HEAD 2>/dev/null
+                # Same exclusion as tree_state: ab_test_runtime/ is where
+                # runs write, and scanning it here walked 2,305 untracked
+                # files under 145 GB - 11s before every ALLOW_DIRTY_TREE START.
                 git -C "$(dirname "$0")" ls-files --others \
-                    --exclude-standard 2>/dev/null \
+                    --exclude-standard -- ':(exclude)ab_test_runtime/*' 2>/dev/null \
                     | grep -E '\.(py|sh|js|html)$' \
                     | while IFS= read -r f; do
                     git -C "$(dirname "$0")" diff --no-index -- /dev/null "$f" 2>/dev/null
