@@ -3065,6 +3065,13 @@
     "tests.test_stored_summary_matches_rows.StoredSummary.test_rows_for_an_arm_the_summary_omits_are_caught",
     "tests.test_stored_summary_matches_rows.StoredSummary.test_the_wide_schema_is_not_judged"
   ],
+  "test_structured_output": [
+    "tests.test_structured_output.StructuredOutput.test_a_non_schema_400_keeps_the_schema_and_the_retry_path",
+    "tests.test_structured_output.StructuredOutput.test_attribution_sends_the_schema_by_default",
+    "tests.test_structured_output.StructuredOutput.test_off_never_sends_it",
+    "tests.test_structured_output.StructuredOutput.test_other_errors_are_not_mistaken_for_schema_rejection",
+    "tests.test_structured_output.StructuredOutput.test_rejection_falls_back_once_and_sticks_for_the_server"
+  ],
   "test_suite_imports_are_ci_installable": [
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed",
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_no_test_module_imports_a_declared_unavailable_package",
