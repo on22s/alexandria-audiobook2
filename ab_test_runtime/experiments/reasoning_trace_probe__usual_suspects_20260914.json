@@ -1,0 +1,269 @@
+{
+ "rows": 1213,
+ "wrong": 450,
+ "think_chars_median": {
+  "wrong": 3999.0,
+  "right": 1588
+ },
+ "accuracy_by_think_length_decile": [
+  {
+   "decile": 1,
+   "max_chars": 1116,
+   "accuracy": 0.802,
+   "n": 121
+  },
+  {
+   "decile": 2,
+   "max_chars": 1284,
+   "accuracy": 0.876,
+   "n": 121
+  },
+  {
+   "decile": 3,
+   "max_chars": 1430,
+   "accuracy": 0.835,
+   "n": 121
+  },
+  {
+   "decile": 4,
+   "max_chars": 1609,
+   "accuracy": 0.762,
+   "n": 122
+  },
+  {
+   "decile": 5,
+   "max_chars": 1838,
+   "accuracy": 0.76,
+   "n": 121
+  },
+  {
+   "decile": 6,
+   "max_chars": 2156,
+   "accuracy": 0.76,
+   "n": 121
+  },
+  {
+   "decile": 7,
+   "max_chars": 2804,
+   "accuracy": 0.77,
+   "n": 122
+  },
+  {
+   "decile": 8,
+   "max_chars": 3999,
+   "accuracy": 0.645,
+   "n": 121
+  },
+  {
+   "decile": 9,
+   "max_chars": 4000,
+   "accuracy": 0.033,
+   "n": 121
+  },
+  {
+   "decile": 10,
+   "max_chars": 4397,
+   "accuracy": 0.049,
+   "n": 122
+  }
+ ],
+ "hesitation": {
+  "wait": {
+   "wrong_share": 0.782,
+   "right_share": 0.415
+  },
+  "hmm": {
+   "wrong_share": 0.007,
+   "right_share": 0.001
+  },
+  "alternatively": {
+   "wrong_share": 0.413,
+   "right_share": 0.227
+  },
+  "not sure": {
+   "wrong_share": 0.016,
+   "right_share": 0.001
+  },
+  "but": {
+   "wrong_share": 0.891,
+   "right_share": 0.782
+  },
+  "maybe": {
+   "wrong_share": 0.631,
+   "right_share": 0.318
+  }
+ },
+ "failure_shapes": {
+  "treats line as narration": {
+   "wrong": 17,
+   "wrong_share": 0.038,
+   "right_share": 0.003,
+   "wrong_accuracy_when_present": 0.895
+  },
+  "personality prior": {
+   "wrong": 41,
+   "wrong_share": 0.091,
+   "right_share": 0.106,
+   "wrong_accuracy_when_present": 0.336
+  },
+  "addressee for speaker": {
+   "wrong": 217,
+   "wrong_share": 0.482,
+   "right_share": 0.398,
+   "wrong_accuracy_when_present": 0.417
+  },
+  "alternation assumption": {
+   "wrong": 224,
+   "wrong_share": 0.498,
+   "right_share": 0.262,
+   "wrong_accuracy_when_present": 0.528
+  },
+  "neighbour misread": {
+   "wrong": 1,
+   "wrong_share": 0.002,
+   "right_share": 0.001,
+   "wrong_accuracy_when_present": 0.5
+  },
+  "no cue found": {
+   "wrong": 9,
+   "wrong_share": 0.02,
+   "right_share": 0.009,
+   "wrong_accuracy_when_present": 0.562
+  }
+ },
+ "samples": {
+  "treats line as narration": [
+   {
+    "expected": "MR. BENNET",
+    "predicted": "UNKNOWN",
+    "line": "While Mary is adjusting her ideas, let us return to Mr.\nBingley.",
+    "trace": "Okay, let's see. I need to figure out which character speaks the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" The text before and after the line is provided, so I should look at the context around it.\n\nLooking at the text before the line: The previous part ends with Mr. Bennet talking to his daughters, and Mary is mentioned as trying to say something sensible but not knowing how. Then the line in question comes next. The text after the line starts with Mrs. Bennet saying she's sick of Mr. Bingley, and Mr. Bennet responding.\n\nWait, the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" seems to be a narrative sentence, not a dialogue. But the us"
+   },
+   {
+    "expected": "LYDIA",
+    "predicted": "<THINK>OKAY, LET'S SEE. I NEED TO FIGURE OUT WHICH CHARACTER SPOKE THE LINE \"IF WE MAKE HASTE, PERHAPS WE MAY SEE SOMETHING OF CAPTAIN CARTER BEFORE HE GOES.\" THE TEXT AROUND IT IS FROM PRIDE AND PREJUDICE, I THINK. LET ME CHECK THE CONTEXT.",
+    "line": "If we make haste, perhaps we may\nsee something of Captain Carter before he goes.",
+    "trace": "Okay, let's see. I need to figure out which character spoke the line \"If we make haste, perhaps we may see something of Captain Carter before he goes.\" The text around it is from Pride and Prejudice, I think. Let me check the context.\n\nThe passage before the line talks about Elizabeth going to visit Jane at Netherfield because Jane is ill. The text after the line mentions that in Meryton they parted, and the two youngest went to the lodgings of an officer's wife. Elizabeth continued alone. So the line is probably spoken by someone who is with Elizabeth when they part in Meryton. The characters mentioned before are Elizabeth, Catherine (probably Lady Catherine?), Lydia, and the others. Wait, "
+   },
+   {
+    "expected": "JANE",
+    "predicted": "<THINK>OKAY, LET'S SEE. I NEED TO FIGURE OUT WHICH CHARACTER SPOKE THE GIVEN LINE FROM THE NOVEL. THE LINE IS ABOUT SOMEONE GOING TO EPSOM AND CLAPHAM TO FIND OUT ABOUT A HACKNEY COACH. THE TEXT BEFORE THE LINE IS A LETTER FROM LYDIA BENNET TALKING ABOUT RUNNING AWAY WITH WICKHAM. THEN, AFTER THE LETTER, ELIZABETH IS REACTING, SAYING \"OH! THOUGHTLESS, THOUGHTLESS LYDIA!\" AND DISCUSSING THE SITUATION WITH HER FAMILY.",
+    "line": "He meant, I believe, to go to Epsom, the place where\nthey last changed horses, see the postilions, a",
+    "trace": "Okay, let's see. I need to figure out which character spoke the given line from the novel. The line is about someone going to Epsom and Clapham to find out about a hackney coach. The text before the line is a letter from Lydia Bennet talking about running away with Wickham. Then, after the letter, Elizabeth is reacting, saying \"Oh! thoughtless, thoughtless Lydia!\" and discussing the situation with her family.\n\nThe line in question is a description of Mr. Bennet's plans to go to Epsom and Clapham to find out about the coach. The text after the line starts a new chapter (Chapter VI) and talks about the family's hopes for a letter from Mr. Bennet, and Mr. Gardiner leaving. \n\nLooking at the char"
+   }
+  ],
+  "personality prior": [
+   {
+    "expected": "MR. BINGLEY",
+    "predicted": "MR. DARCY",
+    "line": "Oh! she is the most beautiful creature I ever beheld! But there is one\nof her sisters sitting down j",
+    "trace": "Okay, let's see. I need to figure out which character spoke the line provided. The line is: \"Oh! she is the most beautiful creature I ever beheld! But there is one of her sisters sitting down just behind you, who is very pretty, and I dare say, very agreeable. Do let me ask my partner to introduce you.\"\n\nLooking at the text before the line, it's talking about Mr. Darcy and Mr. Bingley at a ball. There's a part where Mr. Darcy is talking to Mr. Bingley, and then the line in question comes in. The text after the line shows Mr. Bingley responding and Mr. Darcy walking off, with Elizabeth remaining with no cordial feelings towards him.\n\nWait, the line starts with \"Oh! she is the most beautiful c"
+   },
+   {
+    "expected": "JANE",
+    "predicted": "<THINK>OKAY, LET'S TRY TO FIGURE OUT WHO SAYS \"DEAR LIZZY!\" IN THIS PASSAGE.",
+    "line": "Dear Lizzy!",
+    "trace": "Okay, let's try to figure out who says \"Dear Lizzy!\" in this passage. \n\nFirst, looking at the text before the line. The previous part is a conversation between Mrs. Bennet and Mr. Bennet discussing Mr. Bingley's dancing at the ball. Then, the chapter continues with Jane and Elizabeth talking about Mr. Bingley. Jane admires him, and Elizabeth responds. Then there's a dialogue where someone says \"Dear Lizzy!\" followed by Elizabeth's sister, probably Lydia, but wait, let me check.\n\nWait, the text after the line is Elizabeth's sister (maybe Lydia or Kitty) criticizing her for being too kind. The line \"Dear Lizzy!\" is likely a term of endearment from a family member. In the context of the Bennet "
+   },
+   {
+    "expected": "JANE",
+    "predicted": "ELIZABETH",
+    "line": "I would wish not to be hasty in censuring any one; but I always speak\nwhat I think.",
+    "trace": "Okay, let's try to figure out who speaks the line \"I would wish not to be hasty in censuring any one; but I always speak what I think.\" \n\nLooking at the text before the line, it's a conversation between Mrs. Bennet and her husband, Mr. Bennet. They're discussing Mr. Bingley's dancing and his sisters, and Mrs. Bennet is talking about how Mr. Darcy is disagreeable. Then the chapter moves to Jane and Elizabeth talking about Mr. Bingley. \n\nThe line in question comes after that. The text after the line is Elizabeth responding to someone else's comments. The speaker here is talking about not being hasty in censuring others but speaking their mind. The context around it mentions Elizabeth's sister "
+   }
+  ],
+  "addressee for speaker": [
+   {
+    "expected": "MR. BENNET",
+    "predicted": "UNKNOWN",
+    "line": "While Mary is adjusting her ideas, let us return to Mr.\nBingley.",
+    "trace": "Okay, let's see. I need to figure out which character speaks the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" The text before and after the line is provided, so I should look at the context around it.\n\nLooking at the text before the line: The previous part ends with Mr. Bennet talking to his daughters, and Mary is mentioned as trying to say something sensible but not knowing how. Then the line in question comes next. The text after the line starts with Mrs. Bennet saying she's sick of Mr. Bingley, and Mr. Bennet responding.\n\nWait, the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" seems to be a narrative sentence, not a dialogue. But the us"
+   },
+   {
+    "expected": "MR. BINGLEY",
+    "predicted": "MR. DARCY",
+    "line": "Oh! she is the most beautiful creature I ever beheld! But there is one\nof her sisters sitting down j",
+    "trace": "Okay, let's see. I need to figure out which character spoke the line provided. The line is: \"Oh! she is the most beautiful creature I ever beheld! But there is one of her sisters sitting down just behind you, who is very pretty, and I dare say, very agreeable. Do let me ask my partner to introduce you.\"\n\nLooking at the text before the line, it's talking about Mr. Darcy and Mr. Bingley at a ball. There's a part where Mr. Darcy is talking to Mr. Bingley, and then the line in question comes in. The text after the line shows Mr. Bingley responding and Mr. Darcy walking off, with Elizabeth remaining with no cordial feelings towards him.\n\nWait, the line starts with \"Oh! she is the most beautiful c"
+   },
+   {
+    "expected": "JANE",
+    "predicted": "<THINK>OKAY, LET'S TRY TO FIGURE OUT WHO SAYS \"DEAR LIZZY!\" IN THIS PASSAGE.",
+    "line": "Dear Lizzy!",
+    "trace": "Okay, let's try to figure out who says \"Dear Lizzy!\" in this passage. \n\nFirst, looking at the text before the line. The previous part is a conversation between Mrs. Bennet and Mr. Bennet discussing Mr. Bingley's dancing at the ball. Then, the chapter continues with Jane and Elizabeth talking about Mr. Bingley. Jane admires him, and Elizabeth responds. Then there's a dialogue where someone says \"Dear Lizzy!\" followed by Elizabeth's sister, probably Lydia, but wait, let me check.\n\nWait, the text after the line is Elizabeth's sister (maybe Lydia or Kitty) criticizing her for being too kind. The line \"Dear Lizzy!\" is likely a term of endearment from a family member. In the context of the Bennet "
+   }
+  ],
+  "alternation assumption": [
+   {
+    "expected": "MR. BENNET",
+    "predicted": "UNKNOWN",
+    "line": "While Mary is adjusting her ideas, let us return to Mr.\nBingley.",
+    "trace": "Okay, let's see. I need to figure out which character speaks the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" The text before and after the line is provided, so I should look at the context around it.\n\nLooking at the text before the line: The previous part ends with Mr. Bennet talking to his daughters, and Mary is mentioned as trying to say something sensible but not knowing how. Then the line in question comes next. The text after the line starts with Mrs. Bennet saying she's sick of Mr. Bingley, and Mr. Bennet responding.\n\nWait, the line \"While Mary is adjusting her ideas, let us return to Mr. Bingley.\" seems to be a narrative sentence, not a dialogue. But the us"
+   },
+   {
+    "expected": "MR. BENNET",
+    "predicted": "<THINK>OKAY, LET'S SEE. I NEED TO FIGURE OUT WHICH CHARACTER SPEAKS THE GIVEN LINE FROM THE NOVEL. THE LINE IS: \"IF HE HAD HAD ANY COMPASSION FOR _ME_, HE WOULD NOT HAVE DANCED HALF SO MUCH! FOR GOD'S SAKE, SAY NO MORE OF HIS PARTNERS. OH! THAT HE HAD SPRAINED HIS ANCLE IN THE FIRST DANCE!\"",
+    "line": "If he had had any compassion for _me_, he would not have danced half so much! For God's sake, say no",
+    "trace": "Okay, let's see. I need to figure out which character speaks the given line from the novel. The line is: \"If he had had any compassion for _me_, he would not have danced half so much! For God's sake, say no more of his partners. Oh! that he had sprained his ancle in the first dance!\" \n\nLooking at the text before and after the line. The text before mentions Mrs. Bennet talking about the ball, specifically how Mr. Bingley danced with various people, including Jane and Elizabeth. Then, the line comes in, which seems to be a reaction to Mr. Bingley's dancing. The text after the line continues with Mrs. Bennet talking about Mr. Darcy's rudeness.\n\nWait, but the line in question is in the middle. T"
+   },
+   {
+    "expected": "JANE",
+    "predicted": "ELIZABETH",
+    "line": "I would wish not to be hasty in censuring any one; but I always speak\nwhat I think.",
+    "trace": "Okay, let's try to figure out who speaks the line \"I would wish not to be hasty in censuring any one; but I always speak what I think.\" \n\nLooking at the text before the line, it's a conversation between Mrs. Bennet and her husband, Mr. Bennet. They're discussing Mr. Bingley's dancing and his sisters, and Mrs. Bennet is talking about how Mr. Darcy is disagreeable. Then the chapter moves to Jane and Elizabeth talking about Mr. Bingley. \n\nThe line in question comes after that. The text after the line is Elizabeth responding to someone else's comments. The speaker here is talking about not being hasty in censuring others but speaking their mind. The context around it mentions Elizabeth's sister "
+   }
+  ],
+  "neighbour misread": [
+   {
+    "expected": "MR. BENNET",
+    "predicted": "<THINK>OKAY, LET'S TRY TO FIGURE OUT WHO SPEAKS THE LINE \"COMPLIED WITH! I AM ONLY ASHAMED OF HIS ASKING SO LITTLE.\"",
+    "line": "Complied with! I am only ashamed of his asking so little.",
+    "trace": "Okay, let's try to figure out who speaks the line \"Complied with! I am only ashamed of his asking so little.\" \n\nFirst, I need to look at the context around the line. The text before the line is a letter from Mr. Gardiner to Mr. Bennet, informing him about Lydia and Wickham's situation. The letter mentions that Mr. Gardiner has arranged for a settlement involving money, and he's asking Mr. Bennet to comply with certain terms. Then, after the letter, Elizabeth and Jane are discussing the situation, and there's a dialogue where they talk about the terms and the marriage.\n\nThe line in question comes after Elizabeth reads the letter and reacts. The text after the line shows Jane and Elizabeth dis"
+   }
+  ],
+  "no cue found": [
+   {
+    "expected": "MISS BINGLEY",
+    "predicted": "<THINK>OKAY, LET'S SEE. I NEED TO FIGURE OUT WHICH CHARACTER SPOKE THE LINE: \"DO LET US HAVE A LITTLE MUSIC, LOUISA, YOU WILL NOT MIND MY WAKING MR. HURST.\" THE TEXT BEFORE AND AFTER THIS LINE IS PROVIDED, SO I SHOULD LOOK AT THE CONTEXT AROUND IT.",
+    "line": "Do let us have a little music, Louisa, you will not mind my\nwaking Mr. Hurst.",
+    "trace": "Okay, let's see. I need to figure out which character spoke the line: \"Do let us have a little music, Louisa, you will not mind my waking Mr. Hurst.\" The text before and after this line is provided, so I should look at the context around it.\n\nLooking at the text before the line, there's a conversation between Elizabeth and Miss Bingley, and Mr. Darcy. They're discussing Mr. Darcy's pride and other traits. Then, there's a part where Elizabeth says something about Mr. Darcy's defect being a propensity to hate everyone, and he replies that her defect is wilfully misunderstanding them. Then the text moves on to the line in question.\n\nThe line mentions \"Louisa\" and \"Mr. Hurst.\" Now, looking at th"
+   },
+   {
+    "expected": "MRS. GARDINER",
+    "predicted": "<THINK>OKAY, LET'S TRY TO FIGURE OUT WHO IS SPEAKING THAT LINE. THE LINE IN QUESTION IS: \"I HOPE, THAT NO CONSIDERATION WITH REGARD TO THIS YOUNG MAN WILL INFLUENCE HER. WE LIVE IN SO DIFFERENT A PART OF TOWN, ALL OUR CONNECTIONS ARE SO DIFFERENT, AND, AS YOU WELL KNOW, WE GO OUT SO LITTLE, THAT IT IS VERY IMPROBABLE THEY SHOULD MEET AT ALL, UNLESS HE REALLY COMES TO SEE HER.\"",
+    "line": "I hope, that no consideration with regard to\nthis young man will influence her. We live in so differ",
+    "trace": "Okay, let's try to figure out who is speaking that line. The line in question is: \"I hope, that no consideration with regard to this young man will influence her. We live in so different a part of town, all our connections are so different, and, as you well know, we go out so little, that it is very improbable they should meet at all, unless he really comes to see her.\"\n\nFirst, I need to look at the context before and after this line. The text before mentions Mrs. Gardiner and Elizabeth discussing Jane's situation with Mr. Bingley. Mrs. Gardiner is talking about how Jane might not get over her feelings for Bingley, and Elizabeth is considering whether they should go back to see Jane. Then th"
+   },
+   {
+    "expected": "JANE",
+    "predicted": "<THINK>OKAY, LET'S TRY TO FIGURE OUT WHO SPOKE THE LINE \"A GAMESTER! THIS IS WHOLLY UNEXPECTED. I HAD NOT AN IDEA OF IT.\"",
+    "line": "A gamester! This is\nwholly unexpected. I had not an idea of it.",
+    "trace": "Okay, let's try to figure out who spoke the line \"A gamester! This is wholly unexpected. I had not an idea of it.\" \n\nFirst, I need to look at the context before and after the line. The text before the line is a letter from Mr. Gardiner to the Bennet family, discussing Lydia's elopement with Wickham and the financial troubles that come with it. He mentions that Wickham has left gaming debts and that Colonel Forster believes a significant amount of money is needed to clear his expenses. \n\nThen, the line in question is \"A gamester! This is wholly unexpected. I had not an idea of it.\" The text after the line talks about Mr. Gardiner's letter and the family's reaction, including Mrs. Bennet's con"
+   }
+  ]
+ },
+ "wrong_pick": {
+  "UNKNOWN": 4,
+  "a_frequent_speaker": 19,
+  "other_name": 427
+ },
+ "provenance": {
+  "script": "reasoning_trace_probe.py",
+  "written": "2026-09-14T11:31:38",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c76be748c19bb483a11ad4d0efd583728bda470c",
+   "branch": "feat/usual-suspect-followups",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/reasoning_trace_probe.py"
+   ],
+   "harness_sha256": "1012b8dfca8adcbcd2030aaa0119586664dedea70758967c9c801301e93c6109"
+  },
+  "args": {
+   "artifact": "ab_test_runtime/experiments/two_stage_attribution__usual_suspects_reasoning_20260914.json",
+   "out": "ab_test_runtime/experiments/reasoning_trace_probe__usual_suspects_20260914.json",
+   "samples": 3
+  }
+ }
+}

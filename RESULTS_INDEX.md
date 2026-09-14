@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1623 artifacts, 1752 arms.
+Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1624 artifacts, 1752 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2579,6 +2579,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prune_retrain__warm_alto_50s_f_gothic__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prune_retrain__warm_alto_50s_f_gothic__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `realizable_router.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `reasoning_trace_probe__usual_suspects_20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `rebuild_newexp__breathy_mezzo_20s_f_scifi__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `rebuild_newexp__breathy_mezzo_20s_f_scifi__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `rebuild_newexp__breathy_tenor_18s_m_supernatural__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

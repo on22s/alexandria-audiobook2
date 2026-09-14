@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 993,
+    "supported_structure": 994,
     "exploratory": 414,
     "provisional": 216,
     "artifacts_that_generated_nothing": 15
@@ -16042,6 +16042,24 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "reasoning_trace_probe__usual_suspects_20260914.json",
+      "bytes": 19202,
+      "sha256": "f9ffe4d4b65da6246746c2ff0e0985977ecd095474017ecc87044b5492369168",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-14T11:31:38",
+      "commit": "c76be748c19bb483a11ad4d0efd583728bda470c",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "rebuild_newexp__breathy_mezzo_20s_f_scifi__rebuilt.json",
