@@ -3412,6 +3412,12 @@
     "tests.test_two_step_attribution.RegexSerialisation.test_undecided_becomes_unknown_not_dropped",
     "tests.test_two_step_attribution.ValidationIsNotBypassed.test_stage1_only_returns_nothing_when_the_validator_refuses"
   ],
+  "test_ui_review_fixes": [
+    "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_editing_replaces_the_entry_instead_of_appending",
+    "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_unknown_id_is_refused_not_silently_appended",
+    "tests.test_ui_review_fixes.FrontendGuards.test_dataset_delete_checks_the_response",
+    "tests.test_ui_review_fixes.FrontendGuards.test_every_localstorage_access_is_wrapped"
+  ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_lowercase_phrase_is_not_a_name_however_it_is_hyphenated",
