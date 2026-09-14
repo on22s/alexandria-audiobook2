@@ -50,6 +50,7 @@ app/torch-constraints.txt
 /SPEC.md
 
 audiobook.mp3
+*.flac
 
 # Generated runtime files
 chunks.json
