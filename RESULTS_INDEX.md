@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1577 artifacts, 1725 arms.
+Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1618 artifacts, 1731 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1740,6 +1740,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 81.7% | historical_only | ok | False | 876.1s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 59.9% | historical_only | ok | False | 1450.7s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 63.0% | historical_only | ok | False | 940.4s |
+| attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 725 | 62.8% | historical_only | ok | True | 677.8s |
+| attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 725 | 68.1% | historical_only | ok | True | 1267.8s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 1270 | 61.6% | historical_only | ok | False | 3306.2s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 68.2% | historical_only | ok | False | 2662.3s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 1270 | 68.3% | historical_only | ok | False | 9216.7s |
@@ -1758,6 +1760,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 78.5% | historical_only | ok | False | 876.1s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 70.4% | historical_only | ok | False | 1450.7s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 69.6% | historical_only | ok | False | 940.4s |
+| attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 233 | 55.4% | historical_only | ok | True | 677.8s |
+| attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 233 | 62.7% | historical_only | ok | True | 1267.8s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 584 | 69.2% | historical_only | ok | False | 3306.2s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 70.5% | historical_only | ok | False | 2662.3s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 584 | 71.7% | historical_only | ok | False | 9216.7s |
@@ -1785,6 +1789,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 76.5% | historical_only | ok | False | 876.1s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 54.3% | historical_only | ok | False | 1450.7s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 940.4s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 255 | 43.1% | historical_only | ok | True | 677.8s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 255 | 52.2% | historical_only | ok | True | 1267.8s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | supported_measurement | ok | False | 212.6s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 640 | 55.6% | historical_only | ok | False | 3306.2s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
@@ -2014,6 +2020,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `cascade_state__owarimonogatari3__a6000-newbook.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__owarimonogatari3__local-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__owarimonogatari3__tuned-cheap-arm.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `chapter_cuts_20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `chapter_cuts_cleangold_20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `chapter_manifest.json` | SKIPPED: not a result object (list) |
 | `chapter_validation.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `character_distinctiveness.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2055,6 +2063,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `ctc_japanese_boundary_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ctc_japanese_boundary_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `dataset_prosodic_spread.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2106,6 +2115,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `fallback_policy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `final_release_after_remaining_gpu_research.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `fix_verification.json` | SKIPPED: not a result object (list) |
+| `floor_test__nofloor_4ep__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `floor_test__nofloor_4ep_ga4__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `frontend_exposure.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `full_api_gpu_20260816.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `full_sequence_scoring__llamacpp_calibration.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -2377,6 +2388,22 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `library_voice_fidelity_seed_20260825_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_seed_20260826_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_seed_20260830_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_narration_adapter_on_narration_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_narration_adapter_on_narration_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_narration_adapter_on_quotes_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_narration_adapter_on_quotes_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_quotes_adapter_on_narration_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_quotes_adapter_on_narration_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_quotes_adapter_on_quotes_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_2033_quotes_adapter_on_quotes_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_narration_adapter_on_narration_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_narration_adapter_on_narration_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_narration_adapter_on_quotes_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_narration_adapter_on_quotes_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_quotes_adapter_on_narration_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_quotes_adapter_on_narration_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_quotes_adapter_on_quotes_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `libriquote_4992_quotes_adapter_on_quotes_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `light_novel_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `listener_impact.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `listening_verdicts.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -2503,6 +2530,14 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_fidelity_zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_hifitts_9017.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_2033_narration_adapter_on_narration.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_2033_narration_adapter_on_quotes.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_2033_quotes_adapter_on_narration.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_2033_quotes_adapter_on_quotes.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_4992_narration_adapter_on_narration.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_4992_narration_adapter_on_quotes.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_4992_quotes_adapter_on_narration.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_libriquote_4992_quotes_adapter_on_quotes.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__husky_baritone_50s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__husky_soprano_20s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__silky_alto_40s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -2512,6 +2547,16 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_second_english__warm_baritone_30s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__warm_baritone_50s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_time_split__warm_baritone_30s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__breathy_alto_50s_f_fantasy__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__breathy_alto_50s_f_fantasy__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__husky_baritone_20s_m_supernatural__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__husky_baritone_20s_m_supernatural__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__silky_baritone_30s_m__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__silky_baritone_30s_m__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__silky_baritone_45s_m__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__silky_baritone_45s_m__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__warm_alto_50s_f_gothic__control_rep2_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prune_retrain__warm_alto_50s_f_gothic__fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `realizable_router.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `rebuild_newexp__breathy_mezzo_20s_f_scifi__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `rebuild_newexp__breathy_mezzo_20s_f_scifi__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

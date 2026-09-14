@@ -1,0 +1,942 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "5957-blackpoodle_01_anstey_64kb_0",
+ "test_books": [
+  "6056"
+ ],
+ "corpus": "LibriQuote-test reader 4992 (narration)",
+ "rows": [
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_0",
+   "book": "6056",
+   "text": "'I was going along this road one day, when I met a merchant travelling with a great train of camels laden with merchandise -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_0.wav",
+   "human_seconds": 6.485125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_1",
+   "book": "6056",
+   "text": "'I was going along this road one day, when I met a merchant travelling with a great train of camels laden with merchandise -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_1.wav",
+   "human_seconds": 6.485125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_1__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_15",
+   "book": "6056",
+   "text": "continued the bunniah, 'all tied together by their nose strings -- nose to tail -- and stretching along the road for almost half a mile -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_15.wav",
+   "human_seconds": 7.685125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_15__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_17",
+   "book": "6056",
+   "text": "Here the bunniah gasped as one who is out of breath, but the farmer looked at him slowly.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_17.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_18",
+   "book": "6056",
+   "text": "Here the bunniah gasped as one who is out of breath, but the farmer looked at him slowly.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_18.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_18__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_19",
+   "book": "6056",
+   "text": "Here the bunniah gasped as one who is out of breath, but the farmer looked at him slowly.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_19.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_21",
+   "book": "6056",
+   "text": "Here the bunniah gasped as one who is out of breath, but the farmer looked at him slowly.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_21.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_21__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_23",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_23.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_23__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_24",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_24.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_24__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_26",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_26.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_26__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_27",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_27.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_27__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_28",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_28.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_29",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_29.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_29__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_3",
+   "book": "6056",
+   "text": "'I was going along this road one day, when I met a merchant travelling with a great train of camels laden with merchandise -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_3.wav",
+   "human_seconds": 6.485125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_30",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_30.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_30__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_30__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_36",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_36.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_36__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_37",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_37.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_37__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_38",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_38.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_38__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_39",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_39.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_40",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_40.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_40__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_41",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_41.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_41__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_43",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_43.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_43__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_44",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_44.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_44__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_44__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_45",
+   "book": "6056",
+   "text": "The bunniah here flashed a furious glance at his companion, but bit his lips and held his peace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_45.wav",
+   "human_seconds": 6.045125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_45__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_47",
+   "book": "6056",
+   "text": "Then the bunniah began running his thumb quickly up and down the fingers of his right hand, and his lips moved in quick calculation.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_47.wav",
+   "human_seconds": 7.785125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_47__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_47__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_48",
+   "book": "6056",
+   "text": "Then the bunniah began running his thumb quickly up and down the fingers of his right hand, and his lips moved in quick calculation.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_48.wav",
+   "human_seconds": 7.785125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_48__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_48__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_49",
+   "book": "6056",
+   "text": "said the bunniah, with the calmness of despair, as he remembered that by his own arrangement he was bound to give the farmer a hundred rupees.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_49.wav",
+   "human_seconds": 8.835208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_49__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_49__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_5",
+   "book": "6056",
+   "text": "continued the bunniah, 'all tied together by their nose strings -- nose to tail -- and stretching along the road for almost half a mile -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_5.wav",
+   "human_seconds": 7.685125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_5__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_50",
+   "book": "6056",
+   "text": "said the bunniah, with the calmness of despair, as he remembered that by his own arrangement he was bound to give the farmer a hundred rupees.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_50.wav",
+   "human_seconds": 8.835208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_50__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_50__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_51",
+   "book": "6056",
+   "text": "And to this day they say in those parts, when a man owes a debt:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_51.wav",
+   "human_seconds": 4.155208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_51__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_51__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_6",
+   "book": "6056",
+   "text": "continued the bunniah, 'all tied together by their nose strings -- nose to tail -- and stretching along the road for almost half a mile -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_6.wav",
+   "human_seconds": 7.685125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_6__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_8",
+   "book": "6056",
+   "text": "continued the bunniah, 'all tied together by their nose strings -- nose to tail -- and stretching along the road for almost half a mile -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_8.wav",
+   "human_seconds": 7.685125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_8__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_05_lang_64kb_9",
+   "book": "6056",
+   "text": "continued the bunniah, 'all tied together by their nose strings -- nose to tail -- and stretching along the road for almost half a mile -- -- '",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_05_lang_64kb_9.wav",
+   "human_seconds": 7.685125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_05_lang_64kb_9__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_0",
+   "book": "6056",
+   "text": "answered the Mother of Sheaths; and she went into the back of the cavern, where they dared not follow her.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_0.wav",
+   "human_seconds": 6.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_1",
+   "book": "6056",
+   "text": "answered the Mother of Sheaths; and she went into the back of the cavern, where they dared not follow her.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_1.wav",
+   "human_seconds": 6.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_1__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_10",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_10.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_10__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_11",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_11.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_11__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_12",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_12.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_12__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_14",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_14.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_14__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_15",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_15.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_15__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_17",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_17.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_18",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_18.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_18__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_19",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_19.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_2",
+   "book": "6056",
+   "text": "answered the Mother of Sheaths; and she went into the back of the cavern, where they dared not follow her.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_2.wav",
+   "human_seconds": 6.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_2__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_20",
+   "book": "6056",
+   "text": "he asked coldly, more than half regretting that he had not left her to her fate; but she read what was in his heart, and fell on her knees before him.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_20.wav",
+   "human_seconds": 9.435125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_20__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_21",
+   "book": "6056",
+   "text": "she added, as the prince started at the sound of the vanishing hoofs; and as they pushed their way along the path she told him all that had happened since they had last met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_21.wav",
+   "human_seconds": 8.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_21__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_24",
+   "book": "6056",
+   "text": "she added, as the prince started at the sound of the vanishing hoofs; and as they pushed their way along the path she told him all that had happened since they had last met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_24.wav",
+   "human_seconds": 8.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_24__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_27",
+   "book": "6056",
+   "text": "she added, as the prince started at the sound of the vanishing hoofs; and as they pushed their way along the path she told him all that had happened since they had last met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_27.wav",
+   "human_seconds": 8.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_27__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_28",
+   "book": "6056",
+   "text": "she added, as the prince started at the sound of the vanishing hoofs; and as they pushed their way along the path she told him all that had happened since they had last met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_28.wav",
+   "human_seconds": 8.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_29",
+   "book": "6056",
+   "text": "she added, as the prince started at the sound of the vanishing hoofs; and as they pushed their way along the path she told him all that had happened since they had last met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_29.wav",
+   "human_seconds": 8.665125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_29__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_3",
+   "book": "6056",
+   "text": "answered the Mother of Sheaths; and she went into the back of the cavern, where they dared not follow her.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_3.wav",
+   "human_seconds": 6.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_30",
+   "book": "6056",
+   "text": "she said, as soon as the boat touched the island; and in silence the queen went down the path to the palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_30.wav",
+   "human_seconds": 5.835208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_30__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_30__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_31",
+   "book": "6056",
+   "text": "she said, as soon as the boat touched the island; and in silence the queen went down the path to the palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_31.wav",
+   "human_seconds": 5.835208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_31__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_33",
+   "book": "6056",
+   "text": "she said, as soon as the boat touched the island; and in silence the queen went down the path to the palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_33.wav",
+   "human_seconds": 5.835208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_33__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_34",
+   "book": "6056",
+   "text": "And the thousand sheaths with which the walls were hung took up the cry:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_34.wav",
+   "human_seconds": 4.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_34__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_35",
+   "book": "6056",
+   "text": "And the thousand sheaths with which the walls were hung took up the cry:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_35.wav",
+   "human_seconds": 4.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_35__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_35__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_36",
+   "book": "6056",
+   "text": "And he signed to an attendant to take the collar from the pocket of his velvet jerkin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_36.wav",
+   "human_seconds": 4.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_36__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_37",
+   "book": "6056",
+   "text": "And he signed to an attendant to take the collar from the pocket of his velvet jerkin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_37.wav",
+   "human_seconds": 4.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_37__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_38",
+   "book": "6056",
+   "text": "And he signed to an attendant to take the collar from the pocket of his velvet jerkin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_38.wav",
+   "human_seconds": 4.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_38__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_39",
+   "book": "6056",
+   "text": "And he signed to an attendant to take the collar from the pocket of his velvet jerkin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_39.wav",
+   "human_seconds": 4.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_4",
+   "book": "6056",
+   "text": "answered the Mother of Sheaths; and she went into the back of the cavern, where they dared not follow her.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_4.wav",
+   "human_seconds": 6.025125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_4__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_40",
+   "book": "6056",
+   "text": "And he signed to an attendant to take the collar from the pocket of his velvet jerkin.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_40.wav",
+   "human_seconds": 4.815125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_40__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_41",
+   "book": "6056",
+   "text": "he continued, as the prince quickly drew the comb from its case.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_41.wav",
+   "human_seconds": 3.435208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_41__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_42",
+   "book": "6056",
+   "text": "he continued, as the prince quickly drew the comb from its case.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_42.wav",
+   "human_seconds": 3.435208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_42__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_42__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_5",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_5.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_5__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_6",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_6.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_6__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_7",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_7.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_7__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_8",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_8.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_8__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_07_lang_64kb_9",
+   "book": "6056",
+   "text": "he said to himself; and though there was no reason to expect that the princess should be in that place more than in any other, he could not get the notion out of his head.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_07_lang_64kb_9.wav",
+   "human_seconds": 9.845125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_07_lang_64kb_9__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_0",
+   "book": "6056",
+   "text": "Having made these arrangements he strolled slowly through the forest, but great was his surprise to come upon a beautiful horse hidden in the depths of a thicket.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_0.wav",
+   "human_seconds": 9.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_0__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_1",
+   "book": "6056",
+   "text": "Having made these arrangements he strolled slowly through the forest, but great was his surprise to come upon a beautiful horse hidden in the depths of a thicket.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_1.wav",
+   "human_seconds": 9.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_1__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_10",
+   "book": "6056",
+   "text": "The cavalier remained speechless with anger at these words; then with a great effort he replied:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_10.wav",
+   "human_seconds": 6.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_10__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_11",
+   "book": "6056",
+   "text": "The cavalier remained speechless with anger at these words; then with a great effort he replied:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_11.wav",
+   "human_seconds": 6.505125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_11__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_12",
+   "book": "6056",
+   "text": "But though their words were brave their hearts were not, for the mere thought of Zoulvisia made them tremble.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_12.wav",
+   "human_seconds": 6.795125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_12__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_13",
+   "book": "6056",
+   "text": "Drawing from his pocket a pair of scissors, a razor and a mirror, he gave one to each of the old fairies, saying:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_13.wav",
+   "human_seconds": 7.09525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_13__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_14",
+   "book": "6056",
+   "text": "Drawing from his pocket a pair of scissors, a razor and a mirror, he gave one to each of the old fairies, saying:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_14.wav",
+   "human_seconds": 7.09525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_14__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_15",
+   "book": "6056",
+   "text": "Drawing from his pocket a pair of scissors, a razor and a mirror, he gave one to each of the old fairies, saying:",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_15.wav",
+   "human_seconds": 7.09525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_15__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_17",
+   "book": "6056",
+   "text": "thought the king; and, with some difficulty, he scrambled into the pit and laid his hand on the shoulder of the sleeper.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_17.wav",
+   "human_seconds": 6.325125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_17__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_18",
+   "book": "6056",
+   "text": "asked the old man, awakening with a start. But the king answered that he was a mere mortal, and that he sought Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_18.wav",
+   "human_seconds": 7.705125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_18__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_19",
+   "book": "6056",
+   "text": "asked the old man, awakening with a start. But the king answered that he was a mere mortal, and that he sought Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_19.wav",
+   "human_seconds": 7.705125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_19__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_2",
+   "book": "6056",
+   "text": "Having made these arrangements he strolled slowly through the forest, but great was his surprise to come upon a beautiful horse hidden in the depths of a thicket.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_2.wav",
+   "human_seconds": 9.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_2__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_20",
+   "book": "6056",
+   "text": "asked the old man, awakening with a start. But the king answered that he was a mere mortal, and that he sought Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_20.wav",
+   "human_seconds": 7.705125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_20__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_21",
+   "book": "6056",
+   "text": "asked the old man, awakening with a start. But the king answered that he was a mere mortal, and that he sought Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_21.wav",
+   "human_seconds": 7.705125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_21__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_22",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_22.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_22__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_24",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_24.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_24__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_25",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_25.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_25__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_25__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_26",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_26.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_26__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_27",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_27.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_27__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_28",
+   "book": "6056",
+   "text": "Word for word the king did as the old man had bidden him, and when he stepped forth from the cave, their eyes met.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_28.wav",
+   "human_seconds": 6.72525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_28__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_29",
+   "book": "6056",
+   "text": "And kissing him between his eyes, she placed the bridle in the hand of her husband.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_29.wav",
+   "human_seconds": 4.01525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_29__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_3",
+   "book": "6056",
+   "text": "Having made these arrangements he strolled slowly through the forest, but great was his surprise to come upon a beautiful horse hidden in the depths of a thicket.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_3.wav",
+   "human_seconds": 9.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_3__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_30",
+   "book": "6056",
+   "text": "And kissing him between his eyes, she placed the bridle in the hand of her husband.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_30.wav",
+   "human_seconds": 4.01525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_30__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_30__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_31",
+   "book": "6056",
+   "text": "Of course the chamberlain gladly gave her what she asked, and in return she informed him that the case and the hair belonged to Zoulvisia.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_31.wav",
+   "human_seconds": 8.395208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_31__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_33",
+   "book": "6056",
+   "text": "This piteous tale touched the heart of the young man, and he promised that he would bring her food, and that she should pass the night in his palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_33.wav",
+   "human_seconds": 7.37525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_33__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_34",
+   "book": "6056",
+   "text": "This piteous tale touched the heart of the young man, and he promised that he would bring her food, and that she should pass the night in his palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_34.wav",
+   "human_seconds": 7.37525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_34__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_36",
+   "book": "6056",
+   "text": "This piteous tale touched the heart of the young man, and he promised that he would bring her food, and that she should pass the night in his palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_36.wav",
+   "human_seconds": 7.37525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_36__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_37",
+   "book": "6056",
+   "text": "This piteous tale touched the heart of the young man, and he promised that he would bring her food, and that she should pass the night in his palace.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_37.wav",
+   "human_seconds": 7.37525,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_37__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_38",
+   "book": "6056",
+   "text": "And so it happened twice and thrice, and the old witch guessed the reason, though the king did not.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_38.wav",
+   "human_seconds": 6.905125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_38__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_39",
+   "book": "6056",
+   "text": "And so it happened twice and thrice, and the old witch guessed the reason, though the king did not.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_39.wav",
+   "human_seconds": 6.905125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_39__clone.wav"
+  },
+  {
+   "id": "6056-olivefairybook_19_lang_64kb_4",
+   "book": "6056",
+   "text": "Having made these arrangements he strolled slowly through the forest, but great was his surprise to come upon a beautiful horse hidden in the depths of a thicket.",
+   "human_wav": "ab_test_runtime/libriquote_4992_eval/narration/human/6056-olivefairybook_19_lang_64kb_4.wav",
+   "human_seconds": 9.005125,
+   "lora_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration/6056-olivefairybook_19_lang_64kb_4__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T17:33:44",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c6e7ee95941761acde889e44c2ebc7654438f796",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "b753cae14a87fa61fdf1e0c1e14c0a5d3c5bcd9b1b52e232f5004db2d434e651"
+  },
+  "args": {
+   "build": "ab_test_runtime/libriquote_4992_eval/narration/build.json",
+   "adapter": "ab_test_runtime/libriquote_4992_eval/narration/adapter",
+   "config": "config.json",
+   "out_dir": "ab_test_runtime/libriquote_4992_eval/generated_narration_on_narration",
+   "seed": 1234,
+   "limit": 100,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/libriquote_4992_narration_adapter_on_narration_generate.json"
+  },
+  "seed": 1234
+ }
+}

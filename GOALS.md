@@ -2235,6 +2235,105 @@ two score lower, and the value falls monotonically at 1, 2, 4 and 8 clusters,
 so the number can be read as *how much of a mixture is this*. A single clip
 returns no statistic rather than a perfect 1.0.
 
+**A second instrument agrees with the mixture diagnosis and does not improve
+on it (2026-09-13).** Two audiobook-TTS papers prune character speech before
+training by prosody alone: Chalamandaris et al. (LREC 2014) by Mahalanobis
+distance in (F0 mean, F0 std), Piits et al. (LREC 2022) naming lower HNR,
+steeper spectral slope and larger loudness swings as what separates a
+narrator's character speech from narration. `dataset_prosodic_spread.py`
+measured those on 40 seeded clips from every shipped dataset (74 scored):
+
+| feature | r vs ECAPA fidelity | partial r, controlling tone-spread tightness |
+|---|---:|---:|
+| across-clip F0 spread | −0.37 (p=0.001) | +0.08 |
+| between/within F0 ratio | −0.39 (p=6e-4) | −0.05 |
+| alpha-ratio spread | −0.43 (p=1e-4) | −0.14 |
+| F0 outliers beyond 2 SD | −0.19 | −0.25 (p=0.03) |
+
+The five REBUILD datasets carry 2.6× the across-clip pitch spread of working
+ones (44.6 vs 17.1 Hz, Mann–Whitney p=0.02, n=5/59), so the papers' signature
+is present. But once the ECAPA tightness above (r=0.58) is held fixed, every
+prosodic feature falls to |r|≤0.25: they measure the same mixture, more
+coarsely. Not adopted as a detector. The papers' remaining claim — that
+*removing* the outlying clips and retraining gives a better voice, which the
+audit never tried — is `run_chains/prune_retrain_20260913.sh`
+(`prune_prosodic_clips.py`, both rules, one REBUILD adapter, paired against
+a fresh retrain on the original data). Prediction: it helps a prosodic
+mixture and not a two-person one.
+
+**Evidence** — `dataset_prosodic_spread.json`.
+
+**Pruning, run the same night: a modest cleaner for the middling datasets,
+not a repair for the broken ones.** Each of the five REBUILD datasets was
+retrained twice from the original clips (the library recipe, no seed) and
+once from the pruned clips, all scored by `library_voice_fidelity` on the
+same 20 val lines:
+
+| adapter | shipped | retrain 1 | retrain 2 | pruned |
+|---|---:|---:|---:|---:|
+| breathy_alto_50s_f_fantasy | 0.398 | 0.294 | 0.333 | 0.388 |
+| silky_baritone_30s_m | 0.501 | 0.306 | 0.339 | 0.403 |
+| warm_alto_50s_f_gothic | 0.604 | 0.627 | 0.598 | 0.593 |
+| husky_baritone_20s_m_supernatural | 0.160 | 0.149 | 0.116 | 0.075 |
+| silky_baritone_45s_m | 0.103 | 0.081 | 0.078 | 0.086 |
+
+The two control draws agree within 0.04 everywhere, so training variance is
+small. Pruning lifts the two mid-range datasets by 0.06–0.10 over both
+draws — the prosodic-mixture case the prediction named — and does nothing or
+harm on the three at or below 0.16, which the audit already called
+different-people mixtures. Chalamandaris' rule is therefore a cleaner, not a
+repair; the re-diarize verdict stands.
+
+**A second finding fell out of the controls.** The shipped adapters for the
+two mid-range datasets score 0.10–0.20 above BOTH fresh retrains on the same
+zips (0.398 vs 0.29/0.33; 0.501 vs 0.31/0.34), with the other three equal.
+Two agreeing retrains rule out noise: something about how those two were
+originally trained differs from today's `batch_train_lora` defaults. Not
+diagnosed; compare their per-adapter training_meta.json before retraining any library
+voice "to the same settings".
+
+**Evidence** — `prune_retrain__<adapter>__fidelity.json` (control + pruned)
+and `prune_retrain__<adapter>__control_rep2_fidelity.json` for the five.
+
+**The gap is not the garble floor (2026-09-14).** One candidate cause was
+`train_lora.GARBLE_FLOOR = 4.1`: in target-loss mode the trainer discards
+any epoch whose loss falls below 4.1, and the shipped adapters' recorded
+losses (4.095, 4.022) sit exactly there, so today's retrains may be keeping
+a worse epoch than the originals did. Tested by retraining both mid-range
+datasets for a fixed 4 epochs with no floor and no target, twice (grad-accum
+8: losses 4.51/4.46; grad-accum 4, the library setting: 4.16/4.10), scored
+the same way: ECAPA **0.335/0.337** and **0.315/0.319** — inside the
+0.29–0.34 band of the two floored retrains, nowhere near the shipped
+0.398/0.501. Keeping the overshoot epoch does not recover the shipped level,
+so the floor stays as it is and the cause is still in the original runs'
+settings. Evidence — `floor_test__nofloor_4ep__fidelity.json`,
+`floor_test__nofloor_4ep_ga4__fidelity.json`.
+
+**Character speech vs narration as training data: not the lever, and the
+sign depends on the reader (2026-09-13).** Piits et al. (LREC 2022) found a
+same-speaker character-speech corpus trained the worst-rated voice with
+three synthesisers; LibriQuote (Findings ACL 2026) argues character
+quotations are the expressive data TTS lacks. `run_chains/libriquote_{4992,2033}_20260913.sh`
+trained one adapter on a LibriVox reader's quotations and one on the same
+reader's matched narration (eval-set recipe, 200 clips each), and scored
+both on the held-out book's quotes AND narration:
+
+| ECAPA vs the human clip | reader 4992: quotes → | narration → | reader 2033: quotes → | narration → |
+|---|---:|---:|---:|---:|
+| quotes-trained adapter | 0.465 | 0.515 | **0.630** | **0.637** |
+| narration-trained adapter | **0.527** | **0.603** | 0.583 | 0.603 |
+
+Narration wins both columns for one reader, quotes win both for the other;
+F0 correlation is 0.67–0.74 in every cell, so neither corpus buys
+expressivity. The n=1 conclusion from the afternoon ("train on narration")
+did not survive its own replication, which is the reason the second reader
+was queued. What the two share: the two adapters sit within ~0.1 of each
+other and both below the clone arm, so filtering character lines out of a
+narrator's dataset is not how the tone-mixture problem gets fixed either.
+Both LibriQuote corpora are CC BY-NC 4.0: evidence only.
+
+**Evidence** — `libriquote_{4992,2033}_{quotes,narration}_adapter_on_{quotes,narration}_score.json`.
+
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
@@ -4489,6 +4588,60 @@ by losing the right name and `closed-oracle` wins by keeping it, that curve is
 the one measurement that would say whether a small, honest candidate set is
 reachable at all.
 
+#### The selection gap is not a cue-parsing failure — a registered null (2026-09-13)
+
+Borrowing the shape of grammar-book-guided probing (Li et al., LREC 2026:
+models pass "which sentence shows this rule" and fail minimal pairs), the
+2,494 rows of `two_stage_attribution_w3200.json` (roster recall 100%, so every
+error is a selection) were stratified by the cue a reader would use
+(`selection_cue_probe.py`):
+
+| cue | n | accuracy |
+|---|---:|---:|
+| tag names the speaker | 453 | 63.8% |
+| tag with pronoun only | 236 | 67.4% |
+| no tag detected | 1,805 | 65.9% |
+| another roster name inside the quote (addressee) | 845 | 69.1% |
+| nearest roster mention is the speaker | 850 | 66.6% |
+| nearest mention is someone else | 1,644 | 65.1% |
+
+No cue class falls toward chance; all sit in 62–71%. Of the 857 wrong picks,
+6.0% named the addressee and 14.6% the nearest other mention — 79% are
+neither classic confusion. What does separate is how much the true speaker
+talks: the top two speakers of a book are attributed at 74.5% (n=1,281),
+everyone else at 54–60% (n=1,213), and 55% of wrong picks name a more
+frequent speaker than the right one. Two readings fit — a prior toward the
+frequent names, or major characters having more distinctive lines — and the
+probe cannot separate them. Cue detectors are regexes over 200-char windows,
+hand-checked on six rows only; PDNC only, since the Japanese gold has no
+context fields.
+
+**The test that separates the readings, run the same day: the model
+defaults to the usual suspects.** `two_stage_attribution.py
+--drop-top-speakers 2` asked the same 1,213 minor-speaker rows twice —
+full cast, then with the book's two most frequent speakers removed from
+the shown cast (Qwen3-14B Q4, reasoning off, local llama.cpp):
+
+| book | full cast | usual suspects removed |
+|---|---:|---:|
+| Pride and Prejudice (725) | 62.8% | 68.1% |
+| The Sign of the Four (255) | 43.1% | 52.2% |
+| The Awakening (233) | 55.4% | 62.7% |
+| **pooled, paired** | **57.2%** | **63.7%** (+105/−26, p=2e-12) |
+
+In the control arm **52.4% of wrong answers named a usual suspect**; of
+the 105 rows the removal fixed, 81 had. So roughly half the selection
+errors on minor speakers are a prior toward the leads, and removing the
+prior recovers a fifth of those rows. It does not reach the leads' 74.5%,
+so line distinctiveness carries the rest. The prior cannot be removed in
+production (the leads may be speaking), which makes the lever a prompt
+or training signal that gives the model a reason to prefer a minor name
+when one fits — the author-balanced and play-script sets are already
+shaped that way. A K=5 arm is queued to see whether the effect grows
+with the number of suspects removed.
+
+**Evidence** — `two_stage_attribution__usual_suspects_control_20260913.json`,
+`two_stage_attribution__usual_suspects_dropped_20260913.json`.
 #### Registered before the run: play-script adapters, English vs. mixed (2026-09-13)
 
 A play carries the speaker of every line as part of the text

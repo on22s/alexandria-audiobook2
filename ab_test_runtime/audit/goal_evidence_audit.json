@@ -271,16 +271,16 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 10,
+   "cited": 13,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 9
+    "supported_structure": 12
    },
-   "dirty_artifacts": 6,
+   "dirty_artifacts": 8,
    "no_commit": 0,
    "artifacts": [
     {
@@ -296,10 +296,28 @@
      "commit": "41cb67f4"
     },
     {
+     "name": "dataset_prosodic_spread.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "069bb061"
+    },
+    {
      "name": "dataset_tone_spread.json",
      "classification": "supported_structure",
      "dirty": true,
      "commit": "589733ac"
+    },
+    {
+     "name": "floor_test__nofloor_4ep__fidelity.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "0cb3b070"
+    },
+    {
+     "name": "floor_test__nofloor_4ep_ga4__fidelity.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "0cb3b070"
     },
     {
      "name": "gate_promote__crisp_mezzo_30s_f.json",
@@ -659,22 +677,40 @@
   {
    "goal": "1.2",
    "title": "Close the selection gap",
-   "cited": 2,
+   "cited": 5,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "provisional": 1,
+    "provisional": 4,
     "supported_structure": 1
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 3,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "two_stage_attribution__usual_suspects_control_20260913.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "069bb061"
+    },
+    {
+     "name": "two_stage_attribution__usual_suspects_dropped_20260913.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "069bb061"
+    },
     {
      "name": "two_stage_attribution_full.json",
      "classification": "provisional",
      "dirty": false,
      "commit": "70670ef6"
+    },
+    {
+     "name": "two_stage_attribution_w3200.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "9c7a7032"
     },
     {
      "name": "two_stage_selection_gap.json",

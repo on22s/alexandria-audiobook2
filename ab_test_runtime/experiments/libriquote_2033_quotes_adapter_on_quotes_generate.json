@@ -1,0 +1,906 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "5863-tenyearslater_28_dumas_64kb_34",
+ "test_books": [
+  "3585"
+ ],
+ "corpus": "LibriQuote-test reader 2033 (quotes)",
+ "rows": [
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_0",
+   "book": "3585",
+   "text": "\"I know neither slave girl nor anyone else; and none shall enter here without my searching him according to the King's commands.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_0.wav",
+   "human_seconds": 8.865125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_1",
+   "book": "3585",
+   "text": "\"I thought thee a man of sense and good breeding; but, if thou be changed, I will let the Princess know of it and tell her how thou hinderest her slave girl;",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_1.wav",
+   "human_seconds": 10.825125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_10",
+   "book": "3585",
+   "text": "\"And now I wish to return to my father, that he may send an ambassador to thy sire, to demand thee in wedlock for me, so we may be at ease.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_10.wav",
+   "human_seconds": 10.705125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_11",
+   "book": "3585",
+   "text": "\"O Kafur,[FN#49] take this casket and wend with it to the Princess Dunya.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_11.wav",
+   "human_seconds": 5.345125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_14",
+   "book": "3585",
+   "text": "\"O Kafur, veil thou what Allah hath veiled!\"[FN#5",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_14.wav",
+   "human_seconds": 3.455208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_14__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_15",
+   "book": "3585",
+   "text": "\"I cannot conceal aught from the King",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_15.wav",
+   "human_seconds": 2.12525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_15__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_16",
+   "book": "3585",
+   "text": "\"Hast thou given the casket to the Princess?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_16.wav",
+   "human_seconds": 2.445125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_16__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_16__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_17",
+   "book": "3585",
+   "text": "\"Take the casket, here it is for I cannot conceal aught from thee. Know that I found a handsome young man by the side of the Princess and they two asleep in one bed and in mutual embrace.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_17.wav",
+   "human_seconds": 13.755208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_17__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_18",
+   "book": "3585",
+   "text": "\"What manner of thing is this?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_18.wav",
+   "human_seconds": 1.6352083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_18__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_19",
+   "book": "3585",
+   "text": "\"Slay me before thou slayest him.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_19.wav",
+   "human_seconds": 2.405125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_19__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_20",
+   "book": "3585",
+   "text": "\"Woe to thee! whence art thou? Who is thy father and what hath emboldened thee to debauch my daughter?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_20.wav",
+   "human_seconds": 7.545125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_20__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_21",
+   "book": "3585",
+   "text": "\"Know, O King, that if thou put me to death, thou art a lost man, and thou and all in thy dominions will repent the deed.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_21.wav",
+   "human_seconds": 9.875208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_21__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_22",
+   "book": "3585",
+   "text": "\"Know that I am the son of King Sulayman Shah, and ere thou knowest it, he will be upon thee with his horse and foot.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_22.wav",
+   "human_seconds": 9.335125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_22__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_23",
+   "book": "3585",
+   "text": "\"O King of the Age, it is my opinion that thou make haste to slay this gallows bird who dares debauch the daughters of Kings.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_23.wav",
+   "human_seconds": 9.435083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_23__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_24",
+   "book": "3585",
+   "text": "\"Strike off his head; for he is a traitor.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_24.wav",
+   "human_seconds": 2.95525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_26",
+   "book": "3585",
+   "text": "\"I saw an army like the dashing sea with its clashing surge: and their horses curvetting till earth trembleth with the tramp; and I know no more of them.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_26.wav",
+   "human_seconds": 12.355083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_26__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_27",
+   "book": "3585",
+   "text": "\"Have not any of our army gone forth to meet this army?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_27.wav",
+   "human_seconds": 3.775125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_27__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_28",
+   "book": "3585",
+   "text": "\"Know that he who hath come down upon thy realm is no King like unto the Kings of yore and the Sultans that went before.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_28.wav",
+   "human_seconds": 10.005125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_28__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_31",
+   "book": "3585",
+   "text": "\"Woe to you! Go down and search for the youth.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_31.wav",
+   "human_seconds": 3.195125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_31__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_32",
+   "book": "3585",
+   "text": "\"O my son, be not wroth with me, neither blame the sinner for his sin; but have compassion on my grey hairs, and waste not my realm.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_32.wav",
+   "human_seconds": 11.535208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_32__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_32__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_33",
+   "book": "3585",
+   "text": "\"No harm shall come to thee, for indeed thou art to me as my father; but look that nought befal my beloved, the Lady Dunya!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_33.wav",
+   "human_seconds": 9.895208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_33__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_34",
+   "book": "3585",
+   "text": "\"O my lord! fear not for her; naught but joy shall betide her;",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_34.wav",
+   "human_seconds": 5.30525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_34__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_36",
+   "book": "3585",
+   "text": "\"Good fortune hath attended your every action, first and last.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_36.wav",
+   "human_seconds": 5.305125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_36__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_37",
+   "book": "3585",
+   "text": "\"Needs must I slay myself and not survive my beloved.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_37.wav",
+   "human_seconds": 4.205125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_37__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_38",
+   "book": "3585",
+   "text": "\"O Princess of kings' daughters, hold thy hand and have ruth on thy sire and the folk of thy realm!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_38.wav",
+   "human_seconds": 7.435208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_38__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_39",
+   "book": "3585",
+   "text": "\"Let it not be that an ill thing befal thy father for thy sake!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_39.wav",
+   "human_seconds": 4.83525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_39__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_4",
+   "book": "3585",
+   "text": "\"Go forth from me now, for I wish to amuse myself in privacy.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_4.wav",
+   "human_seconds": 4.15525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_4__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_40",
+   "book": "3585",
+   "text": "\"The marriage waiteth only for thy consent.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_40.wav",
+   "human_seconds": 3.3352083333333336,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_40__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_41",
+   "book": "3585",
+   "text": "\"Did I not tell thee that he was the son of a Sultan? By Allah, there is no help for it but that I let him crucify thee on a bit of wood worth two pieces of silver!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_41.wav",
+   "human_seconds": 13.14525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_41__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_42",
+   "book": "3585",
+   "text": "\"O my daughter, have mercy on me, so Allah have mercy on thee!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_42.wav",
+   "human_seconds": 5.06525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_42__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_42__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_43",
+   "book": "3585",
+   "text": "\"Up with you and make haste and go bring him to me without delay.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_43.wav",
+   "human_seconds": 4.95525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_43__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_44",
+   "book": "3585",
+   "text": "\"Thou hast desolated me by thine absence!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_44.wav",
+   "human_seconds": 3.145125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_44__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_44__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_45",
+   "book": "3585",
+   "text": "\"Sawest thou ever any that could do hurt to the like of this beautiful being, who is moreover a King, the son of a King and of the free born,[FN#54] guarded against ignoble deeds?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_45.wav",
+   "human_seconds": 13.885125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_45__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_46",
+   "book": "3585",
+   "text": "\"Praise be to Allah who hath granted the dearest wish of my son!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_46.wav",
+   "human_seconds": 4.635125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_46__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_46__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_47",
+   "book": "3585",
+   "text": "\"I desire to have the marriage contract between my son and thy daughter drawn up in the presence of witnesses, that the wedding may be made public, even as is the custom of Kings.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_47.wav",
+   "human_seconds": 12.985125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_47__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_47__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_5",
+   "book": "3585",
+   "text": "\"O my father, what shall we do?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_5.wav",
+   "human_seconds": 2.225125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_5__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_51",
+   "book": "3585",
+   "text": "\"O my brother and my true friend! take these loads and accept them from me by way of gift and token of affection, and go in peace to thine own country.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_51.wav",
+   "human_seconds": 12.105125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_51__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_51__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_52",
+   "book": "3585",
+   "text": "\"By Allah, O my master, were it not for my mother, I never would part from thee! But, good my lord! leave me not without news of thee.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_52.wav",
+   "human_seconds": 10.105125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_52__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_52__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_54",
+   "book": "3585",
+   "text": "\"Indeed I'm strong to bear whate'er befal; * But weak to bear such parting's dire mischance: What heart estrangement of the friend can bear? * What strength withstand assault of severance?\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_54.wav",
+   "human_seconds": 15.025125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_54__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_54__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_6",
+   "book": "3585",
+   "text": "\"O my son, this is a difficult matter, and except we return to his sire and tell him, he will blame us therefor.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_6.wav",
+   "human_seconds": 8.195208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_6__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_7",
+   "book": "3585",
+   "text": "\"Know, O beloved of my heart and vitals, that the longer I abide with thee, the more love and longing and passion and desire increase on me, for that I have not yet fulfilled the whole of my wish.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_05_burton_64kb_7.wav",
+   "human_seconds": 14.57525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_05_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_0",
+   "book": "3585",
+   "text": "\"Entreat her honourably and enrich her poverty.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_0.wav",
+   "human_seconds": 3.1352083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_1",
+   "book": "3585",
+   "text": "\"As though ptisane of wine on her lips honey dew * Dropt from the ripened grapes her mouth in clusters grew And, when her frame thou doublest, and low bends her vine, * Praise her Creator's might no creature ever knew.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_1.wav",
+   "human_seconds": 18.74525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_10",
+   "book": "3585",
+   "text": "\"O my son! I have some what to say to thee which I would fain leave unsaid; yet I must tell it thee despite my inclination.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_10.wav",
+   "human_seconds": 10.935125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_13",
+   "book": "3585",
+   "text": "\"I have no longer a place in my aunt's house nor among these people, but I will go forth from the palace and abide in the corners of the city.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_13.wav",
+   "human_seconds": 9.995208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_13__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_14",
+   "book": "3585",
+   "text": "\"Alas, O my naunty, how is it with thy son?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_14.wav",
+   "human_seconds": 3.5952083333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_14__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_15",
+   "book": "3585",
+   "text": "\"O my daughter, sooth to say, he is tearful-eyed and heavy hearted, being fallen into the net of thy love.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_15.wav",
+   "human_seconds": 9.495125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_15__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_17",
+   "book": "3585",
+   "text": "\"O son of mine uncle! same sorrow I bear, * And suffer the like of thy cark and thy care Yet hide I from man what I suffer for pine; * Hide it too, and such secret to man never bare!\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_17.wav",
+   "human_seconds": 15.38525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_17__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_18",
+   "book": "3585",
+   "text": "\"Leave this blame, I will list to no flout of my foe! * I divulged a secret was told me to keep: He is lost to my sight for whose union I yearn, * And I watch all the while he can slumber and sleep.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_18.wav",
+   "human_seconds": 17.685125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_18__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_2",
+   "book": "3585",
+   "text": "\"Goodly of gifts is she, and charm those perfect eyes, * With lashes shaming Kohl and all the fair ones Kohl'd[FN#66] And from those eyne the glances pierce the lover's heart, * Like sword in M\u00edr al-Mumin\u00edna Ali's hold.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_2.wav",
+   "human_seconds": 19.495125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_23",
+   "book": "3585",
+   "text": "\"Where is thine eye, O Zau al- Makan?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_23.wav",
+   "human_seconds": 2.4752083333333332,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_23__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_24",
+   "book": "3585",
+   "text": "\"Would Heaven we knew what hath befallen Kanmakan that he fled his native town, and chased himself from the place where his father used to fill all in hungry case and do justice and grace?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_24.wav",
+   "human_seconds": 14.495083333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_3",
+   "book": "3585",
+   "text": "\"Appeared not my excuse till hair had clothed his cheek, * And gloom o'ercrept that side-face (sight to stagger!) A fawn, when eyes would batten on his charms, * Each glance deals thrust like point of Khanjar-dagger.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_3.wav",
+   "human_seconds": 19.625125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_7",
+   "book": "3585",
+   "text": "\"Now is my dread to incur reproaches, which * Disturb her temper and her mind obscure, Patient I'll bear them; e'en as generous youth his case to cure.'' * Beareth the burn of brand his case to cure.\"[FN#7",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_7.wav",
+   "human_seconds": 16.805125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_9",
+   "book": "3585",
+   "text": "\"Thou sayest sooth, O wise King!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_07_burton_64kb_9.wav",
+   "human_seconds": 2.945125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_07_burton_64kb_9__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_0",
+   "book": "3585",
+   "text": "\"Verily he is the son of our Sovran and the seed of King Omar bin al-Nu'uman and it hath reached us that he hath exiled himself from the land.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_0.wav",
+   "human_seconds": 10.55525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_1",
+   "book": "3585",
+   "text": "\"Needs must I have search made for him in all countries.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_1.wav",
+   "human_seconds": 4.67525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_10",
+   "book": "3585",
+   "text": "\"I will make him no answer till day arise.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_10.wav",
+   "human_seconds": 3.09525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_11",
+   "book": "3585",
+   "text": "\"O thou that callest, if thou be of the Jinn fare in peace and, if thou be man, stay awhile till the day break stark and the night flee with the dark.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_11.wav",
+   "human_seconds": 12.965125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_13",
+   "book": "3585",
+   "text": "\"O Chief of the Arabs, leave my tenderness of age and tell me why thou wanderest by night in the desert reciting verses. Thou talkest, I see, of my serving thee; who then art thou and what moved thee to talk this wise?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_13.wav",
+   "human_seconds": 18.735125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_13__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_16",
+   "book": "3585",
+   "text": "\"Surely thou art a fool or thy wits for excess of passion are gathering wool! How can thy cousin be a King's daughter? Thou hast no sign of royal rank on thee, for thou art but a mendicant.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_16.wav",
+   "human_seconds": 15.935208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_16__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_16__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_2",
+   "book": "3585",
+   "text": "\"I can learn no tidings of him and have hit on no trace of him, nor can any tell me aught of him.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_2.wav",
+   "human_seconds": 7.73525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_20",
+   "book": "3585",
+   "text": "\"Woe to thee! Dost thou bandy words with me, O vilest of dogs that be? Turn thee thy back, or I will come down on thee with clack!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_20.wav",
+   "human_seconds": 10.515208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_20__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_22",
+   "book": "3585",
+   "text": "\"By Allah, a wonder! Thou art a boy in years told, but in talk thou art old. These words should come from none but a champion doughty and bold: what wantest thou of justice?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_22.wav",
+   "human_seconds": 14.86525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_22__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_24",
+   "book": "3585",
+   "text": "\"I think this waste of breath de noteth the nearness of thy death.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_24.wav",
+   "human_seconds": 4.87525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_25",
+   "book": "3585",
+   "text": "\"Would I had slain him with my weapon!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_25.wav",
+   "human_seconds": 2.895125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_25__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_25__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_27",
+   "book": "3585",
+   "text": "\"O thou valiant man, what wilt thou do with me?\"[FN#8",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_27.wav",
+   "human_seconds": 3.41525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_27__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_29",
+   "book": "3585",
+   "text": "\"O Champion of the desert lair, do not with me what deed the wicked dare but let me go, by the life of thy cousin, the jewel of the fair!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_29.wav",
+   "human_seconds": 10.455208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_29__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_3",
+   "book": "3585",
+   "text": "\"I roam, and roaming hope I to return; * Yet of returning see not how or when: I went for love of one I could not win, * Nor way of 'scaping ills that pressed could ken.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_3.wav",
+   "human_seconds": 14.615208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_33",
+   "book": "3585",
+   "text": "\"What wilt thou do with me, O youth, and cavalier of the age and brave of the plain where battles rage?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_33.wav",
+   "human_seconds": 7.635125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_33__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_35",
+   "book": "3585",
+   "text": "\"Do not thus, O champion of the time's braves! Let me go and make me one of thy slaves!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_35.wav",
+   "human_seconds": 6.515125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_35__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_35__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_36",
+   "book": "3585",
+   "text": "\"I'm estranged fro' my folk and estrangement's long: * Shall I die amid strangers? Ah, would that I kenned! I die, nor my kinsman shall know where I'm slain, * Die in exile nor see the dear face of my friend!\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_36.wav",
+   "human_seconds": 17.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_36__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_37",
+   "book": "3585",
+   "text": "\"Make with me a covenant true and swear me an oath to be a comrade as due and to bear me company wheresoever I may go.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_37.wav",
+   "human_seconds": 9.305125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_37__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_39",
+   "book": "3585",
+   "text": "\"Whither dost thou now intend?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_39.wav",
+   "human_seconds": 1.925125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_39__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_40",
+   "book": "3585",
+   "text": "\"I purpose to repair to Baghdad, thy native town, and abide there, until Allah vouchsafe me the marriage portion.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_40.wav",
+   "human_seconds": 8.845125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_40__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_41",
+   "book": "3585",
+   "text": "\"Up then and to the road! I tarry here.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_41.wav",
+   "human_seconds": 3.2150833333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_41__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_42",
+   "book": "3585",
+   "text": "\"O my soul, with what face shall I return pauper- poor? Now by Allah, I will not go back empty handed and, if the Almighty please, I will assuredly work my deliverance.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_42.wav",
+   "human_seconds": 14.53525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_42__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_42__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_43",
+   "book": "3585",
+   "text": "\"O Allah! Thou who sendest down the dew, and feedest the worm that homes in the stone, I beseech Thee vouchsafe me my livelihood of Thine Omnipotence and the Grace of Thy benevolence!",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_43.wav",
+   "human_seconds": 15.225125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_43__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_45",
+   "book": "3585",
+   "text": "\"Verily the like of this stallion[FN#88] is not to be found in our time.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_45.wav",
+   "human_seconds": 4.77525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_45__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_46",
+   "book": "3585",
+   "text": "\"Who hath dealt thus with thee?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_46.wav",
+   "human_seconds": 1.845125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_46__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_46__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_6",
+   "book": "3585",
+   "text": "\"'Twere fitting that this man should lay his head to my head and become my comrade in this my strangerhood.\"[FN#7",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_6.wav",
+   "human_seconds": 7.905125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_6__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_7",
+   "book": "3585",
+   "text": "\"O thou who farest in sombrest night, draw near to me and tell me thy tale haply thou shalt find me one who will succour thee in thy sufferings.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_7.wav",
+   "human_seconds": 12.075125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_9",
+   "book": "3585",
+   "text": "\"This one's case is like my case, for I, even I, have wandered twenty days, nor during my wayfare have I seen man or heard voice:",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_08_burton_64kb_9.wav",
+   "human_seconds": 11.825125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_08_burton_64kb_9__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_0",
+   "book": "3585",
+   "text": "\"Verily I fear lest my kingdom be lost when I die, for that I have no son to succeed me.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_0.wav",
+   "human_seconds": 6.785125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_10",
+   "book": "3585",
+   "text": "\"O my father, how should I not hearken to thee, seeing that Allah commandeth me to obey thee and not gain-say thee?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_10.wav",
+   "human_seconds": 9.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_11",
+   "book": "3585",
+   "text": "\"O my son, know that I desire to marry thee and rejoice in thee whilst yet I live, and make thee King over my realm, before my death.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_11.wav",
+   "human_seconds": 10.785125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_12",
+   "book": "3585",
+   "text": "\"O thou the Wazir! tell me how I shall deal with my son in the matter of marriage.\"",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_12.wav",
+   "human_seconds": 5.905125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_12__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_19",
+   "book": "3585",
+   "text": "\"Allah curse marriage and marriageable and married women, the traitresses all! Would I had hearkened to my father and accepted a wife! Had I so done it had been better for me than this jail.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_19.wav",
+   "human_seconds": 16.145125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_19__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_2",
+   "book": "3585",
+   "text": "\"O thou the Wazir, of a truth I fear for my son, Kamar al-Zaman, the shifts and accidents which befal man and fain would I marry him in my life-time.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_2.wav",
+   "human_seconds": 13.645125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_20",
+   "book": "3585",
+   "text": "\"Know thou, O Wazir, that thou and thou only west the cause of all this that hath come to pass between me and my son by the advice thou west pleased to devise; and so what dost thou counsel me to do now?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_20.wav",
+   "human_seconds": 16.835208333333334,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_20__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_21",
+   "book": "3585",
+   "text": "\"O King, leave thy son in limbo for the space of fifteen days: then summon him to thy presence and bid him wed; and assuredly he shall not gainsay thee again.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_21.wav",
+   "human_seconds": 12.345125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_21__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_3",
+   "book": "3585",
+   "text": "\"O King, know thou that marriage is one of the most honourable of moral actions, and thou wouldst indeed do well and right to marry thy son in thy lifetime, ere thou make him Sultan.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_3.wav",
+   "human_seconds": 14.265125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_4",
+   "book": "3585",
+   "text": "\"Hither with my son Kamar al-Zaman;",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_4.wav",
+   "human_seconds": 2.46525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_4__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_6",
+   "book": "3585",
+   "text": "\"of a truth I desire to marry thee and rejoice in thee during my lifetime.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_6.wav",
+   "human_seconds": 5.555125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_6__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_7",
+   "book": "3585",
+   "text": "\"O my father, wedlock is a thing whereto I will never consent; no, not though I drink the cup of death.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_7.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_9",
+   "book": "3585",
+   "text": "\"O my son, wilt thou not hearken to me?",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/quotes/human/3585-thousand_nights_vol03_25_burton_64kb_9.wav",
+   "human_seconds": 3.42525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes/3585-thousand_nights_vol03_25_burton_64kb_9__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T18:44:58",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "a18d4c436556bb13efcf7487c89f04bb64667169",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "e276c8df2ea2f9ad0c9ff6eae49cc4e32a0ee2e9b381d816b6dd6222c98b45fc"
+  },
+  "args": {
+   "build": "ab_test_runtime/libriquote_2033_eval/quotes/build.json",
+   "adapter": "ab_test_runtime/libriquote_2033_eval/quotes/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_quotes",
+   "seed": 1234,
+   "limit": 100,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/libriquote_2033_quotes_adapter_on_quotes_generate.json"
+  },
+  "seed": 1234
+ }
+}

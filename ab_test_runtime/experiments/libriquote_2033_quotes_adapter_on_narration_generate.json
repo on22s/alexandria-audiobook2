@@ -1,0 +1,942 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "5863-tenyearslater_28_dumas_64kb_31",
+ "test_books": [
+  "3585"
+ ],
+ "corpus": "LibriQuote-test reader 2033 (narration)",
+ "rows": [
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_0",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_0.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_1",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_1.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_10",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_10.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_11",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_11.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_12",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_12.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_12__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_13",
+   "book": "3585",
+   "text": "When the old woman heard the Eunuch's voice she started from sleep and was terrified and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_13.wav",
+   "human_seconds": 7.465125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_13__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_14",
+   "book": "3585",
+   "text": "When the old woman heard the Eunuch's voice she started from sleep and was terrified and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_14.wav",
+   "human_seconds": 7.465125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_14__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_15",
+   "book": "3585",
+   "text": "When the old woman heard the Eunuch's voice she started from sleep and was terrified and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_15.wav",
+   "human_seconds": 7.465125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_15__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_16",
+   "book": "3585",
+   "text": "The King commanded them to be brought into the presence and said to them,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_16.wav",
+   "human_seconds": 4.995208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_16__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_16__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_17",
+   "book": "3585",
+   "text": "The King commanded them to be brought into the presence and said to them,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_17.wav",
+   "human_seconds": 4.995208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_17__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_18",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_18.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_18__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_19",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_19.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_19__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_19__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_2",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_2.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_20",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_20.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_20__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_21",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_21.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_21__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_21__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_22",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_22.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_22__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_23",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_23.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_23__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_24",
+   "book": "3585",
+   "text": "The King reviled her and commended her to be taken back to her chamber: then he turned to Taj al-Muluk and said to him,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_24.wav",
+   "human_seconds": 8.775208333333333,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_26",
+   "book": "3585",
+   "text": "and despatched one to learn the news. The messenger fared forth and presently returned and reported,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_26.wav",
+   "human_seconds": 8.29525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_26__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_27",
+   "book": "3585",
+   "text": "and despatched one to learn the news. The messenger fared forth and presently returned and reported,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_27.wav",
+   "human_seconds": 8.29525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_27__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_28",
+   "book": "3585",
+   "text": "and despatched one to learn the news. The messenger fared forth and presently returned and reported,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_28.wav",
+   "human_seconds": 8.29525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_28__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_28__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_3",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_3.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_31",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_31.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_31__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_31__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_32",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_32.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_32__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_32__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_33",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_33.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_33__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_34",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_34.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_34__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_36",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_36.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_36__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_37",
+   "book": "3585",
+   "text": "Whereupon Taj al-Muluk drew near unto him and kissing his hand, replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_37.wav",
+   "human_seconds": 6.27525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_37__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_38",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_38.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_38__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_38__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_39",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_39.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_39__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_4",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_4.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_4__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_4__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_40",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_40.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_40__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_41",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_41.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_41__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_42",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_42.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_42__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_42__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_43",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_43.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_43__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_44",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_44.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_44__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_44__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_45",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_45.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_45__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_46",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_46.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_46__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_46__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_47",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_47.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_47__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_47__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_48",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_48.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_48__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_48__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_5",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_5.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_5__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_5__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_50",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_50.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_50__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_50__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_51",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_51.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_51__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_51__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_52",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_52.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_52__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_52__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_54",
+   "book": "3585",
+   "text": "And he told her the whole tale that her lover was the son of King Sulayman Shah and sought her to wife and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_54.wav",
+   "human_seconds": 9.295125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_54__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_54__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_6",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_6.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_6__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_7",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_7.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_05_burton_64kb_8",
+   "book": "3585",
+   "text": "Then he told her his past from first to last, nor is there any avail in a twice told tale, and he added,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_05_burton_64kb_8.wav",
+   "human_seconds": 9.66525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_8__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_05_burton_64kb_8__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_0",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_0.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_1",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_1.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_10",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_10.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_13",
+   "book": "3585",
+   "text": "And she repeated to her the couplets he had made; whereupon Kuzia Fakan wept and said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_13.wav",
+   "human_seconds": 7.10525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_13__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_14",
+   "book": "3585",
+   "text": "And she repeated to her the couplets he had made; whereupon Kuzia Fakan wept and said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_14.wav",
+   "human_seconds": 7.10525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_14__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_14__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_15",
+   "book": "3585",
+   "text": "And she repeated to her the couplets he had made; whereupon Kuzia Fakan wept and said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_15.wav",
+   "human_seconds": 7.10525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_15__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_17",
+   "book": "3585",
+   "text": "And he began to improvise and recited these couplets,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_17.wav",
+   "human_seconds": 3.93525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_17__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_17__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_18",
+   "book": "3585",
+   "text": "And he began to improvise and recited these couplets,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_18.wav",
+   "human_seconds": 3.93525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_18__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_2",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_2.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_23",
+   "book": "3585",
+   "text": "Then her sobs burst out, and she began repeating these couplets,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_23.wav",
+   "human_seconds": 4.475125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_23__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_24",
+   "book": "3585",
+   "text": "When it was the One Hundred and Fortieth Night,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_24.wav",
+   "human_seconds": 7.155125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_3",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_3.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_7",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_7.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_07_burton_64kb_9",
+   "book": "3585",
+   "text": "And Shahrazad perceived the dawn of day and ceased saying her permitted say.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_07_burton_64kb_9.wav",
+   "human_seconds": 5.79525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_07_burton_64kb_9__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_0",
+   "book": "3585",
+   "text": "] Then he hailed the speaker and cried out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_0.wav",
+   "human_seconds": 3.63525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_1",
+   "book": "3585",
+   "text": "] Then he hailed the speaker and cried out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_1.wav",
+   "human_seconds": 3.63525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_1__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_1__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_10",
+   "book": "3585",
+   "text": "So he was silent, and the voice again called out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_10.wav",
+   "human_seconds": 4.735125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_11",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_11.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_13",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_13.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_13__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_13__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_15",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_15.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_15__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_15__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_16",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_16.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_16__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_16__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_2",
+   "book": "3585",
+   "text": "] Then he hailed the speaker and cried out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_2.wav",
+   "human_seconds": 3.63525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_2__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_2__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_20",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_20.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_20__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_20__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_22",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_22.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_22__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_22__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_23",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_23.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_23__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_23__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_24",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_24.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_24__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_24__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_25",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_25.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_25__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_25__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_26",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_26.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_26__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_26__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_27",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_27.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_27__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_27__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_29",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_29.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_29__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_29__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_3",
+   "book": "3585",
+   "text": "] Then he hailed the speaker and cried out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_3.wav",
+   "human_seconds": 3.63525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_3__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_3__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_32",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_32.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_32__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_32__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_33",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_33.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_33__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_33__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_34",
+   "book": "3585",
+   "text": "Hearing this, Sabbah waxed angry; his arrogance and fury redoubled and he said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_34.wav",
+   "human_seconds": 6.59525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_34__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_34__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_35",
+   "book": "3585",
+   "text": "At this Sabbah shrieked aloud and wept and screaming said,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_35.wav",
+   "human_seconds": 5.005125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_35__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_35__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_36",
+   "book": "3585",
+   "text": "And he wept and wailed and began reciting these verses,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_36.wav",
+   "human_seconds": 4.57525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_36__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_36__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_37",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_37.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_37__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_37__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_39",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_39.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_39__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_39__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_40",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_40.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_40__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_40__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_41",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_41.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_41__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_41__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_42",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_42.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_42__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_42__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_43",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_43.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_43__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_43__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_45",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_45.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_45__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_45__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_46",
+   "book": "3585",
+   "text": "So the Badawi farewelled him and took the way for Baghdad, whilst Kanmakan remained behind, saying to himself,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_46.wav",
+   "human_seconds": 8.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_46__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_46__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_6",
+   "book": "3585",
+   "text": "] Then he hailed the speaker and cried out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_6.wav",
+   "human_seconds": 3.63525,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_6__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_6__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_7",
+   "book": "3585",
+   "text": "And when the owner of the voice heard these words, he cried out,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_7.wav",
+   "human_seconds": 4.425125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_7__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_7__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_08_burton_64kb_9",
+   "book": "3585",
+   "text": "So he was silent, and the voice again called out to him, saying,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_08_burton_64kb_9.wav",
+   "human_seconds": 4.735125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_9__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_08_burton_64kb_9__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_0",
+   "book": "3585",
+   "text": "so he came and bowed his head to the ground in modesty before his sire.",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_25_burton_64kb_0.wav",
+   "human_seconds": 5.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_0__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_0__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_10",
+   "book": "3585",
+   "text": "Whereupon Kamar al-Zaman fell down for respect and shame before his sire and replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_25_burton_64kb_10.wav",
+   "human_seconds": 6.845125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_10__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_10__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_11",
+   "book": "3585",
+   "text": "Whereupon Kamar al-Zaman fell down for respect and shame before his sire and replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_25_burton_64kb_11.wav",
+   "human_seconds": 6.845125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_11__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_11__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_12",
+   "book": "3585",
+   "text": "Whereupon Kamar al-Zaman fell down for respect and shame before his sire and replied,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_25_burton_64kb_12.wav",
+   "human_seconds": 6.845125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_12__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_12__clone.wav"
+  },
+  {
+   "id": "3585-thousand_nights_vol03_25_burton_64kb_18",
+   "book": "3585",
+   "text": "She said, It hath reached me, O auspicious King, that King Shahriman cried out to his son Kamar al-Zaman,",
+   "human_wav": "ab_test_runtime/libriquote_2033_eval/narration/human/3585-thousand_nights_vol03_25_burton_64kb_18.wav",
+   "human_seconds": 9.385125,
+   "lora_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_18__lora.wav",
+   "clone_wav": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration/3585-thousand_nights_vol03_25_burton_64kb_18__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-09-13T19:05:26",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "a18d4c436556bb13efcf7487c89f04bb64667169",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "e276c8df2ea2f9ad0c9ff6eae49cc4e32a0ee2e9b381d816b6dd6222c98b45fc"
+  },
+  "args": {
+   "build": "ab_test_runtime/libriquote_2033_eval/narration/build.json",
+   "adapter": "ab_test_runtime/libriquote_2033_eval/quotes/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/libriquote_2033_eval/generated_quotes_on_narration",
+   "seed": 1234,
+   "limit": 100,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/libriquote_2033_quotes_adapter_on_narration_generate.json"
+  },
+  "seed": 1234
+ }
+}

@@ -439,6 +439,7 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
+  "test_boundary_conflict_audit": [],
   "test_build_accent_calibration": [],
   "test_build_scoring_sheet": [
     "tests.test_build_scoring_sheet.BuildSheetTest.test_agreement_is_marked",
@@ -509,6 +510,14 @@
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_no_chain_reclaims_with_pkill_dash_f",
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
+  ],
+  "test_chapter_cuts": [
+    "tests.test_chapter_cuts.Headings.test_control_has_same_count_and_avoids_headings",
+    "tests.test_chapter_cuts.Headings.test_grimgar_needs_the_volume_line_then_a_numbered_title",
+    "tests.test_chapter_cuts.Headings.test_mushoku_separators_match_only_whole_line_marks",
+    "tests.test_chapter_cuts.MakeWindows.test_cut_restarts_the_stride_and_shortens_the_window_before_it",
+    "tests.test_chapter_cuts.MakeWindows.test_cuts_outside_range_or_duplicated_are_ignored",
+    "tests.test_chapter_cuts.MakeWindows.test_no_cuts_is_fixed_stride"
   ],
   "test_chapter_export": [
     "tests.test_chapter_export.ExportChaptersTests.test_changed_only_decodes_only_the_changed_chapter",
@@ -2294,6 +2303,7 @@
     "tests.test_pronunciation.ShippedLexiconTest.test_it_ships_inert",
     "tests.test_pronunciation.ShippedLexiconTest.test_the_shipped_file_parses"
   ],
+  "test_prune_prosodic_clips": [],
   "test_published_anchors": [
     "tests.test_published_anchors.PublishedAnchorsTest.test_anchor_actually_exceeds_every_arm",
     "tests.test_published_anchors.PublishedAnchorsTest.test_every_artifact_records_anchor_validity",
