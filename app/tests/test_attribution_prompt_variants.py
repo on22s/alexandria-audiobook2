@@ -46,7 +46,11 @@ class PromptVariants(unittest.TestCase):
                                      entries_provider=make_provider(variant, [["HARUHIRO", "HARU"]]))
             self.assertEqual(["NARRATOR", "HARUHIRO", "RANTA"], [e["speaker"] for e in out], variant)
             self.assertEqual("Tell us already.", out[1]["text"])   # text freeze intact
-            prompt = client.prompts[-1]
+            # continuity makes one extra request after the window: the summary
+            # rewrite. The attribution prompt is the one before it.
+            prompt = client.prompts[-2] if variant == "continuity" else client.prompts[-1]
+            if variant == "continuity":
+                self.assertIn("SUMMARY SO FAR", client.prompts[-1])
             if variant in ("aliases", "michel"):
                 self.assertIn("HARUHIRO (also: HARU)", prompt)
             if variant in ("passage", "michel"):
@@ -114,4 +118,45 @@ class MentionedRosterTests(unittest.TestCase):
         self.assertEqual(["HARUHIRO", "RANTA", "SHIHORU"], shown)
         self.assertEqual([], mentioned_roster(roster, groups, ["nothing here"]))
         self.assertEqual(["ABAEL"], mentioned_roster(roster, groups, ["abael spoke"] , cap=1))
+
+
+class ContinuityVariantTests(unittest.TestCase):
+    """continuity: window 1 gets no preamble; window 2 gets the summary the
+    model wrote after window 1 and window 1's last lines with their speakers,
+    and the summary call is one extra request per window."""
+
+    def test_second_window_carries_summary_and_tail(self):
+        from types import SimpleNamespace
+        frozen = [{"type": "SPOKEN", "text": "Tell us already."},
+                  {"type": "SPOKEN", "text": "Fine."}]
+        ctx = [{"previous_context": {"type": "NARRATOR", "text": "Haruhiro sighed."}, "next_context": None},
+               {"previous_context": None, "next_context": None}]
+        params = LLMGenParams(max_tokens=64, context_length=4096)
+        summary_calls = []
+
+        class _Completions:
+            def create(self, **kw):
+                summary_calls.append(kw)
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+                    content="Haruhiro and Ranta argue in camp."))])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=_Completions()))
+        bodies = []
+
+        def fake_call(c, m, sysp, body, p, **kw):
+            bodies.append(body)
+            return [{"n": 0, "speaker": "RANTA"}, {"n": 1, "speaker": "HARUHIRO"}]
+        provider = apv.make_provider("continuity")
+        with patch.object(apv, "call_llm_for_entries", fake_call):
+            provider(client, "m", "sys", "user", params, "l", "A", 1, None, None, frozen,
+                     roster=["HARUHIRO", "RANTA"], neighbor_contexts=ctx)
+            provider(client, "m", "sys", "user", params, "l", "A", 1, None, None, frozen,
+                     roster=["HARUHIRO", "RANTA"], neighbor_contexts=ctx)
+        self.assertNotIn("STORY SO FAR", bodies[0])
+        self.assertIn("STORY SO FAR", bodies[1])
+        self.assertIn("Haruhiro and Ranta argue in camp.", bodies[1])
+        self.assertIn('RANTA: "Tell us already."', bodies[1])
+        self.assertEqual(2, len(summary_calls), "one summary call per window")
+        self.assertIn("Haruhiro sighed.", summary_calls[0]["messages"][0]["content"],
+                      "the summary sees the narration, not only the spoken lines")
+        self.assertEqual("none", summary_calls[0]["extra_body"]["reasoning_effort"])
 

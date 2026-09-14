@@ -274,6 +274,7 @@
     "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
   ],
   "test_attribution_prompt_variants": [
+    "tests.test_attribution_prompt_variants.ContinuityVariantTests.test_second_window_carries_summary_and_tail",
     "tests.test_attribution_prompt_variants.MentionedRosterTests.test_attested_by_alias_or_carried_only_in_roster_order",
     "tests.test_attribution_prompt_variants.PromptVariants.test_every_variant_keeps_the_output_contract",
     "tests.test_attribution_prompt_variants.PromptVariants.test_incremental_carries_the_previous_window",
