@@ -53,6 +53,36 @@ from runtime_info import get_runtime_info
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
+_REDACTED_SECRET = "[REDACTED]"
+
+
+def _redact_config_secrets(config: dict) -> dict:
+    """Return a copy safe to send to the browser.
+
+    API credentials are needed by the server but never by the setup page's
+    read endpoint.  Keep the sentinel stable so save_config() can preserve an
+    unchanged credential without putting the plaintext back on the wire.
+    """
+    safe = json.loads(json.dumps(config))
+    for section in ("llm", "llm_local", "llm_remote", "tts"):
+        value = safe.get(section)
+        if isinstance(value, dict) and value.get("api_key"):
+            value["api_key"] = _REDACTED_SECRET
+            value["api_key_configured"] = True
+    return safe
+
+
+def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
+    """Restore credentials represented by the GET sentinel on a save."""
+    updates = {}
+    for section in ("llm", "llm_local", "llm_remote", "tts"):
+        incoming = getattr(config, section, None)
+        saved = (existing or {}).get(section)
+        if (incoming is not None and isinstance(saved, dict)
+                and getattr(incoming, "api_key", None) == _REDACTED_SECRET):
+            updates[section] = incoming.model_copy(update={"api_key": saved.get("api_key", "")})
+    return config.model_copy(update=updates, deep=True) if updates else config
+
 
 @router.get("/api/runs")
 async def get_run_history(limit: int = 100):
@@ -596,7 +626,7 @@ async def get_config():
     ]
     config["config_needs_backup"] = load_result.needs_backup
 
-    return config
+    return _redact_config_secrets(config)
 
 @router.get("/api/default_prompts")
 async def get_default_prompts():
@@ -680,6 +710,7 @@ async def save_config(config: AppConfig):
 
     with file_lock(CONFIG_PATH):
         existing = load_app_config_result(CONFIG_PATH)
+        normalized_config = _restore_redacted_secrets(normalized_config, existing.data)
         normalized_config = keep_unsent_fields(normalized_config, existing.data)
         if existing.needs_backup:
             try:
