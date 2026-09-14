@@ -932,6 +932,13 @@
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_resume_preserves_training_state_rng_and_sample_order"
   ],
+  "test_dracor_prose": [
+    "tests.test_dracor_prose.Frames.test_display_name",
+    "tests.test_dracor_prose.Frames.test_frames_name_the_right_speaker",
+    "tests.test_dracor_prose.Frames.test_seeded_and_deterministic",
+    "tests.test_dracor_prose.Frames.test_stage_direction_neighbour_is_kept_not_framed",
+    "tests.test_dracor_prose.Frames.test_target_line_and_label_never_change"
+  ],
   "test_dracor_trainset": [],
   "test_duplicate_classification": [
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_block_the_source_repeats_is_kept",
@@ -2574,6 +2581,12 @@
     "tests.test_riqua_fixture.ParseTests.test_discontinuous_spans_take_the_envelope",
     "tests.test_riqua_fixture.ParseTests.test_inverted_relation_arguments_raise",
     "tests.test_riqua_fixture.ParseTests.test_spans_and_relations_round_trip"
+  ],
+  "test_riqua_trainset": [
+    "tests.test_riqua_trainset.RiQuA.test_canonical_folds_into_the_one_longer_name",
+    "tests.test_riqua_trainset.RiQuA.test_fixture_offsets_are_real",
+    "tests.test_riqua_trainset.RiQuA.test_named_vs_pronoun",
+    "tests.test_riqua_trainset.RiQuA.test_rows_and_rejects"
   ],
   "test_robotic_proxy": [
     "tests.test_robotic_proxy.RoboticChanceTest.test_chance_is_computed_on_the_metric_population"
