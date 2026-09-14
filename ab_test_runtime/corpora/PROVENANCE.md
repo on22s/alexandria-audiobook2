@@ -104,3 +104,15 @@ python app/experiments/dracor_trainset.py --corpora lacy am ger rus dutch pol ib
 
 Both are seeded (`--seed 20260913`) and write a `manifest.json` naming every
 play, its rejected-speech counts and the per-language row and token totals.
+
+## riqua/
+
+RiQuA (Papay & Padó, LREC 2020): 5,963 quotations with speaker, addressee
+and cue spans over 15 brat documents from 11 19th-century works. Fetched
+2026-09-14 from https://www.ims.uni-stuttgart.de/documents/ressourcen/korpora/riqua/riqua.tar.gz
+(sha256 6c3bb5361650e1007819f50f9763a05cee85b5340cf2ecb629fa7ab2970c64ed).
+No licence file in the archive; the paper says "publicly available for
+use, modification, and experimentation"; source texts public domain.
+Recorded as availability wording, not a named licence. `austen_emma_*` is
+excluded from every training set because Emma is an evaluation fixture.
+Rebuild: `app/experiments/riqua_trainset.py --riqua ab_test_runtime/corpora/riqua/riqua/merged --out-dir ab_test_runtime/distill/riqua_20260914`.
