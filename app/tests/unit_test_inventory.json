@@ -1299,6 +1299,7 @@
     "tests.test_generate_personas.NormalizationTest.test_honorific_stripping_is_optional",
     "tests.test_generate_personas.NormalizationTest.test_non_string_input_is_empty",
     "tests.test_generate_personas.NormalizationTest.test_persona_context_size_bounds_both_sample_and_narrator_lines",
+    "tests.test_generate_personas.NormalizationTest.test_persona_route_passes_context_lines_to_the_script",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_case_variant_roster_is_not_treated_as_ambiguous",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_roster_loaded_from_a_config_shaped_dict",
     "tests.test_generate_personas.RealRosterShapeTest.test_one_couple_anywhere_in_a_large_roster_is_enough",
