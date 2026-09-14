@@ -2256,6 +2256,63 @@ mixture and not a two-person one.
 
 **Evidence** — `dataset_prosodic_spread.json`.
 
+**Pruning, run the same night: a modest cleaner for the middling datasets,
+not a repair for the broken ones.** Each of the five REBUILD datasets was
+retrained twice from the original clips (the library recipe, no seed) and
+once from the pruned clips, all scored by `library_voice_fidelity` on the
+same 20 val lines:
+
+| adapter | shipped | retrain 1 | retrain 2 | pruned |
+|---|---:|---:|---:|---:|
+| breathy_alto_50s_f_fantasy | 0.398 | 0.294 | 0.333 | 0.388 |
+| silky_baritone_30s_m | 0.501 | 0.306 | 0.339 | 0.403 |
+| warm_alto_50s_f_gothic | 0.604 | 0.627 | 0.598 | 0.593 |
+| husky_baritone_20s_m_supernatural | 0.160 | 0.149 | 0.116 | 0.075 |
+| silky_baritone_45s_m | 0.103 | 0.081 | 0.078 | 0.086 |
+
+The two control draws agree within 0.04 everywhere, so training variance is
+small. Pruning lifts the two mid-range datasets by 0.06–0.10 over both
+draws — the prosodic-mixture case the prediction named — and does nothing or
+harm on the three at or below 0.16, which the audit already called
+different-people mixtures. Chalamandaris' rule is therefore a cleaner, not a
+repair; the re-diarize verdict stands.
+
+**A second finding fell out of the controls.** The shipped adapters for the
+two mid-range datasets score 0.10–0.20 above BOTH fresh retrains on the same
+zips (0.398 vs 0.29/0.33; 0.501 vs 0.31/0.34), with the other three equal.
+Two agreeing retrains rule out noise: something about how those two were
+originally trained differs from today's `batch_train_lora` defaults. Not
+diagnosed; compare their `training_meta.json` before retraining any library
+voice "to the same settings".
+
+**Evidence** — `prune_retrain__<adapter>__fidelity.json` (control + pruned)
+and `prune_retrain__<adapter>__control_rep2_fidelity.json` for the five.
+
+**Character speech vs narration as training data: not the lever, and the
+sign depends on the reader (2026-09-13).** Piits et al. (LREC 2022) found a
+same-speaker character-speech corpus trained the worst-rated voice with
+three synthesisers; LibriQuote (Findings ACL 2026) argues character
+quotations are the expressive data TTS lacks. `run_chains/libriquote_{4992,2033}_20260913.sh`
+trained one adapter on a LibriVox reader's quotations and one on the same
+reader's matched narration (eval-set recipe, 200 clips each), and scored
+both on the held-out book's quotes AND narration:
+
+| ECAPA vs the human clip | reader 4992: quotes → | narration → | reader 2033: quotes → | narration → |
+|---|---:|---:|---:|---:|
+| quotes-trained adapter | 0.465 | 0.515 | **0.630** | **0.637** |
+| narration-trained adapter | **0.527** | **0.603** | 0.583 | 0.603 |
+
+Narration wins both columns for one reader, quotes win both for the other;
+F0 correlation is 0.67–0.74 in every cell, so neither corpus buys
+expressivity. The n=1 conclusion from the afternoon ("train on narration")
+did not survive its own replication, which is the reason the second reader
+was queued. What the two share: the two adapters sit within ~0.1 of each
+other and both below the clone arm, so filtering character lines out of a
+narrator's dataset is not how the tone-mixture problem gets fixed either.
+Both LibriQuote corpora are CC BY-NC 4.0: evidence only.
+
+**Evidence** — `libriquote_{4992,2033}_{quotes,narration}_adapter_on_{quotes,narration}_score.json`.
+
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
