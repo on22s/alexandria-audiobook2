@@ -40,6 +40,7 @@ from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
+from experiments.attribution_prompt_variants import make_provider
 from three_pass_generate import (PassExhausted, attribute_batch, build_roster,
                                  get_deterministic_named_entry)
 
@@ -190,6 +191,9 @@ def main():
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
+    ap.add_argument("--prompt-variant", default="default",
+                    help="attribution_prompt_variants.VARIANTS: how the question is asked; "
+                         "the output contract and gates are unchanged")
     ap.add_argument("--structured-output", default="auto", choices=("auto", "off"),
                     help="request-level JSON schema on attribution calls "
                          "(the product default is auto)")
@@ -224,6 +228,7 @@ def main():
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
+    decoding["prompt_variant"] = args.prompt_variant
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -239,6 +244,8 @@ def main():
         gold, src, seg, roster, want = load_book(
             book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
+        provider = (None if args.prompt_variant == "default" else
+                    make_provider(args.prompt_variant, [[n.upper() for n in g] for g in groups]))
         # What `in_candidates` is tested against: the names these roster
         # lines stand for, per ExperimentRecord.add's contract. The roster
         # itself is still what the model is SHOWN.
@@ -274,7 +281,8 @@ def main():
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
                                           roster, neighbor_contexts=ctx,
-                                          source_text=src)
+                                          source_text=src,
+                                          entries_provider=provider)
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.

@@ -316,7 +316,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=attempt_observer, frozen_batch=frozen_batch)
+            attempt_observer=attempt_observer, frozen_batch=frozen_batch,
+            roster=roster)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
