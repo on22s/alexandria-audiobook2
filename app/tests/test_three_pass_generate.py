@@ -427,6 +427,33 @@ class EndToEndTests(unittest.TestCase):
                                     chunk_size=6000)
         self.assertEqual(["ALICE", "BOB"], [e["speaker"] for e in entries])
 
+    def test_pass_two_uses_the_entries_provider_when_given(self):
+        """--prompt-variant reaches pass 2 through run_three_pass; the provider
+        replaces only the pass-2 LLM call, passes 1 and 3 are untouched."""
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
+        client = _client_returning([seg, instructed])
+        seen = {}
+
+        def provider(c, m, sys_prompt, user_prompt, params, log_name, label,
+                     max_retries, validate_entries, attempt_observer, frozen_batch,
+                     roster=None, neighbor_contexts=None, **_):
+            seen["frozen"] = frozen_batch
+            entries = [{"n": i, "head": " ".join(e["text"].split()[:3]),
+                        "speaker": "NARRATOR" if e["type"] == "NARRATOR" else "MIRA"}
+                       for i, e in enumerate(frozen_batch)]
+            validate_entries(entries)
+            return entries
+
+        entries = tp.run_three_pass(client, "m", source,
+                                    LLMGenParams(max_tokens=500, temperature=0.1),
+                                    chunk_size=6000, entries_provider=provider)
+        self.assertEqual("MIRA", entries[1]["speaker"])
+        self.assertEqual(2, len(seen["frozen"]))
+
     def test_three_passes_assemble_final_entries(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},

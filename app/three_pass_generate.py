@@ -1028,7 +1028,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    context_windows=None, context_rescue_retries=None, endpoint=None,
                    collect_all_failures=False, thinking_mode=None,
                    unicode_report=None, attribution_votes=1,
-                   vote_temperature=0.3, first_person_narrator=None):
+                   vote_temperature=0.3, first_person_narrator=None,
+                   entries_provider=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -1266,7 +1267,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
-                        source_text=source_text)
+                        source_text=source_text,
+                        entries_provider=entries_provider)
                 except PassExhausted:
                     if len(current) == 1:
                         if collect_all_failures:
@@ -1727,6 +1729,10 @@ def main():
     parser.add_argument("--collect-all-failures", action="store_true",
                         help="Diagnostic mode: record exhausted work, continue, "
                              "write only a .partial.json result, and exit nonzero.")
+    parser.add_argument("--prompt-variant", default="default",
+                        help="experiments.attribution_prompt_variants.VARIANTS: how "
+                             "pass 2 asks the question (probe only; the product "
+                             "runs 'default')")
     args = parser.parse_args()
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
@@ -1854,6 +1860,10 @@ def main():
                 break
         atomic_json_write(summary, output_path + ".preflight_manifest.json")
         sys.exit(0 if summary["status"] == "complete" else 1)
+    provider = None
+    if args.prompt_variant != "default":
+        from experiments.attribution_prompt_variants import make_provider
+        provider = make_provider(args.prompt_variant)
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  on_exhaustion=args.pass2_on_exhaustion,
@@ -1866,7 +1876,8 @@ def main():
                                  thinking_mode=args.reasoning_effort,
                                  attribution_votes=args.attribution_votes,
                                  vote_temperature=args.vote_temperature,
-                                 first_person_narrator=narrator)
+                                 first_person_narrator=narrator,
+                                 entries_provider=provider)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
