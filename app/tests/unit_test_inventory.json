@@ -3208,6 +3208,7 @@
     "tests.test_three_pass_generate.EndToEndTests.test_segment_completion_budget_is_bounded_from_source_size",
     "tests.test_three_pass_generate.EndToEndTests.test_segment_splits_narrator_entry_containing_quoted_dialogue",
     "tests.test_three_pass_generate.EndToEndTests.test_segment_strips_standalone_spoken_quote_delimiters",
+    "tests.test_three_pass_generate.EndToEndTests.test_stop_after_segment_then_resume_runs_only_pass_two",
     "tests.test_three_pass_generate.EndToEndTests.test_three_passes_assemble_final_entries",
     "tests.test_three_pass_generate.FreezeEnforcementTests.test_attribute_fallback_preserves_pause_after",
     "tests.test_three_pass_generate.FreezeEnforcementTests.test_attribute_preserves_pause_after_and_drops_type",

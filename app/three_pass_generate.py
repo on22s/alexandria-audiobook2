@@ -1029,7 +1029,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    collect_all_failures=False, thinking_mode=None,
                    unicode_report=None, attribution_votes=1,
                    vote_temperature=0.3, first_person_narrator=None,
-                   entries_provider=None):
+                   entries_provider=None, stop_after=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -1198,6 +1198,13 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                          "status": ("incomplete" if any(
                              f["pass"] == "segment" for f in diagnostic_failures)
                              else "complete")}
+    if stop_after == "segment":
+        # Probe use: the checkpoint now holds the whole segmentation, so a
+        # second run - or a second ARM - resumes at pass 2 from it.
+        emit_manifest("stopped_after_segment")
+        return [{**{k: v for k, v in e.items() if k != "type"},
+                 "speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN",
+                 "instruct": ""} for e in segmented]
     # Pass 2 — deterministic duplicate-free batches, restored to source order.
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
@@ -1339,6 +1346,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                            "status": ("incomplete" if any(
                                f["pass"] == "attribute" for f in diagnostic_failures)
                                else "complete")}
+    if stop_after == "attribute":
+        emit_manifest("stopped_after_attribute")
+        return [{**entry, "instruct": default_instruct(entry)}
+                for entry in named if isinstance(entry, dict)]
     # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
     # slip through there either (finding #5).
     annotated.extend([None] * (len(named) - len(annotated)))
@@ -1729,6 +1740,10 @@ def main():
     parser.add_argument("--collect-all-failures", action="store_true",
                         help="Diagnostic mode: record exhausted work, continue, "
                              "write only a .partial.json result, and exit nonzero.")
+    parser.add_argument("--stop-after", choices=["segment", "attribute"], default=None,
+                        help="probe only: end after pass 1 or pass 2 (the checkpoint "
+                             "keeps the finished passes; output carries UNKNOWN "
+                             "speakers / default instructs for the passes not run)")
     parser.add_argument("--prompt-variant", default="default",
                         help="experiments.attribution_prompt_variants.VARIANTS: how "
                              "pass 2 asks the question (probe only; the product "
@@ -1877,7 +1892,8 @@ def main():
                                  attribution_votes=args.attribution_votes,
                                  vote_temperature=args.vote_temperature,
                                  first_person_narrator=narrator,
-                                 entries_provider=provider)
+                                 entries_provider=provider,
+                                 stop_after=args.stop_after)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)

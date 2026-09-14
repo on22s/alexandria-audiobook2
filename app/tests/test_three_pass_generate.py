@@ -454,6 +454,28 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual("MIRA", entries[1]["speaker"])
         self.assertEqual(2, len(seen["frozen"]))
 
+    def test_stop_after_segment_then_resume_runs_only_pass_two(self):
+        """Two arms can share one segmentation: stop after pass 1, then a
+        second run from the same checkpoint does pass 2 without re-segmenting."""
+        import os
+        import tempfile
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "script.json")
+            first = tp.run_three_pass(_client_returning([seg]), "m", source, params,
+                                      chunk_size=6000, output_path=out, stop_after="segment")
+            self.assertEqual(["NARRATOR", "UNKNOWN"], [e["speaker"] for e in first])
+            client = _client_returning([named])   # no segmentation response offered
+            second = tp.run_three_pass(client, "m", source, params, chunk_size=6000,
+                                       output_path=out, stop_after="attribute")
+        self.assertEqual(["NARRATOR", "ELENA"], [e["speaker"] for e in second])
+        self.assertTrue(all("instruct" in e for e in second))
+
     def test_three_passes_assemble_final_entries(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
