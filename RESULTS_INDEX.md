@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1618 artifacts, 1731 arms.
+Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1623 artifacts, 1731 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1997,6 +1997,11 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `baseline_heldout__warm_baritone_30s_m_scifi.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `blinded_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `blinded_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `boundary_conflict__Cliff_Kurt_Mushoku_Tensei_converted_vol01.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `boundary_conflict__Kate_Reading_A_Natural_History_of_Dragons_converted_vol01.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `boundary_conflict__Michael_Kramer_The_Hero_of_Ages_converted_vol01.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `boundary_conflict__Peter_Kenny_Sword_of_Destiny_converted_vol01.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `boundary_conflict__RC_Bray_Lost_Gods_converted_vol01.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `candidate_restriction.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `candidate_scoring_feasibility.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `candidate_scoring_feasibility__endpoint.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
