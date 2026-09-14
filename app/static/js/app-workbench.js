@@ -9,7 +9,7 @@
         let dsbCurrentProject = '';
 
         // Clean up legacy localStorage
-        localStorage.removeItem('alexandria-dsb-form');
+        try { localStorage.removeItem('alexandria-dsb-form'); } catch (e) { /* storage blocked */ }
 
         async function dsbLoadProjects(selectName) {
             try {
@@ -94,7 +94,8 @@
             if (!dsbCurrentProject) { return; }
             if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) { return; }
             try {
-                await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
+                const res = await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
+                await API._handleError(res);
                 dsbCurrentProject = '';
                 document.getElementById('dsb-form-area').style.display = 'none';
                 document.getElementById('dsb-btn-delete-project').style.display = 'none';

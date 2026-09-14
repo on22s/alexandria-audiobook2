@@ -37,6 +37,9 @@ class VoiceDesignSaveRequest(BaseModel):
     description: str
     sample_text: str
     preview_file: str
+    # Set by the Designer's Edit flow: replace this manifest entry (and its
+    # audio) instead of appending a duplicate.
+    voice_id: Optional[str] = None
 
 
 ## ── Voice Designer ──────────────────────────────────────────────
@@ -81,26 +84,36 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
 
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
 
-    # Generate unique ID
-    voice_id = get_unique_id(safe_name)
-    dest_filename = f"{voice_id}.wav"
+    manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
+    existing = None
+    if request.voice_id:
+        existing = next((m for m in manifest if m.get("id") == request.voice_id), None)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Designed voice to update not found")
+        voice_id = existing["id"]
+        dest_filename = existing.get("filename") or f"{voice_id}.wav"
+    else:
+        voice_id = get_unique_id(safe_name)
+        dest_filename = f"{voice_id}.wav"
     dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
 
     shutil.copy2(preview_path, dest_path)
 
-    # Update manifest
-    manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
-    manifest.append({
+    entry = {
         "id": voice_id,
         "name": request.name,
         "description": request.description,
         "sample_text": request.sample_text,
         "filename": dest_filename,
-    })
+    }
+    if existing is not None:
+        existing.update(entry)
+    else:
+        manifest.append(entry)
     _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
 
-    logger.info(f"Designed voice saved: '{request.name}' as {dest_filename}")
-    return {"status": "saved", "voice_id": voice_id}
+    logger.info(f"Designed voice {'updated' if existing else 'saved'}: '{request.name}' as {dest_filename}")
+    return {"status": "updated" if existing else "saved", "voice_id": voice_id}
 
 @router.get("/api/voice_design/list")
 async def voice_design_list():

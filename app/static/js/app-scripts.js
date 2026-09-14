@@ -223,11 +223,17 @@
             if (!window._currentPreviewFile) { showToast('Generate a preview first.', 'warning'); return; }
 
             try {
+                // Only an id that names a saved designed voice updates in place;
+                // the persona-edit flow stores a character NAME here, which is
+                // a new voice, not an existing one.
+                const editingId = (window._designedVoicesCache || []).some(v => v.id === window._editingDesignedVoiceId)
+                    ? window._editingDesignedVoiceId : null;
                 await API.post('/api/voice_design/save', {
                     name: name,
                     description: document.getElementById('design-description').value.trim(),
                     sample_text: document.getElementById('design-sample-text').value.trim(),
-                    preview_file: window._currentPreviewFile
+                    preview_file: window._currentPreviewFile,
+                    voice_id: editingId
                 });
                 document.getElementById('design-voice-name').value = '';
                 window._editingDesignedVoiceId = null;
