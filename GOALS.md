@@ -1239,6 +1239,13 @@ different held-out line).
 | English | 0.809 | 0.757 | 0.690 | 93% |
 | Japanese | 0.796 | 0.779 | 0.755 | 98% |
 | Chinese | *0.691 — anchor invalid* | 0.765 | 0.720 | — |
+| English, second reader (Hi-Fi TTS 9017, 2026-09-13) | 0.751 | 0.646 | 0.555 | **86%** |
+
+The second English reader (`hifitts_9017_score.json`, 150 held-out lines,
+same instrument; built for 2.9) reads further from the target than LJSpeech
+on both arms — clone 86% of ceiling, LoRA 74% — with a 5.2 s clone prompt,
+inside the short-prompt band the next paragraph names. One reader, one
+prompt; it widens the English gap, it does not explain it.
 
 **Every eval set clones from a reference below the published useful range,
 measured 2026-08-20** (`reference_audit.json`). Qwen's own cloning guide puts
@@ -4302,6 +4309,41 @@ question and none is measured anywhere in this document.
 (committed after rating; the manifest carries its hash from before). One
 rater, computer speakers, four lines per class.
 
+**A naive listener, on content-neutral controls — 2026-09-13, and the
+prediction holds.** A separate package had been waiting since 2026-09-06 for
+a rater who is not the project owner (`second_rater_listening.json`, built by
+`second_rater_package.py`): the same eight comparison pairs, but its three
+controls pair the reference against one more recording of the same narrator
+and one of a stranger, **both different sentences from the reference**, so
+content cannot carry the answer in either direction. A friend of the owner
+rated it blind on a page with the clips embedded; the shared link served a
+pinned older version on which trials 9–11 would not play, so those three
+were re-served alone and rated the same day, and the three "can't tell"
+answers the dead trials produced are discarded. Key hash recorded in the
+manifest before rating, verified after.
+
+| class | 09-06 owner | 09-13 owner (v2) | **09-13 naive listener** | registered prediction |
+|---|---|---|---|---|
+| controls | 3/3, by content | 3/3, by voice, same words | **3/3, different words** | rejected in all 3 |
+| large gap (+0.315) | shipped 4/4 | shipped 2, rebuilt 1, same 1 | **shipped 3, can't tell 1, rebuilt 0** | shipped clearly and consistently |
+| no gap (+0.017) | shipped 2, can't tell 2 | shipped 3, rebuilt 1 | shipped 2, rebuilt 1, can't tell 1 | near chance |
+
+Measured, kept apart from what it means: the listener who has never heard
+these voices passed the only controls in this project that content could
+not have passed for him, then heard the 0.315 gap in three of four pairs
+and never picked the other arm, and read the 0.017 gap as noise. That is the
+prediction as registered, on the rater the goal has wanted since it was
+written. Three sittings over one week now read 4/4, 2/4 and 3/4 on the
+large-gap class — 9 of 12 for the arm ECAPA scores higher, 1 against, 2 can't
+tell — which is the pooled reading to quote, and the reason the owner's
+second sitting is not read as a refutation. n=4 per class per sitting, two
+adapters, three sittings; the claim it supports is that ECAPA's direction is
+audible at a 0.3 gap, not that its magnitude is.
+
+**Evidence** — `second_rater_ratings.json`, `second_rater_listening.json`,
+`second_rater_concealed_key.json`; both rating pages are named in the
+ratings artifact.
+
 ---
 
 # Part II — Met
@@ -4600,6 +4642,70 @@ with the number of suspects removed.
 
 **Evidence** — `two_stage_attribution__usual_suspects_control_20260913.json`,
 `two_stage_attribution__usual_suspects_dropped_20260913.json`.
+#### Registered before the run: play-script adapters, English vs. mixed (2026-09-13)
+
+A play carries the speaker of every line as part of the text
+(`<sp who="#id">` in TEI), so the label needs no annotator, and the sources
+are out of copyright. `app/experiments/dracor_trainset.py` builds two
+adapter training sets of the same size from DraCor, rows shaped exactly like
+the PDNC author-balanced set so `distill_train.py` consumes them unchanged
+(`ab_test_runtime/corpora/PROVENANCE.md` has the licences; every TEI file
+used carries a CC0 statement and any NC layer refuses the play — `ibs` turned
+out to be CC BY-NC 4.0 per file despite the registry's CC0 and was dropped;
+plays with more than 120 named characters are skipped, PDNC's largest being 113):
+
+| arm | corpora | rows | plays | Qwen3 tokens |
+|---|---|---|---|---|
+| English | `lacy`, `am` | 4,000 | 144 | 320,056 |
+| mixed | the same + `ger`, `rus`, `dutch`, `pol`, `ar`, equal rows per language (en/de/ru/nl/pl/es ≈ 667 each) | 4,000 | 1,071 | 463,469 |
+
+Rows are matched; tokens are not (Dutch rows run ~190 tokens against
+English's ~80), which is recorded here so it is not discovered later.
+
+**What plays teach and do not teach.** The neighbouring lines a row sees
+carry no speaker label, so the only route from text to name is the content
+of the line — address forms, register, what the character knows. There is
+no narrative frame, so nothing here trains the `said X` parsing that the
+novel sets supply. The prediction, written before either adapter exists:
+
+- Both arms should move this goal's metric — the pick among roster names
+  already present — before they move recall, because content-selection is
+  what the training signal is. A lift confined to frame-heavy rows would
+  contradict the mechanism and should be treated as noise.
+- Mixed vs. English is a diversity question. If the English arm wins, the
+  extra languages diluted the signal at a fixed row budget; if mixed wins
+  or ties, character voice transfers across languages and the cheaper,
+  larger pool is the one to grow.
+- A null on both is not a null on plays: it would say the 4k-row budget or
+  the Qwen3-14B "mixed" recipe (`RECIPES.md`) is the limit, and the next
+  step is a larger set, not a different corpus.
+
+Model and recipe are the one *works* row in `RECIPES.md` for attribution:
+Qwen3-14B, `distill_train.py --epochs 2 --max_len 2048`, one seed each,
+scored by the product harness (batch 25, four clean-gold books, paired
+base/LoRA) against that row's +7.8. Results go in `RECIPES.md` as rows only
+once the paired artifact exists.
+
+**Result (2026-09-14, tnr-2 A6000, one seed each, same base rows):**
+
+| arm | base | LoRA | paired | grimgar03 | index18 | mushoku16 | owarimonogatari3 |
+|---|---:|---:|---|---:|---:|---:|---:|
+| English | 61.7 | 57.8 | **−3.9** (+79/−109, p=0.034) | 285→265 | 58→50 | 72→79 | 59→50 |
+| mixed | 61.7 | 62.2 | +0.5 (+91/−87, p=0.82) | 285→287 | 58→51 | 72→84 | 59→56 |
+
+Neither arm reaches the novel "mixed" set's +7.8; the English arm hurts,
+the mixed arm is a null. Read against the registered prediction: the
+mixed-vs-English half came out the way the "diversity helps or ties" branch
+said (mixed ≥ English, by 4.4 points on the same rows), but the first half
+did not — no lift on the pick-among-roster metric at all, so the
+"content-selection transfers from plays" mechanism is not supported at this
+budget. The one consistent gain is mushoku16 (+7 and +12 of 133), the book
+with the most bare, frame-less dialogue; both arms lose on grimgar03,
+index18 and owarimonogatari3. The third bullet applies: this is a 4k-row,
+one-seed null on plays, not a verdict on the corpus — but the next step is
+not a bigger DraCor set on its own; it is DraCor rows mixed into the novel
+set, since plays cannot teach the frame parsing the losing books need.
+Evidence — `lora_serving_eval__qwen3-14b-dracor-{en,mixed}-a6000-product-batch25-20260913.json`.
 
 ---
 

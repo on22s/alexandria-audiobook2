@@ -265,3 +265,5 @@ ab_test_runtime/corpora/libriquote/
 ab_test_runtime/libriquote_*_eval/
 ab_test_runtime/prune_retrain_*/
 ab_test_runtime/prune_probe/
+ab_test_runtime/corpora/dracor/
+ab_test_runtime/distill/dracor_*/
