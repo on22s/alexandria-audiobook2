@@ -1016,8 +1016,16 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                         pass
                     log_fh = None  # Stop trying to write to disk
 
-    reader.join()
-    process.stdout.close()
+    reader.join(timeout=1)
+    if reader.is_alive():
+        # A detached grandchild can retain the inherited pipe after its parent
+        # exits. Do not let that keep this task state permanently running.
+        logger.warning("Subprocess reader did not finish; closing inherited stdout pipe")
+    try:
+        process.stdout.close()
+    except OSError:
+        pass
+    reader.join(timeout=1)
     process.wait()
     if "processes" in state and process in state["processes"]:
         state["processes"].remove(process)

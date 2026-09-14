@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
@@ -184,7 +185,7 @@ async def preparer_start(
     output_filename = secure_filename(config.output_filename)
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
-    audio_path = os.path.join(UPLOADS_DIR, audio_filename)
+    audio_path = os.path.join(UPLOADS_DIR, f"preparer_{uuid.uuid4().hex}_{audio_filename}")
     source_path = None
     try:
         await _save_upload_limited(audio_file, audio_path, 20 * 1024**3)
@@ -192,7 +193,7 @@ async def preparer_start(
             source_filename = secure_filename(config.source_filename or source_file.filename)
             if not source_filename:
                 raise HTTPException(status_code=400, detail="Invalid source filename")
-            source_path = os.path.join(UPLOADS_DIR, source_filename)
+            source_path = os.path.join(UPLOADS_DIR, f"preparer_{uuid.uuid4().hex}_{source_filename}")
             await _save_upload_limited(source_file, source_path, 512 * 1024**2)
     except Exception:
         for upload_path in (audio_path, source_path):
@@ -291,7 +292,13 @@ async def preparer_start(
         state["running"] = False
         state["process"] = None
 
-    claim_gpu_task("preparer")
+    try:
+        claim_gpu_task("preparer")
+    except Exception:
+        for upload_path in (audio_path, source_path):
+            if upload_path and os.path.exists(upload_path):
+                os.remove(upload_path)
+        raise
     background_tasks.add_task(_run_claimed_background_task, "preparer", _run)
     return {"status": "started"}
 

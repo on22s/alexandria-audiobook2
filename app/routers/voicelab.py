@@ -190,10 +190,12 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
             if name.startswith("_") or not os.path.isdir(folder):
                 continue
             narrator_count += 1
-            zip_count += sum(item.lower().endswith(".zip") for item in os.listdir(folder))
+            zip_count += sum(item.lower().endswith(".zip") and os.path.isfile(os.path.join(folder, item))
+                             for item in os.listdir(folder))
         deduped = os.path.join(zips_dir, "_deduped")
         if os.path.isdir(deduped):
-            deduped_count = sum(item.lower().endswith(".zip") for item in os.listdir(deduped))
+            deduped_count = sum(item.lower().endswith(".zip") and os.path.isfile(os.path.join(deduped, item))
+                                for item in os.listdir(deduped))
         if "train" in stages and "dedup" not in stages and not deduped_count:
             finding(blockers, "dedup_missing", "Training requires deduplicated ZIP files or the dedup stage.")
 

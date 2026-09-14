@@ -24,6 +24,14 @@ from utils import atomic_json_write
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
+_builder_state_locks = {}
+_builder_state_locks_guard = threading.Lock()
+
+
+def _get_builder_state_lock(name):
+    """One in-process lock per builder state file for read-modify-write updates."""
+    with _builder_state_locks_guard:
+        return _builder_state_locks.setdefault(name, threading.Lock())
 
 
 class LoraDatasetSample(BaseModel):
@@ -123,44 +131,48 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
 @router.post("/api/dataset_builder/update_meta")
 async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
     """Update project description and global seed without touching samples."""
+    if process_state["dataset_builder"]["running"]:
+        raise HTTPException(status_code=409, detail="Stop dataset generation before editing its metadata")
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
-    state = _load_builder_state(safe_name)
-    state["description"] = request.description
-    state["global_seed"] = request.global_seed
-    _save_builder_state(safe_name, state)
+    with _get_builder_state_lock(safe_name):
+        state = _load_builder_state(safe_name)
+        state["description"] = request.description
+        state["global_seed"] = request.global_seed
+        _save_builder_state(safe_name, state)
     return {"status": "ok"}
 
 @router.post("/api/dataset_builder/update_rows")
 async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
     """Update row definitions, preserving existing generation status/audio."""
+    if process_state["dataset_builder"]["running"]:
+        raise HTTPException(status_code=409, detail="Stop dataset generation before editing its rows")
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
-    state = _load_builder_state(safe_name)
-    existing = state.get("samples", [])
-    # Merge: keep status/audio_url from existing samples where text unchanged
-    new_samples = []
-    for i, row in enumerate(request.rows):
-        sample = {
-            "emotion": row.get("emotion", ""),
-            "text": row.get("text", "").strip(),
-            "seed": row.get("seed", ""),
-            "status": "pending",
-            "audio_url": None,
-        }
-        if i < len(existing):
-            old = existing[i]
-            # Preserve generation state if text unchanged (trimmed comparison)
-            if old.get("text", "").strip() == sample["text"]:
-                sample["status"] = old.get("status", "pending")
-                sample["audio_url"] = old.get("audio_url")
-        new_samples.append(sample)
-    state["samples"] = new_samples
-    _save_builder_state(safe_name, state)
+    if any(not isinstance(row, dict)
+           or not isinstance(row.get("text", ""), str)
+           or not isinstance(row.get("emotion", ""), str)
+           or not isinstance(row.get("seed", ""), str)
+           for row in request.rows):
+        raise HTTPException(status_code=400, detail="Each row needs string text, emotion, and seed values")
+    with _get_builder_state_lock(safe_name):
+        state = _load_builder_state(safe_name)
+        existing = state.get("samples", [])
+        # Merge: keep status/audio_url from existing samples where text unchanged
+        new_samples = []
+        for i, row in enumerate(request.rows):
+            sample = {"emotion": row.get("emotion", ""), "text": row.get("text", "").strip(),
+                      "seed": row.get("seed", ""), "status": "pending", "audio_url": None}
+            if i < len(existing) and existing[i].get("text", "").strip() == sample["text"]:
+                sample["status"] = existing[i].get("status", "pending")
+                sample["audio_url"] = existing[i].get("audio_url")
+            new_samples.append(sample)
+        state["samples"] = new_samples
+        _save_builder_state(safe_name, state)
     return {"status": "ok", "sample_count": len(new_samples)}
 
 @router.post("/api/dataset_builder/generate_sample")
@@ -194,21 +206,18 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
         # Update state (cache-bust URL so browser loads fresh audio on regen)
         cache_bust = int(time.time())
         audio_url = f"/dataset_builder/{safe_name}/{dest_filename}?t={cache_bust}"
-        state = _load_builder_state(safe_name)
-        samples = state.get("samples", [])
-        # Ensure list is large enough
-        while len(samples) <= request.sample_index:
-            samples.append({"status": "pending"})
-        existing_sample = samples[request.sample_index] if request.sample_index < len(samples) else {}
-        samples[request.sample_index] = {
-            **existing_sample,
-            "status": "done",
-            "audio_url": audio_url,
-            "text": request.text.strip(),
-            "description": request.description,
-        }
-        state["samples"] = samples
-        _save_builder_state(safe_name, state)
+        with _get_builder_state_lock(safe_name):
+            state = _load_builder_state(safe_name)
+            samples = state.get("samples", [])
+            while len(samples) <= request.sample_index:
+                samples.append({"status": "pending"})
+            existing_sample = samples[request.sample_index]
+            samples[request.sample_index] = {
+                **existing_sample, "status": "done", "audio_url": audio_url,
+                "text": request.text.strip(), "description": request.description,
+            }
+            state["samples"] = samples
+            _save_builder_state(safe_name, state)
 
         return {
             "status": "done",
@@ -220,13 +229,14 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     except Exception as e:
         logger.exception("Dataset builder sample generation failed")
         # Mark as error in state
-        state = _load_builder_state(safe_name)
-        samples = state.get("samples", [])
-        while len(samples) <= request.sample_index:
-            samples.append({"status": "pending"})
-        samples[request.sample_index] = {"status": "error", "error": str(e)}
-        state["samples"] = samples
-        _save_builder_state(safe_name, state)
+        with _get_builder_state_lock(safe_name):
+            state = _load_builder_state(safe_name)
+            samples = state.get("samples", [])
+            while len(samples) <= request.sample_index:
+                samples.append({"status": "pending"})
+            samples[request.sample_index] = {"status": "error", "error": str(e)}
+            state["samples"] = samples
+            _save_builder_state(safe_name, state)
         raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.") from e
     finally:
         process_state["dataset_builder"]["running"] = False
@@ -381,6 +391,8 @@ async def dataset_builder_status(name: str):
 @router.post("/api/dataset_builder/save")
 async def dataset_builder_save(request: DatasetSaveRequest):
     """Finalize dataset builder project as a training dataset."""
+    if process_state["dataset_builder"]["running"]:
+        raise HTTPException(status_code=409, detail="Wait for dataset generation before saving")
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
 
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)

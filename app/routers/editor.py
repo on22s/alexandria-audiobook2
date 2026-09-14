@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
@@ -421,7 +422,7 @@ async def upload_m4b_cover(file: UploadFile = File(...)):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     cover_path = os.path.join(DATA_DIR, "m4b_cover.jpg")
-    cover_tmp = cover_path + ".upload"
+    cover_tmp = cover_path + f".upload.{uuid.uuid4().hex}"
     await _save_upload_limited(file, cover_tmp, 25 * 1024**2)
     os.replace(cover_tmp, cover_path)
     return {"status": "uploaded", "path": cover_path}
