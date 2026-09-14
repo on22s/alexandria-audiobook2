@@ -307,7 +307,9 @@ def get_system_stats():
 @router.get("/api/status/eta")
 async def get_eta_status():
     """Return progress/ETA for the most relevant currently-running task, if any."""
-    for key, label in ETA_TASKS:
+    labels = dict(ETA_TASKS)
+    for key in list(labels) + [key for key in process_state if key not in labels]:
+        label = labels.get(key, key.replace("_", " ").title())
         state = process_state.get(key)
         if state and state.get("running"):
             eta = _compute_eta(state)

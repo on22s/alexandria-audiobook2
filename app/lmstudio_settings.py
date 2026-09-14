@@ -325,10 +325,12 @@ def _parse_lms_ps_output(stdout, model_name, ideal_settings):
                 continue
 
     if not isinstance(models, list):
-        return {"available": True, "loaded": False, "context_length": None,
+        return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
     for m in models:
+        if not isinstance(m, dict):
+            continue
         if m.get("identifier") == model_name or m.get("modelKey") == model_name:
             context_length = m.get("contextLength")
             parallel = m.get("parallel")
@@ -358,9 +360,12 @@ def get_lmstudio_status(model_name):
         result = subprocess.run([lms, "ps", "--json"], capture_output=True,
                                  text=True, timeout=15)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, UnicodeDecodeError):
-        return {"available": True, "loaded": False, "context_length": None,
+        return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
+    if result.returncode != 0:
+        return {"available": False, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False}
     initial = _parse_lms_ps_output(result.stdout, model_name, IDEAL_SETTINGS)
     ideal = get_safe_local_settings(model_name, initial["loaded"])
     status = _parse_lms_ps_output(result.stdout, model_name, ideal)
@@ -439,6 +444,9 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20, port=None):
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
+    if result.returncode != 0:
+        return {"available": False, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False}
     status = _parse_lms_ps_output(result.stdout, model_name, REMOTE_IDEAL_SETTINGS)
     if port is not None:
         status["server_reachable"] = _remote_server_bound(ssh_alias, port, timeout=timeout)

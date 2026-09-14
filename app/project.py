@@ -384,6 +384,8 @@ class ProjectManager:
         list (possibly empty), never None.
         """
         chunks = safe_load_json(self.chunks_path)
+        if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
+            chunks = None
         if chunks is not None:
             # Backfill stable uids for chunks saved before uid-based filenames.
             # Assigned once and persisted so a chunk keeps the same audio file
@@ -692,6 +694,15 @@ class ProjectManager:
             tts_cfg.get("pause_same_speaker_ms", SAME_SPEAKER_PAUSE_MS),
         )
 
+    def get_chunk_audio_path(self, path):
+        """Resolve persisted audio only within this project's data directory."""
+        if not isinstance(path, str) or not path:
+            raise ValueError("Invalid chunk audio path")
+        full_path = os.path.realpath(os.path.join(self.root_dir, path))
+        if not is_path_inside(full_path, self.root_dir):
+            raise ValueError("Chunk audio path escapes the project directory")
+        return full_path
+
     def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None):
         """Load chunks and pair each with its AudioSegment.
 
@@ -712,10 +723,7 @@ class ProjectManager:
             if not path:
                 skipped += 1
                 continue
-            if not self._is_project_audio_path(path):
-                skipped += 1
-                continue
-            full_path = os.path.join(self.root_dir, path)
+            full_path = self.get_chunk_audio_path(path)
             if not os.path.exists(full_path):
                 skipped += 1
                 continue
@@ -1064,7 +1072,7 @@ class ProjectManager:
             return None
         for chunk in chunks:
             path = chunk.get("audio_path")
-            full_path = os.path.join(self.root_dir, path) if path else ""
+            full_path = self.get_chunk_audio_path(path) if path else ""
             if not path or not os.path.isfile(full_path):
                 return None
         groups = self._chapter_groups(chunks, per_chunk_chapters)
@@ -1250,10 +1258,7 @@ class ProjectManager:
         parts = []
         for c in chunks:
             path = c.get("audio_path") or ""
-            if not self._is_project_audio_path(path):
-                parts.append(f"{path}|unsafe|{c.get('pause_after')}")
-                continue
-            full = os.path.join(self.root_dir, path)
+            full = self.get_chunk_audio_path(path) if path else ""
             try:
                 st = os.stat(full)
                 parts.append(f"{path}|{st.st_size}|{int(st.st_mtime)}|{c.get('pause_after')}")

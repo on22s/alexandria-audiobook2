@@ -39,13 +39,11 @@ def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> Non
 
 def _load_manifest(path):
     """Load a JSON manifest file, returning [] on missing or corrupt file."""
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, ValueError) as e:
-            _warn_corrupted_json("manifest", path, "returning empty list", e)
-    return []
+    entries = safe_load_json(path, default=[])
+    valid = [entry for entry in entries if isinstance(entry, dict)]
+    if len(valid) != len(entries):
+        logger.warning("Ignoring malformed entries in manifest %s", path)
+    return valid
 
 
 def _load_builtin_lora_manifest():
@@ -104,7 +102,7 @@ def check_disk_space(path, required_gb):
         return free_gb >= required_gb, free_gb
     except (OSError, ValueError) as e:
         logger.warning(f"Could not check disk space for {path}: {e}")
-        return True, 0.0
+        return False, 0.0
 
 
 async def _save_upload_limited(file: UploadFile, path: str, max_bytes: int) -> None:
@@ -242,12 +240,21 @@ def get_cast_adapter_usage(lib: dict, cast_name: Optional[str]) -> dict:
         item = usage.setdefault(adapter_id, {"character_count": 0, "total_lines": 0, "characters": []})
         item["character_count"] += 1
         assignments = member.get("assignments") or {}
-        total_lines = sum(max(0, int(a.get("line_count", 0) or 0)) for a in assignments.values())
+        total_lines = sum(get_stored_line_count(a) for a in assignments.values())
         if not assignments:
-            total_lines = max(0, int(member.get("line_count", 0) or 0))
+            total_lines = get_stored_line_count(member)
         item["total_lines"] += total_lines
         item["characters"].append(member.get("name", key))
     return usage
+
+
+def get_stored_line_count(entry) -> int:
+    """Read a nonnegative count, reporting damaged persisted values."""
+    try:
+        return max(0, int(entry.get("line_count", 0) or 0))
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        logger.warning("Invalid stored line count; ignoring it")
+        return 0
 
 
 def _load_voice_library() -> dict:
@@ -259,10 +266,14 @@ def _load_voice_library() -> dict:
             with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                lib["shared"] = data.get("shared", {}) or {}
-                lib["casts"] = data.get("casts", {}) or {}
-                lib["favorites"] = [str(a) for a in (data.get("favorites") or []) if a]
-        except (json.JSONDecodeError, ValueError) as e:
+                for section in ("shared", "casts", "favorites"):
+                    value = data.get(section, lib[section])
+                    if isinstance(value, type(lib[section])):
+                        lib[section] = value
+                    else:
+                        logger.warning("Invalid voice library section %s; using default", section)
+                lib["favorites"] = [str(a) for a in lib["favorites"] if a]
+        except (json.JSONDecodeError, ValueError, OSError) as e:
             _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
     return lib
 
@@ -273,6 +284,11 @@ def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     script = safe_load_json(path)
     if isinstance(script, list):
         for entry in script:
+            if (not isinstance(entry, dict)
+                    or not isinstance(entry.get("speaker") or entry.get("type") or "", str)
+                    or not isinstance(entry.get("text") or "", str)):
+                logger.warning("Ignoring malformed script entry when counting lines")
+                continue
             speaker = (entry.get("speaker") or entry.get("type") or "").strip()
             if speaker and (entry.get("text") or "").strip():
                 counts[speaker] = counts.get(speaker, 0) + 1
