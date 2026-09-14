@@ -1163,9 +1163,20 @@ class PendingMarkerTest(unittest.TestCase):
         # feature, caused by the fixture. Same shape as the terminal-marker
         # test's first version, and the fix is the same: wait for the state
         # you need instead of assuming a duration.
-        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "45"],
+        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "120"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
+        # Start the waiter only once the holder actually holds the lock (its
+        # START line is in the queue log). Started together, a loaded machine
+        # (CI, or this box under three chains) could get the holder through
+        # its gates, its sleep and its release before the waiter reached the
+        # marker - the waiter then never waited, and the test reported the
+        # feature missing. Flaked that way on 2026-09-14 locally and in CI.
+        start_deadline = time.time() + 90
+        while time.time() < start_deadline:
+            if os.path.exists(self.qlog) and "START    holder" in open(self.qlog, encoding="utf-8").read():
+                break
+            time.sleep(0.2)
         waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
