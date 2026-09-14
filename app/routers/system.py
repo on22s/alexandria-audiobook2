@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -63,13 +64,35 @@ def _redact_config_secrets(config: dict) -> dict:
     read endpoint.  Keep the sentinel stable so save_config() can preserve an
     unchanged credential without putting the plaintext back on the wire.
     """
-    safe = json.loads(json.dumps(config))
+    # deepcopy, not a JSON round trip: the loaded config carries pydantic
+    # objects (e.g. ThreePassModelProfile) that FastAPI serialises on the way
+    # out but json.dumps cannot - the round trip 500'd every GET /api/config
+    # on a real config (caught live, 2026-09-14).
+    safe = copy.deepcopy(config)
     for section in ("llm", "llm_local", "llm_remote", "tts"):
         value = safe.get(section)
         if isinstance(value, dict) and value.get("api_key"):
             value["api_key"] = _REDACTED_SECRET
             value["api_key_configured"] = True
     return safe
+
+
+def _resolve_redacted_api_key(api_key, base_url, existing=None):
+    """The Setup tab's key field holds the GET sentinel for a stored key, and
+    the Test / Load-models buttons send that field as-is. Map the sentinel
+    back to the stored key of the profile whose base_url matches (falling
+    back to the active profile), so a real cloud key keeps working there."""
+    if api_key != _REDACTED_SECRET:
+        return api_key
+    existing = existing if existing is not None else load_app_config(CONFIG_PATH)
+    wanted = (base_url or "").strip().rstrip("/")
+    candidates = [existing.get(s) for s in ("llm_local", "llm_remote", "llm")]
+    candidates = [c for c in candidates if isinstance(c, dict)]
+    for profile in candidates:
+        if (profile.get("base_url") or "").strip().rstrip("/") == wanted and profile.get("api_key"):
+            return profile["api_key"]
+    active = get_active_llm_config(existing) if candidates else {}
+    return active.get("api_key") or "local"
 
 
 def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
@@ -439,7 +462,9 @@ async def llm_models(request: LlmModelsRequest):
         url += "/v1"
     def fetch():
         from llm_provider import make_llm_client
-        client = make_llm_client({"base_url": url, "api_key": request.api_key or "local"}, timeout=10)
+        client = make_llm_client({"base_url": url,
+                                  "api_key": _resolve_redacted_api_key(request.api_key, url) or "local"},
+                                 timeout=10)
         return sorted({m.id for m in client.models.list().data})
     try:
         return {"models": await asyncio.to_thread(fetch)}
@@ -456,6 +481,7 @@ async def llm_test(profile: Optional[LLMConfig] = None):
             url += "/v1"
         profile_data = profile.model_dump()
         profile_data["base_url"] = url
+        profile_data["api_key"] = _resolve_redacted_api_key(profile_data.get("api_key"), url)
     else:
         cfg = _load_llm_config()
         profile_data = cfg
