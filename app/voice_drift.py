@@ -17,6 +17,7 @@ import tempfile
 import time
 
 from experiments.library_voice_fidelity import ecapa_pairs
+from utils import is_path_inside
 
 # Same rationale as verify_adapter_identity.py: working adapters score
 # 0.65-0.74 against their human reference, failures 0.027-0.404, and the
@@ -121,12 +122,19 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
                     continue
                 ref_chunk = next((c for c in chunks if c.get("uid") == ref_uid), None)
                 ref_path = os.path.join(root_dir, ref_chunk["audio_path"]) if ref_chunk else None
+                if ref_path and not is_path_inside(ref_path, root_dir):
+                    ref_path = None
             if not ref_path or not os.path.exists(ref_path):
                 results.append({"index": index, "uid": chunk.get("uid"), "score": None,
                                 "flagged": False, "reference": label,
                                 "error": "reference audio missing"})
                 continue
             chunk_path = os.path.join(root_dir, chunk["audio_path"])
+            if not is_path_inside(chunk_path, root_dir):
+                results.append({"index": index, "uid": chunk.get("uid"), "score": None,
+                                "flagged": False, "reference": label,
+                                "error": "chunk audio path is outside project"})
+                continue
             if not os.path.exists(chunk_path):
                 results.append({"index": index, "uid": chunk.get("uid"), "score": None,
                                 "flagged": False, "reference": label,
@@ -163,6 +171,10 @@ def apply_drift_results(project_manager, results, threshold):
                  "checked_at": checked_at}
         if r.get("error"):
             drift["error"] = r["error"]
-        project_manager._update_chunk_fields(r["index"], drift=drift)
-        flagged += int(bool(r["flagged"]))
+        uid = r.get("uid")
+        if not uid:
+            continue
+        updated = project_manager._update_chunk_fields_by_uid(uid, drift=drift)
+        if updated is not None:
+            flagged += int(bool(r["flagged"]))
     return flagged

@@ -19,7 +19,7 @@ from core import (
     process_state,
     project_manager,
 )
-from utils import get_unique_id
+from utils import file_lock, get_unique_id
 from voice_reference_import import import_reference_audio
 
 
@@ -45,6 +45,14 @@ class VoiceDesignSaveRequest(BaseModel):
 ## ── Voice Designer ──────────────────────────────────────────────
 
 DESIGNED_VOICES_MANIFEST = os.path.join(DESIGNED_VOICES_DIR, "manifest.json")
+
+
+def _append_manifest_entry(path, entry):
+    """Append one immutable voice entry without losing a concurrent upload."""
+    with file_lock(path):
+        manifest = _load_manifest(path)
+        manifest.append(entry)
+        _save_manifest(path, manifest)
 
 
 @router.post("/api/voice_design/preview")
@@ -84,33 +92,28 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
 
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
 
-    manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
-    existing = None
-    if request.voice_id:
-        existing = next((m for m in manifest if m.get("id") == request.voice_id), None)
-        if existing is None:
-            raise HTTPException(status_code=404, detail="Designed voice to update not found")
-        voice_id = existing["id"]
-        dest_filename = existing.get("filename") or f"{voice_id}.wav"
-    else:
-        voice_id = get_unique_id(safe_name)
-        dest_filename = f"{voice_id}.wav"
-    dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
-
-    shutil.copy2(preview_path, dest_path)
-
-    entry = {
-        "id": voice_id,
-        "name": request.name,
-        "description": request.description,
-        "sample_text": request.sample_text,
-        "filename": dest_filename,
-    }
-    if existing is not None:
-        existing.update(entry)
-    else:
-        manifest.append(entry)
-    _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+    with file_lock(DESIGNED_VOICES_MANIFEST):
+        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
+        existing = None
+        if request.voice_id:
+            existing = next((m for m in manifest if m.get("id") == request.voice_id), None)
+            if existing is None:
+                raise HTTPException(status_code=404, detail="Designed voice to update not found")
+            voice_id = existing["id"]
+            dest_filename = existing.get("filename") or f"{voice_id}.wav"
+        else:
+            voice_id = get_unique_id(safe_name)
+            dest_filename = f"{voice_id}.wav"
+        dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
+        shutil.copy2(preview_path, dest_path)
+        entry = {"id": voice_id, "name": request.name,
+                 "description": request.description, "sample_text": request.sample_text,
+                 "filename": dest_filename}
+        if existing is not None:
+            existing.update(entry)
+        else:
+            manifest.append(entry)
+        _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
 
     logger.info(f"Designed voice {'updated' if existing else 'saved'}: '{request.name}' as {dest_filename}")
     return {"status": "updated" if existing else "saved", "voice_id": voice_id}
@@ -123,19 +126,16 @@ async def voice_design_list():
 @router.delete("/api/voice_design/{voice_id}")
 async def voice_design_delete(voice_id: str):
     """Delete a saved designed voice."""
-    manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
-    entry = next((v for v in manifest if v["id"] == voice_id), None)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Voice not found")
-
-    # Delete WAV file
-    wav_path = os.path.join(DESIGNED_VOICES_DIR, entry["filename"])
-    if os.path.exists(wav_path):
-        os.remove(wav_path)
-
-    # Remove from manifest
-    manifest = [v for v in manifest if v["id"] != voice_id]
-    _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+    with file_lock(DESIGNED_VOICES_MANIFEST):
+        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
+        entry = next((v for v in manifest if v["id"] == voice_id), None)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Voice not found")
+        wav_path = os.path.join(DESIGNED_VOICES_DIR, entry["filename"])
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+        _save_manifest(DESIGNED_VOICES_MANIFEST,
+                       [v for v in manifest if v["id"] != voice_id])
 
     logger.info(f"Designed voice deleted: {voice_id}")
     return {"status": "deleted", "voice_id": voice_id}
@@ -196,8 +196,7 @@ async def clone_voices_upload(file: UploadFile = File(...),
             os.remove(dest_path)
         raise HTTPException(status_code=400, detail="Reference clip refused: " + "; ".join(problems))
 
-    manifest = _load_manifest(CLONE_VOICES_MANIFEST)
-    manifest.append({
+    _append_manifest_entry(CLONE_VOICES_MANIFEST, {
         "id": voice_id,
         "name": base_name,
         "filename": dest_filename,
@@ -209,7 +208,6 @@ async def clone_voices_upload(file: UploadFile = File(...),
         "imported_at": time.time(),
         **measures,
     })
-    _save_manifest(CLONE_VOICES_MANIFEST, manifest)
 
     logger.info(f"Clone voice imported: '{base_name}' as {dest_filename} "
                 f"({measures['duration_s']}s, sha256 {measures['sha256'][:12]})")
@@ -219,17 +217,16 @@ async def clone_voices_upload(file: UploadFile = File(...),
 @router.delete("/api/clone_voices/{voice_id}")
 async def clone_voices_delete(voice_id: str):
     """Delete an uploaded clone voice."""
-    manifest = _load_manifest(CLONE_VOICES_MANIFEST)
-    entry = next((v for v in manifest if v["id"] == voice_id), None)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Clone voice not found")
-
-    wav_path = os.path.join(CLONE_VOICES_DIR, entry["filename"])
-    if os.path.exists(wav_path):
-        os.remove(wav_path)
-
-    manifest = [v for v in manifest if v["id"] != voice_id]
-    _save_manifest(CLONE_VOICES_MANIFEST, manifest)
+    with file_lock(CLONE_VOICES_MANIFEST):
+        manifest = _load_manifest(CLONE_VOICES_MANIFEST)
+        entry = next((v for v in manifest if v["id"] == voice_id), None)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Clone voice not found")
+        wav_path = os.path.join(CLONE_VOICES_DIR, entry["filename"])
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+        _save_manifest(CLONE_VOICES_MANIFEST,
+                       [v for v in manifest if v["id"] != voice_id])
 
     logger.info(f"Clone voice deleted: {voice_id}")
     return {"status": "deleted", "voice_id": voice_id}

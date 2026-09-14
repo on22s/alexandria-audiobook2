@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
@@ -184,20 +185,27 @@ async def preparer_start(
     output_filename = secure_filename(config.output_filename)
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
+    # Stage, claim, then publish. Two overlapping starts with the same filename
+    # used to overwrite each other's upload before either held the task. The
+    # published name stays `<filename>`: the batch route looks uploads up by
+    # that name and a re-run of the same book replaces its previous copy
+    # instead of leaving another 20 GB file behind.
     audio_path = os.path.join(UPLOADS_DIR, audio_filename)
+    staged = {audio_path: f"{audio_path}.upload.{uuid.uuid4().hex}"}
     source_path = None
     try:
-        await _save_upload_limited(audio_file, audio_path, 20 * 1024**3)
+        await _save_upload_limited(audio_file, staged[audio_path], 20 * 1024**3)
         if source_file is not None:
             source_filename = secure_filename(config.source_filename or source_file.filename)
             if not source_filename:
                 raise HTTPException(status_code=400, detail="Invalid source filename")
             source_path = os.path.join(UPLOADS_DIR, source_filename)
-            await _save_upload_limited(source_file, source_path, 512 * 1024**2)
+            staged[source_path] = f"{source_path}.upload.{uuid.uuid4().hex}"
+            await _save_upload_limited(source_file, staged[source_path], 512 * 1024**2)
     except Exception:
-        for upload_path in (audio_path, source_path):
-            if upload_path and os.path.exists(upload_path):
-                os.remove(upload_path)
+        for tmp_path in staged.values():
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
         raise
 
     def _run():
@@ -291,7 +299,17 @@ async def preparer_start(
         state["running"] = False
         state["process"] = None
 
-    claim_gpu_task("preparer")
+    try:
+        claim_gpu_task("preparer")
+    except Exception:
+        for tmp_path in staged.values():
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        raise
+    # Only the request that holds the task publishes; the loser's staged copy
+    # was just removed above, so the winner's bytes are the ones that land.
+    for final_path, tmp_path in staged.items():
+        os.replace(tmp_path, final_path)
     background_tasks.add_task(_run_claimed_background_task, "preparer", _run)
     return {"status": "started"}
 

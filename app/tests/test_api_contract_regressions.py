@@ -1,4 +1,5 @@
 import ast
+import os
 import json
 from pathlib import Path
 import subprocess
@@ -7,11 +8,106 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from fastapi import BackgroundTasks, HTTPException
+
 import app as app_module
+import routers.editor as editor_router
+import routers.preparer as preparer_router
 import update_api_contract_snapshots as api_contract
 
 
 class ApiContractTests(unittest.TestCase):
+    def test_drift_check_claims_before_background_schedule(self):
+        """A second request cannot pass while the first is still queued."""
+        import asyncio
+
+        state = editor_router.process_state["drift_check"]
+        original_running = state["running"]
+        state["running"] = False
+
+        async def invoke():
+            first_background = BackgroundTasks()
+            request = editor_router.DriftCheckRequest(indices=[1])
+            response = await editor_router.drift_check_endpoint(request, first_background)
+            with self.assertRaises(HTTPException) as raised:
+                await editor_router.drift_check_endpoint(request, BackgroundTasks())
+            return response, first_background, raised.exception
+
+        try:
+            with patch.object(editor_router, "load_app_config", return_value={}), \
+                    patch.object(editor_router.voice_drift, "get_drift_threshold", return_value=0.5), \
+                    patch.object(editor_router.voice_drift, "get_speaker_model_python", return_value=None), \
+                    patch.object(editor_router, "_load_voicelab_config", return_value={}):
+                response, background, error = asyncio.run(invoke())
+        finally:
+            state["running"] = original_running
+
+        self.assertEqual("started", response["status"])
+        self.assertEqual(1, len(background.tasks))
+        self.assertEqual(400, error.status_code)
+
+    def test_preparer_download_rejects_output_directory(self):
+        """Directory paths must not reach FileResponse as downloadable files."""
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            valid_file = Path(output_dir, "dataset.zip")
+            valid_file.write_bytes(b"zip")
+            with patch.object(preparer_router, "PREPARER_OUTPUT_DIR", output_dir):
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(preparer_router.preparer_download("."))
+                response = asyncio.run(preparer_router.preparer_download("dataset.zip"))
+
+        self.assertEqual(404, raised.exception.status_code)
+        self.assertEqual(str(valid_file), response.path)
+
+    def test_concurrent_same_name_preparer_uploads_do_not_overwrite_each_other(self):
+        """Two overlapping starts with the same filename: one starts, one is
+        refused, and the published upload holds the winner's bytes. Before
+        stage-then-publish both wrote straight to UPLOADS_DIR/<name>."""
+        import asyncio
+        import io
+        from starlette.datastructures import UploadFile as StarletteUpload
+
+        state = preparer_router.process_state["preparer"]
+        original_running = state["running"]
+        state["running"] = False
+        config = json.dumps({"audio_filename": "book.wav", "output_filename": "out.zip"})
+        real_save = preparer_router._save_upload_limited
+
+        async def slow_save(upload, path, max_bytes):
+            await asyncio.sleep(0.05)   # let the other request's upload overlap
+            await real_save(upload, path, max_bytes)
+
+        async def start(payload):
+            upload = StarletteUpload(io.BytesIO(payload), filename="book.wav")
+            try:
+                return payload, await preparer_router.preparer_start(
+                    BackgroundTasks(), config_json=config, audio_file=upload, source_file=None)
+            except HTTPException as exc:
+                return payload, exc
+
+        async def both():
+            return await asyncio.gather(start(b"first"), start(b"second"))
+
+        with tempfile.TemporaryDirectory() as uploads:
+            with patch.object(preparer_router, "UPLOADS_DIR", uploads), \
+                    patch.object(preparer_router, "_resolve_preparer_interpreter", return_value="/usr/bin/python3"), \
+                    patch.object(preparer_router, "_save_upload_limited", slow_save):
+                try:
+                    results = asyncio.run(both())
+                finally:
+                    state["running"] = original_running
+            started = [payload for payload, r in results if isinstance(r, dict)]
+            refused = [r for _, r in results if isinstance(r, HTTPException)]
+            self.assertEqual(1, len(started), results)
+            self.assertEqual(1, len(refused), results)
+            self.assertEqual(400, refused[0].status_code)
+            self.assertEqual(["book.wav"], os.listdir(uploads), "no staged copies may remain")
+            with open(os.path.join(uploads, "book.wav"), "rb") as fh:
+                self.assertEqual(started[0], fh.read(),
+                                 "the request that holds the task must own the published upload")
+
     def test_app_py_contains_no_http_route_decorators(self):
         app_path = Path(__file__).parent.parent.joinpath("app.py")
         tree = ast.parse(app_path.read_text(encoding="utf-8"), filename=str(app_path))

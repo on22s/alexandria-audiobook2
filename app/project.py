@@ -15,7 +15,7 @@ from script_repair import EXPLICIT_SILENCE_MS
 from verbalization import (SET_APART_HINT, VERBALIZE, classify,
                            extract_delivery_cues, is_pictographic_kana,
                            split_bracketed_spans, strip_emoji_dividers)
-from utils import (atomic_json_write, safe_load_json, is_oom_failure,
+from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_inside,
                    get_app_config_path, is_nonverbal_text, secure_filename)
 from config_settings import load_app_config
 from audio_validation import remove_stale_audio, validate_generated_audio
@@ -384,6 +384,8 @@ class ProjectManager:
         list (possibly empty), never None.
         """
         chunks = safe_load_json(self.chunks_path)
+        if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
+            chunks = None
         if chunks is not None:
             # Backfill stable uids for chunks saved before uid-based filenames.
             # Assigned once and persisted so a chunk keeps the same audio file
@@ -541,6 +543,11 @@ class ProjectManager:
 
     def restore_chunk(self, at_index, chunk_data):
         """Re-insert a chunk at a specific index. Returns the updated chunk list."""
+        if not isinstance(chunk_data, dict):
+            return None
+        audio_path = chunk_data.get("audio_path")
+        if audio_path and not self._is_project_audio_path(audio_path):
+            return None
         with self._chunks_lock:
             chunks = self._read_chunks()
 
@@ -555,6 +562,11 @@ class ProjectManager:
 
             atomic_json_write(chunks, self.chunks_path)
             return chunks
+
+    def _is_project_audio_path(self, path):
+        """Whether a persisted chunk audio path remains inside this project."""
+        return isinstance(path, str) and is_path_inside(
+            os.path.join(self.root_dir, path), self.root_dir)
 
     def update_chunk(self, index, data):
         """Thread-safe chunk update. See _modify_chunk."""
@@ -586,6 +598,17 @@ class ProjectManager:
             chunk.update(kwargs)
 
         return self._modify_chunk(index, mutator)
+
+    def _update_chunk_fields_by_uid(self, uid, **kwargs):
+        """Atomically update a chunk only when its stable identity still exists."""
+        with self._chunks_lock:
+            chunks = self._read_chunks()
+            chunk = next((item for item in chunks if item.get("uid") == uid), None)
+            if chunk is None:
+                return None
+            chunk.update(kwargs)
+            atomic_json_write(chunks, self.chunks_path)
+            return chunk
 
     def generate_chunk_audio(self, index):
         chunks = self.load_chunks()
@@ -671,6 +694,15 @@ class ProjectManager:
             tts_cfg.get("pause_same_speaker_ms", SAME_SPEAKER_PAUSE_MS),
         )
 
+    def get_chunk_audio_path(self, path):
+        """Resolve persisted audio only within this project's data directory."""
+        if not isinstance(path, str) or not path:
+            raise ValueError("Invalid chunk audio path")
+        full_path = os.path.realpath(os.path.join(self.root_dir, path))
+        if not is_path_inside(full_path, self.root_dir):
+            raise ValueError("Chunk audio path escapes the project directory")
+        return full_path
+
     def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None):
         """Load chunks and pair each with its AudioSegment.
 
@@ -691,7 +723,7 @@ class ProjectManager:
             if not path:
                 skipped += 1
                 continue
-            full_path = os.path.join(self.root_dir, path)
+            full_path = self.get_chunk_audio_path(path)
             if not os.path.exists(full_path):
                 skipped += 1
                 continue
@@ -734,7 +766,12 @@ class ProjectManager:
         )
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
-        final_audio.export(output_path, format="mp3", bitrate=MP3_BITRATE)
+        pending_output = output_path + f".pending.{uuid.uuid4().hex}"
+        try:
+            final_audio.export(pending_output, format="mp3", bitrate=MP3_BITRATE)
+            os.replace(pending_output, output_path)
+        finally:
+            self._remove_temp_file(pending_output)
 
         if skipped:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
@@ -881,8 +918,8 @@ class ProjectManager:
         temp_wav = os.path.join(self.root_dir, "temp_m4b_combined.wav")
         meta_path = os.path.join(self.root_dir, "temp_m4b_meta.txt")
         output_path = os.path.join(self.root_dir, "audiobook.m4b")
+        pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
-        encode_ok = False
         try:
             final_audio.export(temp_wav, format="wav")
 
@@ -924,21 +961,18 @@ class ProjectManager:
                 "-c:a", "aac",
                 "-b:a", "128k",
                 "-movflags", "+faststart",
-                output_path
+                pending_output
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if result.returncode != 0:
                 print(f"FFmpeg stderr: {result.stderr[-500:]}")
                 return False, f"FFmpeg failed (exit {result.returncode})"
-            encode_ok = True
+            os.replace(pending_output, output_path)
 
         finally:
-            # On a timed-out/failed encode also delete the partial output .m4b —
-            # ffmpeg writes incrementally and the download route serves the file
-            # purely on existence, so a partial file would be handed out as valid.
-            cleanup = [temp_wav, meta_path]
-            if not encode_ok:
-                cleanup.append(output_path)
+            # Only the unpublished staging output is ever removed here; a prior
+            # complete audiobook remains available when an encode fails.
+            cleanup = [temp_wav, meta_path, pending_output]
             for tmp in cleanup:
                 if os.path.exists(tmp):
                     try:
@@ -1038,7 +1072,7 @@ class ProjectManager:
             return None
         for chunk in chunks:
             path = chunk.get("audio_path")
-            full_path = os.path.join(self.root_dir, path) if path else ""
+            full_path = self.get_chunk_audio_path(path) if path else ""
             if not path or not os.path.isfile(full_path):
                 return None
         groups = self._chapter_groups(chunks, per_chunk_chapters)
@@ -1224,7 +1258,7 @@ class ProjectManager:
         parts = []
         for c in chunks:
             path = c.get("audio_path") or ""
-            full = path if os.path.isabs(path) else os.path.join(self.root_dir, path)
+            full = self.get_chunk_audio_path(path) if path else ""
             try:
                 st = os.stat(full)
                 parts.append(f"{path}|{st.st_size}|{int(st.st_mtime)}|{c.get('pause_after')}")
@@ -1264,6 +1298,7 @@ class ProjectManager:
         import gc
 
         results = {"completed": [], "failed": [], "cancelled": 0}
+        indices = list(dict.fromkeys(indices))
 
         # Filter out empty-text chunks
         chunks = self.load_chunks()
@@ -1529,6 +1564,7 @@ class ProjectManager:
             dict with 'completed', 'failed', and 'cancelled' keys
         """
         results = {"completed": [], "failed": [], "cancelled": 0}
+        indices = list(dict.fromkeys(indices))
 
         # Load chunks and voice config
         chunks = self.load_chunks()
@@ -1611,9 +1647,17 @@ class ProjectManager:
 
             # Call batch TTS with single seed. If stale-output cleanup rejected
             # every row, there is nothing safe to dispatch.
-            batch_results = (engine.generate_batch(
-                batch_chunks, voice_config, self.root_dir, batch_seed)
-                if batch_chunks else {"completed": [], "failed": []})
+            try:
+                batch_results = (engine.generate_batch(
+                    batch_chunks, voice_config, self.root_dir, batch_seed)
+                    if batch_chunks else {"completed": [], "failed": []})
+            except Exception:
+                current = self.load_chunks()
+                for idx in indices:
+                    if 0 <= idx < len(current) and current[idx].get("status") == "generating":
+                        current[idx]["status"] = "pending"
+                self.save_chunks(current)
+                raise
             batch_results["failed"].extend(cleanup_failures)
 
             # Process completed chunks - convert to MP3 and update status

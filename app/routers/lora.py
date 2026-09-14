@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import time
+import uuid
 from urllib.parse import quote
 import zipfile
 
@@ -498,12 +499,15 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
     if not dataset_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name from filename")
 
+    os.makedirs(LORA_DATASETS_DIR, exist_ok=True)
     dataset_dir = os.path.join(LORA_DATASETS_DIR, dataset_name)
-    if os.path.exists(dataset_dir):
+    try:
+        os.mkdir(dataset_dir)
+    except FileExistsError:
         raise HTTPException(status_code=400, detail=f"Dataset '{dataset_name}' already exists")
 
     # Save ZIP temporarily, then extract
-    tmp_path = os.path.join(LORA_DATASETS_DIR, f"_tmp_{dataset_name}.zip")
+    tmp_path = os.path.join(LORA_DATASETS_DIR, f"_tmp_{dataset_name}_{uuid.uuid4().hex}.zip")
     try:
         await _save_upload_limited(file, tmp_path, 4 * 1024**3)
 
@@ -940,19 +944,18 @@ async def lora_delete_model(adapter_id: str):
     builtin = _load_builtin_lora_manifest()
     if any(m["id"] == adapter_id for m in builtin):
         raise HTTPException(status_code=403, detail="Built-in adapters cannot be deleted")
-    manifest = _load_manifest(LORA_MODELS_MANIFEST)
-    entry = next((m for m in manifest if m["id"] == adapter_id), None)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Adapter not found")
-
-    # Delete adapter directory
-    adapter_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
-    if os.path.isdir(adapter_dir):
-        shutil.rmtree(adapter_dir)
-
-    # Remove from manifest
-    manifest = [m for m in manifest if m["id"] != adapter_id]
-    _save_manifest(LORA_MODELS_MANIFEST, manifest)
+    adapter_dir = _safe_subpath(LORA_MODELS_DIR, adapter_id)
+    with file_lock(LORA_MODELS_MANIFEST):
+        manifest = _load_manifest(LORA_MODELS_MANIFEST)
+        entry = next((m for m in manifest if m["id"] == adapter_id), None)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Adapter not found")
+        if _get_checkpoint_swap_journal(adapter_dir):
+            raise HTTPException(status_code=409, detail="Checkpoint recovery is required first")
+        if os.path.isdir(adapter_dir):
+            shutil.rmtree(adapter_dir)
+        manifest = [m for m in manifest if m["id"] != adapter_id]
+        _save_manifest(LORA_MODELS_MANIFEST, manifest)
 
     logger.info(f"LoRA adapter deleted: {adapter_id}")
     return {"status": "deleted", "adapter_id": adapter_id}

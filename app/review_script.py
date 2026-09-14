@@ -176,7 +176,10 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (ValueError, OSError):
+        return None
+    if not isinstance(data, dict):
+        print("Invalid review checkpoint shape - starting fresh.")
         return None
     if (data.get("batch_size") != batch_size or
             data.get("context_window") != context_window):

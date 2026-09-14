@@ -25,13 +25,22 @@ _manifest_cache_time = 0
 _MANIFEST_TTL = 3600  # 1 hour
 
 
+def _is_safe_adapter_id(adapter_id):
+    """Built-in adapter IDs are directory names, never paths."""
+    return (isinstance(adapter_id, str) and bool(adapter_id)
+            and adapter_id not in (".", "..")
+            and os.path.basename(adapter_id) == adapter_id
+            and "/" not in adapter_id and "\\" not in adapter_id)
+
+
 def _normalize_manifest_entries(entries):
     """Return only entries safe for every backend and frontend consumer."""
     if not isinstance(entries, list):
         raise ValueError(f"manifest.json is not a list (got {type(entries).__name__})")
     normalized = []
     for item in entries:
-        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip():
+        if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not _is_safe_adapter_id(item["id"].strip())):
             logger.warning("Skipping malformed built-in LoRA manifest entry: %r", item)
             continue
         entry = dict(item)
@@ -109,6 +118,8 @@ def download_builtin_adapter(adapter_id, builtin_dir, hf_repo=BUILTIN_LORA_HF_RE
     Raises:
         RuntimeError: If a required file fails to download.
     """
+    if not _is_safe_adapter_id(adapter_id):
+        raise ValueError("Invalid built-in adapter ID")
     from huggingface_hub import hf_hub_download
 
     # Strip builtin_ prefix to get HF subfolder name

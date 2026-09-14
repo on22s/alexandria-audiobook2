@@ -144,7 +144,8 @@ def extract_json_object(text):
         return None
 
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
     except json.JSONDecodeError:
         pass
 
@@ -184,12 +185,13 @@ def secure_filename(filename: str) -> str:
     """
     if not filename:
         return ""
+    original = filename
     for sep in ("/", "\\", "\0"):
         filename = filename.replace(sep, "_")
     filename = filename.lstrip(". ")
     filename = re.sub(r"[^\w\-. ]", "_", filename)
     if len(filename) > 150:
-        suffix = hashlib.sha1(filename.encode("utf-8")).hexdigest()[:8]
+        suffix = hashlib.sha1(original.encode("utf-8")).hexdigest()[:8]
         filename = filename[:150 - len(suffix) - 1] + "_" + suffix
     if not filename:
         return ""
@@ -237,11 +239,15 @@ def atomic_json_write(data, target_path, max_retries=5):
     the function falls back to shutil.move (copy + delete) so the write
     succeeds rather than raising an unhandled OSError.
     """
+    if not isinstance(max_retries, int) or max_retries < 1:
+        raise ValueError("max_retries must be a positive integer")
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
 
         for attempt in range(max_retries):
             try:
@@ -311,6 +317,8 @@ def atomic_json_write(data, target_path, max_retries=5):
 
 def atomic_json_write_pair(first_data, first_path, second_data, second_path):
     """Replace two locked JSON files, rolling both back if replacement fails."""
+    if os.path.normcase(os.path.realpath(first_path)) == os.path.normcase(os.path.realpath(second_path)):
+        raise ValueError("Paired JSON targets must be distinct")
     staged, backups = [], []
     try:
         for data, path in ((first_data, first_path), (second_data, second_path)):
@@ -440,7 +448,7 @@ def check_basic_auth(header_value, username, password):
     if not header_value or not header_value.startswith("Basic "):
         return False
     try:
-        decoded = base64.b64decode(header_value[6:].strip()).decode("utf-8")
+        decoded = base64.b64decode(header_value[6:].strip(), validate=True).decode("utf-8")
     except Exception:
         return False
     supplied_user, sep, supplied_pw = decoded.partition(":")
@@ -448,8 +456,8 @@ def check_basic_auth(header_value, username, password):
         return False
     # Evaluate both comparisons before combining so the response time does not
     # reveal which of username/password mismatched.
-    user_ok = hmac.compare_digest(supplied_user, username)
-    pw_ok = hmac.compare_digest(supplied_pw, password)
+    user_ok = hmac.compare_digest(supplied_user.encode("utf-8"), username.encode("utf-8"))
+    pw_ok = hmac.compare_digest(supplied_pw.encode("utf-8"), password.encode("utf-8"))
     return user_ok and pw_ok
 
 

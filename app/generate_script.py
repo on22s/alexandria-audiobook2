@@ -422,6 +422,7 @@ def get_preprocessed_source(text, strip_front_matter=True):
 
 def split_into_chunk_records(text, max_size=3000):
     """Split text with explicit oversized-paragraph continuation metadata."""
+    max_size = get_valid_chunk_size(max_size)
     paragraphs = re.split(r'\n\s*\n', text)
     records = []
     current_chunk = ""
