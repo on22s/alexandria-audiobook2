@@ -2282,7 +2282,7 @@ two mid-range datasets score 0.10–0.20 above BOTH fresh retrains on the same
 zips (0.398 vs 0.29/0.33; 0.501 vs 0.31/0.34), with the other three equal.
 Two agreeing retrains rule out noise: something about how those two were
 originally trained differs from today's `batch_train_lora` defaults. Not
-diagnosed; compare their `training_meta.json` before retraining any library
+diagnosed; compare their per-adapter training_meta.json before retraining any library
 voice "to the same settings".
 
 **Evidence** — `prune_retrain__<adapter>__fidelity.json` (control + pruned)

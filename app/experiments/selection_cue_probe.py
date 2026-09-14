@@ -7,8 +7,10 @@ Reads existing predictions (no inference): two_stage_attribution_w3200.json,
 2,494 PDNC rows where roster recall was 100%, so every error is a selection
 error. Cues are detected from the gold's own context fields.
 """
-import collections, json, re, sys
-REPO = __import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.abspath(__file__))))
+import collections, json, os, re, sys
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.provenance import provenance  # noqa: E402
 art = json.load(open(f"{REPO}/ab_test_runtime/experiments/two_stage_attribution_w3200.json"))
 SPEECH = r"(said|says|cried|replied|answered|asked|exclaimed|returned|continued|observed|added|whispered|muttered|called|remarked|repeated|interrupted|inquired|demanded|shouted|murmured|began|resumed|thought)"
 
@@ -101,4 +103,5 @@ print(f"  among rows where the TAG NAMES the speaker (n={len(w_tag)}): acc {sum(
 print("\nhand-check: 6 'tag names speaker' rows the model got WRONG")
 for r in [r for r in w_tag if not r["correct"]][:6]:
     print(f"  [{r['type']}] exp={r['exp']} pred={r['pred']} voc={r['vocatives']} | {r['line']!r}")
-json.dump(rows, open(sys.argv[1], "w"), indent=0)
+json.dump({"rows": rows, "provenance": provenance(__file__, {"out": sys.argv[1]})},
+          open(sys.argv[1], "w"), indent=0)
