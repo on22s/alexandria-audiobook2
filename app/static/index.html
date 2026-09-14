@@ -1948,6 +1948,11 @@
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
                      </div>
+                     <div class="d-flex align-items-center gap-2 mb-2">
+                         <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i>Text integrity</button>
+                         <span id="text-diff-summary" class="small text-muted"></span>
+                     </div>
+                     <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
 
                      <div class="table-responsive">
                          <table class="table table-bordered table-hover">

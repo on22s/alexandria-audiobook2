@@ -29,9 +29,11 @@ from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_three_pass_request_preflight,
+                                 read_source_text,
                                  resolve_three_pass_generation_settings,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
+from text_diff import word_diff
 from default_prompts import load_segment_prompts
 from pass_quality import split_outer_quote_regions, validate_segment_quality
 from utils import file_lock
@@ -1773,6 +1775,25 @@ async def get_annotated_script():
         raise HTTPException(status_code=404, detail="No annotated script found")
     with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
+
+@router.get("/api/annotated_script/diff")
+async def get_annotated_script_diff():
+    """Word-level differences between the saved source and the active script
+    (issue #522 s7.4/7.5), one hunk per divergence with the chunk it sits in
+    and the script entry to jump to."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=404, detail="No annotated script found")
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    input_file = state.get("input_file_path") if isinstance(state, dict) else None
+    if not input_file or not os.path.exists(input_file):
+        raise HTTPException(status_code=404, detail="No source text is on record for this script")
+    with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+        entries = json.load(f)
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=400, detail="Script is not a list of entries")
+    source, _encoding = read_source_text(input_file)
+    return await asyncio.to_thread(word_diff, source, entries)
+
 
 @router.get("/api/status/{task_name}")
 async def get_status(task_name: str):

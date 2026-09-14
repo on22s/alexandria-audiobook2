@@ -2847,6 +2847,65 @@
             saveVoicesDebounced();
         });
 
+        // --- Editor Tab: text integrity (issue #522 s7.4/7.5) ---
+        async function openTextDiff() {
+            const panel = document.getElementById('text-diff-panel');
+            const summary = document.getElementById('text-diff-summary');
+            if (!panel) {
+                return;
+            }
+            if (panel.style.display !== 'none') {
+                panel.style.display = 'none';
+                return;
+            }
+            summary.textContent = 'Comparing…';
+            try {
+                const diff = await API.get('/api/annotated_script/diff');
+                renderTextDiff(diff);
+            } catch (e) {
+                summary.textContent = '';
+                showToast('Text integrity unavailable: ' + e.message, 'error');
+            }
+        }
+
+        function renderTextDiff(diff) {
+            const panel = document.getElementById('text-diff-panel');
+            const summary = document.getElementById('text-diff-summary');
+            const t = diff.totals || {};
+            const hunks = diff.hunks || [];
+            summary.textContent = `${t.script_words} script words vs ${t.source_words} source · ${t.deleted} dropped, ${t.inserted} added, ${t.replaced} changed · ${hunks.length} place${hunks.length === 1 ? '' : 's'}`;
+            const kindClass = { delete: 'table-danger', insert: 'table-success', replace: 'table-warning' };
+            const rows = hunks.map(h => `
+                <tr class="${kindClass[h.kind] || ''}">
+                    <td class="text-nowrap small">${escapeHtml(h.kind)}<br><span class="text-muted">chunk ${escapeHtml(String(h.chunk))}</span></td>
+                    <td class="small"><span class="text-muted">${escapeHtml(h.source_before)}</span> <strong>${escapeHtml(h.source_words) || '∅'}</strong> <span class="text-muted">${escapeHtml(h.source_after)}</span></td>
+                    <td class="small"><strong>${escapeHtml(h.script_words) || '∅'}</strong></td>
+                    <td class="text-nowrap">${h.entry_index != null ? `<button class="btn btn-sm btn-link p-0" onclick="scrollToChunkRow(${Number(h.entry_index)})">entry ${Number(h.entry_index) + 1}</button>` : ''}</td>
+                </tr>`).join('');
+            panel.style.display = '';
+            panel.innerHTML = `
+                <div class="card-body p-2">
+                    ${hunks.length ? `
+                    <div class="table-responsive" style="max-height: 40vh; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Kind</th><th>Source</th><th>Script</th><th></th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>` : '<div class="small text-success mb-0">Every source word is in the script, in order.</div>'}
+                </div>`;
+        }
+
+        function scrollToChunkRow(id) {
+            const tr = document.querySelector(`tr[data-id="${id}"]`);
+            if (!tr) {
+                showToast(`Entry ${id + 1} is not in the table yet.`, 'warning');
+                return;
+            }
+            tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            tr.classList.add('table-info');
+            setTimeout(() => { tr.classList.remove('table-info'); }, 2000);
+        }
+
         // --- Editor Tab ---
         let isPlayingSequence = false;
         let isRenderingAll = false;

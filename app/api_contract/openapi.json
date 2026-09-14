@@ -2437,6 +2437,23 @@
         "summary": "Get Annotated Script"
       }
     },
+    "/api/annotated_script/diff": {
+      "get": {
+        "description": "Word-level differences between the saved source and the active script\n(issue #522 s7.4/7.5), one hunk per divergence with the chunk it sits in\nand the script entry to jump to.",
+        "operationId": "get_annotated_script_diff_api_annotated_script_diff_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Annotated Script Diff"
+      }
+    },
     "/api/audiobook": {
       "get": {
         "operationId": "get_audiobook_api_audiobook_get",
