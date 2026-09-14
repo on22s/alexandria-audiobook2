@@ -593,6 +593,11 @@
                                 <label class="form-label" for="llm-retry-max-delay">Maximum backoff (s)</label>
                                 <input type="number" class="form-control" id="llm-retry-max-delay" min="0" max="300" step="0.1" value="30">
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-jitter">Backoff jitter (0–1)</label>
+                                <input type="number" class="form-control" id="llm-retry-jitter" min="0" max="1" step="0.05" value="0.2">
+                                <div class="form-text">Randomises each retry delay by ± this fraction so parallel workers don't retry in lockstep.</div>
+                            </div>
                         </div>
                         <details class="mb-3">
                             <summary>Provider request options</summary>

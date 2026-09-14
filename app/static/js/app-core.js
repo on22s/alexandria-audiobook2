@@ -473,6 +473,7 @@
             document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
             document.getElementById('llm-retry-max-delay').value =
                 p.retry_max_delay_seconds ?? 30;
+            document.getElementById('llm-retry-jitter').value = p.retry_jitter ?? 0.2;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
             document.getElementById('llm-provider-extra-body').value =
@@ -518,6 +519,7 @@
                 retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
                 retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
                 retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
+                retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null
