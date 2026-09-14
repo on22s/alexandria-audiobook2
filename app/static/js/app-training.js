@@ -182,6 +182,15 @@
             }
         };
 
+        async function onToggleFavoriteAdapter(adapterId) {
+            try {
+                await API.post(`/api/voice_library/favorites/${encodeURIComponent(adapterId)}`, {});
+                await loadLoraModels();
+            } catch (e) {
+                showToast('Could not update favorite: ' + e.message, 'error');
+            }
+        }
+
         async function loadLoraModels() {
             try {
                 const models = await API.get('/api/lora/models');
@@ -254,7 +263,7 @@
                         <tbody>
                             ${models.map(m => `
                                 <tr${m.builtin ? ' class="table-light"' : ''}>
-                                    <td><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
+                                    <td><button class="btn btn-sm btn-link p-0 me-1 ${m.favorite ? 'text-warning' : 'text-muted'}" data-adapter-id="${escapeHtml(m.id)}" onclick="onToggleFavoriteAdapter(this.dataset.adapterId)" title="${m.favorite ? 'Favorite — voice suggestions prefer it when compatible' : 'Mark as favorite'}"><i class="${m.favorite ? 'fas' : 'far'} fa-star"></i></button><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>

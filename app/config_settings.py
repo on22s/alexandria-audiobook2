@@ -53,6 +53,9 @@ class LLMConfig(BaseModel):
     retry_initial_delay_seconds: float = Field(default=1, ge=0, le=60)
     retry_multiplier: float = Field(default=2, ge=1, le=10)
     retry_max_delay_seconds: float = Field(default=30, ge=0, le=300)
+    # Fraction of each retry delay randomised either side (0.2 = +-20%), so
+    # parallel workers do not retry a rate-limited provider in lockstep.
+    retry_jitter: float = Field(default=0.2, ge=0, le=1)
 
 
 class TTSConfig(BaseModel):

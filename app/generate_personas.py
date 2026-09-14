@@ -173,6 +173,20 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
 _NARRATOR_LABELS = frozenset({"NARRATOR", "NARRATION", "NARRATIVE"})
 
 
+DEFAULT_CONTEXT_LINES = 8
+
+
+def select_persona_context(lines, narrator_context, context_lines=DEFAULT_CONTEXT_LINES):
+    """-> (sample_text, intro_blob) for the persona prompt: the first
+    `context_lines` spoken lines and up to as many narrator lines (#522 12.1:
+    10 / 25 / 50 / 100 or custom, from the Voices tab)."""
+    n = max(1, int(context_lines or DEFAULT_CONTEXT_LINES))
+    sample_text = "\n".join(lines[:n])
+    intro = narrator_context[:n]
+    intro_blob = "\n".join(intro) if intro else "(No nearby narrator intro lines found.)"
+    return sample_text, intro_blob
+
+
 def _collect_narrator_context(script, speaker, window=4):
     """Gather unique narrator lines within `window` entries (before and after) of any appearance.
 
@@ -710,6 +724,8 @@ def main():
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
     parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist")
     parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context")
+    parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
+                        help="Sample spoken lines per character fed to the persona prompt; the narrator window grows to half of it")
     args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -738,7 +754,8 @@ def main():
             first_index[speaker] = i
 
     narrator_context = {}
-    window = max(1, int(args.narration_window or 4))
+    context_lines = max(1, min(int(args.context_lines or DEFAULT_CONTEXT_LINES), 200))
+    window = max(1, int(args.narration_window or 4), context_lines // 2)
     for speaker in samples.keys():
         narrator_context[speaker] = _collect_narrator_context(script, speaker, window)
 
@@ -891,9 +908,8 @@ def main():
         try:
             print(f"Generating persona for: {speaker} ({len(lines)} lines samples)")
 
-            sample_text = "\n".join(lines[:8])
-            intro_ctx = narrator_context.get(speaker, [])
-            intro_blob = "\n".join(intro_ctx) if intro_ctx else "(No nearby narrator intro lines found.)"
+            sample_text, intro_blob = select_persona_context(
+                lines, narrator_context.get(speaker, []), context_lines)
 
             user_prompt = persona_user.format(
                 speaker=speaker,

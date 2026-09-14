@@ -29,6 +29,32 @@ from generate_personas import (_resolve_to_canonical, _token_jaccard,
 
 class NormalizationTest(unittest.TestCase):
 
+    def test_persona_route_passes_context_lines_to_the_script(self):
+        import asyncio
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from routers import voices as voices_module
+        queued = []
+        tasks = SimpleNamespace(add_task=lambda fn, cmd, name: queued.append(cmd))
+        with patch.object(voices_module, "check_global_gpu_lock"), \
+             patch.object(voices_module, "claim_gpu_task"), \
+             patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)):
+            asyncio.run(voices_module.generate_personas(
+                tasks, voices_module.GeneratePersonasRequest(context_lines=50)))
+        self.assertIn("--context-lines", queued[0])
+        self.assertEqual("50", queued[0][queued[0].index("--context-lines") + 1])
+
+    def test_persona_context_size_bounds_both_sample_and_narrator_lines(self):
+        from generate_personas import select_persona_context
+        lines = [f"line {i}" for i in range(40)]
+        narr = [f"narr {i}" for i in range(40)]
+        sample, intro = select_persona_context(lines, narr, 25)
+        self.assertEqual(25, len(sample.splitlines()))
+        self.assertEqual(25, len(intro.splitlines()))
+        sample, intro = select_persona_context(lines, [], None)
+        self.assertEqual(8, len(sample.splitlines()))
+        self.assertIn("No nearby narrator", intro)
+
     def test_case_and_punctuation_always_fold(self):
         """The live config depends on this: EMILIA and Emilia are one
         character, as are NOT-SATELLA and Not-Satella."""

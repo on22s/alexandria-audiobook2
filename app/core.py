@@ -251,7 +251,9 @@ def get_cast_adapter_usage(lib: dict, cast_name: Optional[str]) -> dict:
 
 
 def _load_voice_library() -> dict:
-    lib = {"shared": {}, "casts": {}}
+    # favorites: adapter ids the user starred (#522 19.4); user data, so it
+    # lives here rather than in the shipped built-in manifest.
+    lib = {"shared": {}, "casts": {}, "favorites": []}
     if os.path.exists(VOICE_LIBRARY_PATH):
         try:
             with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
@@ -259,6 +261,7 @@ def _load_voice_library() -> dict:
             if isinstance(data, dict):
                 lib["shared"] = data.get("shared", {}) or {}
                 lib["casts"] = data.get("casts", {}) or {}
+                lib["favorites"] = [str(a) for a in (data.get("favorites") or []) if a]
         except (json.JSONDecodeError, ValueError) as e:
             _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
     return lib
