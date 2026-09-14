@@ -224,6 +224,9 @@
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_kanji_and_kana_spellings_of_one_word_score_as_equal",
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_the_real_botchan_pair_scores_far_better_on_readings"
   ],
+  "test_attribute_prompt_minor_speaker_rule": [
+    "tests.test_attribute_prompt_minor_speaker_rule.MinorSpeakerRule.test_rule_four_is_in_the_system_prompt_and_not_the_user_prompt"
+  ],
   "test_attribution_accuracy": [
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_book_and_entry_index_are_unique_in_every_fixture",
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_every_entry_has_an_expected_speaker",
@@ -1304,6 +1307,8 @@
     "tests.test_generate_personas.NormalizationTest.test_case_and_punctuation_always_fold",
     "tests.test_generate_personas.NormalizationTest.test_honorific_stripping_is_optional",
     "tests.test_generate_personas.NormalizationTest.test_non_string_input_is_empty",
+    "tests.test_generate_personas.NormalizationTest.test_persona_context_size_bounds_both_sample_and_narrator_lines",
+    "tests.test_generate_personas.NormalizationTest.test_persona_route_passes_context_lines_to_the_script",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_case_variant_roster_is_not_treated_as_ambiguous",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_roster_loaded_from_a_config_shaped_dict",
     "tests.test_generate_personas.RealRosterShapeTest.test_one_couple_anywhere_in_a_large_roster_is_enough",
@@ -1775,6 +1780,7 @@
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_profile_timeout_uses_request_and_connect_limits",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_reasoning_effort_setting_is_validated",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_request_interval_applies_across_with_options_clients",
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_retry_jitter_stays_inside_its_band_and_under_the_cap",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_with_options_retains_provider_body_defaults"
   ],
   "test_llm_review_regressions": [
@@ -2285,6 +2291,7 @@
   "test_prompt_variant": [
     "tests.test_prompt_variant.PromptVariantTest.test_an_unknown_variant_is_refused_not_silently_treated_as_control",
     "tests.test_prompt_variant.PromptVariantTest.test_control_is_the_default_and_adds_nothing",
+    "tests.test_prompt_variant.PromptVariantTest.test_minor_speaker_hint_is_appended_to_the_control_prompt",
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_is_a_pure_suffix_of_the_control",
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_survives_alongside_the_narrator_prior",
     "tests.test_prompt_variant.PromptVariantTest.test_the_variant_list_is_what_the_cli_offers"
@@ -3596,6 +3603,8 @@
     "tests.test_voices_regressions.VoicesTests.test_cast_usage_counts_distinct_members_not_books",
     "tests.test_voices_regressions.VoicesTests.test_casting_enforces_gender_and_prefers_closest_age",
     "tests.test_voices_regressions.VoicesTests.test_character_trait_evidence_prefers_label_over_dialogue",
+    "tests.test_voices_regressions.VoicesTests.test_favorite_toggle_round_trips_through_the_library",
+    "tests.test_voices_regressions.VoicesTests.test_favorite_wins_from_lm_rank_two_but_not_over_a_hard_mismatch",
     "tests.test_voices_regressions.VoicesTests.test_gender_fallback_and_recurring_mismatch",
     "tests.test_voices_regressions.VoicesTests.test_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_legacy_generic_cast_member_is_not_auto_matched",
@@ -3608,6 +3617,7 @@
     "tests.test_voices_regressions.VoicesTests.test_numbered_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_numeric_age_boundaries_and_precedence",
     "tests.test_voices_regressions.VoicesTests.test_pitch_is_not_used_as_a_gender_classifier",
+    "tests.test_voices_regressions.VoicesTests.test_ready_flag_round_trips_and_survives_a_cast_apply",
     "tests.test_voices_regressions.VoicesTests.test_recurring_mismatch_requires_authoritative_trait_confidence",
     "tests.test_voices_regressions.VoicesTests.test_selective_enrichment_prompt",
     "tests.test_voices_regressions.VoicesTests.test_shared_narrator_is_reused_and_counted",
