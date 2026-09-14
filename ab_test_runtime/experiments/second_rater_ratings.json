@@ -1,0 +1,181 @@
+{
+ "note": "Ratings for the second-rater listening package (built 2026-09-06 for a rater who is not the project owner), unblinded against the sealed key. The key's sha256 matches the value second_rater_listening.json recorded before rating.",
+ "package": "second_rater_listening.json",
+ "key_sha256": "f47f47297343230c08d6fb47a7bad74acc6e1eeba3f5b8b700ca0b8afe1881e9",
+ "key_sha256_verified": true,
+ "rater": "a friend of the project owner; a naive listener who has never heard these adapters or the arms",
+ "how": "page https://claude.ai/code/artifact/66936e4d-4b7b-4479-9318-45c1e8cb70ff (11 trials, shuffled, MP3 clips); the shared link served a pinned earlier version on which trials 9-11 (set_07, set_03, set_01) did not play, so those were re-served alone at https://claude.ai/code/artifact/23a9ba09-4feb-4ce4-9fff-0166119f8aa2 and rated in a second sitting the same day. The three 'Can't tell' answers recorded for the unplayable trials are discarded; the second sitting's answers replace them.",
+ "rated_at": "2026-09-13",
+ "registered_control_design": "Three sets pair the reference against one more recording of the same narrator and one of a different narrator. BOTH are different sentences from the reference, so content carries no signal about which is the same person - the flaw that voided the 2026-09-06 controls, where only the foreign clip differed in content. A rater who cannot pass these has not produced a readable result.",
+ "results": {
+  "large": {
+   "same": 1,
+   "shipped": 3
+  },
+  "none": {
+   "shipped": 2,
+   "rebuilt": 1,
+   "same": 1
+  },
+  "control": {
+   "same_person": 3
+  }
+ },
+ "verdict": "Controls 3 of 3 on content-neutral pairs (same narrator vs a stranger, both different sentences from the reference) - the first control pass in this project that content could not have produced. Large-gap class (ECAPA +0.315): shipped 3 of 4, cannot tell 1, the other arm never. No-gap class (+0.017): shipped 2, rebuilt 1, cannot tell 1 - near chance. This is the registered prediction, on a certified naive listener.",
+ "rows": [
+  {
+   "set": "set_00",
+   "kind": "test",
+   "gap_class": "large",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "answer": "same",
+   "picked": "same",
+   "sitting": 1
+  },
+  {
+   "set": "set_01",
+   "kind": "test",
+   "gap_class": "large",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "answer": "B",
+   "picked": "shipped",
+   "sitting": 2
+  },
+  {
+   "set": "set_02",
+   "kind": "test",
+   "gap_class": "large",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "answer": "A",
+   "picked": "shipped",
+   "sitting": 1
+  },
+  {
+   "set": "set_03",
+   "kind": "test",
+   "gap_class": "large",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": 0.3155,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "answer": "B",
+   "picked": "shipped",
+   "sitting": 2
+  },
+  {
+   "set": "set_04",
+   "kind": "test",
+   "gap_class": "none",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "answer": "B",
+   "picked": "shipped",
+   "sitting": 1
+  },
+  {
+   "set": "set_05",
+   "kind": "test",
+   "gap_class": "none",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "answer": "B",
+   "picked": "rebuilt",
+   "sitting": 1
+  },
+  {
+   "set": "set_06",
+   "kind": "test",
+   "gap_class": "none",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "shipped",
+    "B": "rebuilt"
+   },
+   "answer": "same",
+   "picked": "same",
+   "sitting": 1
+  },
+  {
+   "set": "set_07",
+   "kind": "test",
+   "gap_class": "none",
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "ecapa_gap": -0.0169,
+   "slots": {
+    "A": "rebuilt",
+    "B": "shipped"
+   },
+   "answer": "B",
+   "picked": "shipped",
+   "sitting": 2
+  },
+  {
+   "set": "set_08",
+   "kind": "control",
+   "gap_class": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "other_person",
+    "B": "same_person"
+   },
+   "answer": "B",
+   "picked": "same_person",
+   "sitting": 1
+  },
+  {
+   "set": "set_09",
+   "kind": "control",
+   "gap_class": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "other_person",
+    "B": "same_person"
+   },
+   "answer": "B",
+   "picked": "same_person",
+   "sitting": 1
+  },
+  {
+   "set": "set_10",
+   "kind": "control",
+   "gap_class": "control",
+   "adapter": "warm_baritone_40s_m_1",
+   "ecapa_gap": null,
+   "slots": {
+    "A": "same_person",
+    "B": "other_person"
+   },
+   "answer": "A",
+   "picked": "same_person",
+   "sitting": 1
+  }
+ ]
+}
