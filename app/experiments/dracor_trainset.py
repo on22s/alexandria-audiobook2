@@ -200,6 +200,11 @@ def play_rows(play, corpus, play_name, context_chars):
                 {"type": after["type"], "text": after["text"][:context_chars].strip()},
             ],
             "line": unit["text"], "teacher": play["roster"][unit["who"]],
+            # Who spoke the neighbouring lines (None for stage directions).
+            # Not shown to the adapter; dracor_prose.py needs it to write a
+            # frame on the right line.
+            "context_speakers": [play["roster"].get(before.get("who")),
+                                 play["roster"].get(after.get("who"))],
             "speaker_category": categories[unit["who"]],
             "quote_structure": "continuous",
             "book": "dracor_%s_%s" % (corpus, play_name), "language": language,
