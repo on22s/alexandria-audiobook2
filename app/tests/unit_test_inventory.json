@@ -3527,6 +3527,7 @@
     "tests.test_voice_dataset_quality.VoiceDatasetQualityTests.test_summary_reports_cross_archive_pcm_duplicates"
   ],
   "test_voice_drift": [
+    "tests.test_voice_drift.DriftCheckRouteTests.test_drift_check_route_is_not_swallowed_by_chunk_index",
     "tests.test_voice_drift.VoiceDriftPersistenceTests.test_drift_check_is_exempt_from_the_gpu_lock",
     "tests.test_voice_drift.VoiceDriftPersistenceTests.test_results_are_written_onto_chunks_and_cleared_by_regeneration",
     "tests.test_voice_drift.VoiceDriftPersistenceTests.test_speaker_model_interpreter_prefers_the_running_env",

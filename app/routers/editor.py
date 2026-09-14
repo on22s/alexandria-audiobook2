@@ -72,6 +72,54 @@ async def restore_chunk(request: ChunkRestoreRequest):
         raise HTTPException(status_code=400, detail="Failed to restore chunk")
     return {"status": "ok", "total": len(chunks)}
 
+# Registered before /api/chunks/{index}: FastAPI matches routes in order, and
+# the integer wildcard swallowed this literal path (422 since #525).
+@router.post("/api/chunks/drift_check")
+async def drift_check_endpoint(request: DriftCheckRequest, background_tasks: BackgroundTasks):
+    """Score done chunks against their speaker's reference voice (ECAPA cosine,
+    CPU, sibling interpreter) and flag the ones that drifted. Never
+    regenerates anything; the per-chunk Gen button is the fix."""
+    state = process_state["drift_check"]
+    if state["running"]:
+        raise HTTPException(status_code=400, detail="A voice-drift check is already running.")
+    threshold = voice_drift.get_drift_threshold(load_app_config(CONFIG_PATH))
+    python_bin = voice_drift.get_speaker_model_python(_load_voicelab_config())
+    indices = request.indices
+
+    def task():
+        state["running"] = True
+        state["logs"] = ["Checking generated chunks against their reference voices..."]
+        try:
+            from tts import _resolve_asset_path
+            chunks = project_manager.load_chunks()
+            voice_config = safe_load_json(project_manager.voice_config_path, default={}) or {}
+            report = voice_drift.check_voice_drift(
+                chunks, voice_config, project_manager.root_dir, python_bin, threshold,
+                indices=indices, resolve_alias=project_manager._resolve_alias,
+                resolve_asset_path=_resolve_asset_path)
+            if report["error"]:
+                state["logs"].append(f"NOT MEASURED: {report['error']}")
+                return
+            flagged = voice_drift.apply_drift_results(project_manager, report["results"], threshold)
+            scored = sum(1 for r in report["results"] if r["score"] is not None)
+            state["logs"].append(
+                f"Checked {scored} chunk(s) at threshold {threshold}: {flagged} flagged.")
+            for r in report["results"]:
+                if r["flagged"]:
+                    state["logs"].append(f"  Chunk {r['index']} drifted: {r['score']} vs {r['reference']}")
+        except Exception as e:
+            logger.exception("Voice-drift check error")
+            state["logs"].append(f"Voice-drift check error: {e}")
+        finally:
+            state["running"] = False
+
+    # Reserve the task before handing it to FastAPI's background runner.  The
+    # request-time running check above is only an early rejection; this atomic
+    # claim closes the gap between two rapid requests both seeing it as idle.
+    claim_gpu_task("drift_check")
+    background_tasks.add_task(task)
+    return {"status": "started", "threshold": threshold, "measured": python_bin is not None}
+
 @router.post("/api/chunks/{index}")
 async def update_chunk(index: int, update: ChunkUpdate):
     updates = update.model_dump(exclude_unset=True)
@@ -439,47 +487,6 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
     background_tasks.add_task(task)
     return {"status": "started", "workers": workers, "total_chunks": total}
 
-@router.post("/api/chunks/drift_check")
-async def drift_check_endpoint(request: DriftCheckRequest, background_tasks: BackgroundTasks):
-    """Score done chunks against their speaker's reference voice (ECAPA cosine,
-    CPU, sibling interpreter) and flag the ones that drifted. Never
-    regenerates anything; the per-chunk Gen button is the fix."""
-    state = process_state["drift_check"]
-    if state["running"]:
-        raise HTTPException(status_code=400, detail="A voice-drift check is already running.")
-    threshold = voice_drift.get_drift_threshold(load_app_config(CONFIG_PATH))
-    python_bin = voice_drift.get_speaker_model_python(_load_voicelab_config())
-    indices = request.indices
-
-    def task():
-        state["running"] = True
-        state["logs"] = ["Checking generated chunks against their reference voices..."]
-        try:
-            from tts import _resolve_asset_path
-            chunks = project_manager.load_chunks()
-            voice_config = safe_load_json(project_manager.voice_config_path, default={}) or {}
-            report = voice_drift.check_voice_drift(
-                chunks, voice_config, project_manager.root_dir, python_bin, threshold,
-                indices=indices, resolve_alias=project_manager._resolve_alias,
-                resolve_asset_path=_resolve_asset_path)
-            if report["error"]:
-                state["logs"].append(f"NOT MEASURED: {report['error']}")
-                return
-            flagged = voice_drift.apply_drift_results(project_manager, report["results"], threshold)
-            scored = sum(1 for r in report["results"] if r["score"] is not None)
-            state["logs"].append(
-                f"Checked {scored} chunk(s) at threshold {threshold}: {flagged} flagged.")
-            for r in report["results"]:
-                if r["flagged"]:
-                    state["logs"].append(f"  Chunk {r['index']} drifted: {r['score']} vs {r['reference']}")
-        except Exception as e:
-            logger.exception("Voice-drift check error")
-            state["logs"].append(f"Voice-drift check error: {e}")
-        finally:
-            state["running"] = False
-
-    background_tasks.add_task(task)
-    return {"status": "started", "threshold": threshold, "measured": python_bin is not None}
 
 @router.post("/api/generate_batch_fast")
 async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background_tasks: BackgroundTasks):
