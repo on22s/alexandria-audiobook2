@@ -677,22 +677,46 @@
   {
    "goal": "1.2",
    "title": "Close the selection gap",
-   "cited": 9,
+   "cited": 13,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "provisional": 8,
+    "provisional": 12,
     "supported_structure": 1
    },
-   "dirty_artifacts": 6,
+   "dirty_artifacts": 8,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "231a460e"
+    },
     {
      "name": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json",
      "classification": "provisional",
      "dirty": true,
      "commit": "e94f1ecf"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-current-20260914.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "c6033045"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-dracor-en-prose-a6000-product-batch25-20260914.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "30d09501"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "30d09501"
     },
     {
      "name": "two_stage_attribution__all_rows_hint_20260914.json",
