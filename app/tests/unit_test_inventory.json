@@ -702,6 +702,13 @@
     "tests.test_compare_attribution_arms.TextAlignmentTest.test_identical_arms_of_equal_length_have_no_disagreements",
     "tests.test_compare_attribution_arms.TextAlignmentTest.test_whitespace_differences_do_not_count_as_disagreement"
   ],
+  "test_compute_dtype": [
+    "tests.test_compute_dtype.ComputeDtypeTests.test_amd_apus_load_in_fp32",
+    "tests.test_compute_dtype.ComputeDtypeTests.test_cpu_and_mps_are_fp32",
+    "tests.test_compute_dtype.ComputeDtypeTests.test_discrete_rocm_cards_stay_bf16",
+    "tests.test_compute_dtype.ComputeDtypeTests.test_nvidia_is_bf16",
+    "tests.test_compute_dtype.ComputeDtypeTests.test_unreadable_arch_on_rocm_keeps_bf16"
+  ],
   "test_config_jsonable": [
     "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_a_config_without_profiles_is_unaffected",
     "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_a_loaded_config_can_be_written_back",
