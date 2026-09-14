@@ -13258,8 +13258,8 @@
     },
     {
       "artifact": "lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-batch25-jsonschema-latest-20260914.json",
-      "bytes": 1323262,
-      "sha256": "7f9921dc769c7ef5e4fa89b5a3a289a495d9166d5e33b8700cd0e8743b7d3ed9",
+      "bytes": 1323478,
+      "sha256": "e6ee0bc4f25c6c6dd85020861ed80566c3cae1e588be0d61ee8bab59292adeed",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},

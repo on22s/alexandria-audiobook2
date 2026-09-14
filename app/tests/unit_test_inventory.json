@@ -3065,6 +3065,7 @@
   "test_structured_output": [
     "tests.test_structured_output.StructuredOutput.test_a_non_schema_400_keeps_the_schema_and_the_retry_path",
     "tests.test_structured_output.StructuredOutput.test_attribution_sends_the_schema_by_default",
+    "tests.test_structured_output.StructuredOutput.test_fallback_does_not_leak_to_a_new_run",
     "tests.test_structured_output.StructuredOutput.test_off_never_sends_it",
     "tests.test_structured_output.StructuredOutput.test_other_errors_are_not_mistaken_for_schema_rejection",
     "tests.test_structured_output.StructuredOutput.test_rejection_falls_back_once_and_sticks_for_the_server"
@@ -3153,6 +3154,7 @@
     "tests.test_three_pass_generate.CheckpointTests.test_collect_all_subdivides_instruction_failures_to_singletons",
     "tests.test_three_pass_generate.CheckpointTests.test_completed_stage_is_not_recomputed_on_resume",
     "tests.test_three_pass_generate.CheckpointTests.test_failed_attribution_attempt_is_checkpointed_for_next_resume",
+    "tests.test_three_pass_generate.CheckpointTests.test_fingerprint_changes_for_structured_output_mode",
     "tests.test_three_pass_generate.CheckpointTests.test_fingerprint_changes_with_output_affecting_settings",
     "tests.test_three_pass_generate.CheckpointTests.test_nonverbal_entry_completes_without_pass2_or_pass3_call",
     "tests.test_three_pass_generate.CheckpointTests.test_resume_preserves_resolutions_and_accumulates_pass_elapsed",
@@ -3378,6 +3380,7 @@
     "tests.test_two_step.EndToEnd.test_both_stages_run_and_produce_entries",
     "tests.test_two_step.EndToEnd.test_empty_stage1_fails_without_calling_stage2",
     "tests.test_two_step.EndToEnd.test_stage2_gets_stage1_output_not_the_chunk",
+    "tests.test_two_step.Fingerprint.test_fingerprint_changes_for_structured_output_mode",
     "tests.test_two_step.Fingerprint.test_two_step_does_not_share_a_checkpoint_with_json",
     "tests.test_two_step.FreeformCodec.test_empty_reply_is_a_failed_attempt_not_an_empty_success",
     "tests.test_two_step.FreeformCodec.test_wraps_the_whole_reply",

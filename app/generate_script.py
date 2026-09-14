@@ -6,7 +6,7 @@ import json
 import re
 import time
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
 from config_settings import load_app_config
 from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body
@@ -119,12 +119,13 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
         "presence_penalty": params.presence_penalty, "banned_tokens": params.banned_tokens,
         "context_length": params.context_length, "hard_max_tokens": params.hard_max_tokens,
         "provider_extra_body": getattr(params, "provider_extra_body", None),
+        "structured_output": getattr(params, "structured_output", "auto"),
+        "response_schema": getattr(params, "response_schema", None),
     }
-    # Added ONLY when non-default. Every checkpoint written before this key
-    # existed was a JSON run, so including it unconditionally would change
-    # settings_sha256 for all of them and throw away resumable work that is
-    # still perfectly valid (Rule 9). A "lines" run gets its own fingerprint,
-    # which is the behaviour that matters.
+    # Output-format is added only when non-default. Every checkpoint written
+    # before that key existed was a JSON run, so including it unconditionally
+    # would discard resumable work that is still valid (Rule 9). Structured
+    # output is included above because it changes the request contract.
     output_format = getattr(params, "output_format", "json") or "json"
     if output_format != "json":
         settings["output_format"] = output_format
@@ -540,6 +541,10 @@ class LLMGenParams:
     # which retries the same request with a fresh budget. A non-retryable
     # error (content policy) never pauses - retrying it cannot succeed.
     on_api_exhaustion: str = "fail"
+    # Per-run capability cache shared by dataclasses.replace() retries. Kept at
+    # the end so legacy positional constructors retain their meaning.
+    schema_rejected_by: set = field(default_factory=set, repr=False,
+                                    compare=False)
 
 
 
@@ -582,16 +587,12 @@ def redact_recovery_value(value, key=None):
     return value
 
 
-# Servers that rejected response_format this process, by base URL, so one
-# refusal costs one request rather than one per window.
-_SCHEMA_REJECTED_BY = set()
-
-
 def get_response_format(params, client):
     """-> the OpenAI-style response_format for this call, or None."""
     if params.structured_output == "off" or not params.response_schema:
         return None
-    if str(getattr(client, "base_url", "")) in _SCHEMA_REJECTED_BY:
+    if str(getattr(client, "base_url", "")) in getattr(
+            params, "schema_rejected_by", set()):
         return None
     return {"type": "json_schema",
             "json_schema": {"name": params.response_schema.get("name", "entries"),
@@ -602,16 +603,19 @@ def get_response_format(params, client):
 def is_schema_rejection(error):
     """A 4xx that names the structured-output feature, as opposed to any
     other bad request: the server does not support response_format."""
-    if isinstance(error, TypeError) and "response_format" in str(error):
-        return True  # an in-process client (distill_eval.LocalClient) without the kwarg
+    if isinstance(error, TypeError):
+        text = str(error).lower()
+        # An in-process client (distill_eval.LocalClient) without the kwarg.
+        return "response_format" in text and "unexpected keyword" in text
     status = getattr(error, "status_code", None)
     if status not in (400, 422):
         return False
     text = str(error).lower()
-    return any(k in text for k in ("response_format", "json_schema", "grammar", "schema"))
+    return any(k in text for k in ("response_format", "json_schema")) and any(
+        k in text for k in ("not supported", "unsupported", "unknown", "unexpected"))
 
 
-def create_completion(client, response_format, **kwargs):
+def create_completion(client, response_format, schema_rejected_by=None, **kwargs):
     """One completion request; if the server rejects the schema, remember
     that for its base URL and send the same request free-form."""
     if response_format:
@@ -620,7 +624,8 @@ def create_completion(client, response_format, **kwargs):
         except Exception as error:  # noqa: BLE001 - classified below
             if not is_schema_rejection(error):
                 raise
-            _SCHEMA_REJECTED_BY.add(str(getattr(client, "base_url", "")))
+            if schema_rejected_by is not None:
+                schema_rejected_by.add(str(getattr(client, "base_url", "")))
             print(f"  structured output rejected by the server ({error}); "
                   "sending free-form JSON for the rest of this run", flush=True)
     return client.chat.completions.create(**kwargs)
@@ -777,7 +782,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
                          retry_decider=None, near_miss_sink=None, codec=None,
-                         _resume_state=None):
+                         _resume_state=None, _schema_rejected_by=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -805,6 +810,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     # Persists across attempts: a reasoning model gets exactly one larger
     # budget before the batch is failed (Rule 10 - one retry policy).
     reasoning_escalated = resume_state.get("reasoning_escalated", False)
+    schema_rejected_by = (_schema_rejected_by if _schema_rejected_by is not None
+                          else getattr(params, "schema_rejected_by", set()))
 
     def _retry_same_request(preserve_retry_state=False):
         """Retry after an external event, preserving same-provider state on resume."""
@@ -824,7 +831,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             max_retries=max_retries, validate_entries=validate_entries,
             transform_entries=transform_entries, attempt_observer=attempt_observer,
             retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec,
-            _resume_state=state)
+            _resume_state=state, _schema_rejected_by=schema_rejected_by)
 
     for attempt in range(max_retries + 1):
         attempt_number = attempt_offset + attempt + 1
@@ -865,6 +872,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     break
             response = create_completion(
                 client, get_response_format(params, client),
+                schema_rejected_by=schema_rejected_by,
                 model=model_name,
                 messages=messages,
                 temperature=params.temperature,

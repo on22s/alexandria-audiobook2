@@ -43,7 +43,7 @@ def _params(**over):
 
 class StructuredOutput(unittest.TestCase):
     def setUp(self):
-        gs._SCHEMA_REJECTED_BY.clear()
+        pass
 
     def test_attribution_sends_the_schema_by_default(self):
         client = _Client()
@@ -62,13 +62,14 @@ class StructuredOutput(unittest.TestCase):
     def test_rejection_falls_back_once_and_sticks_for_the_server(self):
         client = _Client(reject=_ApiError(400, "response_format is not supported"))
         frozen = [{"type": "SPOKEN", "text": "Yes."}]
-        tp.attribute_batch(client, "m", frozen, _params(), roster=[])
+        params = _params()
+        tp.attribute_batch(client, "m", frozen, params, roster=[])
         # first window: schema attempt, then the same request free-form
         self.assertIn("response_format", client.calls[0])
         self.assertNotIn("response_format", client.calls[1])
         self.assertEqual(client.calls[0]["messages"], client.calls[1]["messages"])
         # second window on the same server: no schema attempt at all
-        tp.attribute_batch(client, "m", frozen, _params(), roster=[])
+        tp.attribute_batch(client, "m", frozen, params, roster=[])
         self.assertEqual(3, len(client.calls))
         self.assertNotIn("response_format", client.calls[2])
         # a different server still gets the schema
@@ -76,11 +77,20 @@ class StructuredOutput(unittest.TestCase):
         tp.attribute_batch(other, "m", frozen, _params(), roster=[])
         self.assertIn("response_format", other.calls[0])
 
+    def test_fallback_does_not_leak_to_a_new_run(self):
+        frozen = [{"type": "SPOKEN", "text": "Yes."}]
+        rejecting = _Client(reject=_ApiError(400, "response_format is not supported"))
+        tp.attribute_batch(rejecting, "m", frozen, _params(), roster=[])
+        accepting = _Client(base_url="http://srv/v1")
+        tp.attribute_batch(accepting, "m", frozen, _params(), roster=[])
+        self.assertIn("response_format", accepting.calls[0])
+
     def test_other_errors_are_not_mistaken_for_schema_rejection(self):
         self.assertFalse(gs.is_schema_rejection(_ApiError(400, "context length exceeded")))
         self.assertFalse(gs.is_schema_rejection(_ApiError(500, "json_schema grammar failed")))
         self.assertTrue(gs.is_schema_rejection(_ApiError(400, "unknown field: json_schema")))
-        self.assertTrue(gs.is_schema_rejection(_ApiError(422, "grammar: invalid")))
+        self.assertFalse(gs.is_schema_rejection(_ApiError(422, "grammar: invalid")))
+        self.assertTrue(gs.is_schema_rejection(_ApiError(422, "json_schema is unsupported")))
         self.assertTrue(gs.is_schema_rejection(TypeError("create() got an unexpected keyword argument 'response_format'")))
         self.assertFalse(gs.is_schema_rejection(TypeError("unsupported operand")))
 
@@ -89,7 +99,6 @@ class StructuredOutput(unittest.TestCase):
         with self.assertRaises(tp.PassExhausted):
             tp.attribute_batch(client, "m", [{"type": "SPOKEN", "text": "Yes."}],
                                _params(api_retry_limit=0), roster=[], max_retries=0)
-        self.assertEqual(set(), gs._SCHEMA_REJECTED_BY)
         self.assertIn("response_format", client.calls[-1])
 
 
