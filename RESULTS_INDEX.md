@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1618 artifacts, 1731 arms.
+Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1619 artifacts, 1739 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -884,6 +884,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 78.4% | exploratory | ok | True | 1456.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 72.5% | exploratory | ok | True | 1799.3s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 77.9% | exploratory | ok | True | 1441.2s |
+| grimgar03 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 385 | 88.3% | exploratory | ok | False | 9071.5s |
+| grimgar03 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 385 | 89.9% | exploratory | ok | False | 9071.5s |
 | index18 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 4477.1s |
 | index18 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 3830.8s |
 | index18 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 88 | 55.7% | exploratory | ok | False | 7068.1s |
@@ -1051,7 +1053,9 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2957.1s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2890.6s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2890.6s |
+| index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 88 | 77.3% | exploratory | ok | False | 9071.5s |
 | index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 88 | 73.9% | exploratory | ok | False | 7080.7s |
+| index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 88 | 78.4% | exploratory | ok | False | 9071.5s |
 | index18 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 88 | 72.7% | exploratory | ok | False | 7080.7s |
 | mushoku16 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 133 | 39.1% | exploratory | ok | False | 4477.1s |
 | mushoku16 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 133 | 39.1% | exploratory | ok | False | 3830.8s |
@@ -1212,7 +1216,9 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.9% | exploratory | ok | False | 2957.1s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2890.6s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2890.6s |
+| mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 133 | 77.4% | exploratory | ok | False | 9071.5s |
 | mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 133 | 72.9% | exploratory | ok | False | 7080.7s |
+| mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 133 | 78.2% | exploratory | ok | False | 9071.5s |
 | mushoku16 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 133 | 73.7% | exploratory | ok | False | 7080.7s |
 | owarimonogatari3 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 162 | 25.9% | exploratory | ok | False | 4477.1s |
 | owarimonogatari3 | gemma4-12b | local-lmstudio | lmstudio | 32768 | base | 162 | 25.9% | exploratory | ok | False | 3830.8s |
@@ -1376,7 +1382,9 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 162 | 33.3% | exploratory | ok | False | 2957.1s |
 | owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2890.6s |
 | owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 162 | 32.7% | exploratory | ok | False | 2890.6s |
+| owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 162 | 70.4% | exploratory | ok | False | 9071.5s |
 | owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | base | 162 | 65.4% | exploratory | ok | False | 7080.7s |
+| owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 162 | 71.0% | exploratory | ok | False | 9071.5s |
 | owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 162 | 56.8% | exploratory | ok | False | 7080.7s |
 
 ## narrator_prior

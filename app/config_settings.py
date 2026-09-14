@@ -45,6 +45,11 @@ class LLMConfig(BaseModel):
     # chunk up ("fail", today's behaviour) or freeze the run for the operator
     # to fix the provider and press Resume ("pause").
     on_api_exhaustion: Literal["fail", "pause"] = "fail"
+    # Ask the server to constrain attribution replies to the {n, speaker}
+    # JSON schema ("auto": send it, fall back for the run if the server
+    # rejects response_format; "off": never). Measured 2026-09-14: on
+    # Qwen3.8 at batch 25 it recovered every blank window (54 -> 0).
+    structured_output: Literal["auto", "off"] = "auto"
     retry_initial_delay_seconds: float = Field(default=1, ge=0, le=60)
     retry_multiplier: float = Field(default=2, ge=1, le=10)
     retry_max_delay_seconds: float = Field(default=30, ge=0, le=300)

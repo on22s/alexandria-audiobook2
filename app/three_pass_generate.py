@@ -256,6 +256,24 @@ def build_attribute_request(frozen_batch, params, roster,
         roster=", ".join(roster) or "(none yet)", batch=batch_json)
 
 
+# What the attribution pass asks the server to constrain replies to, when
+# the profile's structured_output is "auto" (issue #522 s9.1). Validation of
+# the CONTENT (index head check, text freeze, roster membership) is unchanged:
+# the schema only guarantees the shape.
+ATTRIBUTION_RESPONSE_SCHEMA = {
+    "name": "speaker_attribution",
+    "schema": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"n": {"type": "integer"}, "speaker": {"type": "string"}},
+            "required": ["n", "speaker"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
@@ -277,7 +295,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
 
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
-                                               else params.temperature))
+                                               else params.temperature),
+                          response_schema=ATTRIBUTION_RESPONSE_SCHEMA)
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an
@@ -1753,6 +1772,7 @@ def main():
         presegment_quotes=generation_settings["presegment_quotes"],
         reasoning_effort=args.reasoning_effort,
         provider_extra_body=llm.get("provider_extra_body"),
+        structured_output=llm.get("structured_output", "auto"),
         api_retry_limit=llm.get("api_retry_limit"),
         retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm.get("retry_multiplier", 2),
