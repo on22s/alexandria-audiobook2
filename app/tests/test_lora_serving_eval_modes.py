@@ -25,10 +25,12 @@ class LoraServingEvalModeTests(unittest.TestCase):
 
     def test_metadata_records_nondefault_request_controls(self):
         decoding, _ = get_eval_metadata(
-            base_only=True, batch=5, reasoning_effort="low", max_tokens=6000)
+            base_only=True, batch=5, reasoning_effort="low", max_tokens=6000,
+            structured_output="off")
         self.assertEqual(5, decoding["batch"])
         self.assertEqual("low", decoding["reasoning_effort"])
         self.assertEqual(6000, decoding["max_tokens"])
+        self.assertEqual("off", decoding["structured_output"])
 
     def test_default_budget_is_the_products_not_a_smaller_one(self):
         """2000 was half the product's room; Muse overflowed 70% of windows."""

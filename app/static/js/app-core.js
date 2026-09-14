@@ -188,6 +188,8 @@
                 } else if (e.target.dataset.tab === 'reports') {
                     loadReports();
                     loadCheckpoints();
+                    loadRunHistory();
+                    refreshBenchmarkStatus();
                 }
             });
         });

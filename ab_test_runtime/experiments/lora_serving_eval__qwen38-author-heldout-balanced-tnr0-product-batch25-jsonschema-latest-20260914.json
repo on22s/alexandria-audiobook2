@@ -2,6 +2,7 @@
  "meta": {
   "experiment": "lora_serving_eval",
   "notes": "Paired serving evaluation. Arms share one server and differ only by adapter scale, toggled via POST /lora-adapters. The evaluator does not observe base quantisation or adapter precision and makes no claim about either.",
+  "provenance_note": "Historical result: the generating commit was not captured. The request-level JSON-schema mode is recorded from the evaluator instrument and decoding metadata.",
   "git": {
    "commit": null,
    "branch": null,
@@ -31,6 +32,7 @@
    "batch": 25,
    "max_tokens": 4096,
    "reasoning_effort": "none",
+   "structured_output": "auto",
    "arms": [
     "base",
     "lora"

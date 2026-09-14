@@ -468,7 +468,7 @@
     </div>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="#"><i class="fas fa-book-open me-2"></i>Alexandria</a>
+            <a class="navbar-brand" href="#"><i class="fas fa-book-open me-2"></i>Alexandria <span id="app-build-badge" class="badge bg-secondary fw-normal ms-1" style="font-size: 0.6em;" title="Running build"></span></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -613,7 +613,7 @@
                                 <option value="high">high</option>
                                 <option value="xhigh">xhigh</option>
                             </select>
-                            <div class="form-text">Sent as <code>reasoning_effort</code> on every request from this location (script generation, review, personas, nicknames). Attribution adapters are trained on direct answers, so <em>none</em> is the usual choice with them.</div>
+                            <div class="form-text">Sent as <code>reasoning_effort</code> on every request from this location (script generation, review, personas, nicknames). Attribution adapters are trained on direct answers, so <em>none</em> is the usual choice with them. Measured 2026-09-14 on the base model: <em>medium</em> lifts minor-character attribution 57 → 63% (as much as removing the leads from the cast would) at about 3× the wall time — worth it when time allows and no adapter is loaded.</div>
                             <label class="form-label mt-2" for="llm-provider-extra-body">Custom request body (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"top_k": 40}'></textarea>
                         </details>
@@ -2164,6 +2164,31 @@
                         </div>
                         <div class="card-body p-0">
                             <div id="reports-list" class="list-group list-group-flush"></div>
+                        </div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="m-0">Runs</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadRunHistory()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                        </div>
+                        <div class="card-body p-0" style="max-height: 40vh; overflow-y: auto;">
+                            <div id="runs-list" class="list-group list-group-flush"></div>
+                        </div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="m-0">Benchmark</h5>
+                            <span id="benchmark-status" class="small text-muted"></span>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label small mb-1" for="benchmark-manifest">Manifest (JSON: stage, targets, fixtures, settings)</label>
+                            <textarea class="form-control font-monospace" id="benchmark-manifest" rows="6" style="font-size: 0.8em;" placeholder='{"schema_version": 1, "stage": "script_generation", "targets": ["local"], "fixtures": [{"id": "chunk-1", "sha256": "..."}]}'></textarea>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="onBenchmarkPreflight()"><i class="fas fa-clipboard-check me-1"></i>Preflight</button>
+                                <button class="btn btn-sm btn-primary" id="btn-benchmark-start" onclick="onBenchmarkStart()" disabled><i class="fas fa-play me-1"></i>Start</button>
+                                <button class="btn btn-sm btn-outline-danger" id="btn-benchmark-cancel" onclick="onBenchmarkCancel()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            </div>
+                            <pre id="benchmark-output" class="small mt-2 mb-0" style="max-height: 30vh; overflow: auto; white-space: pre-wrap;"></pre>
                         </div>
                     </div>
                     <div class="card mt-3">

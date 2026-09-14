@@ -10,6 +10,7 @@ node_modules/
 *.m4b
 *.mp3
 *.wav
+*.flac
 *.zip
 voicelines/
 scripts/

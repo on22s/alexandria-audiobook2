@@ -42,6 +42,13 @@ Rules for this file:
 | Qwen3-14B | same mixed-multin recipe (2026-09-12) | **PDNC generalisation concern**: held-out Austen −8.8…+1.0, development Gambler +33.6; product-window result unverified | `pdnc_eval__goal13mm_*.json` (#550) | do not infer Gemma's output-contract failure or Muse's serving failure from this model's held-out result |
 | Qwen3-14B | same mixed-multin seed 2, product batch 25 | **quality retries exhausted** on some windows | tnr-2 `qwen14b_mixed_multin_seed2_20260912/eval/eval.log` | server stayed healthy, but some spoken lines returned no valid source-attested speaker; four retries then recorded `PassExhausted`. A batch-10 rerun is queued before changing the adapter. |
 
+## Prompt (the product's own attribution prompt)
+
+| setting | value | status | evidence |
+|---|---|---|---|
+| minor-speaker rule (rule 4 in `default_prompts_attribute.txt`) | "Do not default to the story's main characters…" | works, small: never negative on seven books; PDNC minor rows 57.2 → 59.1 pooled (p=0.035, one book carries it); product window 477 → 488 of 768 (p=0.26), blank windows 13 → 3 | `two_stage_attribution__usual_suspects_hint_20260914.json`, `two_stage_attribution__all_rows_hint_20260914.json`, `lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json` (GOALS 1.2) |
+| reasoning on the base model | `reasoning_effort: medium`, budget 1024 | works when time allows: minor rows 57.2 → 62.9 (+173/−104, p=4e-5), the removal ceiling on all three books, ~3× wall time | `two_stage_attribution__usual_suspects_reasoning_20260914.json` (GOALS 1.2); not measured with an adapter loaded |
+
 ## Serving and measuring (the instrument, not the model)
 
 | setting | value | status | evidence |

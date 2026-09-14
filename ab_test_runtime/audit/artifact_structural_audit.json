@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 993,
     "exploratory": 414,
-    "provisional": 212,
+    "provisional": 216,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12627,6 +12627,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json",
+      "bytes": 665187,
+      "sha256": "fb46820be5dfb7addb3c99950cd98fb7782bd1c442920bb17d6d250879afe0f9",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 768,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "e94f1ecf0d7b23c3158a05c74ad3bf2f56484a1d",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__qwen3-14b-dracor-en-a6000-product-batch25-20260913.json",
       "bytes": 1327873,
       "sha256": "c671878091c639cb4417edb3a965245950127576c011ce51b3e61ac4f1837291",
@@ -13258,8 +13276,8 @@
     },
     {
       "artifact": "lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-batch25-jsonschema-latest-20260914.json",
-      "bytes": 1323262,
-      "sha256": "7f9921dc769c7ef5e4fa89b5a3a289a495d9166d5e33b8700cd0e8743b7d3ed9",
+      "bytes": 1323478,
+      "sha256": "e6ee0bc4f25c6c6dd85020861ed80566c3cae1e588be0d61ee8bab59292adeed",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -27228,6 +27246,24 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "two_stage_attribution__all_rows_hint_20260914.json",
+      "bytes": 5469145,
+      "sha256": "c4889d2e603540370971560f16b7bc63d92e1d7a1f76ae76f7b7ed30524957fa",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 2494,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "069bb06137f9258cae39aaabb10b5a4c530c24ac",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "two_stage_attribution__explicit_control.json",
       "bytes": 4568635,
       "sha256": "7047c9734d0cc762cc8191ba826ca87d0f354e5a3cce6334ae3107b3b09c14d7",
@@ -27368,6 +27404,42 @@
       "commit": "069bb06137f9258cae39aaabb10b5a4c530c24ac",
       "written": null,
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution__usual_suspects_hint_20260914.json",
+      "bytes": 2800817,
+      "sha256": "8a469d75f9a2ec435c7db86a71627a33d6ec5e9cfdd64bd12484614210a74bdb",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1213,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "069bb06137f9258cae39aaabb10b5a4c530c24ac",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution__usual_suspects_reasoning_20260914.json",
+      "bytes": 5640834,
+      "sha256": "a3deaa1c589770db2fdfcc8280fe56131659fe2ffbb3aca1558129c620800605",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1213,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "806358456af67f6ff4ddfef7b84d59bd55232f97",
+      "written": null,
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },
