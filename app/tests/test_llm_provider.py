@@ -202,3 +202,72 @@ class ProviderRequestSettingsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReasoningModelRequestShapeTests(unittest.TestCase):
+    """OpenAI's GPT-5 / o-series reject `max_tokens` (they want
+    `max_completion_tokens`) and, with reasoning on, the sampling controls.
+    Local servers and non-reasoning models must keep every parameter."""
+
+    def _create(self, profile, **kwargs):
+        with patch("llm_provider.OpenAI", _FakeOpenAI):
+            _FakeOpenAI.instances.clear()
+            client = make_llm_client(profile, timeout=5)
+            client.chat.completions.create(**kwargs)
+        return _FakeOpenAI.instances[-1].chat.completions.calls[-1][1]
+
+    def test_local_server_request_is_untouched(self):
+        sent = self._create({"base_url": "http://127.0.0.1:8090/v1", "model_name": "qwen3-14b",
+                             "reasoning_effort": "medium"},
+                            model="qwen3-14b", max_tokens=4096, temperature=0.1, top_p=0.9, messages=[])
+        self.assertEqual(4096, sent["max_tokens"])
+        self.assertEqual(0.1, sent["temperature"])
+        self.assertEqual({"reasoning_effort": "medium"}, sent["extra_body"])
+
+    def test_gpt5_with_reasoning_gets_completion_tokens_and_no_sampling(self):
+        sent = self._create({"base_url": "https://api.openai.com/v1", "model_name": "gpt-5.6",
+                             "reasoning_effort": "medium"},
+                            model="gpt-5.6", max_tokens=4096, temperature=0.1, top_p=0.9, messages=[])
+        self.assertEqual(4096, sent["max_completion_tokens"])
+        self.assertNotIn("max_tokens", sent)
+        self.assertNotIn("temperature", sent)
+        self.assertNotIn("top_p", sent)
+        self.assertEqual("medium", sent["extra_body"]["reasoning_effort"])
+
+    def test_gpt5_with_reasoning_off_keeps_sampling(self):
+        sent = self._create({"base_url": "https://api.openai.com/v1", "model_name": "gpt-5.6",
+                             "reasoning_effort": "none"},
+                            model="gpt-5.6", max_tokens=64, temperature=0.1, messages=[])
+        self.assertEqual(64, sent["max_completion_tokens"])
+        self.assertEqual(0.1, sent["temperature"])
+
+
+class ApiKeyReferenceTests(unittest.TestCase):
+    def test_env_references_resolve_and_literals_pass_through(self):
+        from llm_provider import resolve_api_key, is_api_key_reference
+        with patch.dict("os.environ", {"MY_KEY": "sk-from-env", "OPENAI_API_KEY": "sk-default"}, clear=False):
+            self.assertEqual("sk-from-env", resolve_api_key("env:MY_KEY"))
+            self.assertEqual("sk-from-env", resolve_api_key("${MY_KEY}"))
+            self.assertEqual("sk-default", resolve_api_key(""))
+            self.assertEqual("local", resolve_api_key("local"))
+            self.assertEqual("sk-literal", resolve_api_key("sk-literal"))
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual("", resolve_api_key("env:MISSING"), "a typo must not become the key")
+            self.assertEqual("local", resolve_api_key(""))
+        self.assertTrue(is_api_key_reference("env:MY_KEY"))
+        self.assertTrue(is_api_key_reference("${MY_KEY}"))
+        self.assertFalse(is_api_key_reference("sk-literal"))
+
+    def test_client_is_built_with_the_resolved_key(self):
+        with patch("llm_provider.OpenAI", _FakeOpenAI), \
+                patch.dict("os.environ", {"MY_KEY": "sk-from-env"}, clear=False):
+            _FakeOpenAI.instances.clear()
+            make_llm_client({"base_url": "https://api.openai.com/v1", "api_key": "env:MY_KEY"}, timeout=5)
+        self.assertEqual("sk-from-env", _FakeOpenAI.instances[-1].kwargs["api_key"])
+
+    def test_setup_page_shows_a_reference_but_redacts_a_secret(self):
+        from routers.system import _redact_config_secrets, _REDACTED_SECRET
+        safe = _redact_config_secrets({"llm": {"api_key": "env:MY_KEY"}, "llm_remote": {"api_key": "sk-literal"}})
+        self.assertEqual("env:MY_KEY", safe["llm"]["api_key"])
+        self.assertEqual(_REDACTED_SECRET, safe["llm_remote"]["api_key"])
+        self.assertTrue(safe["llm"]["api_key_configured"])

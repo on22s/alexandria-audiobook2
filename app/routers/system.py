@@ -18,6 +18,7 @@ from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfi
                              load_app_config_result)
 
 from default_prompts import load_default_prompts
+from llm_provider import is_api_key_reference
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
@@ -72,8 +73,9 @@ def _redact_config_secrets(config: dict) -> dict:
     for section in ("llm", "llm_local", "llm_remote", "tts"):
         value = safe.get(section)
         if isinstance(value, dict) and value.get("api_key"):
-            value["api_key"] = _REDACTED_SECRET
             value["api_key_configured"] = True
+            if not is_api_key_reference(value["api_key"]):
+                value["api_key"] = _REDACTED_SECRET
     return safe
 
 
