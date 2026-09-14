@@ -204,16 +204,22 @@
   {
    "goal": "2.1",
    "title": "Speaker similarity against a human ceiling",
-   "cited": 1,
+   "cited": 2,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 1
+    "supported_structure": 2
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "hifitts_9017_score.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "092d783c"
+    },
     {
      "name": "reference_audit.json",
      "classification": "supported_structure",
@@ -586,18 +592,19 @@
   {
    "goal": "7.1",
    "title": "A listener prefers what we ship",
-   "cited": 7,
+   "cited": 10,
    "not_in_audit": [],
    "not_experiment_artifacts": [
-    "adapter_listening_v2_concealed_key.json"
+    "adapter_listening_v2_concealed_key.json",
+    "second_rater_concealed_key.json"
    ],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 3,
-    "exploratory": 3
+    "supported_structure": 4,
+    "exploratory": 4
    },
-   "dirty_artifacts": 1,
-   "no_commit": 3,
+   "dirty_artifacts": 2,
+   "no_commit": 4,
    "artifacts": [
     {
      "name": "adapter_listening.json",
@@ -634,6 +641,18 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "7571c879"
+    },
+    {
+     "name": "second_rater_listening.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "71527e2c"
+    },
+    {
+     "name": "second_rater_ratings.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },
