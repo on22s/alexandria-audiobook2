@@ -1783,6 +1783,7 @@ def main():
         retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm.get("retry_multiplier", 2),
         retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
+        retry_jitter=llm.get("retry_jitter", 0.2),
         on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
     if narrator:
         attribute_system_prompt, _ = load_attribute_prompts()

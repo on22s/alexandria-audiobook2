@@ -217,9 +217,13 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
             if field in assignment:
                 cfg[field] = assignment[field]
         cfg.pop("alias_of", None)
-        # Preserve an existing alias_of on the current character (book-specific)
+        cfg.pop("ready", None)
+        # Preserve an existing alias_of and ready flag on the current
+        # character (both book-specific, never part of the library entry)
         if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
             cfg["alias_of"] = result_config[char]["alias_of"]
+        if isinstance(result_config.get(char), dict) and result_config[char].get("ready"):
+            cfg["ready"] = True
         result_config[char] = cfg
         applied.append(char)
     return result_config, applied
@@ -302,6 +306,27 @@ async def voice_library_create_cast(request: CastCreateRequest):
 
     await _mutate_voice_library_async(create)
     return {"status": "created", "name": name}
+
+
+@router.post("/api/voice_library/favorites/{adapter_id}")
+async def voice_library_toggle_favorite(adapter_id: str):
+    """Star or unstar one adapter; suggestions prefer compatible favorites."""
+    adapter_id = adapter_id.strip()
+    if not adapter_id:
+        raise HTTPException(status_code=400, detail="Adapter id is required.")
+
+    def toggle(lib):
+        favorites = list(lib.get("favorites") or [])
+        if adapter_id in favorites:
+            favorites.remove(adapter_id)
+            starred = False
+        else:
+            favorites.append(adapter_id)
+            starred = True
+        lib["favorites"] = favorites
+        return {"favorite": starred, "favorites": favorites}
+
+    return await _mutate_voice_library_async(toggle)
 
 
 @router.delete("/api/voice_library/casts/{cast}")

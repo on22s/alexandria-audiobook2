@@ -6,6 +6,7 @@ Keep that configuration in one wrapper so every generation path gets the same
 profile settings, while a call's explicit options still take precedence.
 """
 
+import random
 import threading
 import time
 
@@ -67,10 +68,18 @@ def classify_llm_error(error):
 
 
 def get_retry_delay(retry_initial_delay_seconds, retry_multiplier,
-                    retry_max_delay_seconds, retry_number):
-    """Return a bounded exponential delay for a numbered retry (starting at one)."""
-    return min(retry_max_delay_seconds,
-               retry_initial_delay_seconds * retry_multiplier ** max(0, retry_number - 1))
+                    retry_max_delay_seconds, retry_number, jitter=0.0, rng=random):
+    """Return a bounded exponential delay for a numbered retry (starting at one).
+
+    `jitter` is the fraction of the delay randomised either side (0.2 = +-20%)
+    so concurrent workers retrying a rate-limited provider do not all come
+    back in the same instant; 0 keeps the exact exponential value.
+    """
+    delay = min(retry_max_delay_seconds,
+                retry_initial_delay_seconds * retry_multiplier ** max(0, retry_number - 1))
+    if jitter:
+        delay = min(retry_max_delay_seconds, delay * rng.uniform(1 - jitter, 1 + jitter))
+    return delay
 
 
 class _RequestPacer:

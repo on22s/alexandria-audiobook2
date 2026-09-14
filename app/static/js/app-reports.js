@@ -84,3 +84,127 @@
 
         // Last script: every tab loader is defined now, so reopen the remembered tab.
         restoreTab();
+
+        // ── Build badge, run history, benchmark ─────────────────────────
+        async function loadBuildBadge() {
+            const el = document.getElementById('app-build-badge');
+            if (!el) { return; }
+            try {
+                const v = await API.get('/api/status/version');
+                const rev = v.short_revision || (v.revision || '').slice(0, 8);
+                el.textContent = rev ? `${rev}${v.branch ? ' · ' + v.branch : ''}` : 'build unknown';
+                el.title = `Running build ${v.revision || 'unknown'} (${v.revision_source || 'unknown'})`;
+            } catch (e) {
+                el.textContent = '';
+            }
+        }
+        loadBuildBadge();
+
+        function runStatusBadge(status) {
+            const cls = { running: 'bg-primary', completed: 'bg-success', failed: 'bg-danger',
+                          interrupted: 'bg-warning text-dark', cancelled: 'bg-secondary' }[status] || 'bg-secondary';
+            return `<span class="badge ${cls}">${escapeHtml(status || 'unknown')}</span>`;
+        }
+
+        async function loadRunHistory() {
+            const listEl = document.getElementById('runs-list');
+            if (!listEl) { return; }
+            try {
+                const data = await API.get('/api/runs?limit=50');
+                const runs = data.runs || [];
+                if (!runs.length) {
+                    listEl.innerHTML = '<div class="list-group-item text-muted small">No runs recorded yet. Every long task (script, review, personas, audio, training…) leaves a record here.</div>';
+                    return;
+                }
+                listEl.innerHTML = runs.map(r => {
+                    const started = r.started_at ? new Date(r.started_at).toLocaleString() : '';
+                    const took = (r.started_at && r.finished_at)
+                        ? `${Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000)} s` : '';
+                    return `<div class="list-group-item small py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div><strong>${escapeHtml(r.task || '')}</strong> ${runStatusBadge(r.status)}</div>
+                            <div class="text-muted">${escapeHtml(started)}${took ? ' · ' + escapeHtml(took) : ''}</div>
+                        </div>
+                        ${r.error ? `<div class="text-danger text-truncate" title="${escapeHtml(r.error)}">${escapeHtml(r.error)}</div>` : ''}
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load runs: ${escapeHtml(e.message || String(e))}</div>`;
+            }
+        }
+
+        let _benchmarkPreflightId = null;
+        let _benchmarkPoll = null;
+
+        function readBenchmarkManifest() {
+            const raw = document.getElementById('benchmark-manifest')?.value || '';
+            try {
+                const manifest = JSON.parse(raw);
+                if (!manifest || typeof manifest !== 'object') { throw new Error('manifest must be a JSON object'); }
+                return manifest;
+            } catch (e) {
+                showToast('Manifest is not valid JSON: ' + e.message, 'error');
+                return null;
+            }
+        }
+
+        async function onBenchmarkPreflight() {
+            const manifest = readBenchmarkManifest();
+            const out = document.getElementById('benchmark-output');
+            if (!manifest) { return; }
+            _benchmarkPreflightId = null;
+            document.getElementById('btn-benchmark-start').disabled = true;
+            try {
+                const res = await API.post('/api/benchmark/preflight', { manifest });
+                _benchmarkPreflightId = res.preflight_id || null;
+                out.textContent = JSON.stringify(res, null, 2);
+                document.getElementById('btn-benchmark-start').disabled = !_benchmarkPreflightId;
+            } catch (e) {
+                out.textContent = 'Preflight failed: ' + (e.message || String(e));
+            }
+        }
+
+        async function onBenchmarkStart() {
+            const manifest = readBenchmarkManifest();
+            if (!manifest || !_benchmarkPreflightId) { return; }
+            try {
+                await API.post('/api/benchmark/start', { manifest, preflight_id: _benchmarkPreflightId });
+                refreshBenchmarkStatus();
+            } catch (e) {
+                showToast('Benchmark did not start: ' + (e.message || String(e)), 'error');
+            }
+        }
+
+        async function onBenchmarkCancel() {
+            try {
+                await API.post('/api/benchmark/cancel', {});
+            } catch (e) {
+                showToast(e.message || String(e), 'error');
+            }
+        }
+
+        async function refreshBenchmarkStatus() {
+            const status = document.getElementById('benchmark-status');
+            const out = document.getElementById('benchmark-output');
+            const cancelBtn = document.getElementById('btn-benchmark-cancel');
+            if (!status) { return; }
+            try {
+                const s = await API.get('/api/benchmark/status');
+                const done = (s.tasks || []).filter(t => t.status && t.status !== 'pending').length;
+                status.textContent = s.running
+                    ? `running · ${done}/${(s.tasks || []).length} fixtures`
+                    : (s.status && s.status !== 'idle' ? s.status : 'idle');
+                cancelBtn.style.display = s.running ? '' : 'none';
+                if (s.running || (s.logs || []).length) {
+                    out.textContent = (s.logs || []).slice(-40).join('\n');
+                }
+                if (s.running && !_benchmarkPoll) {
+                    _benchmarkPoll = setInterval(refreshBenchmarkStatus, 3000);
+                } else if (!s.running && _benchmarkPoll) {
+                    clearInterval(_benchmarkPoll);
+                    _benchmarkPoll = null;
+                }
+            } catch (e) {
+                status.textContent = '';
+            }
+        }
