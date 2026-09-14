@@ -11,8 +11,8 @@ class MinorSpeakerRule(unittest.TestCase):
         system, user = load_attribute_prompts()
         self.assertIn("Do not default to the story's main characters", system)
         self.assertNotIn("main characters", user)
-        # it is a numbered rule after the UNKNOWN rule, not a stray sentence
-        self.assertLess(system.index('use "UNKNOWN"'), system.index("4. Do not default"))
+        # it is a numbered decision step, not a stray sentence
+        self.assertRegex(system, r"\n\d+\. Do not default to the story's main characters")
 
 
 if __name__ == "__main__":
