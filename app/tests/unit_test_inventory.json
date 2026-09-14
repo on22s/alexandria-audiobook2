@@ -224,6 +224,9 @@
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_kanji_and_kana_spellings_of_one_word_score_as_equal",
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_the_real_botchan_pair_scores_far_better_on_readings"
   ],
+  "test_attribute_prompt_minor_speaker_rule": [
+    "tests.test_attribute_prompt_minor_speaker_rule.MinorSpeakerRule.test_rule_four_is_in_the_system_prompt_and_not_the_user_prompt"
+  ],
   "test_attribution_accuracy": [
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_book_and_entry_index_are_unique_in_every_fixture",
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_every_entry_has_an_expected_speaker",
