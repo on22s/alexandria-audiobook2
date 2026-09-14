@@ -101,3 +101,17 @@ class VariantProviderKeepsNarrationTests(unittest.TestCase):
         self.assertIn("Ranta grinned.", bodies[1])
         self.assertEqual(1, bodies[1].count("Ranta grinned."), "shared context is interleaved once")
 
+
+class MentionedRosterTests(unittest.TestCase):
+    """--roster-mode mentioned: only names attested in the window (by name or
+    alias) or carried from the previous window's speakers are shown."""
+
+    def test_attested_by_alias_or_carried_only_in_roster_order(self):
+        from experiments.lora_serving_eval import mentioned_roster
+        roster = ["ABAEL", "HARUHIRO", "RANTA", "SHIHORU"]
+        groups = [{"haruhiro", "haru"}]
+        shown = mentioned_roster(roster, groups, ["\"Haru!\" Ranta shouted."], carried=["SHIHORU", "NOBODY"])
+        self.assertEqual(["HARUHIRO", "RANTA", "SHIHORU"], shown)
+        self.assertEqual([], mentioned_roster(roster, groups, ["nothing here"]))
+        self.assertEqual(["ABAEL"], mentioned_roster(roster, groups, ["abael spoke"] , cap=1))
+

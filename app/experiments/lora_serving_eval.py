@@ -80,6 +80,26 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
+def mentioned_roster(roster, groups, texts, carried=(), cap=30):
+    """-> the roster names attested (by name or alias) in `texts`, plus
+    `carried` (the previous window's attributed speakers), in roster order,
+    capped. XinchaoGou/alexandria-audiobook's related_context() builds its
+    roster this way for serial novels - string match on the chunk, not
+    embeddings, plus the previous chapter's cast - and it is a cheap attack on
+    the usual-suspect prior: a lead who is not on the page is not offered."""
+    hay = norm(" ".join(t or "" for t in texts))
+    forms = {}
+    for name in roster:
+        key = norm(name)
+        forms[name] = {key} | {a for g in groups if key in g for a in g}
+    kept = [name for name in roster
+            if any(f and f in hay for f in forms[name])]
+    for name in carried:
+        if name in roster and name not in kept:
+            kept.append(name)
+    return kept[:cap]
+
+
 def set_adapter_scale(base_url, scale):
     """Toggle the served adapter. Verified by reading the state back: a silent
     no-op here would make both arms identical and look like a null result."""
@@ -194,6 +214,10 @@ def main():
     ap.add_argument("--prompt-variant", default="default",
                     help="attribution_prompt_variants.VARIANTS: how the question is asked; "
                          "the output contract and gates are unchanged")
+    ap.add_argument("--roster-mode", default="full", choices=("full", "mentioned"),
+                    help="full: the established roster on every window (the product); "
+                         "mentioned: only names attested in this or the previous window's "
+                         "text, plus the previous window's attributed speakers, cap 30")
     ap.add_argument("--structured-output", default="auto", choices=("auto", "off"),
                     help="request-level JSON schema on attribution calls "
                          "(the product default is auto)")
@@ -229,6 +253,7 @@ def main():
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
     decoding["prompt_variant"] = args.prompt_variant
+    decoding["roster_mode"] = args.roster_mode
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -261,9 +286,22 @@ def main():
                 got = set_adapter_scale(args.base_url, scale)
                 print(f"  adapter scale now {got}", flush=True)
             started = time.time()
+            carried = []
             for k, win in enumerate(windows, 1):
                 send = [i for i in win
                         if get_deterministic_named_entry(seg[i]) is None]
+                if args.roster_mode == "mentioned":
+                    prev = windows[k - 2] if k >= 2 else []
+                    shown_roster = mentioned_roster(
+                        roster, groups,
+                        [seg[i].get("text") for i in list(prev) + list(win)], carried)
+                else:
+                    shown_roster = roster
+                # What the model was SHOWN is what in_candidates must mean
+                # (scoring.roster_membership_names): a restricted roster that
+                # dropped the gold speaker is recorded as such, not hidden
+                # behind the full roster's membership.
+                membership = roster_membership_names(shown_roster, groups)
                 rows = [i for i in send if norm(seg[i].get("text")) in want]
                 if not rows:
                     continue
@@ -280,7 +318,7 @@ def main():
                 why = f"{arm}|scale={scale}"
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
-                                          roster, neighbor_contexts=ctx,
+                                          shown_roster, neighbor_contexts=ctx,
                                           source_text=src,
                                           entries_provider=provider)
                 except PassExhausted as exc:
@@ -303,6 +341,9 @@ def main():
                                        False, candidates=membership,
                                        provenance=f"{arm}|batch_failed")
                     continue
+                carried = sorted({str((o or {}).get("speaker") or "").upper()
+                                  for o in (out or []) if (o or {}).get("speaker")}
+                                 & set(roster))
                 for off, i in enumerate(send):
                     key = norm(seg[i].get("text"))
                     if key not in want:
