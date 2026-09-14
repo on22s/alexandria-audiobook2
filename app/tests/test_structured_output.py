@@ -81,6 +81,8 @@ class StructuredOutput(unittest.TestCase):
         self.assertFalse(gs.is_schema_rejection(_ApiError(500, "json_schema grammar failed")))
         self.assertTrue(gs.is_schema_rejection(_ApiError(400, "unknown field: json_schema")))
         self.assertTrue(gs.is_schema_rejection(_ApiError(422, "grammar: invalid")))
+        self.assertTrue(gs.is_schema_rejection(TypeError("create() got an unexpected keyword argument 'response_format'")))
+        self.assertFalse(gs.is_schema_rejection(TypeError("unsupported operand")))
 
     def test_a_non_schema_400_keeps_the_schema_and_the_retry_path(self):
         client = _Client(reject=_ApiError(400, "context length exceeded"))

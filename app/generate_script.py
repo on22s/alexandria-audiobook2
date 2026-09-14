@@ -602,6 +602,8 @@ def get_response_format(params, client):
 def is_schema_rejection(error):
     """A 4xx that names the structured-output feature, as opposed to any
     other bad request: the server does not support response_format."""
+    if isinstance(error, TypeError) and "response_format" in str(error):
+        return True  # an in-process client (distill_eval.LocalClient) without the kwarg
     status = getattr(error, "status_code", None)
     if status not in (400, 422):
         return False
