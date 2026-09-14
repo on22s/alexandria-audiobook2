@@ -669,7 +669,7 @@ class TTSEngine:
             from qwen_tts import Qwen3TTSModel
 
             device = self._resolve_device()
-            dtype = torch.bfloat16 if "cuda" in device else torch.float32
+            dtype = device_utils.compute_dtype(device)
 
             print(f"Loading Qwen3-TTS CustomVoice model on {device} ({dtype})...")
             vram_before = self._vram_snapshot("pre-load")
@@ -701,7 +701,7 @@ class TTSEngine:
             from qwen_tts import Qwen3TTSModel
 
             device = self._resolve_device()
-            dtype = torch.bfloat16 if "cuda" in device else torch.float32
+            dtype = device_utils.compute_dtype(device)
 
             print(f"Loading Qwen3-TTS Base model (voice cloning) on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}
@@ -730,7 +730,7 @@ class TTSEngine:
             from qwen_tts import Qwen3TTSModel
 
             device = self._resolve_device()
-            dtype = torch.bfloat16 if "cuda" in device else torch.float32
+            dtype = device_utils.compute_dtype(device)
 
             print(f"Loading Qwen3-TTS VoiceDesign model on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}
@@ -773,7 +773,7 @@ class TTSEngine:
             from peft import PeftModel
 
             device = self._resolve_device()
-            dtype = torch.bfloat16 if "cuda" in device else torch.float32
+            dtype = device_utils.compute_dtype(device)
 
             print(f"Loading Qwen3-TTS Base model + LoRA adapter on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}

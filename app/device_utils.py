@@ -75,6 +75,34 @@ def resolve_device(device_str):
     return "cpu"
 
 
+# gfx103x = RDNA2 APUs (Rembrandt/Van Gogh: Radeon 660M/680M, Steam Deck);
+# gfx1103 = RDNA3 APUs (Phoenix: 780M). Discrete RDNA2/3 (gfx1030/1100) and
+# RDNA4 (gfx1200/1201, the 9070 XT) are not in this list and keep bf16.
+ROCM_FP32_ONLY_ARCHES = ("gfx1035", "gfx1036", "gfx1033", "gfx1103")
+
+
+def compute_dtype(device):
+    """-> the torch dtype to load a TTS model with on `device`.
+
+    bf16 on CUDA and on discrete ROCm cards; fp32 on AMD APU iGPUs, where a
+    bf16 GEMM SIGSEGVs inside torch.Linear (gfx1035, ROCm 6.4 wheels; seen on
+    a Radeon 660M by a downstream fork, cjdell/alexandria-audiobook adb3a66).
+    The arch comes from get_device_properties().gcnArchName, not the
+    marketing name, so the next APU generation is covered by its gfx id.
+    """
+    import torch
+    if "cuda" not in str(device):
+        return torch.float32
+    if getattr(torch.version, "hip", None):
+        try:
+            arch = str(torch.cuda.get_device_properties(0).gcnArchName)
+        except Exception:
+            arch = ""
+        if arch.split(":")[0] in ROCM_FP32_ONLY_ARCHES:
+            return torch.float32
+    return torch.bfloat16
+
+
 def enable_rocm_optimizations():
     """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU.
 
