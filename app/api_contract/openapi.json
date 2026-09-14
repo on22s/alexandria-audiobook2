@@ -1044,6 +1044,30 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InjectSegmentationRequest": {
+        "properties": {
+          "chunk": {
+            "title": "Chunk",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chunk",
+          "entries"
+        ],
+        "title": "InjectSegmentationRequest",
+        "type": "object"
+      },
       "JsonValue": {},
       "LLMConfig": {
         "properties": {
@@ -1645,6 +1669,19 @@
           "name"
         ],
         "title": "ScriptSaveRequest",
+        "type": "object"
+      },
+      "SkipChunkRequest": {
+        "properties": {
+          "chunk": {
+            "title": "Chunk",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chunk"
+        ],
+        "title": "SkipChunkRequest",
         "type": "object"
       },
       "SpeakerRepairRequest": {
@@ -4019,6 +4056,43 @@
         "summary": "Generate Script Cancel"
       }
     },
+    "/api/generate_script/inject": {
+      "post": {
+        "description": "Manual output injection (#522 s4.4): a pasted [{type, text}] list for\nthe failed chunk, validated by pass 1's own fidelity gate.",
+        "operationId": "generate_script_inject_api_generate_script_inject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectSegmentationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Script Inject"
+      }
+    },
     "/api/generate_script/pause": {
       "post": {
         "operationId": "generate_script_pause_api_generate_script_pause_post",
@@ -4050,6 +4124,23 @@
           }
         },
         "summary": "Generate Script Recovery"
+      }
+    },
+    "/api/generate_script/recovery/detail": {
+      "get": {
+        "description": "The failed chunk in full: attempts, source, prompt, retry profile.",
+        "operationId": "generate_script_recovery_detail_api_generate_script_recovery_detail_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Recovery Detail"
       }
     },
     "/api/generate_script/resume": {
@@ -4110,6 +4201,43 @@
           }
         },
         "summary": "Retry Generate Script"
+      }
+    },
+    "/api/generate_script/skip": {
+      "post": {
+        "description": "'Skip' that loses nothing: the chunk goes in split only at its outer\nquote marks (the deterministic splitter pass 1's gate itself uses), so\nevery word stays and quoted lines are still SPOKEN for attribution.",
+        "operationId": "generate_script_skip_api_generate_script_skip_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipChunkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Script Skip"
       }
     },
     "/api/llm/models": {

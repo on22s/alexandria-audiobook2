@@ -263,8 +263,9 @@
                     const body = await res.json();
                     if (body && body.detail) { detail = body.detail; }
                 } catch (e) { /* non-JSON error body; fall back to statusText */ }
-                const err = new Error(detail);
+                const err = new Error(typeof detail === 'string' ? detail : (detail.message || JSON.stringify(detail)));
                 err.status = res.status;
+                err.detail = detail; // structured 422 bodies (e.g. gate findings) stay readable
                 throw err;
             },
             get: async (url) => {
@@ -1095,6 +1096,7 @@
 
         async function refreshScriptRecovery() {
             const retryBtn = document.getElementById('btn-retry-script');
+            const panel = document.getElementById('script-recovery-panel');
             try {
                 const recovery = await API.get('/api/generate_script/recovery');
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
@@ -1103,10 +1105,149 @@
                         ? ` at ${recovery.failed_pass}`
                         : '';
                     showToast(`Generation can resume from its checkpoint${location}.`, 'warning');
+                    const detail = await API.get('/api/generate_script/recovery/detail');
+                    renderScriptRecovery(detail.recoverable ? detail : null);
+                } else {
+                    renderScriptRecovery(null);
                 }
             } catch (e) {
                 retryBtn.style.display = 'none';
+                if (panel) {
+                    panel.style.display = 'none';
+                }
                 console.debug('Script recovery status unavailable', e);
+            }
+        }
+
+        // Failed-request recovery panel (issue #522 s23): where it failed, every
+        // attempt with its HTTP status and category, the source, the exact
+        // prompt, and the three ways out — resume, paste a segmentation, or
+        // narrate the chunk as-is (split only at its quote marks).
+        function renderScriptRecovery(detail) {
+            const panel = document.getElementById('script-recovery-panel');
+            if (!panel) {
+                return;
+            }
+            if (!detail) {
+                panel.style.display = 'none';
+                panel.innerHTML = '';
+                return;
+            }
+            window._scriptRecoveryDetail = detail;
+            const last = detail.last_error || {};
+            const attemptRows = (detail.attempts || []).map(a => `
+                <tr>
+                    <td>${escapeHtml(String(a.attempt ?? ''))}</td>
+                    <td>${escapeHtml(a.outcome || '')}</td>
+                    <td>${a.http_status != null ? escapeHtml(String(a.http_status)) : '—'}</td>
+                    <td>${escapeHtml(a.error_category || (a.failure_codes || []).join(', ') || '')}</td>
+                    <td>${a.finish_reason ? escapeHtml(a.finish_reason) : ''}${a.completion_tokens != null ? ` · ${a.completion_tokens} tok` : ''}</td>
+                    <td>${a.next_retry_seconds != null ? escapeHtml(String(a.next_retry_seconds)) + ' s' : '—'}</td>
+                    <td class="text-truncate" style="max-width: 24em;" title="${escapeHtml(a.error || '')}">${escapeHtml(a.error || '')}</td>
+                </tr>`).join('');
+            const profile = detail.retry_profile || {};
+            panel.style.display = '';
+            panel.innerHTML = `
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="fas fa-triangle-exclamation me-1"></i>Generation stopped at ${escapeHtml(detail.failed_pass || 'segment')} · chunk ${escapeHtml(String(detail.failed_chunk))} of ${escapeHtml(String(detail.chunks_total))}</strong>
+                    <span class="small text-muted">${escapeHtml(String(detail.chunks_done))} chunks accepted · retries ${escapeHtml(String(profile.api_retry_limit ?? 'default'))}, backoff ${escapeHtml(String(profile.retry_initial_delay_seconds))}s ×${escapeHtml(String(profile.retry_multiplier))} ±${Math.round((profile.retry_jitter || 0) * 100)}%, on exhaustion: ${escapeHtml(profile.on_api_exhaustion || 'fail')}</span>
+                </div>
+                <div class="card-body">
+                    <div class="small mb-2">Last error: <strong>${escapeHtml(last.category || (detail.failure_codes || []).join(', ') || 'unknown')}</strong>${last.http_status != null ? ` (HTTP ${escapeHtml(String(last.http_status))})` : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}</div>
+                    <div class="table-responsive mb-2">
+                        <table class="table table-sm small mb-0">
+                            <thead><tr><th>#</th><th>Outcome</th><th>HTTP</th><th>Category / codes</th><th>Finish</th><th>Next retry</th><th>Error</th></tr></thead>
+                            <tbody>${attemptRows || '<tr><td colspan="7" class="text-muted">No attempt records for this chunk.</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">Source chunk</label>
+                            <textarea class="form-control font-monospace" rows="8" readonly style="font-size: 0.8em;">${escapeHtml(detail.source || '')}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1" for="script-recovery-inject">Segmentation JSON — <code>[{"type":"NARRATOR"|"SPOKEN","text":"..."}]</code>, every word of the source, in order</label>
+                            <textarea class="form-control font-monospace" id="script-recovery-inject" rows="8" style="font-size: 0.8em;" placeholder='[{"type": "SPOKEN", "text": "..."}, {"type": "NARRATOR", "text": "..."}]'></textarea>
+                        </div>
+                    </div>
+                    <div id="script-recovery-findings" class="small text-danger mt-2"></div>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"><i class="fas fa-rotate-right me-1"></i>Retry this chunk</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="onCopyRecoveryPrompt()"><i class="fas fa-copy me-1"></i>Copy prompt</button>
+                        <button class="btn btn-sm btn-outline-success" onclick="onInjectRecoverySegmentation()"><i class="fas fa-file-import me-1"></i>Validate &amp; apply segmentation</button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="onSkipRecoveryChunk()"><i class="fas fa-forward me-1"></i>Narrate as-is</button>
+                    </div>
+                </div>`;
+        }
+
+        async function onCopyRecoveryPrompt() {
+            const detail = window._scriptRecoveryDetail;
+            if (!detail || !detail.prompt) {
+                return;
+            }
+            const text = `SYSTEM:\n${detail.prompt.system}\n\nUSER:\n${detail.prompt.user}`;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Prompt copied to the clipboard.', 'success');
+            } catch (e) {
+                showToast('Clipboard unavailable: ' + e.message, 'error');
+            }
+        }
+
+        function renderRecoveryFindings(detail) {
+            const el = document.getElementById('script-recovery-findings');
+            if (!el) {
+                return;
+            }
+            if (!detail) {
+                el.innerHTML = '';
+                return;
+            }
+            const findings = (detail.findings || []).map(f => `<li>${escapeHtml(f.message || f.code || JSON.stringify(f))}${f.entry_number ? ` (entry ${escapeHtml(String(f.entry_number))})` : ''}</li>`).join('');
+            el.innerHTML = `<div>${escapeHtml(detail.message || 'Rejected.')}</div>${findings ? `<ul class="mb-0">${findings}</ul>` : ''}`;
+        }
+
+        async function onInjectRecoverySegmentation() {
+            const detail = window._scriptRecoveryDetail;
+            const box = document.getElementById('script-recovery-inject');
+            if (!detail || !box) {
+                return;
+            }
+            let entries;
+            try {
+                entries = JSON.parse(box.value);
+            } catch (e) {
+                renderRecoveryFindings({ message: 'Not valid JSON: ' + e.message });
+                return;
+            }
+            if (!Array.isArray(entries)) {
+                renderRecoveryFindings({ message: 'Expected a JSON array of {type, text} entries.' });
+                return;
+            }
+            try {
+                const result = await API.post('/api/generate_script/inject', { chunk: detail.failed_chunk, entries });
+                renderRecoveryFindings(null);
+                showToast(`Chunk ${result.chunk} accepted (${result.resolution}); ${result.chunks_done} chunks done. Resume to continue.`, 'success');
+                await refreshScriptRecovery();
+            } catch (e) {
+                renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
+            }
+        }
+
+        async function onSkipRecoveryChunk() {
+            const detail = window._scriptRecoveryDetail;
+            if (!detail) {
+                return;
+            }
+            if (!confirm(`Put chunk ${detail.failed_chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.`)) {
+                return;
+            }
+            try {
+                const result = await API.post('/api/generate_script/skip', { chunk: detail.failed_chunk });
+                showToast(`Chunk ${result.chunk} narrated as-is; ${result.chunks_done} chunks done. Resume to continue.`, 'success');
+                await refreshScriptRecovery();
+            } catch (e) {
+                renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
             }
         }
 

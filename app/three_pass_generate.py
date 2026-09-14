@@ -1000,13 +1000,19 @@ def _load_three_pass_checkpoint(output_path, fingerprint):
 
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
-                                elapsed_s=None, diagnostic_failures=None):
+                                elapsed_s=None, diagnostic_failures=None,
+                                failed=None):
+    """`failed` (only on a pass-1 fail-fast) carries what the recovery panel
+    needs to show and to validate a hand-supplied segmentation: the failed
+    chunk's number, its exact source text, how many chunks there are, and the
+    attempt records for that chunk (issue #522 s23 / s4.4)."""
     atomic_json_write({"fingerprint": fingerprint, "stage": stage,
                        "chunks_done": chunks_done, "segmented": segmented,
                        "named": named, "annotated": annotated,
                        "resolutions": resolutions or [],
                        "elapsed_s": elapsed_s or {},
-                       "diagnostic_failures": diagnostic_failures or []},
+                       "diagnostic_failures": diagnostic_failures or [],
+                       "failed": failed or None},
                       three_pass_checkpoint_path(output_path))
 
 
@@ -1074,11 +1080,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
 
     def last_attempt_for(_index):
         return last_attempts.get("latest")
-    def save(stage):
+    def save(stage, failed=None):
         if output_path:
             _save_three_pass_checkpoint(output_path, fingerprint, stage,
                                         segmented, chunks_done, named, annotated,
-                                        resolutions, elapsed_s, diagnostic_failures)
+                                        resolutions, elapsed_s, diagnostic_failures,
+                                        failed=failed)
     passes = {}
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
@@ -1135,6 +1142,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     for i in range(chunks_done, len(chunks)):
         sink = []
         failures = []
+        attempts_before = len(attempts)
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
                                        resolution_sink=sink, failure_sink=failures,
                                        attempt_sink=attempts,
@@ -1166,7 +1174,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             elapsed_s["segment"] = seg_base + time.time() - seg_start
             passes["segment"] = {"elapsed_s": round(elapsed_s["segment"], 3),
                                  "status": "failed"}
-            save("segment_failed")
+            save("segment_failed", failed={
+                "pass": "segment", "chunk": i + 1, "chunks_total": len(chunks),
+                "source": chunks[i],
+                "failure_codes": sorted(failures[0]) if failures else [],
+                "attempts": attempts[attempts_before:][-20:]})
             emit_manifest("failed", failed_pass="segment", failed_chunk=i + 1)
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)

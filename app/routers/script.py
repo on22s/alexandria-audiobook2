@@ -30,7 +30,11 @@ from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_three_pass_request_preflight,
                                  resolve_three_pass_generation_settings,
+                                 three_pass_checkpoint_path,
                                  three_pass_manifest_path)
+from default_prompts import load_segment_prompts
+from pass_quality import split_outer_quote_regions, validate_segment_quality
+from utils import file_lock
 
 from core import (
     BASE_DIR,
@@ -880,6 +884,167 @@ async def generate_script_recovery():
         "failed_chunk": manifest.get("failed_chunk"),
         "failure_count": len(failures),
     }
+
+
+def _load_failed_checkpoint():
+    """The checkpoint of a pass-1 fail-fast, or None. The `failed` block is
+    written only on that path (three_pass_generate._save_three_pass_checkpoint)."""
+    if get_script_recovery_manifest() is None:
+        return None
+    checkpoint = safe_load_json(three_pass_checkpoint_path(SCRIPT_PATH), None)
+    if not isinstance(checkpoint, dict) or checkpoint.get("stage") != "segment_failed":
+        return None
+    failed = checkpoint.get("failed")
+    if not isinstance(failed, dict) or not failed.get("source"):
+        return None
+    return checkpoint
+
+
+def build_recovery_detail(checkpoint):
+    """What the recovery panel shows for the failed chunk (issue #522 s23):
+    where it failed, every attempt with its HTTP status and category, the
+    chunk's source, and the exact pass-1 prompt so it can be copied."""
+    failed = checkpoint["failed"]
+    attempts = failed.get("attempts") or []
+    last = attempts[-1] if attempts else {}
+    sys_prompt, usr_template = load_segment_prompts()
+    llm = get_active_llm_config(load_app_config(CONFIG_PATH))
+    return {
+        "stage": checkpoint.get("stage"),
+        "failed_pass": failed.get("pass"),
+        "failed_chunk": failed.get("chunk"),
+        "chunks_total": failed.get("chunks_total"),
+        "chunks_done": checkpoint.get("chunks_done"),
+        "failure_codes": failed.get("failure_codes") or [],
+        "last_error": {"category": last.get("error_category"),
+                       "http_status": last.get("http_status"),
+                       "outcome": last.get("outcome"),
+                       "error": last.get("error")},
+        "attempts": [{k: a.get(k) for k in (
+            "attempt", "outcome", "error_category", "http_status", "error",
+            "failure_codes", "finish_reason", "completion_tokens",
+            "effective_max_tokens", "next_retry_seconds", "elapsed_seconds")}
+            for a in attempts],
+        "source": failed["source"],
+        "prompt": {"system": sys_prompt, "user": usr_template.format(chunk=failed["source"])},
+        "retry_profile": {
+            "api_retry_limit": llm.get("api_retry_limit"),
+            "retry_initial_delay_seconds": llm.get("retry_initial_delay_seconds", 1),
+            "retry_multiplier": llm.get("retry_multiplier", 2),
+            "retry_max_delay_seconds": llm.get("retry_max_delay_seconds", 30),
+            "retry_jitter": llm.get("retry_jitter", 0.2),
+            "on_api_exhaustion": llm.get("on_api_exhaustion", "fail")},
+    }
+
+
+def apply_manual_segmentation(entries, resolution):
+    """Accept a hand-supplied segmentation for the failed chunk through the
+    SAME gate pass 1 uses, and advance the checkpoint past it so Retry resumes
+    at the next chunk. Returns the gate report on refusal (caller -> 422)."""
+    if process_state["script"]["running"]:
+        raise HTTPException(status_code=409, detail="Script generation is running.")
+    with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        checkpoint = _load_failed_checkpoint()
+        if checkpoint is None:
+            raise HTTPException(status_code=409,
+                                detail="No failed pass-1 chunk is waiting for recovery.")
+        failed = checkpoint["failed"]
+        report = validate_segment_quality(failed["source"], entries)
+        if not report.get("passed"):
+            return {"accepted": False, "report": report}
+        checkpoint["segmented"] = list(checkpoint.get("segmented") or []) + [
+            {"type": e["type"], "text": e["text"]} for e in entries]
+        checkpoint["chunks_done"] = int(failed["chunk"])
+        resolutions = list(checkpoint.get("resolutions") or [])
+        if len(resolutions) >= failed["chunk"]:
+            resolutions[failed["chunk"] - 1] = resolution
+        else:
+            resolutions.append(resolution)
+        checkpoint["resolutions"] = resolutions
+        checkpoint["stage"] = "segment"
+        checkpoint["failed"] = None
+        atomic_json_write(checkpoint, three_pass_checkpoint_path(SCRIPT_PATH))
+    manifest_path = three_pass_manifest_path(SCRIPT_PATH)
+    manifest = safe_load_json(manifest_path, {})
+    if isinstance(manifest, dict) and manifest:
+        manifest["status"] = "incomplete"
+        manifest.pop("failed_chunk", None)
+        manifest["recovered_chunks"] = (manifest.get("recovered_chunks") or []) + [
+            {"chunk": failed["chunk"], "resolution": resolution}]
+        atomic_json_write(manifest, manifest_path)
+    return {"accepted": True, "chunk": failed["chunk"], "chunks_done": checkpoint["chunks_done"],
+            "resolution": resolution}
+
+
+class InjectSegmentationRequest(BaseModel):
+    chunk: int
+    entries: List[Dict[str, str]]
+
+
+class SkipChunkRequest(BaseModel):
+    chunk: int
+
+
+def _require_failed_chunk(chunk):
+    checkpoint = _load_failed_checkpoint()
+    if checkpoint is None:
+        raise HTTPException(status_code=409,
+                            detail="No failed pass-1 chunk is waiting for recovery.")
+    if int(checkpoint["failed"]["chunk"]) != int(chunk):
+        raise HTTPException(status_code=409,
+                            detail=f"The failed chunk is {checkpoint['failed']['chunk']}, not {chunk}.")
+    return checkpoint
+
+
+@router.get("/api/generate_script/recovery/detail")
+async def generate_script_recovery_detail():
+    """The failed chunk in full: attempts, source, prompt, retry profile."""
+    checkpoint = _load_failed_checkpoint()
+    if checkpoint is None:
+        return {"recoverable": False}
+    return {"recoverable": True, **build_recovery_detail(checkpoint)}
+
+
+@router.post("/api/generate_script/inject")
+async def generate_script_inject(request: InjectSegmentationRequest):
+    """Manual output injection (#522 s4.4): a pasted [{type, text}] list for
+    the failed chunk, validated by pass 1's own fidelity gate."""
+    _require_failed_chunk(request.chunk)
+    entries = []
+    for i, e in enumerate(request.entries):
+        kind = (e.get("type") or "").strip().upper()
+        text = (e.get("text") or "").strip()
+        if kind not in ("NARRATOR", "SPOKEN") or not text:
+            raise HTTPException(status_code=422,
+                                detail=f"Entry {i + 1}: type must be NARRATOR or SPOKEN and text non-empty.")
+        entries.append({"type": kind, "text": text})
+    if not entries:
+        raise HTTPException(status_code=422, detail="No entries supplied.")
+    result = await asyncio.to_thread(apply_manual_segmentation, entries, "manual")
+    if not result["accepted"]:
+        raise HTTPException(status_code=422, detail={
+            "message": "The segmentation does not pass the fidelity gate.",
+            "findings": result["report"].get("findings", []),
+            "metrics": result["report"].get("metrics", {})})
+    return result
+
+
+@router.post("/api/generate_script/skip")
+async def generate_script_skip(request: SkipChunkRequest):
+    """'Skip' that loses nothing: the chunk goes in split only at its outer
+    quote marks (the deterministic splitter pass 1's gate itself uses), so
+    every word stays and quoted lines are still SPOKEN for attribution."""
+    checkpoint = _require_failed_chunk(request.chunk)
+    entries = [{"type": r["type"], "text": r["text"].strip()}
+               for r in split_outer_quote_regions(checkpoint["failed"]["source"])
+               if r.get("text", "").strip()]
+    result = await asyncio.to_thread(apply_manual_segmentation, entries, "narrated_as_is")
+    if not result["accepted"]:
+        raise HTTPException(status_code=422, detail={
+            "message": "Even the deterministic split does not pass the fidelity gate; "
+                       "paste a segmentation by hand.",
+            "findings": result["report"].get("findings", [])})
+    return result
 
 
 @router.post("/api/generate_script/retry")
