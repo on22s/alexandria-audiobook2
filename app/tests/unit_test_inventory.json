@@ -2828,6 +2828,14 @@
     "tests.test_script_preflight.ScriptPreflightTests.test_speaker_review_only_suggests_strong_third_person_case",
     "tests.test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
   ],
+  "test_script_recovery": [
+    "tests.test_script_recovery.RecoveryTests.test_attribute_failure_detail_inject_and_skip",
+    "tests.test_script_recovery.RecoveryTests.test_detail_shows_where_why_and_the_exact_prompt",
+    "tests.test_script_recovery.RecoveryTests.test_inject_accepts_a_faithful_segmentation_and_advances_the_checkpoint",
+    "tests.test_script_recovery.RecoveryTests.test_inject_refuses_a_segmentation_that_drops_text",
+    "tests.test_script_recovery.RecoveryTests.test_skip_narrates_the_chunk_as_is",
+    "tests.test_script_recovery.RecoveryTests.test_wrong_chunk_and_running_generation_are_refused"
+  ],
   "test_script_text_fidelity": [
     "tests.test_script_text_fidelity.FidelityProbeTest.test_a_book_with_only_one_arm_reports_no_delta",
     "tests.test_script_text_fidelity.FidelityProbeTest.test_dash_class_covers_the_unicode_dashes",
@@ -3108,6 +3116,10 @@
     "tests.test_teacher_coverage.TeacherCoverageTest.test_over_recording_does_not_hide_a_further_loss",
     "tests.test_teacher_coverage.TeacherCoverageTest.test_recording_the_loss_satisfies_the_invariant",
     "tests.test_teacher_coverage.TeacherCoverageTest.test_sources_that_were_never_routed_are_not_a_failure"
+  ],
+  "test_text_diff": [
+    "tests.test_text_diff.WordDiff.test_dropped_and_expanded_text_are_located",
+    "tests.test_text_diff.WordDiff.test_identical_text_has_no_hunks_whatever_the_punctuation"
   ],
   "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways",

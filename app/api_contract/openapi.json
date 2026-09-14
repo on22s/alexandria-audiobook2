@@ -1051,6 +1051,34 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InjectSegmentationRequest": {
+        "properties": {
+          "chunk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "InjectSegmentationRequest",
+        "type": "object"
+      },
       "JsonValue": {},
       "LLMConfig": {
         "properties": {
@@ -1659,6 +1687,23 @@
           "name"
         ],
         "title": "ScriptSaveRequest",
+        "type": "object"
+      },
+      "SkipChunkRequest": {
+        "properties": {
+          "chunk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk"
+          }
+        },
+        "title": "SkipChunkRequest",
         "type": "object"
       },
       "SpeakerRepairRequest": {
@@ -2417,6 +2462,23 @@
           }
         },
         "summary": "Get Annotated Script"
+      }
+    },
+    "/api/annotated_script/diff": {
+      "get": {
+        "description": "Word-level differences between the saved source and the active script\n(issue #522 s7.4/7.5), one hunk per divergence with the chunk it sits in\nand the script entry to jump to.",
+        "operationId": "get_annotated_script_diff_api_annotated_script_diff_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Annotated Script Diff"
       }
     },
     "/api/audiobook": {
@@ -4039,6 +4101,43 @@
         "summary": "Generate Script Cancel"
       }
     },
+    "/api/generate_script/inject": {
+      "post": {
+        "description": "Manual output injection (#522 s4.4): a pasted [{type, text}]\nsegmentation for a failed pass-1 chunk, or [{n, speaker}] for a failed\npass-2 batch, validated by the pass's own gate.",
+        "operationId": "generate_script_inject_api_generate_script_inject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectSegmentationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Script Inject"
+      }
+    },
     "/api/generate_script/pause": {
       "post": {
         "operationId": "generate_script_pause_api_generate_script_pause_post",
@@ -4070,6 +4169,23 @@
           }
         },
         "summary": "Generate Script Recovery"
+      }
+    },
+    "/api/generate_script/recovery/detail": {
+      "get": {
+        "description": "The failed chunk in full: attempts, source, prompt, retry profile.",
+        "operationId": "generate_script_recovery_detail_api_generate_script_recovery_detail_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Recovery Detail"
       }
     },
     "/api/generate_script/resume": {
@@ -4130,6 +4246,43 @@
           }
         },
         "summary": "Retry Generate Script"
+      }
+    },
+    "/api/generate_script/skip": {
+      "post": {
+        "description": "'Skip' that loses nothing. Pass 1: the chunk goes in split only at its\nouter quote marks (the deterministic splitter pass 1's gate itself uses),\nso every word stays and quoted lines are still SPOKEN. Pass 2: the batch's\nspoken lines are labelled UNKNOWN - the fallback the run refused to apply\non its own because the LLM was unavailable, now applied by the user.",
+        "operationId": "generate_script_skip_api_generate_script_skip_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipChunkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Script Skip"
       }
     },
     "/api/llm/models": {
