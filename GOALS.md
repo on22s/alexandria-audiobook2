@@ -3765,6 +3765,45 @@ So the reachable path is probably not to pick one. Words and boundaries can
 come from different passes, and the failure modes are exactly complementary.
 That hybrid is untested; nothing measured rules it out.
 
+**The preparer's boundary-alert rate, measured for the first time
+(2026-09-14).** Boeffard et al. (LREC 2012) split an audiobook on pauses,
+recognised each piece, aligned it to the text and raised an alert whenever
+the alignment at a segment's first or last word was not a match; 8.3% of
+their Proust segments alerted and a manual check found a real split error
+behind 8% of the alerts. `boundary_conflict_audit.py --zip` is that rule on
+a finished preparer dataset: each clip transcribed on its own (whisper.cpp
+base.en, CPU), first and last text word checked against the transcript's
+edge. Five English library datasets, 200 clips each:
+
+| dataset (vol01) | exact match | fuzzy boundary (≥0.6) | first / last / both |
+|---|---:|---:|---|
+| Cliff Kurt, Mushoku Tensei | 9.0% | **5.5%** | 7 / 3 / 1 |
+| Kate Reading, Natural History of Dragons | 9.5% | **4.5%** | 6 / 3 / 0 |
+| Peter Kenny, Sword of Destiny | — | **10.0%** | 13 / 5 / 2 |
+| Michael Kramer, Hero of Ages | 24.0% | **12.5%** | 17 / 8 / 0 |
+| RC Bray, Lost Gods | — | **14.0%** | 9 / 18 / 1 |
+
+The fuzzy rule exists because the instrument failed its own hand-check
+(Rule 21): half of Hero of Ages' exact-match alerts were whisper's
+spellings of invented names (*Fatren/fattron, Druffel/druffle,
+Terris/terrorists, hemalurgy/himmelergy*) — the four are now fixtures in
+`test_boundary_conflict_audit.py`. After it, a hand-read of ten alerts from
+each of the two high books found **about eight in ten genuine**: audio that
+starts before the text (*"him then hefting"*, *"no matter, Druffel said"*),
+a dedication clip whose audio is the narrator credit, and — the most common
+shape — the text side cut mid-word or mid-sentence (*"down that way sho"*,
+*"looking for h m"*, *"keeper of Terris. A"*), i.e. the source-alignment cut
+landed on the wrong character offset. The residual instrument errors are
+numerals (*1976* vs *nineteen seventy six*) and short-word mishearings.
+
+Inference, not measurement: unlike Boeffard's 8%-of-alerts, most of ours
+are real, because our text comes from source alignment rather than from
+the recogniser — so the alert rate here is close to the preparer's true
+edge-error rate, roughly **5–14% of clips by book**, and the mid-word text
+cuts are the fixable part. Evidence —
+`ab_test_runtime/experiments/boundary_conflict__<dataset>.json` (five
+files).
+
 ---
 
 ## 6. Measurement integrity

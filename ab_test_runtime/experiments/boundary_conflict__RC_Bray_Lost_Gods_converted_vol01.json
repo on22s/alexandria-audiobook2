@@ -1,0 +1,1439 @@
+{
+ "source": "/home/fakemitch/Desktop/zips2/RC Bray Lost Gods-converted/RC Bray Lost Gods-converted_vol01.zip",
+ "chunks": 200,
+ "alerted": 28,
+ "alert_rate": 0.14,
+ "by_status": {
+  "ok": 172,
+  "last": 18,
+  "first": 9,
+  "both": 1
+ },
+ "rows": [
+  {
+   "audio_filepath": "train/sample_0000.wav",
+   "start": 8.96,
+   "end": 16.66,
+   "status": "ok",
+   "asr_words": 11
+  },
+  {
+   "audio_filepath": "train/sample_0001.wav",
+   "start": 16.66,
+   "end": 36.28,
+   "status": "ok",
+   "asr_words": 2
+  },
+  {
+   "audio_filepath": "train/sample_0004.wav",
+   "start": 54.879999999999995,
+   "end": 64.44,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0005.wav",
+   "start": 64.44,
+   "end": 76.46000000000001,
+   "status": "ok",
+   "asr_words": 38
+  },
+  {
+   "audio_filepath": "train/sample_0006.wav",
+   "start": 76.46000000000001,
+   "end": 84.62,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0007.wav",
+   "start": 84.62,
+   "end": 94.6,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0008.wav",
+   "start": 94.6,
+   "end": 102.2,
+   "status": "last",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0009.wav",
+   "start": 102.2,
+   "end": 115.94,
+   "status": "ok",
+   "asr_words": 40
+  },
+  {
+   "audio_filepath": "train/sample_0010.wav",
+   "start": 115.94,
+   "end": 124.76,
+   "status": "last",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "train/sample_0011.wav",
+   "start": 124.76,
+   "end": 133.46,
+   "status": "first",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0012.wav",
+   "start": 133.46,
+   "end": 144.92,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0014.wav",
+   "start": 152.8,
+   "end": 161.58,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0015.wav",
+   "start": 161.58,
+   "end": 171.16,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0016.wav",
+   "start": 171.16,
+   "end": 178.46,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0017.wav",
+   "start": 178.46,
+   "end": 187.44,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0018.wav",
+   "start": 187.44,
+   "end": 196.96,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0019.wav",
+   "start": 196.96,
+   "end": 204.52,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0020.wav",
+   "start": 204.52,
+   "end": 212.24,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0021.wav",
+   "start": 212.24,
+   "end": 220.04,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0022.wav",
+   "start": 220.04,
+   "end": 231.7,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0023.wav",
+   "start": 231.7,
+   "end": 239.06,
+   "status": "ok",
+   "asr_words": 20
+  },
+  {
+   "audio_filepath": "train/sample_0024.wav",
+   "start": 239.06,
+   "end": 247.08,
+   "status": "ok",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0025.wav",
+   "start": 247.08,
+   "end": 254.68,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0026.wav",
+   "start": 254.68,
+   "end": 264.7,
+   "status": "both",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0027.wav",
+   "start": 264.7,
+   "end": 273.32,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0028.wav",
+   "start": 273.32,
+   "end": 281.78,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0029.wav",
+   "start": 281.78,
+   "end": 291.06,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0031.wav",
+   "start": 300.96,
+   "end": 309.34,
+   "status": "ok",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0032.wav",
+   "start": 309.34,
+   "end": 316.68,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0033.wav",
+   "start": 316.68,
+   "end": 324.04,
+   "status": "ok",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0034.wav",
+   "start": 324.04,
+   "end": 332.06,
+   "status": "ok",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "train/sample_0035.wav",
+   "start": 332.06,
+   "end": 342.84,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0036.wav",
+   "start": 342.84,
+   "end": 351.42,
+   "status": "ok",
+   "asr_words": 20
+  },
+  {
+   "audio_filepath": "train/sample_0037.wav",
+   "start": 351.42,
+   "end": 358.74,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0038.wav",
+   "start": 358.74,
+   "end": 365.78,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0039.wav",
+   "start": 365.78,
+   "end": 373.02,
+   "status": "last",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0040.wav",
+   "start": 373.02,
+   "end": 380.02,
+   "status": "ok",
+   "asr_words": 15
+  },
+  {
+   "audio_filepath": "train/sample_0041.wav",
+   "start": 380.02,
+   "end": 391.92,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0042.wav",
+   "start": 391.92,
+   "end": 399.48,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0043.wav",
+   "start": 399.48,
+   "end": 407.42,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0046.wav",
+   "start": 424.6,
+   "end": 431.88,
+   "status": "ok",
+   "asr_words": 20
+  },
+  {
+   "audio_filepath": "train/sample_0047.wav",
+   "start": 431.88,
+   "end": 440.58,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0048.wav",
+   "start": 440.58,
+   "end": 447.6,
+   "status": "ok",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "train/sample_0049.wav",
+   "start": 447.6,
+   "end": 454.74,
+   "status": "ok",
+   "asr_words": 14
+  },
+  {
+   "audio_filepath": "train/sample_0050.wav",
+   "start": 454.74,
+   "end": 462.72,
+   "status": "last",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0051.wav",
+   "start": 462.72,
+   "end": 471.84,
+   "status": "ok",
+   "asr_words": 14
+  },
+  {
+   "audio_filepath": "train/sample_0052.wav",
+   "start": 471.84,
+   "end": 480.68,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0053.wav",
+   "start": 480.68,
+   "end": 489.42,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0054.wav",
+   "start": 489.42,
+   "end": 497.38,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0055.wav",
+   "start": 497.38,
+   "end": 506.58,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0056.wav",
+   "start": 506.58,
+   "end": 514.84,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0057.wav",
+   "start": 514.84,
+   "end": 525.26,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0058.wav",
+   "start": 525.26,
+   "end": 535.78,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0059.wav",
+   "start": 535.78,
+   "end": 542.9,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0060.wav",
+   "start": 542.9,
+   "end": 552.8,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0061.wav",
+   "start": 552.8,
+   "end": 563.34,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0062.wav",
+   "start": 563.34,
+   "end": 576.4,
+   "status": "ok",
+   "asr_words": 34
+  },
+  {
+   "audio_filepath": "train/sample_0063.wav",
+   "start": 576.4,
+   "end": 584.8,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0065.wav",
+   "start": 595.42,
+   "end": 604.6,
+   "status": "last",
+   "asr_words": 11
+  },
+  {
+   "audio_filepath": "train/sample_0067.wav",
+   "start": 615.12,
+   "end": 625.84,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0068.wav",
+   "start": 625.84,
+   "end": 633.62,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0069.wav",
+   "start": 633.62,
+   "end": 641.24,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0070.wav",
+   "start": 641.24,
+   "end": 650.14,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0071.wav",
+   "start": 650.14,
+   "end": 659.94,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0072.wav",
+   "start": 659.94,
+   "end": 669.9,
+   "status": "ok",
+   "asr_words": 30
+  },
+  {
+   "audio_filepath": "train/sample_0073.wav",
+   "start": 669.9,
+   "end": 682.64,
+   "status": "ok",
+   "asr_words": 43
+  },
+  {
+   "audio_filepath": "train/sample_0074.wav",
+   "start": 682.94,
+   "end": 692.5,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0075.wav",
+   "start": 692.5,
+   "end": 701.54,
+   "status": "ok",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0077.wav",
+   "start": 708.64,
+   "end": 717.14,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0078.wav",
+   "start": 717.14,
+   "end": 731.3,
+   "status": "ok",
+   "asr_words": 43
+  },
+  {
+   "audio_filepath": "train/sample_0079.wav",
+   "start": 731.3,
+   "end": 739.32,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0080.wav",
+   "start": 739.32,
+   "end": 748.42,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0081.wav",
+   "start": 748.42,
+   "end": 759.34,
+   "status": "last",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0082.wav",
+   "start": 759.34,
+   "end": 772.78,
+   "status": "ok",
+   "asr_words": 43
+  },
+  {
+   "audio_filepath": "train/sample_0083.wav",
+   "start": 772.78,
+   "end": 783.6,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0084.wav",
+   "start": 783.6,
+   "end": 792.8,
+   "status": "first",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0085.wav",
+   "start": 792.8,
+   "end": 800.6,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0086.wav",
+   "start": 800.6,
+   "end": 810.0,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0087.wav",
+   "start": 810.0,
+   "end": 818.86,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0088.wav",
+   "start": 818.86,
+   "end": 829.66,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0089.wav",
+   "start": 829.66,
+   "end": 840.04,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0090.wav",
+   "start": 840.04,
+   "end": 850.06,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0091.wav",
+   "start": 850.06,
+   "end": 861.0,
+   "status": "ok",
+   "asr_words": 34
+  },
+  {
+   "audio_filepath": "train/sample_0092.wav",
+   "start": 861.0,
+   "end": 868.24,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0093.wav",
+   "start": 868.24,
+   "end": 878.94,
+   "status": "ok",
+   "asr_words": 33
+  },
+  {
+   "audio_filepath": "train/sample_0094.wav",
+   "start": 878.94,
+   "end": 887.9,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0095.wav",
+   "start": 887.9,
+   "end": 899.78,
+   "status": "ok",
+   "asr_words": 39
+  },
+  {
+   "audio_filepath": "train/sample_0096.wav",
+   "start": 899.78,
+   "end": 912.12,
+   "status": "ok",
+   "asr_words": 31
+  },
+  {
+   "audio_filepath": "train/sample_0097.wav",
+   "start": 912.12,
+   "end": 922.92,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0098.wav",
+   "start": 922.92,
+   "end": 933.7,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0099.wav",
+   "start": 933.7,
+   "end": 942.52,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0100.wav",
+   "start": 942.52,
+   "end": 950.48,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0102.wav",
+   "start": 958.42,
+   "end": 966.42,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0103.wav",
+   "start": 966.42,
+   "end": 974.9,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0104.wav",
+   "start": 974.9,
+   "end": 986.94,
+   "status": "ok",
+   "asr_words": 39
+  },
+  {
+   "audio_filepath": "train/sample_0105.wav",
+   "start": 986.94,
+   "end": 995.34,
+   "status": "last",
+   "asr_words": 33
+  },
+  {
+   "audio_filepath": "train/sample_0106.wav",
+   "start": 995.34,
+   "end": 1005.06,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0107.wav",
+   "start": 1005.06,
+   "end": 1012.1,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0108.wav",
+   "start": 1012.1,
+   "end": 1021.26,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0109.wav",
+   "start": 1021.26,
+   "end": 1030.4,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0110.wav",
+   "start": 1030.4,
+   "end": 1041.22,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0112.wav",
+   "start": 1049.04,
+   "end": 1058.4,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0113.wav",
+   "start": 1058.4,
+   "end": 1066.2,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0114.wav",
+   "start": 1066.2,
+   "end": 1077.4,
+   "status": "ok",
+   "asr_words": 31
+  },
+  {
+   "audio_filepath": "train/sample_0115.wav",
+   "start": 1077.4,
+   "end": 1085.0,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0116.wav",
+   "start": 1085.0,
+   "end": 1092.62,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0117.wav",
+   "start": 1092.62,
+   "end": 1099.8,
+   "status": "ok",
+   "asr_words": 15
+  },
+  {
+   "audio_filepath": "train/sample_0118.wav",
+   "start": 1099.8,
+   "end": 1107.84,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0119.wav",
+   "start": 1107.84,
+   "end": 1115.6,
+   "status": "ok",
+   "asr_words": 11
+  },
+  {
+   "audio_filepath": "train/sample_0120.wav",
+   "start": 1115.6,
+   "end": 1122.74,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0122.wav",
+   "start": 1131.1,
+   "end": 1141.32,
+   "status": "ok",
+   "asr_words": 34
+  },
+  {
+   "audio_filepath": "train/sample_0123.wav",
+   "start": 1141.32,
+   "end": 1151.56,
+   "status": "first",
+   "asr_words": 31
+  },
+  {
+   "audio_filepath": "train/sample_0124.wav",
+   "start": 1151.56,
+   "end": 1158.6,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0125.wav",
+   "start": 1158.6,
+   "end": 1166.08,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0126.wav",
+   "start": 1166.08,
+   "end": 1176.38,
+   "status": "ok",
+   "asr_words": 34
+  },
+  {
+   "audio_filepath": "train/sample_0127.wav",
+   "start": 1176.38,
+   "end": 1183.74,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0129.wav",
+   "start": 1192.34,
+   "end": 1199.5,
+   "status": "first",
+   "asr_words": 15
+  },
+  {
+   "audio_filepath": "train/sample_0131.wav",
+   "start": 1206.82,
+   "end": 1215.02,
+   "status": "first",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0132.wav",
+   "start": 1215.02,
+   "end": 1222.72,
+   "status": "first",
+   "asr_words": 15
+  },
+  {
+   "audio_filepath": "train/sample_0133.wav",
+   "start": 1222.72,
+   "end": 1230.5,
+   "status": "last",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "train/sample_0134.wav",
+   "start": 1230.5,
+   "end": 1238.5,
+   "status": "last",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0135.wav",
+   "start": 1238.5,
+   "end": 1245.58,
+   "status": "last",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0137.wav",
+   "start": 1253.88,
+   "end": 1261.68,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0138.wav",
+   "start": 1261.68,
+   "end": 1269.64,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0139.wav",
+   "start": 1269.64,
+   "end": 1277.46,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0140.wav",
+   "start": 1277.46,
+   "end": 1286.82,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0141.wav",
+   "start": 1286.82,
+   "end": 1294.02,
+   "status": "first",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0142.wav",
+   "start": 1294.02,
+   "end": 1302.94,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0143.wav",
+   "start": 1302.94,
+   "end": 1312.64,
+   "status": "ok",
+   "asr_words": 35
+  },
+  {
+   "audio_filepath": "train/sample_0144.wav",
+   "start": 1312.64,
+   "end": 1322.56,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0145.wav",
+   "start": 1322.56,
+   "end": 1329.92,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0146.wav",
+   "start": 1329.92,
+   "end": 1340.26,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0147.wav",
+   "start": 1340.26,
+   "end": 1347.76,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "train/sample_0148.wav",
+   "start": 1347.76,
+   "end": 1355.4,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0149.wav",
+   "start": 1355.4,
+   "end": 1365.12,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0150.wav",
+   "start": 1365.12,
+   "end": 1373.46,
+   "status": "last",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0151.wav",
+   "start": 1373.46,
+   "end": 1380.86,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0152.wav",
+   "start": 1380.86,
+   "end": 1389.4,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0153.wav",
+   "start": 1389.4,
+   "end": 1397.2,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0154.wav",
+   "start": 1397.2,
+   "end": 1405.8,
+   "status": "ok",
+   "asr_words": 16
+  },
+  {
+   "audio_filepath": "train/sample_0155.wav",
+   "start": 1405.8,
+   "end": 1413.5,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0156.wav",
+   "start": 1413.5,
+   "end": 1420.8,
+   "status": "ok",
+   "asr_words": 20
+  },
+  {
+   "audio_filepath": "train/sample_0157.wav",
+   "start": 1420.8,
+   "end": 1428.1,
+   "status": "ok",
+   "asr_words": 21
+  },
+  {
+   "audio_filepath": "train/sample_0159.wav",
+   "start": 1435.56,
+   "end": 1443.66,
+   "status": "first",
+   "asr_words": 15
+  },
+  {
+   "audio_filepath": "train/sample_0160.wav",
+   "start": 1443.66,
+   "end": 1453.38,
+   "status": "ok",
+   "asr_words": 31
+  },
+  {
+   "audio_filepath": "train/sample_0161.wav",
+   "start": 1453.38,
+   "end": 1460.78,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0162.wav",
+   "start": 1460.78,
+   "end": 1468.6,
+   "status": "ok",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "train/sample_0163.wav",
+   "start": 1468.6,
+   "end": 1480.24,
+   "status": "ok",
+   "asr_words": 29
+  },
+  {
+   "audio_filepath": "train/sample_0164.wav",
+   "start": 1480.24,
+   "end": 1487.82,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0165.wav",
+   "start": 1487.82,
+   "end": 1495.4,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0166.wav",
+   "start": 1495.4,
+   "end": 1503.32,
+   "status": "ok",
+   "asr_words": 23
+  },
+  {
+   "audio_filepath": "train/sample_0168.wav",
+   "start": 1512.54,
+   "end": 1519.96,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0169.wav",
+   "start": 1519.96,
+   "end": 1530.24,
+   "status": "ok",
+   "asr_words": 30
+  },
+  {
+   "audio_filepath": "train/sample_0171.wav",
+   "start": 1538.74,
+   "end": 1551.78,
+   "status": "ok",
+   "asr_words": 36
+  },
+  {
+   "audio_filepath": "train/sample_0172.wav",
+   "start": 1551.78,
+   "end": 1564.08,
+   "status": "ok",
+   "asr_words": 38
+  },
+  {
+   "audio_filepath": "train/sample_0173.wav",
+   "start": 1564.08,
+   "end": 1571.64,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0174.wav",
+   "start": 1571.64,
+   "end": 1580.2,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0175.wav",
+   "start": 1580.2,
+   "end": 1590.28,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0176.wav",
+   "start": 1590.28,
+   "end": 1598.94,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0177.wav",
+   "start": 1598.94,
+   "end": 1608.92,
+   "status": "ok",
+   "asr_words": 35
+  },
+  {
+   "audio_filepath": "train/sample_0178.wav",
+   "start": 1608.92,
+   "end": 1618.12,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "train/sample_0179.wav",
+   "start": 1618.12,
+   "end": 1626.14,
+   "status": "last",
+   "asr_words": 29
+  },
+  {
+   "audio_filepath": "train/sample_0180.wav",
+   "start": 1626.14,
+   "end": 1634.56,
+   "status": "ok",
+   "asr_words": 20
+  },
+  {
+   "audio_filepath": "train/sample_0181.wav",
+   "start": 1634.56,
+   "end": 1643.68,
+   "status": "ok",
+   "asr_words": 30
+  },
+  {
+   "audio_filepath": "train/sample_0182.wav",
+   "start": 1643.68,
+   "end": 1654.38,
+   "status": "ok",
+   "asr_words": 29
+  },
+  {
+   "audio_filepath": "train/sample_0183.wav",
+   "start": 1654.38,
+   "end": 1662.1,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "train/sample_0184.wav",
+   "start": 1662.1,
+   "end": 1669.38,
+   "status": "last",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0185.wav",
+   "start": 1669.38,
+   "end": 1678.82,
+   "status": "last",
+   "asr_words": 8
+  },
+  {
+   "audio_filepath": "train/sample_0186.wav",
+   "start": 1678.82,
+   "end": 1688.54,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0188.wav",
+   "start": 1699.76,
+   "end": 1710.66,
+   "status": "ok",
+   "asr_words": 39
+  },
+  {
+   "audio_filepath": "train/sample_0189.wav",
+   "start": 1710.66,
+   "end": 1720.24,
+   "status": "ok",
+   "asr_words": 32
+  },
+  {
+   "audio_filepath": "train/sample_0190.wav",
+   "start": 1720.24,
+   "end": 1730.34,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "train/sample_0191.wav",
+   "start": 1730.34,
+   "end": 1738.26,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0192.wav",
+   "start": 1738.26,
+   "end": 1746.64,
+   "status": "last",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "train/sample_0194.wav",
+   "start": 1754.36,
+   "end": 1762.94,
+   "status": "ok",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "train/sample_0195.wav",
+   "start": 1762.94,
+   "end": 1772.28,
+   "status": "ok",
+   "asr_words": 27
+  },
+  {
+   "audio_filepath": "train/sample_0196.wav",
+   "start": 1772.28,
+   "end": 1780.22,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0197.wav",
+   "start": 1780.22,
+   "end": 1787.22,
+   "status": "last",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "train/sample_0198.wav",
+   "start": 1787.22,
+   "end": 1795.82,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "train/sample_0199.wav",
+   "start": 1795.82,
+   "end": 1806.16,
+   "status": "ok",
+   "asr_words": 28
+  },
+  {
+   "audio_filepath": "val/sample_0002.wav",
+   "start": 36.28,
+   "end": 47.22,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "val/sample_0003.wav",
+   "start": 47.22,
+   "end": 54.879999999999995,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "val/sample_0013.wav",
+   "start": 144.92,
+   "end": 152.8,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "val/sample_0030.wav",
+   "start": 291.06,
+   "end": 300.96,
+   "status": "ok",
+   "asr_words": 24
+  },
+  {
+   "audio_filepath": "val/sample_0044.wav",
+   "start": 407.42,
+   "end": 415.26,
+   "status": "ok",
+   "asr_words": 19
+  },
+  {
+   "audio_filepath": "val/sample_0045.wav",
+   "start": 415.26,
+   "end": 424.6,
+   "status": "last",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "val/sample_0064.wav",
+   "start": 584.8,
+   "end": 595.42,
+   "status": "last",
+   "asr_words": 17
+  },
+  {
+   "audio_filepath": "val/sample_0066.wav",
+   "start": 604.6,
+   "end": 615.12,
+   "status": "ok",
+   "asr_words": 26
+  },
+  {
+   "audio_filepath": "val/sample_0076.wav",
+   "start": 701.54,
+   "end": 708.64,
+   "status": "first",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "val/sample_0101.wav",
+   "start": 950.48,
+   "end": 958.42,
+   "status": "ok",
+   "asr_words": 12
+  },
+  {
+   "audio_filepath": "val/sample_0111.wav",
+   "start": 1041.22,
+   "end": 1049.04,
+   "status": "ok",
+   "asr_words": 13
+  },
+  {
+   "audio_filepath": "val/sample_0121.wav",
+   "start": 1122.74,
+   "end": 1131.1,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "val/sample_0128.wav",
+   "start": 1183.74,
+   "end": 1192.34,
+   "status": "ok",
+   "asr_words": 18
+  },
+  {
+   "audio_filepath": "val/sample_0130.wav",
+   "start": 1199.5,
+   "end": 1206.82,
+   "status": "ok",
+   "asr_words": 11
+  },
+  {
+   "audio_filepath": "val/sample_0136.wav",
+   "start": 1245.58,
+   "end": 1253.88,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "val/sample_0158.wav",
+   "start": 1428.1,
+   "end": 1435.56,
+   "status": "ok",
+   "asr_words": 14
+  },
+  {
+   "audio_filepath": "val/sample_0167.wav",
+   "start": 1503.32,
+   "end": 1512.54,
+   "status": "ok",
+   "asr_words": 25
+  },
+  {
+   "audio_filepath": "val/sample_0170.wav",
+   "start": 1530.24,
+   "end": 1538.74,
+   "status": "ok",
+   "asr_words": 22
+  },
+  {
+   "audio_filepath": "val/sample_0187.wav",
+   "start": 1688.54,
+   "end": 1699.44,
+   "status": "ok",
+   "asr_words": 33
+  },
+  {
+   "audio_filepath": "val/sample_0193.wav",
+   "start": 1746.64,
+   "end": 1754.36,
+   "status": "ok",
+   "asr_words": 19
+  }
+ ],
+ "provenance": {
+  "script": "boundary_conflict_audit.py",
+  "written": "2026-09-14T06:11:53",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "995322a4cb355c0da303dcfa6a69917d5ab7d6db",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/boundary_conflict_audit.py",
+    " M app/tests/test_boundary_conflict_audit.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "77123c49b8d984c7229ecf718ccc6625cd4ebf2398421d8680dfdf1aa8b89652"
+  },
+  "args": {
+   "metadata": null,
+   "asr": null,
+   "zip": "RC Bray Lost Gods-converted_vol01.zip",
+   "whisper_cpp_bin": "whisper-cli",
+   "whisper_cpp_model": "ggml-base.en.bin",
+   "language": "en",
+   "out": "ab_test_runtime/experiments/boundary_conflict__RC_Bray_Lost_Gods_converted_vol01.json"
+  }
+ }
+}
