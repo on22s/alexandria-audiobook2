@@ -4736,6 +4736,62 @@ not a bigger DraCor set on its own; it is DraCor rows mixed into the novel
 set, since plays cannot teach the frame parsing the losing books need.
 Evidence — `lora_serving_eval__qwen3-14b-dracor-{en,mixed}-a6000-product-batch25-20260913.json`.
 
+**Follow-ups, same harness and rows (2026-09-14).** Prose-play frames
+(the same English plays rendered as `X said` prose, PR #558) turn the −3.9
+into +2.9 — the frame was the missing piece, as the paragraph above
+predicted. RiQuA (Papay & Padó 2020: 2,180 quotes on public-domain novels
+whose annotated speaker is a named span in the text; the authors publish it
+for "use, modification, and experimentation"): 61.7 → 67.7, **+6.0**
+(+110/−64, p=0.0006), up on all four books (grimgar +5.0, index18 +8.0,
+mushoku16 +4.5, owari +8.6). That is the best per-row source found: a tenth
+of the mixed set's rows for three quarters of its lift. Two things were
+tried to get more of it and closed the same day: RiQuA has no coreference
+layer, so its 1,857 pronoun-speaker quotes can only be recovered by a rule;
+the obvious dialogue-turn rule (previous quote's named addressee, else the
+speaker two turns back) resolves 726 of them and was hand-checked on 30 —
+**10 correct**. A 33%-correct label set would poison the adapter, so the
+rejected half stays rejected (`scratchpad riqua/pronoun_probe.py`). The
+rights-clean stack (20 PDNC train books + RiQuA + prose plays, 10,154 rows),
+RiQuA at 3 epochs, and the stack with RiQuA counted twice are queued on
+tnr-2 to see whether a publishable-source adapter reaches the mixed set's
++7.8/+8.5. Evidence —
+`lora_serving_eval__qwen3-14b-dracor-en-prose-a6000-product-batch25-20260914.json`,
+`lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json`.
+
+**A different base model moves this goal more than any adapter has
+(2026-09-14).** Muse-Glimmer-30B (UD-Q3_K_XL) with reasoning on at the
+"low" strength, the request-level JSON schema and the shipped minor-speaker
+rule, **no adapter**, on the four clean-gold books at the product window:
+**81.5%** (626/768), zero blank rows — grimgar03 86.0, index18 73.9,
+mushoku16 82.0, owarimonogatari3 74.7. Qwen3-14B base on the same rows with
+the same prompt: 71.9 / 67.0 / 56.4 / 45.1 (63.0 pooled); its best adapter
+is 68.8. The base arm alone clears the 75% line on the pooled number and on
+two books; owarimonogatari3, which no Qwen adapter has moved past 59, goes to
+74.7. What the number does not say: it is one seed at temperature 0 (which
+is deterministic here), on the same four light novels every attribution
+number in this file rests on, and it costs reasoning tokens on every window
+(~44 s per 25-line window on an A6000). The Muse adapters cannot yet be
+measured with reasoning on — their trainer never supervised the first answer
+token, so they emit a malformed header the parser rejects (RECIPES, "trainer
+loss window") — and the retrains are queued. Evidence —
+`lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json`
+(the tag names the adapter file the server was started for; `--base-only`
+scored the base arm alone), the Qwen row from
+`lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-current-20260914.json`.
+
+**Prompt wording, measured rather than argued (2026-09-14).** A rewrite of
+the attribution prompt as a seven-step decision order (`probe/attribute-prompt-v2`)
+against the shipped prompt, Qwen3-14B base, same rows: 63.3 vs 63.0
+(+51/−49, p=0.92). Null; nothing to promote. Four further arms that change
+how the question is asked (alias-grouped roster, passage form, incremental
+memory, Michel et al.'s prompt shape) all came back at ~25% — an instrument
+fault, not a result: the harness sends the model only the SPOKEN lines and
+carries the narration in each entry's neighbour context, and the variant
+provider rebuilt the request without it (1,305 characters against 11,541).
+Fixed on the probe branch with a test and requeued; until those land, no
+claim about the variants stands. Evidence —
+`lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-{current,v2}-20260914.json`.
+
 ---
 
 **The arm is written "open-roster" rather than by its bare code name.**
