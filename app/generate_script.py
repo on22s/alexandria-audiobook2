@@ -529,6 +529,7 @@ class LLMGenParams:
     retry_initial_delay_seconds: float = 0
     retry_multiplier: float = 2
     retry_max_delay_seconds: float = 30
+    retry_jitter: float = 0
     # What to do when the API retry budget runs out on a RETRYABLE error (rate
     # limit, 5xx, timeout): "fail" gives the chunk up as today; "pause" freezes
     # the run in place so an operator can fix the provider and press Resume,
@@ -919,7 +920,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             can_retry = error_details["retryable"] and attempt < api_retry_limit
             retry_delay = (get_retry_delay(
                 params.retry_initial_delay_seconds, params.retry_multiplier,
-                params.retry_max_delay_seconds, attempt + 1)
+                params.retry_max_delay_seconds, attempt + 1,
+                jitter=params.retry_jitter)
                 if can_retry else None)
             if attempt_observer:
                 attempt_observer({"attempt": attempt_number,
@@ -1743,6 +1745,7 @@ def main():
         retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm_config.get("retry_multiplier", 2),
         retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
+        retry_jitter=llm_config.get("retry_jitter", 0.2),
         on_api_exhaustion=llm_config.get("on_api_exhaustion", "fail"),
     )
 

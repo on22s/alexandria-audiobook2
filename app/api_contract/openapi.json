@@ -1153,6 +1153,13 @@
             "title": "Retry Initial Delay Seconds",
             "type": "number"
           },
+          "retry_jitter": {
+            "default": 0.2,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Retry Jitter",
+            "type": "number"
+          },
           "retry_max_delay_seconds": {
             "default": 30,
             "maximum": 300.0,
