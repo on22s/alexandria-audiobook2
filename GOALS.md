@@ -672,6 +672,36 @@ or the harness differ enough to show.
   top adapters is the comparison that would settle the ranking for the
   product rather than for the harness.
 
+**Chapter-aware windows: a clean null, and a measured phase sensitivity
+(2026-09-14, issue #522 §10).** The proposal is that chunking should prefer
+chapter boundaries. At the attribution window the testable form is
+"restart the 25-entry stride at every heading". Two facts bound it before
+any model ran: in the clean-gold segmentation most headings sit inside a
+narration entry (owarimonogatari3: 1 of 11 starts an entry), and only
+**28 of 768** gold rows fall in the first window after an entry-start
+heading (`chapter_cuts.py`). Three base-only runs of Qwen3-14B on one
+tnr-1 server: fixed stride, chapter cuts, and a control with the same
+number of cuts at seeded random entries:
+
+| arm | pooled | vs fixed (paired) | the 28 reachable rows |
+|---|---:|---|---|
+| fixed | 477/768 = 62.1% | — | 26/28 |
+| chapter cuts | 474/768 | +80/−83, p=0.88 | 26/28 (+1/−1) |
+| random cuts | 479/768 | +69/−67, p=0.93 | — |
+
+Chapter vs control: +94/−99, p=0.77. The rows a chapter cut can touch did
+not move; nothing else differs from random cuts. Per-book swings looked
+real until the control ran — grimgar03 288 → 271 under chapter cuts, 285
+under random ones — which is the number to keep: **shifting the window
+phase flips about 160 of 768 rows (21%) in each direction at temperature
+0**, so any window-level change needs its own control arm before a
+per-book delta means anything. Implementing #522 §10 for real means
+splitting headings out at segmentation, which this did not test and which
+can reach at most the same 28 rows plus the headings now buried in
+narration entries. Evidence —
+`lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-{fixed,chapter,control}-20260914.json`,
+`chapter_cuts_cleangold_20260914.json`.
+
 ### 1.3 Generalisation beyond the four books
 
 > **What this is.** Checking the app works on novels it has never encountered,

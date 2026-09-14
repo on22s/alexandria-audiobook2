@@ -37,10 +37,11 @@ Voice fidelity: `library_voice_fidelity.py`, ECAPA, 20 val lines.
 - **Chapter-aware chunking (issue #522 §10) can barely reach the product's
   attribution window.** In the clean-gold segmentation most chapter
   headings sit inside a narration entry (owarimonogatari3: 1 of 11 starts
-  an entry), so window cuts touch 28 of 768 gold rows. A/B (fixed vs
-  chapter cuts vs matched random cuts) running on tnr-1; implementing #522
-  §10 properly means splitting headings at segmentation, not at windowing.
-  `app/experiments/chapter_cuts.py`, `chapter_cuts_cleangold_20260914.json`.
+  an entry), so window cuts touch 28 of 768 gold rows. A/B result: those 28
+  rows 26 → 26; pooled chapter 474 vs fixed 477 vs random-cut control 479
+  (p ≥ 0.77 everywhere). Side finding worth more than the null: shifting
+  the window phase flips ~160 of 768 rows each way at temperature 0, so a
+  window-level change needs a control arm. GOALS 1.1.
 - **Epistolary novels as a labelled source**: dropped before building. A
   letter header labels the narrator of a passage; the product never
   attributes narration, so the rows would not be this task.
