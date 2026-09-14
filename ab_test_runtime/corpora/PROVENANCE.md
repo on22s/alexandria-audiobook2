@@ -65,3 +65,54 @@ rule holds.
 
 Used by goal 2.9 (`run_chains/hifitts_9017_20260913.sh`) as the public
 counterpart to the eight private narrators of `second_english_eval_20260820`.
+
+## dracor/<corpus>/tei/ — play scripts, speaker-labelled by the text itself
+
+DraCor (Drama Corpora Project, https://dracor.org/), TEI P5. Every speech is
+`<sp who="#id">` against a cast list of canonical names, so the speaker label
+is part of the source and needs no annotator. Fetched by
+`app/experiments/dracor_trainset.py` as the GitHub archive of each corpus
+repository (`https://github.com/dracor-org/<corpus>dracor`), not through the
+dracor.org API, which does not serve every corpus (`lacy` is absent from it).
+`archive.json` beside each `tei/` records the archive URL and sha256.
+
+Licences, checked 2026-09-13 in the DraCor registry
+(`dracor-org/dracor-registry`, `corpora.json`) and confirmed per file: every
+TEI file fetched below carries `<licence target=".../publicdomain/zero/1.0/">`
+in its header; the builder refuses any play whose licence element names
+anything else. The underlying plays are public domain (authors dead 70+
+years). Corpora under CC BY-NC (`eng`, `shake`) and CC BY-NC-SA (`fre`) are
+not used.
+
+| corpus | language | plays | encoding licence | used by |
+| --- | --- | --- | --- | --- |
+| `lacy` | en, Victorian (Lacy's Acting Edition) | 103 | CC0 (per-file statement) | English arm |
+| `am` | en, American | 40 | CC0 (per-file) | English arm |
+| `ger` | de | ~780 | CC0 | mixed arm |
+| `rus` | ru | ~210 | CC0 | mixed arm |
+| `dutch` | nl | — | CC0 | mixed arm |
+| `pol` | pl | — | CC0 | mixed arm |
+| `ibs` | no (Ibsen) | — | CC0 | mixed arm |
+| `ar` | es (Argentine) | — | CC0 | mixed arm |
+
+Reconstruct with:
+
+```
+python app/experiments/dracor_trainset.py --corpora lacy am --out-dir ab_test_runtime/distill/dracor_en_20260913
+python app/experiments/dracor_trainset.py --corpora lacy am ger rus dutch pol ibs ar --out-dir ab_test_runtime/distill/dracor_mixed_20260913
+```
+
+Both are seeded (`--seed 20260913`) and write a `manifest.json` naming every
+play, its rejected-speech counts and the per-language row and token totals.
+
+## riqua/
+
+RiQuA (Papay & Padó, LREC 2020): 5,963 quotations with speaker, addressee
+and cue spans over 15 brat documents from 11 19th-century works. Fetched
+2026-09-14 from https://www.ims.uni-stuttgart.de/documents/ressourcen/korpora/riqua/riqua.tar.gz
+(sha256 6c3bb5361650e1007819f50f9763a05cee85b5340cf2ecb629fa7ab2970c64ed).
+No licence file in the archive; the paper says "publicly available for
+use, modification, and experimentation"; source texts public domain.
+Recorded as availability wording, not a named licence. `austen_emma_*` is
+excluded from every training set because Emma is an evaluation fixture.
+Rebuild: `app/experiments/riqua_trainset.py --riqua ab_test_runtime/corpora/riqua/riqua/merged --out-dir ab_test_runtime/distill/riqua_20260914`.
