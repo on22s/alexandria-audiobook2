@@ -1791,6 +1791,9 @@
     "tests.test_llm_config_source.SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place"
   ],
   "test_llm_provider": [
+    "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key",
+    "tests.test_llm_provider.ApiKeyReferenceTests.test_env_references_resolve_and_literals_pass_through",
+    "tests.test_llm_provider.ApiKeyReferenceTests.test_setup_page_shows_a_reference_but_redacts_a_secret",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_client_sends_profile_headers_and_body_on_completions",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_error_classification_and_backoff_are_deterministic",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_explicit_generation_options_override_provider_defaults",
@@ -1802,7 +1805,10 @@
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_reasoning_effort_setting_is_validated",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_request_interval_applies_across_with_options_clients",
     "tests.test_llm_provider.ProviderRequestSettingsTest.test_retry_jitter_stays_inside_its_band_and_under_the_cap",
-    "tests.test_llm_provider.ProviderRequestSettingsTest.test_with_options_retains_provider_body_defaults"
+    "tests.test_llm_provider.ProviderRequestSettingsTest.test_with_options_retains_provider_body_defaults",
+    "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_gpt5_with_reasoning_gets_completion_tokens_and_no_sampling",
+    "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_gpt5_with_reasoning_off_keeps_sampling",
+    "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_local_server_request_is_untouched"
   ],
   "test_llm_review_regressions": [
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_registry_alias_resolves_via_shared_identity_normalization",
