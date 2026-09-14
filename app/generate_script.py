@@ -525,6 +525,11 @@ class LLMGenParams:
     # scripts, all of it wrapper around prose the quality gate measures anyway.
     output_format: str = "json"
     provider_extra_body: dict = None
+    # "auto" sends response_schema (when a pass sets one) as a request-level
+    # JSON schema and falls back for the run if the server rejects it; "off"
+    # never sends it. response_schema is set per pass, not from config.
+    structured_output: str = "auto"
+    response_schema: dict = None
     api_retry_limit: int = None
     retry_initial_delay_seconds: float = 0
     retry_multiplier: float = 2
@@ -575,6 +580,50 @@ def redact_recovery_value(value, key=None):
     if isinstance(value, list):
         return [redact_recovery_value(item) for item in value]
     return value
+
+
+# Servers that rejected response_format this process, by base URL, so one
+# refusal costs one request rather than one per window.
+_SCHEMA_REJECTED_BY = set()
+
+
+def get_response_format(params, client):
+    """-> the OpenAI-style response_format for this call, or None."""
+    if params.structured_output == "off" or not params.response_schema:
+        return None
+    if str(getattr(client, "base_url", "")) in _SCHEMA_REJECTED_BY:
+        return None
+    return {"type": "json_schema",
+            "json_schema": {"name": params.response_schema.get("name", "entries"),
+                            "strict": True,
+                            "schema": params.response_schema["schema"]}}
+
+
+def is_schema_rejection(error):
+    """A 4xx that names the structured-output feature, as opposed to any
+    other bad request: the server does not support response_format."""
+    if isinstance(error, TypeError) and "response_format" in str(error):
+        return True  # an in-process client (distill_eval.LocalClient) without the kwarg
+    status = getattr(error, "status_code", None)
+    if status not in (400, 422):
+        return False
+    text = str(error).lower()
+    return any(k in text for k in ("response_format", "json_schema", "grammar", "schema"))
+
+
+def create_completion(client, response_format, **kwargs):
+    """One completion request; if the server rejects the schema, remember
+    that for its base URL and send the same request free-form."""
+    if response_format:
+        try:
+            return client.chat.completions.create(response_format=response_format, **kwargs)
+        except Exception as error:  # noqa: BLE001 - classified below
+            if not is_schema_rejection(error):
+                raise
+            _SCHEMA_REJECTED_BY.add(str(getattr(client, "base_url", "")))
+            print(f"  structured output rejected by the server ({error}); "
+                  "sending free-form JSON for the rest of this run", flush=True)
+    return client.chat.completions.create(**kwargs)
 
 
 def build_extra_body(params):
@@ -814,7 +863,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                           f"rejected at temperature 0; further retries cannot "
                           f"differ", flush=True)
                     break
-            response = client.chat.completions.create(
+            response = create_completion(
+                client, get_response_format(params, client),
                 model=model_name,
                 messages=messages,
                 temperature=params.temperature,
@@ -1739,6 +1789,7 @@ def main():
         context_length=lm_status.get("context_length"),
         output_format=args.output_format,
         provider_extra_body=llm_config.get("provider_extra_body"),
+        structured_output=llm_config.get("structured_output", "auto"),
         api_retry_limit=llm_config.get("api_retry_limit"),
         retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
         retry_multiplier=llm_config.get("retry_multiplier", 2),
