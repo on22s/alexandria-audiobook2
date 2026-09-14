@@ -4491,6 +4491,27 @@ scored by the product harness (batch 25, four clean-gold books, paired
 base/LoRA) against that row's +7.8. Results go in `RECIPES.md` as rows only
 once the paired artifact exists.
 
+**Result (2026-09-14, tnr-2 A6000, one seed each, same base rows):**
+
+| arm | base | LoRA | paired | grimgar03 | index18 | mushoku16 | owarimonogatari3 |
+|---|---:|---:|---|---:|---:|---:|---:|
+| English | 61.7 | 57.8 | **−3.9** (+79/−109, p=0.034) | 285→265 | 58→50 | 72→79 | 59→50 |
+| mixed | 61.7 | 62.2 | +0.5 (+91/−87, p=0.82) | 285→287 | 58→51 | 72→84 | 59→56 |
+
+Neither arm reaches the novel "mixed" set's +7.8; the English arm hurts,
+the mixed arm is a null. Read against the registered prediction: the
+mixed-vs-English half came out the way the "diversity helps or ties" branch
+said (mixed ≥ English, by 4.4 points on the same rows), but the first half
+did not — no lift on the pick-among-roster metric at all, so the
+"content-selection transfers from plays" mechanism is not supported at this
+budget. The one consistent gain is mushoku16 (+7 and +12 of 133), the book
+with the most bare, frame-less dialogue; both arms lose on grimgar03,
+index18 and owarimonogatari3. The third bullet applies: this is a 4k-row,
+one-seed null on plays, not a verdict on the corpus — but the next step is
+not a bigger DraCor set on its own; it is DraCor rows mixed into the novel
+set, since plays cannot teach the frame parsing the losing books need.
+Evidence — `lora_serving_eval__qwen3-14b-dracor-{en,mixed}-a6000-product-batch25-20260913.json`.
+
 ---
 
 **The arm is written "open-roster" rather than by its bare code name.**
