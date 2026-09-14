@@ -214,6 +214,10 @@ def main():
     ap.add_argument("--prompt-variant", default="default",
                     help="attribution_prompt_variants.VARIANTS: how the question is asked; "
                          "the output contract and gates are unchanged")
+    ap.add_argument("--api-key-env", default=None,
+                    help="environment variable holding the API key for a hosted endpoint")
+    ap.add_argument("--provider-extra-body", default=None,
+                    help='JSON merged into every request body, e.g. \'{"thinking":{"type":"disabled"}}\'')
     ap.add_argument("--roster-mode", default="full", choices=("full", "mentioned"),
                     help="full: the established roster on every window (the product); "
                          "mentioned: only names attested in this or the previous window's "
@@ -237,7 +241,15 @@ def main():
     if args.batch_size < 1:
         ap.error("--batch-size must be at least 1")
 
-    client = OpenAI(base_url=args.base_url, api_key="local")
+    # A hosted API needs a key and, for DeepSeek, the thinking switch in the
+    # request body; a local llama-server needs neither. ConfiguredOpenAI is
+    # the product's own wrapper, so the extra body merges exactly as it does
+    # for a profile's provider_extra_body.
+    api_key = os.environ.get(args.api_key_env, "local") if args.api_key_env else "local"
+    client = OpenAI(base_url=args.base_url, api_key=api_key)
+    if args.provider_extra_body:
+        from llm_provider import ConfiguredOpenAI
+        client = ConfiguredOpenAI(client, json.loads(args.provider_extra_body))
     if args.max_tokens < 1:
         ap.error("--max-tokens must be at least 1")
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
@@ -254,6 +266,7 @@ def main():
                                    "arm": args.cut_arm}
     decoding["prompt_variant"] = args.prompt_variant
     decoding["roster_mode"] = args.roster_mode
+    decoding["provider_extra_body"] = args.provider_extra_body
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
