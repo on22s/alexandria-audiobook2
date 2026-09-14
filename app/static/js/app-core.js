@@ -1146,14 +1146,22 @@
                     <td class="text-truncate" style="max-width: 24em;" title="${escapeHtml(a.error || '')}">${escapeHtml(a.error || '')}</td>
                 </tr>`).join('');
             const profile = detail.retry_profile || {};
+            const isAttribute = detail.failed_pass === 'attribute';
+            const where = isAttribute
+                ? `batch of ${(detail.batch_entries || []).length} entries (script entries ${escapeHtml(String((detail.batch_indices || [])[0] ?? '?'))}–${escapeHtml(String((detail.batch_indices || []).slice(-1)[0] ?? '?'))})`
+                : `chunk ${escapeHtml(String(detail.failed_chunk))} of ${escapeHtml(String(detail.chunks_total))}`;
+            const pasteHint = isAttribute
+                ? 'Speakers JSON — <code>[{"n":0,"speaker":"NAME"}, …]</code>, one per batch entry (n as shown), NARRATOR lines stay NARRATOR'
+                : 'Segmentation JSON — <code>[{"type":"NARRATOR"|"SPOKEN","text":"..."}]</code>, every word of the source, in order';
+            const skipLabel = isAttribute ? 'Mark speakers UNKNOWN' : 'Narrate as-is';
             panel.style.display = '';
             panel.innerHTML = `
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong><i class="fas fa-triangle-exclamation me-1"></i>Generation stopped at ${escapeHtml(detail.failed_pass || 'segment')} · chunk ${escapeHtml(String(detail.failed_chunk))} of ${escapeHtml(String(detail.chunks_total))}</strong>
+                    <strong><i class="fas fa-triangle-exclamation me-1"></i>Generation stopped at ${escapeHtml(detail.failed_pass || 'segment')} · ${where}</strong>
                     <span class="small text-muted">${escapeHtml(String(detail.chunks_done))} chunks accepted · retries ${escapeHtml(String(profile.api_retry_limit ?? 'default'))}, backoff ${escapeHtml(String(profile.retry_initial_delay_seconds))}s ×${escapeHtml(String(profile.retry_multiplier))} ±${Math.round((profile.retry_jitter || 0) * 100)}%, on exhaustion: ${escapeHtml(profile.on_api_exhaustion || 'fail')}</span>
                 </div>
                 <div class="card-body">
-                    <div class="small mb-2">Last error: <strong>${escapeHtml(last.category || (detail.failure_codes || []).join(', ') || 'unknown')}</strong>${last.http_status != null ? ` (HTTP ${escapeHtml(String(last.http_status))})` : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}</div>
+                    <div class="small mb-2">Last error: <strong>${escapeHtml(last.category || (detail.failure_codes || []).join(', ') || detail.reason || 'unknown')}</strong>${last.http_status != null ? ` (HTTP ${escapeHtml(String(last.http_status))})` : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}${isAttribute && detail.roster ? `<br>Roster: ${escapeHtml(detail.roster.join(', '))}` : ''}</div>
                     <div class="table-responsive mb-2">
                         <table class="table table-sm small mb-0">
                             <thead><tr><th>#</th><th>Outcome</th><th>HTTP</th><th>Category / codes</th><th>Finish</th><th>Next retry</th><th>Error</th></tr></thead>
@@ -1162,12 +1170,12 @@
                     </div>
                     <div class="row g-2">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">Source chunk</label>
+                            <label class="form-label small mb-1">${isAttribute ? 'Batch entries' : 'Source chunk'}</label>
                             <textarea class="form-control font-monospace" rows="8" readonly style="font-size: 0.8em;">${escapeHtml(detail.source || '')}</textarea>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1" for="script-recovery-inject">Segmentation JSON — <code>[{"type":"NARRATOR"|"SPOKEN","text":"..."}]</code>, every word of the source, in order</label>
-                            <textarea class="form-control font-monospace" id="script-recovery-inject" rows="8" style="font-size: 0.8em;" placeholder='[{"type": "SPOKEN", "text": "..."}, {"type": "NARRATOR", "text": "..."}]'></textarea>
+                            <label class="form-label small mb-1" for="script-recovery-inject">${pasteHint}</label>
+                            <textarea class="form-control font-monospace" id="script-recovery-inject" rows="8" style="font-size: 0.8em;" placeholder='${isAttribute ? '[{"n": 0, "speaker": "NAME"}]' : '[{"type": "SPOKEN", "text": "..."}, {"type": "NARRATOR", "text": "..."}]'}'></textarea>
                         </div>
                     </div>
                     <div id="script-recovery-findings" class="small text-danger mt-2"></div>
@@ -1175,7 +1183,7 @@
                         <button class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"><i class="fas fa-rotate-right me-1"></i>Retry this chunk</button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="onCopyRecoveryPrompt()"><i class="fas fa-copy me-1"></i>Copy prompt</button>
                         <button class="btn btn-sm btn-outline-success" onclick="onInjectRecoverySegmentation()"><i class="fas fa-file-import me-1"></i>Validate &amp; apply segmentation</button>
-                        <button class="btn btn-sm btn-outline-warning" onclick="onSkipRecoveryChunk()"><i class="fas fa-forward me-1"></i>Narrate as-is</button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="onSkipRecoveryChunk()"><i class="fas fa-forward me-1"></i>${skipLabel}</button>
                     </div>
                 </div>`;
         }
@@ -1227,7 +1235,7 @@
             try {
                 const result = await API.post('/api/generate_script/inject', { chunk: detail.failed_chunk, entries });
                 renderRecoveryFindings(null);
-                showToast(`Chunk ${result.chunk} accepted (${result.resolution}); ${result.chunks_done} chunks done. Resume to continue.`, 'success');
+                showToast(`Accepted (${result.resolution}). Resume to continue.`, 'success');
                 await refreshScriptRecovery();
             } catch (e) {
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
@@ -1239,12 +1247,15 @@
             if (!detail) {
                 return;
             }
-            if (!confirm(`Put chunk ${detail.failed_chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.`)) {
+            const question = detail.failed_pass === 'attribute'
+                ? 'Label every spoken line in this batch UNKNOWN and continue? You can fix speakers in the Editor afterwards.'
+                : `Put chunk ${detail.failed_chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.`;
+            if (!confirm(question)) {
                 return;
             }
             try {
                 const result = await API.post('/api/generate_script/skip', { chunk: detail.failed_chunk });
-                showToast(`Chunk ${result.chunk} narrated as-is; ${result.chunks_done} chunks done. Resume to continue.`, 'success');
+                showToast(`Accepted (${result.resolution}). Resume to continue.`, 'success');
                 await refreshScriptRecovery();
             } catch (e) {
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });

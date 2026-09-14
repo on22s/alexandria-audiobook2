@@ -18,6 +18,28 @@ SOURCE = ('"Where is he?" asked Holmes. "Gone," said I. Sherlock Holmes frowned 
           'looked at the door for a long moment before he spoke again.')
 
 
+def _write_failed_attribute_run(tmp):
+    script_path = os.path.join(tmp, "annotated_script.json")
+    atomic_json_write({"fingerprint": "fp", "status": "failed", "failed_pass": "attribute",
+                       "chunks": [], "counts": {}, "passes": {}, "diagnostic_failures": []},
+                      three_pass_manifest_path(script_path))
+    entries = [{"type": "SPOKEN", "text": "Where is he?"}, {"type": "NARRATOR", "text": "asked Holmes."},
+               {"type": "SPOKEN", "text": "Gone,"}]
+    atomic_json_write({
+        "fingerprint": "fp", "stage": "attribute_failed", "chunks_done": 1,
+        "segmented": [{"type": "NARRATOR", "text": "Chapter one."}] + entries,
+        "named": [{"text": "Chapter one.", "speaker": "NARRATOR"}, None, None, None],
+        "annotated": [], "resolutions": ["clean"], "elapsed_s": {}, "diagnostic_failures": [],
+        "failed": {"pass": "attribute", "indices": [1, 2, 3], "entries": entries,
+                   "roster": ["HOLMES", "WATSON"], "reason": "attribute LLM unavailable; refusing fallback output",
+                   "attempts": [{"attempt": 1, "outcome": "api_error", "error_category": "connection_error",
+                                 "http_status": None, "error": "Connection error."}]}},
+        three_pass_checkpoint_path(script_path))
+    atomic_json_write({"input_file_path": "book.txt", "script_generation_input_file": "book.txt"},
+                      os.path.join(tmp, "state.json"))
+    return script_path
+
+
 def _write_failed_run(tmp):
     script_path = os.path.join(tmp, "annotated_script.json")
     atomic_json_write({"fingerprint": "fp", "status": "failed", "failed_pass": "segment",
@@ -43,9 +65,9 @@ def _write_failed_run(tmp):
 
 
 class RecoveryTests(unittest.TestCase):
-    def _run(self, fn, *args):
+    def _run(self, fn, *args, writer=_write_failed_run):
         with tempfile.TemporaryDirectory() as tmp:
-            script_path = _write_failed_run(tmp)
+            script_path = writer(tmp)
             with patch.object(script_module, "SCRIPT_PATH", script_path), \
                  patch.object(script_module, "DATA_DIR", tmp), \
                  patch.object(script_module, "CONFIG_PATH", os.path.join(tmp, "config.json")):
@@ -97,6 +119,36 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(["SPOKEN", "NARRATOR", "SPOKEN", "NARRATOR"], [e["type"] for e in added])
         self.assertEqual("Where is he?", added[0]["text"])
         self.assertEqual(2, checkpoint["chunks_done"])
+
+    def test_attribute_failure_detail_inject_and_skip(self):
+        detail, _ = self._run(script_module.generate_script_recovery_detail,
+                              writer=_write_failed_attribute_run)
+        self.assertEqual("attribute", detail["failed_pass"])
+        self.assertEqual([1, 2, 3], detail["batch_indices"])
+        self.assertEqual("connection_error", detail["attempts"][0]["error_category"])
+        self.assertIn("Where is he?", detail["prompt"]["user"])
+        self.assertIn("HOLMES", detail["prompt"]["user"])
+        # a label for a NARRATOR line other than NARRATOR is refused by pass 2's gate
+        bad = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "speaker": "HOLMES"}, {"n": 1, "speaker": "HOLMES"}, {"n": 2, "speaker": "WATSON"}])
+        exc, checkpoint = self._run(script_module.generate_script_inject, bad,
+                                    writer=_write_failed_attribute_run)
+        self.assertEqual(422, exc.status_code)
+        self.assertEqual("attribute_failed", checkpoint["stage"])
+        good = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "speaker": "HOLMES"}, {"n": 1, "speaker": "NARRATOR"}, {"n": 2, "speaker": "WATSON"}])
+        result, checkpoint = self._run(script_module.generate_script_inject, good,
+                                       writer=_write_failed_attribute_run)
+        self.assertEqual("manual", result["resolution"])
+        self.assertEqual("attribute", checkpoint["stage"])
+        self.assertEqual(["NARRATOR", "HOLMES", "NARRATOR", "WATSON"],
+                         [e["speaker"] for e in checkpoint["named"]])
+        self.assertEqual("Where is he?", checkpoint["named"][1]["text"])
+        result, checkpoint = self._run(script_module.generate_script_skip, script_module.SkipChunkRequest(),
+                                       writer=_write_failed_attribute_run)
+        self.assertEqual("narrated_as_is", result["resolution"])
+        self.assertEqual(["NARRATOR", "UNKNOWN", "NARRATOR", "UNKNOWN"],
+                         [e["speaker"] for e in checkpoint["named"]])
 
     def test_wrong_chunk_and_running_generation_are_refused(self):
         exc, _ = self._run(script_module.generate_script_skip, script_module.SkipChunkRequest(chunk=1))

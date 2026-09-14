@@ -28,14 +28,20 @@ from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
 from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
-from three_pass_generate import (build_three_pass_request_preflight,
+from three_pass_generate import (build_attribute_request,
+                                 build_instruct_request,
+                                 build_three_pass_request_preflight,
+                                 default_instruct,
                                  read_source_text,
                                  resolve_three_pass_generation_settings,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
 from text_diff import word_diff
 from default_prompts import load_segment_prompts
-from pass_quality import split_outer_quote_regions, validate_segment_quality
+from pass_quality import (split_outer_quote_regions, validate_attribution,
+                          validate_instruct, validate_segment_quality)
+from speaker_identity import stabilize_speaker_identities
+from generate_script import LLMGenParams
 from utils import file_lock
 
 from core import (
@@ -894,10 +900,11 @@ def _load_failed_checkpoint():
     if get_script_recovery_manifest() is None:
         return None
     checkpoint = safe_load_json(three_pass_checkpoint_path(SCRIPT_PATH), None)
-    if not isinstance(checkpoint, dict) or checkpoint.get("stage") != "segment_failed":
+    if not isinstance(checkpoint, dict) or checkpoint.get("stage") not in (
+            "segment_failed", "attribute_failed", "instruct_failed"):
         return None
     failed = checkpoint.get("failed")
-    if not isinstance(failed, dict) or not failed.get("source"):
+    if not isinstance(failed, dict) or not (failed.get("source") or failed.get("entries")):
         return None
     return checkpoint
 
@@ -909,15 +916,33 @@ def build_recovery_detail(checkpoint):
     failed = checkpoint["failed"]
     attempts = failed.get("attempts") or []
     last = attempts[-1] if attempts else {}
-    sys_prompt, usr_template = load_segment_prompts()
     llm = get_active_llm_config(load_app_config(CONFIG_PATH))
+    if failed.get("pass") in ("attribute", "instruct"):
+        entries = failed.get("entries") or []
+        if failed["pass"] == "attribute":
+            sys_prompt, user_prompt = build_attribute_request(
+                entries, LLMGenParams(), failed.get("roster") or [])
+            label = lambda e: e.get("type")
+        else:
+            sys_prompt, user_prompt = build_instruct_request(entries, LLMGenParams())
+            label = lambda e: e.get("speaker")
+        unit = {"failed_chunk": None, "chunks_total": None,
+                "batch_indices": failed.get("indices") or [],
+                "batch_entries": entries, "roster": failed.get("roster") or [],
+                "source": "\n".join(f'[{i}] {label(e)}: {e.get("text")}'
+                                    for i, e in enumerate(entries))}
+    else:
+        sys_prompt, usr_template = load_segment_prompts()
+        user_prompt = usr_template.format(chunk=failed["source"])
+        unit = {"failed_chunk": failed.get("chunk"), "chunks_total": failed.get("chunks_total"),
+                "source": failed["source"]}
     return {
         "stage": checkpoint.get("stage"),
         "failed_pass": failed.get("pass"),
-        "failed_chunk": failed.get("chunk"),
-        "chunks_total": failed.get("chunks_total"),
+        **unit,
         "chunks_done": checkpoint.get("chunks_done"),
         "failure_codes": failed.get("failure_codes") or [],
+        "reason": failed.get("reason"),
         "last_error": {"category": last.get("error_category"),
                        "http_status": last.get("http_status"),
                        "outcome": last.get("outcome"),
@@ -927,8 +952,7 @@ def build_recovery_detail(checkpoint):
             "failure_codes", "finish_reason", "completion_tokens",
             "effective_max_tokens", "next_retry_seconds", "elapsed_seconds")}
             for a in attempts],
-        "source": failed["source"],
-        "prompt": {"system": sys_prompt, "user": usr_template.format(chunk=failed["source"])},
+        "prompt": {"system": sys_prompt, "user": user_prompt},
         "retry_profile": {
             "api_retry_limit": llm.get("api_retry_limit"),
             "retry_initial_delay_seconds": llm.get("retry_initial_delay_seconds", 1),
@@ -939,31 +963,68 @@ def build_recovery_detail(checkpoint):
     }
 
 
-def apply_manual_segmentation(entries, resolution):
-    """Accept a hand-supplied segmentation for the failed chunk through the
-    SAME gate pass 1 uses, and advance the checkpoint past it so Retry resumes
-    at the next chunk. Returns the gate report on refusal (caller -> 422)."""
+def apply_manual_recovery(entries, resolution):
+    """Accept hand-supplied output for the failed unit through the SAME gate
+    the pass uses - pass 1: a [{type, text}] segmentation of the chunk;
+    pass 2: [{n, speaker}] for the batch - and advance the checkpoint past it
+    so Retry resumes at the next unit. Returns the gate report on refusal
+    (caller -> 422)."""
     if process_state["script"]["running"]:
         raise HTTPException(status_code=409, detail="Script generation is running.")
     with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
         checkpoint = _load_failed_checkpoint()
         if checkpoint is None:
             raise HTTPException(status_code=409,
-                                detail="No failed pass-1 chunk is waiting for recovery.")
+                                detail="No failed generation unit is waiting for recovery.")
         failed = checkpoint["failed"]
-        report = validate_segment_quality(failed["source"], entries)
-        if not report.get("passed"):
-            return {"accepted": False, "report": report}
-        checkpoint["segmented"] = list(checkpoint.get("segmented") or []) + [
-            {"type": e["type"], "text": e["text"]} for e in entries]
-        checkpoint["chunks_done"] = int(failed["chunk"])
-        resolutions = list(checkpoint.get("resolutions") or [])
-        if len(resolutions) >= failed["chunk"]:
-            resolutions[failed["chunk"] - 1] = resolution
+        if failed.get("pass") == "attribute":
+            frozen = failed.get("entries") or []
+            report = validate_attribution(frozen, entries, None)
+            if not report.get("passed"):
+                return {"accepted": False, "report": report}
+            by_n = {int(e["n"]): e for e in entries}
+            bound = [{k: v for k, v in f.items() if k != "type"} | {"speaker": by_n[i]["speaker"]}
+                     for i, f in enumerate(frozen)]
+            bound = stabilize_speaker_identities(bound, established_speakers=failed.get("roster") or [])["entries"]
+            named = list(checkpoint.get("named") or [])
+            for index, entry in zip(failed.get("indices") or [], bound):
+                while len(named) <= index:
+                    named.append(None)
+                named[index] = entry
+            checkpoint["named"] = named
+            checkpoint["stage"] = "attribute"
+            unit = {"batch_indices": failed.get("indices") or []}
+        elif failed.get("pass") == "instruct":
+            frozen = failed.get("entries") or []
+            report = validate_instruct(frozen, entries)
+            if not report.get("passed"):
+                return {"accepted": False, "report": report}
+            by_n = {int(e["n"]): e for e in entries}
+            annotated = list(checkpoint.get("annotated") or [])
+            named = checkpoint.get("named") or []
+            for position, index in enumerate(failed.get("indices") or []):
+                while len(annotated) <= index:
+                    annotated.append(None)
+                base = named[index] if index < len(named) and isinstance(named[index], dict) else frozen[position]
+                annotated[index] = {**base, "instruct": by_n[position]["instruct"]}
+            checkpoint["annotated"] = annotated
+            checkpoint["stage"] = "instruct"
+            unit = {"batch_indices": failed.get("indices") or []}
         else:
-            resolutions.append(resolution)
-        checkpoint["resolutions"] = resolutions
-        checkpoint["stage"] = "segment"
+            report = validate_segment_quality(failed["source"], entries)
+            if not report.get("passed"):
+                return {"accepted": False, "report": report}
+            checkpoint["segmented"] = list(checkpoint.get("segmented") or []) + [
+                {"type": e["type"], "text": e["text"]} for e in entries]
+            checkpoint["chunks_done"] = int(failed["chunk"])
+            resolutions = list(checkpoint.get("resolutions") or [])
+            if len(resolutions) >= failed["chunk"]:
+                resolutions[failed["chunk"] - 1] = resolution
+            else:
+                resolutions.append(resolution)
+            checkpoint["resolutions"] = resolutions
+            checkpoint["stage"] = "segment"
+            unit = {"chunk": failed["chunk"]}
         checkpoint["failed"] = None
         atomic_json_write(checkpoint, three_pass_checkpoint_path(SCRIPT_PATH))
     manifest_path = three_pass_manifest_path(SCRIPT_PATH)
@@ -971,30 +1032,32 @@ def apply_manual_segmentation(entries, resolution):
     if isinstance(manifest, dict) and manifest:
         manifest["status"] = "incomplete"
         manifest.pop("failed_chunk", None)
-        manifest["recovered_chunks"] = (manifest.get("recovered_chunks") or []) + [
-            {"chunk": failed["chunk"], "resolution": resolution}]
+        manifest["recovered_units"] = (manifest.get("recovered_units") or []) + [
+            {**unit, "pass": failed.get("pass"), "resolution": resolution}]
         atomic_json_write(manifest, manifest_path)
-    return {"accepted": True, "chunk": failed["chunk"], "chunks_done": checkpoint["chunks_done"],
+    return {"accepted": True, **unit, "chunks_done": checkpoint["chunks_done"],
             "resolution": resolution}
 
 
 class InjectSegmentationRequest(BaseModel):
-    chunk: int
-    entries: List[Dict[str, str]]
+    # pass 1: `chunk` + entries [{type, text}]; pass 2: entries [{n, speaker}]
+    chunk: Optional[int] = None
+    entries: List[Dict]
 
 
 class SkipChunkRequest(BaseModel):
-    chunk: int
+    chunk: Optional[int] = None
 
 
-def _require_failed_chunk(chunk):
+def _require_failed_unit(chunk):
     checkpoint = _load_failed_checkpoint()
     if checkpoint is None:
         raise HTTPException(status_code=409,
-                            detail="No failed pass-1 chunk is waiting for recovery.")
-    if int(checkpoint["failed"]["chunk"]) != int(chunk):
+                            detail="No failed generation unit is waiting for recovery.")
+    failed = checkpoint["failed"]
+    if failed.get("pass") == "segment" and int(failed["chunk"]) != int(chunk or -1):
         raise HTTPException(status_code=409,
-                            detail=f"The failed chunk is {checkpoint['failed']['chunk']}, not {chunk}.")
+                            detail=f"The failed chunk is {failed['chunk']}, not {chunk}.")
     return checkpoint
 
 
@@ -1009,20 +1072,31 @@ async def generate_script_recovery_detail():
 
 @router.post("/api/generate_script/inject")
 async def generate_script_inject(request: InjectSegmentationRequest):
-    """Manual output injection (#522 s4.4): a pasted [{type, text}] list for
-    the failed chunk, validated by pass 1's own fidelity gate."""
-    _require_failed_chunk(request.chunk)
+    """Manual output injection (#522 s4.4): a pasted [{type, text}]
+    segmentation for a failed pass-1 chunk, or [{n, speaker}] for a failed
+    pass-2 batch, validated by the pass's own gate."""
+    checkpoint = _require_failed_unit(request.chunk)
     entries = []
-    for i, e in enumerate(request.entries):
-        kind = (e.get("type") or "").strip().upper()
-        text = (e.get("text") or "").strip()
-        if kind not in ("NARRATOR", "SPOKEN") or not text:
-            raise HTTPException(status_code=422,
-                                detail=f"Entry {i + 1}: type must be NARRATOR or SPOKEN and text non-empty.")
-        entries.append({"type": kind, "text": text})
+    failed_pass = checkpoint["failed"].get("pass")
+    if failed_pass in ("attribute", "instruct"):
+        field = "speaker" if failed_pass == "attribute" else "instruct"
+        for i, e in enumerate(request.entries):
+            value = (str(e.get(field) or "")).strip()
+            if not isinstance(e.get("n"), int) or not value:
+                raise HTTPException(status_code=422,
+                                    detail=f"Entry {i + 1}: needs an integer n and a non-empty {field}.")
+            entries.append({"n": e["n"], field: value})
+    else:
+        for i, e in enumerate(request.entries):
+            kind = (str(e.get("type") or "")).strip().upper()
+            text = (str(e.get("text") or "")).strip()
+            if kind not in ("NARRATOR", "SPOKEN") or not text:
+                raise HTTPException(status_code=422,
+                                    detail=f"Entry {i + 1}: type must be NARRATOR or SPOKEN and text non-empty.")
+            entries.append({"type": kind, "text": text})
     if not entries:
         raise HTTPException(status_code=422, detail="No entries supplied.")
-    result = await asyncio.to_thread(apply_manual_segmentation, entries, "manual")
+    result = await asyncio.to_thread(apply_manual_recovery, entries, "manual")
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "The segmentation does not pass the fidelity gate.",
@@ -1033,14 +1107,25 @@ async def generate_script_inject(request: InjectSegmentationRequest):
 
 @router.post("/api/generate_script/skip")
 async def generate_script_skip(request: SkipChunkRequest):
-    """'Skip' that loses nothing: the chunk goes in split only at its outer
-    quote marks (the deterministic splitter pass 1's gate itself uses), so
-    every word stays and quoted lines are still SPOKEN for attribution."""
-    checkpoint = _require_failed_chunk(request.chunk)
-    entries = [{"type": r["type"], "text": r["text"].strip()}
-               for r in split_outer_quote_regions(checkpoint["failed"]["source"])
-               if r.get("text", "").strip()]
-    result = await asyncio.to_thread(apply_manual_segmentation, entries, "narrated_as_is")
+    """'Skip' that loses nothing. Pass 1: the chunk goes in split only at its
+    outer quote marks (the deterministic splitter pass 1's gate itself uses),
+    so every word stays and quoted lines are still SPOKEN. Pass 2: the batch's
+    spoken lines are labelled UNKNOWN - the fallback the run refused to apply
+    on its own because the LLM was unavailable, now applied by the user."""
+    checkpoint = _require_failed_unit(request.chunk)
+    failed = checkpoint["failed"]
+    if failed.get("pass") == "attribute":
+        entries = [{"n": i, "speaker": "NARRATOR" if e.get("type") == "NARRATOR" else "UNKNOWN"}
+                   for i, e in enumerate(failed.get("entries") or [])]
+    elif failed.get("pass") == "instruct":
+        # The pass's own fallback: the neutral default direction per entry.
+        entries = [{"n": i, "instruct": default_instruct(e)}
+                   for i, e in enumerate(failed.get("entries") or [])]
+    else:
+        entries = [{"type": r["type"], "text": r["text"].strip()}
+                   for r in split_outer_quote_regions(failed["source"])
+                   if r.get("text", "").strip()]
+    result = await asyncio.to_thread(apply_manual_recovery, entries, "narrated_as_is")
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "Even the deterministic split does not pass the fidelity gate; "
