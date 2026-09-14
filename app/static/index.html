@@ -574,6 +574,14 @@
                                 <input type="number" class="form-control" id="llm-api-retry-limit" min="0" max="10" step="1" placeholder="Stage default">
                             </div>
                             <div class="col-md-3">
+                                <label class="form-label" for="llm-structured-output">Structured attribution output</label>
+                                <select class="form-select" id="llm-structured-output">
+                                    <option value="auto">Auto (JSON schema, fall back if refused)</option>
+                                    <option value="off">Off (free-form JSON)</option>
+                                </select>
+                                <div class="form-text">Asks the server to constrain speaker replies to the {n, speaker} schema; recovered every blank window on Qwen3.8.</div>
+                            </div>
+                            <div class="col-md-3">
                                 <label class="form-label" for="llm-on-api-exhaustion">When retries run out</label>
                                 <select class="form-select" id="llm-on-api-exhaustion">
                                     <option value="fail">Fail the chunk</option>

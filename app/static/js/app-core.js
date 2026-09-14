@@ -468,6 +468,7 @@
                 p.request_interval_seconds ?? 0;
             document.getElementById('llm-api-retry-limit').value = p.api_retry_limit ?? '';
             document.getElementById('llm-on-api-exhaustion').value = p.on_api_exhaustion || 'fail';
+            document.getElementById('llm-structured-output').value = p.structured_output || 'auto';
             document.getElementById('llm-retry-initial-delay').value =
                 p.retry_initial_delay_seconds ?? 1;
             document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
@@ -515,6 +516,7 @@
                 request_interval_seconds: getOptionalNumberInput('llm-request-interval', 'Minimum interval') ?? 0,
                 api_retry_limit: getOptionalNumberInput('llm-api-retry-limit', 'API retry limit'),
                 on_api_exhaustion: document.getElementById('llm-on-api-exhaustion').value || 'fail',
+                structured_output: document.getElementById('llm-structured-output').value || 'auto',
                 retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
                 retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
                 retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
