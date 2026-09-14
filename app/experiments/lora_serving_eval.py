@@ -126,6 +126,17 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     return gold, src, seg, roster, want
 
 
+def make_windows(n, batch, cuts=()):
+    """Fixed-stride windows over n entries, restarted at every index in cuts
+    (the default, no cuts, is the product's own windowing)."""
+    edges = sorted({0, n, *(c for c in cuts if 0 < c < n)})
+    out = []
+    for a, b in zip(edges, edges[1:]):
+        for s in range(a, b, batch):
+            out.append(list(range(s, min(s + batch, b))))
+    return out
+
+
 def get_eval_arms(base_only=False):
     """Return serving arms; a base-only server has no adapter endpoint state."""
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
@@ -180,7 +191,15 @@ def main():
                     help="directory containing corrected <book>.txt inputs")
     ap.add_argument("--checkpoint-dir", help="directory containing corrected "
                     "<book>__three_pass.json.threepass_checkpoint.json files")
+    ap.add_argument("--window-cuts", help="chapter_cuts.py output: entry "
+                    "indices where a window is forced to start")
+    ap.add_argument("--cut-arm", choices=("chapter", "control"),
+                    help="which index list in --window-cuts to apply")
     args = ap.parse_args()
+    if bool(args.window_cuts) != bool(args.cut_arm):
+        ap.error("--window-cuts and --cut-arm go together")
+    cuts = (json.load(open(args.window_cuts))["books"]
+            if args.window_cuts else {})
     if args.batch_size < 1:
         ap.error("--batch-size must be at least 1")
 
@@ -194,6 +213,9 @@ def main():
     _env = os.environ.get("EXPERIMENT_ENV")
     decoding, notes = get_eval_metadata(
         args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens)
+    if cuts:
+        decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
+                                   "arm": args.cut_arm}
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -213,8 +235,8 @@ def main():
         # lines stand for, per ExperimentRecord.add's contract. The roster
         # itself is still what the model is SHOWN.
         membership = roster_membership_names(roster, groups)
-        windows = [list(range(s, min(s + args.batch_size, len(seg))))
-                   for s in range(0, len(seg), args.batch_size)]
+        windows = make_windows(len(seg), args.batch_size,
+                               cuts.get(book, {}).get(args.cut_arm, ()))
         windows = [w for w in windows
                    if any(norm(seg[i].get("text")) in want for i in w)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "

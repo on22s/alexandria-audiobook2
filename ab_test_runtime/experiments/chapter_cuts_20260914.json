@@ -1,0 +1,190 @@
+{
+ "books": {
+  "index18": {
+   "entries": 2577,
+   "gold_rows": 92,
+   "pattern": "^Chapter \\d+:",
+   "chapter": [],
+   "control": [],
+   "chapter_windows": 104,
+   "chapter_gold_rows_moved": 0,
+   "chapter_gold_rows_within_25_after_cut": 0,
+   "control_windows": 104,
+   "control_gold_rows_moved": 0,
+   "control_gold_rows_within_25_after_cut": 0,
+   "fixed_windows": 104
+  },
+  "owarimonogatari3": {
+   "entries": 3949,
+   "gold_rows": 162,
+   "pattern": "^\\[Owarimonogatari 3\\] Mayoi Hell \\d{3}",
+   "chapter": [
+    6,
+    128,
+    233,
+    415,
+    502,
+    828,
+    915,
+    1034,
+    1077,
+    1209
+   ],
+   "control": [
+    168,
+    1069,
+    1588,
+    1669,
+    1733,
+    2001,
+    2105,
+    3115,
+    3469,
+    3657
+   ],
+   "chapter_windows": 164,
+   "chapter_gold_rows_moved": 162,
+   "chapter_gold_rows_within_25_after_cut": 4,
+   "control_windows": 164,
+   "control_gold_rows_moved": 160,
+   "control_gold_rows_within_25_after_cut": 19,
+   "fixed_windows": 158
+  },
+  "mushoku16": {
+   "entries": 1916,
+   "gold_rows": 133,
+   "pattern": "^(\u25a0|-{5,})\\s*$",
+   "chapter": [
+    4,
+    6,
+    7,
+    9,
+    10,
+    12,
+    13,
+    15,
+    70,
+    73,
+    74,
+    76,
+    98,
+    100,
+    104,
+    110,
+    118,
+    128,
+    149,
+    152,
+    154,
+    155
+   ],
+   "control": [
+    95,
+    308,
+    470,
+    553,
+    644,
+    756,
+    811,
+    852,
+    884,
+    999,
+    1018,
+    1056,
+    1070,
+    1217,
+    1575,
+    1628,
+    1722,
+    1752,
+    1846,
+    1849,
+    1882,
+    1903
+   ],
+   "chapter_windows": 95,
+   "chapter_gold_rows_moved": 133,
+   "chapter_gold_rows_within_25_after_cut": 5,
+   "control_windows": 88,
+   "control_gold_rows_moved": 118,
+   "control_gold_rows_within_25_after_cut": 30,
+   "fixed_windows": 77
+  },
+  "grimgar03": {
+   "entries": 2603,
+   "gold_rows": 385,
+   "pattern": "^Grimgar of Fantasy and Ash: Volume 3\\n+\\d{1,2}\\. [A-Z]",
+   "chapter": [
+    132,
+    177,
+    421,
+    607,
+    874,
+    1018,
+    1241,
+    1395,
+    1524,
+    1673,
+    1748,
+    1879,
+    2061,
+    2186,
+    2295
+   ],
+   "control": [
+    167,
+    574,
+    900,
+    1067,
+    1161,
+    1250,
+    1475,
+    1587,
+    1668,
+    1733,
+    1965,
+    2003,
+    2081,
+    2108,
+    2405
+   ],
+   "chapter_windows": 111,
+   "chapter_gold_rows_moved": 364,
+   "chapter_gold_rows_within_25_after_cut": 39,
+   "control_windows": 112,
+   "control_gold_rows_moved": 283,
+   "control_gold_rows_within_25_after_cut": 49,
+   "fixed_windows": 105
+  }
+ },
+ "provenance": {
+  "script": "chapter_cuts.py",
+  "written": "2026-09-14T04:43:27",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0cb3b070c7c83a7b8a1751229c668a1f8ad54c12",
+   "branch": "feat/libriquote-quotes-vs-narration",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/lora_serving_eval.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/chapter_cuts.py",
+    "app/tests/test_chapter_cuts.py"
+   ],
+   "harness_sha256": "5939de965b33374835f811b59944fd9b8084310045f5ec95ca6dff0a7eb71c9e"
+  },
+  "args": {
+   "books": [
+    "index18",
+    "owarimonogatari3",
+    "mushoku16",
+    "grimgar03"
+   ],
+   "batch_size": 25,
+   "seed": 0,
+   "out": "ab_test_runtime/experiments/chapter_cuts_20260914.json"
+  },
+  "seed": 0
+ }
+}

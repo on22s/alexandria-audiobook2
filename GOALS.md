@@ -2288,6 +2288,20 @@ voice "to the same settings".
 **Evidence** — `prune_retrain__<adapter>__fidelity.json` (control + pruned)
 and `prune_retrain__<adapter>__control_rep2_fidelity.json` for the five.
 
+**The gap is not the garble floor (2026-09-14).** One candidate cause was
+`train_lora.GARBLE_FLOOR = 4.1`: in target-loss mode the trainer discards
+any epoch whose loss falls below 4.1, and the shipped adapters' recorded
+losses (4.095, 4.022) sit exactly there, so today's retrains may be keeping
+a worse epoch than the originals did. Tested by retraining both mid-range
+datasets for a fixed 4 epochs with no floor and no target, twice (grad-accum
+8: losses 4.51/4.46; grad-accum 4, the library setting: 4.16/4.10), scored
+the same way: ECAPA **0.335/0.337** and **0.315/0.319** — inside the
+0.29–0.34 band of the two floored retrains, nowhere near the shipped
+0.398/0.501. Keeping the overshoot epoch does not recover the shipped level,
+so the floor stays as it is and the cause is still in the original runs'
+settings. Evidence — `floor_test__nofloor_4ep__fidelity.json`,
+`floor_test__nofloor_4ep_ga4__fidelity.json`.
+
 **Character speech vs narration as training data: not the lever, and the
 sign depends on the reader (2026-09-13).** Piits et al. (LREC 2022) found a
 same-speaker character-speech corpus trained the worst-rated voice with
