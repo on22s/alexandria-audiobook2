@@ -217,9 +217,13 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
             if field in assignment:
                 cfg[field] = assignment[field]
         cfg.pop("alias_of", None)
-        # Preserve an existing alias_of on the current character (book-specific)
+        cfg.pop("ready", None)
+        # Preserve an existing alias_of and ready flag on the current
+        # character (both book-specific, never part of the library entry)
         if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
             cfg["alias_of"] = result_config[char]["alias_of"]
+        if isinstance(result_config.get(char), dict) and result_config[char].get("ready"):
+            cfg["ready"] = True
         result_config[char] = cfg
         applied.append(char)
     return result_config, applied

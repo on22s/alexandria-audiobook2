@@ -69,6 +69,9 @@ class VoiceConfigItem(BaseModel):
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
     members: Optional[List[str]] = None  # speaker names to voice at once (ensemble type)
+    # Character approved by the user for this book (#522 17.1); a UI flag,
+    # nothing downstream reads it.
+    ready: bool = False
 
     @model_validator(mode="after")
     def validate_ensemble_members(self):

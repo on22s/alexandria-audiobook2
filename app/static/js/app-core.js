@@ -1837,12 +1837,17 @@
             const config = voice.config || {};
             const voiceType = config.type || 'custom';
 
+            const ready = !!config.ready;
             return `
-                <div class="card voice-card mb-3" data-voice="${escapeHtml(voice.name)}">
+                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-ready="${ready ? '1' : '0'}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <div class="form-check form-switch small">
+                                    <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
+                                    <label class="form-check-label" for="voice-ready-${index}">Ready</label>
+                                </div>
                                 <div class="form-text small text-muted mt-1">Alias of:</div>
                                 <select class="form-select form-select-sm alias-select mt-1">
                                     <option value="">-- None --</option>
@@ -2054,6 +2059,8 @@
                 return;
             }
             container.innerHTML = voices.map((v, i) => createVoiceCard(v, i)).join('');
+            renderReadyCount();
+            onToggleHideReady();
 
             // If any voice has no saved config, save defaults immediately
             if (voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
@@ -2690,8 +2697,39 @@
                 if (alias) {
                     config[name].alias_of = alias;
                 }
+                const readyBox = card.querySelector('.voice-ready');
+                if (readyBox && readyBox.checked) {
+                    config[name].ready = true;
+                }
             });
             return config;
+        }
+
+        function onVoiceReadyChange(box) {
+            const card = box.closest('.voice-card');
+            if (card) {
+                card.dataset.ready = box.checked ? '1' : '0';
+                card.classList.toggle('border-success', box.checked);
+            }
+            renderReadyCount();
+            onToggleHideReady();
+        }
+
+        function renderReadyCount() {
+            const el = document.getElementById('voices-ready-count');
+            if (!el) {
+                return;
+            }
+            const cards = document.querySelectorAll('.voice-card');
+            const ready = Array.from(cards).filter(c => c.dataset.ready === '1').length;
+            el.textContent = cards.length ? `${ready} / ${cards.length} ready` : '';
+        }
+
+        function onToggleHideReady() {
+            const hide = !!document.getElementById('voices-hide-ready')?.checked;
+            document.querySelectorAll('.voice-card').forEach(card => {
+                card.style.display = hide && card.dataset.ready === '1' ? 'none' : '';
+            });
         }
 
         let _voiceSaveTimer = null;

@@ -2029,6 +2029,11 @@
             ],
             "title": "Members"
           },
+          "ready": {
+            "default": false,
+            "title": "Ready",
+            "type": "boolean"
+          },
           "ref_audio": {
             "anyOf": [
               {

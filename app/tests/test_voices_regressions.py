@@ -48,6 +48,18 @@ class VoicesTests(unittest.TestCase):
             saved = json.loads(Path(library_path).read_text(encoding="utf-8"))
             self.assertEqual({f"cast-{index}" for index in range(8)}, set(saved["casts"]))
 
+    def test_ready_flag_round_trips_and_survives_a_cast_apply(self):
+        item = voices_module.VoiceConfigItem(type="custom", voice="Ryan", ready=True)
+        self.assertTrue(item.model_dump()["ready"])
+        self.assertFalse(voices_module.VoiceConfigItem(type="custom").model_dump()["ready"])
+        lib = {"shared": {}, "casts": {"c": {"members": {"ELENA": {"config": {"type": "custom", "voice": "Ryan", "ready": True}}}}}}
+        current = {"ELENA": {"type": "custom", "voice": "Aiden", "ready": True},
+                   "BOB": {"type": "custom", "voice": "Aiden"}}
+        out, applied = voice_library_module._apply_cast_mapping(lib, "c", {"ELENA": "ELENA", "BOB": "ELENA"}, current)
+        self.assertEqual(["ELENA", "BOB"], applied)
+        self.assertTrue(out["ELENA"]["ready"])       # the book's own approval is kept
+        self.assertNotIn("ready", out["BOB"])        # the library entry's flag never leaks
+
     def test_voice_config_rejects_empty_ensemble_before_save(self):
         for members in (None, [], ["  "]):
             with self.subTest(members=members), self.assertRaises(ValueError):
