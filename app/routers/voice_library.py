@@ -308,6 +308,27 @@ async def voice_library_create_cast(request: CastCreateRequest):
     return {"status": "created", "name": name}
 
 
+@router.post("/api/voice_library/favorites/{adapter_id}")
+async def voice_library_toggle_favorite(adapter_id: str):
+    """Star or unstar one adapter; suggestions prefer compatible favorites."""
+    adapter_id = adapter_id.strip()
+    if not adapter_id:
+        raise HTTPException(status_code=400, detail="Adapter id is required.")
+
+    def toggle(lib):
+        favorites = list(lib.get("favorites") or [])
+        if adapter_id in favorites:
+            favorites.remove(adapter_id)
+            starred = False
+        else:
+            favorites.append(adapter_id)
+            starred = True
+        lib["favorites"] = favorites
+        return {"favorite": starred, "favorites": favorites}
+
+    return await _mutate_voice_library_async(toggle)
+
+
 @router.delete("/api/voice_library/casts/{cast}")
 async def voice_library_delete_cast(cast: str):
     def delete(lib):

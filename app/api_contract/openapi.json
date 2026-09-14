@@ -6796,6 +6796,44 @@
         "summary": "Voice Library Delete Member"
       }
     },
+    "/api/voice_library/favorites/{adapter_id}": {
+      "post": {
+        "description": "Star or unstar one adapter; suggestions prefer compatible favorites.",
+        "operationId": "voice_library_toggle_favorite_api_voice_library_favorites__adapter_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Toggle Favorite"
+      }
+    },
     "/api/voice_library/match": {
       "post": {
         "description": "Fuzzy-match the current book's characters against a cast (+shared pool).\nReturns proposals for the user to confirm before applying. `name` = cast name.",

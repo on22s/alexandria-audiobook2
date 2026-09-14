@@ -1912,12 +1912,12 @@
                                                     let html = '';
                                                     if (males.length) {
                                                         html += '<optgroup label="Male">';
-                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     if (females.length) {
                                                         html += '<optgroup label="Female">';
-                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     return html;
@@ -1965,7 +1965,7 @@
                                         <div class="col-md-6">
                                             <select class="form-select lora-adapter-select">
                                                 <option value="">-- Select trained adapter --</option>
-                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
+                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">

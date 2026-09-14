@@ -411,6 +411,7 @@ def _rank_heuristic_candidates(profile: str, candidates: List[dict], preferred_g
     words = set(re.findall(r"[a-z]{4,}", profile.lower()))
     ranked = sorted(pool, key=lambda c: (
         _age_distance(preferred_age, c.get("age_group", "unknown")),
+        0 if c.get("favorite") else 1,
         -len(words & set(re.findall(r"[a-z]{4,}", c.get("description", "").lower()))),
         c["adapter_id"]))
     return [c["adapter_id"] for c in ranked]
@@ -447,8 +448,12 @@ def get_voice_allocation(profile, candidates, initial_ranked, traits,
         distance = _age_distance(traits["age_group"], candidate.get("age_group", "unknown"))
         age_penalty = distance * (100 if hard_age else 1)
         reuse_penalty = 100 if priority == "major" else 2
+        # A starred voice beats a non-favorite ranked above it (one rank step
+        # is 10) but never a hard age or gender mismatch (100 / the tier).
+        favorite_bonus = -25 if candidate.get("favorite") else 0
         compatibility_and_reuse = (
             rank_order[adapter_id] * 10 + age_penalty + soft_gender_penalty
+            + favorite_bonus
             + usage.get(adapter_id, {}).get("character_count", 0) * reuse_penalty)
         return hard_gender_tier, compatibility_and_reuse, adapter_id
 
@@ -527,6 +532,9 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     line_limit = max(1, min(int(request.max_lines or 8), 30))
     book_id = get_active_book_id()
     lib = _load_voice_library()
+    favorites = set(lib.get("favorites") or [])
+    for c in candidates:
+        c["favorite"] = c["adapter_id"] in favorites
     cast_name = (request.cast or "").strip() or None
     if cast_name and cast_name not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
@@ -599,7 +607,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         client, model_name = _make_llm_client(timeout=120)
 
         voice_catalog = "\n".join(
-            f'- id="{c["adapter_id"]}" | name="{c["name"][:50]}" | gender={c.get("gender", "unknown")} | age={c.get("age_group", "unknown")} | series_use={usage.get(c["adapter_id"], {}).get("character_count", 0)} | description: {(c["description"] or "(none)")[:80]}'
+            f'- id="{c["adapter_id"]}" | name="{c["name"][:50]}" | gender={c.get("gender", "unknown")} | age={c.get("age_group", "unknown")} | favorite={"yes" if c.get("favorite") else "no"} | series_use={usage.get(c["adapter_id"], {}).get("character_count", 0)} | description: {(c["description"] or "(none)")[:80]}'
             for c in candidates
         )
         system_prompt = (
@@ -608,6 +616,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "The style should describe cadence, energy, formality, confidence, and supported emotion; do not invent biography or accent. "
             "Infer gender and broad apparent age only when supported by the supplied book evidence. "
             "Known character gender must match voice gender; prefer the closest available age group. "
+            "Among compatible voices, prefer one marked favorite=yes. "
             "Only use provided voice ids. Return every requested character in the structured response."
         )
         casting_schema = {
@@ -782,6 +791,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         method = "heuristic"
 
     return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates),
+            "favorites": sorted(favorites),
             "adapter_usage": usage, "book_id": book_id, "cast": cast_name,
             "major_line_threshold": CAST_MAJOR_LINE_THRESHOLD, "llm_warning": llm_warning}
 
