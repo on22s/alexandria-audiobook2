@@ -103,22 +103,40 @@ case "${1:-status}" in
     job=$(running_job)
     if [ -n "$job" ]; then
         if [ "${2:-}" = "--now" ]; then
-            echo "interrupting the running job '$job' (SIGINT, graceful)."
+            echo "stopping the running job '$job' (SIGTERM; gpu_job.sh escalates to KILL after 20s)."
             echo "WARNING: a job that writes its artifact incrementally may"
             echo "leave a partial file that a later chain reads as finished."
+            # SIGTERM, not SIGINT. Every chain is launched with nohup/& from a
+            # non-interactive shell, which starts it with SIGINT ignored; the
+            # wrapper and the setsid'd job inherit that (SigIgn bit 1 on both,
+            # measured 2026-09-14), and a shell cannot trap a signal it entered
+            # ignoring. So `kill -INT` reached nothing, this script wrote
+            # INTERRUPTED at once, and the job ran to completion and logged OK
+            # 28s later. The wrapper's TERM trap stops the process group and
+            # writes the terminal line itself (STOPPED/KILLED, then INTERRUPTED
+            # rc=143) - one owner for the marker - so this side only signals
+            # and waits for the wrapper to be gone.
             mapfile -t pids < <(job_pids "$job")
-            interrupted=0
+            signalled=0
             for pid in "${pids[@]}"; do
-                if kill -INT "$pid" 2>/dev/null; then
-                    interrupted=1
+                if kill -TERM "$pid" 2>/dev/null; then
+                    signalled=1
                 fi
             done
-            if [ "$interrupted" = "1" ]; then
-                echo "$(stamp) INTERRUPTED $job (gpu_pause --now)" >> "$QLOG"
-            else
-                echo "could not interrupt '$job'; no signal was delivered." >&2
+            if [ "$signalled" != "1" ]; then
+                echo "could not stop '$job'; no signal was delivered." >&2
                 exit 3
             fi
+            waited=0
+            while [ "$waited" -lt 45 ] && job_is_live "$job"; do
+                sleep 1
+                waited=$((waited + 1))
+            done
+            if job_is_live "$job"; then
+                echo "'$job' is still alive ${waited}s after SIGTERM; check '$QLOG'." >&2
+                exit 3
+            fi
+            echo "'$job' stopped after ${waited}s; its terminal line is in the queue log."
         else
             echo "'$job' is still running and keeps the card until it exits."
             echo "run 'gpu_pause.sh status' to see when VRAM is actually free,"

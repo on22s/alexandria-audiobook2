@@ -448,6 +448,24 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("brand_new_probe.py", body)
         self.assertIn("brand new, not yet committed", body)
 
+    def test_the_saved_patch_skips_untracked_files_under_the_runtime_tree(self):
+        """ab_test_runtime/ is where runs WRITE; tree_state already excludes it,
+        and the patch capture did not. On 2026-09-14 that walk covered 2,305
+        untracked files under 145 GB and cost 11s before every overridden
+        START - and would have pasted generated views into the patch."""
+        self._make_repo(dirty=True)
+        generated = os.path.join(self.root, "ab_test_runtime", "views", "generated_view.py")
+        os.makedirs(os.path.dirname(generated), exist_ok=True)
+        with open(generated, "w", encoding="utf-8") as handle:
+            handle.write("# written by a run, not by a person\n")
+        self._run(allow_dirty="1")
+        patch_dir = os.path.join(self.tmp.name, "dirty_patches")
+        body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
+                    encoding="utf-8").read()
+        self.assertIn("an uncommitted change", body)
+        self.assertNotIn("generated_view.py", body,
+                         "a file a run wrote is not the code that produced it")
+
     def test_a_clean_run_writes_no_patch(self):
         # Nothing to record, and a stray empty patch would suggest otherwise.
         self._make_repo(dirty=False)
@@ -1375,3 +1393,60 @@ if __name__ == "__main__":
     # file directly to check their work. Same family as the tests/ package
     # needing __init__.py: a runner that silently tests less than you think.
     unittest.main()
+
+
+@unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
+class PauseNowTest(unittest.TestCase):
+    """`on --now` must END the job, and the wrapper alone writes the marker.
+
+    The defect: it sent SIGINT to the wrapper and wrote INTERRUPTED at once.
+    But every chain is launched with nohup/& from a non-interactive shell,
+    which starts it with SIGINT ignored, and the wrapper and its setsid'd job
+    inherit that - so the signal reached nothing. Measured 2026-09-14:
+    INTERRUPTED logged at 19:59:00, the job kept the card, OK at 19:59:28.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+        self.env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                                GPU_PAUSE_FLAG=os.path.join(self.tmp.name, "paused"),
+                                ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _log(self):
+        try:
+            with open(self.qlog, encoding="utf-8") as fh:
+                return fh.read()
+        except FileNotFoundError:
+            return ""
+
+    def test_now_ends_a_job_that_ignores_sigint_and_leaves_one_terminal_line(self):
+        import signal
+        proc = subprocess.Popen(
+            ["bash", GPU_JOB, "victim", "bash", "-c", "sleep 30; echo finished"],
+            env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            # The production condition: a chain started with nohup/& ignores
+            # SIGINT, and so does everything it starts.
+            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN))
+        deadline = time.time() + 90
+        while time.time() < deadline and "START    victim" not in self._log():
+            time.sleep(0.2)
+        if "START    victim" not in self._log():
+            proc.kill()
+            self.skipTest("job never started; nothing to assert about stopping")
+        result = subprocess.run(["bash", GPU_PAUSE, "on", "--now"], env=self.env,
+                                capture_output=True, text=True, timeout=90)
+        self.assertEqual(0, result.returncode, result.stderr)
+        proc.wait(timeout=30)   # the wrapper is gone, not merely signalled
+        # Wait out the wrapper's own log write, then the job must never log OK.
+        time.sleep(1)
+        terminal = [l.split()[1] for l in self._log().splitlines()
+                    if len(l.split()) > 1 and l.split()[1] in
+                    ("OK", "FAILED", "INTERRUPTED", "STOPPED", "KILLED")]
+        self.assertNotIn("OK", terminal, self._log())
+        self.assertEqual(1, terminal.count("INTERRUPTED"), self._log())
+        self.assertIn("rc=143", self._log(), "the wrapper, not gpu_pause, writes the marker")
+
