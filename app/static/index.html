@@ -453,8 +453,9 @@
     <script>
         /* Anti-flash: apply saved theme before first paint */
         (function() {
-            const t = localStorage.getItem('alex-theme');
-            if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
+            let t = null;
+            try { t = localStorage.getItem('alex-theme'); } catch (e) { /* storage blocked (private mode, policy) */ }
+            if (t && t !== 'light') { document.documentElement.setAttribute('data-theme', t); }
         })();
     </script>
 </head>

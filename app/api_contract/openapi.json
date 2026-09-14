@@ -2189,6 +2189,17 @@
           "sample_text": {
             "title": "Sample Text",
             "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
           }
         },
         "required": [

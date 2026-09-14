@@ -240,7 +240,7 @@
             const t = THEMES.find(t => t.key === key) || THEMES[0];
             document.getElementById('theme-icon').className = `fas ${t.icon}`;
             document.getElementById('theme-label').textContent = t.label;
-            localStorage.setItem('alex-theme', key);
+            try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
         }
 
         function cycleTheme() {
@@ -252,7 +252,8 @@
 
         // Sync button label/icon with whatever the anti-flash snippet already applied
         (function() {
-            const saved = localStorage.getItem('alex-theme') || 'light';
+            let saved = 'light';
+            try { saved = localStorage.getItem('alex-theme') || 'light'; } catch (e) { /* storage blocked */ }
             applyTheme(saved);
         })();
 
