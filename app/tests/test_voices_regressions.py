@@ -48,6 +48,18 @@ class VoicesTests(unittest.TestCase):
             saved = json.loads(Path(library_path).read_text(encoding="utf-8"))
             self.assertEqual({f"cast-{index}" for index in range(8)}, set(saved["casts"]))
 
+    def test_ready_flag_round_trips_and_survives_a_cast_apply(self):
+        item = voices_module.VoiceConfigItem(type="custom", voice="Ryan", ready=True)
+        self.assertTrue(item.model_dump()["ready"])
+        self.assertFalse(voices_module.VoiceConfigItem(type="custom").model_dump()["ready"])
+        lib = {"shared": {}, "casts": {"c": {"members": {"ELENA": {"config": {"type": "custom", "voice": "Ryan", "ready": True}}}}}}
+        current = {"ELENA": {"type": "custom", "voice": "Aiden", "ready": True},
+                   "BOB": {"type": "custom", "voice": "Aiden"}}
+        out, applied = voice_library_module._apply_cast_mapping(lib, "c", {"ELENA": "ELENA", "BOB": "ELENA"}, current)
+        self.assertEqual(["ELENA", "BOB"], applied)
+        self.assertTrue(out["ELENA"]["ready"])       # the book's own approval is kept
+        self.assertNotIn("ready", out["BOB"])        # the library entry's flag never leaks
+
     def test_voice_config_rejects_empty_ensemble_before_save(self):
         for members in (None, [], ["  "]):
             with self.subTest(members=members), self.assertRaises(ValueError):
@@ -297,6 +309,35 @@ class VoicesTests(unittest.TestCase):
         self.assertIn("LM accepted age=elderly", suggestion["trait_evidence"])
         self.assertNotIn("elderly woman", suggestion["trait_evidence"])
         self.assertEqual(suggestion["llm_trait_evidence"], "An elderly woman speaks")
+
+    def test_favorite_wins_from_lm_rank_two_but_not_over_a_hard_mismatch(self):
+        first = {"adapter_id": "first", "gender": "male", "age_group": "adult", "description": ""}
+        starred = {"adapter_id": "starred", "gender": "male", "age_group": "adult", "description": "", "favorite": True}
+        traits = {"gender": "male", "gender_confidence": "high",
+                  "age_group": "adult", "age_confidence": "high"}
+        chosen, ranked, *_ = voices_module.get_voice_allocation(
+            "", [first, starred], ["first", "starred"], traits, None, {}, "minor")
+        self.assertEqual(chosen, "starred")
+        self.assertEqual(ranked[0], "starred")
+        # a starred voice of the wrong age (authoritative) does not jump the queue
+        old_star = dict(starred, age_group="elderly")
+        chosen, *_ = voices_module.get_voice_allocation(
+            "", [first, old_star], ["first", "starred"], traits, None, {}, "minor")
+        self.assertEqual(chosen, "first")
+        # the heuristic ranker also puts favorites first within an age tier
+        order = voices_module._rank_heuristic_candidates("", [first, starred], "male", "adult")
+        self.assertEqual(order[0], "starred")
+
+    def test_favorite_toggle_round_trips_through_the_library(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "voice_library.json")
+            with patch.object(voice_library_module, "VOICE_LIBRARY_PATH", path), \
+                 patch.object(core_module, "VOICE_LIBRARY_PATH", path):
+                import asyncio
+                first = asyncio.run(voice_library_module.voice_library_toggle_favorite("alto"))
+                self.assertEqual(first, {"favorite": True, "favorites": ["alto"]})
+                second = asyncio.run(voice_library_module.voice_library_toggle_favorite("alto"))
+                self.assertEqual(second, {"favorite": False, "favorites": []})
 
     def test_low_confidence_traits_do_not_hard_filter(self):
         candidates = [

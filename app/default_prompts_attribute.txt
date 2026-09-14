@@ -10,6 +10,7 @@ RULES:
 1. Return exactly one object per input entry, each echoing its "n". Do not add, drop, merge, or lose entries — every index must appear once.
 2. Prefer names already in the roster over inventing new spellings of the same character.
 3. If a SPOKEN line's speaker is genuinely unknowable from context, use "UNKNOWN".
+4. Do not default to the story's main characters. Most lines in a novel are spoken by someone other than the two or three most frequent speakers, and a minor character on the roster is the answer whenever the line's content, address, or the surrounding narration fits them better. Choose a main character only when the passage supports it.
 ---SEPARATOR---
 ESTABLISHED ROSTER: {roster}
 

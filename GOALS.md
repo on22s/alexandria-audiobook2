@@ -4642,6 +4642,35 @@ with the number of suspects removed.
 
 **Evidence** — `two_stage_attribution__usual_suspects_control_20260913.json`,
 `two_stage_attribution__usual_suspects_dropped_20260913.json`.
+
+**Three ways to give the model that reason, measured on the same 1,213
+rows (2026-09-14).** A one-sentence prompt hint ("do not default to the
+main characters…"), reasoning turned on (`reasoning_effort=medium`, budget
+1024, same model), and the removal ceiling from above:
+
+| book | full cast | + hint | + reasoning | leads removed (ceiling) |
+|---|---:|---:|---:|---:|
+| Pride and Prejudice (725) | 62.8% | 66.2% | 65.9% | 68.1% |
+| The Sign of the Four (255) | 43.1% | 43.1% | **53.9%** | 52.2% |
+| The Awakening (233) | 55.4% | 54.5% | **64.5%** | 62.7% |
+| **pooled** | **57.2%** | 59.1% (+66/−43, p=0.035) | **62.9%** (+173/−104, p=4e-5) | 63.7% |
+
+The hint helps one book and is inert on two; reasoning reaches the
+removal ceiling on all three — on two books it beats actually removing
+the leads. It is the first lever that moves every book, and it costs
+thinking tokens on every window (the run took about three times as long
+as the control on the same card). Two checks on the hint that matter for
+shipping it anyway: on ALL rows (leads included) it never hurt — P&P 68.2
+→ 67.9, Sign of the Four 56.1 → 57.3, Awakening 70.5 → 71.2 — and at the
+product window on the four light-novel books (base Qwen3-14B, tnr-1, the
+chapter-cut "fixed" run as the paired control) it is 477 → 488 of 768
+(+45/−34, p=0.26), blank windows 13 → 3. Cheap, never negative, not a
+fix on its own.
+
+**Evidence** — `two_stage_attribution__usual_suspects_hint_20260914.json`,
+`two_stage_attribution__all_rows_hint_20260914.json`,
+`two_stage_attribution__usual_suspects_reasoning_20260914.json`,
+`lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json`.
 #### Registered before the run: play-script adapters, English vs. mixed (2026-09-13)
 
 A play carries the speaker of every line as part of the text

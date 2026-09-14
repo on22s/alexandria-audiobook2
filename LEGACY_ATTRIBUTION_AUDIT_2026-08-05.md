@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 212 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 216 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 118
-- `historical_only`: 48
+- `exploratory`: 120
+- `historical_only`: 50
 - `provisional`: 11
 - `supported_measurement`: 35
 
@@ -132,6 +132,7 @@ All 212 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen3-14b-base-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
+| `lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-14b-dracor-en-a6000-product-batch25-20260913.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-dracor-mixed-a6000-product-batch25-20260913.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
@@ -195,6 +196,7 @@ All 212 legacy-metadata artifacts are listed exactly once. Classification descri
 | `tag_priority__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 278 | 0 | 0 | True | saved summary differs from row recomputation |
 | `tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 324 | 1 | 0 | False | saved summary differs from row recomputation |
 | `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified; saved summary differs from row recomputation |
+| `two_stage_attribution__all_rows_hint_20260914.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | True |  |
 | `two_stage_attribution__explicit_control.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_inner_narration.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
@@ -203,6 +205,8 @@ All 212 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution__usual_suspects_control_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
 | `two_stage_attribution__usual_suspects_dropped_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_hint_20260914.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_reasoning_20260914.json` | two_stage_attribution | exploratory | 1213 | 0 | 488 | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
 | `two_stage_attribution_restricted.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |

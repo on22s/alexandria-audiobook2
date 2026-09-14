@@ -44,5 +44,16 @@ class PromptVariantTest(unittest.TestCase):
         wrote a hypothesis for.
         """
         self.assertEqual(("control", "explicit_hint", "shuffled_roster",
-                          "inner_narration", "speaker_not_addressee"),
+                          "inner_narration", "speaker_not_addressee",
+                          # 2026-09-14, GOALS 1.2: the usual-suspect prior. The
+                          # hypothesis was that naming the prior recovers what
+                          # removing the leads recovers; it did on one book of three.
+                          "minor_speaker_hint"),
                          PROMPT_VARIANTS)
+
+    def test_minor_speaker_hint_is_appended_to_the_control_prompt(self):
+        from experiments.two_stage_attribution import MINOR_SPEAKER_HINT
+        control = build_prompt(ENTRY, ROSTER, variant="control")
+        hinted = build_prompt(ENTRY, ROSTER, variant="minor_speaker_hint")
+        self.assertEqual(control + MINOR_SPEAKER_HINT, hinted)
+        self.assertIn("main characters", MINOR_SPEAKER_HINT)

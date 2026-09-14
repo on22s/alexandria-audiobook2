@@ -26,6 +26,7 @@ from core import (
     _cancel_task,
     _load_builtin_lora_manifest,
     _load_manifest,
+    _load_voice_library,
     _require_safe_filename,
     _safe_subpath,
     _save_manifest,
@@ -723,7 +724,9 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
 async def lora_list_models():
     """List all LoRA adapters (built-in + user-trained)."""
     models = _load_builtin_lora_manifest() + _load_manifest(LORA_MODELS_MANIFEST)
+    favorites = set(_load_voice_library().get("favorites") or [])
     for m in models:
+        m["favorite"] = m.get("id") in favorites
         is_builtin = m.get("builtin", False)
         is_downloaded = m.get("downloaded", True)  # user-trained are always downloaded
 
