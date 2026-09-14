@@ -165,3 +165,23 @@ class VoiceDriftPersistenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DriftCheckRouteTests(unittest.TestCase):
+    """The literal /api/chunks/drift_check must win over /api/chunks/{index}.
+    Registered below the integer wildcard (as it was from #525 until this
+    test), every request was a 422 'unable to parse drift_check as an
+    integer' and the Editor button never ran a check."""
+
+    def test_drift_check_route_is_not_swallowed_by_chunk_index(self):
+        from fastapi.testclient import TestClient
+        import app as app_module
+        state = core_module.process_state["drift_check"]
+        previous = state["running"]
+        state["running"] = True   # a claimed task: the endpoint itself must answer, with 400
+        try:
+            response = TestClient(app_module.app).post("/api/chunks/drift_check", json={"indices": []})
+        finally:
+            state["running"] = previous
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("already running", response.json()["detail"])

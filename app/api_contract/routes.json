@@ -633,12 +633,21 @@
     "methods": [
       "POST"
     ],
+    "name": "drift_check_endpoint",
+    "path": "/api/chunks/drift_check",
+    "type": "APIRoute"
+  },
+  {
+    "index": 72,
+    "methods": [
+      "POST"
+    ],
     "name": "update_chunk",
     "path": "/api/chunks/{index}",
     "type": "APIRoute"
   },
   {
-    "index": 72,
+    "index": 73,
     "methods": [
       "POST"
     ],
@@ -647,7 +656,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 73,
+    "index": 74,
     "methods": [
       "DELETE"
     ],
@@ -656,7 +665,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 74,
+    "index": 75,
     "methods": [
       "POST"
     ],
@@ -665,7 +674,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 75,
+    "index": 76,
     "methods": [
       "POST"
     ],
@@ -674,7 +683,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 76,
+    "index": 77,
     "methods": [
       "POST"
     ],
@@ -683,7 +692,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 77,
+    "index": 78,
     "methods": [
       "GET"
     ],
@@ -692,7 +701,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 78,
+    "index": 79,
     "methods": [
       "GET"
     ],
@@ -701,7 +710,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 79,
+    "index": 80,
     "methods": [
       "POST"
     ],
@@ -710,7 +719,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 80,
+    "index": 81,
     "methods": [
       "POST"
     ],
@@ -719,7 +728,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 81,
+    "index": 82,
     "methods": [
       "POST"
     ],
@@ -728,7 +737,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 82,
+    "index": 83,
     "methods": [
       "GET"
     ],
@@ -737,7 +746,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 83,
+    "index": 84,
     "methods": [
       "GET"
     ],
@@ -746,7 +755,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 84,
+    "index": 85,
     "methods": [
       "GET"
     ],
@@ -755,7 +764,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 85,
+    "index": 86,
     "methods": [
       "GET"
     ],
@@ -764,7 +773,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 86,
+    "index": 87,
     "methods": [
       "GET"
     ],
@@ -773,7 +782,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 87,
+    "index": 88,
     "methods": [
       "POST"
     ],
@@ -782,7 +791,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 88,
+    "index": 89,
     "methods": [
       "DELETE"
     ],
@@ -791,21 +800,12 @@
     "type": "APIRoute"
   },
   {
-    "index": 89,
+    "index": 90,
     "methods": [
       "POST"
     ],
     "name": "generate_batch_endpoint",
     "path": "/api/generate_batch",
-    "type": "APIRoute"
-  },
-  {
-    "index": 90,
-    "methods": [
-      "POST"
-    ],
-    "name": "drift_check_endpoint",
-    "path": "/api/chunks/drift_check",
     "type": "APIRoute"
   },
   {
