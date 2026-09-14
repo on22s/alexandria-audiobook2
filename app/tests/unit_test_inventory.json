@@ -3068,6 +3068,7 @@
     "tests.test_structured_output.StructuredOutput.test_fallback_does_not_leak_to_a_new_run",
     "tests.test_structured_output.StructuredOutput.test_off_never_sends_it",
     "tests.test_structured_output.StructuredOutput.test_other_errors_are_not_mistaken_for_schema_rejection",
+    "tests.test_structured_output.StructuredOutput.test_real_server_wordings_for_an_unsupported_response_format",
     "tests.test_structured_output.StructuredOutput.test_rejection_falls_back_once_and_sticks_for_the_server"
   ],
   "test_suite_imports_are_ci_installable": [
