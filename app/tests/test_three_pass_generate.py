@@ -608,6 +608,12 @@ class CheckpointTests(unittest.TestCase):
         second = LLMGenParams(max_tokens=500, temperature=0.9)
         self.assertNotEqual(tp.three_pass_fingerprint("text", "m", 6000, first),
                             tp.three_pass_fingerprint("text", "m", 6000, second))
+
+    def test_fingerprint_changes_for_structured_output_mode(self):
+        first = LLMGenParams(structured_output="auto")
+        second = LLMGenParams(structured_output="off")
+        self.assertNotEqual(tp.three_pass_fingerprint("text", "m", 6000, first),
+                            tp.three_pass_fingerprint("text", "m", 6000, second))
     def _payloads(self):
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]

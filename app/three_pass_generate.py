@@ -985,7 +985,13 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
             "context_length", "hard_max_tokens", "segment_temperature",
             "attribute_temperature", "instruct_temperature",
-            "segment_output_ratio", "presegment_quotes")})
+            "segment_output_ratio", "presegment_quotes", "structured_output",
+            "response_schema")})
+        # The attribution schema is installed inside attribute_batch rather
+        # than on the caller's params object. Include it in the checkpoint
+        # identity so changing the request contract cannot resume old output.
+        if getattr(params, "structured_output", "auto") != "off":
+            settings["response_schema"] = ATTRIBUTION_RESPONSE_SCHEMA
     encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return {"source_sha256": digest, "settings_sha256": hashlib.sha256(encoded).hexdigest(),
             "model_name": model_name, "pipeline": "three_pass"}

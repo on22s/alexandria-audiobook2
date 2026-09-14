@@ -119,6 +119,12 @@ class Fingerprint(unittest.TestCase):
         fp = lambda p: get_generation_fingerprint("src", ["c"], "m", "u", p, 3000)
         self.assertNotEqual(fp(a)["settings_sha256"], fp(b)["settings_sha256"])
 
+    def test_fingerprint_changes_for_structured_output_mode(self):
+        a = LLMGenParams(structured_output="auto")
+        b = LLMGenParams(structured_output="off")
+        fp = lambda p: get_generation_fingerprint("src", ["c"], "m", "u", p, 3000)
+        self.assertNotEqual(fp(a)["settings_sha256"], fp(b)["settings_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()
