@@ -474,6 +474,7 @@
             document.getElementById('llm-retry-multiplier').value = p.retry_multiplier ?? 2;
             document.getElementById('llm-retry-max-delay').value =
                 p.retry_max_delay_seconds ?? 30;
+            document.getElementById('llm-retry-jitter').value = p.retry_jitter ?? 0.2;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
             document.getElementById('llm-provider-extra-body').value =
@@ -519,6 +520,7 @@
                 retry_initial_delay_seconds: getOptionalNumberInput('llm-retry-initial-delay', 'Initial backoff') ?? 1,
                 retry_multiplier: getOptionalNumberInput('llm-retry-multiplier', 'Backoff multiplier') ?? 2,
                 retry_max_delay_seconds: getOptionalNumberInput('llm-retry-max-delay', 'Maximum backoff') ?? 30,
+                retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null
@@ -1900,6 +1902,21 @@
             }
         }
 
+        function getPersonaContextLines() {
+            const select = document.getElementById('persona-context-lines');
+            const custom = document.getElementById('persona-context-custom');
+            const raw = select && select.value === 'custom' ? custom?.value : select?.value;
+            return Math.max(1, Math.min(parseInt(raw || '10', 10) || 10, 200));
+        }
+
+        function onPersonaContextChange() {
+            const select = document.getElementById('persona-context-lines');
+            const custom = document.getElementById('persona-context-custom');
+            if (custom) {
+                custom.style.display = select && select.value === 'custom' ? '' : 'none';
+            }
+        }
+
         async function generatePersonas() {
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
@@ -1907,12 +1924,13 @@
             const batchInput = document.getElementById('persona-batch-size');
             const advanced = !!(advancedToggle && advancedToggle.checked);
             const batchSize = Math.max(1, Math.min(parseInt(batchInput?.value || '40', 10) || 40, 200));
+            const contextLines = getPersonaContextLines();
             try {
                 statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${advanced ? 'Starting advanced...' : 'Starting...'}`;
                 if (cancelButton) {
                     cancelButton.style.display = '';
                 }
-                await API.post('/api/generate_personas', { advanced, batch_size: batchSize });
+                await API.post('/api/generate_personas', { advanced, batch_size: batchSize, context_lines: contextLines });
                 pollPersonaStatus();
             } catch (e) {
                 showToast('Failed to start persona generation: ' + e.message, 'error');
@@ -1973,12 +1991,17 @@
             const config = voice.config || {};
             const voiceType = config.type || 'custom';
 
+            const ready = !!config.ready;
             return `
-                <div class="card voice-card mb-3" data-voice="${escapeHtml(voice.name)}">
+                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-ready="${ready ? '1' : '0'}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <div class="form-check form-switch small">
+                                    <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
+                                    <label class="form-check-label" for="voice-ready-${index}">Ready</label>
+                                </div>
                                 <div class="form-text small text-muted mt-1">Alias of:</div>
                                 <select class="form-select form-select-sm alias-select mt-1">
                                     <option value="">-- None --</option>
@@ -2043,12 +2066,12 @@
                                                     let html = '';
                                                     if (males.length) {
                                                         html += '<optgroup label="Male">';
-                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     if (females.length) {
                                                         html += '<optgroup label="Female">';
-                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     return html;
@@ -2096,7 +2119,7 @@
                                         <div class="col-md-6">
                                             <select class="form-select lora-adapter-select">
                                                 <option value="">-- Select trained adapter --</option>
-                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
+                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
@@ -2190,6 +2213,8 @@
                 return;
             }
             container.innerHTML = voices.map((v, i) => createVoiceCard(v, i)).join('');
+            renderReadyCount();
+            onToggleHideReady();
 
             // If any voice has no saved config, save defaults immediately
             if (voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
@@ -2826,8 +2851,39 @@
                 if (alias) {
                     config[name].alias_of = alias;
                 }
+                const readyBox = card.querySelector('.voice-ready');
+                if (readyBox && readyBox.checked) {
+                    config[name].ready = true;
+                }
             });
             return config;
+        }
+
+        function onVoiceReadyChange(box) {
+            const card = box.closest('.voice-card');
+            if (card) {
+                card.dataset.ready = box.checked ? '1' : '0';
+                card.classList.toggle('border-success', box.checked);
+            }
+            renderReadyCount();
+            onToggleHideReady();
+        }
+
+        function renderReadyCount() {
+            const el = document.getElementById('voices-ready-count');
+            if (!el) {
+                return;
+            }
+            const cards = document.querySelectorAll('.voice-card');
+            const ready = Array.from(cards).filter(c => c.dataset.ready === '1').length;
+            el.textContent = cards.length ? `${ready} / ${cards.length} ready` : '';
+        }
+
+        function onToggleHideReady() {
+            const hide = !!document.getElementById('voices-hide-ready')?.checked;
+            document.querySelectorAll('.voice-card').forEach(card => {
+                card.style.display = hide && card.dataset.ready === '1' ? 'none' : '';
+            });
         }
 
         let _voiceSaveTimer = null;

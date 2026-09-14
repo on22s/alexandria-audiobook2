@@ -86,6 +86,15 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         self.assertEqual(4, get_retry_delay(1, 2, 10, 3))
         self.assertEqual(10, get_retry_delay(1, 2, 10, 8))
 
+    def test_retry_jitter_stays_inside_its_band_and_under_the_cap(self):
+        import random
+        rng = random.Random(7)
+        seen = {get_retry_delay(1, 2, 10, 3, jitter=0.25, rng=rng) for _ in range(200)}
+        self.assertTrue(all(3.0 <= d <= 5.0 for d in seen), sorted(seen)[:3] + sorted(seen)[-3:])
+        self.assertGreater(len(seen), 50)  # it does vary
+        self.assertTrue(all(get_retry_delay(1, 2, 10, 8, jitter=0.5, rng=rng) <= 10 for _ in range(50)))
+        self.assertEqual(4, get_retry_delay(1, 2, 10, 3, jitter=0, rng=rng))
+
     def test_explicit_generation_options_override_provider_defaults(self):
         merged = merge_provider_extra_body(
             {"reasoning_effort": "high", "provider_flag": True},

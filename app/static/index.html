@@ -593,6 +593,11 @@
                                 <label class="form-label" for="llm-retry-max-delay">Maximum backoff (s)</label>
                                 <input type="number" class="form-control" id="llm-retry-max-delay" min="0" max="300" step="0.1" value="30">
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-jitter">Backoff jitter (0–1)</label>
+                                <input type="number" class="form-control" id="llm-retry-jitter" min="0" max="1" step="0.05" value="0.2">
+                                <div class="form-text">Randomises each retry delay by ± this fraction so parallel workers don't retry in lockstep.</div>
+                            </div>
                         </div>
                         <details class="mb-3">
                             <summary>Provider request options</summary>
@@ -1144,7 +1149,14 @@
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="m-0"><span class="step-indicator step-active">3</span>Voice Configuration</h4>
-                    <span id="voice-save-status" class="text-muted small"></span>
+                    <div class="d-flex align-items-center gap-3">
+                        <span id="voices-ready-count" class="text-muted small"></span>
+                        <div class="form-check form-check-inline m-0 small">
+                            <input class="form-check-input" type="checkbox" id="voices-hide-ready" onchange="onToggleHideReady()">
+                            <label class="form-check-label" for="voices-hide-ready">Hide ready</label>
+                        </div>
+                        <span id="voice-save-status" class="text-muted small"></span>
+                    </div>
                 </div>
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
@@ -1157,6 +1169,17 @@
                         <div class="input-group input-group-sm" id="advanced-persona-options" style="width: 135px; display:none;">
                             <span class="input-group-text">Batch</span>
                             <input class="form-control" id="persona-batch-size" type="number" min="1" max="200" value="40">
+                        </div>
+                        <div class="input-group input-group-sm" style="width: auto;" title="Sample spoken lines per character fed to the persona prompt">
+                            <span class="input-group-text">Context</span>
+                            <select class="form-select" id="persona-context-lines" onchange="onPersonaContextChange()">
+                                <option value="10" selected>10 lines</option>
+                                <option value="25">25 lines</option>
+                                <option value="50">50 lines</option>
+                                <option value="100">100 lines</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <input class="form-control" id="persona-context-custom" type="number" min="1" max="200" value="10" style="width: 80px; display:none;">
                         </div>
                         <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
                         <span id="persona-status" class="text-muted small"></span>
