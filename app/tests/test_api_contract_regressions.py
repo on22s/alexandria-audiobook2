@@ -7,11 +7,59 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from fastapi import BackgroundTasks, HTTPException
+
 import app as app_module
+import routers.editor as editor_router
+import routers.preparer as preparer_router
 import update_api_contract_snapshots as api_contract
 
 
 class ApiContractTests(unittest.TestCase):
+    def test_drift_check_claims_before_background_schedule(self):
+        """A second request cannot pass while the first is still queued."""
+        import asyncio
+
+        state = editor_router.process_state["drift_check"]
+        original_running = state["running"]
+        state["running"] = False
+
+        async def invoke():
+            first_background = BackgroundTasks()
+            request = editor_router.DriftCheckRequest(indices=[1])
+            response = await editor_router.drift_check_endpoint(request, first_background)
+            with self.assertRaises(HTTPException) as raised:
+                await editor_router.drift_check_endpoint(request, BackgroundTasks())
+            return response, first_background, raised.exception
+
+        try:
+            with patch.object(editor_router, "load_app_config", return_value={}), \
+                    patch.object(editor_router.voice_drift, "get_drift_threshold", return_value=0.5), \
+                    patch.object(editor_router.voice_drift, "get_speaker_model_python", return_value=None), \
+                    patch.object(editor_router, "_load_voicelab_config", return_value={}):
+                response, background, error = asyncio.run(invoke())
+        finally:
+            state["running"] = original_running
+
+        self.assertEqual("started", response["status"])
+        self.assertEqual(1, len(background.tasks))
+        self.assertEqual(400, error.status_code)
+
+    def test_preparer_download_rejects_output_directory(self):
+        """Directory paths must not reach FileResponse as downloadable files."""
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            valid_file = Path(output_dir, "dataset.zip")
+            valid_file.write_bytes(b"zip")
+            with patch.object(preparer_router, "PREPARER_OUTPUT_DIR", output_dir):
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(preparer_router.preparer_download("."))
+                response = asyncio.run(preparer_router.preparer_download("dataset.zip"))
+
+        self.assertEqual(404, raised.exception.status_code)
+        self.assertEqual(str(valid_file), response.path)
+
     def test_app_py_contains_no_http_route_decorators(self):
         app_path = Path(__file__).parent.parent.joinpath("app.py")
         tree = ast.parse(app_path.read_text(encoding="utf-8"), filename=str(app_path))

@@ -135,7 +135,9 @@
     "tests.test_api_contract_regressions.ApiContractTests.test_api_routes_have_no_duplicate_method_path_pairs",
     "tests.test_api_contract_regressions.ApiContractTests.test_app_py_contains_no_http_route_decorators",
     "tests.test_api_contract_regressions.ApiContractTests.test_app_router_registration_order_is_stable",
-    "tests.test_api_contract_regressions.ApiContractTests.test_openapi_operation_ids_are_unique"
+    "tests.test_api_contract_regressions.ApiContractTests.test_drift_check_claims_before_background_schedule",
+    "tests.test_api_contract_regressions.ApiContractTests.test_openapi_operation_ids_are_unique",
+    "tests.test_api_contract_regressions.ApiContractTests.test_preparer_download_rejects_output_directory"
   ],
   "test_api_summary": [
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
