@@ -2816,6 +2816,7 @@
     "tests.test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
   ],
   "test_script_recovery": [
+    "tests.test_script_recovery.RecoveryTests.test_attribute_failure_detail_inject_and_skip",
     "tests.test_script_recovery.RecoveryTests.test_detail_shows_where_why_and_the_exact_prompt",
     "tests.test_script_recovery.RecoveryTests.test_inject_accepts_a_faithful_segmentation_and_advances_the_checkpoint",
     "tests.test_script_recovery.RecoveryTests.test_inject_refuses_a_segmentation_that_drops_text",
