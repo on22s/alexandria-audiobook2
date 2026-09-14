@@ -21,8 +21,10 @@ class MakeWindows(unittest.TestCase):
 class Headings(unittest.TestCase):
     def test_mushoku_separators_match_only_whole_line_marks(self):
         seg = [{"text": "■"}, {"text": "-----"}, {"text": "■ not a heading"},
-               {"text": "-----\n\nThe diary stops there."}, {"text": "He said ■"}]
-        # index 0 is never a cut (a window already starts there)
+               {"text": "-----\n\nThe diary stops there."}, {"text": "He said ■"},
+               {"text": "She left.\n\n■\n\nMorning came."}]
+        # index 0 is never a cut (a window already starts there); a mark in
+        # the middle of an entry (5) cannot start a window
         self.assertEqual(heading_indices(seg, HEADINGS["mushoku16"]), [1, 3])
 
     def test_grimgar_needs_the_volume_line_then_a_numbered_title(self):

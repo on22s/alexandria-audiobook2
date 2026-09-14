@@ -7,7 +7,7 @@ product's attribution pass reads the segmented entries in fixed windows of
 of one chapter and the start of the next as one passage. This writes, per
 book, the entry indices where a window should be forced to start:
 
-- `chapter`: entries whose text carries a heading. Heading styles are per
+- `chapter`: entries whose text starts with a heading. Heading styles are per
   book (there is no shared convention across the four gold books), so the
   regexes are listed here rather than guessed from `Chapter N`.
 - `control`: the SAME number of cuts at seeded random non-heading entries.
@@ -35,14 +35,17 @@ sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
 HEADINGS = {
     "index18": r"^Chapter \d+:",
     "owarimonogatari3": r"^\[Owarimonogatari 3\] Mayoi Hell \d{3}",
-    "mushoku16": r"^(■|-{5,})\s*$",
+    "mushoku16": r"^(■|-{5,})[ \t]*(\n|$)",
     "grimgar03": r"^Grimgar of Fantasy and Ash: Volume 3\n+\d{1,2}\. [A-Z]",
 }
 
 
 def heading_indices(seg, pattern):
-    rx = re.compile(pattern, re.M)
-    return [i for i, e in enumerate(seg) if i and rx.search(e.get("text") or "")]
+    """Entries whose text STARTS with a heading. A heading buried later in a
+    narration entry cannot start a window without re-segmenting the book, so
+    it is left alone (and counted by nobody)."""
+    rx = re.compile(pattern)
+    return [i for i, e in enumerate(seg) if i and rx.match(e.get("text") or "")]
 
 
 def control_indices(n, k, exclude, seed):
@@ -58,11 +61,13 @@ def main():
     ap.add_argument("--books", nargs="+", default=list(HEADINGS))
     ap.add_argument("--batch-size", type=int, default=25)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--input-dir", help="as lora_serving_eval: corrected <book>.txt")
+    ap.add_argument("--checkpoint-dir", help="as lora_serving_eval: corrected checkpoints")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     doc = {"books": {}, "provenance": provenance(__file__, args)}
     for book in args.books:
-        gold, src, seg, roster, want = load_book(book)
+        gold, src, seg, roster, want = load_book(book, args.input_dir, args.checkpoint_dir)
         heads = heading_indices(seg, HEADINGS[book])
         control = control_indices(len(seg), len(heads), set(heads), args.seed)
         gold_idx = [i for i, e in enumerate(seg) if norm(e.get("text")) in want]
