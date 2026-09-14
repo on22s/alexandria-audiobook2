@@ -250,8 +250,22 @@ SPEAKER_NOT_ADDRESSEE = (
     "in the line before it."
 )
 
+# 2026-09-14: on minor-speaker rows the model named one of the book's two
+# most frequent speakers in 52% of its wrong answers, and removing those two
+# from the cast lifted accuracy +6.5 (GOALS 1.2, the usual-suspect test). The
+# cast cannot be trimmed in production, so this is the prompt-level version
+# of the same intervention.
+MINOR_SPEAKER_HINT = (
+    "\n\nDo not default to the story's main characters. Most lines in a novel "
+    "are spoken by someone other than the two or three most frequent "
+    "speakers, and a minor character on the cast list is the answer whenever "
+    "the line's content, address, or the surrounding narration fits them "
+    "better. Choose a main character only when the passage supports it."
+)
+
 PROMPT_VARIANTS = ("control", "explicit_hint", "shuffled_roster",
-                   "inner_narration", "speaker_not_addressee")
+                   "inner_narration", "speaker_not_addressee",
+                   "minor_speaker_hint")
 
 
 def build_prompt(entry, roster, narrator=None, variant="control"):
@@ -288,6 +302,8 @@ def build_prompt(entry, roster, narrator=None, variant="control"):
             text += ("\n\nNarration interrupting THE LINE:\n%s" % inner)
     elif variant == "explicit_hint":
         text += EXPLICIT_HINT
+    elif variant == "minor_speaker_hint":
+        text += MINOR_SPEAKER_HINT
     elif variant not in ("control", "shuffled_roster"):
         raise ValueError("unknown prompt variant %r; expected one of %s"
                          % (variant, ", ".join(PROMPT_VARIANTS)))
@@ -306,12 +322,20 @@ def ask(client, model, entry, roster, decoding, narrator=None,
             # thinking model spends the whole budget on its preamble - measured
             # at 213 tokens on this box - and returns an empty string that
             # scores as a WRONG ANSWER rather than as a failure.
-            extra_body={"reasoning_effort": "none"},
+            extra_body={"reasoning_effort": decoding.get("reasoning_effort", "none")},
             messages=[{"role": "user", "content": prompt}])
     except Exception as exc:                                  # noqa: BLE001
         return None, None, f"{type(exc).__name__}: {str(exc)[:120]}"
     choice = response.choices[0]
     raw = choice.message.content or ""
+    # With --reasoning on, llama.cpp (--reasoning-format deepseek) returns the
+    # thinking separately; keep it in the artifact so a wrong pick can be read
+    # back to the step where it went wrong (issue #522: "push it against
+    # models with the thoughts exposed").
+    thinking = getattr(choice.message, "reasoning_content", None) or \
+        (getattr(choice.message, "model_extra", None) or {}).get("reasoning_content")
+    if thinking:
+        raw = raw + "\n<think>" + str(thinking)[:4000] + "</think>"
     if choice.finish_reason == "length" and not clean_answer(raw):
         # Truncated before saying anything: a budget problem, not an opinion.
         return None, raw, "truncated: finish_reason=length with no name"
@@ -366,6 +390,11 @@ def main():
                     help="quotes per book, sampled at random (see --seed)")
     ap.add_argument("--seed", type=int, default=20260819)
     ap.add_argument("--max-tokens", type=int, default=32)
+    ap.add_argument("--reasoning", default="none",
+                    help="reasoning_effort sent to the server (none|low|medium|high). "
+                         "Anything but none needs --max-tokens large enough for the "
+                         "preamble; llama.cpp strips the reasoning from `content` "
+                         "when served with --reasoning-format, so the answer parses.")
     ap.add_argument("--tag", default="current",
                     help="artifact suffix; two runs with different --limit "
                          "must not share one path")
@@ -427,7 +456,7 @@ def main():
 
     client = build_client(args.base_url)
     decoding = {"temperature": 0.0, "max_tokens": args.max_tokens,
-                "reasoning_effort": "none", "limit": args.limit,
+                "reasoning_effort": args.reasoning, "limit": args.limit,
                 "seed": args.seed, "sampling": "random",
                 "context": "as stored in the fixture (400 chars each side)"}
     record = ExperimentRecord(

@@ -677,17 +677,29 @@
   {
    "goal": "1.2",
    "title": "Close the selection gap",
-   "cited": 5,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "provisional": 4,
+    "provisional": 8,
     "supported_structure": 1
    },
-   "dirty_artifacts": 3,
+   "dirty_artifacts": 6,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "e94f1ecf"
+    },
+    {
+     "name": "two_stage_attribution__all_rows_hint_20260914.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "069bb061"
+    },
     {
      "name": "two_stage_attribution__usual_suspects_control_20260913.json",
      "classification": "provisional",
@@ -699,6 +711,18 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "069bb061"
+    },
+    {
+     "name": "two_stage_attribution__usual_suspects_hint_20260914.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "069bb061"
+    },
+    {
+     "name": "two_stage_attribution__usual_suspects_reasoning_20260914.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "80635845"
     },
     {
      "name": "two_stage_attribution_full.json",

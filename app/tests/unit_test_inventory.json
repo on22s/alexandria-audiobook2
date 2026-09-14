@@ -2282,6 +2282,7 @@
   "test_prompt_variant": [
     "tests.test_prompt_variant.PromptVariantTest.test_an_unknown_variant_is_refused_not_silently_treated_as_control",
     "tests.test_prompt_variant.PromptVariantTest.test_control_is_the_default_and_adds_nothing",
+    "tests.test_prompt_variant.PromptVariantTest.test_minor_speaker_hint_is_appended_to_the_control_prompt",
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_is_a_pure_suffix_of_the_control",
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_survives_alongside_the_narrator_prior",
     "tests.test_prompt_variant.PromptVariantTest.test_the_variant_list_is_what_the_cli_offers"
