@@ -70,7 +70,7 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     strategy = narrator.get("narrator_strategy", "global")
     chunk = chunk or {}
     selected = None
-    if strategy in {"focus", "character"}:
+    if strategy in {"focus", "character", "character_gender", "character_age", "character_gender_age"}:
         focus = chunk.get("focus_speaker") or chunk.get("character_focus")
         if focus and focus in voice_config:
             selected = voice_config[focus]
@@ -79,8 +79,19 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
         selected = (narrator.get("versions") or {}).get(version_id) if version_id else None
         if selected is None:
             selected = narrator
-    else:
+    elif strategy not in {"gender", "age", "gender_age"}:
         selected = narrator
+    if selected is None and strategy in {"gender", "age", "gender_age"}:
+        wanted_gender = chunk.get("narrator_gender") or chunk.get("focus_gender")
+        wanted_age = chunk.get("narrator_age_group") or chunk.get("focus_age_group")
+        for version in (narrator.get("versions") or {}).values():
+            if not isinstance(version, dict):
+                continue
+            gender_ok = strategy == "age" or not wanted_gender or version.get("gender") == wanted_gender
+            age_ok = strategy == "gender" or not wanted_age or version.get("age_group") == wanted_age
+            if gender_ok and age_ok:
+                selected = version
+                break
     if not isinstance(selected, dict):
         selected = narrator
     if selected is narrator:

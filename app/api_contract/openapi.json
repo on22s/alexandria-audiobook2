@@ -1563,7 +1563,7 @@
             "title": "Narrator Version"
           },
           "strategy": {
-            "pattern": "^(global|focus|chapter|character)$",
+            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
             "title": "Strategy",
             "type": "string"
           }
@@ -1577,7 +1577,7 @@
       "NarratorStrategyRequest": {
         "properties": {
           "strategy": {
-            "pattern": "^(global|focus|chapter|character)$",
+            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
             "title": "Strategy",
             "type": "string"
           }

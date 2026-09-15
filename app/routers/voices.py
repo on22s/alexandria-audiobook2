@@ -150,11 +150,11 @@ class VoiceCandidateFavoriteRequest(BaseModel):
 
 
 class NarratorStrategyRequest(BaseModel):
-    strategy: str = Field(pattern="^(global|focus|chapter|character)$")
+    strategy: str = Field(pattern="^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$")
 
 
 class NarratorPreviewRequest(BaseModel):
-    strategy: str = Field(pattern="^(global|focus|chapter|character)$")
+    strategy: str = Field(pattern="^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$")
     focus_speaker: Optional[str] = Field(default=None, max_length=200)
     narrator_version: Optional[str] = Field(default=None, max_length=80)
 
