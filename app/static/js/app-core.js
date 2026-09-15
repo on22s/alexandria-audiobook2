@@ -4018,6 +4018,17 @@
             } catch (e) { showToast('Could not delete preset: ' + e.message, 'error'); }
         };
         renderChapterTemplatePresets();
+        function parseChapterSelection(value) {
+            const selected = new Set();
+            (value || '').split(',').forEach(part => {
+                const bits = part.trim().split('-').map(Number);
+                if (bits.length === 1 && Number.isInteger(bits[0]) && bits[0] > 0) { selected.add(bits[0] - 1); }
+                if (bits.length === 2 && Number.isInteger(bits[0]) && Number.isInteger(bits[1]) && bits[0] > 0 && bits[1] >= bits[0]) {
+                    for (let n = bits[0]; n <= bits[1]; n += 1) { selected.add(n - 1); }
+                }
+            });
+            return selected.size ? Array.from(selected).sort((a, b) => a - b) : null;
+        }
         function chapterExportParams() {
             return {
                 format: document.getElementById('chapter-format').value,
@@ -4027,6 +4038,7 @@
                 book_name: document.getElementById('chapter-book-name').value.trim(),
                 series_name: document.getElementById('chapter-series-name').value.trim(),
                 volume_number: document.getElementById('chapter-volume').value.trim(),
+                chapters: parseChapterSelection(document.getElementById('chapter-selection').value),
                 changed_only: document.getElementById('chapter-changed-only').checked,
                 require_ready: document.getElementById('chapter-require-ready').checked
             };
