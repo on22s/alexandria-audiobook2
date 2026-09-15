@@ -14,6 +14,15 @@ from routers import system as system_module
 
 
 class ConfigTests(unittest.TestCase):
+    def test_llm_failure_logs_are_unique_within_one_second(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(system_module, "API_LOG_DIR", tmp):
+            first = system_module._log_llm_failure("test", "first")
+            second = system_module._log_llm_failure("test", "second")
+            self.assertNotEqual(first, second)
+            self.assertEqual("first", Path(first).read_text().splitlines()[-1])
+            self.assertEqual("second", Path(second).read_text().splitlines()[-1])
+
     def test_app_config_loader_returns_fresh_shape_safe_data(self):
         documents = (
             ("null", {}),

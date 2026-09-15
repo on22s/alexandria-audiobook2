@@ -45,6 +45,14 @@ from core import (
     project_manager,
 )
 
+
+def _normalize_openai_base_url(base_url: str) -> str:
+    """Normalize an OpenAI-compatible endpoint without duplicating /v1."""
+    url = base_url.strip().rstrip("/")
+    if not url:
+        return ""
+    return url if url.endswith("/v1") else url + "/v1"
+
 from utils import (atomic_json_write, file_lock,
                    rocm_smi_utilization as _rocm_smi_utilization,
                    run_rocm_smi_json, system_has_gpu)
@@ -349,7 +357,9 @@ async def lmstudio_status():
 
 def _log_llm_failure(kind: str, detail: str) -> str:
     """Write an LLM connection/optimize failure to logs/api/ and return the path."""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include microseconds so concurrent failures never truncate one another's
+    # diagnostic file (the old second-resolution name was collision-prone).
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
     try:
         with open(path, "w", encoding="utf-8") as f:
@@ -390,7 +400,11 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
             raise HTTPException(status_code=400, detail=(
                 "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
                 "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-        remote_port = urlparse(cfg.get("base_url", "")).port or 1234
+        try:
+            remote_port = urlparse(cfg.get("base_url", "")).port or 1234
+        except ValueError as exc:
+            raise HTTPException(status_code=400,
+                                detail="Remote LLM base_url has an invalid port") from exc
         ok, msg = await asyncio.to_thread(
             apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable, remote_port)
         if not ok:
@@ -459,11 +473,9 @@ async def llm_models(request: LlmModelsRequest):
     """The model ids the endpoint advertises (OpenAI-compatible /models), so the
     Setup tab can offer a picker. Errors are returned, not raised: an
     unreachable server is a normal state while the user is still typing."""
-    url = request.base_url.strip().rstrip("/")
+    url = _normalize_openai_base_url(request.base_url)
     if not url:
         raise HTTPException(status_code=400, detail="base_url is required")
-    if not url.endswith("/v1"):
-        url += "/v1"
     def fetch():
         from llm_provider import make_llm_client
         client = make_llm_client({"base_url": url,
@@ -480,9 +492,7 @@ async def llm_test(profile: Optional[LLMConfig] = None):
     """Test LLM connectivity. Uses the posted profile if given (so the Setup tab
     can test before saving), otherwise the active config. Writes a log on failure."""
     if profile is not None and profile.base_url.strip():
-        url = profile.base_url.rstrip("/")
-        if not url.endswith("/v1"):
-            url += "/v1"
+        url = _normalize_openai_base_url(profile.base_url)
         profile_data = profile.model_dump()
         profile_data["base_url"] = url
         profile_data["api_key"] = _resolve_redacted_api_key(profile_data.get("api_key"), url)
@@ -684,9 +694,7 @@ def _normalize_and_validate_llm(profile: "LLMConfig") -> "LLMConfig":
     """Return a copy with a normalized, validated local/trusted base URL."""
     if not profile.base_url.strip():
         raise HTTPException(status_code=400, detail="LLM base_url is required")
-    url = profile.base_url.rstrip("/")
-    if not url.endswith("/v1"):
-        url += "/v1"
+    url = _normalize_openai_base_url(profile.base_url)
     try:
         _validate_local_llm_base_url(url)
     except ValueError as e:

@@ -138,8 +138,13 @@ def compare_contracts(expected_openapi, expected_routes, actual_openapi, actual_
 def check_snapshots(application, contract_dir=CONTRACT_DIR):
     """Compare current contracts to disk without writing either snapshot."""
     contract_dir = Path(contract_dir)
-    expected_openapi = json.loads((contract_dir / OPENAPI_SNAPSHOT.name).read_text(encoding="utf-8"))
-    expected_routes = json.loads((contract_dir / ROUTES_SNAPSHOT.name).read_text(encoding="utf-8"))
+    try:
+        expected_openapi = json.loads(
+            (contract_dir / OPENAPI_SNAPSHOT.name).read_text(encoding="utf-8"))
+        expected_routes = json.loads(
+            (contract_dir / ROUTES_SNAPSHOT.name).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"API contract snapshots are missing or invalid: {contract_dir}") from exc
     return compare_contracts(
         expected_openapi, expected_routes, application.openapi(), get_route_manifest(application)
     )

@@ -9,6 +9,15 @@ from preparer_benchmark import execute_fixture
 
 
 class PreparerBenchmarkTests(unittest.TestCase):
+    def test_audio_path_cannot_escape_fixture_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp).parent / "outside.wav"
+            outside.write_bytes(b"audio")
+            fixture = {"root_dir": tmp, "audio_path": "../outside.wav",
+                       "audio_sha256": hashlib.sha256(b"audio").hexdigest(),
+                       "limit": 1, "language": "en", "model_revision": "rev"}
+            with self.assertRaisesRegex(ValueError, "inside fixture root"):
+                execute_fixture(fixture, "python", "preparer.py")
     def test_changed_audio_is_rejected_before_preparer_runs(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "audio.wav").write_bytes(b"changed")

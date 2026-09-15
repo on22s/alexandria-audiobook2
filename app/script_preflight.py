@@ -198,7 +198,7 @@ def find_adjacent_duplicate_blocks(texts, source_text):
                 # So fall back to the per-entry minimum: if every line in the
                 # block is in the source, the block is duplicated (removable).
                 # Only a line the source lacks entirely is an invention.
-                contiguous = source_normalized.count(block_text) if source_normalized else None
+                contiguous = source_normalized.count(block_text) if source_normalized else 0
                 if source_normalized and not contiguous:
                     source_occurrences = min(
                         source_occurrences_for_text(
@@ -306,9 +306,18 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             continue
 
         valid_entries.append((index, entry))
-        text = str(entry.get("text") or "").strip()
-        speaker = str(entry.get("speaker") or "").strip()
-        instruct = str(entry.get("instruct") or "").strip()
+        raw_text = entry.get("text")
+        raw_speaker = entry.get("speaker")
+        raw_instruct = entry.get("instruct")
+        for field, value in (("text", raw_text), ("speaker", raw_speaker),
+                             ("instruct", raw_instruct)):
+            if value is not None and not isinstance(value, str):
+                findings.append(_finding("blocking", "invalid_field_type",
+                                         f"Entry {field} must be a string.", [index],
+                                         field=field))
+        text = raw_text.strip() if isinstance(raw_text, str) else ""
+        speaker = raw_speaker.strip() if isinstance(raw_speaker, str) else ""
+        instruct = raw_instruct.strip() if isinstance(raw_instruct, str) else ""
         texts.append(_normalize(text))
         instructions.append(_normalize(instruct))
 

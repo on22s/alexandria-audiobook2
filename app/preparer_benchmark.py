@@ -9,9 +9,20 @@ import subprocess
 import tempfile
 import time
 
+from utils import is_path_inside
+
 
 def execute_fixture(fixture, python_executable, preparer_script):
-    audio_path = os.path.abspath(os.path.join(fixture["root_dir"], fixture["audio_path"]))
+    root_dir = os.path.abspath(fixture["root_dir"])
+    audio_path = os.path.abspath(os.path.join(root_dir, fixture["audio_path"]))
+    if not is_path_inside(audio_path, root_dir):
+        raise ValueError("preparer audio must be inside fixture root")
+    if not os.path.isfile(audio_path):
+        raise FileNotFoundError(f"preparer audio not found: {audio_path}")
+    if not isinstance(python_executable, str) or not python_executable:
+        raise ValueError("python executable must be a non-empty path")
+    if not isinstance(preparer_script, str) or not preparer_script:
+        raise ValueError("preparer script must be a non-empty path")
     with open(audio_path, "rb") as audio_file:
         if hashlib.sha256(audio_file.read()).hexdigest() != fixture["audio_sha256"]:
             raise ValueError("preparer audio hash changed")

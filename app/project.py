@@ -833,10 +833,21 @@ class ProjectManager:
             speaker_tracks[speaker] = track
 
         # Phase 3 — Build LOF and labels content
+        speaker_filenames = {}
+        used_filenames = set()
+        for speaker in speakers_ordered:
+            base_name = sanitize_filename(speaker)
+            safe_name = base_name
+            suffix = 2
+            while safe_name in used_filenames:
+                safe_name = f"{base_name}_{suffix}"
+                suffix += 1
+            speaker_filenames[speaker] = safe_name
+            used_filenames.add(safe_name)
+
         lof_lines = []
         for speaker in speakers_ordered:
-            safe_name = sanitize_filename(speaker)
-            lof_lines.append(f'file "{safe_name}.wav"')
+            lof_lines.append(f'file "{speaker_filenames[speaker]}.wav"')
         lof_content = "\n".join(lof_lines) + "\n"
 
         label_lines = []
@@ -862,7 +873,7 @@ class ProjectManager:
                 zf.writestr("labels.txt", labels_content)
 
                 for speaker in speakers_ordered:
-                    safe_name = sanitize_filename(speaker)
+                    safe_name = speaker_filenames[speaker]
                     wav_buffer = io.BytesIO()
                     speaker_tracks[speaker].export(wav_buffer, format="wav")
                     zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
