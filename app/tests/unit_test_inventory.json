@@ -2213,6 +2213,7 @@
     "tests.test_preparer_asr_validation.WordSegmentValidationTests.test_zero_duration_is_rejected"
   ],
   "test_preparer_benchmark": [
+    "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_audio_path_cannot_escape_fixture_root",
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
   ],
