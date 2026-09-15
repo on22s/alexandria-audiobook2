@@ -2126,6 +2126,11 @@
                                             <label class="form-label small mb-1" for="chapter-template">Filename template</label>
                                             <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
                                             <div class="form-text">Fields: <code>{chapter_number}</code> <code>{chapter_name}</code> <code>{book_name}</code> <code>{series_name}</code> <code>{volume_number}</code>. The extension is added for you.</div>
+                                            <div class="input-group input-group-sm mt-1">
+                                                <select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="">Saved presets</option></select>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()">Save preset</button>
+                                                <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()">Delete</button>
+                                            </div>
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label small mb-1" for="chapter-padding">Number padding</label>

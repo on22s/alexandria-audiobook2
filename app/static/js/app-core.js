@@ -3946,6 +3946,62 @@
         };
 
         // --- Chapter-by-chapter export ---
+        const CHAPTER_PRESETS_KEY = 'alexandria.chapter-template-presets';
+        function getChapterTemplatePresets() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(CHAPTER_PRESETS_KEY) || '{}');
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (e) { return {}; }
+        }
+        function renderChapterTemplatePresets() {
+            const select = document.getElementById('chapter-template-preset');
+            if (!select) { return; }
+            const current = select.value;
+            select.innerHTML = '<option value="">Saved presets</option>';
+            Object.keys(getChapterTemplatePresets()).sort().forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            select.value = current;
+        }
+        window.loadChapterTemplatePreset = function loadChapterTemplatePreset(name) {
+            if (!name) { return; }
+            const preset = getChapterTemplatePresets()[name];
+            if (preset) {
+                document.getElementById('chapter-template').value = preset.template || '';
+                document.getElementById('chapter-padding').value = String(preset.padding ?? 2);
+            }
+        };
+        window.saveChapterTemplatePreset = function saveChapterTemplatePreset() {
+            const name = window.prompt('Preset name:');
+            if (!name || !name.trim()) { return; }
+            const presets = getChapterTemplatePresets();
+            presets[name.trim()] = {
+                template: document.getElementById('chapter-template').value.trim(),
+                padding: parseInt(document.getElementById('chapter-padding').value, 10),
+            };
+            try {
+                localStorage.setItem(CHAPTER_PRESETS_KEY, JSON.stringify(presets));
+                renderChapterTemplatePresets();
+                document.getElementById('chapter-template-preset').value = name.trim();
+                showToast('Chapter filename preset saved.', 'success');
+            } catch (e) { showToast('Could not save preset: ' + e.message, 'error'); }
+        };
+        window.deleteChapterTemplatePreset = function deleteChapterTemplatePreset() {
+            const select = document.getElementById('chapter-template-preset');
+            const name = select?.value;
+            if (!name) { return; }
+            const presets = getChapterTemplatePresets();
+            delete presets[name];
+            try {
+                localStorage.setItem(CHAPTER_PRESETS_KEY, JSON.stringify(presets));
+                renderChapterTemplatePresets();
+                showToast('Chapter filename preset deleted.', 'success');
+            } catch (e) { showToast('Could not delete preset: ' + e.message, 'error'); }
+        };
+        renderChapterTemplatePresets();
         function chapterExportParams() {
             return {
                 format: document.getElementById('chapter-format').value,
