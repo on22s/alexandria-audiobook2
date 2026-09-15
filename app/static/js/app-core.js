@@ -2009,7 +2009,7 @@
             }
         }
 
-        async function cancelPersonas() {
+    async function cancelPersonas() {
             await cancelTask('/api/cancel_persona', {
                 onSuccess: () => {
                     const statusSpan = document.getElementById('persona-status');
@@ -2018,7 +2018,39 @@
                 errorMessage: (e) => 'Failed to cancel persona generation: ' + e.message,
                 toastType: 'error',
             });
+    }
+
+    window.recoverPersona = async function recoverPersona() {
+        const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
+        const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
+        const status = document.getElementById('persona-recovery-status');
+        if (!speaker || !personaJson) {
+            if (status) { status.textContent = 'Speaker and persona JSON are required.'; }
+            return;
         }
+        try {
+            await API.post('/api/persona/recover', {speaker, persona_json: personaJson});
+            if (status) { status.textContent = 'Validated and saved.'; }
+            await loadVoices();
+            showToast(`Persona recovered for ${speaker}.`, 'success');
+        } catch (e) {
+            if (status) { status.textContent = 'Validation failed: ' + e.message; }
+            showToast('Persona recovery failed: ' + e.message, 'error');
+        }
+    };
+
+    window.copyPersonaPrompt = async function copyPersonaPrompt() {
+        const speaker = document.getElementById('persona-recovery-speaker')?.value.trim() || 'the character';
+        const system = document.getElementById('persona-system-prompt')?.value.trim()
+            || 'Return JSON only with description and ref_text.';
+        const prompt = `${system}\n\nCreate a persona for ${speaker}. Return exactly {"description":"...","ref_text":"..."}.`;
+        try {
+            await navigator.clipboard.writeText(prompt);
+            showToast('Persona prompt copied to the clipboard.', 'success');
+        } catch (e) {
+            showToast('Clipboard unavailable: ' + e.message, 'error');
+        }
+    };
 
         async function pollPersonaStatus() {
             const logEl = document.getElementById('voices-logs');

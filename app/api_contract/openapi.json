@@ -1507,6 +1507,28 @@
         "title": "M4bExportRequest",
         "type": "object"
       },
+      "PersonaRecoveryRequest": {
+        "properties": {
+          "persona_json": {
+            "maxLength": 10000,
+            "minLength": 2,
+            "title": "Persona Json",
+            "type": "string"
+          },
+          "speaker": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Speaker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "speaker",
+          "persona_json"
+        ],
+        "title": "PersonaRecoveryRequest",
+        "type": "object"
+      },
       "PromptConfig": {
         "properties": {
           "persona_advanced_prompt": {
@@ -5385,6 +5407,43 @@
           }
         },
         "summary": "Merge M4B Endpoint"
+      }
+    },
+    "/api/persona/recover": {
+      "post": {
+        "description": "Validate and save one externally generated persona without rerunning the batch.",
+        "operationId": "recover_persona_api_persona_recover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonaRecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recover Persona"
       }
     },
     "/api/preparer/batch/cancel": {

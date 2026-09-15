@@ -354,6 +354,21 @@ def _json_preview(data, max_chars=12000):
     return text[:max_chars] + "\n...TRUNCATED..."
 
 
+def validate_persona_payload(payload):
+    """Return a normalized persona payload or raise ValueError."""
+    if not isinstance(payload, dict):
+        raise ValueError("persona output must be a JSON object")
+    description = str(payload.get("description") or "").strip()
+    ref_text = str(payload.get("ref_text") or "").strip()
+    if not description:
+        raise ValueError("persona description is required")
+    if not ref_text:
+        raise ValueError("persona ref_text is required")
+    if len(description) > 4000 or len(ref_text) > 2000:
+        raise ValueError("persona description or ref_text is too long")
+    return {"description": description, "ref_text": ref_text}
+
+
 def _character_ref_path(ref_dir, speaker):
     safe = sanitize_filename(speaker or "unknown")
     return os.path.join(ref_dir, f"{safe}.json")
@@ -662,8 +677,11 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         )
         parsed = extract_json_object(response.choices[0].message.content.strip())
         if isinstance(parsed, dict):
-            description = str(parsed.get("description", "") or "").strip()
-            ref_text = str(parsed.get("ref_text", "") or "").strip()
+            try:
+                validated = validate_persona_payload(parsed)
+                description, ref_text = validated["description"], validated["ref_text"]
+            except ValueError as exc:
+                print(f"Warning: persona integrity check failed for {speaker}: {exc}")
     except Exception as e:
         print(f"Warning: compile failed for {speaker}: {e}")
 
@@ -934,8 +952,11 @@ def main():
             description = ""
             ref_text = ""
             if isinstance(parsed, dict):
-                description = str(parsed.get("description", "") or "").strip()
-                ref_text = str(parsed.get("ref_text", "") or "").strip()
+                try:
+                    validated = validate_persona_payload(parsed)
+                    description, ref_text = validated["description"], validated["ref_text"]
+                except ValueError as exc:
+                    print(f"Warning: persona integrity check failed for {speaker}: {exc}")
 
             if not description:
                 print(f"Warning: LLM did not return parseable JSON for {speaker}. Response preview:\n{text[:300]}")

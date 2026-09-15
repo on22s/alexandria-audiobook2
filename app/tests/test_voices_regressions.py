@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,41 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
+    def test_persona_recovery_requires_integrity_fields(self):
+        with self.assertRaises(voices_module.HTTPException) as missing:
+            voices_module._validate_persona_recovery('{"description":"only"}')
+        self.assertEqual(422, missing.exception.status_code)
+        self.assertEqual(
+            ("warm and measured", "Hello there."),
+            voices_module._validate_persona_recovery(
+                'prefix {"description":"warm and measured", "ref_text":"Hello there."} suffix'))
+
+    def test_persona_recovery_saves_without_clobbering_existing_voice_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            config_path = os.path.join(tmp, "voice_config.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            Path(config_path).write_text(json.dumps({"Hero": {"type": "custom", "voice": "Ryan"}}), encoding="utf-8")
+            request = voices_module.PersonaRecoveryRequest(
+                speaker="Hero", persona_json=json.dumps({"description": "steady", "ref_text": "I am ready."}))
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", config_path):
+                result = asyncio.run(voices_module.recover_persona(request))
+            saved = json.loads(Path(config_path).read_text(encoding="utf-8"))
+            self.assertEqual({"status": "saved", "speaker": "Hero"}, result)
+            self.assertEqual("custom", saved["Hero"]["type"])
+            self.assertEqual("steady", saved["Hero"]["description"])
+            self.assertEqual("I am ready.", saved["Hero"]["ref_text"])
+
+    def test_persona_recovery_rejects_unknown_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path):
+                with self.assertRaises(voices_module.HTTPException) as error:
+                    asyncio.run(voices_module.recover_persona(voices_module.PersonaRecoveryRequest(
+                        speaker="Typo", persona_json='{"description":"steady", "ref_text":"I am ready."}')))
+            self.assertEqual(422, error.exception.status_code)
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))
