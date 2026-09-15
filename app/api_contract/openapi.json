@@ -61,6 +61,14 @@
             ],
             "title": "Llm Remote Ssh"
           },
+          "prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/PromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Prompt Presets",
+            "type": "array"
+          },
           "prompts": {
             "anyOf": [
               {
@@ -1580,6 +1588,45 @@
           }
         },
         "title": "PromptConfig",
+        "type": "object"
+      },
+      "PromptPreset": {
+        "description": "A named, user-editable prompt pair with guidance for its use.",
+        "properties": {
+          "builtin": {
+            "default": false,
+            "title": "Builtin",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "User Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PromptPreset",
         "type": "object"
       },
       "ReviewRequest": {

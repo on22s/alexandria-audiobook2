@@ -121,6 +121,15 @@ class PromptConfig(BaseModel):
     persona_advanced_prompt: Optional[str] = None
 
 
+class PromptPreset(BaseModel):
+    """A named, user-editable prompt pair with guidance for its use."""
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=500)
+    system_prompt: str = Field(default="", max_length=100_000)
+    user_prompt: str = Field(default="", max_length=100_000)
+    builtin: bool = False
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_mode: Literal["local", "remote"] = "local"
@@ -133,6 +142,7 @@ class AppConfig(BaseModel):
     llm_failover: bool = False
     tts: TTSConfig
     prompts: Optional[PromptConfig] = None
+    prompt_presets: List[PromptPreset] = Field(default_factory=list, max_length=50)
     generation: Optional[GenerationConfig] = None
 
 
@@ -226,6 +236,16 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
             warnings.append(ConfigWarning(field_name, "Invalid stored value ignored"))
             logger.warning("Invalid stored config value '%s', ignoring it", field_name)
             del config[field_name]
+
+    if "prompt_presets" in config:
+        try:
+            config["prompt_presets"] = _get_field_adapter(AppConfig, "prompt_presets").validate_python(
+                config["prompt_presets"]
+            )
+        except ValidationError:
+            warnings.append(ConfigWarning("prompt_presets", "Invalid stored value ignored"))
+            logger.warning("Invalid stored config value 'prompt_presets', ignoring it")
+            del config["prompt_presets"]
 
     return AppConfigLoadResult(config, tuple(warnings), needs_backup)
 
