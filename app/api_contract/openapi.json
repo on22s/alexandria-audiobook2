@@ -7785,6 +7785,52 @@
         "summary": "Add Voice Candidate"
       }
     },
+    "/api/voices/{speaker}/candidates/{candidate_id}": {
+      "delete": {
+        "operationId": "delete_voice_candidate_api_voices__speaker__candidates__candidate_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Voice Candidate"
+      }
+    },
     "/api/voices/{speaker}/candidates/{candidate_id}/select": {
       "post": {
         "operationId": "select_voice_candidate_api_voices__speaker__candidates__candidate_id__select_post",

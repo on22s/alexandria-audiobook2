@@ -3700,6 +3700,7 @@
     "tests.test_voices_regressions.VoicesTests.test_selective_enrichment_prompt",
     "tests.test_voices_regressions.VoicesTests.test_shared_narrator_is_reused_and_counted",
     "tests.test_voices_regressions.VoicesTests.test_stale_suggestion_is_rejected",
+    "tests.test_voices_regressions.VoicesTests.test_voice_candidate_can_be_deleted_and_clears_active_selection",
     "tests.test_voices_regressions.VoicesTests.test_voice_config_rejects_empty_ensemble_before_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_library_mutations_hold_lock_across_load_and_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_suggestion_honors_max_lines",

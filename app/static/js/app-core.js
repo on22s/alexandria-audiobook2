@@ -2117,6 +2117,7 @@
                                     </select>
                                     <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
                                 </div>
+                                ${Array.isArray(config.candidates) && config.candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${config.candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">×</button></div>`).join('')}</div>` : ''}
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
@@ -2391,6 +2392,24 @@
                 await loadVoices();
                 showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} approved for ${speaker}.`, 'success');
             } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
+        };
+
+        window.selectVoiceCandidate = async function selectVoiceCandidate(button, candidateId) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/select`, {});
+                await loadVoices();
+                showToast(`Selected ${candidateId} for ${speaker}.`, 'success');
+            } catch (e) { showToast('Candidate selection failed: ' + e.message, 'error'); }
+        };
+
+        window.deleteVoiceCandidate = async function deleteVoiceCandidate(button, candidateId) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.del(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}`);
+                await loadVoices();
+                showToast(`Removed candidate ${candidateId}.`, 'success');
+            } catch (e) { showToast('Candidate removal failed: ' + e.message, 'error'); }
         };
 
         // --- Auto-suggest best LoRA voice per character ---

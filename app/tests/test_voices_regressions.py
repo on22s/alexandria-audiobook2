@@ -135,6 +135,21 @@ class VoicesTests(unittest.TestCase):
                     "Missing", voices_module.VoiceVersionRequest(version_id="v1")))
             self.assertEqual(404, caught.exception.status_code)
 
+    def test_voice_candidate_can_be_deleted_and_clears_active_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            voice_path = os.path.join(tmp, "voices.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            Path(voice_path).write_text(json.dumps({"Hero": {"candidates": [
+                {"candidate_id": "alt", "type": "lora"}], "active_candidate": "alt"}}), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                result = asyncio.run(voices_module.delete_voice_candidate("Hero", "alt"))
+            self.assertEqual("deleted", result["status"])
+            saved = json.loads(Path(voice_path).read_text(encoding="utf-8"))["Hero"]
+            self.assertEqual([], saved["candidates"])
+            self.assertNotIn("active_candidate", saved)
+
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))

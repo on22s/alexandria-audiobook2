@@ -269,6 +269,20 @@ async def select_voice_candidate(speaker: str, candidate_id: str):
             "config": entry}
 
 
+@router.delete("/api/voices/{speaker}/candidates/{candidate_id}")
+async def delete_voice_candidate(speaker: str, candidate_id: str):
+    _require_script_speaker(speaker)
+    def remove(entry):
+        candidates = entry.get("candidates") or []
+        if not any(isinstance(c, dict) and c.get("candidate_id") == candidate_id for c in candidates):
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        entry["candidates"] = [c for c in candidates if c.get("candidate_id") != candidate_id]
+        if entry.get("active_candidate") == candidate_id:
+            entry.pop("active_candidate", None)
+    _mutate_voice_entry(speaker, remove)
+    return {"status": "deleted", "speaker": speaker, "candidate_id": candidate_id}
+
+
 @router.post("/api/narrator/strategy")
 async def save_narrator_strategy(request: NarratorStrategyRequest):
     _require_script_speaker("NARRATOR")
