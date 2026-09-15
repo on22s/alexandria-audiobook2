@@ -3557,6 +3557,7 @@
   ],
   "test_voice_dataset_merge": [
     "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_failed_merge_preserves_existing_destination",
+    "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_invalid_metadata_is_reported_as_validation_error",
     "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_merge_preserves_unique_clips_provenance_and_removes_pcm_duplicates"
   ],
   "test_voice_dataset_quality": [

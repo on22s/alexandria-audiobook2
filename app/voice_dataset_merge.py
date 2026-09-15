@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import tempfile
 import zipfile
 
 import numpy as np
@@ -27,7 +28,10 @@ def get_file_fingerprint(path: Path) -> dict:
 
 
 def get_pcm_hash(wav_bytes: bytes) -> str:
-    audio, _sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
+    try:
+        audio, _sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
+    except (RuntimeError, OSError, ValueError) as exc:
+        raise ValueError("dataset contains unsupported or malformed audio") from exc
     return hashlib.sha256(np.asarray(audio, dtype="<f4").tobytes()).hexdigest()
 
 
@@ -52,7 +56,10 @@ def _load_metadata(archive: zipfile.ZipFile) -> list[dict]:
         lines = archive.read("metadata.jsonl").decode("utf-8").splitlines()
     except KeyError as error:
         raise ValueError("source archive has no metadata.jsonl") from error
-    return [json.loads(line) for line in lines if line.strip()]
+    try:
+        return [json.loads(line) for line in lines if line.strip()]
+    except json.JSONDecodeError as error:
+        raise ValueError("source archive metadata.jsonl is invalid JSON") from error
 
 
 def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
@@ -64,7 +71,13 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
         return {"status": "reused", "destination": str(destination)}
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    # A unique sibling temp file prevents concurrent merges to the same
+    # destination from truncating one another's in-progress archive.
+    temporary_handle = tempfile.NamedTemporaryFile(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent,
+        delete=False)
+    temporary = Path(temporary_handle.name)
+    temporary_handle.close()
     seen_pcm = {}
     merged_metadata = []
     provenance = []
