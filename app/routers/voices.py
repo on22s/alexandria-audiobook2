@@ -1070,6 +1070,12 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 "seed": str(character_voice_seed(character)),
                 **get_trait_assignment_metadata(suggestion),
             })
+            cfg["persona_voice_audit"] = {
+                "persona_ref": cfg.get("persona_ref"),
+                "persona_description": (cfg.get("description") or "")[:1000],
+                "voice_adapter_id": adapter_id,
+                "suggestion_reason": (suggestion.get("reason") or "")[:240],
+            }
             voice_config[character] = cfg
 
             if cast_name:

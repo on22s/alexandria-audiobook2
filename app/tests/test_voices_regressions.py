@@ -596,6 +596,8 @@ class VoicesTests(unittest.TestCase):
             voice = json.loads(Path(voice_path).read_text(encoding="utf-8"))
             library = json.loads(Path(library_path).read_text(encoding="utf-8"))
         self.assertEqual(voice["Man"]["character_style"], "Brief wary delivery")
+        self.assertEqual("v1", voice["Man"]["persona_voice_audit"]["voice_adapter_id"])
+        self.assertEqual("small suspicious role", voice["Man"]["persona_voice_audit"]["suggestion_reason"])
         for field in core_module.get_trait_assignment_metadata(suggestion):
             self.assertEqual(voice["Man"][field], suggestion[field], field)
         member = library["casts"]["series"]["members"]["man::book-05"]
