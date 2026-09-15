@@ -72,6 +72,13 @@ class FrontendJsSplitTests(unittest.TestCase):
 
 
 class FrontendTests(unittest.TestCase):
+    def test_voice_cards_expose_age_version_generation(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "Generate age version", "generateAgeVersion(this)",
+                "age_group: ageGroup.trim()", "/api/generate_personas"):
+            self.assertIn(required, frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",
