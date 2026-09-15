@@ -13,6 +13,7 @@ from generate_script import LLMGenParams, call_llm_for_object
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
+from persona_validation import validate_persona_payload
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens)
 
@@ -242,6 +243,11 @@ def _persona_params(system_prompt, context_length, llm_config, max_tokens, tempe
     )
 
 
+def _persona_attempt_observer(record):
+    """Keep shared retry diagnostics visible in the persona process log."""
+    print(json.dumps({"persona_attempt": record}, ensure_ascii=False), flush=True)
+
+
 def _resolve_aliases_batch(client, model_name, speakers_info, existing_names,
                            context_length=None, llm_config=None):
     """Resolve aliases for all speakers in a single one-shot LLM call.
@@ -302,7 +308,8 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names,
                                  max(1500, len(speakers_info) * 80), 0.1)
         result = call_llm_for_object(
             client, model_name, messages[0]["content"], messages[1]["content"], params,
-            label="PERSONA ALIAS RESOLUTION", max_retries=2)
+            label="PERSONA ALIAS RESOLUTION", max_retries=2,
+            attempt_observer=_persona_attempt_observer)
         if isinstance(result, dict):
             # Normalize keys and values to match exact input names casing
             resolved = {}
@@ -362,21 +369,6 @@ def _json_preview(data, max_chars=12000):
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n...TRUNCATED..."
-
-
-def validate_persona_payload(payload):
-    """Return a normalized persona payload or raise ValueError."""
-    if not isinstance(payload, dict):
-        raise ValueError("persona output must be a JSON object")
-    description = str(payload.get("description") or "").strip()
-    ref_text = str(payload.get("ref_text") or "").strip()
-    if not description:
-        raise ValueError("persona description is required")
-    if not ref_text:
-        raise ValueError("persona ref_text is required")
-    if len(description) > 4000 or len(ref_text) > 2000:
-        raise ValueError("persona description or ref_text is too long")
-    return {"description": description, "ref_text": ref_text}
 
 
 def _character_ref_path(ref_dir, speaker):
@@ -629,7 +621,8 @@ def _discover_batch_characters(client, model_name, prompt, batch, batch_number,
         params = _persona_params(messages[0]["content"], context_length, llm_config, 4000, 0.2)
         parsed = call_llm_for_object(
             client, model_name, messages[0]["content"], messages[1]["content"], params,
-            label=f"PERSONA DISCOVERY {batch_number}", max_retries=2)
+            label=f"PERSONA DISCOVERY {batch_number}", max_retries=2,
+            attempt_observer=_persona_attempt_observer)
         characters = _parse_discovered_characters(parsed)
         if not characters:
             print(f"Warning: discovery batch {batch_number} returned no parseable characters; using speaker fallback.")
@@ -681,7 +674,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         parsed = call_llm_for_object(
             client, model_name, messages[0]["content"], messages[1]["content"], params,
             label=f"PERSONA COMPILE {speaker}", validate_object=validate_persona_payload,
-            max_retries=2)
+            max_retries=2, attempt_observer=_persona_attempt_observer)
         if isinstance(parsed, dict):
             try:
                 validated = validate_persona_payload(parsed)
@@ -708,7 +701,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     time.sleep(0.5)
 
 
-def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None):
+def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None, llm_config=None):
     state = safe_load_json(os.path.join(root, "state.json"), default={})
     book_id = sanitize_filename(state.get("active_book_id") or "active_book")
     ref_dir = os.path.join(root, "persona_refs", book_id)
@@ -728,7 +721,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
         prompt = _build_batch_discovery_prompt(batch_start, batch, selected_speakers)
         print(f"Advanced discovery batch {batch_number}/{len(batches)} ({len(batch)} entries)")
         characters = _discover_batch_characters(
-            client, model_name, prompt, batch, batch_number, context_length, llm_cfg)
+            client, model_name, prompt, batch, batch_number, context_length, llm_config)
         _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_number)
 
     # Phase 2: compile each speaker's refs into a final persona + preview.
@@ -736,7 +729,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
     for speaker in selected_speakers:
         _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
                          speaker, samples, system_prompt, advanced_prompt, context_length,
-                         llm_cfg)
+                         llm_config)
 
 
 # _atomic_json_write imported from utils
@@ -749,6 +742,7 @@ def main():
     parser.add_argument("--advanced", action="store_true", help="Batch the full script into per-character reference files before compiling voice personas")
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
     parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist")
+    parser.add_argument("--recovered-speaker", default="", help="Use the saved persona for this speaker and resume preview generation")
     parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context")
     parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
                         help="Sample spoken lines per character fed to the persona prompt; the narrator window grows to half of it")
@@ -846,6 +840,7 @@ def main():
             system_prompt=persona_system,
             advanced_prompt=persona_advanced,
             context_length=lm_status.get("context_length"),
+            llm_config=llm_cfg,
         )
         try:
             _atomic_json_write(voice_config, voice_config_path)
@@ -947,12 +942,18 @@ def main():
                 {"role": "system", "content": persona_system},
                 {"role": "user", "content": user_prompt}
             ]
-            params = _persona_params(messages[0]["content"], lm_status.get("context_length"),
-                                     llm_cfg, 400, 0.3)
-            parsed = call_llm_for_object(
-                client, model_name, messages[0]["content"], messages[1]["content"], params,
-                label=f"PERSONA {speaker}", validate_object=validate_persona_payload,
-                max_retries=2)
+            recovered = (speaker == args.recovered_speaker and
+                         isinstance(voice_config.get(speaker), dict))
+            if recovered:
+                parsed = voice_config[speaker]
+                print(f"Using recovered persona for {speaker}; skipping the LLM request.")
+            else:
+                params = _persona_params(messages[0]["content"], lm_status.get("context_length"),
+                                         llm_cfg, 400, 0.3)
+                parsed = call_llm_for_object(
+                    client, model_name, messages[0]["content"], messages[1]["content"], params,
+                    label=f"PERSONA {speaker}", validate_object=validate_persona_payload,
+                    max_retries=2, attempt_observer=_persona_attempt_observer)
             description = ""
             ref_text = ""
             if isinstance(parsed, dict):

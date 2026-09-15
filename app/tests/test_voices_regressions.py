@@ -35,7 +35,7 @@ class VoicesTests(unittest.TestCase):
                 speaker="Hero", persona_json=json.dumps({"description": "steady", "ref_text": "I am ready."}))
             with patch.object(voices_module, "SCRIPT_PATH", script_path), \
                  patch.object(voices_module, "VOICE_CONFIG_PATH", config_path):
-                result = asyncio.run(voices_module.recover_persona(request))
+                result = asyncio.run(voices_module.recover_persona(voices_module.BackgroundTasks(), request))
             saved = json.loads(Path(config_path).read_text(encoding="utf-8"))
             self.assertEqual({"status": "saved", "speaker": "Hero"}, result)
             self.assertEqual("custom", saved["Hero"]["type"])
@@ -48,7 +48,7 @@ class VoicesTests(unittest.TestCase):
             Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
             with patch.object(voices_module, "SCRIPT_PATH", script_path):
                 with self.assertRaises(voices_module.HTTPException) as error:
-                    asyncio.run(voices_module.recover_persona(voices_module.PersonaRecoveryRequest(
+                    asyncio.run(voices_module.recover_persona(voices_module.BackgroundTasks(), voices_module.PersonaRecoveryRequest(
                         speaker="Typo", persona_json='{"description":"steady", "ref_text":"I am ready."}')))
             self.assertEqual(422, error.exception.status_code)
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):

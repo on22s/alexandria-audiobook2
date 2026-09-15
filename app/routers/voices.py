@@ -51,6 +51,7 @@ from utils import (
     safe_load_json,
     secure_filename,
 )
+from persona_validation import validate_persona_payload
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -106,6 +107,7 @@ class GeneratePersonasRequest(BaseModel):
 class PersonaRecoveryRequest(BaseModel):
     speaker: str = Field(min_length=1, max_length=200)
     persona_json: str = Field(min_length=2, max_length=10000)
+    resume: bool = False
 
 
 def _validate_persona_recovery(value: str) -> tuple[str, str]:
@@ -115,13 +117,11 @@ def _validate_persona_recovery(value: str) -> tuple[str, str]:
         raise HTTPException(status_code=422, detail=f"Persona JSON is invalid: {exc}") from exc
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=422, detail="Persona output must be a JSON object")
-    description = str(parsed.get("description") or "").strip()
-    ref_text = str(parsed.get("ref_text") or "").strip()
-    if not description or not ref_text:
-        raise HTTPException(status_code=422, detail="Persona JSON requires description and ref_text")
-    if len(description) > 4000 or len(ref_text) > 2000:
-        raise HTTPException(status_code=422, detail="Persona fields exceed the allowed length")
-    return description, ref_text
+    try:
+        normalized = validate_persona_payload(parsed)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return normalized["description"], normalized["ref_text"]
 
 
 @router.get("/api/voices")
@@ -216,24 +216,27 @@ async def cancel_persona():
 
 
 @router.post("/api/persona/recover")
-async def recover_persona(request: PersonaRecoveryRequest):
+async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRecoveryRequest):
     """Validate and save one externally generated persona without rerunning the batch."""
     description, ref_text = _validate_persona_recovery(request.persona_json)
 
-    if os.path.exists(SCRIPT_PATH):
-        try:
-            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-                script = json.load(f)
-            speakers = {
-                (entry.get("speaker") or entry.get("type") or "").strip()
-                for entry in script if isinstance(entry, dict)
-            }
-            if request.speaker not in speakers:
-                raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
-        except HTTPException:
-            raise
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=422, detail="Generate or open an active script before recovery")
+    try:
+        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+            script = json.load(f)
+        if not isinstance(script, list):
+            raise ValueError("active script must be a JSON array")
+        speakers = {
+            (entry.get("speaker") or entry.get("type") or "").strip()
+            for entry in script if isinstance(entry, dict)
+        }
+        if request.speaker not in speakers:
+            raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
+    except HTTPException:
+        raise
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
 
     def _save():
         with file_lock(VOICE_CONFIG_PATH):
@@ -247,7 +250,14 @@ async def recover_persona(request: PersonaRecoveryRequest):
             atomic_json_write(config, VOICE_CONFIG_PATH)
 
     await asyncio.to_thread(_save)
-    return {"status": "saved", "speaker": request.speaker}
+    if request.resume:
+        check_global_gpu_lock("persona")
+        process_state["persona"]["cancel"] = False
+        claim_gpu_task("persona")
+        background_tasks.add_task(run_process, [
+            sys.executable, "-u", "generate_personas.py", "--speakers", request.speaker,
+            "--recovered-speaker", request.speaker], "persona")
+    return {"status": "resuming" if request.resume else "saved", "speaker": request.speaker}
 
 @router.post("/api/save_voice_config")
 async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):

@@ -1515,6 +1515,11 @@
             "title": "Persona Json",
             "type": "string"
           },
+          "resume": {
+            "default": false,
+            "title": "Resume",
+            "type": "boolean"
+          },
           "speaker": {
             "maxLength": 200,
             "minLength": 1,

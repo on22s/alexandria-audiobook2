@@ -2043,7 +2043,9 @@
         const speaker = document.getElementById('persona-recovery-speaker')?.value.trim() || 'the character';
         const system = document.getElementById('persona-system-prompt')?.value.trim()
             || 'Return JSON only with description and ref_text.';
-        const prompt = `${system}\n\nCreate a persona for ${speaker}. Return exactly {"description":"...","ref_text":"..."}.`;
+        const userTemplate = document.getElementById('persona-user-prompt')?.value.trim()
+            || 'Create a persona for {speaker}. Return exactly {"description":"...","ref_text":"..."}.';
+        const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)}`;
         try {
             await navigator.clipboard.writeText(prompt);
             showToast('Persona prompt copied to the clipboard.', 'success');
