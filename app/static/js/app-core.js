@@ -2118,7 +2118,7 @@
                                     </select>
                                     <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
                                 </div>
-                                ${Array.isArray(config.candidates) && config.candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${config.candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">×</button></div>`).join('')}</div>` : ''}
+                                ${Array.isArray(config.candidates) && config.candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${config.candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" onclick="favoriteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}', ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">×</button></div>`).join('')}</div>` : ''}
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
@@ -2423,6 +2423,14 @@
                 await loadVoices();
                 showToast(`Removed candidate ${candidateId}.`, 'success');
             } catch (e) { showToast('Candidate removal failed: ' + e.message, 'error'); }
+        };
+
+        window.favoriteVoiceCandidate = async function favoriteVoiceCandidate(button, candidateId, favorite) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/favorite`, {favorite});
+                await loadVoices();
+            } catch (e) { showToast('Candidate favorite update failed: ' + e.message, 'error'); }
         };
 
         // --- Auto-suggest best LoRA voice per character ---

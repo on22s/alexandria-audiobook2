@@ -2139,6 +2139,19 @@
         "title": "VoiceApprovalRequest",
         "type": "object"
       },
+      "VoiceCandidateFavoriteRequest": {
+        "properties": {
+          "favorite": {
+            "title": "Favorite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "favorite"
+        ],
+        "title": "VoiceCandidateFavoriteRequest",
+        "type": "object"
+      },
       "VoiceCandidateRequest": {
         "properties": {
           "candidate_id": {
@@ -7841,6 +7854,62 @@
           }
         },
         "summary": "Delete Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/candidates/{candidate_id}/favorite": {
+      "post": {
+        "operationId": "favorite_voice_candidate_api_voices__speaker__candidates__candidate_id__favorite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceCandidateFavoriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Favorite Voice Candidate"
       }
     },
     "/api/voices/{speaker}/candidates/{candidate_id}/select": {

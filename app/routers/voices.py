@@ -143,6 +143,10 @@ class VoiceCandidateRequest(BaseModel):
     config: Dict = Field(default_factory=dict)
 
 
+class VoiceCandidateFavoriteRequest(BaseModel):
+    favorite: bool
+
+
 class NarratorStrategyRequest(BaseModel):
     strategy: str = Field(pattern="^(global|focus|chapter|character)$")
 
@@ -282,6 +286,22 @@ async def delete_voice_candidate(speaker: str, candidate_id: str):
             entry.pop("active_candidate", None)
     _mutate_voice_entry(speaker, remove)
     return {"status": "deleted", "speaker": speaker, "candidate_id": candidate_id}
+
+
+@router.post("/api/voices/{speaker}/candidates/{candidate_id}/favorite")
+async def favorite_voice_candidate(speaker: str, candidate_id: str,
+                                   request: VoiceCandidateFavoriteRequest):
+    _require_script_speaker(speaker)
+    def update(entry):
+        candidate = next((c for c in entry.get("candidates", [])
+                          if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        candidate["favorite"] = request.favorite
+    entry = _mutate_voice_entry(speaker, update)
+    return {"status": "saved", "speaker": speaker, "candidate_id": candidate_id,
+            "favorite": next(c.get("favorite", False) for c in entry.get("candidates", [])
+                              if c.get("candidate_id") == candidate_id)}
 
 
 @router.post("/api/narrator/strategy")
