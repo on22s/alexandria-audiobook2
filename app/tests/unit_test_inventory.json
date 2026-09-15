@@ -3673,6 +3673,7 @@
     "tests.test_voices_regressions.VoicesTests.test_favorite_toggle_round_trips_through_the_library",
     "tests.test_voices_regressions.VoicesTests.test_favorite_wins_from_lm_rank_two_but_not_over_a_hard_mismatch",
     "tests.test_voices_regressions.VoicesTests.test_gender_fallback_and_recurring_mismatch",
+    "tests.test_voices_regressions.VoicesTests.test_gender_marker_does_not_treat_digit_suffix_as_gender",
     "tests.test_voices_regressions.VoicesTests.test_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_legacy_generic_cast_member_is_not_auto_matched",
     "tests.test_voices_regressions.VoicesTests.test_library_entry_records_known_as_and_tolerates_legacy_entries",

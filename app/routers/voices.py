@@ -231,9 +231,9 @@ def _infer_lora_gender(model):
     if g in ("male", "female"):
         return g
     name_id = f"{model.get('name', '')} {model.get('id', '')}".lower()
-    if re.search(r"(_|\b)f(\b|_|\d|emale)", name_id):
+    if re.search(r"(?:^|[_\s-])f(?:$|[_\s-]|emale)", name_id):
         return "female"
-    if re.search(r"(_|\b)m(\b|_|\d|ale)", name_id):
+    if re.search(r"(?:^|[_\s-])m(?:$|[_\s-]|ale)", name_id):
         return "male"
     desc = (model.get("description") or model.get("voice_profile") or "").lower()
     if any(w in desc for w in ("alto", "soprano", "mezzo", "feminine", "woman", "girl")):
@@ -283,7 +283,7 @@ def _infer_age_group(text):
         years = next(group for group in numeric.groups() if group is not None)
         if 1 <= int(years) <= 120:
             return _age_group_from_years(years)
-    decade = re.search(r"\b([2-8])0s\b", value)
+    decade = re.search(r"\b([1-9])0s\b", value)
     if decade:
         return _age_group_from_years(int(decade.group(1)) * 10 + 5)
     patterns = (

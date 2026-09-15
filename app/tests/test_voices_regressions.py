@@ -15,6 +15,11 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
+    def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
+        self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
+        self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))
+        self.assertEqual("female", voices_module._infer_lora_gender({"name": "voice_f"}))
+
     def test_pitch_is_not_used_as_a_gender_classifier(self):
         low = {"voice_features": {"mean_f0": 90}}
         high = {"voice_features": {"mean_f0": 260}}
@@ -214,6 +219,7 @@ class VoicesTests(unittest.TestCase):
             "121": "unknown", "aged 12 then aged 60": "child", "under 12": "child",
             "20s": "young_adult", "30s": "adult", "40s": "middle_aged",
             "50s": "middle_aged", "60s": "elderly", "70s": "elderly", "80s": "elderly",
+            "90s": "elderly",
         }
         for text, group in expected.items():
             self.assertEqual(voices_module._infer_age_group(text), group, text)
