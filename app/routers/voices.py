@@ -41,7 +41,7 @@ from core import (
     run_process,
 )
 from lmstudio_settings import get_current_status, get_effective_max_tokens
-from tts import voice_category
+from tts import resolve_narrator_voice_config, voice_category
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -150,6 +150,12 @@ class VoiceCandidateFavoriteRequest(BaseModel):
 
 class NarratorStrategyRequest(BaseModel):
     strategy: str = Field(pattern="^(global|focus|chapter|character)$")
+
+
+class NarratorPreviewRequest(BaseModel):
+    strategy: str = Field(pattern="^(global|focus|chapter|character)$")
+    focus_speaker: Optional[str] = Field(default=None, max_length=200)
+    narrator_version: Optional[str] = Field(default=None, max_length=80)
 
 
 class VoiceApprovalRequest(BaseModel):
@@ -312,6 +318,26 @@ async def save_narrator_strategy(request: NarratorStrategyRequest):
         "narrator_strategy": request.strategy
     }))
     return {"status": "saved", "strategy": entry.get("narrator_strategy")}
+
+
+@router.post("/api/narrator/preview")
+async def preview_narrator(request: NarratorPreviewRequest):
+    _require_script_speaker("NARRATOR")
+    config = safe_load_json(VOICE_CONFIG_PATH, default={})
+    narrator = dict(config.get("NARRATOR") or config.get("Narrator") or {})
+    narrator["narrator_strategy"] = request.strategy
+    config["NARRATOR"] = narrator
+    resolved = resolve_narrator_voice_config("NARRATOR", config, {
+        "focus_speaker": request.focus_speaker,
+        "narrator_version": request.narrator_version,
+    })
+    selected = resolved.get("NARRATOR", {})
+    return {"strategy": request.strategy, "focus_speaker": request.focus_speaker,
+            "narrator_version": request.narrator_version,
+            "selected": {"type": selected.get("type", "custom"),
+                          "voice": selected.get("voice"),
+                          "adapter_id": selected.get("adapter_id"),
+                          "description": selected.get("description", "")}}
 
 
 @router.post("/api/voices/{speaker}/approval")

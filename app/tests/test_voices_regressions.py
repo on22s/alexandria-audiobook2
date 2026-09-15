@@ -180,6 +180,21 @@ class VoicesTests(unittest.TestCase):
             self.assertTrue(result["favorite"])
             self.assertTrue(json.loads(Path(voice_path).read_text(encoding="utf-8"))["Hero"]["candidates"][0]["favorite"])
 
+    def test_narrator_preview_reports_selected_version_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            voice_path = os.path.join(tmp, "voices.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "NARRATOR"}]), encoding="utf-8")
+            Path(voice_path).write_text(json.dumps({"NARRATOR": {
+                "voice": "Ryan", "versions": {"dramatic": {"type": "custom", "voice": "Dylan"}}}}), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                result = asyncio.run(voices_module.preview_narrator(
+                    voices_module.NarratorPreviewRequest(strategy="chapter", narrator_version="dramatic")))
+            self.assertEqual("Dylan", result["selected"]["voice"])
+            self.assertEqual("dramatic", result["narrator_version"])
+            self.assertEqual("Dylan", json.loads(Path(voice_path).read_text(encoding="utf-8"))["NARRATOR"]["versions"]["dramatic"]["voice"])
+
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))

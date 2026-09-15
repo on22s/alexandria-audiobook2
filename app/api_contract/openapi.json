@@ -1524,6 +1524,44 @@
         "title": "M4bExportRequest",
         "type": "object"
       },
+      "NarratorPreviewRequest": {
+        "properties": {
+          "focus_speaker": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus Speaker"
+          },
+          "narrator_version": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrator Version"
+          },
+          "strategy": {
+            "pattern": "^(global|focus|chapter|character)$",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy"
+        ],
+        "title": "NarratorPreviewRequest",
+        "type": "object"
+      },
       "NarratorStrategyRequest": {
         "properties": {
           "strategy": {
@@ -5616,6 +5654,42 @@
           }
         },
         "summary": "Merge M4B Endpoint"
+      }
+    },
+    "/api/narrator/preview": {
+      "post": {
+        "operationId": "preview_narrator_api_narrator_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarratorPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Narrator"
       }
     },
     "/api/narrator/strategy": {

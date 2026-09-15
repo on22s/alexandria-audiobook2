@@ -3688,6 +3688,7 @@
     "tests.test_voices_regressions.VoicesTests.test_low_confidence_traits_do_not_hard_filter",
     "tests.test_voices_regressions.VoicesTests.test_major_characters_get_distinct_voices_before_minor_reuse",
     "tests.test_voices_regressions.VoicesTests.test_mixed_llm_trait_acceptance_does_not_merge_conflicting_evidence",
+    "tests.test_voices_regressions.VoicesTests.test_narrator_preview_reports_selected_version_without_writing",
     "tests.test_voices_regressions.VoicesTests.test_narrator_strategy_requires_narrator_and_persists",
     "tests.test_voices_regressions.VoicesTests.test_numbered_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_numeric_age_boundaries_and_precedence",

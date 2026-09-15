@@ -2388,6 +2388,22 @@
             } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
         };
 
+        window.previewNarratorSelection = async function previewNarratorSelection() {
+            const strategy = document.getElementById('narrator-strategy')?.value || 'global';
+            const focus = strategy === 'focus' || strategy === 'character'
+                ? window.prompt('Focus character (optional):') : null;
+            const version = strategy === 'chapter'
+                ? window.prompt('Narrator version ID (optional):') : null;
+            const status = document.getElementById('narrator-preview-status');
+            try {
+                const result = await API.post('/api/narrator/preview', {
+                    strategy, focus_speaker: focus || null, narrator_version: version || null,
+                });
+                const selected = result.selected || {};
+                status.textContent = `Selected ${selected.adapter_id || selected.voice || selected.type || 'default'}.`;
+            } catch (e) { showToast('Narrator preview failed: ' + e.message, 'error'); }
+        };
+
         window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
             const speaker = button.closest('.voice-card')?.dataset.voice;
             try {

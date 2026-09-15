@@ -1185,7 +1185,9 @@
                                 <option value="chapter">Chapter</option>
                                 <option value="character">Character focus</option>
                             </select>
+                            <button class="btn btn-outline-secondary" type="button" onclick="previewNarratorSelection()">Preview</button>
                         </div>
+                        <span id="narrator-preview-status" class="small text-muted"></span>
                         <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">
