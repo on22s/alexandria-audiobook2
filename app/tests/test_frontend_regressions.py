@@ -89,6 +89,14 @@ class FrontendTests(unittest.TestCase):
         self.assertNotIn("window.prompt('Focus character (optional):')", frontend)
         self.assertNotIn("window.prompt('Narrator version ID (optional):')", frontend)
 
+    def test_chapter_presets_can_be_imported_and_exported(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "exportChapterTemplatePresets", "importChapterTemplatePresets",
+                "alexandria-chapter-presets.json", "chapter-preset-import",
+                "no valid presets found"):
+            self.assertIn(required, frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

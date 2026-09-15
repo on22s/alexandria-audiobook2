@@ -4063,6 +4063,34 @@
                 showToast('Chapter filename preset deleted.', 'success');
             } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
         };
+        window.exportChapterTemplatePresets = function exportChapterTemplatePresets() {
+            const blob = new Blob([JSON.stringify(getChapterTemplatePresets(), null, 2)], {type: 'application/json'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'alexandria-chapter-presets.json';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        };
+        window.importChapterTemplatePresets = function importChapterTemplatePresets(input) {
+            const file = input.files?.[0];
+            input.value = '';
+            if (!file) { return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const imported = JSON.parse(reader.result);
+                    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) { throw new Error('expected an object'); }
+                    const valid = Object.fromEntries(Object.entries(imported).filter(([name, preset]) =>
+                        name.trim() && preset && typeof preset === 'object' && typeof preset.template === 'string'));
+                    if (!Object.keys(valid).length) { throw new Error('no valid presets found'); }
+                    const merged = {...getChapterTemplatePresets(), ...valid};
+                    if (!setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(merged))) { throw new Error('browser storage is unavailable'); }
+                    renderChapterTemplatePresets();
+                    showToast(`Imported ${Object.keys(valid).length} chapter preset(s).`, 'success');
+                } catch (e) { showToast('Could not import presets: ' + e.message, 'error'); }
+            };
+            reader.readAsText(file);
+        };
         renderChapterTemplatePresets();
         function parseChapterSelection(value) {
             const selected = new Set();

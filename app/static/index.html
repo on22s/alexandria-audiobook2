@@ -2150,6 +2150,9 @@
                                                 <select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="">Saved presets</option></select>
                                                 <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()">Save preset</button>
                                                 <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()">Delete</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()">Export</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()">Import</button>
+                                                <input type="file" id="chapter-preset-import" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
                                             </div>
                                         </div>
                                         <div class="col-md-2">
