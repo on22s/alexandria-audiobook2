@@ -2106,7 +2106,7 @@
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
-                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')}</div>` : ''}
+                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
                                 <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
                                     <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">Mark persona reviewed</button>
@@ -2438,6 +2438,26 @@
                 await loadVoices();
                 showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} approved for ${speaker}.`, 'success');
             } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
+        };
+
+        window.editPersonaVoiceAudit = async function editPersonaVoiceAudit(button) {
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const current = window._voicesByName?.[speaker]?.config?.persona_voice_audit || {};
+            const reason = window.prompt('Why this voice was suggested (optional):', current.suggestion_reason || '');
+            if (reason === null) { return; }
+            const adapter = window.prompt('Voice adapter ID (optional):', current.voice_adapter_id || '');
+            if (adapter === null) { return; }
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/persona-voice-audit`, {
+                    persona_ref: current.persona_ref || null,
+                    persona_description: current.persona_description || null,
+                    voice_adapter_id: adapter,
+                    suggestion_reason: reason,
+                });
+                await loadVoices();
+                showToast(`Persona-to-voice audit updated for ${speaker}.`, 'success');
+            } catch (e) { showToast('Audit update failed: ' + e.message, 'error'); }
         };
 
         window.regeneratePersona = async function regeneratePersona(button) {

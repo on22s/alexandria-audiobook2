@@ -1620,6 +1620,60 @@
         "title": "PersonaRecoveryRequest",
         "type": "object"
       },
+      "PersonaVoiceAuditRequest": {
+        "properties": {
+          "persona_description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Description"
+          },
+          "persona_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Ref"
+          },
+          "suggestion_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion Reason"
+          },
+          "voice_adapter_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Adapter Id"
+          }
+        },
+        "title": "PersonaVoiceAuditRequest",
+        "type": "object"
+      },
       "PromptConfig": {
         "properties": {
           "persona_advanced_prompt": {
@@ -8066,6 +8120,54 @@
           }
         },
         "summary": "Select Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/persona-voice-audit": {
+      "post": {
+        "description": "Allow a user to correct the provenance note for an assignment.",
+        "operationId": "update_persona_voice_audit_api_voices__speaker__persona_voice_audit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonaVoiceAuditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Persona Voice Audit"
       }
     },
     "/api/voices/{speaker}/versions": {

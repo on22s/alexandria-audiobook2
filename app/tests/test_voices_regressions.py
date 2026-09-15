@@ -778,6 +778,21 @@ class VoicesTests(unittest.TestCase):
         self.assertEqual(library["shared"]["narrator"]["config"]["adapter_id"], "v1")
         self.assertNotIn("narrator", library["casts"]["series"]["members"])
 
+    def test_persona_to_voice_audit_can_be_updated_without_clobbering_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "annotated_script.json")
+            voice_path = os.path.join(tmp, "voice_config.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Man"}]), encoding="utf-8")
+            Path(voice_path).write_text(json.dumps({"Man": {
+                "persona_voice_audit": {"voice_adapter_id": "old", "persona_ref": "p1"}}}), encoding="utf-8")
+            request = voices_module.PersonaVoiceAuditRequest(suggestion_reason="corrected")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                    patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                result = asyncio.run(voices_module.update_persona_voice_audit("Man", request))
+            self.assertEqual("corrected", result["persona_voice_audit"]["suggestion_reason"])
+            self.assertEqual("old", result["persona_voice_audit"]["voice_adapter_id"])
+            self.assertEqual("p1", result["persona_voice_audit"]["persona_ref"])
+
     def test_selective_enrichment_prompt(self):
         fake_llama = SimpleNamespace(Llama=object, llama_supports_gpu_offload=lambda: True)
         path = Path(__file__).resolve().parent.parent.parent / "llm_enricher.py"

@@ -164,6 +164,13 @@ class VoiceApprovalRequest(BaseModel):
     voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
 
 
+class PersonaVoiceAuditRequest(BaseModel):
+    persona_ref: Optional[str] = Field(default=None, max_length=200)
+    persona_description: Optional[str] = Field(default=None, max_length=1000)
+    voice_adapter_id: Optional[str] = Field(default=None, max_length=200)
+    suggestion_reason: Optional[str] = Field(default=None, max_length=500)
+
+
 def _mutate_voice_entry(speaker, mutator):
     with file_lock(VOICE_CONFIG_PATH):
         config = safe_load_json(VOICE_CONFIG_PATH, default={})
@@ -356,6 +363,21 @@ async def set_voice_approval(speaker: str, request: VoiceApprovalRequest):
     return {"status": "saved", "speaker": speaker,
             "persona_status": entry.get("persona_status"),
             "voice_status": entry.get("voice_status")}
+
+
+@router.post("/api/voices/{speaker}/persona-voice-audit")
+async def update_persona_voice_audit(speaker: str, request: PersonaVoiceAuditRequest):
+    """Allow a user to correct the provenance note for an assignment."""
+    _require_script_speaker(speaker)
+    audit = {key: value.strip() for key, value in request.model_dump().items()
+             if value is not None and value.strip()}
+    if not audit:
+        raise HTTPException(status_code=422, detail="At least one audit field is required")
+    entry = _mutate_voice_entry(speaker, lambda current: current.update({
+        "persona_voice_audit": {**(current.get("persona_voice_audit") or {}), **audit}
+    }))
+    return {"status": "saved", "speaker": speaker,
+            "persona_voice_audit": entry.get("persona_voice_audit", {})}
 
 
 @router.post("/api/generate_personas")
