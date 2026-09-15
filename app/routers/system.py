@@ -357,7 +357,9 @@ async def lmstudio_status():
 
 def _log_llm_failure(kind: str, detail: str) -> str:
     """Write an LLM connection/optimize failure to logs/api/ and return the path."""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include microseconds so concurrent failures never truncate one another's
+    # diagnostic file (the old second-resolution name was collision-prone).
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
     try:
         with open(path, "w", encoding="utf-8") as f:
