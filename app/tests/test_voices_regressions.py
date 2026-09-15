@@ -150,6 +150,23 @@ class VoicesTests(unittest.TestCase):
             self.assertEqual([], saved["candidates"])
             self.assertNotIn("active_candidate", saved)
 
+    def test_persona_generation_can_target_one_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            tasks = voices_module.BackgroundTasks()
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "voices.json")), \
+                 patch.object(voices_module, "check_global_gpu_lock"), \
+                 patch.object(voices_module, "claim_gpu_task"), \
+                 patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)), \
+                 patch.object(voices_module, "run_process"):
+                result = asyncio.run(voices_module.generate_personas(
+                    tasks, voices_module.GeneratePersonasRequest(speaker="Hero")))
+            self.assertEqual("started", result["status"])
+            self.assertIn("--speakers", tasks.tasks[0].args[0])
+            self.assertIn("Hero", tasks.tasks[0].args[0])
+
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))

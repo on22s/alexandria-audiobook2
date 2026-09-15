@@ -110,6 +110,7 @@ class GeneratePersonasRequest(BaseModel):
     batch_size: int = 40
     # Sample spoken lines per character in the persona prompt (#522 12.1).
     context_lines: int = Field(default=8, ge=1, le=200)
+    speaker: Optional[str] = Field(default=None, max_length=200)
 
 
 class PersonaRecoveryRequest(BaseModel):
@@ -331,6 +332,9 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
 
     command = [sys.executable, "-u", "generate_personas.py",
                "--context-lines", str(request.context_lines)]
+    if request.speaker:
+        _require_script_speaker(request.speaker)
+        command.extend(["--speakers", request.speaker])
     if request.advanced:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])

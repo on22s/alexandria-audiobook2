@@ -892,6 +892,18 @@
             "minimum": 1.0,
             "title": "Context Lines",
             "type": "integer"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
           }
         },
         "title": "GeneratePersonasRequest",

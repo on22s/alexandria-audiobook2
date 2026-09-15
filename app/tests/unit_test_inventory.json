@@ -3690,6 +3690,7 @@
     "tests.test_voices_regressions.VoicesTests.test_narrator_strategy_requires_narrator_and_persists",
     "tests.test_voices_regressions.VoicesTests.test_numbered_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_numeric_age_boundaries_and_precedence",
+    "tests.test_voices_regressions.VoicesTests.test_persona_generation_can_target_one_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_rejects_unknown_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_requires_integrity_fields",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_resume_queues_single_speaker",

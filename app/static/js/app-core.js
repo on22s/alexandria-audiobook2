@@ -2103,6 +2103,7 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
                                 <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
@@ -2392,6 +2393,18 @@
                 await loadVoices();
                 showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} approved for ${speaker}.`, 'success');
             } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
+        };
+
+        window.regeneratePersona = async function regeneratePersona(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post('/api/generate_personas', {
+                    speaker,
+                    advanced: false,
+                    context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
+                });
+                showToast(`Persona regeneration started for ${speaker}.`, 'success');
+            } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
         };
 
         window.selectVoiceCandidate = async function selectVoiceCandidate(button, candidateId) {
