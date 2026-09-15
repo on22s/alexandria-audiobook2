@@ -69,6 +69,54 @@ class VoicesTests(unittest.TestCase):
             self.assertEqual("resuming", result["status"])
             self.assertEqual(1, len(tasks.tasks))
             self.assertIn("--recovered-speaker", tasks.tasks[0].args[0])
+
+    def test_voice_versions_and_candidates_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            voice_path = os.path.join(tmp, "voices.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "NARRATOR"}]), encoding="utf-8")
+            Path(voice_path).write_text("{}", encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                asyncio.run(voices_module.save_voice_version(
+                    "Hero", voices_module.VoiceVersionRequest(
+                        version_id="teen", age_group="teen",
+                        config={"type": "lora", "adapter_id": "hero-teen"})))
+                asyncio.run(voices_module.add_voice_candidate(
+                    "Hero", voices_module.VoiceCandidateRequest(
+                        candidate_id="hero-alt", config={"type": "lora", "adapter_id": "hero-alt"})))
+                selected = asyncio.run(voices_module.select_voice_version("Hero", "teen"))
+                self.assertEqual("teen", selected["config"]["active_version"])
+                self.assertEqual("teen", selected["config"]["age_group"])
+                self.assertEqual("hero-teen", selected["config"]["adapter_id"])
+                selected = asyncio.run(voices_module.select_voice_candidate("Hero", "hero-alt"))
+                self.assertEqual("hero-alt", selected["config"]["active_candidate"])
+                self.assertEqual("hero-alt", selected["config"]["adapter_id"])
+
+    def test_narrator_strategy_requires_narrator_and_persists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            voice_path = os.path.join(tmp, "voices.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "NARRATOR"}]), encoding="utf-8")
+            Path(voice_path).write_text("{}", encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                result = asyncio.run(voices_module.save_narrator_strategy(
+                    voices_module.NarratorStrategyRequest(strategy="chapter")))
+                self.assertEqual("chapter", result["strategy"])
+                self.assertEqual("chapter", json.loads(Path(voice_path).read_text())["NARRATOR"]["narrator_strategy"])
+
+    def test_voice_version_rejects_unknown_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "voices.json")), \
+                 self.assertRaises(voices_module.HTTPException) as caught:
+                asyncio.run(voices_module.save_voice_version(
+                    "Missing", voices_module.VoiceVersionRequest(version_id="v1")))
+            self.assertEqual(404, caught.exception.status_code)
+
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))

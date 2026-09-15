@@ -73,6 +73,14 @@ class VoiceConfigItem(BaseModel):
     # Character approved by the user for this book (#522 17.1); a UI flag,
     # nothing downstream reads it.
     ready: bool = False
+    persona_status: str = "unreviewed"
+    voice_status: str = "unassigned"
+    active_version: Optional[str] = None
+    active_candidate: Optional[str] = None
+    age_group: Optional[str] = None
+    versions: Dict[str, Dict] = Field(default_factory=dict)
+    candidates: List[Dict] = Field(default_factory=list)
+    narrator_strategy: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_ensemble_members(self):
@@ -123,6 +131,39 @@ def _validate_persona_recovery(value: str) -> tuple[str, str]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return normalized["description"], normalized["ref_text"]
 
+class VoiceVersionRequest(BaseModel):
+    version_id: str = Field(min_length=1, max_length=80)
+    age_group: str = Field(default="adult", max_length=40)
+    config: Dict = Field(default_factory=dict)
+
+
+class VoiceCandidateRequest(BaseModel):
+    candidate_id: str = Field(min_length=1, max_length=80)
+    config: Dict = Field(default_factory=dict)
+
+
+class NarratorStrategyRequest(BaseModel):
+    strategy: str = Field(pattern="^(global|focus|chapter|character)$")
+
+
+def _mutate_voice_entry(speaker, mutator):
+    with file_lock(VOICE_CONFIG_PATH):
+        config = safe_load_json(VOICE_CONFIG_PATH, default={})
+        entry = config.setdefault(speaker, {})
+        mutator(entry)
+        atomic_json_write(config, VOICE_CONFIG_PATH)
+        return entry
+
+
+def _require_script_speaker(speaker):
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=422, detail="Generate or open an active script first")
+    script = safe_load_json(SCRIPT_PATH, default=[])
+    speakers = {(e.get("speaker") or e.get("type") or "").strip()
+                for e in script if isinstance(e, dict)}
+    if speaker not in speakers:
+        raise HTTPException(status_code=404, detail="Speaker is not present in the active script")
+
 
 @router.get("/api/voices")
 async def get_voices():
@@ -165,6 +206,71 @@ async def get_voices():
             "persona_pending": voice_name in missing_speakers
         })
     return result
+
+
+@router.post("/api/voices/{speaker}/versions")
+async def save_voice_version(speaker: str, request: VoiceVersionRequest):
+    _require_script_speaker(speaker)
+    if request.config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
+        raise HTTPException(status_code=422, detail="Unsupported voice version type")
+    entry = _mutate_voice_entry(speaker, lambda current: current.setdefault("versions", {}).update({
+        request.version_id: {"age_group": request.age_group, **request.config}
+    }))
+    return {"status": "saved", "speaker": speaker, "version_id": request.version_id,
+            "versions": entry.get("versions", {})}
+
+
+@router.post("/api/voices/{speaker}/versions/{version_id}/select")
+async def select_voice_version(speaker: str, version_id: str):
+    _require_script_speaker(speaker)
+    def select(entry):
+        version = (entry.get("versions") or {}).get(version_id)
+        if not isinstance(version, dict):
+            raise HTTPException(status_code=404, detail="Voice version not found")
+        entry.update({k: v for k, v in version.items() if k != "age_group"})
+        entry["age_group"] = version.get("age_group")
+        entry["active_version"] = version_id
+        entry["voice_status"] = "assigned"
+    entry = _mutate_voice_entry(speaker, select)
+    return {"status": "selected", "speaker": speaker, "version_id": version_id,
+            "config": entry}
+
+
+@router.post("/api/voices/{speaker}/candidates")
+async def add_voice_candidate(speaker: str, request: VoiceCandidateRequest):
+    _require_script_speaker(speaker)
+    def add(entry):
+        candidates = [c for c in entry.get("candidates", [])
+                      if isinstance(c, dict) and c.get("candidate_id") != request.candidate_id]
+        candidates.append({"candidate_id": request.candidate_id, **request.config})
+        entry["candidates"] = candidates
+    entry = _mutate_voice_entry(speaker, add)
+    return {"status": "saved", "speaker": speaker, "candidates": entry.get("candidates", [])}
+
+
+@router.post("/api/voices/{speaker}/candidates/{candidate_id}/select")
+async def select_voice_candidate(speaker: str, candidate_id: str):
+    _require_script_speaker(speaker)
+    def select(entry):
+        candidate = next((c for c in entry.get("candidates", [])
+                          if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        entry.update({k: v for k, v in candidate.items() if k != "candidate_id"})
+        entry["active_candidate"] = candidate_id
+        entry["voice_status"] = "assigned"
+    entry = _mutate_voice_entry(speaker, select)
+    return {"status": "selected", "speaker": speaker, "candidate_id": candidate_id,
+            "config": entry}
+
+
+@router.post("/api/narrator/strategy")
+async def save_narrator_strategy(request: NarratorStrategyRequest):
+    _require_script_speaker("NARRATOR")
+    entry = _mutate_voice_entry("NARRATOR", lambda current: current.update({
+        "narrator_strategy": request.strategy
+    }))
+    return {"status": "saved", "strategy": entry.get("narrator_strategy")}
 
 
 @router.post("/api/generate_personas")
@@ -837,6 +943,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         chosen = cand_by_id[chosen_id]
         suggestions[name] = {
             "adapter_id": chosen_id, "adapter_name": chosen["name"], "type": chosen["type"],
+            "ranked_adapter_ids": ranked,
             "character_style": style_by_name[name], "reason": reason_by_name[name],
             "line_count": info["line_count"], "priority": info["priority"], "book_id": book_id,
             "cast_member_key": info["member_key"], "reuse_count_before": before,

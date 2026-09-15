@@ -2103,6 +2103,14 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
+                                <div class="input-group input-group-sm mt-2">
+                                    <select class="form-select voice-version-select" onchange="selectVoiceVersion(this)">
+                                        <option value="">Active version</option>
+                                        ${Object.entries(config.versions || {}).map(([id, version]) => `<option value="${escapeHtml(id)}" ${config.active_version === id ? 'selected' : ''}>${escapeHtml(id)}${version.age_group ? ` · ${escapeHtml(version.age_group)}` : ''}</option>`).join('')}
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
+                                </div>
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
@@ -2312,6 +2320,12 @@
             const voices = await API.get('/api/voices');
             // Cache simple names for alias dropdowns
             window._voicesNames = voices.map(v => v.name);
+            window._voicesByName = Object.fromEntries(voices.map(v => [v.name, v]));
+            const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
+            const narratorSelect = document.getElementById('narrator-strategy');
+            if (narratorSelect && narrator?.config?.narrator_strategy) {
+                narratorSelect.value = narrator.config.narrator_strategy;
+            }
             const container = document.getElementById('voices-list');
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
@@ -2332,6 +2346,38 @@
             }
         }
 
+        window.selectVoiceVersion = async function selectVoiceVersion(select) {
+            const versionId = select.value;
+            if (!versionId) { return; }
+            const speaker = select.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`, {});
+                await loadVoices();
+                showToast(`Selected ${versionId} for ${speaker}.`, 'success');
+            } catch (e) { showToast('Version selection failed: ' + e.message, 'error'); }
+        };
+
+        window.addVoiceVersion = async function addVoiceVersion(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            const versionId = window.prompt('Version ID (for example teen or elderly):');
+            if (!versionId || !versionId.trim()) { return; }
+            const ageGroup = window.prompt('Age group:') || 'adult';
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
+                    version_id: versionId.trim(), age_group: ageGroup.trim(), config: {type: 'custom', voice: 'Ryan'}
+                });
+                showToast(`Version saved for ${speaker}.`, 'success');
+                await loadVoices();
+            } catch (e) { showToast('Version save failed: ' + e.message, 'error'); }
+        };
+
+        window.saveNarratorStrategy = async function saveNarratorStrategy(strategy) {
+            try {
+                await API.post('/api/narrator/strategy', {strategy});
+                showToast('Narrator strategy saved.', 'success');
+            } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
+        };
+
         // --- Auto-suggest best LoRA voice per character ---
         window._voiceSuggestions = {};
 
@@ -2349,6 +2395,31 @@
                 });
                 window._voiceSuggestions = res.suggestions || {};
                 const n = Object.keys(window._voiceSuggestions).length;
+                // Preserve the full ranked pool produced by auto-suggest so users
+                // can compare alternatives later without a second suggestion UI.
+                await Promise.all(Object.entries(window._voiceSuggestions).map(async ([name, suggestion]) => {
+                    const ranked = suggestion.ranked_adapter_ids || [suggestion.adapter_id];
+                    await Promise.all(ranked.filter(Boolean).map(async (adapterId, rank) => {
+                        const model = (window._loraModelsCache || []).find(item => item.id === adapterId) || {};
+                        try {
+                            await API.post(`/api/voices/${encodeURIComponent(name)}/candidates`, {
+                                candidate_id: adapterId,
+                                config: {
+                                    type: model.builtin ? 'builtin_lora' : (suggestion.type || 'lora'),
+                                    adapter_id: adapterId,
+                                    adapter_path: model.path || model.adapter_path || null,
+                                    description: model.description || '',
+                                    age_group: model.age_group || suggestion.voice_age_group || 'unknown',
+                                    gender: model.gender || suggestion.voice_gender || 'unknown',
+                                    rank: rank + 1,
+                                    source: 'auto_suggest',
+                                },
+                            });
+                        } catch (e) {
+                            console.debug(`candidate save failed for ${name}/${adapterId}`, e);
+                        }
+                    }));
+                }));
                 if (n === 0) {
                     status.textContent = res.message || 'No suggestions available.';
                     document.getElementById('btn-apply-all-suggestions').style.display = 'none';
@@ -2902,6 +2973,7 @@
 
             cards.forEach(card => {
                 const name = card.dataset.voice;
+                const metadata = (window._voicesByName && window._voicesByName[name])?.config || {};
                 const alias = card.querySelector('.alias-select') ? card.querySelector('.alias-select').value : '';
                 const type = card.querySelector('.voice-type:checked').value;
 
@@ -2959,6 +3031,9 @@
                 const readyBox = card.querySelector('.voice-ready');
                 if (readyBox && readyBox.checked) {
                     config[name].ready = true;
+                }
+                for (const key of ['persona_status', 'voice_status', 'active_version', 'active_candidate', 'age_group', 'versions', 'candidates', 'narrator_strategy']) {
+                    if (metadata[key] !== undefined) { config[name][key] = metadata[key]; }
                 }
             });
             return config;

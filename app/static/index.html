@@ -1177,6 +1177,15 @@
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
                     <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                        <div class="input-group input-group-sm" style="width: 240px;">
+                            <span class="input-group-text">Narrator mode</span>
+                            <select class="form-select" id="narrator-strategy" onchange="saveNarratorStrategy(this.value)">
+                                <option value="global">Global</option>
+                                <option value="focus">Scene focus</option>
+                                <option value="chapter">Chapter</option>
+                                <option value="character">Character focus</option>
+                            </select>
+                        </div>
                         <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">
