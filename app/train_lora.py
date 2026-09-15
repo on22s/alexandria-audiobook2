@@ -22,6 +22,7 @@ import argparse
 import gc
 import hashlib
 import json
+import math
 import os
 import random
 import shutil
@@ -497,6 +498,9 @@ def train(args):
         if _val < 1:
             print(f"[ERROR] {_name} must be >= 1 (got {_val}).", flush=True)
             sys.exit(1)
+    if not math.isfinite(args.lr) or args.lr <= 0:
+        print(f"[ERROR] --lr must be a finite positive number (got {args.lr}).", flush=True)
+        sys.exit(1)
 
     print(f"[TRAIN] Config: epochs={args.epochs}, lr={args.lr}, lora_r={args.lora_r}, "
           f"lora_alpha={args.lora_alpha}, grad_accum={args.gradient_accumulation_steps}", flush=True)
