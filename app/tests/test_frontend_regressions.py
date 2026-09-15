@@ -79,6 +79,16 @@ class FrontendTests(unittest.TestCase):
                 "age_group: ageGroup.trim()", "/api/generate_personas"):
             self.assertIn(required, frontend)
 
+    def test_narrator_preview_uses_inline_scenario_selectors(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="narrator-focus"', 'id="narrator-version"',
+                "updateNarratorPreviewFields", "window._voicesNames",
+                "focus_speaker: focus", "narrator_version: version"):
+            self.assertIn(required, frontend)
+        self.assertNotIn("window.prompt('Focus character (optional):')", frontend)
+        self.assertNotIn("window.prompt('Narrator version ID (optional):')", frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

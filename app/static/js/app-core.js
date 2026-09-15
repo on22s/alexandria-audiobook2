@@ -2339,6 +2339,7 @@
             if (narratorSelect && narrator?.config?.narrator_strategy) {
                 narratorSelect.value = narrator.config.narrator_strategy;
             }
+            updateNarratorPreviewFields();
             const container = document.getElementById('voices-list');
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
@@ -2385,18 +2386,41 @@
         };
 
         window.saveNarratorStrategy = async function saveNarratorStrategy(strategy) {
+            updateNarratorPreviewFields();
             try {
                 await API.post('/api/narrator/strategy', {strategy});
                 showToast('Narrator strategy saved.', 'success');
             } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
         };
 
+        window.updateNarratorPreviewFields = function updateNarratorPreviewFields() {
+            const strategy = document.getElementById('narrator-strategy')?.value || 'global';
+            const focusGroup = document.getElementById('narrator-focus-group');
+            const versionGroup = document.getElementById('narrator-version-group');
+            const focus = document.getElementById('narrator-focus');
+            const version = document.getElementById('narrator-version');
+            const needsFocus = strategy.includes('character') || strategy === 'focus';
+            const needsVersion = strategy === 'chapter';
+            if (focusGroup) { focusGroup.style.display = needsFocus ? '' : 'none'; }
+            if (versionGroup) { versionGroup.style.display = needsVersion ? '' : 'none'; }
+            if (focus && !focus.options.length) {
+                focus.innerHTML = '<option value="">No focus override</option>' +
+                    (window._voicesNames || []).filter(name => name !== 'NARRATOR' && name !== 'Narrator')
+                        .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+            }
+            if (version && !version.options.length) {
+                const narrator = window._voicesByName?.NARRATOR || window._voicesByName?.Narrator;
+                const versions = narrator?.config?.versions || {};
+                version.innerHTML = '<option value="">Default narrator</option>' +
+                    Object.keys(versions).sort().map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+            }
+        };
+
         window.previewNarratorSelection = async function previewNarratorSelection() {
             const strategy = document.getElementById('narrator-strategy')?.value || 'global';
-            const focus = strategy === 'focus' || strategy === 'character'
-                ? window.prompt('Focus character (optional):') : null;
-            const version = strategy === 'chapter'
-                ? window.prompt('Narrator version ID (optional):') : null;
+            updateNarratorPreviewFields();
+            const focus = document.getElementById('narrator-focus')?.value || null;
+            const version = document.getElementById('narrator-version')?.value || null;
             const status = document.getElementById('narrator-preview-status');
             try {
                 const result = await API.post('/api/narrator/preview', {
