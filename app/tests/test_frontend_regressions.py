@@ -102,6 +102,8 @@ class FrontendTests(unittest.TestCase):
         for required in (
                 "const failed = (status.logs || [])",
                 "recoveryPanel.open = true",
+                "persona-recovery-context",
+                "Stage: persona generation",
                 "manual recovery is available"):
             self.assertIn(required, frontend)
 

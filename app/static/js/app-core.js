@@ -2081,6 +2081,12 @@
                     const recoveryStatus = document.getElementById('persona-recovery-status');
                     if (failed) {
                         if (recoveryPanel) { recoveryPanel.open = true; }
+                        const recoveryContext = document.getElementById('persona-recovery-context');
+                        const lastLog = (status.logs || []).filter(Boolean).slice(-1)[0] || 'Unknown persona-generation error';
+                        if (recoveryContext) {
+                            recoveryContext.textContent = `Stage: persona generation · Error: ${lastLog} · Next action: paste validated persona JSON below, then resume.`;
+                            recoveryContext.style.display = '';
+                        }
                         if (recoveryStatus) {
                             recoveryStatus.textContent = 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.';
                         }
