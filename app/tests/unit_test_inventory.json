@@ -276,6 +276,12 @@
     "tests.test_attribution_hybrid.AttributionHybridTest.test_preserves_source_alias_aware_correctness",
     "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
   ],
+  "test_attribution_prompt_variants": [
+    "tests.test_attribution_prompt_variants.PromptVariants.test_every_variant_keeps_the_output_contract",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_incremental_carries_the_previous_window",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_roster_line_and_passage_rendering",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_unknown_variant_is_refused"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",

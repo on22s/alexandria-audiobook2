@@ -40,6 +40,7 @@ from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
+from experiments.attribution_prompt_variants import make_provider
 from three_pass_generate import (PassExhausted, attribute_batch, build_roster,
                                  get_deterministic_named_entry)
 
@@ -77,6 +78,23 @@ def bind_last_attempt(entries, size):
 
 def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
+
+
+def mentioned_roster(roster, groups, texts, carried=(), cap=30):
+    hay = norm(" ".join(texts or []))
+    kept = []
+    for name in roster:
+        forms = {norm(name)}
+        for group in groups:
+            normalized = {norm(item) for item in group}
+            if norm(name) in normalized:
+                forms.update(norm(item) for item in group)
+        if any(form and form in hay for form in forms):
+            kept.append(name)
+    for name in carried:
+        if name in roster and name not in kept:
+            kept.append(name)
+    return kept[:cap]
 
 
 def set_adapter_scale(base_url, scale):
@@ -190,6 +208,11 @@ def main():
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
+    ap.add_argument("--prompt-variant", default="default",
+                    help="attribution_prompt_variants.VARIANTS: how the question is asked; "
+                         "the output contract and gates are unchanged")
+    ap.add_argument("--roster-mode", default="full", choices=("full", "mentioned"),
+                    help="show the full roster or only names mentioned in this/previous window")
     ap.add_argument("--structured-output", default="auto", choices=("auto", "off"),
                     help="request-level JSON schema on attribution calls "
                          "(the product default is auto)")
@@ -224,6 +247,7 @@ def main():
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
+    decoding["prompt_variant"] = args.prompt_variant
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -239,10 +263,11 @@ def main():
         gold, src, seg, roster, want = load_book(
             book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
+        provider = (None if args.prompt_variant == "default" else
+                    make_provider(args.prompt_variant, [[n.upper() for n in g] for g in groups]))
         # What `in_candidates` is tested against: the names these roster
         # lines stand for, per ExperimentRecord.add's contract. The roster
         # itself is still what the model is SHOWN.
-        membership = roster_membership_names(roster, groups)
         windows = make_windows(len(seg), args.batch_size,
                                cuts.get(book, {}).get(args.cut_arm, ()))
         windows = [w for w in windows
@@ -254,6 +279,7 @@ def main():
                 got = set_adapter_scale(args.base_url, scale)
                 print(f"  adapter scale now {got}", flush=True)
             started = time.time()
+            carried = []
             for k, win in enumerate(windows, 1):
                 send = [i for i in win
                         if get_deterministic_named_entry(seg[i]) is None]
@@ -270,11 +296,20 @@ def main():
                 ctx = [{"previous_context": seg[i - 1] if i else None,
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
+                shown_roster = roster
+                if args.roster_mode == "mentioned":
+                    previous = windows[k - 2] if k > 1 else []
+                    shown_roster = mentioned_roster(
+                        roster, groups,
+                        [seg[i].get("text") for i in list(previous) + list(win)],
+                        carried)
+                membership = roster_membership_names(shown_roster, groups)
                 why = f"{arm}|scale={scale}"
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
-                                          roster, neighbor_contexts=ctx,
-                                          source_text=src)
+                                          shown_roster, neighbor_contexts=ctx,
+                                          source_text=src,
+                                          entries_provider=provider)
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.
@@ -286,6 +321,10 @@ def main():
                 except Exception as exc:
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
                     out = None
+                if out:
+                    carried = sorted({str(item.get("speaker") or "").upper()
+                                      for item in out if isinstance(item, dict)
+                                      and item.get("speaker") in roster})
                 if out is None:
                     for i in rows:
                         g = want[norm(seg[i].get("text"))]
