@@ -172,6 +172,22 @@ class ExportChaptersTests(unittest.TestCase):
 
 
 class RouteTests(unittest.TestCase):
+    def test_export_can_require_every_speaker_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = os.path.join(tmp, "script.json")
+            voices = os.path.join(tmp, "voice_config.json")
+            Path(script).write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "NARRATOR"}]), encoding="utf-8")
+            Path(voices).write_text(json.dumps({"Hero": {"ready": True}}), encoding="utf-8")
+            with patch.object(editor_module, "SCRIPT_PATH", script), \
+                 patch.object(editor_module, "DATA_DIR", tmp), \
+                 patch.object(editor_module, "claim_gpu_task"):
+                with self.assertRaises(HTTPException) as ctx:
+                    asyncio.run(editor_module.export_chapters(
+                        editor_module.ChapterExportRequest(require_ready=True),
+                        editor_module.BackgroundTasks()))
+            self.assertEqual(409, ctx.exception.status_code)
+            self.assertIn("NARRATOR", ctx.exception.detail["speakers"])
+
     def test_preview_rejects_the_same_invalid_padding_as_export(self):
         with self.assertRaises(HTTPException) as ctx:
             asyncio.run(editor_module.preview_chapter_filenames(padding=7))

@@ -296,7 +296,8 @@ class ChapterExportRequest(BaseModel):
     series_name: str = ""
     volume_number: str = ""
     chapters: Optional[List[int]] = None     # indices to export; None = all
-    changed_only: bool = False
+    changed_only: bool = False     
+    require_ready: bool = False
 
 
 def _chapter_export_dir():
@@ -308,6 +309,15 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
+    if request.require_ready:
+        script = safe_load_json(SCRIPT_PATH, default=[])
+        voices = safe_load_json(os.path.join(DATA_DIR, "voice_config.json"), default={})
+        speakers = {str(e.get("speaker") or e.get("type") or "").strip()
+                    for e in script if isinstance(e, dict)}
+        missing = sorted(s for s in speakers if s and not (voices.get(s) or {}).get("ready"))
+        if missing:
+            raise HTTPException(status_code=409, detail={
+                "message": "Mark every speaker ready before exporting.", "speakers": missing})
     claim_gpu_task("chapter_export")
     state = process_state["chapter_export"]
 

@@ -3955,7 +3955,8 @@
                 book_name: document.getElementById('chapter-book-name').value.trim(),
                 series_name: document.getElementById('chapter-series-name').value.trim(),
                 volume_number: document.getElementById('chapter-volume').value.trim(),
-                changed_only: document.getElementById('chapter-changed-only').checked
+                changed_only: document.getElementById('chapter-changed-only').checked,
+                require_ready: document.getElementById('chapter-require-ready').checked
             };
         }
         function renderChapterList(rows, exported) {

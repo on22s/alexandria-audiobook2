@@ -540,6 +540,7 @@
     "tests.test_chapter_export.FilenameTemplateTests.test_every_field_and_padding_widths",
     "tests.test_chapter_export.FilenameTemplateTests.test_filesystem_hostile_titles_cannot_escape_or_break",
     "tests.test_chapter_export.FilenameTemplateTests.test_unknown_fields_and_empty_titles_still_yield_a_name",
+    "tests.test_chapter_export.RouteTests.test_export_can_require_every_speaker_ready",
     "tests.test_chapter_export.RouteTests.test_preview_rejects_the_same_invalid_padding_as_export",
     "tests.test_chapter_export.RouteTests.test_zip_404s_when_nothing_is_exported_and_serves_only_listed_files"
   ],

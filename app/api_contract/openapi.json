@@ -491,6 +491,11 @@
             "title": "Per Chunk Chapters",
             "type": "boolean"
           },
+          "require_ready": {
+            "default": false,
+            "title": "Require Ready",
+            "type": "boolean"
+          },
           "series_name": {
             "default": "",
             "title": "Series Name",
