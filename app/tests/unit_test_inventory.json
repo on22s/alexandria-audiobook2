@@ -2696,6 +2696,7 @@
     "tests.test_run_history.RunHistoryTests.test_failed_summary_write_preserves_previous_record",
     "tests.test_run_history.RunHistoryTests.test_history_failure_does_not_block_task",
     "tests.test_run_history.RunHistoryTests.test_invalid_run_id_cannot_escape_history_directory",
+    "tests.test_run_history.RunHistoryTests.test_list_runs_rejects_invalid_limits",
     "tests.test_run_history.RunHistoryTests.test_retention_never_deletes_path_for_malformed_record_id",
     "tests.test_run_history.RunHistoryTests.test_retention_preserves_active_and_newest_failure",
     "tests.test_run_history.RunHistoryTests.test_run_identity_fields_cannot_be_overwritten",

@@ -24,6 +24,13 @@ class RunHistoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as history_dir:
             self.assertIsNone(get_run(history_dir, "../state"))
 
+    def test_list_runs_rejects_invalid_limits(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            with self.assertRaises(ValueError):
+                list_runs(history_dir, "many")
+            with self.assertRaises(ValueError):
+                list_runs(history_dir, 0)
+
     def test_artifact_records_output_source_and_config_hashes(self):
         with tempfile.TemporaryDirectory() as data_dir:
             history_dir = os.path.join(data_dir, "run_history")

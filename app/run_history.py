@@ -114,6 +114,12 @@ def get_run(history_dir, run_id):
 
 def list_runs(history_dir, limit=100):
     """Return newest run records first, bounded for API/UI callers."""
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("limit must be an integer") from exc
+    if limit < 1:
+        raise ValueError("limit must be positive")
     if not os.path.isdir(history_dir):
         return []
     records = []
@@ -124,7 +130,7 @@ def list_runs(history_dir, limit=100):
         if record:
             records.append(record)
     records.sort(key=lambda item: item.get("started_at", ""), reverse=True)
-    return records[:max(1, min(int(limit), 500))]
+    return records[:min(limit, 500)]
 
 
 def mark_interrupted_runs(history_dir):
