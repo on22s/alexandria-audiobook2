@@ -146,6 +146,11 @@ class NarratorStrategyRequest(BaseModel):
     strategy: str = Field(pattern="^(global|focus|chapter|character)$")
 
 
+class VoiceApprovalRequest(BaseModel):
+    persona_status: Optional[str] = Field(default=None, pattern="^(unreviewed|approved|rejected)$")
+    voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|approved|rejected)$")
+
+
 def _mutate_voice_entry(speaker, mutator):
     with file_lock(VOICE_CONFIG_PATH):
         config = safe_load_json(VOICE_CONFIG_PATH, default={})
@@ -271,6 +276,23 @@ async def save_narrator_strategy(request: NarratorStrategyRequest):
         "narrator_strategy": request.strategy
     }))
     return {"status": "saved", "strategy": entry.get("narrator_strategy")}
+
+
+@router.post("/api/voices/{speaker}/approval")
+async def set_voice_approval(speaker: str, request: VoiceApprovalRequest):
+    """Set persona and voice approval independently for a character."""
+    _require_script_speaker(speaker)
+    if request.persona_status is None and request.voice_status is None:
+        raise HTTPException(status_code=422, detail="At least one approval status is required")
+    def update_status(current):
+        if request.persona_status is not None:
+            current["persona_status"] = request.persona_status
+        if request.voice_status is not None:
+            current["voice_status"] = request.voice_status
+    entry = _mutate_voice_entry(speaker, update_status)
+    return {"status": "saved", "speaker": speaker,
+            "persona_status": entry.get("persona_status"),
+            "voice_status": entry.get("voice_status")}
 
 
 @router.post("/api/generate_personas")

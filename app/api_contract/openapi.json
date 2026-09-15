@@ -2097,6 +2097,36 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VoiceApprovalRequest": {
+        "properties": {
+          "persona_status": {
+            "anyOf": [
+              {
+                "pattern": "^(unreviewed|approved|rejected)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Status"
+          },
+          "voice_status": {
+            "anyOf": [
+              {
+                "pattern": "^(unreviewed|approved|rejected)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Status"
+          }
+        },
+        "title": "VoiceApprovalRequest",
+        "type": "object"
+      },
       "VoiceCandidateRequest": {
         "properties": {
           "candidate_id": {
@@ -7658,6 +7688,54 @@
           }
         },
         "summary": "Get Voices"
+      }
+    },
+    "/api/voices/{speaker}/approval": {
+      "post": {
+        "description": "Set persona and voice approval independently for a character.",
+        "operationId": "set_voice_approval_api_voices__speaker__approval_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Voice Approval"
       }
     },
     "/api/voices/{speaker}/candidates": {

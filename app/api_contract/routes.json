@@ -597,12 +597,21 @@
     "methods": [
       "POST"
     ],
+    "name": "set_voice_approval",
+    "path": "/api/voices/{speaker}/approval",
+    "type": "APIRoute"
+  },
+  {
+    "index": 68,
+    "methods": [
+      "POST"
+    ],
     "name": "generate_personas",
     "path": "/api/generate_personas",
     "type": "APIRoute"
   },
   {
-    "index": 68,
+    "index": 69,
     "methods": [
       "POST"
     ],
@@ -611,7 +620,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 69,
+    "index": 70,
     "methods": [
       "POST"
     ],

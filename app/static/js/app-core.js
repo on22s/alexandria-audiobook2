@@ -2104,6 +2104,10 @@
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
+                                <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
+                                    <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
+                                    <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">Approve voice</button>
+                                </div>
                                 <div class="input-group input-group-sm mt-2">
                                     <select class="form-select voice-version-select" onchange="selectVoiceVersion(this)">
                                         <option value="">Active version</option>
@@ -2376,6 +2380,15 @@
                 await API.post('/api/narrator/strategy', {strategy});
                 showToast('Narrator strategy saved.', 'success');
             } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
+        };
+
+        window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
+                await loadVoices();
+                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} approved for ${speaker}.`, 'success');
+            } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
         };
 
         // --- Auto-suggest best LoRA voice per character ---

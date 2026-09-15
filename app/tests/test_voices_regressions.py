@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import core as core_module
+import tts as tts_module
 from routers import voice_library as voice_library_module
 from routers import voices as voices_module
 
@@ -69,6 +70,15 @@ class VoicesTests(unittest.TestCase):
             self.assertEqual("resuming", result["status"])
             self.assertEqual(1, len(tasks.tasks))
             self.assertIn("--recovered-speaker", tasks.tasks[0].args[0])
+
+    def test_dynamic_narrator_strategy_resolves_focus_voice(self):
+        narrator = {"type": "custom", "voice": "Ryan", "narrator_strategy": "focus"}
+        config = {"NARRATOR": narrator, "HERO": {"type": "custom", "voice": "Serena"}}
+        resolved = tts_module.resolve_narrator_voice_config(
+            "NARRATOR", config, {"focus_speaker": "HERO"})
+        self.assertEqual("Serena", resolved["NARRATOR"]["voice"])
+        self.assertEqual("Ryan", config["NARRATOR"]["voice"])
+
 
     def test_voice_versions_and_candidates_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:

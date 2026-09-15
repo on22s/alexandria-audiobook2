@@ -58,6 +58,38 @@ def voice_category(voice_data):
     return "custom"
 
 
+def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
+    """Resolve an optional dynamic narrator strategy for one chunk.
+
+    Strategies are opt-in and fall back to the configured NARRATOR voice when
+    the chunk has no matching focus/version metadata.
+    """
+    if speaker != "NARRATOR":
+        return voice_config
+    narrator = voice_config.get("NARRATOR") or voice_config.get("Narrator") or {}
+    strategy = narrator.get("narrator_strategy", "global")
+    chunk = chunk or {}
+    selected = None
+    if strategy in {"focus", "character"}:
+        focus = chunk.get("focus_speaker") or chunk.get("character_focus")
+        if focus and focus in voice_config:
+            selected = voice_config[focus]
+    elif strategy == "chapter":
+        version_id = chunk.get("narrator_version") or chunk.get("chapter_narrator_version")
+        selected = (narrator.get("versions") or {}).get(version_id) if version_id else None
+        if selected is None:
+            selected = narrator
+    else:
+        selected = narrator
+    if not isinstance(selected, dict):
+        selected = narrator
+    if selected is narrator:
+        return voice_config
+    resolved = dict(voice_config)
+    resolved["NARRATOR"] = dict(selected)
+    return resolved
+
+
 def mix_to_unison(wav_paths, output_path, max_stretch=1.35):
     """Align same-text clips to a common length and mix them into one track.
 
@@ -907,6 +939,7 @@ class TTSEngine:
     def generate_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using the appropriate method based on voice type config."""
         text = normalize_for_speech(text)
+        voice_config = resolve_narrator_voice_config(speaker, voice_config)
         voice_data = voice_config.get(speaker)
         if not voice_data:
             print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
@@ -1226,6 +1259,32 @@ class TTSEngine:
         # caller's chunk dicts (Rule 17); the caller still owns the originals.
         chunks = [{**c, "text": normalize_for_speech(c.get("text"))}
                   for c in chunks]
+        # Resolve narrator strategy once per chunk while retaining the existing
+        # batching paths for ordinary speakers.
+        dynamic_chunks = []
+        for chunk in chunks:
+            speaker = chunk.get("speaker")
+            resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
+            dynamic_chunks.append((chunk, resolved))
+        if any(resolved is not voice_config for _, resolved in dynamic_chunks):
+            # A dynamic narrator may use different configs per chunk; keep those
+            # chunks on the established single-item path to avoid mixing voices.
+            results = {"completed": [], "failed": []}
+            for chunk, resolved in dynamic_chunks:
+                if resolved is voice_config:
+                    continue
+                idx = chunk["index"]
+                output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+                try:
+                    if self.generate_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
+                        results["completed"].append(idx)
+                    else:
+                        results["failed"].append((idx, "Narrator voice generation failed"))
+                except Exception as e:
+                    results["failed"].append((idx, str(e)))
+            chunks = [chunk for chunk, resolved in dynamic_chunks if resolved is voice_config]
+            if not chunks:
+                return results
 
         # Reset torch.compile state to prevent progressive slowdown
         # from dynamo guard accumulation across batches

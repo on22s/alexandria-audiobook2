@@ -529,6 +529,7 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
         voice_entry = voice_config.get(speaker, {})
         voice_entry.update({
             "type": "clone",
+            "persona_status": "generated",
             "ref_audio": os.path.relpath(dest_path, root).replace('\\\\', '/'),
             "ref_text": ref_text,
             "description": description,
@@ -588,7 +589,8 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
     except Exception as e:
         print(f"Error generating voice preview for {speaker}: {e}")
         voice_entry = voice_config.get(speaker, {})
-        voice_entry.update({"type": "design", "description": description, "ref_text": ref_text})
+        voice_entry.update({"type": "design", "description": description, "ref_text": ref_text,
+                            "persona_status": "generated"})
         voice_config[speaker] = voice_entry
         return False
 
