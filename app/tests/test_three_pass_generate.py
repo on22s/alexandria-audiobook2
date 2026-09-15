@@ -304,6 +304,20 @@ class Pass2Tests(unittest.TestCase):
         return LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
                             max_tokens=500, temperature=0.1)
 
+    def test_provider_response_without_choices_is_bounded_error(self):
+        from generate_script import call_llm_for_entries
+
+        class EmptyResponse:
+            def create(self, **_kwargs):
+                return SimpleNamespace(choices=None, usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=EmptyResponse()))
+        out = call_llm_for_entries(
+            client, "m", "system", "user", self._params(),
+            log_name="test_llm_responses.log", label="TEST", max_retries=1)
+        self.assertEqual([], out)
+
     def test_attributes_a_batch_and_freezes_text(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold."},
                   {"type": "SPOKEN", "text": "Tell me."}]

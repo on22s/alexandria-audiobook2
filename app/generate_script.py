@@ -895,7 +895,15 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 # differ. Connection/API failures must retain their retry budget.
                 attempted_prompts.add(attempt_key)
 
-            choice = response.choices[0]
+            # Some OpenAI-compatible providers return a successful HTTP
+            # response with no choices (or a JSON null response) during a
+            # transient outage. Raise a clear provider error so the existing
+            # bounded API retry path handles it; never let this surface as an
+            # opaque AttributeError from ``None.choices``.
+            choices = getattr(response, "choices", None) if response is not None else None
+            if not choices:
+                raise RuntimeError("LLM provider returned no choices")
+            choice = choices[0]
             # An OpenAI-compatible server may return JSON null for content when
             # a reasoning model spent its whole budget thinking. Calling
             # .strip() on that raised AttributeError, which the caller booked as
