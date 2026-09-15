@@ -1296,6 +1296,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_saved_script_audit_surfaces_nonprose_validation_state",
     "tests.test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
     "tests.test_frontend_regressions.FrontendTests.test_stale_build_banner_is_wired_without_a_new_timer",
+    "tests.test_frontend_regressions.FrontendTests.test_voice_cards_expose_age_version_generation",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
