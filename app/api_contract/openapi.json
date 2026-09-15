@@ -1522,6 +1522,11 @@
             "title": "Per Chunk Chapters",
             "type": "boolean"
           },
+          "require_ready": {
+            "default": false,
+            "title": "Require Ready",
+            "type": "boolean"
+          },
           "title": {
             "default": "",
             "title": "Title",

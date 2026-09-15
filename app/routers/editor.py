@@ -256,9 +256,19 @@ class M4bExportRequest(BaseModel):
     narrator: str = ""
     year: str = ""
     description: str = ""
+    require_ready: bool = False
 
 @router.post("/api/merge_m4b")
 async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: BackgroundTasks):
+    if request.require_ready:
+        script = safe_load_json(SCRIPT_PATH, default=[])
+        voices = safe_load_json(os.path.join(DATA_DIR, "voice_config.json"), default={})
+        speakers = {str(e.get("speaker") or e.get("type") or "").strip()
+                    for e in script if isinstance(e, dict)}
+        missing = sorted(s for s in speakers if s and not (voices.get(s) or {}).get("ready"))
+        if missing:
+            raise HTTPException(status_code=409, detail={
+                "message": "Mark every speaker ready before exporting.", "speakers": missing})
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
     claim_gpu_task("m4b_export")

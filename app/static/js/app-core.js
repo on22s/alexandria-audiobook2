@@ -4151,7 +4151,8 @@
                     author: document.getElementById('m4b-author').value,
                     narrator: document.getElementById('m4b-narrator').value,
                     year: document.getElementById('m4b-year').value,
-                    description: document.getElementById('m4b-description').value
+                    description: document.getElementById('m4b-description').value,
+                    require_ready: document.getElementById('m4b-require-ready').checked
                 });
 
                 _startPolling('m4b_export', () => API.get('/api/status/m4b_export'), {
