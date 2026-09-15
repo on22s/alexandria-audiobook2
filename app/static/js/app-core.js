@@ -2482,7 +2482,7 @@
             try {
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
                 await loadVoices();
-                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} approved for ${speaker}.`, 'success');
+                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} marked ${status} for ${speaker}.`, 'success');
             } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
         };
 

@@ -87,6 +87,22 @@ class VoicesTests(unittest.TestCase):
             "NARRATOR", config, {"narrator_version": "battle"})
         self.assertEqual("Dylan", resolved["NARRATOR"]["voice"])
 
+    def test_dynamic_narrator_strategy_accepts_title_case_narrator(self):
+        config = {"Narrator": {"type": "custom", "voice": "Ryan", "narrator_strategy": "chapter",
+                                "versions": {"teen": {"type": "custom", "voice": "Dylan", "age_group": "teen"}}}}
+        resolved = tts_module.resolve_narrator_voice_config(
+            "Narrator", config, {"narrator_version": "teen"})
+        self.assertEqual("Dylan", resolved["NARRATOR"]["voice"])
+
+    def test_dynamic_narrator_combined_strategy_honors_age_and_gender(self):
+        config = {
+            "NARRATOR": {"type": "custom", "voice": "Ryan", "narrator_strategy": "character_gender_age"},
+            "ALICE": {"type": "custom", "voice": "Dylan", "gender": "female", "age_group": "teen"},
+        }
+        resolved = tts_module.resolve_narrator_voice_config(
+            "NARRATOR", config, {"focus_speaker": "ALICE", "focus_gender": "male", "focus_age_group": "teen"})
+        self.assertEqual("Ryan", resolved["NARRATOR"]["voice"])
+
     def test_dynamic_narrator_strategy_matches_gender_version(self):
         config = {"NARRATOR": {"voice": "Ryan", "narrator_strategy": "gender",
                                 "versions": {"f": {"type": "custom", "voice": "Serena", "gender": "female"}}}}

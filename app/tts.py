@@ -64,7 +64,7 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     Strategies are opt-in and fall back to the configured NARRATOR voice when
     the chunk has no matching focus/version metadata.
     """
-    if speaker != "NARRATOR":
+    if str(speaker or "").upper() != "NARRATOR":
         return voice_config
     narrator = voice_config.get("NARRATOR") or voice_config.get("Narrator") or {}
     strategy = narrator.get("narrator_strategy", "global")
@@ -73,7 +73,13 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     if strategy in {"focus", "character", "character_gender", "character_age", "character_gender_age"}:
         focus = chunk.get("focus_speaker") or chunk.get("character_focus")
         if focus and focus in voice_config:
-            selected = voice_config[focus]
+            focus_voice = voice_config[focus]
+            wanted_gender = chunk.get("narrator_gender") or chunk.get("focus_gender")
+            wanted_age = chunk.get("narrator_age_group") or chunk.get("focus_age_group")
+            gender_ok = strategy not in {"character_gender", "character_gender_age"} or not wanted_gender or focus_voice.get("gender") == wanted_gender
+            age_ok = strategy not in {"character_age", "character_gender_age"} or not wanted_age or focus_voice.get("age_group") == wanted_age
+            if gender_ok and age_ok:
+                selected = focus_voice
     elif strategy == "chapter":
         version_id = chunk.get("narrator_version") or chunk.get("chapter_narrator_version")
         selected = (narrator.get("versions") or {}).get(version_id) if version_id else None
