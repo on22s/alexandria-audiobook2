@@ -7,7 +7,8 @@ import re
 import argparse
 import shutil
 from config_settings import load_app_config
-from llm_provider import make_llm_client
+from llm_provider import make_run_client
+from generate_script import LLMGenParams, call_llm_for_object
 
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed
@@ -225,7 +226,24 @@ def _collect_narrator_context(script, speaker, window=4):
     return context_lines
 
 
-def _resolve_aliases_batch(client, model_name, speakers_info, existing_names, context_length=None):
+def _persona_params(system_prompt, context_length, llm_config, max_tokens, temperature):
+    llm_config = llm_config or {}
+    return LLMGenParams(
+        system_prompt=system_prompt, user_prompt_template="", max_tokens=max_tokens,
+        temperature=temperature, context_length=context_length,
+        provider_extra_body=llm_config.get("provider_extra_body"),
+        structured_output=llm_config.get("structured_output", "auto"),
+        api_retry_limit=llm_config.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm_config.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm_config.get("retry_max_delay_seconds", 30),
+        retry_jitter=llm_config.get("retry_jitter", 0.2),
+        on_api_exhaustion=llm_config.get("on_api_exhaustion", "fail"),
+    )
+
+
+def _resolve_aliases_batch(client, model_name, speakers_info, existing_names,
+                           context_length=None, llm_config=None):
     """Resolve aliases for all speakers in a single one-shot LLM call.
 
     speakers_info is a dict:
@@ -280,19 +298,11 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names, co
             {"role": "system", "content": "You are a precise casting director. You output ONLY valid JSON."},
             {"role": "user", "content": prompt}
         ]
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=get_effective_max_tokens(
-                max(1500, len(speakers_info) * 80), context_length,
-                messages, hard_max=12000),
-        )
-        # Check if response has choices before accessing
-        if not response.choices or len(response.choices) == 0:
-            print("Warning: LLM returned empty response for alias resolution")
-            return {}
-        result = extract_json_object(response.choices[0].message.content.strip())
+        params = _persona_params(messages[0]["content"], context_length, llm_config,
+                                 max(1500, len(speakers_info) * 80), 0.1)
+        result = call_llm_for_object(
+            client, model_name, messages[0]["content"], messages[1]["content"], params,
+            label="PERSONA ALIAS RESOLUTION", max_retries=2)
         if isinstance(result, dict):
             # Normalize keys and values to match exact input names casing
             resolved = {}
@@ -608,24 +618,21 @@ def _parse_discovered_characters(parsed):
     return characters
 
 
-def _discover_batch_characters(client, model_name, prompt, batch, batch_number, context_length=None):
+def _discover_batch_characters(client, model_name, prompt, batch, batch_number,
+                               context_length=None, llm_config=None):
     """Run one discovery LLM call for a batch, falling back to speaker stubs on
     an empty/unparseable response or an API error. Returns a list of characters.
     """
     try:
         messages = [{"role": "system", "content": "You produce concise JSON only."},
                     {"role": "user", "content": prompt}]
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=0.2,
-            max_tokens=get_effective_max_tokens(4000, context_length, messages, hard_max=16000),
-        )
-        raw_content = response.choices[0].message.content.strip()
-        characters = _parse_discovered_characters(extract_json_object(raw_content))
+        params = _persona_params(messages[0]["content"], context_length, llm_config, 4000, 0.2)
+        parsed = call_llm_for_object(
+            client, model_name, messages[0]["content"], messages[1]["content"], params,
+            label=f"PERSONA DISCOVERY {batch_number}", max_retries=2)
+        characters = _parse_discovered_characters(parsed)
         if not characters:
             print(f"Warning: discovery batch {batch_number} returned no parseable characters; using speaker fallback.")
-            print(f"  LLM response (first 500 chars): {raw_content[:500]}")
             characters = _fallback_batch_characters(batch)
         return characters
     except Exception as e:
@@ -654,7 +661,8 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 
 
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
-                     samples, system_prompt, advanced_prompt, context_length=None):
+                     samples, system_prompt, advanced_prompt, context_length=None,
+                     llm_config=None):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio.
     """
@@ -669,13 +677,11 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     try:
         messages = [{"role": "system", "content": system_prompt or "You produce concise JSON only."},
                     {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}]
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=0.25,
-            max_tokens=get_effective_max_tokens(600, context_length, messages, hard_max=4000),
-        )
-        parsed = extract_json_object(response.choices[0].message.content.strip())
+        params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
+        parsed = call_llm_for_object(
+            client, model_name, messages[0]["content"], messages[1]["content"], params,
+            label=f"PERSONA COMPILE {speaker}", validate_object=validate_persona_payload,
+            max_retries=2)
         if isinstance(parsed, dict):
             try:
                 validated = validate_persona_payload(parsed)
@@ -721,14 +727,16 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
     for batch_number, (batch_start, batch) in enumerate(batches, start=1):
         prompt = _build_batch_discovery_prompt(batch_start, batch, selected_speakers)
         print(f"Advanced discovery batch {batch_number}/{len(batches)} ({len(batch)} entries)")
-        characters = _discover_batch_characters(client, model_name, prompt, batch, batch_number, context_length)
+        characters = _discover_batch_characters(
+            client, model_name, prompt, batch, batch_number, context_length, llm_cfg)
         _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_number)
 
     # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
     for speaker in selected_speakers:
         _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
-                         speaker, samples, system_prompt, advanced_prompt, context_length)
+                         speaker, samples, system_prompt, advanced_prompt, context_length,
+                         llm_cfg)
 
 
 # _atomic_json_write imported from utils
@@ -795,7 +803,7 @@ def main():
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 
-    client = make_llm_client(llm_cfg, llm_timeout_seconds())
+    client = make_run_client(config, llm_cfg, llm_timeout_seconds())
 
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}
@@ -886,7 +894,7 @@ def main():
             
             print(f"Resolving alias batch {idx//chunk_size + 1} ({len(chunk)} speakers)...")
             chunk_mapping = _resolve_aliases_batch(client, model_name, speakers_info, existing_configured,
-                                                   lm_status.get("context_length"))
+                                                   lm_status.get("context_length"), llm_cfg)
             batch_mapping.update(chunk_mapping)
 
         # Build case-insensitive normalized lookup mapping to survive LLM key casing changes
@@ -939,16 +947,12 @@ def main():
                 {"role": "system", "content": persona_system},
                 {"role": "user", "content": user_prompt}
             ]
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=get_effective_max_tokens(
-                    400, lm_status.get("context_length"), messages, hard_max=3000),
-            )
-
-            text = response.choices[0].message.content.strip()
-            parsed = extract_json_object(text)
+            params = _persona_params(messages[0]["content"], lm_status.get("context_length"),
+                                     llm_cfg, 400, 0.3)
+            parsed = call_llm_for_object(
+                client, model_name, messages[0]["content"], messages[1]["content"], params,
+                label=f"PERSONA {speaker}", validate_object=validate_persona_payload,
+                max_retries=2)
             description = ""
             ref_text = ""
             if isinstance(parsed, dict):
@@ -959,7 +963,7 @@ def main():
                     print(f"Warning: persona integrity check failed for {speaker}: {exc}")
 
             if not description:
-                print(f"Warning: LLM did not return parseable JSON for {speaker}. Response preview:\n{text[:300]}")
+                print(f"Warning: LLM did not return a valid persona for {speaker}; using fallback.")
                 # Fallback to compiled fallback persona
                 description, ref_text = _fallback_compiled_persona({
                     "name": speaker,
