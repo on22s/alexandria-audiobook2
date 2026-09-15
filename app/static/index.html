@@ -1210,7 +1210,12 @@
                                 <div class="col-md-2 d-grid gap-1">
                                     <button class="btn btn-sm btn-outline-secondary" onclick="copyPersonaPrompt()">Copy prompt</button>
                                     <button class="btn btn-sm btn-outline-success" onclick="recoverPersona()">Validate &amp; save</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="recoverPersona(true)">Validate &amp; resume</button>
                                 </div>
+                            </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-6"><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-samples" rows="2" placeholder="Dialogue samples (used by Copy prompt)"></textarea></div>
+                                <div class="col-md-6"><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-narration" rows="2" placeholder="Narrator context (used by Copy prompt)"></textarea></div>
                             </div>
                             <div id="persona-recovery-status" class="form-text"></div>
                         </div>

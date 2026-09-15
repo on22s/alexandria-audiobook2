@@ -220,6 +220,9 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
     """Validate and save one externally generated persona without rerunning the batch."""
     description, ref_text = _validate_persona_recovery(request.persona_json)
 
+    if request.resume:
+        check_global_gpu_lock("persona")
+
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=422, detail="Generate or open an active script before recovery")
     try:
@@ -251,7 +254,6 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
 
     await asyncio.to_thread(_save)
     if request.resume:
-        check_global_gpu_lock("persona")
         process_state["persona"]["cancel"] = False
         claim_gpu_task("persona")
         background_tasks.add_task(run_process, [

@@ -3689,6 +3689,7 @@
     "tests.test_voices_regressions.VoicesTests.test_numeric_age_boundaries_and_precedence",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_rejects_unknown_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_requires_integrity_fields",
+    "tests.test_voices_regressions.VoicesTests.test_persona_recovery_resume_queues_single_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_saves_without_clobbering_existing_voice_type",
     "tests.test_voices_regressions.VoicesTests.test_pitch_is_not_used_as_a_gender_classifier",
     "tests.test_voices_regressions.VoicesTests.test_ready_flag_round_trips_and_survives_a_cast_apply",

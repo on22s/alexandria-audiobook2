@@ -51,6 +51,24 @@ class VoicesTests(unittest.TestCase):
                     asyncio.run(voices_module.recover_persona(voices_module.BackgroundTasks(), voices_module.PersonaRecoveryRequest(
                         speaker="Typo", persona_json='{"description":"steady", "ref_text":"I am ready."}')))
             self.assertEqual(422, error.exception.status_code)
+
+    def test_persona_recovery_resume_queues_single_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            config_path = os.path.join(tmp, "voice_config.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            tasks = voices_module.BackgroundTasks()
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", config_path), \
+                 patch.object(voices_module, "check_global_gpu_lock"), \
+                 patch.object(voices_module, "claim_gpu_task"), \
+                 patch.object(voices_module, "run_process"):
+                result = asyncio.run(voices_module.recover_persona(tasks, voices_module.PersonaRecoveryRequest(
+                    speaker="Hero", resume=True,
+                    persona_json='{"description":"steady", "ref_text":"I am ready."}')))
+            self.assertEqual("resuming", result["status"])
+            self.assertEqual(1, len(tasks.tasks))
+            self.assertIn("--recovered-speaker", tasks.tasks[0].args[0])
     def test_gender_marker_does_not_treat_digit_suffix_as_gender(self):
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_f1"}))
         self.assertEqual("unknown", voices_module._infer_lora_gender({"name": "voice_m1"}))

@@ -2009,7 +2009,7 @@
             }
         }
 
-    async function cancelPersonas() {
+        async function cancelPersonas() {
             await cancelTask('/api/cancel_persona', {
                 onSuccess: () => {
                     const statusSpan = document.getElementById('persona-status');
@@ -2018,9 +2018,9 @@
                 errorMessage: (e) => 'Failed to cancel persona generation: ' + e.message,
                 toastType: 'error',
             });
-    }
+        }
 
-    window.recoverPersona = async function recoverPersona() {
+        window.recoverPersona = async function recoverPersona(resume = false) {
         const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
         const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
         const status = document.getElementById('persona-recovery-status');
@@ -2029,8 +2029,8 @@
             return;
         }
         try {
-            await API.post('/api/persona/recover', {speaker, persona_json: personaJson});
-            if (status) { status.textContent = 'Validated and saved.'; }
+            await API.post('/api/persona/recover', {speaker, persona_json: personaJson, resume});
+            if (status) { status.textContent = resume ? 'Validated and resumed.' : 'Validated and saved.'; }
             await loadVoices();
             showToast(`Persona recovered for ${speaker}.`, 'success');
         } catch (e) {
@@ -2045,7 +2045,10 @@
             || 'Return JSON only with description and ref_text.';
         const userTemplate = document.getElementById('persona-user-prompt')?.value.trim()
             || 'Create a persona for {speaker}. Return exactly {"description":"...","ref_text":"..."}.';
-        const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)}`;
+        const samples = document.getElementById('persona-recovery-samples')?.value.trim() || '(none provided)';
+        const narration = document.getElementById('persona-recovery-narration')?.value.trim() || '(none provided)';
+        const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)
+            .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}`;
         try {
             await navigator.clipboard.writeText(prompt);
             showToast('Persona prompt copied to the clipboard.', 'success');
