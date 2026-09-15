@@ -1292,6 +1292,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion",
     "tests.test_frontend_regressions.FrontendTests.test_lora_candidate_lifecycle_summary_is_rendered",
     "tests.test_frontend_regressions.FrontendTests.test_narrator_preview_uses_inline_scenario_selectors",
+    "tests.test_frontend_regressions.FrontendTests.test_persona_failure_opens_manual_recovery",
     "tests.test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "tests.test_frontend_regressions.FrontendTests.test_review_summary_and_health_eta_are_rendered",
     "tests.test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",

@@ -97,6 +97,14 @@ class FrontendTests(unittest.TestCase):
                 "no valid presets found"):
             self.assertIn(required, frontend)
 
+    def test_persona_failure_opens_manual_recovery(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "const failed = (status.logs || [])",
+                "recoveryPanel.open = true",
+                "manual recovery is available"):
+            self.assertIn(required, frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

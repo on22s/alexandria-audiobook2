@@ -2075,12 +2075,21 @@
                         logEl.scrollTop = logEl.scrollHeight;
                     }
                 },
-                onDone: async () => {
+                onDone: async (status) => {
+                    const failed = (status.logs || []).some(log => /\b(error|failed|failure)\b/i.test(log));
+                    const recoveryPanel = document.getElementById('persona-recovery-panel');
+                    const recoveryStatus = document.getElementById('persona-recovery-status');
+                    if (failed) {
+                        if (recoveryPanel) { recoveryPanel.open = true; }
+                        if (recoveryStatus) {
+                            recoveryStatus.textContent = 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.';
+                        }
+                    }
                     // Refresh voices and caches
                     try { await loadVoices(); } catch (e) { console.debug('voices refresh failed', e); }
                     try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
                     try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
-                    showToast('Persona generation finished', 'success');
+                    showToast(failed ? 'Persona generation stopped; manual recovery is available.' : 'Persona generation finished', failed ? 'warning' : 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
                         cancelButton.style.display = 'none';
