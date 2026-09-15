@@ -79,6 +79,14 @@ class VoicesTests(unittest.TestCase):
         self.assertEqual("Serena", resolved["NARRATOR"]["voice"])
         self.assertEqual("Ryan", config["NARRATOR"]["voice"])
 
+    def test_dynamic_narrator_strategy_resolves_chapter_version(self):
+        config = {"NARRATOR": {"type": "custom", "voice": "Ryan",
+                                "narrator_strategy": "chapter",
+                                "versions": {"battle": {"type": "custom", "voice": "Dylan"}}}}
+        resolved = tts_module.resolve_narrator_voice_config(
+            "NARRATOR", config, {"narrator_version": "battle"})
+        self.assertEqual("Dylan", resolved["NARRATOR"]["voice"])
+
 
     def test_voice_versions_and_candidates_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:

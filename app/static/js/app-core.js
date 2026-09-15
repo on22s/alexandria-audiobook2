@@ -2106,7 +2106,9 @@
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
                                 <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
+                                    <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">Reject persona</button>
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">Approve voice</button>
+                                    <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">Reject voice</button>
                                 </div>
                                 <div class="input-group input-group-sm mt-2">
                                     <select class="form-select voice-version-select" onchange="selectVoiceVersion(this)">
