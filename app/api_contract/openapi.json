@@ -2183,7 +2183,7 @@
           "persona_status": {
             "anyOf": [
               {
-                "pattern": "^(unreviewed|approved|rejected)$",
+                "pattern": "^(unreviewed|generated|reviewed|approved|rejected)$",
                 "type": "string"
               },
               {
@@ -2195,7 +2195,7 @@
           "voice_status": {
             "anyOf": [
               {
-                "pattern": "^(unreviewed|approved|rejected)$",
+                "pattern": "^(unreviewed|generated|reviewed|approved|rejected)$",
                 "type": "string"
               },
               {

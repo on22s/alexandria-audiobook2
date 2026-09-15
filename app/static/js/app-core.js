@@ -2108,8 +2108,10 @@
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')}</div>` : ''}
                                 <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">Mark persona reviewed</button>
                                     <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">Reject persona</button>
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">Approve voice</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">Mark voice reviewed</button>
                                     <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">Reject voice</button>
                                 </div>
                                 <div class="input-group input-group-sm mt-2">

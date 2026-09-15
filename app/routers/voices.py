@@ -160,8 +160,8 @@ class NarratorPreviewRequest(BaseModel):
 
 
 class VoiceApprovalRequest(BaseModel):
-    persona_status: Optional[str] = Field(default=None, pattern="^(unreviewed|approved|rejected)$")
-    voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|approved|rejected)$")
+    persona_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
+    voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
 
 
 def _mutate_voice_entry(speaker, mutator):
