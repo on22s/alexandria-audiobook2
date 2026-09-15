@@ -107,6 +107,13 @@ class FrontendTests(unittest.TestCase):
                 "manual recovery is available"):
             self.assertIn(required, frontend)
 
+    def test_review_failure_shows_downloadable_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-recovery-panel"', "function _onReviewDone(status)",
+                "/api/logs/review?download=true", "Inspect the log"):
+            self.assertIn(required, frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

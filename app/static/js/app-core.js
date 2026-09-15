@@ -1597,9 +1597,21 @@
             document.getElementById('btn-review-script').disabled = disabled;
             document.getElementById('btn-review-script-contextual').disabled = disabled;
         }
-        function _onReviewDone() {
+        function _onReviewDone(status) {
             _showReviewControls(false);
             _disableReviewButtons(false);
+            const panel = document.getElementById('review-recovery-panel');
+            const logs = status?.logs || [];
+            const failed = logs.some(log => /\b(error|failed|failure)\b/i.test(log));
+            if (panel) {
+                panel.style.display = failed ? '' : 'none';
+                if (failed) {
+                    const last = logs.filter(Boolean).slice(-1)[0] || 'Unknown review error';
+                    panel.innerHTML = `Review stopped with an error: ${escapeHtml(last)} ` +
+                        `<a href="/api/logs/review?download=true" target="_blank" rel="noopener">Download full log</a>. ` +
+                        'Inspect the log, correct the source or profile, and retry.';
+                }
+            }
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
