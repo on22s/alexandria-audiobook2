@@ -877,6 +877,8 @@ def main():
 
     generation_config = config.get("generation") or {}
     batch_size = generation_config.get("review_batch_size", 25)
+    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
+        raise ValueError("generation.review_batch_size must be a positive integer")
     max_tokens = generation_config.get("max_tokens", 8000)
     temperature = generation_config.get("temperature", 0.4)
     top_p = generation_config.get("top_p", 0.8)
