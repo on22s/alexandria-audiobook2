@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-14 from `ab_test_runtime/experiments/` — 1629 artifacts, 1780 arms.
+Generated 2026-09-15 from `ab_test_runtime/experiments/` — 1630 artifacts, 1781 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -820,6 +820,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | gemma4-12b | local-lmstudio | lmstudio | 32768 | lora | 385 | 67.5% | exploratory | ok | False | 4968.9s |
 | grimgar03 | gemma4-12b | local-lmstudio | lmstudio | 32768 | lora | 385 | 68.1% | exploratory | ok | False | 4924.9s |
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 385 | 58.4% | exploratory | ok | False | 12824.3s |
+| grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 16384 | base | 385 | 86.2% | supported_measurement | ok | False | 4501.0s |
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 385 | 58.7% | exploratory | ok | False | 1920.1s |
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 385 | 58.4% | exploratory | ok | False | 1195.4s |
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 385 | 58.7% | exploratory | ok | False | 1237.3s |

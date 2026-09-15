@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 221 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 222 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 123
 - `historical_only`: 52
 - `provisional`: 11
-- `supported_measurement`: 35
+- `supported_measurement`: 36
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -128,6 +128,7 @@ All 221 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__local-owarimonogatari3-diagnostic-20260907.json` | lora_serving_eval | historical_only | 162 | 5 | 0 | False |  |
 | `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | exploratory | 450 | 0 | 266 | False | saved summary differs from row recomputation |
 | `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | exploratory | 1094 | 0 | 324 | True | saved summary differs from row recomputation |
+| `lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-grimgar03-20260914.json` | lora_serving_eval | supported_measurement | 385 | 0 | 0 | False |  |
 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |

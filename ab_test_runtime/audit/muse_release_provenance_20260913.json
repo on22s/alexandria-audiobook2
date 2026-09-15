@@ -1,0 +1,39 @@
+{
+  "status": "complete",
+  "scope": "Muse candidate adapter provenance and source-rights evidence; does not judge serving quality.",
+  "rows": [
+    {
+      "candidate": "task4k-multin-tplfix",
+      "manifest": "ab_test_runtime/cloud_pull_20260912/muse-task4k-multin-tplfix/training_manifest.json",
+      "manifest_sha256": "a09d290905b2a28b473dc50dd4a3c6a140719f9c3610c6d2a819e71f0a8cb54d",
+      "base_model": "/home/ubuntu/models/Muse-Glimmer-30B",
+      "training_data": [
+        {
+          "path": "/home/ubuntu/task4k_multin_20260910.jsonl",
+          "sha256": "a53e40d2ce91b6cbc5fb6313bd298b312710b79510a49cfdab084995dae2ae76"
+        }
+      ],
+      "manifest_license_field": null,
+      "source_data_rights": "unknown",
+      "release_verdict": "blocked_pending_documented_source_rights",
+      "reason": "The training manifest records paths and hashes but no license or permission for the source data."
+    },
+    {
+      "candidate": "longcontext-tplfix",
+      "manifest": "ab_test_runtime/cloud_pull_20260912/muse-longcontext-tplfix/training_manifest.json",
+      "manifest_sha256": "9adbd5c88b5c769f8c506cbf6517252aa38e791d66c7fd5faa0af94d9fc5c554",
+      "base_model": "/home/ubuntu/models/Muse-Glimmer-30B",
+      "training_data": [
+        {
+          "path": "/home/ubuntu/alexandria-training-20260823/data/train_longcontext_tophalf.jsonl",
+          "sha256": "7791e7f7f79d45d2999ce869fe0d8f22885f26f603d57acea8677bc28d544c12"
+        }
+      ],
+      "manifest_license_field": null,
+      "source_data_rights": "unknown",
+      "release_verdict": "blocked_pending_documented_source_rights",
+      "reason": "The training manifest records paths and hashes but no license or permission for the source data."
+    }
+  ],
+  "next_action": "Attach primary-source licenses or permissions for every training-data input before publishing an adapter."
+}

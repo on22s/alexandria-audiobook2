@@ -1,11 +1,11 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "ccd3027b4a0637f2570f902ef1c77ea27e34186f40732383f07987b110ebcdd6",
+  "source_structural_sha256": "4bdf841949451de701862e1c54454ad90baf814612abbdcc440b8355aa042c93",
   "summary": {
     "exploratory": 123,
     "historical_only": 52,
     "provisional": 11,
-    "supported_measurement": 35
+    "supported_measurement": 36
   },
   "artifacts": [
     {
@@ -2586,6 +2586,26 @@
         "available": true,
         "hash_changed": true,
         "missing_rows": 324,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-grimgar03-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 385,
+      "arms": [
+        "base"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

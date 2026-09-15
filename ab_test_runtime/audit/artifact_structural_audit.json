@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 994,
     "exploratory": 414,
-    "provisional": 221,
+    "provisional": 222,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12375,6 +12375,24 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-grimgar03-20260914.json",
+      "bytes": 318728,
+      "sha256": "fcf6db2bd49202939ac57ccf4f0a6d39c0babd062b3b36452948452ce11bbe51",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 385,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "cad522e37f2a36477c1fc62221a64b863179b6b0",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "lora_serving_eval__muse-glimmer-30b-hardcases-a6000-gold-schema-checked-20260911.ARM_INVALID.json",
