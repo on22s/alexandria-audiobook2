@@ -2104,6 +2104,7 @@
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')}</div>` : ''}
                                 <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
@@ -2425,6 +2426,19 @@
                 });
                 showToast(`Persona regeneration started for ${speaker}.`, 'success');
             } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
+        };
+
+        window.generateAgeVersion = async function generateAgeVersion(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            const ageGroup = window.prompt('Age profile (child, teen, adult, middle_aged, elderly):');
+            if (!ageGroup || !ageGroup.trim()) { return; }
+            try {
+                await API.post('/api/generate_personas', {
+                    speaker, age_group: ageGroup.trim(), advanced: false,
+                    context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
+                });
+                showToast(`Generating ${ageGroup.trim()} version for ${speaker}.`, 'success');
+            } catch (e) { showToast('Age version generation failed: ' + e.message, 'error'); }
         };
 
         window.selectVoiceCandidate = async function selectVoiceCandidate(button, candidateId) {
@@ -3965,9 +3979,15 @@
 
         // --- Chapter-by-chapter export ---
         const CHAPTER_PRESETS_KEY = 'alexandria.chapter-template-presets';
+        function getLocalStorageValue(key, fallback = null) {
+            try { return localStorage.getItem(key) ?? fallback; } catch (e) { return fallback; }
+        }
+        function setLocalStorageValue(key, value) {
+            try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+        }
         function getChapterTemplatePresets() {
             try {
-                const parsed = JSON.parse(localStorage.getItem(CHAPTER_PRESETS_KEY) || '{}');
+                const parsed = JSON.parse(getLocalStorageValue(CHAPTER_PRESETS_KEY, '{}'));
                 return parsed && typeof parsed === 'object' ? parsed : {};
             } catch (e) { return {}; }
         }
@@ -4002,12 +4022,11 @@
                 padding: parseInt(document.getElementById('chapter-padding').value, 10),
                 selection: document.getElementById('chapter-selection').value.trim(),
             };
-            try {
-                localStorage.setItem(CHAPTER_PRESETS_KEY, JSON.stringify(presets));
+            if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
                 renderChapterTemplatePresets();
                 document.getElementById('chapter-template-preset').value = name.trim();
                 showToast('Chapter filename preset saved.', 'success');
-            } catch (e) { showToast('Could not save preset: ' + e.message, 'error'); }
+            } else { showToast('Could not save preset: browser storage is unavailable.', 'error'); }
         };
         window.deleteChapterTemplatePreset = function deleteChapterTemplatePreset() {
             const select = document.getElementById('chapter-template-preset');
@@ -4015,11 +4034,10 @@
             if (!name) { return; }
             const presets = getChapterTemplatePresets();
             delete presets[name];
-            try {
-                localStorage.setItem(CHAPTER_PRESETS_KEY, JSON.stringify(presets));
+            if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
                 renderChapterTemplatePresets();
                 showToast('Chapter filename preset deleted.', 'success');
-            } catch (e) { showToast('Could not delete preset: ' + e.message, 'error'); }
+            } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
         };
         renderChapterTemplatePresets();
         function parseChapterSelection(value) {
