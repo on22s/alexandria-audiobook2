@@ -699,23 +699,24 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
                 with open(os.path.join(output_dir, "training_meta.json"), "r") as f:
                     meta = json.load(f)
 
-                manifest = _load_manifest(LORA_MODELS_MANIFEST)
-                manifest.append({
-                    "id": adapter_id,
-                    "name": request.name,
-                    "dataset_id": request.dataset_id,
-                    "epochs": meta.get("epochs", request.epochs),
-                    "final_loss": meta.get("final_loss"),
-                    "sample_count": meta.get("num_samples"),
-                    "lora_r": meta.get("lora_r"),
-                    "lr": meta.get("lr"),
-                    "checkpoint_sha256": meta.get("checkpoint_sha256"),
-                    "evaluation_candidates": meta.get("evaluation_candidates", []),
-                    "evaluation_candidate_skips": meta.get(
-                        "evaluation_candidate_skips", []),
-                    "created": time.time(),
-                })
-                _save_manifest(LORA_MODELS_MANIFEST, manifest)
+                with file_lock(LORA_MODELS_MANIFEST):
+                    manifest = _load_manifest(LORA_MODELS_MANIFEST)
+                    manifest.append({
+                        "id": adapter_id,
+                        "name": request.name,
+                        "dataset_id": request.dataset_id,
+                        "epochs": meta.get("epochs", request.epochs),
+                        "final_loss": meta.get("final_loss"),
+                        "sample_count": meta.get("num_samples"),
+                        "lora_r": meta.get("lora_r"),
+                        "lr": meta.get("lr"),
+                        "checkpoint_sha256": meta.get("checkpoint_sha256"),
+                        "evaluation_candidates": meta.get("evaluation_candidates", []),
+                        "evaluation_candidate_skips": meta.get(
+                            "evaluation_candidate_skips", []),
+                        "created": time.time(),
+                    })
+                    _save_manifest(LORA_MODELS_MANIFEST, manifest)
                 logger.info(f"LoRA adapter registered: {adapter_id}")
             except Exception as e:
                 logger.error(f"Failed to update LoRA manifest: {e}")

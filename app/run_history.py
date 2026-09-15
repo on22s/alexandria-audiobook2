@@ -4,7 +4,8 @@ import datetime
 import hashlib
 import os
 
-from utils import atomic_json_write, get_unique_id, safe_load_json, secure_filename
+from utils import (atomic_json_write, get_unique_id, is_path_inside,
+                   safe_load_json, secure_filename)
 
 
 def _utc_now():
@@ -30,6 +31,13 @@ def start_run(history_dir, task_name):
 
 def update_run(history_dir, run_id, updates):
     """Atomically merge bounded task-specific summary fields into one run."""
+    if not isinstance(updates, dict):
+        raise TypeError("Run updates must be a mapping")
+    identity_fields = {"id", "task", "started_at"}
+    forbidden = identity_fields.intersection(updates)
+    if forbidden:
+        raise ValueError("Run identity fields cannot be updated: " +
+                         ", ".join(sorted(forbidden)))
     record = get_run(history_dir, run_id)
     if record is None:
         raise FileNotFoundError(f"Run history record not found: {run_id}")
@@ -64,12 +72,19 @@ def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
     record = get_run(history_dir, run_id)
     if record is None:
         raise FileNotFoundError(f"Run history record not found: {run_id}")
+    data_dir = os.path.abspath(data_dir)
     artifact_path = os.path.abspath(artifact_path)
+    if not is_path_inside(artifact_path, data_dir):
+        raise ValueError("Artifact path must be inside data directory")
     if not os.path.isfile(artifact_path):
         raise FileNotFoundError(f"Artifact not found: {artifact_path}")
 
     def describe(path):
         absolute = os.path.abspath(path)
+        if not is_path_inside(absolute, data_dir):
+            raise ValueError("Declared path must be inside data directory")
+        if not os.path.isfile(absolute):
+            raise FileNotFoundError(f"Declared file not found: {absolute}")
         return {
             "path": os.path.relpath(absolute, data_dir),
             "sha256": _sha256_file(absolute),
@@ -80,8 +95,8 @@ def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
         **describe(artifact_path),
         "kind": kind,
         "recorded_at": _utc_now(),
-        "sources": [describe(path) for path in source_paths if os.path.isfile(path)],
-        "config": describe(config_path) if config_path and os.path.isfile(config_path) else None,
+        "sources": [describe(path) for path in source_paths],
+        "config": describe(config_path) if config_path else None,
     }
     record["artifacts"] = [*record.get("artifacts", []), artifact]
     atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
@@ -143,7 +158,10 @@ def prune_runs(history_dir, max_count=200, max_age_days=90):
         expired = started < cutoff
         excessive = kept_finished >= max_count
         if not protected and (expired or excessive):
-            path = os.path.join(history_dir, f"{record['id']}.json")
+            safe_id = secure_filename(record.get("id", ""))
+            if not safe_id or safe_id != record.get("id"):
+                continue
+            path = os.path.join(history_dir, f"{safe_id}.json")
             try:
                 os.unlink(path)
                 removed.append(record["id"])

@@ -15,7 +15,7 @@ Outputs:
 
 import argparse
 from config_settings import load_app_config
-from utils import atomic_json_write
+from utils import atomic_json_write, is_path_inside
 import os
 import random
 import sys
@@ -311,7 +311,11 @@ def main():
         "baseline": pre_results,
         "compiled": post_results,
     }
-    out_path = os.path.join(APP_DIR, args.out)
+    out_path = os.path.abspath(os.path.join(APP_DIR, args.out))
+    if not is_path_inside(out_path, APP_DIR):
+        parser.error("--out must remain inside the app directory")
+    if os.path.isdir(out_path):
+        parser.error("--out must be a file path")
     save_benchmark_results(output, out_path)
     print(f"\nRaw results saved to: {out_path}")
 

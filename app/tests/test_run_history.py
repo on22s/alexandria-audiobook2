@@ -85,6 +85,13 @@ class RunHistoryTests(unittest.TestCase):
         self.assertEqual(original["started_at"], updated["started_at"])
         self.assertEqual("completed", updated["stages"][0]["status"])
 
+    def test_run_identity_fields_cannot_be_overwritten(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            run_id = start_run(history_dir, "voicelab")
+            with self.assertRaises(ValueError):
+                update_run(history_dir, run_id, {"id": "run_attacker"})
+            self.assertEqual(run_id, get_run(history_dir, run_id)["id"])
+
     def test_failed_summary_write_preserves_previous_record(self):
         with tempfile.TemporaryDirectory() as history_dir:
             run_id = start_run(history_dir, "voicelab")
@@ -118,6 +125,18 @@ class RunHistoryTests(unittest.TestCase):
             self.assertIsNotNone(get_run(history_dir, newest_failed))
             self.assertIn(old_failed, removed)
             self.assertIn(completed, removed)
+
+    def test_retention_never_deletes_path_for_malformed_record_id(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            outside = os.path.join(history_dir, "..", "sentinel.json")
+            with open(outside, "w") as handle:
+                handle.write("keep")
+            record_path = os.path.join(history_dir, "run_bad.json")
+            with open(record_path, "w") as handle:
+                handle.write('{"id":"../sentinel", "status":"completed",'
+                             '"started_at":"2000-01-01T00:00:00+00:00"}')
+            prune_runs(history_dir, max_count=0, max_age_days=0)
+            self.assertTrue(os.path.exists(outside))
 
 
 if __name__ == "__main__":
