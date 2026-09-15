@@ -894,6 +894,31 @@ class RuntimeTests(unittest.TestCase):
         seq.assert_called_once()
         self.assertEqual(results["completed"], [0])
 
+    def test_generate_batch_uses_dynamic_narrator_config_for_each_chunk(self):
+        engine = self._ensemble_engine()
+        voice_config = {
+            "NARRATOR": {
+                "type": "custom", "voice": "Ryan", "narrator_strategy": "focus",
+            },
+            "HERO": {"type": "custom", "voice": "Serena"},
+        }
+        rendered = []
+
+        def fake_generate_voice(text, instruct, speaker, cfg, path):
+            rendered.append((speaker, cfg[speaker]["voice"]))
+            Path(path).write_bytes(b"wav")
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+                engine, "generate_voice", side_effect=fake_generate_voice):
+            results = engine.generate_batch([
+                {"index": 0, "text": "A calm scene.", "instruct": "", "speaker": "NARRATOR",
+                 "focus_speaker": "HERO"},
+            ], voice_config, tmp)
+
+        self.assertEqual({"completed": [0], "failed": []}, results)
+        self.assertEqual([("NARRATOR", "Serena")], rendered)
+
     def test_tts_engine_reads_configured_max_new_tokens(self):
         self.assertEqual(
             tts_module.TTSEngine({"tts": {"max_new_tokens": 4096}})._max_new_tokens, 4096)

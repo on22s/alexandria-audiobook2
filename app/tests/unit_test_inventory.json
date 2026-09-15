@@ -2753,6 +2753,7 @@
     "tests.test_runtime_regressions.RuntimeTests.test_explicit_diarization_wins_over_auto_detection",
     "tests.test_runtime_regressions.RuntimeTests.test_failed_claimed_task_releases_running_state",
     "tests.test_runtime_regressions.RuntimeTests.test_generate_batch_routes_ensemble_to_sequential_path",
+    "tests.test_runtime_regressions.RuntimeTests.test_generate_batch_uses_dynamic_narrator_config_for_each_chunk",
     "tests.test_runtime_regressions.RuntimeTests.test_gpu_stats_cache_preserves_rocm_fallback_result",
     "tests.test_runtime_regressions.RuntimeTests.test_identical_script_upload_reuses_existing_file",
     "tests.test_runtime_regressions.RuntimeTests.test_index_html_is_cached_until_mtime_or_build_changes",
