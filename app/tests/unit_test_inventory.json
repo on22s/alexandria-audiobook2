@@ -359,6 +359,7 @@
   "test_benchmark_core": [
     "tests.test_benchmark_core.BenchmarkCoreTests.test_fingerprints_are_stable_and_change_with_environment",
     "tests.test_benchmark_core.BenchmarkCoreTests.test_manifest_validation_normalizes_defaults_and_targets",
+    "tests.test_benchmark_core.BenchmarkCoreTests.test_manifest_validation_rejects_non_object_settings",
     "tests.test_benchmark_core.BenchmarkCoreTests.test_manifest_validation_rejects_unknown_stage_and_bad_fixture",
     "tests.test_benchmark_core.BenchmarkCoreTests.test_report_resume_requires_exact_manifest_and_environment",
     "tests.test_benchmark_core.BenchmarkCoreTests.test_stage_registry_is_copied_and_covers_voice_lab"
