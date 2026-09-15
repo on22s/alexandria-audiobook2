@@ -10,6 +10,17 @@ from source_normalization import normalize_known_source_corruptions
 from utils import is_path_inside
 
 
+def _load_jsonl_entries(raw: bytes, label: str) -> list[dict]:
+    try:
+        lines = raw.decode("utf-8").splitlines()
+        entries = [json.loads(line) for line in lines if line.strip()]
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{label} metadata must be valid UTF-8 JSONL") from exc
+    if any(not isinstance(entry, dict) for entry in entries):
+        raise ValueError(f"{label} metadata entries must be objects")
+    return entries
+
+
 def get_normalized_source_chunks(raw, chunk_size):
     try:
         text = raw.decode("utf-8")
@@ -259,8 +270,7 @@ def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None
             raise ValueError("LoRA training sample_count must be positive")
         with open(metadata_path, "rb") as metadata_file:
             metadata_raw = metadata_file.read()
-        entries = [json.loads(line) for line in metadata_raw.decode("utf-8").splitlines()
-                   if line.strip()][:sample_count]
+        entries = _load_jsonl_entries(metadata_raw, "LoRA training")[:sample_count]
         if len(entries) < sample_count:
             raise ValueError("LoRA training dataset has too few samples")
         audio_hashes = {}
@@ -334,8 +344,7 @@ def build_voicelab_dedup_manifest(fixtures, root_dir, repetitions=1,
             raise ValueError("dedup samples_per_volume must be positive")
         with open(metadata_path, "rb") as metadata_file:
             metadata_raw = metadata_file.read()
-        entries = [json.loads(line) for line in metadata_raw.decode("utf-8").splitlines()
-                   if line.strip()][:samples_per_volume * 2]
+        entries = _load_jsonl_entries(metadata_raw, "dedup")[:samples_per_volume * 2]
         if len(entries) < samples_per_volume * 2:
             raise ValueError("dedup source dataset has too few samples")
         audio_hashes = {}
@@ -514,7 +523,9 @@ def build_dataset_builder_manifest(fixtures, repetitions=1, targets=None):
                     "global_seed": fixture.get("global_seed", 42),
                     "seeds": copy.deepcopy(fixture.get("seeds"))}
         if selected["seeds"] is not None and (not isinstance(selected["seeds"], list)
-                or len(selected["seeds"]) != len(samples)):
+                or len(selected["seeds"]) != len(samples)
+                or any(not isinstance(seed, int) or isinstance(seed, bool)
+                       for seed in selected["seeds"])):
             raise ValueError("Dataset Builder seeds must match the sample count")
         selected.update({"id": fixture.get("id") or f"dataset-builder-{index}",
                          "sha256": _hash_entries(selected)})
