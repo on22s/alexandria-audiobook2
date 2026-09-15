@@ -24,7 +24,9 @@ def get_source_spans(source_text):
 
 def format_tagged_source(spans):
     """Render spans for a prompt while keeping the original span records pure."""
-    return "\n".join(f'[{span["id"]}] {span["text"]}' for span in spans)
+    return "\n".join(
+        f'[{span["id"]}] {str(span["text"]).replace(chr(10), " ").replace(chr(13), " ")}'
+        for span in spans)
 
 
 def get_span_coverage_findings(spans, entries):

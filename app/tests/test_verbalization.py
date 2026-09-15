@@ -3,11 +3,18 @@ import unittest
 from verbalization import (ELONGATION_HINT, SCENE_BREAK_MARKER, SET_APART_HINT,
                            SUNG_HINT,
                            classify, extract_delivery_cues,
-                           is_pictographic_kana, split_bracketed_spans,
+                           is_kana, is_pictographic_kana, split_bracketed_spans,
                            strip_emoji_dividers)
 
 
 class ClassifyTest(unittest.TestCase):
+
+    def test_character_helpers_reject_multi_character_values(self):
+        self.assertFalse(is_kana("かな"))
+        with self.assertRaises(ValueError):
+            classify("ab")
+        with self.assertRaises(TypeError):
+            split_bracketed_spans(None)
 
     def test_scene_breaks(self):
         # Ordered by measured library frequency: U+2500 alone outweighs every
