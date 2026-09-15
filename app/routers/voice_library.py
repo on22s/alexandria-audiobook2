@@ -195,7 +195,10 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
     book only receives entries for characters that actually appear in it."""
     def resolve_entry(key):
         # cast members win over shared on collision
-        return lib["casts"][cast_name].get("members", {}).get(key) or lib["shared"].get(key)
+        cast_entry = lib["casts"][cast_name].get("members", {}).get(key)
+        if cast_entry is not None:
+            return cast_entry
+        return lib["shared"].get(key)
 
     result_config = dict(current_config)
     applied = []
