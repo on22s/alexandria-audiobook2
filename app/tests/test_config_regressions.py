@@ -14,6 +14,30 @@ from routers import system as system_module
 
 
 class ConfigTests(unittest.TestCase):
+    def test_prompt_presets_validate_and_round_trip(self):
+        preset = config_settings.PromptPreset(
+            name="Local", description="For local books", system_prompt="system", user_prompt="{chunk}"
+        )
+        self.assertEqual("Local", preset.name)
+        with self.assertRaises(ValueError):
+            config_settings.PromptPreset(name="", system_prompt="x", user_prompt="y")
+        with self.assertRaises(ValueError):
+            config_settings.AppConfig.model_validate({
+                "llm": {"base_url": "http://localhost:1/v1", "api_key": "local", "model_name": "m"},
+                "tts": {}, "prompt_presets": [{"name": "x"}] * 51,
+            })
+
+    def test_keep_unsent_prompt_presets_for_legacy_client(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        incoming = system_module.AppConfig(
+            llm=profile, llm_local=profile, tts=system_module.TTSConfig()
+        )
+        saved = {"prompt_presets": [config_settings.PromptPreset(name="Saved", system_prompt="s", user_prompt="u")]}
+        merged = system_module.keep_unsent_fields(incoming, saved)
+        self.assertEqual("Saved", merged.prompt_presets[0].name)
+
     def test_llm_failure_logs_are_unique_within_one_second(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(system_module, "API_LOG_DIR", tmp):

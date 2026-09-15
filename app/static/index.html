@@ -862,6 +862,20 @@
                             </div>
                             <hr>
                             <h6 class="mb-3">Prompt Customization</h6>
+                            <div class="card card-body bg-light mb-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-5">
+                                        <label class="form-label mb-1" for="prompt-preset-select">Prompt preset</label>
+                                        <select class="form-select form-select-sm" id="prompt-preset-select"></select>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <div id="prompt-preset-description" class="form-text mb-2"></div>
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1" onclick="savePromptPreset()">Save as preset</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePromptPreset()">Delete selected</button>
+                                    </div>
+                                </div>
+                                <div class="form-text mt-2">Choose a tested preset, edit it below, or save your own. Presets are stored in this installation's configuration.</div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">System Prompt</label>
                                 <textarea class="form-control font-monospace" id="system-prompt" rows="12" style="font-size: 0.85em;"></textarea>

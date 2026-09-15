@@ -63,6 +63,17 @@ from runtime_info import get_runtime_info
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
+
+def _builtin_prompt_presets() -> list[dict]:
+    system_prompt, user_prompt = load_default_prompts()
+    return [{
+        "name": "Shipped default",
+        "description": "Recommended general-purpose attribution prompt. Start here for most books.",
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "builtin": True,
+    }]
+
 _REDACTED_SECRET = "[REDACTED]"
 
 
@@ -571,6 +582,10 @@ async def get_config():
     load_result = load_app_config_result(CONFIG_PATH)
     loaded_config = load_result.data
     config = {**default_config, **loaded_config}
+    configured_presets = config.get("prompt_presets") or []
+    config["prompt_presets"] = _builtin_prompt_presets() + [
+        p for p in configured_presets if isinstance(p, dict) and not p.get("builtin")
+    ]
 
     # Backfill any TTSConfig field missing from an existing on-disk config.json
     # (e.g. saved before pause_between_speakers_ms/pause_same_speaker_ms or some
@@ -721,6 +736,10 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
                 if key not in sent.model_fields_set and key in type(sent).model_fields}
         if keep:
             merged = merged.model_copy(update={section: sent.model_copy(update=keep)}, deep=False)
+    if "prompt_presets" not in config.model_fields_set:
+        saved_presets = (existing or {}).get("prompt_presets")
+        if isinstance(saved_presets, list):
+            merged = merged.model_copy(update={"prompt_presets": saved_presets}, deep=False)
     return merged
 
 
