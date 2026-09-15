@@ -1867,6 +1867,20 @@
             ],
             "title": "Cast"
           },
+          "characters": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Characters"
+          },
           "max_lines": {
             "default": 8,
             "title": "Max Lines",

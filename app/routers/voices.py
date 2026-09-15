@@ -94,6 +94,7 @@ class SuggestVoicesRequest(BaseModel):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
     max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
     cast: Optional[str] = None
+    characters: Optional[List[str]] = None
 
 class VoiceSuggestionApplyRequest(BaseModel):
     character: str
@@ -777,7 +778,10 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
 
     # Build profiles in importance order: narrator, then most dialogue lines.
     characters = {}
-    ordered_names = sorted(samples, key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
+    requested = {name.strip() for name in (request.characters or []) if name and name.strip()}
+    ordered_names = sorted(
+        (name for name in samples if not requested or name in requested),
+        key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
     for speaker in ordered_names:
         lines = samples[speaker]
         if request.only_unset:

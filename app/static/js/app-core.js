@@ -2119,6 +2119,7 @@
                                     </select>
                                     <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
                                 </div>
+                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
                                 ${Array.isArray(config.candidates) && config.candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${config.candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" onclick="favoriteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}', ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">×</button></div>`).join('')}</div>` : ''}
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
@@ -2437,7 +2438,7 @@
         // --- Auto-suggest best LoRA voice per character ---
         window._voiceSuggestions = {};
 
-        async function suggestVoices() {
+        async function suggestVoices(characterNames = null) {
             const btn = document.getElementById('btn-suggest-voices');
             const status = document.getElementById('suggest-status');
             btn.disabled = true;
@@ -2448,6 +2449,7 @@
                 const res = await API.post('/api/suggest_voices', {
                     only_unset: false,
                     cast: window._selectedCast || null,
+                    characters: characterNames,
                 });
                 window._voiceSuggestions = res.suggestions || {};
                 const n = Object.keys(window._voiceSuggestions).length;
@@ -2496,6 +2498,11 @@
                 btn.disabled = false;
             }
         }
+
+        window.suggestMoreVoices = async function suggestMoreVoices(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            await suggestVoices(speaker ? [speaker] : null);
+        };
 
         function renderVoiceSuggestions() {
             document.querySelectorAll('.voice-card').forEach(card => {
