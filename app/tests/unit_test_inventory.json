@@ -2776,6 +2776,7 @@
     "tests.test_runtime_regressions.RuntimeTests.test_preparer_interpreter_override_is_explicit_and_validated",
     "tests.test_runtime_regressions.RuntimeTests.test_preparer_prefers_its_isolated_interpreter",
     "tests.test_runtime_regressions.RuntimeTests.test_preparer_rejects_unimplemented_skip_before_startup",
+    "tests.test_runtime_regressions.RuntimeTests.test_project_batch_preserves_narrator_selection_metadata",
     "tests.test_runtime_regressions.RuntimeTests.test_queued_cancel_survives_background_start",
     "tests.test_runtime_regressions.RuntimeTests.test_reset_stuck_chunks_changes_only_generating_statuses",
     "tests.test_runtime_regressions.RuntimeTests.test_reset_stuck_chunks_does_not_save_when_nothing_changed",

@@ -35,6 +35,7 @@ from routers import voicelab as voicelab_module
 import utils
 from tests.test_frontend_regressions import _read_frontend_source
 import hf_utils
+import project as project_module
 from tests.test_support import _Upload
 
 
@@ -918,6 +919,24 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual({"completed": [0], "failed": []}, results)
         self.assertEqual([("NARRATOR", "Serena")], rendered)
+
+    def test_project_batch_preserves_narrator_selection_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm = project_module.ProjectManager(tmp)
+            Path(pm.voice_config_path).write_text(json.dumps({"NARRATOR": {"type": "custom"}}), encoding="utf-8")
+            chunks = [{"index": 0, "text": "A scene.", "speaker": "NARRATOR",
+                       "focus_speaker": "HERO", "narrator_version": "dramatic"}]
+            captured = []
+            fake_engine = SimpleNamespace(generate_batch=lambda batch, *_args: (
+                captured.extend(batch) or {"completed": [0], "failed": []}))
+            with patch.object(pm, "load_chunks", side_effect=[chunks] * 5), \
+                    patch.object(pm, "get_engine", return_value=fake_engine), \
+                    patch.object(pm, "save_chunks"), \
+                    patch.object(pm, "_finalize_completed_chunk", return_value=("completed", 0, "ok")):
+                result = pm.generate_chunks_batch([0], batch_size=1)
+            self.assertEqual([0], result["completed"])
+            self.assertEqual("HERO", captured[0]["focus_speaker"])
+            self.assertEqual("dramatic", captured[0]["narrator_version"])
 
     def test_tts_engine_reads_configured_max_new_tokens(self):
         self.assertEqual(
