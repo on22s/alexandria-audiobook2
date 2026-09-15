@@ -5903,8 +5903,8 @@
     },
     "/api/scripts": {
       "get": {
-        "description": "List all saved scripts in the scripts/ directory.\n\nUses a whitelist approach: only includes .json files that do NOT end with\nany known companion/internal suffix (voice_config, metadata, checkpoint, etc.).",
-        "operationId": "list_saved_scripts_api_scripts_get",
+        "description": "List saved scripts without blocking the FastAPI event loop on disk I/O.",
+        "operationId": "list_saved_scripts",
         "responses": {
           "200": {
             "content": {
