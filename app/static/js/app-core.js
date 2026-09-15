@@ -1826,7 +1826,9 @@
             _resetPauseBtn('btn-pause-nick');
             try {
                 await API.post('/api/find_nicknames', {});
-                pollLogs('nicknames', 'script-logs', async () => {
+                pollLogs('nicknames', 'script-logs', async (status) => {
+                    _showTaskRecoveryPanel('nickname-recovery-panel', 'nicknames', status,
+                        'Inspect the log, correct aliases if needed, and retry.');
                     btn.disabled = false;
                     document.getElementById('btn-pause-nick').style.display = 'none';
                     document.getElementById('btn-cancel-nick').style.display = 'none';
@@ -1942,6 +1944,19 @@
             el.style.display = '';
         }
 
+        function _showTaskRecoveryPanel(panelId, taskName, status, action) {
+            const panel = document.getElementById(panelId);
+            const logs = status?.logs || [];
+            const failed = logs.some(log => /\b(error|failed|failure)\b/i.test(log));
+            if (!panel) { return; }
+            panel.style.display = failed ? '' : 'none';
+            if (failed) {
+                const last = logs.filter(Boolean).slice(-1)[0] || `Unknown ${taskName} error`;
+                panel.innerHTML = `${escapeHtml(taskName)} stopped with an error: ${escapeHtml(last)} ` +
+                    `<a href="/api/logs/${encodeURIComponent(taskName)}?download=true" target="_blank" rel="noopener">Download full log</a>. ${escapeHtml(action)}`;
+            }
+        }
+
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
             _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
@@ -1962,7 +1977,9 @@
                     });
                     _updateReviewBatchTotals(state);
                 },
-                onDone: () => {
+                onDone: (state) => {
+                    _showTaskRecoveryPanel('review-batch-recovery-panel', 'batch_review', state,
+                        'Inspect the failed books and retry the batch.');
                     notifyJobDone('batch_review');
                     document.getElementById('btn-review-batch-start').disabled = false;
                     document.getElementById('btn-pause-batch-review').style.display = 'none';

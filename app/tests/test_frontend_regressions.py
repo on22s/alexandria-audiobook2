@@ -114,6 +114,15 @@ class FrontendTests(unittest.TestCase):
                 "/api/logs/review?download=true", "Inspect the log"):
             self.assertIn(required, frontend)
 
+    def test_batch_review_and_nickname_failures_share_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-batch-recovery-panel"',
+                'id="nickname-recovery-panel"',
+                "_showTaskRecoveryPanel('review-batch-recovery-panel'",
+                "_showTaskRecoveryPanel('nickname-recovery-panel'"):
+            self.assertIn(required, frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",
