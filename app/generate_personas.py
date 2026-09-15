@@ -744,6 +744,7 @@ def main():
     parser.add_argument("--advanced", action="store_true", help="Batch the full script into per-character reference files before compiling voice personas")
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
     parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist")
+    parser.add_argument("--age-group", default="", help="Optional age profile to store as a separate voice version")
     parser.add_argument("--recovered-speaker", default="", help="Use the saved persona for this speaker and resume preview generation")
     parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context")
     parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
@@ -806,6 +807,12 @@ def main():
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT
+    age_instruction = ""
+    if args.age_group.strip():
+        age_instruction = (f"\nCreate this persona for the character's {args.age_group.strip()} age profile; "
+                           "keep the same identity while adapting apparent age and delivery.\n")
+        persona_user = persona_user + age_instruction
+        persona_advanced = persona_advanced + age_instruction
 
     # Load existing voice_config (preserve other fields)
     voice_config = safe_load_json(voice_config_path, default={})
@@ -844,6 +851,15 @@ def main():
             context_length=lm_status.get("context_length"),
             llm_config=llm_cfg,
         )
+        if args.age_group.strip():
+            for speaker in selected_speakers:
+                current = voice_config.get(speaker)
+                if not isinstance(current, dict):
+                    continue
+                snapshot = {k: v for k, v in current.items()
+                            if k not in {"versions", "candidates", "active_version", "active_candidate"}}
+                snapshot["age_group"] = args.age_group.strip()
+                current.setdefault("versions", {})[args.age_group.strip()] = snapshot
         try:
             _atomic_json_write(voice_config, voice_config_path)
             print(f"Updated voice_config saved to {voice_config_path}")
@@ -978,6 +994,12 @@ def main():
 
             # Generate and save voice preview
             _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
+            if args.age_group.strip() and isinstance(voice_config.get(speaker), dict):
+                current = voice_config[speaker]
+                snapshot = {k: v for k, v in current.items()
+                            if k not in {"versions", "candidates", "active_version", "active_candidate"}}
+                snapshot["age_group"] = args.age_group.strip()
+                current.setdefault("versions", {})[args.age_group.strip()] = snapshot
 
             time.sleep(0.5)
 

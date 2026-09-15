@@ -886,6 +886,18 @@
             "title": "Advanced",
             "type": "boolean"
           },
+          "age_group": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Group"
+          },
           "batch_size": {
             "default": 40,
             "title": "Batch Size",

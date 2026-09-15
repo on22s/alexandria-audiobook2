@@ -162,10 +162,12 @@ class VoicesTests(unittest.TestCase):
                  patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)), \
                  patch.object(voices_module, "run_process"):
                 result = asyncio.run(voices_module.generate_personas(
-                    tasks, voices_module.GeneratePersonasRequest(speaker="Hero")))
+                    tasks, voices_module.GeneratePersonasRequest(speaker="Hero", age_group="teen")))
             self.assertEqual("started", result["status"])
             self.assertIn("--speakers", tasks.tasks[0].args[0])
             self.assertIn("Hero", tasks.tasks[0].args[0])
+            self.assertIn("--age-group", tasks.tasks[0].args[0])
+            self.assertIn("teen", tasks.tasks[0].args[0])
 
     def test_voice_candidate_favorite_round_trips(self):
         with tempfile.TemporaryDirectory() as tmp:
