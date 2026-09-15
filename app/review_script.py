@@ -856,6 +856,9 @@ def main():
 
     with open(script_path, "r", encoding="utf-8") as f:
         entries = json.load(f)
+    if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+        print("Error: script JSON must contain a list of entry objects.")
+        sys.exit(1)
 
     print(f"Loaded {len(entries)} script entries for review")
 
