@@ -123,6 +123,11 @@ class FrontendTests(unittest.TestCase):
                 "_showTaskRecoveryPanel('nickname-recovery-panel'"):
             self.assertIn(required, frontend)
 
+    def test_batch_script_failures_show_recovery_details(self):
+        frontend = _read_frontend_source()
+        self.assertIn('id="script-batch-recovery-panel"', frontend)
+        self.assertIn("_showTaskRecoveryPanel('script-batch-recovery-panel'", frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

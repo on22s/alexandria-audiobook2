@@ -1563,6 +1563,8 @@
                 },
                 onDone: (state) => {
                     scriptBatchPoller = null;
+                    _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
+                        'Inspect the log and resume failed books from their validated checkpoints.');
                     notifyJobDone('batch_script');
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';

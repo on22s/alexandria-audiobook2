@@ -1281,6 +1281,7 @@
     "tests.test_frontend_regressions.FrontendJsSplitTests.test_split_js_files_exist_are_referenced_in_order_and_non_empty",
     "tests.test_frontend_regressions.FrontendTests.test_basic_auth_middleware_guards_api_and_mounted_files",
     "tests.test_frontend_regressions.FrontendTests.test_batch_review_and_nickname_failures_share_recovery_details",
+    "tests.test_frontend_regressions.FrontendTests.test_batch_script_failures_show_recovery_details",
     "tests.test_frontend_regressions.FrontendTests.test_blind_human_review_is_present_and_kept_separate_from_automated",
     "tests.test_frontend_regressions.FrontendTests.test_chapter_presets_can_be_imported_and_exported",
     "tests.test_frontend_regressions.FrontendTests.test_check_basic_auth_accepts_and_rejects_credentials",
