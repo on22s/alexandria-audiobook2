@@ -2860,6 +2860,7 @@
     "tests.test_script_preflight.ScriptPreflightTests.test_introduced_hiragana_and_mixed_word_are_reported",
     "tests.test_script_preflight.ScriptPreflightTests.test_legitimate_japanese_is_allowed_when_source_backed",
     "tests.test_script_preflight.ScriptPreflightTests.test_near_duplicate_skips_entries_already_covered_by_exact_block",
+    "tests.test_script_preflight.ScriptPreflightTests.test_non_string_entry_fields_are_blocking",
     "tests.test_script_preflight.ScriptPreflightTests.test_nonprose_risk_is_manual_and_validation_state_is_explicit",
     "tests.test_script_preflight.ScriptPreflightTests.test_reports_adjacent_multi_entry_duplicate_with_source_evidence",
     "tests.test_script_preflight.ScriptPreflightTests.test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking",

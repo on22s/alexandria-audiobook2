@@ -19,6 +19,12 @@ def _entry(text, speaker="Narrator", instruct="Read naturally"):
 
 
 class ScriptPreflightTests(unittest.TestCase):
+    def test_non_string_entry_fields_are_blocking(self):
+        report = audit_script([{"text": 123, "speaker": ["A"], "instruct": {}}])
+        types = [f for f in report["findings"] if f["code"] == "invalid_field_type"]
+        self.assertEqual({"text", "speaker", "instruct"},
+                         {f["details"]["field"] for f in types})
+
     def test_content_review_is_selective_and_normalization_is_lossless(self):
         entries = [_entry("Copyright © Publisher", instruct="  Calm,   clear. "),
                    _entry("Chapter One", instruct="Dramatic and nuanced.")]
