@@ -145,6 +145,8 @@ async def preflight_saved_script(name: str, request: ScriptPreflightRequest):
     entries = safe_load_json(script_path, None)
     if entries is None:
         raise HTTPException(status_code=422, detail=f"Saved script '{name}' is not valid JSON.")
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=422, detail=f"Saved script '{name}' must contain a list of entries.")
 
     source_text = None
     if request.source_filename:

@@ -874,16 +874,22 @@ async def lora_submit_review(adapter_id: str, session_id: str, request: ReviewSu
 @router.get("/api/lora/models/{adapter_id}/reviews")
 async def lora_list_reviews(adapter_id: str):
     """Return this adapter's bounded human-review history, newest first."""
-    reviews = await asyncio.to_thread(
-        evaluation_reviews.list_reviews, EVALUATION_REVIEWS_DIR, adapter_id)
+    try:
+        reviews = await asyncio.to_thread(
+            evaluation_reviews.list_reviews, EVALUATION_REVIEWS_DIR, adapter_id)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return {"reviews": reviews}
 
 
 @router.post("/api/lora/models/{adapter_id}/reviews/cleanup")
 async def lora_cleanup_reviews(adapter_id: str):
     """Delete this adapter's human-review history, reporting count and space freed."""
-    return await asyncio.to_thread(
-        evaluation_reviews.cleanup, EVALUATION_REVIEWS_DIR, adapter_id)
+    try:
+        return await asyncio.to_thread(
+            evaluation_reviews.cleanup, EVALUATION_REVIEWS_DIR, adapter_id)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/api/lora/models/{adapter_id}/promote")
