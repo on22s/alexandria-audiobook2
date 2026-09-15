@@ -3988,6 +3988,7 @@
             if (preset) {
                 document.getElementById('chapter-template').value = preset.template || '';
                 document.getElementById('chapter-padding').value = String(preset.padding ?? 2);
+                document.getElementById('chapter-selection').value = preset.selection || '';
             }
         };
         window.saveChapterTemplatePreset = function saveChapterTemplatePreset() {
@@ -3997,6 +3998,7 @@
             presets[name.trim()] = {
                 template: document.getElementById('chapter-template').value.trim(),
                 padding: parseInt(document.getElementById('chapter-padding').value, 10),
+                selection: document.getElementById('chapter-selection').value.trim(),
             };
             try {
                 localStorage.setItem(CHAPTER_PRESETS_KEY, JSON.stringify(presets));
