@@ -679,6 +679,35 @@
             ));
             const running = Object.fromEntries(names.map((t, i) => [t, flags[i]]));
 
+            // Hydrate completed task logs as well as re-attaching live pollers.
+            // process_state keeps the last run's log after the task finishes,
+            // but previously the page only fetched logs when `running` was
+            // true, so a refresh (especially on mobile) made completed
+            // generation/voice logs appear to vanish.
+            const hydrate = async (taskName, elementId) => {
+                if (running[taskName]) { return; }
+                try {
+                    const status = await API.get(`/api/status/${taskName}`);
+                    const el = document.getElementById(elementId);
+                    if (el && status.logs) {
+                        el.innerText = status.logs.join('\n');
+                        el.scrollTop = el.scrollHeight;
+                    }
+                } catch (e) {
+                    console.debug(`${taskName} log hydration failed`, e);
+                }
+            };
+            await Promise.all([
+                hydrate('script', 'script-logs'),
+                hydrate('batch_script', 'script-logs'),
+                hydrate('review', 'script-logs'),
+                hydrate('batch_review', 'script-logs'),
+                hydrate('nicknames', 'script-logs'),
+                hydrate('persona', 'voices-logs'),
+                hydrate('audio', 'audio-logs'),
+                hydrate('voicelab', 'voicelab-logs'),
+            ]);
+
             const show = (id, disp = 'inline-block') => {
                 const el = document.getElementById(id); if (el) { el.style.display = disp; }
             };

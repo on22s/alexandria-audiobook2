@@ -100,6 +100,14 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 | mushoku16 | 72.9% | 74.8% | 1.9 |
 | owarimonogatari3 | 69.1% | 69.8% | 0.7 |
 
+**Target met by the shipped Muse arm, 2026-09-15.** A four-book Muse-Glimmer-30B
+base run with reasoning-low, the product window, and JSON-schema output scored
+**623/768 (81.1%)**, with no unanswered rows. Per-book results were Grimgar03
+332/385 (86.2%), Index18 63/88 (71.6%), Mushoku16 106/133 (79.7%), and
+Owarimonogatari3 122/162 (75.3%). This is a measured four-book result under a
+single harness and closes the 75% accuracy target for 1.1; the older Qwen table
+above remains for historical comparison.
+
 **New held-out LoRA evidence, 2026-08-24.** The
 `adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
 scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the

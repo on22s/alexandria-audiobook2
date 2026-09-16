@@ -16,5 +16,9 @@
   },
   "qwen3.6-27b-uncensored-hauhaucs-aggressive": {
     "segment_output_ratio": 3.5
+  },
+  "deepseek-flash": {
+    "segment_output_ratio": 6.0,
+    "chunk_size": 3000
   }
 }

@@ -103,6 +103,27 @@ class GeneratePersonasRequest(BaseModel):
     context_lines: int = Field(default=8, ge=1, le=200)
 
 
+class PersonaRecoveryRequest(BaseModel):
+    speaker: str = Field(min_length=1, max_length=200)
+    persona_json: str = Field(min_length=2, max_length=10000)
+
+
+def _validate_persona_recovery(value: str) -> tuple[str, str]:
+    try:
+        parsed = extract_json_object(value)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=f"Persona JSON is invalid: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=422, detail="Persona output must be a JSON object")
+    description = str(parsed.get("description") or "").strip()
+    ref_text = str(parsed.get("ref_text") or "").strip()
+    if not description or not ref_text:
+        raise HTTPException(status_code=422, detail="Persona JSON requires description and ref_text")
+    if len(description) > 4000 or len(ref_text) > 2000:
+        raise HTTPException(status_code=422, detail="Persona fields exceed the allowed length")
+    return description, ref_text
+
+
 @router.get("/api/voices")
 async def get_voices():
     # Parse voices directly from the current script (no stale cache)
@@ -192,6 +213,41 @@ async def cancel_persona():
             logger.warning(f"Failed to terminate persona process cleanly: {e}")
 
     return {"status": "cancelling"}
+
+
+@router.post("/api/persona/recover")
+async def recover_persona(request: PersonaRecoveryRequest):
+    """Validate and save one externally generated persona without rerunning the batch."""
+    description, ref_text = _validate_persona_recovery(request.persona_json)
+
+    if os.path.exists(SCRIPT_PATH):
+        try:
+            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+                script = json.load(f)
+            speakers = {
+                (entry.get("speaker") or entry.get("type") or "").strip()
+                for entry in script if isinstance(entry, dict)
+            }
+            if request.speaker not in speakers:
+                raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
+        except HTTPException:
+            raise
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
+
+    def _save():
+        with file_lock(VOICE_CONFIG_PATH):
+            config = safe_load_json(VOICE_CONFIG_PATH, default={})
+            entry = config.get(request.speaker, {})
+            entry.update({"description": description, "character_style": description,
+                          "ref_text": ref_text})
+            if not entry.get("type"):
+                entry["type"] = "design"
+            config[request.speaker] = entry
+            atomic_json_write(config, VOICE_CONFIG_PATH)
+
+    await asyncio.to_thread(_save)
+    return {"status": "saved", "speaker": request.speaker}
 
 @router.post("/api/save_voice_config")
 async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):

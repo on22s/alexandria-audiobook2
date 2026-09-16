@@ -436,6 +436,69 @@
         // from /api/config's response on load and after a successful save.
         let currentIsRemote = false;
         let failoverIsRemote = false;   // server-computed: llm_failover on AND the other profile is remote
+        let promptPresets = [];
+
+        function renderPromptPresets(presets) {
+            promptPresets = Array.isArray(presets) ? presets : [];
+            const select = document.getElementById('prompt-preset-select');
+            if (!select) { return; }
+            select.replaceChildren();
+            promptPresets.forEach((preset, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = preset.name || `Preset ${index + 1}`;
+                select.appendChild(option);
+            });
+            select.onchange = () => applyPromptPreset(Number(select.value));
+            if (promptPresets.length) {
+                select.value = '0';
+                document.getElementById('prompt-preset-description').textContent = promptPresets[0].description || '';
+            }
+        }
+
+        function applyPromptPreset(index) {
+            const preset = promptPresets[index];
+            if (!preset) { return; }
+            document.getElementById('system-prompt').value = preset.system_prompt || '';
+            document.getElementById('user-prompt').value = preset.user_prompt || '';
+            document.getElementById('prompt-preset-description').textContent = preset.description || '';
+        }
+
+        async function persistPromptPresets() {
+            const chunkSize = parseInt(document.getElementById('chunk-size').value) || 3000;
+            const workers = Math.max(1, parseInt(document.getElementById('parallel-workers').value) || 2);
+            await API.post('/api/config', {...buildConfigPayload(chunkSize, workers), prompt_presets: promptPresets.filter(p => !p.builtin)});
+        }
+
+        window.savePromptPreset = async () => {
+            const name = window.prompt('Preset name:');
+            if (!name || !name.trim()) { return; }
+            const description = window.prompt('When should it be used?') || '';
+            const preset = {name: name.trim(), description: description.trim(),
+                system_prompt: document.getElementById('system-prompt').value,
+                user_prompt: document.getElementById('user-prompt').value, builtin: false};
+            const existing = promptPresets.findIndex(p => !p.builtin && p.name === preset.name);
+            if (existing >= 0) { promptPresets[existing] = preset; }
+            else { promptPresets.push(preset); }
+            try {
+                await persistPromptPresets();
+                renderPromptPresets(promptPresets);
+                document.getElementById('prompt-preset-select').value = String(promptPresets.indexOf(preset));
+                document.getElementById('prompt-preset-description').textContent = preset.description;
+                showToast('Prompt preset saved.', 'success');
+            } catch (e) { showToast('Could not save prompt preset: ' + e.message, 'error'); }
+        };
+
+        window.deletePromptPreset = async () => {
+            const select = document.getElementById('prompt-preset-select');
+            const index = Number(select?.value);
+            const preset = promptPresets[index];
+            if (!preset || preset.builtin) { showToast('Built-in presets cannot be deleted.', 'warning'); return; }
+            if (!window.confirm(`Delete preset "${preset.name}"?`)) { return; }
+            promptPresets.splice(index, 1);
+            try { await persistPromptPresets(); renderPromptPresets(promptPresets); showToast('Prompt preset deleted.', 'success'); }
+            catch (e) { showToast('Could not delete prompt preset: ' + e.message, 'error'); }
+        };
 
         function renderConfigWarnings(config) {
             const banner = document.getElementById('config-warning-banner');
@@ -676,6 +739,7 @@
                         document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
                     }
                 }
+                renderPromptPresets(config.prompt_presets || []);
 
                 // If review/persona prompts are still empty, fetch defaults
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
@@ -833,6 +897,7 @@
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value
                 },
+                prompt_presets: promptPresets.filter(p => !p.builtin),
                 generation: {
                     chunk_size: chunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
@@ -1953,6 +2018,25 @@
                 errorMessage: (e) => 'Failed to cancel persona generation: ' + e.message,
                 toastType: 'error',
             });
+        }
+
+        async function recoverPersona() {
+            const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
+            const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
+            const status = document.getElementById('persona-recovery-status');
+            if (!speaker || !personaJson) {
+                if (status) { status.textContent = 'Speaker and persona JSON are required.'; }
+                return;
+            }
+            try {
+                await API.post('/api/persona/recover', {speaker, persona_json: personaJson});
+                if (status) { status.textContent = 'Validated and saved.'; }
+                await loadVoices();
+                showToast(`Persona recovered for ${speaker}.`, 'success');
+            } catch (e) {
+                if (status) { status.textContent = 'Validation failed: ' + e.message; }
+                showToast('Persona recovery failed: ' + e.message, 'error');
+            }
         }
 
         async function pollPersonaStatus() {

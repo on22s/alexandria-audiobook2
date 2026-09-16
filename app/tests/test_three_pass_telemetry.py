@@ -137,6 +137,12 @@ class CheckedInProfileDefaultsTest(unittest.TestCase):
         from three_pass_generate import resolve_model_profile
         self.assertEqual(resolve_model_profile("nope", {}, {}), {})
 
+    def test_deepseek_flash_profile_has_segmentation_headroom(self):
+        from three_pass_generate import load_default_model_profiles
+        profile = load_default_model_profiles()["deepseek-flash"]
+        self.assertEqual(profile["chunk_size"], 3000)
+        self.assertEqual(profile["segment_output_ratio"], 6.0)
+
 
 class RosterAttestationTest(unittest.TestCase):
     """A single hallucinated speaker enters the roster and is then fed back to

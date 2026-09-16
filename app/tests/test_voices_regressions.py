@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,45 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
+    def test_persona_recovery_requires_integrity_fields(self):
+        with self.assertRaises(voices_module.HTTPException) as missing:
+            voices_module._validate_persona_recovery('{"description":"only"}')
+        self.assertEqual(422, missing.exception.status_code)
+
+        description, ref_text = voices_module._validate_persona_recovery(
+            'prefix {"description":"warm and measured", "ref_text":"Hello there."} suffix')
+        self.assertEqual(("warm and measured", "Hello there."), (description, ref_text))
+
+    def test_persona_recovery_saves_without_clobbering_existing_voice_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            config_path = os.path.join(tmp, "voice_config.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            Path(config_path).write_text(json.dumps({"Hero": {"type": "custom", "voice": "Ryan"}}), encoding="utf-8")
+            request = voices_module.PersonaRecoveryRequest(
+                speaker="Hero",
+                persona_json=json.dumps({"description": "steady", "ref_text": "I am ready."}),
+            )
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", config_path):
+                result = asyncio.run(voices_module.recover_persona(request))
+            saved = json.loads(Path(config_path).read_text(encoding="utf-8"))
+            self.assertEqual({"status": "saved", "speaker": "Hero"}, result)
+            self.assertEqual("custom", saved["Hero"]["type"])
+            self.assertEqual("steady", saved["Hero"]["description"])
+            self.assertEqual("I am ready.", saved["Hero"]["ref_text"])
+
+    def test_persona_recovery_rejects_unknown_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            config_path = os.path.join(tmp, "voice_config.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", config_path):
+                with self.assertRaises(voices_module.HTTPException) as error:
+                    asyncio.run(voices_module.recover_persona(voices_module.PersonaRecoveryRequest(
+                        speaker="Typo", persona_json='{"description":"steady", "ref_text":"I am ready."}')))
+            self.assertEqual(422, error.exception.status_code)
     def test_pitch_is_not_used_as_a_gender_classifier(self):
         low = {"voice_features": {"mean_f0": 90}}
         high = {"voice_features": {"mean_f0": 260}}

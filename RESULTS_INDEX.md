@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-15 from `ab_test_runtime/experiments/` — 1630 artifacts, 1781 arms.
+Generated 2026-09-16 from `ab_test_runtime/experiments/` — 1633 artifacts, 1784 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -926,6 +926,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 88 | 77.3% | exploratory | ok | False | 4021.8s |
 | index18 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 3282.9s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 88 | 56.8% | exploratory | ok | False | 12824.3s |
+| index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 16384 | base | 88 | 71.6% | supported_measurement | ok | False | 2411.2s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 88 | 59.1% | exploratory | ok | False | 1920.1s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 88 | 56.8% | exploratory | ok | False | 1195.4s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 88 | 59.1% | exploratory | ok | False | 1237.3s |
@@ -1105,6 +1106,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 133 | 73.7% | exploratory | ok | False | 4021.8s |
 | mushoku16 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 3282.9s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | exploratory | ok | False | 12824.3s |
+| mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 16384 | base | 133 | 79.7% | supported_measurement | ok | False | 2625.2s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | exploratory | ok | False | 1920.1s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 133 | 49.6% | exploratory | ok | False | 1195.4s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | exploratory | ok | False | 1237.3s |
@@ -1276,6 +1278,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 162 | 65.4% | exploratory | ok | False | 4021.8s |
 | owarimonogatari3 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3282.9s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 162 | 46.3% | exploratory | ok | False | 12824.3s |
+| owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 16384 | base | 162 | 75.3% | supported_measurement | ok | False | 4405.2s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 162 | 47.5% | exploratory | ok | False | 1920.1s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 162 | 46.3% | exploratory | ok | False | 1195.4s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 162 | 47.5% | exploratory | ok | False | 1237.3s |
