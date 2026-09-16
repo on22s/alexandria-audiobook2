@@ -72,6 +72,62 @@ class FrontendJsSplitTests(unittest.TestCase):
 
 
 class FrontendTests(unittest.TestCase):
+    def test_voice_cards_expose_age_version_generation(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "Generate age version", "generateAgeVersion(this)",
+                "age_group: ageGroup.trim()", "/api/generate_personas"):
+            self.assertIn(required, frontend)
+
+    def test_narrator_preview_uses_inline_scenario_selectors(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="narrator-focus"', 'id="narrator-version"',
+                "updateNarratorPreviewFields", "window._voicesNames",
+                "focus_speaker: focus", "narrator_version: version"):
+            self.assertIn(required, frontend)
+        self.assertNotIn("window.prompt('Focus character (optional):')", frontend)
+        self.assertNotIn("window.prompt('Narrator version ID (optional):')", frontend)
+
+    def test_chapter_presets_can_be_imported_and_exported(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "exportChapterTemplatePresets", "importChapterTemplatePresets",
+                "alexandria-chapter-presets.json", "chapter-preset-import",
+                "no valid presets found"):
+            self.assertIn(required, frontend)
+
+    def test_persona_failure_opens_manual_recovery(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "const failed = (status.logs || [])",
+                "recoveryPanel.open = true",
+                "persona-recovery-context",
+                "Stage: persona generation",
+                "manual recovery is available"):
+            self.assertIn(required, frontend)
+
+    def test_review_failure_shows_downloadable_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-recovery-panel"', "function _onReviewDone(status)",
+                "/api/logs/review?download=true", "Inspect the log"):
+            self.assertIn(required, frontend)
+
+    def test_batch_review_and_nickname_failures_share_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-batch-recovery-panel"',
+                'id="nickname-recovery-panel"',
+                "_showTaskRecoveryPanel('review-batch-recovery-panel'",
+                "_showTaskRecoveryPanel('nickname-recovery-panel'"):
+            self.assertIn(required, frontend)
+
+    def test_batch_script_failures_show_recovery_details(self):
+        frontend = _read_frontend_source()
+        self.assertIn('id="script-batch-recovery-panel"', frontend)
+        self.assertIn("_showTaskRecoveryPanel('script-batch-recovery-panel'", frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",

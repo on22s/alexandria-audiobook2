@@ -1649,12 +1649,21 @@ class ProjectManager:
                     # Resolve aliases so batch uses canonical speaker config
                     speaker = chunk.get("speaker", "")
                     canonical = self._resolve_alias(speaker, voice_config)
-                    batch_chunks.append({
+                    batch_chunk = {
                         "index": idx,
                         "text": chunk.get("text", ""),
                         "instruct": chunk.get("instruct", ""),
                         "speaker": canonical
-                    })
+                    }
+                    # Preserve narrator-selection metadata through the
+                    # project boundary; the TTS engine uses these fields to
+                    # resolve focus/chapter/gender strategies per chunk.
+                    for field in ("focus_speaker", "character_focus", "narrator_version",
+                                  "chapter_narrator_version", "narrator_gender", "focus_gender",
+                                  "narrator_age_group", "focus_age_group"):
+                        if field in chunk:
+                            batch_chunk[field] = chunk[field]
+                    batch_chunks.append(batch_chunk)
 
             # Call batch TTS with single seed. If stale-output cleanup rejected
             # every row, there is nothing safe to dispatch.

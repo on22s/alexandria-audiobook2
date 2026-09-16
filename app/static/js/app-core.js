@@ -1563,6 +1563,8 @@
                 },
                 onDone: (state) => {
                     scriptBatchPoller = null;
+                    _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
+                        'Inspect the log and resume failed books from their validated checkpoints.');
                     notifyJobDone('batch_script');
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
@@ -1597,9 +1599,21 @@
             document.getElementById('btn-review-script').disabled = disabled;
             document.getElementById('btn-review-script-contextual').disabled = disabled;
         }
-        function _onReviewDone() {
+        function _onReviewDone(status) {
             _showReviewControls(false);
             _disableReviewButtons(false);
+            const panel = document.getElementById('review-recovery-panel');
+            const logs = status?.logs || [];
+            const failed = logs.some(log => /\b(error|failed|failure)\b/i.test(log));
+            if (panel) {
+                panel.style.display = failed ? '' : 'none';
+                if (failed) {
+                    const last = logs.filter(Boolean).slice(-1)[0] || 'Unknown review error';
+                    panel.innerHTML = `Review stopped with an error: ${escapeHtml(last)} ` +
+                        `<a href="/api/logs/review?download=true" target="_blank" rel="noopener">Download full log</a>. ` +
+                        'Inspect the log, correct the source or profile, and retry.';
+                }
+            }
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
@@ -1814,7 +1828,9 @@
             _resetPauseBtn('btn-pause-nick');
             try {
                 await API.post('/api/find_nicknames', {});
-                pollLogs('nicknames', 'script-logs', async () => {
+                pollLogs('nicknames', 'script-logs', async (status) => {
+                    _showTaskRecoveryPanel('nickname-recovery-panel', 'nicknames', status,
+                        'Inspect the log, correct aliases if needed, and retry.');
                     btn.disabled = false;
                     document.getElementById('btn-pause-nick').style.display = 'none';
                     document.getElementById('btn-cancel-nick').style.display = 'none';
@@ -1930,6 +1946,19 @@
             el.style.display = '';
         }
 
+        function _showTaskRecoveryPanel(panelId, taskName, status, action) {
+            const panel = document.getElementById(panelId);
+            const logs = status?.logs || [];
+            const failed = logs.some(log => /\b(error|failed|failure)\b/i.test(log));
+            if (!panel) { return; }
+            panel.style.display = failed ? '' : 'none';
+            if (failed) {
+                const last = logs.filter(Boolean).slice(-1)[0] || `Unknown ${taskName} error`;
+                panel.innerHTML = `${escapeHtml(taskName)} stopped with an error: ${escapeHtml(last)} ` +
+                    `<a href="/api/logs/${encodeURIComponent(taskName)}?download=true" target="_blank" rel="noopener">Download full log</a>. ${escapeHtml(action)}`;
+            }
+        }
+
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
             _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
@@ -1950,7 +1979,9 @@
                     });
                     _updateReviewBatchTotals(state);
                 },
-                onDone: () => {
+                onDone: (state) => {
+                    _showTaskRecoveryPanel('review-batch-recovery-panel', 'batch_review', state,
+                        'Inspect the failed books and retry the batch.');
                     notifyJobDone('batch_review');
                     document.getElementById('btn-review-batch-start').disabled = false;
                     document.getElementById('btn-pause-batch-review').style.display = 'none';
@@ -2020,6 +2051,43 @@
             });
         }
 
+        window.recoverPersona = async function recoverPersona(resume = false) {
+        const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
+        const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
+        const status = document.getElementById('persona-recovery-status');
+        if (!speaker || !personaJson) {
+            if (status) { status.textContent = 'Speaker and persona JSON are required.'; }
+            return;
+        }
+        try {
+            await API.post('/api/persona/recover', {speaker, persona_json: personaJson, resume});
+            if (status) { status.textContent = resume ? 'Validated and resumed.' : 'Validated and saved.'; }
+            await loadVoices();
+            showToast(`Persona recovered for ${speaker}.`, 'success');
+        } catch (e) {
+            if (status) { status.textContent = 'Validation failed: ' + e.message; }
+            showToast('Persona recovery failed: ' + e.message, 'error');
+        }
+    };
+
+    window.copyPersonaPrompt = async function copyPersonaPrompt() {
+        const speaker = document.getElementById('persona-recovery-speaker')?.value.trim() || 'the character';
+        const system = document.getElementById('persona-system-prompt')?.value.trim()
+            || 'Return JSON only with description and ref_text.';
+        const userTemplate = document.getElementById('persona-user-prompt')?.value.trim()
+            || 'Create a persona for {speaker}. Return exactly {"description":"...","ref_text":"..."}.';
+        const samples = document.getElementById('persona-recovery-samples')?.value.trim() || '(none provided)';
+        const narration = document.getElementById('persona-recovery-narration')?.value.trim() || '(none provided)';
+        const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)
+            .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}`;
+        try {
+            await navigator.clipboard.writeText(prompt);
+            showToast('Persona prompt copied to the clipboard.', 'success');
+        } catch (e) {
+            showToast('Clipboard unavailable: ' + e.message, 'error');
+        }
+    };
+
         async function pollPersonaStatus() {
             const logEl = document.getElementById('voices-logs');
             const statusSpan = document.getElementById('persona-status');
@@ -2038,12 +2106,27 @@
                         logEl.scrollTop = logEl.scrollHeight;
                     }
                 },
-                onDone: async () => {
+                onDone: async (status) => {
+                    const failed = (status.logs || []).some(log => /\b(error|failed|failure)\b/i.test(log));
+                    const recoveryPanel = document.getElementById('persona-recovery-panel');
+                    const recoveryStatus = document.getElementById('persona-recovery-status');
+                    if (failed) {
+                        if (recoveryPanel) { recoveryPanel.open = true; }
+                        const recoveryContext = document.getElementById('persona-recovery-context');
+                        const lastLog = (status.logs || []).filter(Boolean).slice(-1)[0] || 'Unknown persona-generation error';
+                        if (recoveryContext) {
+                            recoveryContext.textContent = `Stage: persona generation · Error: ${lastLog} · Next action: paste validated persona JSON below, then resume.`;
+                            recoveryContext.style.display = '';
+                        }
+                        if (recoveryStatus) {
+                            recoveryStatus.textContent = 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.';
+                        }
+                    }
                     // Refresh voices and caches
                     try { await loadVoices(); } catch (e) { console.debug('voices refresh failed', e); }
                     try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
                     try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
-                    showToast('Persona generation finished', 'success');
+                    showToast(failed ? 'Persona generation stopped; manual recovery is available.' : 'Persona generation finished', failed ? 'warning' : 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
                         cancelButton.style.display = 'none';
@@ -2066,6 +2149,27 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
+                                <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
+                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
+                                <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
+                                    <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">Mark persona reviewed</button>
+                                    <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">Reject persona</button>
+                                    <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">Approve voice</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">Mark voice reviewed</button>
+                                    <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">Reject voice</button>
+                                </div>
+                                <div class="input-group input-group-sm mt-2">
+                                    <select class="form-select voice-version-select" onchange="selectVoiceVersion(this)">
+                                        <option value="">Active version</option>
+                                        ${Object.entries(config.versions || {}).map(([id, version]) => `<option value="${escapeHtml(id)}" ${config.active_version === id ? 'selected' : ''}>${escapeHtml(id)}${version.age_group ? ` · ${escapeHtml(version.age_group)}` : ''}</option>`).join('')}
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
+                                ${Array.isArray(config.candidates) && config.candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${config.candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" onclick="favoriteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}', ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, '${escapeHtml(candidate.candidate_id || '')}')">×</button></div>`).join('')}</div>` : ''}
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
@@ -2275,6 +2379,13 @@
             const voices = await API.get('/api/voices');
             // Cache simple names for alias dropdowns
             window._voicesNames = voices.map(v => v.name);
+            window._voicesByName = Object.fromEntries(voices.map(v => [v.name, v]));
+            const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
+            const narratorSelect = document.getElementById('narrator-strategy');
+            if (narratorSelect && narrator?.config?.narrator_strategy) {
+                narratorSelect.value = narrator.config.narrator_strategy;
+            }
+            updateNarratorPreviewFields();
             const container = document.getElementById('voices-list');
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
@@ -2295,10 +2406,161 @@
             }
         }
 
+        window.selectVoiceVersion = async function selectVoiceVersion(select) {
+            const versionId = select.value;
+            if (!versionId) { return; }
+            const speaker = select.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`, {});
+                await loadVoices();
+                showToast(`Selected ${versionId} for ${speaker}.`, 'success');
+            } catch (e) { showToast('Version selection failed: ' + e.message, 'error'); }
+        };
+
+        window.addVoiceVersion = async function addVoiceVersion(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            const versionId = window.prompt('Version ID (for example teen or elderly):');
+            if (!versionId || !versionId.trim()) { return; }
+            const ageGroup = window.prompt('Age group:') || 'adult';
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
+                    version_id: versionId.trim(), age_group: ageGroup.trim(), config: {type: 'custom', voice: 'Ryan'}
+                });
+                showToast(`Version saved for ${speaker}.`, 'success');
+                await loadVoices();
+            } catch (e) { showToast('Version save failed: ' + e.message, 'error'); }
+        };
+
+        window.saveNarratorStrategy = async function saveNarratorStrategy(strategy) {
+            updateNarratorPreviewFields();
+            try {
+                await API.post('/api/narrator/strategy', {strategy});
+                showToast('Narrator strategy saved.', 'success');
+            } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
+        };
+
+        window.updateNarratorPreviewFields = function updateNarratorPreviewFields() {
+            const strategy = document.getElementById('narrator-strategy')?.value || 'global';
+            const focusGroup = document.getElementById('narrator-focus-group');
+            const versionGroup = document.getElementById('narrator-version-group');
+            const focus = document.getElementById('narrator-focus');
+            const version = document.getElementById('narrator-version');
+            const needsFocus = strategy.includes('character') || strategy === 'focus';
+            const needsVersion = strategy === 'chapter';
+            if (focusGroup) { focusGroup.style.display = needsFocus ? '' : 'none'; }
+            if (versionGroup) { versionGroup.style.display = needsVersion ? '' : 'none'; }
+            if (focus && !focus.options.length) {
+                focus.innerHTML = '<option value="">No focus override</option>' +
+                    (window._voicesNames || []).filter(name => name !== 'NARRATOR' && name !== 'Narrator')
+                        .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+            }
+            if (version && !version.options.length) {
+                const narrator = window._voicesByName?.NARRATOR || window._voicesByName?.Narrator;
+                const versions = narrator?.config?.versions || {};
+                version.innerHTML = '<option value="">Default narrator</option>' +
+                    Object.keys(versions).sort().map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+            }
+        };
+
+        window.previewNarratorSelection = async function previewNarratorSelection() {
+            const strategy = document.getElementById('narrator-strategy')?.value || 'global';
+            updateNarratorPreviewFields();
+            const focus = document.getElementById('narrator-focus')?.value || null;
+            const version = document.getElementById('narrator-version')?.value || null;
+            const status = document.getElementById('narrator-preview-status');
+            try {
+                const result = await API.post('/api/narrator/preview', {
+                    strategy, focus_speaker: focus || null, narrator_version: version || null,
+                });
+                const selected = result.selected || {};
+                status.textContent = `Selected ${selected.adapter_id || selected.voice || selected.type || 'default'}.`;
+            } catch (e) { showToast('Narrator preview failed: ' + e.message, 'error'); }
+        };
+
+        window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
+                await loadVoices();
+                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} marked ${status} for ${speaker}.`, 'success');
+            } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
+        };
+
+        window.editPersonaVoiceAudit = async function editPersonaVoiceAudit(button) {
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const current = window._voicesByName?.[speaker]?.config?.persona_voice_audit || {};
+            const reason = window.prompt('Why this voice was suggested (optional):', current.suggestion_reason || '');
+            if (reason === null) { return; }
+            const adapter = window.prompt('Voice adapter ID (optional):', current.voice_adapter_id || '');
+            if (adapter === null) { return; }
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/persona-voice-audit`, {
+                    persona_ref: current.persona_ref || null,
+                    persona_description: current.persona_description || null,
+                    voice_adapter_id: adapter,
+                    suggestion_reason: reason,
+                });
+                await loadVoices();
+                showToast(`Persona-to-voice audit updated for ${speaker}.`, 'success');
+            } catch (e) { showToast('Audit update failed: ' + e.message, 'error'); }
+        };
+
+        window.regeneratePersona = async function regeneratePersona(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post('/api/generate_personas', {
+                    speaker,
+                    advanced: false,
+                    context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
+                });
+                showToast(`Persona regeneration started for ${speaker}.`, 'success');
+            } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
+        };
+
+        window.generateAgeVersion = async function generateAgeVersion(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            const ageGroup = window.prompt('Age profile (child, teen, adult, middle_aged, elderly):');
+            if (!ageGroup || !ageGroup.trim()) { return; }
+            try {
+                await API.post('/api/generate_personas', {
+                    speaker, age_group: ageGroup.trim(), advanced: false,
+                    context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
+                });
+                showToast(`Generating ${ageGroup.trim()} version for ${speaker}.`, 'success');
+            } catch (e) { showToast('Age version generation failed: ' + e.message, 'error'); }
+        };
+
+        window.selectVoiceCandidate = async function selectVoiceCandidate(button, candidateId) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/select`, {});
+                await loadVoices();
+                showToast(`Selected ${candidateId} for ${speaker}.`, 'success');
+            } catch (e) { showToast('Candidate selection failed: ' + e.message, 'error'); }
+        };
+
+        window.deleteVoiceCandidate = async function deleteVoiceCandidate(button, candidateId) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.del(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}`);
+                await loadVoices();
+                showToast(`Removed candidate ${candidateId}.`, 'success');
+            } catch (e) { showToast('Candidate removal failed: ' + e.message, 'error'); }
+        };
+
+        window.favoriteVoiceCandidate = async function favoriteVoiceCandidate(button, candidateId, favorite) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            try {
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/favorite`, {favorite});
+                await loadVoices();
+            } catch (e) { showToast('Candidate favorite update failed: ' + e.message, 'error'); }
+        };
+
         // --- Auto-suggest best LoRA voice per character ---
         window._voiceSuggestions = {};
 
-        async function suggestVoices() {
+        async function suggestVoices(characterNames = null) {
             const btn = document.getElementById('btn-suggest-voices');
             const status = document.getElementById('suggest-status');
             btn.disabled = true;
@@ -2309,9 +2571,35 @@
                 const res = await API.post('/api/suggest_voices', {
                     only_unset: false,
                     cast: window._selectedCast || null,
+                    characters: characterNames,
                 });
                 window._voiceSuggestions = res.suggestions || {};
                 const n = Object.keys(window._voiceSuggestions).length;
+                // Preserve the full ranked pool produced by auto-suggest so users
+                // can compare alternatives later without a second suggestion UI.
+                await Promise.all(Object.entries(window._voiceSuggestions).map(async ([name, suggestion]) => {
+                    const ranked = suggestion.ranked_adapter_ids || [suggestion.adapter_id];
+                    await Promise.all(ranked.filter(Boolean).map(async (adapterId, rank) => {
+                        const model = (window._loraModelsCache || []).find(item => item.id === adapterId) || {};
+                        try {
+                            await API.post(`/api/voices/${encodeURIComponent(name)}/candidates`, {
+                                candidate_id: adapterId,
+                                config: {
+                                    type: model.builtin ? 'builtin_lora' : (suggestion.type || 'lora'),
+                                    adapter_id: adapterId,
+                                    adapter_path: model.path || model.adapter_path || null,
+                                    description: model.description || '',
+                                    age_group: model.age_group || suggestion.voice_age_group || 'unknown',
+                                    gender: model.gender || suggestion.voice_gender || 'unknown',
+                                    rank: rank + 1,
+                                    source: 'auto_suggest',
+                                },
+                            });
+                        } catch (e) {
+                            console.debug(`candidate save failed for ${name}/${adapterId}`, e);
+                        }
+                    }));
+                }));
                 if (n === 0) {
                     status.textContent = res.message || 'No suggestions available.';
                     document.getElementById('btn-apply-all-suggestions').style.display = 'none';
@@ -2332,6 +2620,11 @@
                 btn.disabled = false;
             }
         }
+
+        window.suggestMoreVoices = async function suggestMoreVoices(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            await suggestVoices(speaker ? [speaker] : null);
+        };
 
         function renderVoiceSuggestions() {
             document.querySelectorAll('.voice-card').forEach(card => {
@@ -2865,6 +3158,7 @@
 
             cards.forEach(card => {
                 const name = card.dataset.voice;
+                const metadata = (window._voicesByName && window._voicesByName[name])?.config || {};
                 const alias = card.querySelector('.alias-select') ? card.querySelector('.alias-select').value : '';
                 const type = card.querySelector('.voice-type:checked').value;
 
@@ -2922,6 +3216,9 @@
                 const readyBox = card.querySelector('.voice-ready');
                 if (readyBox && readyBox.checked) {
                     config[name].ready = true;
+                }
+                for (const key of ['persona_status', 'voice_status', 'active_version', 'active_candidate', 'age_group', 'versions', 'candidates', 'narrator_strategy']) {
+                    if (metadata[key] !== undefined) { config[name][key] = metadata[key]; }
                 }
             });
             return config;
@@ -3771,6 +4068,107 @@
         };
 
         // --- Chapter-by-chapter export ---
+        const CHAPTER_PRESETS_KEY = 'alexandria.chapter-template-presets';
+        function getLocalStorageValue(key, fallback = null) {
+            try { return localStorage.getItem(key) ?? fallback; } catch (e) { return fallback; }
+        }
+        function setLocalStorageValue(key, value) {
+            try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+        }
+        function getChapterTemplatePresets() {
+            try {
+                const parsed = JSON.parse(getLocalStorageValue(CHAPTER_PRESETS_KEY, '{}'));
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (e) { return {}; }
+        }
+        function renderChapterTemplatePresets() {
+            const select = document.getElementById('chapter-template-preset');
+            if (!select) { return; }
+            const current = select.value;
+            select.innerHTML = '<option value="">Saved presets</option>';
+            Object.keys(getChapterTemplatePresets()).sort().forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            select.value = current;
+        }
+        window.loadChapterTemplatePreset = function loadChapterTemplatePreset(name) {
+            if (!name) { return; }
+            const preset = getChapterTemplatePresets()[name];
+            if (preset) {
+                document.getElementById('chapter-template').value = preset.template || '';
+                document.getElementById('chapter-padding').value = String(preset.padding ?? 2);
+                document.getElementById('chapter-selection').value = preset.selection || '';
+            }
+        };
+        window.saveChapterTemplatePreset = function saveChapterTemplatePreset() {
+            const name = window.prompt('Preset name:');
+            if (!name || !name.trim()) { return; }
+            const presets = getChapterTemplatePresets();
+            presets[name.trim()] = {
+                template: document.getElementById('chapter-template').value.trim(),
+                padding: parseInt(document.getElementById('chapter-padding').value, 10),
+                selection: document.getElementById('chapter-selection').value.trim(),
+            };
+            if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
+                renderChapterTemplatePresets();
+                document.getElementById('chapter-template-preset').value = name.trim();
+                showToast('Chapter filename preset saved.', 'success');
+            } else { showToast('Could not save preset: browser storage is unavailable.', 'error'); }
+        };
+        window.deleteChapterTemplatePreset = function deleteChapterTemplatePreset() {
+            const select = document.getElementById('chapter-template-preset');
+            const name = select?.value;
+            if (!name) { return; }
+            const presets = getChapterTemplatePresets();
+            delete presets[name];
+            if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
+                renderChapterTemplatePresets();
+                showToast('Chapter filename preset deleted.', 'success');
+            } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
+        };
+        window.exportChapterTemplatePresets = function exportChapterTemplatePresets() {
+            const blob = new Blob([JSON.stringify(getChapterTemplatePresets(), null, 2)], {type: 'application/json'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'alexandria-chapter-presets.json';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        };
+        window.importChapterTemplatePresets = function importChapterTemplatePresets(input) {
+            const file = input.files?.[0];
+            input.value = '';
+            if (!file) { return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const imported = JSON.parse(reader.result);
+                    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) { throw new Error('expected an object'); }
+                    const valid = Object.fromEntries(Object.entries(imported).filter(([name, preset]) =>
+                        name.trim() && preset && typeof preset === 'object' && typeof preset.template === 'string'));
+                    if (!Object.keys(valid).length) { throw new Error('no valid presets found'); }
+                    const merged = {...getChapterTemplatePresets(), ...valid};
+                    if (!setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(merged))) { throw new Error('browser storage is unavailable'); }
+                    renderChapterTemplatePresets();
+                    showToast(`Imported ${Object.keys(valid).length} chapter preset(s).`, 'success');
+                } catch (e) { showToast('Could not import presets: ' + e.message, 'error'); }
+            };
+            reader.readAsText(file);
+        };
+        renderChapterTemplatePresets();
+        function parseChapterSelection(value) {
+            const selected = new Set();
+            (value || '').split(',').forEach(part => {
+                const bits = part.trim().split('-').map(Number);
+                if (bits.length === 1 && Number.isInteger(bits[0]) && bits[0] > 0) { selected.add(bits[0] - 1); }
+                if (bits.length === 2 && Number.isInteger(bits[0]) && Number.isInteger(bits[1]) && bits[0] > 0 && bits[1] >= bits[0]) {
+                    for (let n = bits[0]; n <= bits[1]; n += 1) { selected.add(n - 1); }
+                }
+            });
+            return selected.size ? Array.from(selected).sort((a, b) => a - b) : null;
+        }
         function chapterExportParams() {
             return {
                 format: document.getElementById('chapter-format').value,
@@ -3780,7 +4178,9 @@
                 book_name: document.getElementById('chapter-book-name').value.trim(),
                 series_name: document.getElementById('chapter-series-name').value.trim(),
                 volume_number: document.getElementById('chapter-volume').value.trim(),
-                changed_only: document.getElementById('chapter-changed-only').checked
+                chapters: parseChapterSelection(document.getElementById('chapter-selection').value),
+                changed_only: document.getElementById('chapter-changed-only').checked,
+                require_ready: document.getElementById('chapter-require-ready').checked
             };
         }
         function renderChapterList(rows, exported) {
@@ -3887,7 +4287,8 @@
                     author: document.getElementById('m4b-author').value,
                     narrator: document.getElementById('m4b-narrator').value,
                     year: document.getElementById('m4b-year').value,
-                    description: document.getElementById('m4b-description').value
+                    description: document.getElementById('m4b-description').value,
+                    require_ready: document.getElementById('m4b-require-ready').checked
                 });
 
                 _startPolling('m4b_export', () => API.get('/api/status/m4b_export'), {
