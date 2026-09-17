@@ -78,7 +78,8 @@ with the task. Serve it under a different prompt and the gain does not carry:
 the rights-clean adapter (+11.7 on its own prompt) under `--prompt-variant
 michel` with reasoning low: **75.8 → 72.9, −2.9** (+73/−95, p=0.10, four books;
 tnr-4 `stack_michel`, 2026-09-17) while the same adapter under its own prompt
-on the same box is +7.0 at 632 rows (`stack_default`, +97/−53, finishing). Read
+on the same box, same day, is **66.1 → 74.7, +8.6** (+127/−61, p=2e-6;
+`stack_default`, replicating the cloud +8.6 exactly). Read
 every adapter score as "trained on prompt X, served on prompt X"; a
 Michel-shape retrain of the same rows is queued on tnr-2
 (`michelfmt_rightsclean_tnr2_20260917.sh`), and the michel2-shape adapters for
