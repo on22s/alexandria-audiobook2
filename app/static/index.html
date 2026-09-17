@@ -824,21 +824,6 @@
                                         <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="0">
                                         <div class="form-text">Also show the AI this much of the book before and after the lines it is deciding on, for context only (it is told not to assign speakers to it). 0 = off. Every 1,000 characters adds roughly 300 tokens to each request, so it costs time (and money on paid APIs). Whether it improves accuracy is being measured; see RECIPES.md.</div>
                                     </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label small mb-1" for="tp-attribute-prompt-variant">Step 2: how the AI is asked who speaks</label>
-                                        <select class="form-select form-select-sm" id="tp-attribute-prompt-variant">
-                                            <option value="default" selected>default - the standard prompt (use this with any trained adapter)</option>
-                                            <option value="michel">michel - lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)</option>
-                                            <option value="michel2">michel2 - michel plus this project's own rules (e.g. don't default to the main characters)</option>
-                                            <option value="michel2_full">michel2_full - michel2 with extra surrounding text (set the field above)</option>
-                                            <option value="michel2_shot">michel2_shot - michel2 with a worked example shown first</option>
-                                            <option value="continuity">continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
-                                            <option value="aliases">aliases - default, plus character nicknames listed</option>
-                                            <option value="passage">passage - default, but lines shown as running text</option>
-                                            <option value="incremental">incremental - default, plus the previous request's answers</option>
-                                        </select>
-                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt", listed by the name at the start of each option. If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
-                                    </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-segment-output-ratio" min="1.25" max="6" step="0.25" value="3">
@@ -885,9 +870,26 @@
                             <hr>
                             <h6 class="mb-3">Prompt Customization</h6>
                             <div class="card card-body bg-light mb-3">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-12">
+                                        <label class="form-label mb-1" for="tp-attribute-prompt-variant">Attribution prompt (which way the AI is asked who speaks)</label>
+                                        <select class="form-select" id="tp-attribute-prompt-variant">
+                                            <option value="default" selected>default - the standard prompt (use this with any trained adapter)</option>
+                                            <option value="michel">michel - lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)</option>
+                                            <option value="michel2">michel2 - michel plus this project's own rules (e.g. don't default to the main characters)</option>
+                                            <option value="michel2_full">michel2_full - michel2 with extra surrounding text (set "Step 2: extra text around each request" in the section above)</option>
+                                            <option value="michel2_shot">michel2_shot - michel2 with a worked example shown first</option>
+                                            <option value="continuity">continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
+                                            <option value="aliases">aliases - default, plus character nicknames listed</option>
+                                            <option value="passage">passage - default, but lines shown as running text</option>
+                                            <option value="incremental">incremental - default, plus the previous request's answers</option>
+                                        </select>
+                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt", listed by the name at the start of each option. If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
+                                    </div>
+                                </div>
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-5">
-                                        <label class="form-label mb-1" for="prompt-preset-select">Prompt preset</label>
+                                        <label class="form-label mb-1" for="prompt-preset-select">Prompt text preset (edits the default prompt's wording)</label>
                                         <select class="form-select form-select-sm" id="prompt-preset-select"></select>
                                     </div>
                                     <div class="col-md-7">
@@ -896,7 +898,7 @@
                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePromptPreset()">Delete selected</button>
                                     </div>
                                 </div>
-                                <div class="form-text mt-2">Choose a tested preset, edit it below, or save your own. Presets are stored in this installation's configuration.</div>
+                                <div class="form-text mt-2">Presets change the <em>text</em> of the default prompt (the two boxes below) and apply only when the attribution prompt above is <code>default</code>. Choose one, edit it below, or save your own. Presets are stored in this installation's configuration.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">System Prompt</label>
