@@ -18,10 +18,12 @@ ROSTER = ["HARUHIRO", "RANTA"]
 class _Client:
     def __init__(self):
         self.prompts = []
+        self.systems = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     def _create(self, **kw):
         self.prompts.append(kw["messages"][-1]["content"])
+        self.systems.append(kw["messages"][0]["content"])
         good = [{"n": 0, "speaker": "NARRATOR"}, {"n": 1, "speaker": "HARUHIRO"}, {"n": 2, "speaker": "RANTA"}]
         return SimpleNamespace(choices=[SimpleNamespace(
             message=SimpleNamespace(content=json.dumps(good)), finish_reason="stop")], usage=None)
@@ -51,13 +53,28 @@ class PromptVariants(unittest.TestCase):
             prompt = client.prompts[-2] if variant == "continuity" else client.prompts[-1]
             if variant == "continuity":
                 self.assertIn("SUMMARY SO FAR", client.prompts[-1])
-            if variant in ("aliases", "michel"):
+            if variant in ("aliases", "michel", "michel2"):
                 self.assertIn("HARUHIRO (also: HARU)", prompt)
             if variant in ("passage", "michel"):
                 self.assertIn('|1|"Tell us already."|1|', prompt)
                 self.assertIn("Step 3", prompt)
+            elif variant == "michel2":
+                self.assertIn('|1|"Tell us already."|1|', prompt)
+                self.assertNotIn("Step 3", prompt)
             else:
                 self.assertIn('"n": 1', prompt)
+
+    def test_michel2_swaps_the_system_prompt_and_carries_the_tail(self):
+        client = _Client()
+        provider = make_provider("michel2", [["HARUHIRO", "HARU"]])
+        tp.attribute_batch(client, "m", FROZEN, _params(), ROSTER, entries_provider=provider)
+        self.assertNotIn("PREVIOUS PASSAGE ENDED", client.prompts[0])
+        tp.attribute_batch(client, "m", FROZEN, _params(), ROSTER, entries_provider=provider)
+        self.assertIn('HARUHIRO: "Tell us already."', client.prompts[1])
+        # the system prompt describes the passage format and keeps the
+        # minor-speaker rule the shipped prompt measured +6.5/+9.6 with
+        self.assertIn("|n|", client.systems[-1])
+        self.assertIn("main characters", client.systems[-1])
 
     def test_incremental_carries_the_previous_window(self):
         client = _Client()
