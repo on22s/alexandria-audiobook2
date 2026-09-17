@@ -913,6 +913,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # to any budget sized on the visible response.
             usage_details = getattr(usage, "completion_tokens_details", None)
             reasoning_tokens = getattr(usage_details, "reasoning_tokens", None)
+            # llama.cpp returns the trace in message.reasoning_content but
+            # reports no reasoning_tokens in usage, so the allowance never
+            # grew and a short chunk's ceiling (512) was spent entirely on
+            # thinking: Re:Zero vol. 3 failed pass 1 that way on 2026-09-15
+            # under Muse reasoning low. Estimate from the trace when the
+            # server does not count it.
+            if reasoning_tokens is None:
+                trace = getattr(choice.message, "reasoning_content", None) or ""
+                if trace:
+                    reasoning_tokens = max(1, len(trace) // 4)
 
             # Log raw response for debugging (rotating to cap unbounded growth)
             log_path = get_response_log_path(log_name)
