@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig,
+from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
                              load_app_config_result)
 
@@ -65,14 +65,63 @@ router = APIRouter()
 
 
 def _builtin_prompt_presets() -> list[dict]:
-    system_prompt, user_prompt = load_default_prompts()
-    return [{
-        "name": "Shipped default",
-        "description": "Recommended general-purpose attribution prompt. Start here for most books.",
+    """One per attribution prompt variant, carrying the text the variant
+    actually sends (attribution_prompt_variants.builtin_presets)."""
+    from attribution_prompt_variants import builtin_presets
+    return builtin_presets()
+
+
+class AttributionPreviewRequest(BaseModel):
+    variant: PromptVariant = "default"
+    system_prompt: str = ""
+    user_prompt: str = ""
+    example: str = ""
+    context_chars: int = 0
+
+
+_PREVIEW_WINDOW = [
+    {"type": "NARRATOR", "text": "The captain did not look up from the chart."},
+    {"type": "SPOKEN", "text": "We sail at dawn, Lena."},
+    {"type": "SPOKEN", "text": "Then I had better pack."},
+    {"type": "NARRATOR", "text": "Old Piet laughed from the doorway."},
+]
+_PREVIEW_ROSTER = ["LENA", "THE CAPTAIN", "PIET"]
+_PREVIEW_ALIASES = [["PIET", "OLD PIET"]]
+_PREVIEW_SURROUND = {
+    "before": "The harbour had been quiet all evening. \u201cIs he still in there?\u201d Lena had asked.",
+    "after": "Piet shut the door behind her. \u201cDawn, he says,\u201d he muttered.",
+}
+
+
+@router.post("/api/prompts/attribution_preview")
+async def attribution_preview(request: AttributionPreviewRequest):
+    """The exact system message and user message pass 2 would send for one
+    small sample window under the given variant and texts. No model call."""
+    from attribution_prompt_variants import build_variant_request, validate_preset_texts
+    from generate_script import LLMGenParams
+    texts = {"system": request.system_prompt, "user": request.user_prompt,
+             "example": request.example}
+    problem = validate_preset_texts(request.variant, texts)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    surround = _PREVIEW_SURROUND if request.context_chars > 0 else None
+    contexts = [{"previous_context": _PREVIEW_WINDOW[i - 1] if i else None,
+                 "next_context": _PREVIEW_WINDOW[i + 1] if i + 1 < len(_PREVIEW_WINDOW) else None}
+                for i in range(len(_PREVIEW_WINDOW))]
+    try:
+        system_prompt, user_message = build_variant_request(
+            request.variant, _PREVIEW_WINDOW, LLMGenParams(structured_output="off"),
+            _PREVIEW_ROSTER, _PREVIEW_ALIASES, contexts, surround, None, texts)
+    except (KeyError, IndexError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Could not render this prompt: {exc}") from exc
+    return {
         "system_prompt": system_prompt,
-        "user_prompt": user_prompt,
-        "builtin": True,
-    }]
+        "user_message": user_message,
+        "note": ("Rendered on a four-line sample window. The ROSTER line, the entry markers "
+                 "(|n|\"...\"|n| and [n] or the JSON entries), the previous-window and "
+                 "surrounding-text blocks, and the JSON answer schema are added by the "
+                 "pipeline; the rest is the text from the boxes."),
+    }
 
 _REDACTED_SECRET = "[REDACTED]"
 
@@ -769,6 +818,21 @@ async def save_config(config: AppConfig):
         existing = load_app_config_result(CONFIG_PATH)
         normalized_config = _restore_redacted_secrets(normalized_config, existing.data)
         normalized_config = keep_unsent_fields(normalized_config, existing.data)
+        # The active attribution preset decides the variant the run uses;
+        # derive the generation key from it (after the merge, so a preset the
+        # client did not resend is still found) so the CLI agrees with Setup,
+        # and refuse a preset whose template lost its placeholders.
+        from attribution_prompt_variants import resolve_attribution_preset, validate_preset_texts
+        try:
+            variant, texts, _ = resolve_attribution_preset(normalized_config.model_dump())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        problem = validate_preset_texts(variant, texts)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+        generation = normalized_config.generation or GenerationConfig()
+        normalized_config.generation = generation.model_copy(
+            update={"three_pass_attribute_prompt_variant": variant})
         if existing.needs_backup:
             try:
                 backup_damaged_app_config(CONFIG_PATH)

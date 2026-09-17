@@ -442,66 +442,157 @@
         let currentIsRemote = false;
         let failoverIsRemote = false;   // server-computed: llm_failover on AND the other profile is remote
         let promptPresets = [];
+        let activePromptPreset = 'default';
 
-        function renderPromptPresets(presets) {
+        function promptBoxes() {
+            return {
+                system_prompt: document.getElementById('system-prompt').value,
+                user_prompt: document.getElementById('user-prompt').value,
+                example: document.getElementById('prompt-example').value,
+            };
+        }
+
+        function selectedPromptPreset() {
+            const select = document.getElementById('prompt-preset-select');
+            return promptPresets[Number(select?.value)] || null;
+        }
+
+        // Does the text on screen differ from the selected preset's own text?
+        function promptBoxesEdited(preset) {
+            if (!preset) { return false; }
+            const boxes = promptBoxes();
+            return boxes.system_prompt !== (preset.system_prompt || '')
+                || boxes.user_prompt !== (preset.user_prompt || '')
+                || boxes.example !== (preset.example || '');
+        }
+
+        function renderPromptPresets(presets, activeName) {
             promptPresets = Array.isArray(presets) ? presets : [];
             const select = document.getElementById('prompt-preset-select');
             if (!select) { return; }
             select.replaceChildren();
+            const builtins = document.createElement('optgroup');
+            builtins.label = 'Built-in (measured; names as in RECIPES.md)';
+            const mine = document.createElement('optgroup');
+            mine.label = 'Your presets';
             promptPresets.forEach((preset, index) => {
                 const option = document.createElement('option');
                 option.value = String(index);
-                option.textContent = preset.name || `Preset ${index + 1}`;
-                select.appendChild(option);
+                option.textContent = preset.builtin
+                    ? `${preset.name} - ${preset.description || ''}`
+                    : `${preset.name} (${preset.variant || 'default'})`;
+                (preset.builtin ? builtins : mine).appendChild(option);
             });
+            select.appendChild(builtins);
+            if (mine.childElementCount) { select.appendChild(mine); }
             select.onchange = () => applyPromptPreset(Number(select.value));
-            if (promptPresets.length) {
-                select.value = '0';
-                document.getElementById('prompt-preset-description').textContent = promptPresets[0].description || '';
+            let index = promptPresets.findIndex(p => p.name === (activeName || activePromptPreset));
+            if (index < 0) { index = promptPresets.findIndex(p => p.name === 'default'); }
+            if (index < 0 && promptPresets.length) { index = 0; }
+            if (index >= 0) {
+                select.value = String(index);
+                applyPromptPreset(index);
             }
         }
 
         function applyPromptPreset(index) {
             const preset = promptPresets[index];
             if (!preset) { return; }
+            activePromptPreset = preset.name;
+            const variant = preset.variant || 'default';
             document.getElementById('system-prompt').value = preset.system_prompt || '';
             document.getElementById('user-prompt').value = preset.user_prompt || '';
+            document.getElementById('prompt-example').value = preset.example || '';
+            document.getElementById('prompt-example-block').hidden = variant !== 'michel2_shot';
             document.getElementById('prompt-preset-description').textContent = preset.description || '';
+            document.getElementById('prompt-preset-variant-badge').textContent = 'shape: ' + variant;
+            document.getElementById('user-prompt-hint').textContent = (
+                ['default', 'aliases', 'incremental', 'continuity'].includes(variant)
+                    ? '(a template: the pipeline fills {roster} and {batch})'
+                    : '(the pipeline adds the ROSTER line and the marked PASSAGE around it)');
+            document.getElementById('prompt-preview-panel').hidden = true;
+        }
+
+        // What the save sends: the active preset by name plus the user's own
+        // presets. Editing a built-in's text on screen becomes a new preset
+        // "<name> (edited)" so the built-in stays what RECIPES measured.
+        function promptPresetPayload() {
+            const preset = selectedPromptPreset();
+            let active = preset ? preset.name : 'default';
+            const own = promptPresets.filter(p => !p.builtin).map(p => ({...p}));
+            if (preset && promptBoxesEdited(preset)) {
+                const boxes = promptBoxes();
+                if (preset.builtin) {
+                    const edited = {name: `${preset.name} (edited)`, description: `Edited copy of ${preset.name}`,
+                        variant: preset.variant || 'default', ...boxes, builtin: false};
+                    const at = own.findIndex(p => p.name === edited.name);
+                    if (at >= 0) { own[at] = edited; } else { own.push(edited); }
+                    active = edited.name;
+                } else {
+                    const at = own.findIndex(p => p.name === preset.name);
+                    if (at >= 0) { own[at] = {...own[at], ...boxes}; }
+                }
+            }
+            return {active, own};
         }
 
         async function persistPromptPresets() {
             const workers = Math.max(1, parseInt(document.getElementById('parallel-workers').value) || 2);
-            await API.post('/api/config', {...buildConfigPayload(workers), prompt_presets: promptPresets.filter(p => !p.builtin)});
+            await API.post('/api/config', buildConfigPayload(workers));
+        }
+
+        async function reloadPromptPresets(activeName) {
+            const config = await API.get('/api/config');
+            activePromptPreset = activeName || (config.prompts && config.prompts.attribution_preset) || 'default';
+            renderPromptPresets(config.prompt_presets || [], activePromptPreset);
         }
 
         window.savePromptPreset = async () => {
-            const name = window.prompt('Preset name:');
+            const current = selectedPromptPreset();
+            const name = window.prompt('Preset name:', current && !current.builtin ? current.name : '');
             if (!name || !name.trim()) { return; }
-            const description = window.prompt('When should it be used?') || '';
+            if (promptPresets.some(p => p.builtin && p.name === name.trim())) {
+                showToast('That name belongs to a built-in prompt; choose another.', 'warning');
+                return;
+            }
+            const description = window.prompt('When should it be used?', current ? (current.description || '') : '') || '';
             const preset = {name: name.trim(), description: description.trim(),
-                system_prompt: document.getElementById('system-prompt').value,
-                user_prompt: document.getElementById('user-prompt').value, builtin: false};
+                variant: (current && current.variant) || 'default', ...promptBoxes(), builtin: false};
             const existing = promptPresets.findIndex(p => !p.builtin && p.name === preset.name);
             if (existing >= 0) { promptPresets[existing] = preset; }
             else { promptPresets.push(preset); }
+            activePromptPreset = preset.name;
+            // select it before persisting so the payload names it as active
+            renderPromptPresets(promptPresets, preset.name);
             try {
                 await persistPromptPresets();
-                renderPromptPresets(promptPresets);
-                document.getElementById('prompt-preset-select').value = String(promptPresets.indexOf(preset));
-                document.getElementById('prompt-preset-description').textContent = preset.description;
-                showToast('Prompt preset saved.', 'success');
+                await reloadPromptPresets(preset.name);
+                showToast('Prompt preset saved and selected.', 'success');
             } catch (e) { showToast('Could not save prompt preset: ' + e.message, 'error'); }
         };
 
         window.deletePromptPreset = async () => {
-            const select = document.getElementById('prompt-preset-select');
-            const index = Number(select?.value);
-            const preset = promptPresets[index];
-            if (!preset || preset.builtin) { showToast('Built-in presets cannot be deleted.', 'warning'); return; }
+            const preset = selectedPromptPreset();
+            if (!preset || preset.builtin) { showToast('Built-in prompts cannot be deleted.', 'warning'); return; }
             if (!window.confirm(`Delete preset "${preset.name}"?`)) { return; }
-            promptPresets.splice(index, 1);
-            try { await persistPromptPresets(); renderPromptPresets(promptPresets); showToast('Prompt preset deleted.', 'success'); }
+            promptPresets = promptPresets.filter(p => p !== preset);
+            activePromptPreset = 'default';
+            renderPromptPresets(promptPresets, 'default');
+            try { await persistPromptPresets(); await reloadPromptPresets('default'); showToast('Prompt preset deleted.', 'success'); }
             catch (e) { showToast('Could not delete prompt preset: ' + e.message, 'error'); }
+        };
+
+        window.previewAttributionPrompt = async () => {
+            const preset = selectedPromptPreset();
+            const body = {variant: (preset && preset.variant) || 'default', ...promptBoxes(),
+                context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true)};
+            try {
+                const preview = await API.post('/api/prompts/attribution_preview', body);
+                document.getElementById('prompt-preview-note').textContent = preview.note || '';
+                document.getElementById('prompt-preview-system').textContent = preview.system_prompt || '';
+                document.getElementById('prompt-preview-user').textContent = preview.user_message || '';
+                document.getElementById('prompt-preview-panel').hidden = false;
+            } catch (e) { showToast('Could not render the prompt: ' + e.message, 'error'); }
         };
 
         function renderConfigWarnings(config) {
@@ -721,12 +812,6 @@
 
                 // Load custom prompts if they exist and are non-empty
                 if (config.prompts) {
-                    if (config.prompts.system_prompt) {
-                        document.getElementById('system-prompt').value = config.prompts.system_prompt;
-                    }
-                    if (config.prompts.user_prompt) {
-                        document.getElementById('user-prompt').value = config.prompts.user_prompt;
-                    }
                     if (config.prompts.review_system_prompt) {
                         document.getElementById('review-system-prompt').value = config.prompts.review_system_prompt;
                     }
@@ -743,7 +828,8 @@
                         document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
                     }
                 }
-                renderPromptPresets(config.prompt_presets || []);
+                activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'default';
+                renderPromptPresets(config.prompt_presets || [], activePromptPreset);
 
                 // If review/persona prompts are still empty, fetch defaults
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
@@ -802,9 +888,7 @@
                     setIf('tp-chunk-size', g.three_pass_chunk_size);
                     setIf('tp-attribute-batch-size', g.three_pass_attribute_batch_size);
                     setIf('tp-attribute-context-chars', g.three_pass_attribute_context_chars);
-                    if (g.three_pass_attribute_prompt_variant) {
-                        document.getElementById('tp-attribute-prompt-variant').value = g.three_pass_attribute_prompt_variant;
-                    }
+
                     setIf('tp-segment-output-ratio', g.three_pass_segment_output_ratio);
                     setIf('tp-segment-temperature', g.three_pass_segment_temperature);
                     setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
@@ -871,6 +955,7 @@
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.
         function buildConfigPayload(parallelWorkers) {
+            const presetPayload = promptPresetPayload();
             return {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,
@@ -898,15 +983,14 @@
                     pause_same_speaker_ms: getNumFieldValue('pause-same-speaker', 250, true)
                 },
                 prompts: {
-                    system_prompt: document.getElementById('system-prompt').value,
-                    user_prompt: document.getElementById('user-prompt').value,
+                    attribution_preset: presetPayload.active,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
                     review_user_prompt: document.getElementById('review-user-prompt').value,
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value
                 },
-                prompt_presets: promptPresets.filter(p => !p.builtin),
+                prompt_presets: presetPayload.own,
                 generation: {
                     chunk_size: legacyChunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
@@ -922,7 +1006,7 @@
                     three_pass_chunk_size: getNumFieldValue('tp-chunk-size', 3000, true),
                     three_pass_attribute_batch_size: getNumFieldValue('tp-attribute-batch-size', 25, true),
                     three_pass_attribute_context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
-                    three_pass_attribute_prompt_variant: document.getElementById('tp-attribute-prompt-variant').value || 'default',
+                    three_pass_attribute_prompt_variant: (selectedPromptPreset() || {}).variant || 'default',
                     three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),
                     three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
@@ -973,6 +1057,7 @@
                 }
                 catch (e) { console.debug('is_remote refresh after save failed', e); }
                 showToast('Configuration Saved!', 'success');
+                try { await reloadPromptPresets(); } catch (e) { console.debug('preset reload after save failed', e); }
             } catch (e) {
                 showToast('Error saving config: ' + e.message, 'error');
             }

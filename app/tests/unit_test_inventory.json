@@ -279,6 +279,10 @@
   ],
   "test_attribution_prompt_variants": [
     "tests.test_attribution_prompt_variants.ContinuityVariantTests.test_second_window_carries_summary_and_tail",
+    "tests.test_attribution_prompt_variants.PresetTextsTests.test_active_preset_resolution",
+    "tests.test_attribution_prompt_variants.PresetTextsTests.test_builtin_texts_are_what_every_variant_sends",
+    "tests.test_attribution_prompt_variants.PresetTextsTests.test_custom_texts_replace_the_builtin_pieces",
+    "tests.test_attribution_prompt_variants.PresetTextsTests.test_default_template_must_keep_its_placeholders",
     "tests.test_attribution_prompt_variants.PromptVariants.test_every_variant_keeps_the_output_contract",
     "tests.test_attribution_prompt_variants.PromptVariants.test_incremental_carries_the_previous_window",
     "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_full_shows_the_whole_window_and_its_surroundings",
@@ -753,9 +757,14 @@
     "tests.test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "tests.test_config_regressions.ConfigTests.test_prompt_presets_validate_and_round_trip",
     "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request",
-    "tests.test_config_regressions.ThreePassKnobBoundsTests.test_chunk_size_cap_and_the_pass2_knobs"
+    "tests.test_config_regressions.ThreePassKnobBoundsTests.test_chunk_size_cap_and_the_pass2_knobs",
+    "tests.test_config_regressions.ThreePassKnobBoundsTests.test_prompt_presets_carry_a_variant_and_legacy_ones_load_as_default",
+    "tests.test_config_regressions.ThreePassKnobBoundsTests.test_stored_prompt_presets_load_as_dicts"
   ],
   "test_config_save_keeps_unsent_fields": [
+    "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_a_default_template_without_placeholders_is_refused",
+    "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_builtins_and_preview",
+    "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_variant_is_derived_from_the_active_preset",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_a_field_sent_at_its_default_value_is_applied_not_kept",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_hand_set_three_pass_and_rescue_values_survive_a_save_that_omits_them",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_keep_unsent_fields_ignores_unknown_saved_keys"
@@ -3249,6 +3258,7 @@
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_fingerprint_keeps_its_identity_at_the_defaults",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_preflight_counts_the_surround_in_the_attribute_estimate",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_preflight_flags_a_chunk_the_output_ceiling_cannot_fit",
+    "tests.test_three_pass_generate.AttributionContextKnobTests.test_preset_texts_reach_the_run_and_the_fingerprint",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_prompt_variant_and_context_reach_the_attribution_request",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_surround_requotes_spoken_and_respects_the_budget",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_window_size_is_honoured",
