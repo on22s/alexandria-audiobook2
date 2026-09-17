@@ -80,6 +80,11 @@ class TTSConfig(BaseModel):
     pause_same_speaker_ms: int = Field(default=250, ge=0)
 
 
+PromptVariant = Literal[
+    "default", "aliases", "passage", "incremental", "michel", "continuity",
+    "michel2", "michel2_full", "michel2_shot"]
+
+
 class ThreePassModelProfile(BaseModel):
     chunk_size: Optional[int] = Field(default=None, ge=500, le=30000)
     segment_temperature: Optional[float] = Field(default=None, ge=0, le=2)
@@ -115,9 +120,7 @@ class GenerationConfig(BaseModel):
     # Which way the attribution question is asked (attribution_prompt_variants;
     # measured results per variant in RECIPES.md). "default" is the shipped
     # prompt every adapter was trained on.
-    three_pass_attribute_prompt_variant: Literal[
-        "default", "aliases", "passage", "incremental", "michel", "continuity",
-        "michel2", "michel2_full", "michel2_shot"] = "default"
+    three_pass_attribute_prompt_variant: PromptVariant = "default"
     three_pass_presegment_quotes: bool = True
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
@@ -125,6 +128,10 @@ class GenerationConfig(BaseModel):
 class PromptConfig(BaseModel):
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
+    # name of the active attribution preset (a builtin variant name or a
+    # user preset); generation.three_pass_attribute_prompt_variant is derived
+    # from it on save so the CLI keeps working
+    attribution_preset: str = Field(default="default", min_length=1, max_length=80)
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
     persona_system_prompt: Optional[str] = None
@@ -133,11 +140,15 @@ class PromptConfig(BaseModel):
 
 
 class PromptPreset(BaseModel):
-    """A named, user-editable prompt pair with guidance for its use."""
+    """A named, user-editable attribution prompt: which variant (the prompt's
+    shape) plus the texts the variant sends - system prompt, user
+    instruction/template, and for michel2_shot the worked example."""
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(default="", max_length=500)
+    variant: PromptVariant = "default"
     system_prompt: str = Field(default="", max_length=100_000)
     user_prompt: str = Field(default="", max_length=100_000)
+    example: str = Field(default="", max_length=100_000)
     builtin: bool = False
 
 
@@ -250,9 +261,14 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
 
     if "prompt_presets" in config:
         try:
-            config["prompt_presets"] = _get_field_adapter(AppConfig, "prompt_presets").validate_python(
-                config["prompt_presets"]
-            )
+            # validated, then back to plain dicts: every reader of the loaded
+            # config (the Setup GET, the attribution-preset resolver) treats
+            # it as JSON data, and a list of model objects made a saved preset
+            # vanish from GET /api/config (it failed an isinstance(dict) check)
+            config["prompt_presets"] = [
+                preset.model_dump() for preset in
+                _get_field_adapter(AppConfig, "prompt_presets").validate_python(config["prompt_presets"])
+            ]
         except ValidationError:
             warnings.append(ConfigWarning("prompt_presets", "Invalid stored value ignored"))
             logger.warning("Invalid stored config value 'prompt_presets', ignoring it")

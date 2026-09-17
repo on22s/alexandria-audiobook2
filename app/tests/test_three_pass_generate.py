@@ -1255,3 +1255,41 @@ class AttributionContextKnobTests(unittest.TestCase):
         self.assertIn("|n|", system)                       # michel2's own system prompt
         self.assertIn("BEFORE THE PASSAGE", user)          # the surround knob, in the variant's shape
         self.assertIn("Morning came.", user)
+
+    def test_preset_texts_reach_the_run_and_the_fingerprint(self):
+        source = 'Morning came. "Tell me the truth." She waited.'
+        seg = [{"type": "NARRATOR", "text": "Morning came."},
+               {"type": "SPOKEN", "text": "Tell me the truth."},
+               {"type": "NARRATOR", "text": "She waited."}]
+        seen = []
+
+        def create(**kwargs):
+            messages = kwargs["messages"]
+            seen.append((messages[0]["content"], messages[-1]["content"]))
+            if len(seen) == 1:
+                content = json.dumps(seg)
+            elif "MY RULE" in messages[0]["content"]:
+                content = json.dumps([{"n": 0, "speaker": "NARRATOR"}, {"n": 1, "speaker": "ELENA"},
+                                      {"n": 2, "speaker": "NARRATOR"}])
+            else:
+                body = messages[-1]["content"]
+                content = json.dumps([{"n": int(m.group(1)), "head": " ".join(m.group(2).split()[:3]),
+                                       "instruct": "Plain."}
+                                      for m in re.finditer(r'"n": (\d+), "speaker": "[^"]*", "text": "([^"]*)"', body)])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        params = LLMGenParams(max_tokens=500, temperature=0.1, structured_output="off")
+        texts = {"system": "MY RULE: answer NARRATOR for narration.",
+                 "user": "ESTABLISHED ROSTER: {roster}\n\nName the speaker:\n\n{batch}", "example": ""}
+        tp.run_three_pass(client, "m", source, params, chunk_size=6000,
+                          attribute_prompt_variant="default", attribute_prompt_texts=texts)
+        attribute_calls = [(s, u) for s, u in seen if "Name the speaker" in u]
+        self.assertTrue(attribute_calls, "the edited default template was not used")
+        self.assertEqual("MY RULE: answer NARRATOR for narration.", attribute_calls[0][0])
+        base = tp.three_pass_fingerprint("text", "m", 3000, params)
+        self.assertEqual(base, tp.three_pass_fingerprint("text", "m", 3000, params,
+                                                         attribute_prompt_texts=None))
+        self.assertNotEqual(base, tp.three_pass_fingerprint("text", "m", 3000, params,
+                                                            attribute_prompt_texts=texts))

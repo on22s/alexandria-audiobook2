@@ -68,3 +68,67 @@ class KeepUnsentFieldsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AttributionPresetSaveTests(unittest.TestCase):
+    """Saving Setup derives the run's prompt variant from the active preset,
+    keeps a preset the client did not resend, and refuses a broken template."""
+
+    def _save(self, tmp, payload):
+        path = os.path.join(tmp, "config.json")
+        with patch.object(system_module, "CONFIG_PATH", path), \
+             patch.object(system_module.project_manager, "invalidate_config_cache"), \
+             patch.object(system_module.project_manager, "engine", None):
+            asyncio.run(system_module.save_config(AppConfig.model_validate(payload)))
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def _payload(self, **extra):
+        profile = {"base_url": "http://localhost:1234/v1", "api_key": "k", "model_name": "m"}
+        return {"llm": profile, "llm_mode": "local", "llm_local": profile,
+                "tts": {"mode": "local"}, "generation": {}, **extra}
+
+    def test_variant_is_derived_from_the_active_preset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _saved_config(tmp, {})
+            saved = self._save(tmp, self._payload(
+                prompts={"attribution_preset": "mine"},
+                prompt_presets=[{"name": "mine", "variant": "michel2_full",
+                                 "system_prompt": "S", "user_prompt": "U"}]))
+            self.assertEqual("michel2_full", saved["generation"]["three_pass_attribute_prompt_variant"])
+            self.assertEqual("mine", saved["prompts"]["attribution_preset"])
+            # a later save that names a builtin and does not resend presets
+            # keeps the user's preset on disk and derives the builtin's variant
+            saved = self._save(tmp, self._payload(prompts={"attribution_preset": "michel"}))
+            self.assertEqual("michel", saved["generation"]["three_pass_attribute_prompt_variant"])
+            self.assertEqual(["mine"], [p["name"] for p in saved["prompt_presets"]])
+
+    def test_a_default_template_without_placeholders_is_refused(self):
+        from fastapi import HTTPException
+        with tempfile.TemporaryDirectory() as tmp:
+            _saved_config(tmp, {})
+            with self.assertRaises(HTTPException) as ctx:
+                self._save(tmp, self._payload(
+                    prompts={"attribution_preset": "broken"},
+                    prompt_presets=[{"name": "broken", "variant": "default",
+                                     "system_prompt": "S", "user_prompt": "no placeholders"}]))
+            self.assertEqual(400, ctx.exception.status_code)
+            self.assertIn("{batch}", ctx.exception.detail)
+
+    def test_builtins_and_preview(self):
+        builtins = system_module._builtin_prompt_presets()
+        self.assertEqual(9, len(builtins))
+        self.assertTrue(all(b["builtin"] and b["system_prompt"] for b in builtins))
+        preview = asyncio.run(system_module.attribution_preview(
+            system_module.AttributionPreviewRequest(variant="michel2_full", context_chars=1500)))
+        self.assertIn("|n|", preview["system_prompt"])
+        self.assertIn("BEFORE THE PASSAGE", preview["user_message"])
+        self.assertIn('|1|"You\'re late, Tom."|1|', preview["user_message"])
+        self.assertIn("MARA (also: MISS ELLIS)", preview["user_message"])
+        edited = asyncio.run(system_module.attribution_preview(
+            system_module.AttributionPreviewRequest(variant="michel2", user_prompt="MY INSTRUCTION")))
+        self.assertTrue(edited["user_message"].endswith("MY INSTRUCTION"))
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException):
+            asyncio.run(system_module.attribution_preview(
+                system_module.AttributionPreviewRequest(variant="default", user_prompt="no placeholders")))

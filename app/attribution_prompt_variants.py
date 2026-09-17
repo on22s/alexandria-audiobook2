@@ -56,6 +56,7 @@ three-step instruction, and the previous chunk's predictions as context.
 import json
 
 from generate_script import call_llm_for_entries
+from default_prompts import load_attribute_prompts
 from three_pass_generate import build_attribute_request
 
 VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2", "michel2_full", "michel2_shot")
@@ -247,9 +248,156 @@ def passage_text(frozen_batch, neighbor_contexts=None):
     return "\n\n".join(out)
 
 
-def make_provider(variant, alias_groups=None):
+PASSAGE_SHAPED = ("passage", "michel")
+USER_VARIANTS = tuple(v for v in VARIANTS if v != "judge")   # judge is gold labelling, harness only
+
+
+def builtin_texts(variant):
+    """The texts a variant sends, as a user-editable preset would carry them:
+    {"system", "user", "example"}. For `default` the user text is the
+    template with its {roster}/{batch} placeholders; for the passage-shaped
+    variants it is the instruction block the pipeline wraps ROSTER/PASSAGE
+    around; the canonical-request variants (aliases/incremental/continuity)
+    use the default template. `example` is only non-empty for michel2_shot."""
+    system, template = load_attribute_prompts()
+    if variant.startswith("michel2"):
+        return {"system": MICHEL2_SYSTEM, "user": MICHEL2_INSTRUCTION,
+                "example": MICHEL2_EXAMPLE if variant == "michel2_shot" else ""}
+    if variant in PASSAGE_SHAPED:
+        return {"system": system, "user": PASSAGE_INSTRUCTION, "example": ""}
+    return {"system": system, "user": template, "example": ""}
+
+
+VARIANT_DESCRIPTIONS = {
+    "default": "the standard prompt (use this with any trained adapter)",
+    "michel": "lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)",
+    "michel2": "michel plus this project's own rules (e.g. don't default to the main characters)",
+    "michel2_full": "michel2 with extra surrounding text (set \"Step 2: extra text around each request\")",
+    "michel2_shot": "michel2 with a worked example shown first",
+    "continuity": "keeps a running summary of the story so far (one extra request per batch of lines)",
+    "aliases": "default, plus character nicknames listed",
+    "passage": "default, but lines shown as running text",
+    "incremental": "default, plus the previous request's answers",
+}
+
+
+def builtin_presets():
+    """One builtin preset per user-selectable variant, named as RECIPES names
+    it, carrying the texts the variant actually sends."""
+    return [{"name": v, "description": VARIANT_DESCRIPTIONS[v], "variant": v,
+             "system_prompt": builtin_texts(v)["system"],
+             "user_prompt": builtin_texts(v)["user"],
+             "example": builtin_texts(v)["example"], "builtin": True}
+            for v in USER_VARIANTS]
+
+
+def resolve_attribution_preset(config):
+    """-> (variant, texts, preset_name) for the run: the preset named by
+    prompts.attribution_preset among the user's presets, else the builtin of
+    that name, else the builtin for generation.three_pass_attribute_prompt_variant.
+    `texts` is None when the preset is a builtin (send exactly the builtin)."""
+    prompts = config.get("prompts") or {}
+    name = prompts.get("attribution_preset")
+    if not name:
+        # a config from before presets carried the variant (#581) still says
+        # which one it meant through the generation key
+        name = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "default"
+    for preset in config.get("prompt_presets") or []:
+        if isinstance(preset, dict) and preset.get("name") == name and not preset.get("builtin"):
+            variant = preset.get("variant") or "default"
+            if variant not in USER_VARIANTS:
+                raise ValueError(f"preset {name!r} names unknown variant {variant!r}")
+            return variant, {"system": preset.get("system_prompt") or "",
+                             "user": preset.get("user_prompt") or "",
+                             "example": preset.get("example") or ""}, name
+    if name in USER_VARIANTS:
+        return name, None, name
+    variant = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "default"
+    return variant, None, variant
+
+
+def validate_preset_texts(variant, texts):
+    """-> an error message, or None. The default shape's user text is a
+    template the pipeline fills; without both placeholders the model would
+    never see the roster or the entries."""
+    if variant == "default" or variant in ("aliases", "incremental", "continuity"):
+        user = (texts or {}).get("user") or ""
+        if user.strip() and ("{roster}" not in user or "{batch}" not in user):
+            return ("For the default-shaped prompts the user text is a template and must keep "
+                    "the {roster} and {batch} placeholders - that is where the pipeline puts "
+                    "the character list and the entries.")
+    return None
+
+
+def _texts_for(variant, texts):
+    base = builtin_texts(variant)
+    for key, value in (texts or {}).items():
+        if key in base and isinstance(value, str) and value.strip():
+            base[key] = value
+    return base
+
+
+def build_variant_request(variant, frozen_batch, params, roster, alias_groups=None,
+                          neighbor_contexts=None, surround=None, memory=None, texts=None):
+    """-> (system_prompt, user_body) for one window under `variant`, with the
+    preset `texts` ({"system", "user", "example"}; None = the variant's
+    builtin) in place. Pure: this is what the provider sends and what the
+    Setup preview shows, one implementation."""
+    from dataclasses import replace
+    roster = list(roster or [])
+    memory = memory or {"previous": [], "summary": "", "tail": []}
+    t = _texts_for(variant, texts)
+    michel2_family = variant.startswith("michel2")
+    if variant in ("aliases", "michel") or michel2_family:
+        roster_str = roster_line(roster, alias_groups)
+    else:
+        roster_str = ", ".join(roster) or "(none yet)"
+    sys_prompt = t["system"]
+    if michel2_family:
+        tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
+        if variant == "michel2_full":
+            if not surround:
+                raise ValueError("michel2_full needs the caller to pass surround=")
+            passage = surround_passage(surround, frozen_batch, neighbor_contexts)
+        else:
+            # the surrounding-text knob applies to every variant; in the
+            # product, michel2 with it on is michel2_full
+            passage = _wrap_passage(passage_text(frozen_batch, neighbor_contexts), surround or {})
+        body = ((t["example"] if variant == "michel2_shot" and t["example"] else "")
+                + f"ROSTER: {roster_str}\n\n"
+                + (f"HOW THE PREVIOUS PASSAGE ENDED (speakers already decided; evidence "
+                   f"only, never attribute these):\n{tail}\n\n" if tail else "")
+                + f"{passage}\n\n{t['user']}")
+    elif variant in PASSAGE_SHAPED:
+        body = (f"{t['user']}\n\nROSTER: {roster_str}\n\n"
+                + _wrap_passage(passage_text(frozen_batch, neighbor_contexts), surround or {}))
+    else:
+        # canonical request, with the preset's texts standing in for the file's
+        canon_params = replace(params, attribute_system_prompt=t["system"],
+                               user_prompt_template=t["user"])
+        sys_prompt, canonical = build_attribute_request(
+            frozen_batch, canon_params, roster, neighbor_contexts, surround)
+        body = canonical.replace(f"ESTABLISHED ROSTER: {', '.join(roster) or '(none yet)'}",
+                                 f"ESTABLISHED ROSTER: {roster_str}")
+    if variant in ("incremental", "michel") and memory["previous"]:
+        prev = "; ".join(f"{i}: {s}" for i, s in memory["previous"])
+        body = ("Speakers already decided for the lines immediately before this passage "
+                f"(most recent last): {prev}\n\n") + body
+    if variant == "judge":
+        body = body + JUDGE_INSTRUCTION
+    if variant == "continuity" and (memory["summary"] or memory["tail"]):
+        tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
+        body = ("STORY SO FAR (for identity and continuity only; never attribute "
+                f"lines from it):\n{memory['summary'] or '(none)'}\n\n"
+                f"LAST LINES OF THE PREVIOUS PASSAGE, with their speakers:\n{tail or '(none)'}"
+                "\n\n") + body
+    return sys_prompt, body
+
+
+def make_provider(variant, alias_groups=None, texts=None):
     """-> an entries_provider for attribute_batch; keeps per-run memory for
-    the incremental variant."""
+    the incremental/continuity/michel2 variants. `texts` is the active
+    preset's {"system", "user", "example"}; None sends the builtin."""
     if variant not in VARIANTS:
         raise ValueError(f"unknown prompt variant {variant!r}; expected one of {VARIANTS}")
     memory = {"previous": [], "summary": "", "tail": []}
@@ -257,47 +405,10 @@ def make_provider(variant, alias_groups=None):
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, surround=None, **_ignored):
-        roster = list(roster or [])
         michel2_family = variant.startswith("michel2")
-        if variant in ("aliases", "michel") or michel2_family:
-            roster_str = roster_line(roster, alias_groups)
-        else:
-            roster_str = ", ".join(roster) or "(none yet)"
-        if michel2_family:
-            sys_prompt = MICHEL2_SYSTEM
-            tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
-            if variant == "michel2_full":
-                if not surround:
-                    raise ValueError("michel2_full needs the caller to pass surround=")
-                passage = surround_passage(surround, frozen_batch, neighbor_contexts)
-            else:
-                # the surrounding-text knob applies to every variant; in the
-                # product, michel2 with it on is michel2_full
-                passage = _wrap_passage(passage_text(frozen_batch, neighbor_contexts), surround or {})
-            body = ((MICHEL2_EXAMPLE if variant == "michel2_shot" else "")
-                    + f"ROSTER: {roster_str}\n\n"
-                    + (f"HOW THE PREVIOUS PASSAGE ENDED (speakers already decided; evidence "
-                       f"only, never attribute these):\n{tail}\n\n" if tail else "")
-                    + f"{passage}\n\n{MICHEL2_INSTRUCTION}")
-        elif variant in ("passage", "michel"):
-            body = (f"{PASSAGE_INSTRUCTION}\n\nROSTER: {roster_str}\n\n"
-                    + _wrap_passage(passage_text(frozen_batch, neighbor_contexts), surround or {}))
-        else:
-            _, canonical = build_attribute_request(frozen_batch, params, roster, neighbor_contexts, surround)
-            body = canonical.replace(f"ESTABLISHED ROSTER: {', '.join(roster) or '(none yet)'}",
-                                     f"ESTABLISHED ROSTER: {roster_str}")
-        if variant in ("incremental", "michel") and memory["previous"]:
-            prev = "; ".join(f"{i}: {s}" for i, s in memory["previous"])
-            body = ("Speakers already decided for the lines immediately before this passage "
-                    f"(most recent last): {prev}\n\n") + body
-        if variant == "judge":
-            body = body + JUDGE_INSTRUCTION
-        if variant == "continuity" and (memory["summary"] or memory["tail"]):
-            tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
-            body = ("STORY SO FAR (for identity and continuity only; never attribute "
-                    f"lines from it):\n{memory['summary'] or '(none)'}\n\n"
-                    f"LAST LINES OF THE PREVIOUS PASSAGE, with their speakers:\n{tail or '(none)'}"
-                    "\n\n") + body
+        sys_prompt, body = build_variant_request(
+            variant, frozen_batch, params, roster, alias_groups, neighbor_contexts,
+            surround, memory, texts)
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validate_entries,
