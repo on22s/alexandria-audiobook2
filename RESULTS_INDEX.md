@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1644 artifacts, 1843 arms.
+Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1645 artifacts, 1845 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -984,6 +984,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 1301.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 1320.8s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 4835.2s |
+| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 68.2% | supported_measurement | ok | False | 3319.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5573.5s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5180.3s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5428.7s |
@@ -1001,6 +1002,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 54.5% | exploratory | ok | False | 1301.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 58.0% | exploratory | ok | False | 1320.8s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 70.5% | historical_only | ok | False | 4835.2s |
+| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 71.6% | supported_measurement | ok | False | 3319.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | historical_only | ok | False | 5573.5s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | historical_only | ok | False | 5180.3s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 65.9% | historical_only | ok | False | 5428.7s |
