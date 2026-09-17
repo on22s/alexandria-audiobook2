@@ -214,6 +214,10 @@ def main():
     ap.add_argument("--prompt-variant", default="default",
                     help="attribution_prompt_variants.VARIANTS: how the question is asked; "
                          "the output contract and gates are unchanged")
+    ap.add_argument("--temperature", type=float, default=0.0,
+                    help="attribution sampling temperature; 0 is the product's (deterministic). "
+                         "Qwen3.5/3.6 thinking mode documents greedy decoding as degrading "
+                         "and looping, so those arms pass the model card's value")
     ap.add_argument("--api-key-env", default=None,
                     help="environment variable holding the API key for a hosted endpoint")
     ap.add_argument("--provider-extra-body", default=None,
@@ -253,7 +257,7 @@ def main():
     if args.max_tokens < 1:
         ap.error("--max-tokens must be at least 1")
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
-                          temperature=0.0, attribute_temperature=0.0,
+                          temperature=args.temperature, attribute_temperature=args.temperature,
                           top_p=0.8,
                           reasoning_effort=args.reasoning_effort,
                           structured_output=args.structured_output)
@@ -266,6 +270,7 @@ def main():
                                    "arm": args.cut_arm}
     decoding["prompt_variant"] = args.prompt_variant
     decoding["roster_mode"] = args.roster_mode
+    decoding["temperature"] = args.temperature
     decoding["provider_extra_body"] = args.provider_extra_body
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
