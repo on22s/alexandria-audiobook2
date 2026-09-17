@@ -827,17 +827,17 @@
                                     <div class="col-md-8">
                                         <label class="form-label small mb-1" for="tp-attribute-prompt-variant">Step 2: how the AI is asked who speaks</label>
                                         <select class="form-select form-select-sm" id="tp-attribute-prompt-variant">
-                                            <option value="default" selected>Default - the standard prompt (use this with any trained adapter)</option>
-                                            <option value="michel">Michel - lines shown as running text with nicknames listed and the previous request's answers (from a 2025 research paper)</option>
-                                            <option value="michel2">Michel 2 - Michel plus this project's own rules (e.g. don't default to the main characters)</option>
-                                            <option value="michel2_full">Michel 2 with extra surrounding text (set the field above)</option>
-                                            <option value="michel2_shot">Michel 2 with a worked example shown first</option>
-                                            <option value="continuity">Continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
-                                            <option value="aliases">Default, plus character nicknames listed</option>
-                                            <option value="passage">Default, but lines shown as running text</option>
-                                            <option value="incremental">Default, plus the previous request's answers</option>
+                                            <option value="default" selected>default - the standard prompt (use this with any trained adapter)</option>
+                                            <option value="michel">michel - lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)</option>
+                                            <option value="michel2">michel2 - michel plus this project's own rules (e.g. don't default to the main characters)</option>
+                                            <option value="michel2_full">michel2_full - michel2 with extra surrounding text (set the field above)</option>
+                                            <option value="michel2_shot">michel2_shot - michel2 with a worked example shown first</option>
+                                            <option value="continuity">continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
+                                            <option value="aliases">aliases - default, plus character nicknames listed</option>
+                                            <option value="passage">passage - default, but lines shown as running text</option>
+                                            <option value="incremental">incremental - default, plus the previous request's answers</option>
                                         </select>
-                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt". If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
+                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt", listed by the name at the start of each option. If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
