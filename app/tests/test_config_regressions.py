@@ -418,3 +418,24 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual("preserved", config["custom"])
             self.assertEqual([], config["config_warnings"])
             self.assertFalse(config["config_needs_backup"])
+
+
+class ThreePassKnobBoundsTests(unittest.TestCase):
+    def test_chunk_size_cap_and_the_pass2_knobs(self):
+        import config_settings as cs
+        self.assertEqual(30000, cs.GenerationConfig(three_pass_chunk_size=30000).three_pass_chunk_size)
+        with self.assertRaises(Exception):
+            cs.GenerationConfig(three_pass_chunk_size=30001)
+        g = cs.GenerationConfig()
+        self.assertEqual((25, 0), (g.three_pass_attribute_batch_size, g.three_pass_attribute_context_chars))
+        self.assertEqual(100, cs.GenerationConfig(three_pass_attribute_batch_size=100).three_pass_attribute_batch_size)
+        for bad in ({"three_pass_attribute_batch_size": 4}, {"three_pass_attribute_batch_size": 101},
+                    {"three_pass_attribute_context_chars": -1}, {"three_pass_attribute_context_chars": 20001}):
+            with self.assertRaises(Exception):
+                cs.GenerationConfig(**bad)
+        self.assertEqual(30000, cs.ThreePassModelProfile(chunk_size=30000).chunk_size)
+        self.assertEqual("default", g.three_pass_attribute_prompt_variant)
+        self.assertEqual("michel2", cs.GenerationConfig(three_pass_attribute_prompt_variant="michel2").three_pass_attribute_prompt_variant)
+        with self.assertRaises(Exception):
+            cs.GenerationConfig(three_pass_attribute_prompt_variant="judge")   # gold-labelling only
+

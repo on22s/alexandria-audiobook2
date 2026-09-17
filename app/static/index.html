@@ -762,11 +762,6 @@
                             <h6 class="mb-3">Generation Settings</h6>
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Chunk Size (characters)</label>
-                                    <input type="number" class="form-control" id="chunk-size" value="3000" min="500">
-                                    <div class="form-text">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
-                                </div>
-                                <div class="col-md-6">
                                     <label class="form-label">Baseline Response Tokens</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
                                     <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling.</div>
@@ -810,12 +805,39 @@
                                 <label class="form-check-label" for="merge-narrators">Merge consecutive narrator lines</label>
                                 <div class="form-text">During script review, combine adjacent NARRATOR entries that share the same instruct into a single longer entry. Disable for better per-line voice direction control.</div>
                             </div>
-                            <details class="mb-3">
-                                <summary class="text-muted small">Three-pass generation &amp; context rescue</summary>
+                            <details class="mb-3" open>
+                                <summary class="text-muted small">Script generation: how much of the book the AI reads at once</summary>
+                                <div class="form-text mb-2">Turning a book into a script happens in three steps, for one book or a batch alike: <strong>1</strong> split the text into narration and spoken lines, <strong>2</strong> decide who says each line, <strong>3</strong> write a delivery note for each line. The settings below control how much text the AI sees in steps 1 and 2. The defaults are what this project's published accuracy numbers were measured with; change them to trade speed for context.</div>
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
-                                        <label class="form-label small mb-1" for="tp-chunk-size">Three-pass chunk size (chars)</label>
-                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="12000" step="100" value="3000">
+                                        <label class="form-label small mb-1" for="tp-chunk-size">Step 1: text per request (characters)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="30000" step="100" value="3000">
+                                        <div class="form-text">How much of the book is sent per request when splitting it into lines. Bigger pieces mean fewer requests, but the AI has to write every word back, so its reply grows with the piece, and if one word comes back wrong the whole piece is redone. If a piece is too big for the model to write back in one reply, generation stops before it starts and tells you a size that fits.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-batch-size">Step 2: lines per request</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-batch-size" min="5" max="100" step="1" value="25">
+                                        <div class="form-text">How many lines (narration and dialogue) the AI looks at together when deciding who speaks. More lines per request means more of the scene in view but longer replies; 25 is the tested default.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-context-chars">Step 2: extra text around each request (characters, each side)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="0">
+                                        <div class="form-text">Also show the AI this much of the book before and after the lines it is deciding on, for context only (it is told not to assign speakers to it). 0 = off. Every 1,000 characters adds roughly 300 tokens to each request, so it costs time (and money on paid APIs). Whether it improves accuracy is being measured; see RECIPES.md.</div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small mb-1" for="tp-attribute-prompt-variant">Step 2: how the AI is asked who speaks</label>
+                                        <select class="form-select form-select-sm" id="tp-attribute-prompt-variant">
+                                            <option value="default" selected>Default - the standard prompt (use this with any trained adapter)</option>
+                                            <option value="michel">Michel - lines shown as running text with nicknames listed and the previous request's answers (from a 2025 research paper)</option>
+                                            <option value="michel2">Michel 2 - Michel plus this project's own rules (e.g. don't default to the main characters)</option>
+                                            <option value="michel2_full">Michel 2 with extra surrounding text (set the field above)</option>
+                                            <option value="michel2_shot">Michel 2 with a worked example shown first</option>
+                                            <option value="continuity">Continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
+                                            <option value="aliases">Default, plus character nicknames listed</option>
+                                            <option value="passage">Default, but lines shown as running text</option>
+                                            <option value="incremental">Default, plus the previous request's answers</option>
+                                        </select>
+                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt". If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>

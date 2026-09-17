@@ -348,7 +348,11 @@ class FrontendTests(unittest.TestCase):
             "sub-batch-max-items": (config_settings.TTSConfig, "sub_batch_max_items"),
             "pause-between-speakers": (config_settings.TTSConfig, "pause_between_speakers_ms"),
             "pause-same-speaker": (config_settings.TTSConfig, "pause_same_speaker_ms"),
-            "chunk-size": (config_settings.GenerationConfig, "chunk_size"),
+            # generation.chunk_size has no control: it drives only the legacy
+            # generate_script.py CLI, and the UI runs three-pass everywhere.
+            "tp-chunk-size": (config_settings.GenerationConfig, "three_pass_chunk_size"),
+            "tp-attribute-batch-size": (config_settings.GenerationConfig, "three_pass_attribute_batch_size"),
+            "tp-attribute-context-chars": (config_settings.GenerationConfig, "three_pass_attribute_context_chars"),
             "max-tokens": (config_settings.GenerationConfig, "max_tokens"),
             "temperature": (config_settings.GenerationConfig, "temperature"),
             "top-p": (config_settings.GenerationConfig, "top_p"),
@@ -380,6 +384,8 @@ class FrontendTests(unittest.TestCase):
         }
         app_mode = config_settings.AppConfig.model_json_schema()["properties"]["llm_mode"]
         tts_mode = config_settings.TTSConfig.model_json_schema()["properties"]["mode"]
+        variant = config_settings.GenerationConfig.model_json_schema()["properties"]["three_pass_attribute_prompt_variant"]
+        self.assertEqual(set(variant["enum"]), selects["tp-attribute-prompt-variant"])
         self.assertEqual(set(app_mode["enum"]), selects["llm-mode"])
         self.assertEqual(set(tts_mode["enum"]), selects["tts-mode"])
         self.assertIn(app_mode["default"], selects["llm-mode"])
