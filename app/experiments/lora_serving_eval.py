@@ -149,6 +149,10 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
         # so the gate is switched off for these books: a wrong name simply
         # scores wrong. Recorded in the artifact's environment notes.
         src = None
+    occ = collections.Counter(norm(e.get("text")) for e in seg)
+    want = {norm(g["line"]): g for g in gold["entries"]
+            if occ[norm(g["line"])] == 1
+            and g["expected_speaker"].upper() not in SPECIAL}
     return gold, src, seg, roster, want
 
 
