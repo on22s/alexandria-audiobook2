@@ -444,7 +444,7 @@ class ExperimentRecord:
 
     def add(self, arm, gold_id, line, expected, predicted, correct,
             candidates=None, provenance=None, prompt=None, raw=None,
-            retries=None, prompt_sha256=None):
+            retries=None, prompt_sha256=None, reasoning=None):
         """One scored line. Prompts are hashed; raw responses kept verbatim."""
         self.rows.append({
             "arm": arm,
@@ -477,6 +477,9 @@ class ExperimentRecord:
             "prompt_chars": len(prompt) if prompt is not None else None,
             "raw_response": raw,
             "retries": retries,
+            # The window's reasoning trace, when captured (--keep-traces): the
+            # same trace is stored on every row of that window.
+            "reasoning": reasoning,
         })
         if getattr(self, "_ckpt_path", None):
             self._ckpt_done.add((arm, gold_id))

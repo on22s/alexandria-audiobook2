@@ -218,6 +218,9 @@ def main():
                     help="attribution sampling temperature; 0 is the product's (deterministic). "
                          "Qwen3.5/3.6 thinking mode documents greedy decoding as degrading "
                          "and looping, so those arms pass the model card's value")
+    ap.add_argument("--keep-traces", action="store_true",
+                    help="store each window's reasoning trace (message.reasoning_content) "
+                         "on its rows, to compare how base and adapter reason")
     ap.add_argument("--api-key-env", default=None,
                     help="environment variable holding the API key for a hosted endpoint")
     ap.add_argument("--provider-extra-body", default=None,
@@ -271,6 +274,7 @@ def main():
     decoding["prompt_variant"] = args.prompt_variant
     decoding["roster_mode"] = args.roster_mode
     decoding["temperature"] = args.temperature
+    decoding["keep_traces"] = args.keep_traces
     decoding["provider_extra_body"] = args.provider_extra_body
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
@@ -334,11 +338,15 @@ def main():
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
                 why = f"{arm}|scale={scale}"
+                traces = []
+                observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
+                            if args.keep_traces else None)
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
                                           shown_roster, neighbor_contexts=ctx,
                                           source_text=src,
-                                          entries_provider=provider)
+                                          entries_provider=provider,
+                                          attempt_observer=observer)
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.
@@ -376,7 +384,9 @@ def main():
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown; see distill_eval.
                                candidates=membership,
-                               provenance=why)
+                               provenance=why,
+                               reasoning=(next((t for t in reversed(traces) if t), None)
+                                          if args.keep_traces else None))
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
             arm_rows = [r for r in record.rows

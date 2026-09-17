@@ -952,6 +952,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
                     "reasoning_tokens": reasoning_tokens,
+                    # The trace itself, when the server returns one: what the
+                    # model reasoned, not only how much. A harness can keep it
+                    # per row to compare base and adapter reasoning.
+                    "reasoning_content": getattr(choice.message, "reasoning_content", None) or None,
                     "error": None,
                     "response_fingerprint": response_fingerprint,
                     "response_repeat_count": repeat_count,
