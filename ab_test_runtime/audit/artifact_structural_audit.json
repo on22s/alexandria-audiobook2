@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 994,
     "exploratory": 414,
-    "provisional": 235,
+    "provisional": 236,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -13089,6 +13089,24 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "30d09501b18ad17d88d824a1dae5758be4db5d9e",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-grimgar03-20260917.json",
+      "bytes": 635854,
+      "sha256": "e88e4380f01bcebe8dd53ccfa00e1409591f9b0be8e7adeeeddd8d13e1ad95fa",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 770,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "979ecd4240fcb0a70e67348522d7ae2fd61b5b20",
       "written": null,
       "dirty": false,
       "classification": "provisional",

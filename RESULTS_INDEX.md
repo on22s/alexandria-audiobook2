@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1643 artifacts, 1841 arms.
+Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1644 artifacts, 1843 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -870,6 +870,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 53.8% | exploratory | ok | False | 1301.1s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 53.8% | exploratory | ok | False | 1320.8s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 4835.2s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 70.4% | supported_measurement | ok | False | 5260.4s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5573.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5180.3s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5428.7s |
@@ -894,6 +895,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 68.3% | exploratory | ok | False | 1301.1s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 68.8% | exploratory | ok | False | 1320.8s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 83.9% | historical_only | ok | False | 4835.2s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 83.1% | supported_measurement | ok | False | 5260.4s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 79.0% | historical_only | ok | False | 5573.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 79.0% | historical_only | ok | False | 5180.3s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 82.1% | historical_only | ok | False | 5428.7s |
