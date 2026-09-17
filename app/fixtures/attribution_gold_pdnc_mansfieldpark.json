@@ -10377,5 +10377,46 @@
  ],
  "skipped": {
   "pseudo speaker": 16
+ },
+ "roster_additions": {
+  "names": [
+   "ADMIRAL CRAWFORD",
+   "BADDELEY",
+   "BERTRAM",
+   "BETSEY PRICE",
+   "COUNT CASSEL",
+   "DR. GRANT",
+   "EDMUND",
+   "FANNY PRICE",
+   "HENRY CRAWFORD",
+   "JULIA BERTRAM",
+   "LADY BERTRAM",
+   "MARIA BERTRAM",
+   "MARY CRAWFORD",
+   "MISS BERTRAM",
+   "MR. CRAWFORD",
+   "MR. NORRIS",
+   "MR. PRICE",
+   "MR. RUSHWORTH",
+   "MR. YATES",
+   "MRS. FRASER",
+   "MRS. GRANT",
+   "MRS. NORRIS",
+   "MRS. PRICE",
+   "MRS. RUSHWORTH",
+   "NORRIS",
+   "REBECCA",
+   "SAM PRICE",
+   "SHAKESPEARE",
+   "SIR THOMAS",
+   "SUSAN PRICE",
+   "THE OLD COACHMAN",
+   "THE THRUSH",
+   "TOM BERTRAM",
+   "VOWS",
+   "WILLIAM PRICE"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
  }
 }

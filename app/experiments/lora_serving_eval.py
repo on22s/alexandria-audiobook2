@@ -241,6 +241,8 @@ def main():
                          "/lora-adapters state")
     ap.add_argument("--batch-size", type=int, default=BATCH,
                     help="segmented entries per attribution request")
+    ap.add_argument("--window-limit", type=int, default=0,
+                    help="score at most this many evenly spaced windows per book (0 = all)")
     ap.add_argument("--surround-chars", type=int, default=2000,
                     help="characters of segmented text before and after the window "
                          "handed to prompt variants that show the whole passage")
@@ -311,6 +313,7 @@ def main():
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
     decoding["prompt_variant"] = args.prompt_variant
+    decoding["window_limit"] = args.window_limit
     decoding["roster_mode"] = args.roster_mode
     decoding["temperature"] = args.temperature
     decoding["keep_traces"] = args.keep_traces
@@ -340,6 +343,12 @@ def main():
                                cuts.get(book, {}).get(args.cut_arm, ()))
         windows = [w for w in windows
                    if any(norm(seg[i].get("text")) in want for i in w)]
+        if args.window_limit and len(windows) > args.window_limit:
+            # breadth over depth: the same number of windows from every book,
+            # evenly spaced through it, so a nine-novel fixture costs what a
+            # four-novel one does and no single long book dominates
+            step = len(windows) / args.window_limit
+            windows = [windows[int(k * step)] for k in range(args.window_limit)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "
               f"{len(windows)} windows", flush=True)
         for arm, scale in get_eval_arms(args.base_only):

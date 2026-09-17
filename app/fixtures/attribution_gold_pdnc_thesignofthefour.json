@@ -5870,5 +5870,46 @@
   "WIGGINS",
   "WOODEN-LEGGED MAN"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "A HIGH PIPING VOICE",
+   "A HINDOO SERVANT",
+   "A SMALL, DARK, BRISK MAN",
+   "A WEARY-LOOKING POLICE SERGEANT",
+   "ABDULLAH KHAN",
+   "ACHMET",
+   "BARTHOLOMEW SHOLTO",
+   "CAPTAIN MORSTAN",
+   "DOST AKBAR",
+   "DR. WATSON",
+   "INSPECTOR IN UNIFORM",
+   "JACK",
+   "LAL RAO",
+   "MAHOMET SINGH",
+   "MAJOR JOHN SHOLTO",
+   "MAJOR SHOLTO",
+   "MCMURDO",
+   "MISS MORSTAN",
+   "MORDECAI SMITH",
+   "MR. ATHELNEY JONES",
+   "MR. SHERLOCK HOLMES",
+   "MR. SHERMAN",
+   "MRS. BERNSTONE",
+   "MRS. CECIL FORRESTER",
+   "MRS. FORRESTER",
+   "MRS. HUDSON",
+   "MRS. SMITH",
+   "SAHIB",
+   "SMALL",
+   "THAT INSPECTOR IN THE CAB",
+   "THE AURORA",
+   "TOBY",
+   "TONGA",
+   "WIGGINS",
+   "WOODEN-LEGGED MAN"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }

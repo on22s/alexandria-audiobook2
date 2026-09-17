@@ -7651,5 +7651,29 @@
   "MRS. THORPE",
   "SARAH"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "CATHERINE MORLAND",
+   "ELEANOR TILNEY",
+   "FREDERICK TILNEY",
+   "GENERAL TILNEY",
+   "HENRY TILNEY",
+   "ISABELLA THORPE",
+   "JAMES MORLAND",
+   "JOHN THORPE",
+   "MARIA THORPE",
+   "MISS ANNE",
+   "MR. ALLEN",
+   "MR. MORLAND",
+   "MR. THORPE",
+   "MRS. ALLEN",
+   "MRS. HUGHES",
+   "MRS. MORLAND",
+   "MRS. THORPE",
+   "SARAH"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }

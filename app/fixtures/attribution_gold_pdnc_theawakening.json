@@ -5332,5 +5332,31 @@
   "VALMONDE",
   "VICTOR LEBRUN"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "A MAID",
+   "ALCEE AROBIN",
+   "DOCTOR MANDELET",
+   "EDNA PONTELLIER",
+   "HIGHCAMP",
+   "JOSEPHINE",
+   "LEONCE PONTELLIER",
+   "MADAME LEBRUN",
+   "MADAME RATIGNOLLE",
+   "MADEMOISELLE REISZ",
+   "MARIEQUITA",
+   "MISS MAYBLUNT",
+   "MONSIEUR FARIVAL",
+   "MR. MERRIMAN",
+   "MRS. HIGHCAMP",
+   "MRS. MERRIMAN",
+   "ROBERT LEBRUN",
+   "THE COLONEL",
+   "VALMONDE",
+   "VICTOR LEBRUN"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }

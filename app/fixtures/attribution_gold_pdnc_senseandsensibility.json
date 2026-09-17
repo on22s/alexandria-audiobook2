@@ -9859,5 +9859,33 @@
   "MRS. JENNINGS",
   "ROBERT FERRARS"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "ANNE STEELE",
+   "CHARLOTTE",
+   "COLONEL BRANDON",
+   "EDWARD FERRARS",
+   "ELINOR",
+   "ELIZA WILLIAMS",
+   "FANNY",
+   "FOOTMAN",
+   "HARRY",
+   "JOHN DASHWOOD",
+   "JOHN MIDDLETON",
+   "LADY MIDDLETON",
+   "LUCY STEELE",
+   "MARGARET",
+   "MARIANNE",
+   "MR. PALMER",
+   "MR. PRATT",
+   "MR. WILLOUGHBY",
+   "MRS. DASHWOOD",
+   "MRS. FERRARS",
+   "MRS. JENNINGS",
+   "ROBERT FERRARS"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }

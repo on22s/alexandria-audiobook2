@@ -4505,5 +4505,44 @@
   "THE WAITER",
   "WILLIAM WALTER ELLIOT"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "ADMIRAL BALDWIN",
+   "ADMIRAL CROFT",
+   "ANNE ELLIOT",
+   "CAPTAIN BENWICK",
+   "CAPTAIN HARVILLE",
+   "CAPTAIN WENTWORTH",
+   "CHARLES HAYTER",
+   "CHARLES MUSGROVE",
+   "COLONEL WALLIS",
+   "ELIZABETH",
+   "HENRIETTA MUSGROVE",
+   "KELLYNCH HALL",
+   "LADY DALRYMPLE",
+   "LADY RUSSELL",
+   "LITTLE CHARLES",
+   "LITTLE WALTER",
+   "LOUISA MUSGROVE",
+   "MARY MUSGROVE",
+   "MISS ELLIOT",
+   "MR SHEPHERD",
+   "MR. MUSGROVE",
+   "MRS CLAY",
+   "MRS HARVILLE",
+   "MRS MUSGROVE",
+   "MRS SMITH",
+   "MRS WALLIS",
+   "MRS. HARVILLE",
+   "POOR RICHARD",
+   "SIR WALTER ELLIOT",
+   "SOPHIA CROFT",
+   "THE INN KEEPER",
+   "THE WAITER",
+   "WILLIAM WALTER ELLIOT"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }
