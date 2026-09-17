@@ -1010,6 +1010,20 @@
             "title": "Temperature",
             "type": "number"
           },
+          "three_pass_attribute_batch_size": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 5.0,
+            "title": "Three Pass Attribute Batch Size",
+            "type": "integer"
+          },
+          "three_pass_attribute_context_chars": {
+            "default": 0,
+            "maximum": 20000.0,
+            "minimum": 0.0,
+            "title": "Three Pass Attribute Context Chars",
+            "type": "integer"
+          },
           "three_pass_attribute_temperature": {
             "default": 0.1,
             "maximum": 2.0,
@@ -1019,7 +1033,7 @@
           },
           "three_pass_chunk_size": {
             "default": 3000,
-            "maximum": 12000.0,
+            "maximum": 30000.0,
             "minimum": 500.0,
             "title": "Three Pass Chunk Size",
             "type": "integer"
@@ -2140,7 +2154,7 @@
           "chunk_size": {
             "anyOf": [
               {
-                "maximum": 12000.0,
+                "maximum": 30000.0,
                 "minimum": 500.0,
                 "type": "integer"
               },
@@ -4448,7 +4462,7 @@
     },
     "/api/generate_script/batch/start": {
       "post": {
-        "description": "Process multiple text/EPUB files sequentially through generate_script.py.",
+        "description": "Process multiple text/EPUB files through three_pass_generate.py - the\nsame command single-book generation runs (build_generate_script_command).",
         "operationId": "generate_script_batch_start_api_generate_script_batch_start_post",
         "requestBody": {
           "content": {

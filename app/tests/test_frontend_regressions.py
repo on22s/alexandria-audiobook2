@@ -348,7 +348,11 @@ class FrontendTests(unittest.TestCase):
             "sub-batch-max-items": (config_settings.TTSConfig, "sub_batch_max_items"),
             "pause-between-speakers": (config_settings.TTSConfig, "pause_between_speakers_ms"),
             "pause-same-speaker": (config_settings.TTSConfig, "pause_same_speaker_ms"),
-            "chunk-size": (config_settings.GenerationConfig, "chunk_size"),
+            # generation.chunk_size has no control: it drives only the legacy
+            # generate_script.py CLI, and the UI runs three-pass everywhere.
+            "tp-chunk-size": (config_settings.GenerationConfig, "three_pass_chunk_size"),
+            "tp-attribute-batch-size": (config_settings.GenerationConfig, "three_pass_attribute_batch_size"),
+            "tp-attribute-context-chars": (config_settings.GenerationConfig, "three_pass_attribute_context_chars"),
             "max-tokens": (config_settings.GenerationConfig, "max_tokens"),
             "temperature": (config_settings.GenerationConfig, "temperature"),
             "top-p": (config_settings.GenerationConfig, "top_p"),

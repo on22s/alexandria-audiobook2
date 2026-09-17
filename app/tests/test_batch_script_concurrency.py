@@ -199,3 +199,46 @@ class ResolveBatchOutputPathTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutputCeilingRefusalTests(unittest.TestCase):
+    """A pass-1 chunk the model can never re-emit within its output ceiling is
+    refused before the run starts, for single and batch alike, with the chunk
+    size that would fit; a chunk that fits is not."""
+
+    def _refusal(self, chunk_size, words=12000):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text(" ".join(["word"] * words), encoding="utf-8")
+            jobs = [{"filename": "book.txt", "input_path": str(path)}]
+            with patch.object(script, "load_app_config", return_value={
+                    "llm": {"model_name": "model"},
+                    "generation": {"three_pass_chunk_size": chunk_size, "max_tokens": 4096},
+                    "prompts": {}}):
+                return script.output_ceiling_refusal(jobs)
+
+    def test_too_large_a_chunk_is_refused_with_a_suggested_size(self):
+        message = self._refusal(30000)
+        self.assertIsNotNone(message)
+        self.assertIn("30000", message)
+        self.assertIn("16384", message)
+        self.assertRegex(message, r"chunk size to \d+ or below")
+
+    def test_a_chunk_that_fits_is_not_refused(self):
+        self.assertIsNone(self._refusal(3000))
+
+    def test_single_book_start_refuses_before_claiming_the_gpu(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text(" ".join(["word"] * 12000), encoding="utf-8")
+            with patch.object(script, "load_app_config", return_value={
+                    "llm": {"model_name": "model"},
+                    "generation": {"three_pass_chunk_size": 30000, "max_tokens": 4096},
+                    "prompts": {}}), \
+                 patch.object(script, "check_global_gpu_lock"), \
+                 patch.object(script, "claim_gpu_task") as claim:
+                with self.assertRaises(script.HTTPException) as ctx:
+                    script.start_script_generation(None, str(path), None)
+        self.assertEqual(400, ctx.exception.status_code)
+        self.assertIn("output ceiling", ctx.exception.detail)
+        claim.assert_not_called()

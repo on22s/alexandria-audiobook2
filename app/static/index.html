@@ -762,11 +762,6 @@
                             <h6 class="mb-3">Generation Settings</h6>
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Chunk Size (characters)</label>
-                                    <input type="number" class="form-control" id="chunk-size" value="3000" min="500">
-                                    <div class="form-text">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
-                                </div>
-                                <div class="col-md-6">
                                     <label class="form-label">Baseline Response Tokens</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
                                     <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling.</div>
@@ -810,12 +805,24 @@
                                 <label class="form-check-label" for="merge-narrators">Merge consecutive narrator lines</label>
                                 <div class="form-text">During script review, combine adjacent NARRATOR entries that share the same instruct into a single longer entry. Disable for better per-line voice direction control.</div>
                             </div>
-                            <details class="mb-3">
-                                <summary class="text-muted small">Three-pass generation &amp; context rescue</summary>
+                            <details class="mb-3" open>
+                                <summary class="text-muted small">Script generation (three-pass) &amp; context rescue</summary>
+                                <div class="form-text mb-2">Single-book and batch generation both run the three-pass pipeline (segment &rarr; attribute &rarr; instruct). These knobs set how much text each pass sees.</div>
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
-                                        <label class="form-label small mb-1" for="tp-chunk-size">Three-pass chunk size (chars)</label>
-                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="12000" step="100" value="3000">
+                                        <label class="form-label small mb-1" for="tp-chunk-size">Pass 1 chunk size (chars)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="30000" step="100" value="3000">
+                                        <div class="form-text">Text per segmentation request. Pass 1 re-emits the chunk verbatim, so output grows with it and one failed check retries the whole chunk; generation refuses a size the model's output ceiling cannot fit.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-batch-size">Pass 2 window (entries)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-batch-size" min="5" max="100" step="1" value="25">
+                                        <div class="form-text">Segmented entries per speaker-attribution request. 25 is what every published score here was measured at.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-context-chars">Pass 2 surrounding text (chars each side)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="0">
+                                        <div class="form-text">Book text shown before and after each window as evidence only. 0 = the window alone. Costs roughly chars/3 prompt tokens per side per request.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>

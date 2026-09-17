@@ -80,6 +80,11 @@
         // Parse a numeric input's value, falling back to `def` when the field is
         // empty/non-numeric. Uses Number.isFinite (not `|| def`) so a deliberate 0
         // is preserved rather than treated as falsy.
+        // generation.chunk_size drives only the legacy generate_script.py CLI;
+        // the UI no longer shows it, but the saved value round-trips so the
+        // config stays valid for that path.
+        let legacyChunkSize = 3000;
+
         function getNumFieldValue(id, def, isInt = false) {
             const raw = document.getElementById(id).value;
             const v = isInt ? parseInt(raw, 10) : parseFloat(raw);
@@ -465,9 +470,8 @@
         }
 
         async function persistPromptPresets() {
-            const chunkSize = parseInt(document.getElementById('chunk-size').value) || 3000;
             const workers = Math.max(1, parseInt(document.getElementById('parallel-workers').value) || 2);
-            await API.post('/api/config', {...buildConfigPayload(chunkSize, workers), prompt_presets: promptPresets.filter(p => !p.builtin)});
+            await API.post('/api/config', {...buildConfigPayload(workers), prompt_presets: promptPresets.filter(p => !p.builtin)});
         }
 
         window.savePromptPreset = async () => {
@@ -662,7 +666,7 @@
         }
 
         async function loadConfig() {
-            document.getElementById('chunk-size').value = 3000;
+            legacyChunkSize = 3000;
             document.getElementById('max-tokens').value = 4096;
 
             try {
@@ -769,7 +773,7 @@
                 // Load generation settings
                 if (config.generation) {
                     if (config.generation.chunk_size) {
-                        document.getElementById('chunk-size').value = config.generation.chunk_size;
+                        legacyChunkSize = config.generation.chunk_size;
                     }
                     if (config.generation.max_tokens) {
                         document.getElementById('max-tokens').value = config.generation.max_tokens;
@@ -796,6 +800,8 @@
                     const g = config.generation;
                     const setIf = (id, v) => { if (v != null) { document.getElementById(id).value = v; } };
                     setIf('tp-chunk-size', g.three_pass_chunk_size);
+                    setIf('tp-attribute-batch-size', g.three_pass_attribute_batch_size);
+                    setIf('tp-attribute-context-chars', g.three_pass_attribute_context_chars);
                     setIf('tp-segment-output-ratio', g.three_pass_segment_output_ratio);
                     setIf('tp-segment-temperature', g.three_pass_segment_temperature);
                     setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
@@ -840,7 +846,7 @@
                 console.error("Failed to fetch default prompts", e);
                 showToast("Failed to load default prompts from server.", 'error');
             }
-            document.getElementById('chunk-size').value = 3000;
+            legacyChunkSize = 3000;
             document.getElementById('max-tokens').value = 4096;
             document.getElementById('temperature').value = 0.6;
             document.getElementById('top-p').value = 0.8;
@@ -861,7 +867,7 @@
 
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.
-        function buildConfigPayload(chunkSize, parallelWorkers) {
+        function buildConfigPayload(parallelWorkers) {
             return {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,
@@ -899,7 +905,7 @@
                 },
                 prompt_presets: promptPresets.filter(p => !p.builtin),
                 generation: {
-                    chunk_size: chunkSize,
+                    chunk_size: legacyChunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
                     temperature: getNumFieldValue('temperature', 0.6),
                     top_p: getNumFieldValue('top-p', 0.8),
@@ -911,6 +917,8 @@
                         : [],
                     merge_narrators: document.getElementById('merge-narrators').checked,
                     three_pass_chunk_size: getNumFieldValue('tp-chunk-size', 3000, true),
+                    three_pass_attribute_batch_size: getNumFieldValue('tp-attribute-batch-size', 25, true),
+                    three_pass_attribute_context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
                     three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),
                     three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
@@ -925,8 +933,6 @@
 
         document.getElementById('config-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-
-            let chunkSize = parseInt(document.getElementById('chunk-size').value) || 3000;
 
             // Validate parallel workers
             let parallelWorkers = parseInt(document.getElementById('parallel-workers').value) || 2;
@@ -943,7 +949,7 @@
             }
             let config;
             try {
-                config = buildConfigPayload(chunkSize, parallelWorkers);
+                config = buildConfigPayload(parallelWorkers);
             } catch (e) {
                 showToast(e.message, 'error');
                 return;
@@ -953,8 +959,8 @@
                 savedLlmMode = currentLlmMode;
                 renderActiveLlmModeBadge();
                 // Refresh is_remote from the now-active saved config (not a
-                // full loadConfig() - that resets unrelated fields like
-                // chunk-size to hardcoded defaults).
+                // full loadConfig() - that resets unrelated fields to
+                // hardcoded defaults).
                 try {
                     const savedConfig = await API.get('/api/config');
                     currentIsRemote = !!savedConfig.is_remote;
@@ -1498,6 +1504,19 @@
                 const scripts = [...new Set(preflight.books.flatMap(book => book.scripts))];
                 const fallback = preflight.fallback_reason
                     ? `\nSafety adjustment: ${preflight.fallback_reason}` : '';
+                const overCeiling = preflight.books.filter(book => book.exceeds_output_ceiling);
+                if (overCeiling.length) {
+                    const suggested = Math.min(...overCeiling.map(book => book.suggested_chunk_size));
+                    showToast(
+                        `Pass 1 chunk size ${preflight.chunk_size} is too large for this model's output ceiling ` +
+                        `(${overCeiling.map(book => book.filename).join(', ')}). ` +
+                        `Set it to ${suggested} or below in Setup, or raise max tokens.`, 'error');
+                    statusMsg.innerHTML = '<span class="text-danger">Batch refused by preflight: chunk size exceeds the output ceiling.</span>';
+                    btn.disabled = false;
+                    pauseBtn.style.display = 'none';
+                    document.getElementById('btn-cancel-batch-script').style.display = 'none';
+                    return;
+                }
                 const approved = await showConfirm(
                     `Batch preflight (${preflight.book_count} book${preflight.book_count === 1 ? '' : 's'}):\n` +
                     `Concurrency: ${preflight.workers} (LM Studio loaded for ${preflight.loaded_parallel})\n` +

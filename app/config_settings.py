@@ -81,7 +81,7 @@ class TTSConfig(BaseModel):
 
 
 class ThreePassModelProfile(BaseModel):
-    chunk_size: Optional[int] = Field(default=None, ge=500, le=12000)
+    chunk_size: Optional[int] = Field(default=None, ge=500, le=30000)
     segment_temperature: Optional[float] = Field(default=None, ge=0, le=2)
     attribute_temperature: Optional[float] = Field(default=None, ge=0, le=2)
     instruct_temperature: Optional[float] = Field(default=None, ge=0, le=2)
@@ -106,7 +106,12 @@ class GenerationConfig(BaseModel):
     three_pass_attribute_temperature: float = Field(default=0.1, ge=0, le=2)
     three_pass_instruct_temperature: float = Field(default=0.1, ge=0, le=2)
     three_pass_segment_output_ratio: float = Field(default=3.0, ge=1.25, le=6.0)
-    three_pass_chunk_size: int = Field(default=3000, ge=500, le=12000)
+    three_pass_chunk_size: int = Field(default=3000, ge=500, le=30000)
+    # How much text pass 2 sees: entries per attribution window, and characters
+    # of the book before/after the window shown as evidence (0 = none, the
+    # behaviour every score in RECIPES was measured with).
+    three_pass_attribute_batch_size: int = Field(default=25, ge=5, le=100)
+    three_pass_attribute_context_chars: int = Field(default=0, ge=0, le=20000)
     three_pass_presegment_quotes: bool = True
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 

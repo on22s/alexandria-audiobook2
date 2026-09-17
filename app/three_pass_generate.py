@@ -141,7 +141,36 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None):
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         "presegment_quotes": model_profile.get(
             "presegment_quotes", gen.get("three_pass_presegment_quotes", True)),
+        "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
+        "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 0)),
     }
+
+
+def build_window_surround(segmented, window_indices, chars):
+    """Up to `chars` characters of the segmented text on each side of a window,
+    as {"before", "after"} strings for the attribution prompt. SPOKEN entries
+    get their quote marks back (the segmenter strips them) so the model can
+    tell speech from narration in the evidence. Empty strings when chars is 0
+    or the window touches the book's edge."""
+    if not chars or not window_indices:
+        return {"before": "", "after": ""}
+
+    def gather(indices, take_from_end):
+        out, total = [], 0
+        for i in indices:
+            entry = segmented[i]
+            text = entry.get("text") or ""
+            if entry.get("type") == "SPOKEN":
+                text = f"\u201c{text}\u201d"
+            if total + len(text) > chars:
+                break
+            out.append(text)
+            total += len(text) + 1
+        return " ".join(reversed(out) if take_from_end else out)
+
+    first, last = window_indices[0], window_indices[-1]
+    return {"before": gather(range(first - 1, -1, -1), True) if first else "",
+            "after": gather(range(last + 1, len(segmented)), False)}
 
 
 def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
@@ -248,9 +277,18 @@ class PassExhausted(Exception):
         self.last_entries = last_entries
 
 
+SURROUND_BEFORE_HEADER = ("TEXT BEFORE THIS WINDOW (evidence only; do not attribute "
+                          "or return it):")
+SURROUND_AFTER_HEADER = ("TEXT AFTER THIS WINDOW (evidence only; do not attribute "
+                         "or return it):")
+
+
 def build_attribute_request(frozen_batch, params, roster,
-                            neighbor_contexts=None):
-    """Build the canonical pass-2 system and user prompts."""
+                            neighbor_contexts=None, surround=None):
+    """Build the canonical pass-2 system and user prompts. `surround`
+    ({"before", "after"} text from build_window_surround) wraps the unchanged
+    body in evidence blocks; None or empty strings leave the prompt exactly as
+    it was."""
     sys_prompt, usr_template = load_attribute_prompts()
     if params.attribute_system_prompt:
         sys_prompt = params.attribute_system_prompt
@@ -262,8 +300,15 @@ def build_attribute_request(frozen_batch, params, roster,
     batch_json = json.dumps([
         {"n": i, "type": e["type"], "text": e["text"], **neighbor_contexts[i]}
         for i, e in enumerate(frozen_batch)], ensure_ascii=False)
-    return sys_prompt, usr_template.format(
+    user_prompt = usr_template.format(
         roster=", ".join(roster) or "(none yet)", batch=batch_json)
+    before = (surround or {}).get("before") or ""
+    after = (surround or {}).get("after") or ""
+    if before:
+        user_prompt = f"{SURROUND_BEFORE_HEADER}\n{before}\n\n{user_prompt}"
+    if after:
+        user_prompt = f"{user_prompt}\n\n{SURROUND_AFTER_HEADER}\n{after}"
+    return sys_prompt, user_prompt
 
 
 # What the attribution pass asks the server to constrain replies to, when
@@ -287,13 +332,13 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
-                    exhaustion_sink=None, entries_provider=None):
+                    exhaustion_sink=None, entries_provider=None, surround=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
     unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities."""
     sys_prompt, user_prompt = build_attribute_request(
-        frozen_batch, params, roster, neighbor_contexts)
+        frozen_batch, params, roster, neighbor_contexts, surround)
     validated = {}
 
     def validate(entries):
@@ -699,6 +744,15 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                          "predicted_total_tokens": total})
 
     segment_system, segment_template = load_segment_prompts()
+    # Pass 1 re-emits the chunk verbatim, so its output grows with the chunk.
+    # The run's escalation ceiling is the most it can ever ask for; a chunk
+    # whose predicted output exceeds it cannot succeed at any retry, and the
+    # caller should refuse the run rather than let it fail chunk by chunk.
+    output_ceiling = resolve_hard_max_tokens(int(settings["max_tokens"]))
+    largest_completion = 0
+    for chunk in chunks:
+        largest_completion = max(largest_completion, resolve_completion_ceiling(
+            max(1, len(chunk.split())), params))
     for chunk in unresolved_chunks:
         completion = min(
             int(settings["max_tokens"]),
@@ -717,7 +771,9 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     roster_chars = min(4096, 32 * sum(
         entry.get("type") == "SPOKEN" for entry in predicted_entries))
     estimated_roster = ["R" * roster_chars] if roster_chars else []
-    for indexed_batch in iter_unique_entry_batches(predicted_entries):
+    attribute_batch_size = int(settings.get("attribute_batch_size") or BATCH_SIZE)
+    context_chars = int(settings.get("attribute_context_chars") or 0)
+    for indexed_batch in iter_unique_entry_batches(predicted_entries, attribute_batch_size):
         pending = [(index, entry) for index, entry in indexed_batch
                    if entry.get("type") == "SPOKEN"]
         if not pending:
@@ -728,8 +784,10 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             "next_context": (predicted_entries[index + 1]
                              if index + 1 < len(predicted_entries) else None),
         } for index, _ in pending]
+        surround = ({"before": "x" * context_chars, "after": "x" * context_chars}
+                    if context_chars else None)
         system_prompt, user_prompt = build_attribute_request(
-            batch, params, estimated_roster, contexts)
+            batch, params, estimated_roster, contexts, surround)
         add_request("attribute", system_prompt, user_prompt,
                     max(256, 24 * len(batch)))
 
@@ -760,6 +818,14 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         "average_predicted_tokens": (
             round(sum(totals) / len(totals), 1) if totals else 0),
         "predicted_fits": bool(per_slot and worst <= per_slot),
+        "output_ceiling": output_ceiling,
+        "largest_predicted_completion": largest_completion,
+        "exceeds_output_ceiling": largest_completion > output_ceiling,
+        # the largest chunk size whose predicted output would fit, for the
+        # refusal message; None when the current one already fits
+        "suggested_chunk_size": (
+            max(500, int(chunk_size * output_ceiling / largest_completion) // 100 * 100)
+            if largest_completion > output_ceiling else None),
         "requests": requests,
     }
 
@@ -975,7 +1041,8 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
 def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            on_exhaustion="fail", context_windows=None,
                            context_rescue_retries=None, endpoint=None,
-                           collect_all_failures=False):
+                           collect_all_failures=False, attribute_batch_size=BATCH_SIZE,
+                           attribute_context_chars=0):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -984,6 +1051,12 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
         "pipeline_version": 8,
+        # Only present when moved off the default, so every checkpoint written
+        # before these knobs existed keeps its identity and resumes.
+        **({"attribute_batch_size": attribute_batch_size}
+           if attribute_batch_size != BATCH_SIZE else {}),
+        **({"attribute_context_chars": attribute_context_chars}
+           if attribute_context_chars else {}),
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -1037,13 +1110,17 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    context_windows=None, context_rescue_retries=None, endpoint=None,
                    collect_all_failures=False, thinking_mode=None,
                    unicode_report=None, attribution_votes=1,
-                   vote_temperature=0.3, first_person_narrator=None):
+                   vote_temperature=0.3, first_person_narrator=None,
+                   attribute_batch_size=BATCH_SIZE, attribute_context_chars=0):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
     it; when None, runs purely in memory. context_windows / context_rescue_retries
-    override the context-rescue defaults (finding #12)."""
+    override the context-rescue defaults (finding #12). attribute_batch_size
+    is the pass-2 window (entries per request); attribute_context_chars is how
+    much of the book either side of the window is shown as evidence (0 = the
+    window alone, the measured default)."""
     unavailable_passes = set()
     narrator = normalize_narrator_name(first_person_narrator)
     chunk_records = split_into_chunk_records(source_text, max_size=chunk_size)
@@ -1058,7 +1135,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         quote_depth = analysis["final_depth"]
     fingerprint = three_pass_fingerprint(
         source_text, model_name, chunk_size, params, on_exhaustion,
-        context_windows, context_rescue_retries, endpoint, collect_all_failures)
+        context_windows, context_rescue_retries, endpoint, collect_all_failures,
+        attribute_batch_size=attribute_batch_size,
+        attribute_context_chars=attribute_context_chars)
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
@@ -1245,7 +1324,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # the recovery panel (issue #522 s23 / s4.4).
     in_flight = {"current": None, "attempt_start": 0}
     try:
-        for indexed_batch in iter_unique_entry_batches(segmented):
+        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
             pending = [(index, entry) for index, entry in indexed_batch
                        if (named[index] is None or index in deterministic)
                        and not any(
@@ -1263,6 +1342,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # window including its narration, so previous_context and
                 # next_context would restate lines already present. Left in, they
                 # took the prompt from ~1.5k to ~8.4k tokens for the same content.
+                # What CAN be added is text from outside the window, as evidence
+                # blocks, when the user asks for it (attribute_context_chars).
+                surround = build_window_surround(
+                    segmented, [index for index, _ in current], attribute_context_chars)
                 try:
                     attempt_start = len(attempts)
                     in_flight["current"], in_flight["attempt_start"] = current, attempt_start
@@ -1275,7 +1358,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
-                        source_text=source_text)
+                        source_text=source_text, surround=surround)
                 except PassExhausted:
                     if len(current) == 1:
                         if collect_all_failures:
@@ -1709,6 +1792,12 @@ def main():
     parser.add_argument("input_file")
     parser.add_argument("--output", default=None)
     parser.add_argument("--chunk-size", type=int, default=None)
+    parser.add_argument("--attribute-batch-size", type=int, default=None,
+                        help="Override generation.three_pass_attribute_batch_size "
+                             "(entries per pass-2 request)")
+    parser.add_argument("--attribute-context-chars", type=int, default=None,
+                        help="Override generation.three_pass_attribute_context_chars "
+                             "(characters of the book shown either side of each pass-2 window)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
@@ -1786,6 +1875,12 @@ def main():
         sys.exit(1)
     model_profile = generation_settings["model_profile"]
     chunk_size = generation_settings["chunk_size"]
+    attribute_batch_size = (args.attribute_batch_size if args.attribute_batch_size is not None
+                            else generation_settings["attribute_batch_size"])
+    attribute_context_chars = (args.attribute_context_chars if args.attribute_context_chars is not None
+                               else generation_settings["attribute_context_chars"])
+    if attribute_batch_size < 1 or attribute_context_chars < 0:
+        raise SystemExit("attribute batch size must be >= 1 and context chars >= 0")
     base_url = llm.get("base_url", "http://localhost:1234/v1")
     llm_mode = config.get("llm_mode", "local")
     # Self-heal LM Studio: load model_name at its verified context if nothing is
@@ -1848,6 +1943,8 @@ def main():
 
     output_path, chunks_path = get_output_paths(data_dir, args.output)
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
+          f"attribute_batch_size={attribute_batch_size}, "
+          f"attribute_context_chars={attribute_context_chars}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
     if args.preflight:
         summary = {"status": "complete", "model_name": model_name, "samples": []}
@@ -1884,7 +1981,9 @@ def main():
                                  thinking_mode=args.reasoning_effort,
                                  attribution_votes=args.attribution_votes,
                                  vote_temperature=args.vote_temperature,
-                                 first_person_narrator=narrator)
+                                 first_person_narrator=narrator,
+                                 attribute_batch_size=attribute_batch_size,
+                                 attribute_context_chars=attribute_context_chars)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)

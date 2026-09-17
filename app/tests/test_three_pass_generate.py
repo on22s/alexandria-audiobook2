@@ -1118,3 +1118,79 @@ class ReasoningTokensFromTraceTests(unittest.TestCase):
                              attempt_observer=seen.append)
         self.assertEqual(777, seen[0]["reasoning_tokens"])
 
+
+
+class AttributionContextKnobTests(unittest.TestCase):
+    """The pass-2 knobs (window size, surrounding text) and the pass-1 output
+    ceiling refusal, each defaulting to the behaviour every stored score was
+    measured with."""
+
+    SEG = [{"type": "NARRATOR", "text": "Earlier that day the party had argued."},
+           {"type": "SPOKEN", "text": "We should go back."},
+           {"type": "NARRATOR", "text": "Ranta slurped his soup."},
+           {"type": "SPOKEN", "text": "Tell us already."},
+           {"type": "SPOKEN", "text": "Don't underestimate me!"},
+           {"type": "NARRATOR", "text": "The fire burned low."},
+           {"type": "SPOKEN", "text": "Good night."}]
+
+    def test_surround_requotes_spoken_and_respects_the_budget(self):
+        sur = tp.build_window_surround(self.SEG, [2, 3, 4], 200)
+        self.assertEqual('Earlier that day the party had argued. “We should go back.”',
+                         sur["before"])
+        self.assertEqual('The fire burned low. “Good night.”', sur["after"])
+        tight = tp.build_window_surround(self.SEG, [2, 3, 4], 25)
+        self.assertEqual('“We should go back.”', tight["before"])   # nearest first
+        self.assertEqual("The fire burned low.", tight["after"])
+        self.assertEqual({"before": "", "after": ""}, tp.build_window_surround(self.SEG, [2, 3], 0))
+        self.assertEqual("", tp.build_window_surround(self.SEG, [0, 1], 500)["before"])
+
+    def test_attribute_request_is_unchanged_without_surround_and_wrapped_with_it(self):
+        params = LLMGenParams(structured_output="off")
+        batch = [{"type": "SPOKEN", "text": "Tell us already."}]
+        _, plain = tp.build_attribute_request(batch, params, ["RANTA"])
+        _, same = tp.build_attribute_request(batch, params, ["RANTA"],
+                                             surround={"before": "", "after": ""})
+        self.assertEqual(plain, same)
+        _, wrapped = tp.build_attribute_request(
+            batch, params, ["RANTA"], surround={"before": "B-text", "after": "A-text"})
+        self.assertTrue(wrapped.startswith(tp.SURROUND_BEFORE_HEADER + "\nB-text\n\n"))
+        self.assertTrue(wrapped.endswith("\n\n" + tp.SURROUND_AFTER_HEADER + "\nA-text"))
+        self.assertIn(plain, wrapped)          # the measured body is untouched inside
+
+    def test_window_size_is_honoured(self):
+        entries = [{"type": "SPOKEN", "text": f"line {i}"} for i in range(23)]
+        self.assertEqual([10, 10, 3], [len(b) for b in tp.iter_unique_entry_batches(entries, 10)])
+        self.assertEqual([23], [len(b) for b in tp.iter_unique_entry_batches(entries)])
+
+    def test_fingerprint_keeps_its_identity_at_the_defaults(self):
+        params = LLMGenParams()
+        base = tp.three_pass_fingerprint("text", "m", 3000, params)
+        self.assertEqual(base, tp.three_pass_fingerprint(
+            "text", "m", 3000, params, attribute_batch_size=25, attribute_context_chars=0))
+        self.assertNotEqual(base, tp.three_pass_fingerprint(
+            "text", "m", 3000, params, attribute_batch_size=10))
+        self.assertNotEqual(base, tp.three_pass_fingerprint(
+            "text", "m", 3000, params, attribute_context_chars=1500))
+
+    def test_preflight_flags_a_chunk_the_output_ceiling_cannot_fit(self):
+        text = " ".join(["word"] * 12000)      # one 12k-word chunk at 30000 chars is ~60k chars; split
+        settings = {"chunk_size": 30000, "max_tokens": 4096,
+                    "segment_output_ratio": 3.0, "presegment_quotes": True}
+        report = tp.build_three_pass_request_preflight(text, settings, 0, 1)
+        self.assertEqual(16384, report["output_ceiling"])
+        self.assertTrue(report["exceeds_output_ceiling"])
+        self.assertLess(report["suggested_chunk_size"], 30000)
+        self.assertGreaterEqual(report["suggested_chunk_size"], 500)
+        small = tp.build_three_pass_request_preflight(text, dict(settings, chunk_size=3000), 0, 1)
+        self.assertFalse(small["exceeds_output_ceiling"])
+        self.assertIsNone(small["suggested_chunk_size"])
+
+    def test_preflight_counts_the_surround_in_the_attribute_estimate(self):
+        text = 'Narration. "Spoken words." More narration.'
+        settings = {"chunk_size": 6000, "max_tokens": 4096,
+                    "segment_output_ratio": 3.0, "presegment_quotes": True}
+        plain = tp.build_three_pass_request_preflight(text, settings, 32768, 1)
+        wide = tp.build_three_pass_request_preflight(
+            text, dict(settings, attribute_context_chars=3000), 32768, 1)
+        attr = lambda r: max(q["prompt_tokens"] for q in r["requests"] if q["stage"] == "attribute")
+        self.assertGreater(attr(wide), attr(plain) + 1500)
