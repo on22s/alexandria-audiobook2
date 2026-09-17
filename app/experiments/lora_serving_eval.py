@@ -140,10 +140,15 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
               build_roster([e for e in (cp.get("named") or []) if e], src)]
     roster = sorted(set(roster) | {n.upper() for n in
                                    gold.get("roster_additions", {}).get("names", [])})
-    occ = collections.Counter(norm(e.get("text")) for e in seg)
-    want = {norm(g["line"]): g for g in gold["entries"]
-            if occ[norm(g["line"])] == 1
-            and g["expected_speaker"].upper() not in SPECIAL}
+    if gold.get("roster_additions", {}).get("attest_in_source"):
+        # PDNC fixtures name characters the way the corpus does ("A WAITER",
+        # "THE COUNT"), which the text only ever writes in lower case, so the
+        # production speaker-attestation gate (pass_quality.is_attested_name)
+        # rejects a correct answer and burns every retry. The corpus cast list
+        # is the roster the model is shown and the gold defines correctness,
+        # so the gate is switched off for these books: a wrong name simply
+        # scores wrong. Recorded in the artifact's environment notes.
+        src = None
     return gold, src, seg, roster, want
 
 

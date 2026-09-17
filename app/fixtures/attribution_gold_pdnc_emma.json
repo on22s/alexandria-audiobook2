@@ -14421,5 +14421,27 @@
   "MRS. FORD",
   "MRS. WESTON"
  ],
- "skipped": {}
+ "skipped": {},
+ "roster_additions": {
+  "names": [
+   "EMMA",
+   "HARRIET SMITH",
+   "ISABELLA",
+   "JANE FAIRFAX",
+   "MISS BATES",
+   "MR. ELTON",
+   "MR. FRANK CHURCHILL",
+   "MR. JOHN KNIGHTLEY",
+   "MR. KNIGHTLEY",
+   "MR. WESTON",
+   "MR. WOODHOUSE",
+   "MRS. BATES",
+   "MRS. COLE",
+   "MRS. ELTON",
+   "MRS. FORD",
+   "MRS. WESTON"
+  ],
+  "source": "PDNC character_info.csv (the corpus's own cast list)",
+  "attest_in_source": true
+ }
 }
