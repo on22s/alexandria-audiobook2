@@ -48,6 +48,12 @@ class _Ctx(io.BytesIO):
 
 
 class LlamaCppStatusTests(unittest.TestCase):
+    def setUp(self):
+        # Each test starts with no remembered misses: the negative cache is
+        # process-wide state and one test's 404 must not silence the next.
+        with ls._props_miss_lock:
+            ls._props_miss.clear()
+
     def _status(self, payload, model="qwen3-14b"):
         with patch("urllib.request.urlopen", fake_props(payload)):
             return ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", model)
@@ -73,6 +79,29 @@ class LlamaCppStatusTests(unittest.TestCase):
 
     def test_an_endpoint_answering_something_else_is_not_claimed(self):
         self.assertIsNone(self._status({"hello": "world"}))
+
+    def test_a_miss_is_remembered_so_polling_does_not_hammer_a_gateway(self):
+        """The Setup tab polls every ~30 s per tab. Against an OpenAI-compatible
+        gateway every poll was a fresh GET /props -> 404, hundreds in a row in
+        one user's proxy capture (2026-09-17). One miss per URL per TTL."""
+        calls = []
+
+        def counting(url, timeout=None):
+            calls.append(url)
+            raise OSError("404")
+        with patch("urllib.request.urlopen", counting):
+            for _ in range(5):
+                self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:3001/v1", "m"))
+        self.assertEqual(1, len(calls), calls)
+
+    def test_a_remembered_miss_expires_and_a_real_server_is_seen_again(self):
+        with patch("urllib.request.urlopen", fake_props(None)):
+            self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b"))
+        with ls._props_miss_lock:
+            ls._props_miss["http://127.0.0.1:8090"] -= ls.PROPS_MISS_TTL_SECONDS + 1
+        self.assertTrue(self._status(PROPS)["loaded"])
+        with ls._props_miss_lock:
+            self.assertNotIn("http://127.0.0.1:8090", ls._props_miss)
 
     def test_a_server_running_the_wrong_model_is_not_loaded(self):
         # Scoring a run against a model nobody meant to use is the failure

@@ -1063,3 +1063,18 @@ class RecombinationAcceptanceTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=800, temperature=0.1)
         out = tp.segment_chunk_adaptively(client, "m", source, params)
         self.assertEqual([], out)  # real recall loss is not waived by the fix
+
+
+class HardMaxTokensFollowsConfigTests(unittest.TestCase):
+    """The escalation ceiling used to sit at the dataclass default (16384)
+    whatever Setup said: a hosted reasoning model that thought for 16k tokens
+    was cut off with "cannot grow beyond 16384" while the user had configured
+    65536 (2026-09-17, OpenRouter via a GPT-Load gateway)."""
+
+    def test_a_larger_configured_budget_raises_the_ceiling(self):
+        self.assertEqual(65536, tp.resolve_hard_max_tokens(65536))
+
+    def test_a_smaller_budget_keeps_the_default_headroom(self):
+        self.assertEqual(LLMGenParams.hard_max_tokens, tp.resolve_hard_max_tokens(4096))
+        self.assertEqual(16384, LLMGenParams.hard_max_tokens)
+

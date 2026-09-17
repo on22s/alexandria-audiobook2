@@ -695,6 +695,12 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
+# /props probe misses, keyed by server root: see get_llama_cpp_status.
+PROPS_MISS_TTL_SECONDS = 600
+_props_miss = {}
+_props_miss_lock = threading.Lock()
+
+
 def get_llama_cpp_status(base_url, model_name, timeout=5):
     """-> a status dict if `base_url` is llama.cpp, else None.
 
@@ -721,13 +727,28 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     import urllib.request
 
     root = base_url.rsplit("/v1", 1)[0].rstrip("/")
+    # An endpoint that is not llama.cpp stays not-llama.cpp: the Setup tab
+    # polls status every ~30 s per open tab, and against an OpenAI-compatible
+    # gateway every poll was a fresh GET /props answered 404 - hundreds in a
+    # row in one user's proxy log (2026-09-17). Remember the miss per URL for
+    # a while instead of asking again on every poll.
+    with _props_miss_lock:
+        missed_at = _props_miss.get(root)
+    if missed_at is not None and time.monotonic() - missed_at < PROPS_MISS_TTL_SECONDS:
+        return None
     try:
         with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
             props = json.loads(response.read())
     except Exception:                                       # noqa: BLE001
+        with _props_miss_lock:
+            _props_miss[root] = time.monotonic()
         return None                                         # not llama.cpp
     if not isinstance(props, dict) or "default_generation_settings" not in props:
+        with _props_miss_lock:
+            _props_miss[root] = time.monotonic()
         return None
+    with _props_miss_lock:
+        _props_miss.pop(root, None)
 
     generation = props.get("default_generation_settings") or {}
     context = generation.get("n_ctx")
