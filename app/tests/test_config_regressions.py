@@ -14,6 +14,39 @@ from routers import system as system_module
 
 
 class ConfigTests(unittest.TestCase):
+    def test_prompt_presets_validate_and_round_trip(self):
+        preset = config_settings.PromptPreset(
+            name="Local", description="For local books", system_prompt="system", user_prompt="{chunk}"
+        )
+        self.assertEqual("Local", preset.name)
+        with self.assertRaises(ValueError):
+            config_settings.PromptPreset(name="", system_prompt="x", user_prompt="y")
+        with self.assertRaises(ValueError):
+            config_settings.AppConfig.model_validate({
+                "llm": {"base_url": "http://localhost:1/v1", "api_key": "local", "model_name": "m"},
+                "tts": {}, "prompt_presets": [{"name": "x"}] * 51,
+            })
+
+    def test_keep_unsent_prompt_presets_for_legacy_client(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        incoming = system_module.AppConfig(
+            llm=profile, llm_local=profile, tts=system_module.TTSConfig()
+        )
+        saved = {"prompt_presets": [config_settings.PromptPreset(name="Saved", system_prompt="s", user_prompt="u")]}
+        merged = system_module.keep_unsent_fields(incoming, saved)
+        self.assertEqual("Saved", merged.prompt_presets[0].name)
+
+    def test_llm_failure_logs_are_unique_within_one_second(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(system_module, "API_LOG_DIR", tmp):
+            first = system_module._log_llm_failure("test", "first")
+            second = system_module._log_llm_failure("test", "second")
+            self.assertNotEqual(first, second)
+            self.assertEqual("first", Path(first).read_text().splitlines()[-1])
+            self.assertEqual("second", Path(second).read_text().splitlines()[-1])
+
     def test_app_config_loader_returns_fresh_shape_safe_data(self):
         documents = (
             ("null", {}),
@@ -385,3 +418,24 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual("preserved", config["custom"])
             self.assertEqual([], config["config_warnings"])
             self.assertFalse(config["config_needs_backup"])
+
+
+class ThreePassKnobBoundsTests(unittest.TestCase):
+    def test_chunk_size_cap_and_the_pass2_knobs(self):
+        import config_settings as cs
+        self.assertEqual(30000, cs.GenerationConfig(three_pass_chunk_size=30000).three_pass_chunk_size)
+        with self.assertRaises(Exception):
+            cs.GenerationConfig(three_pass_chunk_size=30001)
+        g = cs.GenerationConfig()
+        self.assertEqual((25, 0), (g.three_pass_attribute_batch_size, g.three_pass_attribute_context_chars))
+        self.assertEqual(100, cs.GenerationConfig(three_pass_attribute_batch_size=100).three_pass_attribute_batch_size)
+        for bad in ({"three_pass_attribute_batch_size": 4}, {"three_pass_attribute_batch_size": 101},
+                    {"three_pass_attribute_context_chars": -1}, {"three_pass_attribute_context_chars": 20001}):
+            with self.assertRaises(Exception):
+                cs.GenerationConfig(**bad)
+        self.assertEqual(30000, cs.ThreePassModelProfile(chunk_size=30000).chunk_size)
+        self.assertEqual("default", g.three_pass_attribute_prompt_variant)
+        self.assertEqual("michel2", cs.GenerationConfig(three_pass_attribute_prompt_variant="michel2").three_pass_attribute_prompt_variant)
+        with self.assertRaises(Exception):
+            cs.GenerationConfig(three_pass_attribute_prompt_variant="judge")   # gold-labelling only
+

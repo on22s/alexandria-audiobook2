@@ -1,4 +1,5 @@
 import hashlib
+import asyncio
 import logging
 import os
 import shutil
@@ -32,8 +33,7 @@ logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
 
-@router.get("/api/scripts")
-async def list_saved_scripts():
+def _list_saved_scripts_sync():
     """List all saved scripts in the scripts/ directory.
 
     Uses a whitelist approach: only includes .json files that do NOT end with
@@ -63,6 +63,12 @@ async def list_saved_scripts():
         })
     scripts.sort(key=lambda x: x["created"], reverse=True)
     return scripts
+
+
+@router.get("/api/scripts", operation_id="list_saved_scripts")
+async def list_saved_scripts():
+    """List saved scripts without blocking the FastAPI event loop on disk I/O."""
+    return await asyncio.to_thread(_list_saved_scripts_sync)
 
 class ScriptSaveRequest(BaseModel):
     name: str
@@ -145,6 +151,8 @@ async def preflight_saved_script(name: str, request: ScriptPreflightRequest):
     entries = safe_load_json(script_path, None)
     if entries is None:
         raise HTTPException(status_code=422, detail=f"Saved script '{name}' is not valid JSON.")
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=422, detail=f"Saved script '{name}' must contain a list of entries.")
 
     source_text = None
     if request.source_filename:

@@ -58,6 +58,14 @@ class VoiceDatasetMergeTests(unittest.TestCase):
                 merge_voice_datasets([bad], output)
             self.assertEqual(b"previous", output.read_bytes())
 
+    def test_invalid_metadata_is_reported_as_validation_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad, output = Path(tmp, "bad.zip"), Path(tmp, "merged.zip")
+            with zipfile.ZipFile(bad, "w") as archive:
+                archive.writestr("metadata.jsonl", "{not-json}\n")
+            with self.assertRaisesRegex(ValueError, "metadata.jsonl is invalid"):
+                merge_voice_datasets([bad], output)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,12 +6,74 @@ Keep that configuration in one wrapper so every generation path gets the same
 profile settings, while a call's explicit options still take precedence.
 """
 
+import os
 import random
+import re
 import threading
 import time
 
 import httpx
 from openai import OpenAI
+
+
+_ENV_REF = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+
+def is_api_key_reference(configured):
+    """True for `env:NAME` / `${NAME}` - a pointer, not a secret, so the setup
+    page may show it back to the user unredacted."""
+    value = str(configured or "").strip()
+    return value.startswith("env:") or bool(_ENV_REF.match(value))
+
+
+def resolve_api_key(configured):
+    """-> the API key to send, from a profile's `api_key` value.
+
+    `env:NAME` and `${NAME}` read the environment so the secret never sits in
+    config.json (which the UI now redacts but still stores); an empty value
+    falls back to OPENAI_API_KEY; anything else - "local", "sk-..." - is the
+    key itself. Missing environment variables resolve to "" rather than to
+    the literal reference, so a typo shows up as an auth error, not as a key.
+    """
+    value = str(configured or "").strip()
+    if value.startswith("env:"):
+        return os.environ.get(value[4:].strip(), "")
+    match = _ENV_REF.match(value)
+    if match:
+        return os.environ.get(match.group(1), "")
+    if not value:
+        return os.environ.get("OPENAI_API_KEY", "local")
+    return value
+
+
+def is_openai_reasoning_model(model_name):
+    """GPT-5 / o-series names use the reasoning request shape (below)."""
+    name = str(model_name or "").strip().lower()
+    return name.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+_SAMPLING_KEYS = ("temperature", "top_p", "presence_penalty", "frequency_penalty")
+
+
+def adapt_request_for_reasoning_model(kwargs):
+    """Rewrite one chat.completions.create call for an OpenAI reasoning model.
+
+    Those models reject `max_tokens` (they want `max_completion_tokens`) and,
+    whenever reasoning is on, reject the sampling controls too; local servers
+    and non-reasoning OpenAI models keep every parameter. The effort is read
+    from the request's extra_body, where get_provider_extra_body puts it.
+    Returns a new dict; the caller's is untouched.
+    """
+    if not is_openai_reasoning_model(kwargs.get("model")):
+        return kwargs
+    out = dict(kwargs)
+    if "max_tokens" in out and "max_completion_tokens" not in out:
+        out["max_completion_tokens"] = out.pop("max_tokens")
+    effort = str((out.get("extra_body") or {}).get("reasoning_effort") or "").lower()
+    if effort not in ("", "none"):
+        for key in _SAMPLING_KEYS:
+            out.pop(key, None)
+    return out
 
 
 def get_provider_headers(llm_config):
@@ -113,7 +175,7 @@ class _ConfiguredCompletions:
         }
         kwargs["extra_body"] = merge_provider_extra_body(
             provider_extra_body, kwargs.get("extra_body"))
-        return self._completions.create(*args, **kwargs)
+        return self._completions.create(*args, **adapt_request_for_reasoning_model(kwargs))
 
     def __getattr__(self, name):
         return getattr(self._completions, name)
@@ -251,7 +313,7 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     llm_config = llm_config or {}
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
-        api_key=llm_config.get("api_key", "local"),
+        api_key=resolve_api_key(llm_config.get("api_key", "local")),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),
         default_headers=get_provider_headers(llm_config) or None,

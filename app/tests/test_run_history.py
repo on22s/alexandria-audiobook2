@@ -24,6 +24,13 @@ class RunHistoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as history_dir:
             self.assertIsNone(get_run(history_dir, "../state"))
 
+    def test_list_runs_rejects_invalid_limits(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            with self.assertRaises(ValueError):
+                list_runs(history_dir, "many")
+            with self.assertRaises(ValueError):
+                list_runs(history_dir, 0)
+
     def test_artifact_records_output_source_and_config_hashes(self):
         with tempfile.TemporaryDirectory() as data_dir:
             history_dir = os.path.join(data_dir, "run_history")
@@ -85,6 +92,13 @@ class RunHistoryTests(unittest.TestCase):
         self.assertEqual(original["started_at"], updated["started_at"])
         self.assertEqual("completed", updated["stages"][0]["status"])
 
+    def test_run_identity_fields_cannot_be_overwritten(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            run_id = start_run(history_dir, "voicelab")
+            with self.assertRaises(ValueError):
+                update_run(history_dir, run_id, {"id": "run_attacker"})
+            self.assertEqual(run_id, get_run(history_dir, run_id)["id"])
+
     def test_failed_summary_write_preserves_previous_record(self):
         with tempfile.TemporaryDirectory() as history_dir:
             run_id = start_run(history_dir, "voicelab")
@@ -118,6 +132,18 @@ class RunHistoryTests(unittest.TestCase):
             self.assertIsNotNone(get_run(history_dir, newest_failed))
             self.assertIn(old_failed, removed)
             self.assertIn(completed, removed)
+
+    def test_retention_never_deletes_path_for_malformed_record_id(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            outside = os.path.join(history_dir, "..", "sentinel.json")
+            with open(outside, "w") as handle:
+                handle.write("keep")
+            record_path = os.path.join(history_dir, "run_bad.json")
+            with open(record_path, "w") as handle:
+                handle.write('{"id":"../sentinel", "status":"completed",'
+                             '"started_at":"2000-01-01T00:00:00+00:00"}')
+            prune_runs(history_dir, max_count=0, max_age_days=0)
+            self.assertTrue(os.path.exists(outside))
 
 
 if __name__ == "__main__":

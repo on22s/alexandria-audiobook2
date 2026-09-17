@@ -7,6 +7,10 @@ from source_span_coverage import (format_tagged_source, get_source_spans,
 
 
 class SourceSpanCoverageTests(unittest.TestCase):
+    def test_tagged_source_keeps_embedded_newlines_on_one_line(self):
+        self.assertEqual("[S001] first line second line",
+                         format_tagged_source([{"id": "S001", "text": "first line\nsecond line"}]))
+
     def test_experiment_uses_production_preprocessing(self):
         raw = "The story begins. " + "echo " * 20 + "The story continues."
         self.assertNotEqual(split_into_chunks(raw, 6000),

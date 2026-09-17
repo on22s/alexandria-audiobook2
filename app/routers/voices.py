@@ -41,7 +41,7 @@ from core import (
     run_process,
 )
 from lmstudio_settings import get_current_status, get_effective_max_tokens
-from tts import voice_category
+from tts import resolve_narrator_voice_config, voice_category
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -51,6 +51,7 @@ from utils import (
     safe_load_json,
     secure_filename,
 )
+from persona_validation import validate_persona_payload
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -72,6 +73,14 @@ class VoiceConfigItem(BaseModel):
     # Character approved by the user for this book (#522 17.1); a UI flag,
     # nothing downstream reads it.
     ready: bool = False
+    persona_status: str = "unreviewed"
+    voice_status: str = "unassigned"
+    active_version: Optional[str] = None
+    active_candidate: Optional[str] = None
+    age_group: Optional[str] = None
+    versions: Dict[str, Dict] = Field(default_factory=dict)
+    candidates: List[Dict] = Field(default_factory=list)
+    narrator_strategy: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_ensemble_members(self):
@@ -85,6 +94,7 @@ class SuggestVoicesRequest(BaseModel):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
     max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
     cast: Optional[str] = None
+    characters: Optional[List[str]] = None
 
 class VoiceSuggestionApplyRequest(BaseModel):
     character: str
@@ -101,11 +111,14 @@ class GeneratePersonasRequest(BaseModel):
     batch_size: int = 40
     # Sample spoken lines per character in the persona prompt (#522 12.1).
     context_lines: int = Field(default=8, ge=1, le=200)
+    speaker: Optional[str] = Field(default=None, max_length=200)
+    age_group: Optional[str] = Field(default=None, max_length=40)
 
 
 class PersonaRecoveryRequest(BaseModel):
     speaker: str = Field(min_length=1, max_length=200)
     persona_json: str = Field(min_length=2, max_length=10000)
+    resume: bool = False
 
 
 def _validate_persona_recovery(value: str) -> tuple[str, str]:
@@ -115,13 +128,66 @@ def _validate_persona_recovery(value: str) -> tuple[str, str]:
         raise HTTPException(status_code=422, detail=f"Persona JSON is invalid: {exc}") from exc
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=422, detail="Persona output must be a JSON object")
-    description = str(parsed.get("description") or "").strip()
-    ref_text = str(parsed.get("ref_text") or "").strip()
-    if not description or not ref_text:
-        raise HTTPException(status_code=422, detail="Persona JSON requires description and ref_text")
-    if len(description) > 4000 or len(ref_text) > 2000:
-        raise HTTPException(status_code=422, detail="Persona fields exceed the allowed length")
-    return description, ref_text
+    try:
+        normalized = validate_persona_payload(parsed)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return normalized["description"], normalized["ref_text"]
+
+class VoiceVersionRequest(BaseModel):
+    version_id: str = Field(min_length=1, max_length=80)
+    age_group: str = Field(default="adult", max_length=40)
+    config: Dict = Field(default_factory=dict)
+
+
+class VoiceCandidateRequest(BaseModel):
+    candidate_id: str = Field(min_length=1, max_length=80)
+    config: Dict = Field(default_factory=dict)
+
+
+class VoiceCandidateFavoriteRequest(BaseModel):
+    favorite: bool
+
+
+class NarratorStrategyRequest(BaseModel):
+    strategy: str = Field(pattern="^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$")
+
+
+class NarratorPreviewRequest(BaseModel):
+    strategy: str = Field(pattern="^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$")
+    focus_speaker: Optional[str] = Field(default=None, max_length=200)
+    narrator_version: Optional[str] = Field(default=None, max_length=80)
+
+
+class VoiceApprovalRequest(BaseModel):
+    persona_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
+    voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
+
+
+class PersonaVoiceAuditRequest(BaseModel):
+    persona_ref: Optional[str] = Field(default=None, max_length=200)
+    persona_description: Optional[str] = Field(default=None, max_length=1000)
+    voice_adapter_id: Optional[str] = Field(default=None, max_length=200)
+    suggestion_reason: Optional[str] = Field(default=None, max_length=500)
+
+
+def _mutate_voice_entry(speaker, mutator):
+    with file_lock(VOICE_CONFIG_PATH):
+        config = safe_load_json(VOICE_CONFIG_PATH, default={})
+        entry = config.setdefault(speaker, {})
+        mutator(entry)
+        atomic_json_write(config, VOICE_CONFIG_PATH)
+        return entry
+
+
+def _require_script_speaker(speaker):
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=422, detail="Generate or open an active script first")
+    script = safe_load_json(SCRIPT_PATH, default=[])
+    speakers = {(e.get("speaker") or e.get("type") or "").strip()
+                for e in script if isinstance(e, dict)}
+    if speaker not in speakers:
+        raise HTTPException(status_code=404, detail="Speaker is not present in the active script")
 
 
 @router.get("/api/voices")
@@ -167,6 +233,153 @@ async def get_voices():
     return result
 
 
+@router.post("/api/voices/{speaker}/versions")
+async def save_voice_version(speaker: str, request: VoiceVersionRequest):
+    _require_script_speaker(speaker)
+    if request.config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
+        raise HTTPException(status_code=422, detail="Unsupported voice version type")
+    entry = _mutate_voice_entry(speaker, lambda current: current.setdefault("versions", {}).update({
+        request.version_id: {"age_group": request.age_group, **request.config}
+    }))
+    return {"status": "saved", "speaker": speaker, "version_id": request.version_id,
+            "versions": entry.get("versions", {})}
+
+
+@router.post("/api/voices/{speaker}/versions/{version_id}/select")
+async def select_voice_version(speaker: str, version_id: str):
+    _require_script_speaker(speaker)
+    def select(entry):
+        version = (entry.get("versions") or {}).get(version_id)
+        if not isinstance(version, dict):
+            raise HTTPException(status_code=404, detail="Voice version not found")
+        entry.update({k: v for k, v in version.items() if k != "age_group"})
+        entry["age_group"] = version.get("age_group")
+        entry["active_version"] = version_id
+        entry["voice_status"] = "assigned"
+    entry = _mutate_voice_entry(speaker, select)
+    return {"status": "selected", "speaker": speaker, "version_id": version_id,
+            "config": entry}
+
+
+@router.post("/api/voices/{speaker}/candidates")
+async def add_voice_candidate(speaker: str, request: VoiceCandidateRequest):
+    _require_script_speaker(speaker)
+    def add(entry):
+        candidates = [c for c in entry.get("candidates", [])
+                      if isinstance(c, dict) and c.get("candidate_id") != request.candidate_id]
+        candidates.append({"candidate_id": request.candidate_id, **request.config})
+        entry["candidates"] = candidates
+    entry = _mutate_voice_entry(speaker, add)
+    return {"status": "saved", "speaker": speaker, "candidates": entry.get("candidates", [])}
+
+
+@router.post("/api/voices/{speaker}/candidates/{candidate_id}/select")
+async def select_voice_candidate(speaker: str, candidate_id: str):
+    _require_script_speaker(speaker)
+    def select(entry):
+        candidate = next((c for c in entry.get("candidates", [])
+                          if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        entry.update({k: v for k, v in candidate.items() if k != "candidate_id"})
+        entry["active_candidate"] = candidate_id
+        entry["voice_status"] = "assigned"
+    entry = _mutate_voice_entry(speaker, select)
+    return {"status": "selected", "speaker": speaker, "candidate_id": candidate_id,
+            "config": entry}
+
+
+@router.delete("/api/voices/{speaker}/candidates/{candidate_id}")
+async def delete_voice_candidate(speaker: str, candidate_id: str):
+    _require_script_speaker(speaker)
+    def remove(entry):
+        candidates = entry.get("candidates") or []
+        if not any(isinstance(c, dict) and c.get("candidate_id") == candidate_id for c in candidates):
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        entry["candidates"] = [c for c in candidates if c.get("candidate_id") != candidate_id]
+        if entry.get("active_candidate") == candidate_id:
+            entry.pop("active_candidate", None)
+    _mutate_voice_entry(speaker, remove)
+    return {"status": "deleted", "speaker": speaker, "candidate_id": candidate_id}
+
+
+@router.post("/api/voices/{speaker}/candidates/{candidate_id}/favorite")
+async def favorite_voice_candidate(speaker: str, candidate_id: str,
+                                   request: VoiceCandidateFavoriteRequest):
+    _require_script_speaker(speaker)
+    def update(entry):
+        candidate = next((c for c in entry.get("candidates", [])
+                          if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Voice candidate not found")
+        candidate["favorite"] = request.favorite
+    entry = _mutate_voice_entry(speaker, update)
+    return {"status": "saved", "speaker": speaker, "candidate_id": candidate_id,
+            "favorite": next(c.get("favorite", False) for c in entry.get("candidates", [])
+                              if c.get("candidate_id") == candidate_id)}
+
+
+@router.post("/api/narrator/strategy")
+async def save_narrator_strategy(request: NarratorStrategyRequest):
+    _require_script_speaker("NARRATOR")
+    entry = _mutate_voice_entry("NARRATOR", lambda current: current.update({
+        "narrator_strategy": request.strategy
+    }))
+    return {"status": "saved", "strategy": entry.get("narrator_strategy")}
+
+
+@router.post("/api/narrator/preview")
+async def preview_narrator(request: NarratorPreviewRequest):
+    _require_script_speaker("NARRATOR")
+    config = safe_load_json(VOICE_CONFIG_PATH, default={})
+    narrator = dict(config.get("NARRATOR") or config.get("Narrator") or {})
+    narrator["narrator_strategy"] = request.strategy
+    config["NARRATOR"] = narrator
+    resolved = resolve_narrator_voice_config("NARRATOR", config, {
+        "focus_speaker": request.focus_speaker,
+        "narrator_version": request.narrator_version,
+    })
+    selected = resolved.get("NARRATOR", {})
+    return {"strategy": request.strategy, "focus_speaker": request.focus_speaker,
+            "narrator_version": request.narrator_version,
+            "selected": {"type": selected.get("type", "custom"),
+                          "voice": selected.get("voice"),
+                          "adapter_id": selected.get("adapter_id"),
+                          "description": selected.get("description", "")}}
+
+
+@router.post("/api/voices/{speaker}/approval")
+async def set_voice_approval(speaker: str, request: VoiceApprovalRequest):
+    """Set persona and voice approval independently for a character."""
+    _require_script_speaker(speaker)
+    if request.persona_status is None and request.voice_status is None:
+        raise HTTPException(status_code=422, detail="At least one approval status is required")
+    def update_status(current):
+        if request.persona_status is not None:
+            current["persona_status"] = request.persona_status
+        if request.voice_status is not None:
+            current["voice_status"] = request.voice_status
+    entry = _mutate_voice_entry(speaker, update_status)
+    return {"status": "saved", "speaker": speaker,
+            "persona_status": entry.get("persona_status"),
+            "voice_status": entry.get("voice_status")}
+
+
+@router.post("/api/voices/{speaker}/persona-voice-audit")
+async def update_persona_voice_audit(speaker: str, request: PersonaVoiceAuditRequest):
+    """Allow a user to correct the provenance note for an assignment."""
+    _require_script_speaker(speaker)
+    audit = {key: value.strip() for key, value in request.model_dump().items()
+             if value is not None and value.strip()}
+    if not audit:
+        raise HTTPException(status_code=422, detail="At least one audit field is required")
+    entry = _mutate_voice_entry(speaker, lambda current: current.update({
+        "persona_voice_audit": {**(current.get("persona_voice_audit") or {}), **audit}
+    }))
+    return {"status": "saved", "speaker": speaker,
+            "persona_voice_audit": entry.get("persona_voice_audit", {})}
+
+
 @router.post("/api/generate_personas")
 async def generate_personas(background_tasks: BackgroundTasks, request: GeneratePersonasRequest = GeneratePersonasRequest()):
     """Generate LLM-derived voice persona descriptions and VoiceDesign previews.
@@ -189,6 +402,11 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
 
     command = [sys.executable, "-u", "generate_personas.py",
                "--context-lines", str(request.context_lines)]
+    if request.speaker:
+        _require_script_speaker(request.speaker)
+        command.extend(["--speakers", request.speaker])
+    if request.age_group:
+        command.extend(["--age-group", request.age_group])
     if request.advanced:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])
@@ -216,24 +434,30 @@ async def cancel_persona():
 
 
 @router.post("/api/persona/recover")
-async def recover_persona(request: PersonaRecoveryRequest):
+async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRecoveryRequest):
     """Validate and save one externally generated persona without rerunning the batch."""
     description, ref_text = _validate_persona_recovery(request.persona_json)
 
-    if os.path.exists(SCRIPT_PATH):
-        try:
-            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-                script = json.load(f)
-            speakers = {
-                (entry.get("speaker") or entry.get("type") or "").strip()
-                for entry in script if isinstance(entry, dict)
-            }
-            if request.speaker not in speakers:
-                raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
-        except HTTPException:
-            raise
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
+    if request.resume:
+        check_global_gpu_lock("persona")
+
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=422, detail="Generate or open an active script before recovery")
+    try:
+        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+            script = json.load(f)
+        if not isinstance(script, list):
+            raise ValueError("active script must be a JSON array")
+        speakers = {
+            (entry.get("speaker") or entry.get("type") or "").strip()
+            for entry in script if isinstance(entry, dict)
+        }
+        if request.speaker not in speakers:
+            raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
+    except HTTPException:
+        raise
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
 
     def _save():
         with file_lock(VOICE_CONFIG_PATH):
@@ -247,7 +471,13 @@ async def recover_persona(request: PersonaRecoveryRequest):
             atomic_json_write(config, VOICE_CONFIG_PATH)
 
     await asyncio.to_thread(_save)
-    return {"status": "saved", "speaker": request.speaker}
+    if request.resume:
+        process_state["persona"]["cancel"] = False
+        claim_gpu_task("persona")
+        background_tasks.add_task(run_process, [
+            sys.executable, "-u", "generate_personas.py", "--speakers", request.speaker,
+            "--recovered-speaker", request.speaker], "persona")
+    return {"status": "resuming" if request.resume else "saved", "speaker": request.speaker}
 
 @router.post("/api/save_voice_config")
 async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
@@ -287,9 +517,9 @@ def _infer_lora_gender(model):
     if g in ("male", "female"):
         return g
     name_id = f"{model.get('name', '')} {model.get('id', '')}".lower()
-    if re.search(r"(_|\b)f(\b|_|\d|emale)", name_id):
+    if re.search(r"(?:^|[_\s-])f(?:$|[_\s-]|emale)", name_id):
         return "female"
-    if re.search(r"(_|\b)m(\b|_|\d|ale)", name_id):
+    if re.search(r"(?:^|[_\s-])m(?:$|[_\s-]|ale)", name_id):
         return "male"
     desc = (model.get("description") or model.get("voice_profile") or "").lower()
     if any(w in desc for w in ("alto", "soprano", "mezzo", "feminine", "woman", "girl")):
@@ -339,7 +569,7 @@ def _infer_age_group(text):
         years = next(group for group in numeric.groups() if group is not None)
         if 1 <= int(years) <= 120:
             return _age_group_from_years(years)
-    decade = re.search(r"\b([2-8])0s\b", value)
+    decade = re.search(r"\b([1-9])0s\b", value)
     if decade:
         return _age_group_from_years(int(decade.group(1)) * 10 + 5)
     patterns = (
@@ -599,7 +829,10 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
 
     # Build profiles in importance order: narrator, then most dialogue lines.
     characters = {}
-    ordered_names = sorted(samples, key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
+    requested = {name.strip() for name in (request.characters or []) if name and name.strip()}
+    ordered_names = sorted(
+        (name for name in samples if not requested or name in requested),
+        key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
     for speaker in ordered_names:
         lines = samples[speaker]
         if request.only_unset:
@@ -825,6 +1058,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         chosen = cand_by_id[chosen_id]
         suggestions[name] = {
             "adapter_id": chosen_id, "adapter_name": chosen["name"], "type": chosen["type"],
+            "ranked_adapter_ids": ranked,
             "character_style": style_by_name[name], "reason": reason_by_name[name],
             "line_count": info["line_count"], "priority": info["priority"], "book_id": book_id,
             "cast_member_key": info["member_key"], "reuse_count_before": before,
@@ -891,6 +1125,12 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 "seed": str(character_voice_seed(character)),
                 **get_trait_assignment_metadata(suggestion),
             })
+            cfg["persona_voice_audit"] = {
+                "persona_ref": cfg.get("persona_ref"),
+                "persona_description": (cfg.get("description") or "")[:1000],
+                "voice_adapter_id": adapter_id,
+                "suggestion_reason": (suggestion.get("reason") or "")[:240],
+            }
             voice_config[character] = cfg
 
             if cast_name:

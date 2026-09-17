@@ -543,6 +543,7 @@
                         <div class="mb-3">
                             <label class="form-label">API Key</label>
                             <input type="text" class="form-control" id="llm-key" value="local">
+                            <div class="form-text">Use <code>env:NAME</code> to read the key from an environment variable instead of storing it here.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Model Name</label>
@@ -761,11 +762,6 @@
                             <h6 class="mb-3">Generation Settings</h6>
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Chunk Size (characters)</label>
-                                    <input type="number" class="form-control" id="chunk-size" value="3000" min="500">
-                                    <div class="form-text">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
-                                </div>
-                                <div class="col-md-6">
                                     <label class="form-label">Baseline Response Tokens</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
                                     <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling.</div>
@@ -809,12 +805,39 @@
                                 <label class="form-check-label" for="merge-narrators">Merge consecutive narrator lines</label>
                                 <div class="form-text">During script review, combine adjacent NARRATOR entries that share the same instruct into a single longer entry. Disable for better per-line voice direction control.</div>
                             </div>
-                            <details class="mb-3">
-                                <summary class="text-muted small">Three-pass generation &amp; context rescue</summary>
+                            <details class="mb-3" open>
+                                <summary class="text-muted small">Script generation: how much of the book the AI reads at once</summary>
+                                <div class="form-text mb-2">Turning a book into a script happens in three steps, for one book or a batch alike: <strong>1</strong> split the text into narration and spoken lines, <strong>2</strong> decide who says each line, <strong>3</strong> write a delivery note for each line. The settings below control how much text the AI sees in steps 1 and 2. The defaults are what this project's published accuracy numbers were measured with; change them to trade speed for context.</div>
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
-                                        <label class="form-label small mb-1" for="tp-chunk-size">Three-pass chunk size (chars)</label>
-                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="12000" step="100" value="3000">
+                                        <label class="form-label small mb-1" for="tp-chunk-size">Step 1: text per request (characters)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="30000" step="100" value="3000">
+                                        <div class="form-text">How much of the book is sent per request when splitting it into lines. Bigger pieces mean fewer requests, but the AI has to write every word back, so its reply grows with the piece, and if one word comes back wrong the whole piece is redone. If a piece is too big for the model to write back in one reply, generation stops before it starts and tells you a size that fits.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-batch-size">Step 2: lines per request</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-batch-size" min="5" max="100" step="1" value="25">
+                                        <div class="form-text">How many lines (narration and dialogue) the AI looks at together when deciding who speaks. More lines per request means more of the scene in view but longer replies; 25 is the tested default.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-context-chars">Step 2: extra text around each request (characters, each side)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="0">
+                                        <div class="form-text">Also show the AI this much of the book before and after the lines it is deciding on, for context only (it is told not to assign speakers to it). 0 = off. Every 1,000 characters adds roughly 300 tokens to each request, so it costs time (and money on paid APIs). Whether it improves accuracy is being measured; see RECIPES.md.</div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small mb-1" for="tp-attribute-prompt-variant">Step 2: how the AI is asked who speaks</label>
+                                        <select class="form-select form-select-sm" id="tp-attribute-prompt-variant">
+                                            <option value="default" selected>default - the standard prompt (use this with any trained adapter)</option>
+                                            <option value="michel">michel - lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)</option>
+                                            <option value="michel2">michel2 - michel plus this project's own rules (e.g. don't default to the main characters)</option>
+                                            <option value="michel2_full">michel2_full - michel2 with extra surrounding text (set the field above)</option>
+                                            <option value="michel2_shot">michel2_shot - michel2 with a worked example shown first</option>
+                                            <option value="continuity">continuity - keeps a running summary of the story so far (one extra request per batch of lines)</option>
+                                            <option value="aliases">aliases - default, plus character nicknames listed</option>
+                                            <option value="passage">passage - default, but lines shown as running text</option>
+                                            <option value="incremental">incremental - default, plus the previous request's answers</option>
+                                        </select>
+                                        <div class="form-text">Different ways of wording the "who says this line?" question, from this project's research. Which one is most accurate depends on the model; the measured results per model are in <code>RECIPES.md</code> under "Prompt", listed by the name at the start of each option. If you are using a trained adapter (LoRA), keep <strong>Default</strong>: adapters learn the wording they were trained with and lose accuracy under another.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
@@ -1016,6 +1039,7 @@
                         </button>
                     </div>
                     <div id="script-batch-status-msg" class="text-center text-muted small mb-2" style="display:none;"></div>
+                    <div id="script-batch-recovery-panel" class="alert alert-warning small mb-3" style="display:none;"></div>
                     <div id="script-recovery-panel" class="card border-danger mb-3" style="display:none;"></div>
 
                     <div class="d-grid gap-2">
@@ -1065,6 +1089,7 @@
                                 <button class="btn btn-outline-danger btn-sm" id="btn-cancel-nick" style="display:none;" onclick="cancelNicknames()"><i class="fas fa-stop me-1"></i>Cancel</button>
                                 <small class="text-muted">Scans context for nickname/alias pairs (e.g. <em>"Betty" &rarr; "BEATRICE"</em>). Review then applies them. You can edit the list before running Review.</small>
                             </div>
+                            <div id="nickname-recovery-panel" class="alert alert-warning small mt-2" style="display:none;"></div>
                             <div id="nickname-aliases-panel" class="mt-2" style="display:none;"></div>
                         </div>
 
@@ -1114,6 +1139,8 @@
                             <button class="btn btn-outline-danger" id="btn-cancel-batch-review" style="display:none;" onclick="cancelBatchReview()"><i class="fas fa-stop me-1"></i>Cancel</button>
                         </div>
                         <div id="review-batch-status-msg" class="text-center text-muted small" style="display:none;"></div>
+                        <div id="review-batch-recovery-panel" class="alert alert-warning small mt-2" style="display:none;"></div>
+                        <div id="review-recovery-panel" class="alert alert-warning small mt-2" style="display:none;"></div>
                     </div>
                 </div>
             </div>
@@ -1176,6 +1203,31 @@
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
                     <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                        <div class="input-group input-group-sm" style="width: 240px;">
+                            <span class="input-group-text">Narrator mode</span>
+                            <select class="form-select" id="narrator-strategy" onchange="saveNarratorStrategy(this.value)">
+                                <option value="global">Global</option>
+                                <option value="focus">Scene focus</option>
+                                <option value="chapter">Chapter</option>
+                                <option value="character">Character focus</option>
+                                <option value="gender">Gender</option>
+                                <option value="age">Age</option>
+                                <option value="gender_age">Gender + age</option>
+                                <option value="character_gender">Character + gender</option>
+                                <option value="character_age">Character + age</option>
+                                <option value="character_gender_age">Character + gender + age</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" onclick="previewNarratorSelection()">Preview</button>
+                        </div>
+                        <div class="input-group input-group-sm" id="narrator-focus-group" style="width: 190px; display:none;">
+                            <span class="input-group-text">Focus</span>
+                            <select class="form-select" id="narrator-focus"></select>
+                        </div>
+                        <div class="input-group input-group-sm" id="narrator-version-group" style="width: 190px; display:none;">
+                            <span class="input-group-text">Version</span>
+                            <select class="form-select" id="narrator-version"></select>
+                        </div>
+                        <span id="narrator-preview-status" class="small text-muted"></span>
                         <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">
@@ -1206,8 +1258,17 @@
                             <div class="row g-2">
                                 <div class="col-md-3"><input class="form-control form-control-sm" id="persona-recovery-speaker" placeholder="Speaker name"></div>
                                 <div class="col-md-7"><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-json" rows="3" placeholder='{"description":"...","ref_text":"..."}'></textarea></div>
-                                <div class="col-md-2"><button class="btn btn-sm btn-outline-success w-100" onclick="recoverPersona()">Validate &amp; save</button></div>
+                                <div class="col-md-2 d-grid gap-1">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="copyPersonaPrompt()">Copy prompt</button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="recoverPersona()">Validate &amp; save</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="recoverPersona(true)">Validate &amp; resume</button>
+                                </div>
                             </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-6"><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-samples" rows="2" placeholder="Dialogue samples (used by Copy prompt)"></textarea></div>
+                                <div class="col-md-6"><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-narration" rows="2" placeholder="Narrator context (used by Copy prompt)"></textarea></div>
+                            </div>
+                            <div id="persona-recovery-context" class="alert alert-warning small mt-2 mb-0" style="display:none;"></div>
                             <div id="persona-recovery-status" class="form-text"></div>
                         </div>
                     </details>
@@ -2094,6 +2155,10 @@
                                         <button class="btn btn-outline-success btn-sm" onclick="exportM4B()">
                                             <i class="fas fa-book-reader me-1"></i>Export M4B
                                         </button>
+                                        <label class="form-check d-inline-flex align-items-center ms-2 small" title="Refuse export until every speaker is marked ready">
+                                            <input type="checkbox" class="form-check-input me-1" id="m4b-require-ready">
+                                            Require ready
+                                        </label>
                                         <span id="m4b-status" class="ms-2 d-inline-block"></span>
                                     </div>
                                 </div>
@@ -2108,6 +2173,14 @@
                                             <label class="form-label small mb-1" for="chapter-template">Filename template</label>
                                             <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
                                             <div class="form-text">Fields: <code>{chapter_number}</code> <code>{chapter_name}</code> <code>{book_name}</code> <code>{series_name}</code> <code>{volume_number}</code>. The extension is added for you.</div>
+                                            <div class="input-group input-group-sm mt-1">
+                                                <select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="">Saved presets</option></select>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()">Save preset</button>
+                                                <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()">Delete</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()">Export</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()">Import</button>
+                                                <input type="file" id="chapter-preset-import" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
+                                            </div>
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label small mb-1" for="chapter-padding">Number padding</label>
@@ -2133,6 +2206,10 @@
                                             <label class="form-label small mb-1" for="chapter-volume">Volume</label>
                                             <input type="text" class="form-control form-control-sm" id="chapter-volume" placeholder="3">
                                         </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small mb-1" for="chapter-selection">Chapters (optional)</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-selection" placeholder="1, 3, 5-7">
+                                        </div>
                                         <div class="col-md-2 d-flex flex-column justify-content-end">
                                             <label class="form-check d-inline-flex align-items-center mb-1" title="Same chapter detection as the M4B export">
                                                 <input type="checkbox" class="form-check-input me-1" id="chapter-per-chunk">
@@ -2141,6 +2218,10 @@
                                             <label class="form-check d-inline-flex align-items-center mb-0" title="Skip chapters whose audio has not changed since they were last exported">
                                                 <input type="checkbox" class="form-check-input me-1" id="chapter-changed-only" checked>
                                                 <small class="text-muted">Changed only</small>
+                                            </label>
+                                            <label class="form-check d-inline-flex align-items-center mb-0" title="Refuse export until every speaker is approved and marked ready">
+                                                <input type="checkbox" class="form-check-input me-1" id="chapter-require-ready">
+                                                <small class="text-muted">Require ready</small>
                                             </label>
                                         </div>
                                     </div>

@@ -13,11 +13,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptPreset,
+from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig,
                              TTSConfig, backup_damaged_app_config, load_app_config,
                              load_app_config_result)
 
 from default_prompts import load_default_prompts
+from llm_provider import is_api_key_reference
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
@@ -43,6 +44,14 @@ from core import (
     process_state,
     project_manager,
 )
+
+
+def _normalize_openai_base_url(base_url: str) -> str:
+    """Normalize an OpenAI-compatible endpoint without duplicating /v1."""
+    url = base_url.strip().rstrip("/")
+    if not url:
+        return ""
+    return url if url.endswith("/v1") else url + "/v1"
 
 from utils import (atomic_json_write, file_lock,
                    rocm_smi_utilization as _rocm_smi_utilization,
@@ -83,8 +92,9 @@ def _redact_config_secrets(config: dict) -> dict:
     for section in ("llm", "llm_local", "llm_remote", "tts"):
         value = safe.get(section)
         if isinstance(value, dict) and value.get("api_key"):
-            value["api_key"] = _REDACTED_SECRET
             value["api_key_configured"] = True
+            if not is_api_key_reference(value["api_key"]):
+                value["api_key"] = _REDACTED_SECRET
     return safe
 
 
@@ -358,7 +368,9 @@ async def lmstudio_status():
 
 def _log_llm_failure(kind: str, detail: str) -> str:
     """Write an LLM connection/optimize failure to logs/api/ and return the path."""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include microseconds so concurrent failures never truncate one another's
+    # diagnostic file (the old second-resolution name was collision-prone).
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
     try:
         with open(path, "w", encoding="utf-8") as f:
@@ -399,7 +411,11 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
             raise HTTPException(status_code=400, detail=(
                 "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
                 "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-        remote_port = urlparse(cfg.get("base_url", "")).port or 1234
+        try:
+            remote_port = urlparse(cfg.get("base_url", "")).port or 1234
+        except ValueError as exc:
+            raise HTTPException(status_code=400,
+                                detail="Remote LLM base_url has an invalid port") from exc
         ok, msg = await asyncio.to_thread(
             apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable, remote_port)
         if not ok:
@@ -468,11 +484,9 @@ async def llm_models(request: LlmModelsRequest):
     """The model ids the endpoint advertises (OpenAI-compatible /models), so the
     Setup tab can offer a picker. Errors are returned, not raised: an
     unreachable server is a normal state while the user is still typing."""
-    url = request.base_url.strip().rstrip("/")
+    url = _normalize_openai_base_url(request.base_url)
     if not url:
         raise HTTPException(status_code=400, detail="base_url is required")
-    if not url.endswith("/v1"):
-        url += "/v1"
     def fetch():
         from llm_provider import make_llm_client
         client = make_llm_client({"base_url": url,
@@ -489,9 +503,7 @@ async def llm_test(profile: Optional[LLMConfig] = None):
     """Test LLM connectivity. Uses the posted profile if given (so the Setup tab
     can test before saving), otherwise the active config. Writes a log on failure."""
     if profile is not None and profile.base_url.strip():
-        url = profile.base_url.rstrip("/")
-        if not url.endswith("/v1"):
-            url += "/v1"
+        url = _normalize_openai_base_url(profile.base_url)
         profile_data = profile.model_dump()
         profile_data["base_url"] = url
         profile_data["api_key"] = _resolve_redacted_api_key(profile_data.get("api_key"), url)
@@ -572,8 +584,7 @@ async def get_config():
     config = {**default_config, **loaded_config}
     configured_presets = config.get("prompt_presets") or []
     config["prompt_presets"] = _builtin_prompt_presets() + [
-        p for p in configured_presets
-        if isinstance(p, dict) and not p.get("builtin")
+        p for p in configured_presets if isinstance(p, dict) and not p.get("builtin")
     ]
 
     # Backfill any TTSConfig field missing from an existing on-disk config.json
@@ -698,9 +709,7 @@ def _normalize_and_validate_llm(profile: "LLMConfig") -> "LLMConfig":
     """Return a copy with a normalized, validated local/trusted base URL."""
     if not profile.base_url.strip():
         raise HTTPException(status_code=400, detail="LLM base_url is required")
-    url = profile.base_url.rstrip("/")
-    if not url.endswith("/v1"):
-        url += "/v1"
+    url = _normalize_openai_base_url(profile.base_url)
     try:
         _validate_local_llm_base_url(url)
     except ValueError as e:
@@ -727,6 +736,10 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
                 if key not in sent.model_fields_set and key in type(sent).model_fields}
         if keep:
             merged = merged.model_copy(update={section: sent.model_copy(update=keep)}, deep=False)
+    if "prompt_presets" not in config.model_fields_set:
+        saved_presets = (existing or {}).get("prompt_presets")
+        if isinstance(saved_presets, list):
+            merged = merged.model_copy(update={"prompt_presets": saved_presets}, deep=False)
     return merged
 
 

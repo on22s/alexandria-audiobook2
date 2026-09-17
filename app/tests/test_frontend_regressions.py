@@ -72,6 +72,62 @@ class FrontendJsSplitTests(unittest.TestCase):
 
 
 class FrontendTests(unittest.TestCase):
+    def test_voice_cards_expose_age_version_generation(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "Generate age version", "generateAgeVersion(this)",
+                "age_group: ageGroup.trim()", "/api/generate_personas"):
+            self.assertIn(required, frontend)
+
+    def test_narrator_preview_uses_inline_scenario_selectors(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="narrator-focus"', 'id="narrator-version"',
+                "updateNarratorPreviewFields", "window._voicesNames",
+                "focus_speaker: focus", "narrator_version: version"):
+            self.assertIn(required, frontend)
+        self.assertNotIn("window.prompt('Focus character (optional):')", frontend)
+        self.assertNotIn("window.prompt('Narrator version ID (optional):')", frontend)
+
+    def test_chapter_presets_can_be_imported_and_exported(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "exportChapterTemplatePresets", "importChapterTemplatePresets",
+                "alexandria-chapter-presets.json", "chapter-preset-import",
+                "no valid presets found"):
+            self.assertIn(required, frontend)
+
+    def test_persona_failure_opens_manual_recovery(self):
+        frontend = _read_frontend_source()
+        for required in (
+                "const failed = (status.logs || [])",
+                "recoveryPanel.open = true",
+                "persona-recovery-context",
+                "Stage: persona generation",
+                "manual recovery is available"):
+            self.assertIn(required, frontend)
+
+    def test_review_failure_shows_downloadable_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-recovery-panel"', "function _onReviewDone(status)",
+                "/api/logs/review?download=true", "Inspect the log"):
+            self.assertIn(required, frontend)
+
+    def test_batch_review_and_nickname_failures_share_recovery_details(self):
+        frontend = _read_frontend_source()
+        for required in (
+                'id="review-batch-recovery-panel"',
+                'id="nickname-recovery-panel"',
+                "_showTaskRecoveryPanel('review-batch-recovery-panel'",
+                "_showTaskRecoveryPanel('nickname-recovery-panel'"):
+            self.assertIn(required, frontend)
+
+    def test_batch_script_failures_show_recovery_details(self):
+        frontend = _read_frontend_source()
+        self.assertIn('id="script-batch-recovery-panel"', frontend)
+        self.assertIn("_showTaskRecoveryPanel('script-batch-recovery-panel'", frontend)
+
     def test_saved_script_audit_surfaces_nonprose_validation_state(self):
         frontend = _read_frontend_source()
         for required in ("saved-script-preflight", "auditSavedScript",
@@ -292,7 +348,11 @@ class FrontendTests(unittest.TestCase):
             "sub-batch-max-items": (config_settings.TTSConfig, "sub_batch_max_items"),
             "pause-between-speakers": (config_settings.TTSConfig, "pause_between_speakers_ms"),
             "pause-same-speaker": (config_settings.TTSConfig, "pause_same_speaker_ms"),
-            "chunk-size": (config_settings.GenerationConfig, "chunk_size"),
+            # generation.chunk_size has no control: it drives only the legacy
+            # generate_script.py CLI, and the UI runs three-pass everywhere.
+            "tp-chunk-size": (config_settings.GenerationConfig, "three_pass_chunk_size"),
+            "tp-attribute-batch-size": (config_settings.GenerationConfig, "three_pass_attribute_batch_size"),
+            "tp-attribute-context-chars": (config_settings.GenerationConfig, "three_pass_attribute_context_chars"),
             "max-tokens": (config_settings.GenerationConfig, "max_tokens"),
             "temperature": (config_settings.GenerationConfig, "temperature"),
             "top-p": (config_settings.GenerationConfig, "top_p"),
@@ -324,6 +384,8 @@ class FrontendTests(unittest.TestCase):
         }
         app_mode = config_settings.AppConfig.model_json_schema()["properties"]["llm_mode"]
         tts_mode = config_settings.TTSConfig.model_json_schema()["properties"]["mode"]
+        variant = config_settings.GenerationConfig.model_json_schema()["properties"]["three_pass_attribute_prompt_variant"]
+        self.assertEqual(set(variant["enum"]), selects["tp-attribute-prompt-variant"])
         self.assertEqual(set(app_mode["enum"]), selects["llm-mode"])
         self.assertEqual(set(tts_mode["enum"]), selects["tts-mode"])
         self.assertIn(app_mode["default"], selects["llm-mode"])

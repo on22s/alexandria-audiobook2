@@ -43,6 +43,12 @@ class BenchmarkCoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires id and sha256"):
             benchmark_core.validate_benchmark_manifest(manifest)
 
+    def test_manifest_validation_rejects_non_object_settings(self):
+        manifest = _manifest()
+        manifest["settings"] = []
+        with self.assertRaisesRegex(ValueError, "settings must be an object"):
+            benchmark_core.validate_benchmark_manifest(manifest)
+
     def test_fingerprints_are_stable_and_change_with_environment(self):
         first = _environment()
         second = _environment()

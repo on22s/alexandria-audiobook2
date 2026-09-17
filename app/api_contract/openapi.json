@@ -65,6 +65,7 @@
             "items": {
               "$ref": "#/components/schemas/PromptPreset"
             },
+            "maxItems": 50,
             "title": "Prompt Presets",
             "type": "array"
           },
@@ -490,6 +491,11 @@
             "title": "Per Chunk Chapters",
             "type": "boolean"
           },
+          "require_ready": {
+            "default": false,
+            "title": "Require Ready",
+            "type": "boolean"
+          },
           "series_name": {
             "default": "",
             "title": "Series Name",
@@ -880,6 +886,18 @@
             "title": "Advanced",
             "type": "boolean"
           },
+          "age_group": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Group"
+          },
           "batch_size": {
             "default": 40,
             "title": "Batch Size",
@@ -891,6 +909,18 @@
             "minimum": 1.0,
             "title": "Context Lines",
             "type": "integer"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
           }
         },
         "title": "GeneratePersonasRequest",
@@ -980,6 +1010,36 @@
             "title": "Temperature",
             "type": "number"
           },
+          "three_pass_attribute_batch_size": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 5.0,
+            "title": "Three Pass Attribute Batch Size",
+            "type": "integer"
+          },
+          "three_pass_attribute_context_chars": {
+            "default": 0,
+            "maximum": 20000.0,
+            "minimum": 0.0,
+            "title": "Three Pass Attribute Context Chars",
+            "type": "integer"
+          },
+          "three_pass_attribute_prompt_variant": {
+            "default": "default",
+            "enum": [
+              "default",
+              "aliases",
+              "passage",
+              "incremental",
+              "michel",
+              "continuity",
+              "michel2",
+              "michel2_full",
+              "michel2_shot"
+            ],
+            "title": "Three Pass Attribute Prompt Variant",
+            "type": "string"
+          },
           "three_pass_attribute_temperature": {
             "default": 0.1,
             "maximum": 2.0,
@@ -989,7 +1049,7 @@
           },
           "three_pass_chunk_size": {
             "default": 3000,
-            "maximum": 12000.0,
+            "maximum": 30000.0,
             "minimum": 500.0,
             "title": "Three Pass Chunk Size",
             "type": "integer"
@@ -1492,6 +1552,11 @@
             "title": "Per Chunk Chapters",
             "type": "boolean"
           },
+          "require_ready": {
+            "default": false,
+            "title": "Require Ready",
+            "type": "boolean"
+          },
           "title": {
             "default": "",
             "title": "Title",
@@ -1506,6 +1571,58 @@
         "title": "M4bExportRequest",
         "type": "object"
       },
+      "NarratorPreviewRequest": {
+        "properties": {
+          "focus_speaker": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus Speaker"
+          },
+          "narrator_version": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrator Version"
+          },
+          "strategy": {
+            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy"
+        ],
+        "title": "NarratorPreviewRequest",
+        "type": "object"
+      },
+      "NarratorStrategyRequest": {
+        "properties": {
+          "strategy": {
+            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy"
+        ],
+        "title": "NarratorStrategyRequest",
+        "type": "object"
+      },
       "PersonaRecoveryRequest": {
         "properties": {
           "persona_json": {
@@ -1513,6 +1630,11 @@
             "minLength": 2,
             "title": "Persona Json",
             "type": "string"
+          },
+          "resume": {
+            "default": false,
+            "title": "Resume",
+            "type": "boolean"
           },
           "speaker": {
             "maxLength": 200,
@@ -1526,6 +1648,60 @@
           "persona_json"
         ],
         "title": "PersonaRecoveryRequest",
+        "type": "object"
+      },
+      "PersonaVoiceAuditRequest": {
+        "properties": {
+          "persona_description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Description"
+          },
+          "persona_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Ref"
+          },
+          "suggestion_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion Reason"
+          },
+          "voice_adapter_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Adapter Id"
+          }
+        },
+        "title": "PersonaVoiceAuditRequest",
         "type": "object"
       },
       "PromptConfig": {
@@ -1633,11 +1809,13 @@
           },
           "system_prompt": {
             "default": "",
+            "maxLength": 100000,
             "title": "System Prompt",
             "type": "string"
           },
           "user_prompt": {
             "default": "",
+            "maxLength": 100000,
             "title": "User Prompt",
             "type": "string"
           }
@@ -1833,6 +2011,20 @@
             ],
             "title": "Cast"
           },
+          "characters": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Characters"
+          },
           "max_lines": {
             "default": 8,
             "title": "Max Lines",
@@ -1978,7 +2170,7 @@
           "chunk_size": {
             "anyOf": [
               {
-                "maximum": 12000.0,
+                "maximum": 30000.0,
                 "minimum": 500.0,
                 "type": "integer"
               },
@@ -2075,8 +2267,93 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VoiceApprovalRequest": {
+        "properties": {
+          "persona_status": {
+            "anyOf": [
+              {
+                "pattern": "^(unreviewed|generated|reviewed|approved|rejected)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Status"
+          },
+          "voice_status": {
+            "anyOf": [
+              {
+                "pattern": "^(unreviewed|generated|reviewed|approved|rejected)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Status"
+          }
+        },
+        "title": "VoiceApprovalRequest",
+        "type": "object"
+      },
+      "VoiceCandidateFavoriteRequest": {
+        "properties": {
+          "favorite": {
+            "title": "Favorite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "favorite"
+        ],
+        "title": "VoiceCandidateFavoriteRequest",
+        "type": "object"
+      },
+      "VoiceCandidateRequest": {
+        "properties": {
+          "candidate_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ],
+        "title": "VoiceCandidateRequest",
+        "type": "object"
+      },
       "VoiceConfigItem": {
         "properties": {
+          "active_candidate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Candidate"
+          },
+          "active_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version"
+          },
           "adapter_id": {
             "anyOf": [
               {
@@ -2098,6 +2375,25 @@
               }
             ],
             "title": "Adapter Path"
+          },
+          "age_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Group"
+          },
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Candidates",
+            "type": "array"
           },
           "character_style": {
             "anyOf": [
@@ -2149,6 +2445,22 @@
             ],
             "title": "Members"
           },
+          "narrator_strategy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrator Strategy"
+          },
+          "persona_status": {
+            "default": "unreviewed",
+            "title": "Persona Status",
+            "type": "string"
+          },
           "ready": {
             "default": false,
             "title": "Ready",
@@ -2193,6 +2505,14 @@
             "title": "Type",
             "type": "string"
           },
+          "versions": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Versions",
+            "type": "object"
+          },
           "voice": {
             "anyOf": [
               {
@@ -2204,6 +2524,11 @@
             ],
             "default": "Ryan",
             "title": "Voice"
+          },
+          "voice_status": {
+            "default": "unassigned",
+            "title": "Voice Status",
+            "type": "string"
           }
         },
         "title": "VoiceConfigItem",
@@ -2498,6 +2823,32 @@
           "suggestion"
         ],
         "title": "VoiceSuggestionApplyRequest",
+        "type": "object"
+      },
+      "VoiceVersionRequest": {
+        "properties": {
+          "age_group": {
+            "default": "adult",
+            "maxLength": 40,
+            "title": "Age Group",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "version_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id"
+        ],
+        "title": "VoiceVersionRequest",
         "type": "object"
       }
     }
@@ -4127,7 +4478,7 @@
     },
     "/api/generate_script/batch/start": {
       "post": {
-        "description": "Process multiple text/EPUB files sequentially through generate_script.py.",
+        "description": "Process multiple text/EPUB files through three_pass_generate.py - the\nsame command single-book generation runs (build_generate_script_command).",
         "operationId": "generate_script_batch_start_api_generate_script_batch_start_post",
         "requestBody": {
           "content": {
@@ -5406,6 +5757,78 @@
         "summary": "Merge M4B Endpoint"
       }
     },
+    "/api/narrator/preview": {
+      "post": {
+        "operationId": "preview_narrator_api_narrator_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarratorPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Narrator"
+      }
+    },
+    "/api/narrator/strategy": {
+      "post": {
+        "operationId": "save_narrator_strategy_api_narrator_strategy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarratorStrategyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Narrator Strategy"
+      }
+    },
     "/api/persona/recover": {
       "post": {
         "description": "Validate and save one externally generated persona without rerunning the batch.",
@@ -6006,8 +6429,8 @@
     },
     "/api/scripts": {
       "get": {
-        "description": "List all saved scripts in the scripts/ directory.\n\nUses a whitelist approach: only includes .json files that do NOT end with\nany known companion/internal suffix (voice_config, metadata, checkpoint, etc.).",
-        "operationId": "list_saved_scripts_api_scripts_get",
+        "description": "List saved scripts without blocking the FastAPI event loop on disk I/O.",
+        "operationId": "list_saved_scripts",
         "responses": {
           "200": {
             "content": {
@@ -7484,6 +7907,390 @@
           }
         },
         "summary": "Get Voices"
+      }
+    },
+    "/api/voices/{speaker}/approval": {
+      "post": {
+        "description": "Set persona and voice approval independently for a character.",
+        "operationId": "set_voice_approval_api_voices__speaker__approval_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Voice Approval"
+      }
+    },
+    "/api/voices/{speaker}/candidates": {
+      "post": {
+        "operationId": "add_voice_candidate_api_voices__speaker__candidates_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceCandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/candidates/{candidate_id}": {
+      "delete": {
+        "operationId": "delete_voice_candidate_api_voices__speaker__candidates__candidate_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/candidates/{candidate_id}/favorite": {
+      "post": {
+        "operationId": "favorite_voice_candidate_api_voices__speaker__candidates__candidate_id__favorite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceCandidateFavoriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Favorite Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/candidates/{candidate_id}/select": {
+      "post": {
+        "operationId": "select_voice_candidate_api_voices__speaker__candidates__candidate_id__select_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/persona-voice-audit": {
+      "post": {
+        "description": "Allow a user to correct the provenance note for an assignment.",
+        "operationId": "update_persona_voice_audit_api_voices__speaker__persona_voice_audit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonaVoiceAuditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Persona Voice Audit"
+      }
+    },
+    "/api/voices/{speaker}/versions": {
+      "post": {
+        "operationId": "save_voice_version_api_voices__speaker__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Voice Version"
+      }
+    },
+    "/api/voices/{speaker}/versions/{version_id}/select": {
+      "post": {
+        "operationId": "select_voice_version_api_voices__speaker__versions__version_id__select_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Voice Version"
       }
     },
     "/favicon.ico": {

@@ -68,8 +68,12 @@ def validate_benchmark_manifest(manifest):
     normalized["targets"] = list(dict.fromkeys(targets))
     normalized["fixtures"] = normalized_fixtures
     normalized["repetitions"] = repetitions
-    normalized.setdefault("settings", {})
-    normalized.setdefault("quality_thresholds", {})
+    settings = normalized.setdefault("settings", {})
+    if not isinstance(settings, dict):
+        raise ValueError("benchmark settings must be an object")
+    thresholds = normalized.setdefault("quality_thresholds", {})
+    if not isinstance(thresholds, dict):
+        raise ValueError("benchmark quality_thresholds must be an object")
     return normalized
 
 

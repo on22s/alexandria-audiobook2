@@ -63,7 +63,7 @@ _KANA_START, _KANA_END = "぀", "ヿ"
 
 
 def is_kana(char):
-    return _KANA_START <= char <= _KANA_END
+    return isinstance(char, str) and len(char) == 1 and _KANA_START <= char <= _KANA_END
 
 
 def is_pictographic_kana(char, neighbours):
@@ -80,6 +80,8 @@ def is_pictographic_kana(char, neighbours):
 
 def classify(char):
     """Return scene_break, verbalize, elongation, music, review, or speakable."""
+    if not isinstance(char, str) or len(char) != 1:
+        raise ValueError("classify expects exactly one character")
     if char in SCENE_BREAK_CHARS:
         return "scene_break"
     if char in VERBALIZE:
@@ -120,6 +122,8 @@ def split_bracketed_spans(text):
     part to carry its own instruct. Text with no complete bracket pair comes
     back as a single plain part.
     """
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
     parts, cursor = [], 0
     for match in _BRACKETED_SPAN.finditer(text):
         lead = text[cursor:match.start()].strip()

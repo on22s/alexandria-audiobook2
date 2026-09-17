@@ -833,10 +833,21 @@ class ProjectManager:
             speaker_tracks[speaker] = track
 
         # Phase 3 — Build LOF and labels content
+        speaker_filenames = {}
+        used_filenames = set()
+        for speaker in speakers_ordered:
+            base_name = sanitize_filename(speaker)
+            safe_name = base_name
+            suffix = 2
+            while safe_name in used_filenames:
+                safe_name = f"{base_name}_{suffix}"
+                suffix += 1
+            speaker_filenames[speaker] = safe_name
+            used_filenames.add(safe_name)
+
         lof_lines = []
         for speaker in speakers_ordered:
-            safe_name = sanitize_filename(speaker)
-            lof_lines.append(f'file "{safe_name}.wav"')
+            lof_lines.append(f'file "{speaker_filenames[speaker]}.wav"')
         lof_content = "\n".join(lof_lines) + "\n"
 
         label_lines = []
@@ -862,7 +873,7 @@ class ProjectManager:
                 zf.writestr("labels.txt", labels_content)
 
                 for speaker in speakers_ordered:
-                    safe_name = sanitize_filename(speaker)
+                    safe_name = speaker_filenames[speaker]
                     wav_buffer = io.BytesIO()
                     speaker_tracks[speaker].export(wav_buffer, format="wav")
                     zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
@@ -1638,12 +1649,21 @@ class ProjectManager:
                     # Resolve aliases so batch uses canonical speaker config
                     speaker = chunk.get("speaker", "")
                     canonical = self._resolve_alias(speaker, voice_config)
-                    batch_chunks.append({
+                    batch_chunk = {
                         "index": idx,
                         "text": chunk.get("text", ""),
                         "instruct": chunk.get("instruct", ""),
                         "speaker": canonical
-                    })
+                    }
+                    # Preserve narrator-selection metadata through the
+                    # project boundary; the TTS engine uses these fields to
+                    # resolve focus/chapter/gender strategies per chunk.
+                    for field in ("focus_speaker", "character_focus", "narrator_version",
+                                  "chapter_narrator_version", "narrator_gender", "focus_gender",
+                                  "narrator_age_group", "focus_age_group"):
+                        if field in chunk:
+                            batch_chunk[field] = chunk[field]
+                    batch_chunks.append(batch_chunk)
 
             # Call batch TTS with single seed. If stale-output cleanup rejected
             # every row, there is nothing safe to dispatch.

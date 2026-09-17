@@ -140,8 +140,14 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
                                 "flagged": False, "reference": label,
                                 "error": "chunk audio missing"})
                 continue
-            pairs.append([wav_for(chunk_path, f"chunk_{index}"),
-                          wav_for(ref_path, f"ref_{len(decoded)}")])
+            try:
+                pairs.append([wav_for(chunk_path, f"chunk_{index}"),
+                              wav_for(ref_path, f"ref_{len(decoded)}")])
+            except (OSError, ValueError, RuntimeError) as exc:
+                results.append({"index": index, "uid": chunk.get("uid"),
+                                "score": None, "flagged": False,
+                                "reference": label,
+                                "error": f"audio decode failed: {str(exc)[:160]}"})
             pair_owner.append((index, chunk.get("uid"), label))
 
         if pairs:

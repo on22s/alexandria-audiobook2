@@ -922,6 +922,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # to any budget sized on the visible response.
             usage_details = getattr(usage, "completion_tokens_details", None)
             reasoning_tokens = getattr(usage_details, "reasoning_tokens", None)
+            # llama.cpp returns the trace in message.reasoning_content but
+            # reports no reasoning_tokens in usage, so the allowance never
+            # grew and a short chunk's ceiling (512) was spent entirely on
+            # thinking: Re:Zero vol. 3 failed pass 1 that way on 2026-09-15
+            # under Muse reasoning low. Estimate from the trace when the
+            # server does not count it.
+            if reasoning_tokens is None:
+                trace = getattr(choice.message, "reasoning_content", None) or ""
+                if trace:
+                    reasoning_tokens = max(1, len(trace) // 4)
 
             # Log raw response for debugging (rotating to cap unbounded growth)
             log_path = get_response_log_path(log_name)
@@ -1198,6 +1208,47 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             return salvaged_entries
 
     return []
+
+
+def call_llm_for_object(client, model_name, sys_prompt, user_prompt, params,
+                        label, validate_object=None, max_retries=2,
+                        attempt_observer=None):
+    """Call the shared reliability pipeline for one JSON object payload."""
+    import json
+    from response_codecs import ResponseCodec
+    from utils import extract_json_object
+
+    def extract(text):
+        try:
+            parsed = extract_json_object(str(text or ""))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return ""
+        return json.dumps(parsed, ensure_ascii=False) if isinstance(parsed, dict) else ""
+
+    def parse(payload):
+        try:
+            parsed = json.loads(payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    codec = ResponseCodec("json_object", extract, parse, parse, lambda _text: None)
+
+    def validate(payload):
+        if not isinstance(payload, dict):
+            return {"passed": False, "findings": [{"code": "not_object"}]}
+        if validate_object is None:
+            return {"passed": True, "findings": []}
+        try:
+            validate_object(payload)
+        except (TypeError, ValueError) as exc:
+            return {"passed": False, "findings": [{"code": "invalid_object", "message": str(exc)}]}
+        return {"passed": True, "findings": []}
+
+    return call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params, label=label,
+        max_retries=max_retries, validate_entries=validate,
+        attempt_observer=attempt_observer, codec=codec)
 
 
 def _build_chunk_context(chunk_num, total_chunks, previous_entries):

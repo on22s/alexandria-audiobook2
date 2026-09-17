@@ -17,6 +17,11 @@ import update_api_contract_snapshots as api_contract
 
 
 class ApiContractTests(unittest.TestCase):
+    def test_missing_contract_snapshot_is_a_clear_validation_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "snapshots are missing or invalid"):
+                api_contract.check_snapshots(app_module.app, tmp)
+
     def test_drift_check_claims_before_background_schedule(self):
         """A second request cannot pass while the first is still queued."""
         import asyncio

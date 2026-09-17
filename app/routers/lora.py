@@ -699,23 +699,24 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
                 with open(os.path.join(output_dir, "training_meta.json"), "r") as f:
                     meta = json.load(f)
 
-                manifest = _load_manifest(LORA_MODELS_MANIFEST)
-                manifest.append({
-                    "id": adapter_id,
-                    "name": request.name,
-                    "dataset_id": request.dataset_id,
-                    "epochs": meta.get("epochs", request.epochs),
-                    "final_loss": meta.get("final_loss"),
-                    "sample_count": meta.get("num_samples"),
-                    "lora_r": meta.get("lora_r"),
-                    "lr": meta.get("lr"),
-                    "checkpoint_sha256": meta.get("checkpoint_sha256"),
-                    "evaluation_candidates": meta.get("evaluation_candidates", []),
-                    "evaluation_candidate_skips": meta.get(
-                        "evaluation_candidate_skips", []),
-                    "created": time.time(),
-                })
-                _save_manifest(LORA_MODELS_MANIFEST, manifest)
+                with file_lock(LORA_MODELS_MANIFEST):
+                    manifest = _load_manifest(LORA_MODELS_MANIFEST)
+                    manifest.append({
+                        "id": adapter_id,
+                        "name": request.name,
+                        "dataset_id": request.dataset_id,
+                        "epochs": meta.get("epochs", request.epochs),
+                        "final_loss": meta.get("final_loss"),
+                        "sample_count": meta.get("num_samples"),
+                        "lora_r": meta.get("lora_r"),
+                        "lr": meta.get("lr"),
+                        "checkpoint_sha256": meta.get("checkpoint_sha256"),
+                        "evaluation_candidates": meta.get("evaluation_candidates", []),
+                        "evaluation_candidate_skips": meta.get(
+                            "evaluation_candidate_skips", []),
+                        "created": time.time(),
+                    })
+                    _save_manifest(LORA_MODELS_MANIFEST, manifest)
                 logger.info(f"LoRA adapter registered: {adapter_id}")
             except Exception as e:
                 logger.error(f"Failed to update LoRA manifest: {e}")
@@ -873,16 +874,22 @@ async def lora_submit_review(adapter_id: str, session_id: str, request: ReviewSu
 @router.get("/api/lora/models/{adapter_id}/reviews")
 async def lora_list_reviews(adapter_id: str):
     """Return this adapter's bounded human-review history, newest first."""
-    reviews = await asyncio.to_thread(
-        evaluation_reviews.list_reviews, EVALUATION_REVIEWS_DIR, adapter_id)
+    try:
+        reviews = await asyncio.to_thread(
+            evaluation_reviews.list_reviews, EVALUATION_REVIEWS_DIR, adapter_id)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return {"reviews": reviews}
 
 
 @router.post("/api/lora/models/{adapter_id}/reviews/cleanup")
 async def lora_cleanup_reviews(adapter_id: str):
     """Delete this adapter's human-review history, reporting count and space freed."""
-    return await asyncio.to_thread(
-        evaluation_reviews.cleanup, EVALUATION_REVIEWS_DIR, adapter_id)
+    try:
+        return await asyncio.to_thread(
+            evaluation_reviews.cleanup, EVALUATION_REVIEWS_DIR, adapter_id)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/api/lora/models/{adapter_id}/promote")

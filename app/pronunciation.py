@@ -63,7 +63,7 @@ def load_lexicon(path=None, force=False):
                        "pattern": None})
         return {}
     if not force and _cache["path"] == path and _cache["mtime"] == mtime:
-        return _cache["entries"]
+        return dict(_cache["entries"])
     try:
         with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
@@ -73,13 +73,15 @@ def load_lexicon(path=None, force=False):
         _cache.update({"path": path, "mtime": mtime, "entries": {},
                        "pattern": None})
         return {}
+    if not isinstance(raw, dict):
+        raw = {}
     source = raw.get("names") if isinstance(raw.get("names"), dict) else raw
     entries = {str(k): str(v) for k, v in source.items()
                if isinstance(k, str) and isinstance(v, str)
                and k.strip() and v.strip()}
     _cache.update({"path": path, "mtime": mtime, "entries": entries,
                    "pattern": _compile(entries)})
-    return entries
+    return dict(entries)
 
 
 def apply_pronunciation(text, path=None):

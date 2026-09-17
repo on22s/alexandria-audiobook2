@@ -832,6 +832,15 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             status_code=409,
             detail="No failed or incomplete three-pass generation is available to resume.")
     check_global_gpu_lock("script")
+    if not require_recovery:
+        try:
+            refusal = output_ceiling_refusal([{
+                "filename": os.path.basename(input_file), "input_path": input_file,
+                "first_person_narrator": None}])
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if refusal:
+            raise HTTPException(status_code=400, detail=refusal)
     options = {
         "strip_front_matter": request is None or request.strip_front_matter,
         "first_person_narrator": (request.first_person_narrator
@@ -1669,6 +1678,10 @@ def build_batch_script_preflight(jobs):
             "scripts": unicode_report["scripts"],
             "is_nfc": unicode_report["is_nfc"],
             "known_normalizations": normalization_count,
+            "largest_predicted_completion": report.get("largest_predicted_completion", 0),
+            "output_ceiling": report.get("output_ceiling", 0),
+            "exceeds_output_ceiling": bool(report.get("exceeds_output_ceiling")),
+            "suggested_chunk_size": report.get("suggested_chunk_size"),
         })
     worst = max((book["worst_predicted_tokens"] for book in books), default=0)
     safe = min(parallel, len(jobs))
@@ -1684,7 +1697,34 @@ def build_batch_script_preflight(jobs):
                     f"the largest predicted request needs {worst} tokens.")
     return {"book_count": len(books), "workers": safe, "loaded_parallel": parallel,
             "context_length": context, "per_slot_context": per_slot,
-            "worst_request_tokens": worst, "fallback_reason": fallback, "books": books}
+            "worst_request_tokens": worst, "fallback_reason": fallback, "books": books,
+            "chunk_size": settings["chunk_size"]}
+
+
+def output_ceiling_refusal(jobs):
+    """-> the 400 message when some job's largest chunk cannot be re-emitted
+    within the run's output ceiling, or None when every chunk fits. Pass 1
+    returns the chunk verbatim, so a chunk that needs more output tokens than
+    the model may ever be asked for fails on every retry; refusing before the
+    run starts is the cheaper failure. Needs no server status - only the
+    configured chunk size, max_tokens and the source text."""
+    config = load_app_config(CONFIG_PATH)
+    settings = resolve_three_pass_generation_settings(config)
+    over = []
+    for job in jobs:
+        text, _ = _read_and_validate_batch_script_source(job)
+        report = build_three_pass_request_preflight(text, settings, 0, 1)
+        if report["exceeds_output_ceiling"]:
+            over.append((job["filename"], report))
+    if not over:
+        return None
+    name, worst = max(over, key=lambda item: item[1]["largest_predicted_completion"])
+    suggested = min(report["suggested_chunk_size"] for _, report in over)
+    return (f"\"Step 1: text per request\" is set to {settings['chunk_size']} characters, which is "
+            f"more than this model can write back in one reply: a piece of {name} would need "
+            f"about {worst['largest_predicted_completion']} tokens and the most it can reply is "
+            f"{worst['output_ceiling']} (Baseline Response Tokens in Setup, or 16384 if that is lower). "
+            f"Set it to {suggested} or below, or raise Baseline Response Tokens.")
 
 
 def _get_batch_script_workers(jobs):
@@ -1738,7 +1778,8 @@ def _run_batch_script_job(job, state, log_path, total):
 
 @router.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
-    """Process multiple text/EPUB files sequentially through generate_script.py."""
+    """Process multiple text/EPUB files through three_pass_generate.py - the
+    same command single-book generation runs (build_generate_script_command)."""
     if not request.tasks:
         raise HTTPException(status_code=400, detail="No files provided.")
     try:
@@ -1752,6 +1793,12 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             })
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    refusal = output_ceiling_refusal([
+        {"filename": task.filename, "input_path": _resolve_batch_script_input(task.filename),
+         "first_person_narrator": narrator}
+        for task, narrator in zip(request.tasks, narrators)])
+    if refusal:
+        raise HTTPException(status_code=400, detail=refusal)
     check_global_gpu_lock("batch_script")
 
     def _run():
