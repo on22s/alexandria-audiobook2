@@ -222,7 +222,7 @@ class OutputCeilingRefusalTests(unittest.TestCase):
         self.assertIsNotNone(message)
         self.assertIn("30000", message)
         self.assertIn("16384", message)
-        self.assertRegex(message, r"chunk size to \d+ or below")
+        self.assertRegex(message, r"Set it to \d+ or below")
 
     def test_a_chunk_that_fits_is_not_refused(self):
         self.assertIsNone(self._refusal(3000))
@@ -240,5 +240,5 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                 with self.assertRaises(script.HTTPException) as ctx:
                     script.start_script_generation(None, str(path), None)
         self.assertEqual(400, ctx.exception.status_code)
-        self.assertIn("output ceiling", ctx.exception.detail)
+        self.assertIn("write back in one reply", ctx.exception.detail)
         claim.assert_not_called()

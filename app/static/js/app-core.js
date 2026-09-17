@@ -1512,10 +1512,10 @@
                 if (overCeiling.length) {
                     const suggested = Math.min(...overCeiling.map(book => book.suggested_chunk_size));
                     showToast(
-                        `Pass 1 chunk size ${preflight.chunk_size} is too large for this model's output ceiling ` +
+                        `"Step 1: text per request" (${preflight.chunk_size} characters) is more than this model can write back in one reply ` +
                         `(${overCeiling.map(book => book.filename).join(', ')}). ` +
-                        `Set it to ${suggested} or below in Setup, or raise max tokens.`, 'error');
-                    statusMsg.innerHTML = '<span class="text-danger">Batch refused by preflight: chunk size exceeds the output ceiling.</span>';
+                        `Set it to ${suggested} or below in Setup, or raise Baseline Response Tokens.`, 'error');
+                    statusMsg.innerHTML = '<span class="text-danger">Not started: the text-per-request setting is more than this model can write back in one reply.</span>';
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';

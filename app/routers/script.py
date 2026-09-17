@@ -1720,11 +1720,11 @@ def output_ceiling_refusal(jobs):
         return None
     name, worst = max(over, key=lambda item: item[1]["largest_predicted_completion"])
     suggested = min(report["suggested_chunk_size"] for _, report in over)
-    return (f"Three-pass chunk size {settings['chunk_size']} is too large for this model's "
-            f"output ceiling: {name} has a chunk predicted to need "
-            f"{worst['largest_predicted_completion']} output tokens, the ceiling is "
-            f"{worst['output_ceiling']} (max_tokens in Setup, or 16384 if lower). "
-            f"Set the three-pass chunk size to {suggested} or below, or raise max_tokens.")
+    return (f"\"Step 1: text per request\" is set to {settings['chunk_size']} characters, which is "
+            f"more than this model can write back in one reply: a piece of {name} would need "
+            f"about {worst['largest_predicted_completion']} tokens and the most it can reply is "
+            f"{worst['output_ceiling']} (Baseline Response Tokens in Setup, or 16384 if that is lower). "
+            f"Set it to {suggested} or below, or raise Baseline Response Tokens.")
 
 
 def _get_batch_script_workers(jobs):
