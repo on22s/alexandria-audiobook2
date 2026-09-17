@@ -17,6 +17,11 @@ three-step instruction, and the previous chunk's predictions as context.
 - incremental: the speakers decided for the previous window are shown
                first, so a scene that spans two windows keeps its cast.
 - michel:      all three together.
+- judge:       the canonical request plus a `why` per spoken line - one
+               sentence naming the evidence - so a strong model labelling a
+               book for review checks itself and leaves a reason a human can
+               audit. `speaker` is what the pipeline keeps; every
+               {text, speaker, why} also goes to $JUDGE_WHY_PATH (JSON lines).
 - continuity:  rolling story context (XinchaoGou/alexandria-audiobook's
                serial-novel pipeline): a running summary of everything
                before this window, rewritten by the model after each window
@@ -30,7 +35,7 @@ import json
 from generate_script import call_llm_for_entries
 from three_pass_generate import build_attribute_request
 
-VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity")
+VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge")
 
 PASSAGE_INSTRUCTION = (
     "The passage below is continuous text from the book. Spoken lines are marked "
@@ -42,6 +47,34 @@ PASSAGE_INSTRUCTION = (
     "Step 3: return one {\"n\", \"speaker\"} object per input entry, including the "
     "narration entries (their speaker is NARRATOR), in index order. Do not repeat "
     "any text and do not explain.")
+
+
+JUDGE_INSTRUCTION = (
+    "\n\nYou are labelling this book as reference data, so check yourself: for every "
+    "SPOKEN entry, before choosing the speaker, find the evidence in the narration "
+    "around it - a speech tag, who is addressed, turn-taking, or what the line says - "
+    "and confirm it does not contradict the surrounding lines. Add a field \"why\" to "
+    "each SPOKEN object: one sentence naming that evidence (quote the tag or cue). "
+    "Output objects are {\"n\", \"speaker\", \"why\"}; narration entries need no why.")
+
+
+def record_judge_reasons(frozen_batch, named):
+    """Append {text, speaker, why} per spoken line to $JUDGE_WHY_PATH."""
+    import os
+    path = os.environ.get("JUDGE_WHY_PATH")
+    if not path or not named:
+        return
+    by_n = {}
+    for item in named:
+        if isinstance(item, dict) and isinstance(item.get("n"), int):
+            by_n[item["n"]] = item
+    with open(path, "a", encoding="utf-8") as fh:
+        for i, entry in enumerate(frozen_batch):
+            if entry.get("type") != "SPOKEN":
+                continue
+            item = by_n.get(i, {})
+            fh.write(json.dumps({"text": entry["text"], "speaker": item.get("speaker"),
+                                 "why": item.get("why")}, ensure_ascii=False) + "\n")
 
 
 SUMMARY_INSTRUCTION = (
@@ -136,6 +169,8 @@ def make_provider(variant, alias_groups=None):
             prev = "; ".join(f"{i}: {s}" for i, s in memory["previous"])
             body = ("Speakers already decided for the lines immediately before this passage "
                     f"(most recent last): {prev}\n\n") + body
+        if variant == "judge":
+            body = body + JUDGE_INSTRUCTION
         if variant == "continuity" and (memory["summary"] or memory["tail"]):
             tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
             body = ("STORY SO FAR (for identity and continuity only; never attribute "
@@ -154,6 +189,8 @@ def make_provider(variant, alias_groups=None):
                 memory["tail"] = [(item.get("speaker"), f["text"])
                                   for f, item in zip(frozen_batch, named)
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]
+        if variant == "judge":
+            record_judge_reasons(frozen_batch, named)
         if variant == "continuity":
             memory["summary"] = rolling_summary(
                 client, model_name, params, memory["summary"],
