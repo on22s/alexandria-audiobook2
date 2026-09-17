@@ -29,13 +29,21 @@ three-step instruction, and the previous chunk's predictions as context.
                lines with the speakers decided for them. What a reader of a
                long series carries between chapters; the harness otherwise
                starts every window cold.
+- michel2:     michel with what the shipped prompt and the continuity probe
+               each measured as helping: a SYSTEM prompt written for the
+               passage format (the shipped one describes a JSON entry list
+               the model is not being shown) that keeps the minor-speaker
+               rule (+6.5/+9.6, GOALS 1.2), the listener rule and UNKNOWN;
+               and the previous window carried as its last lines WITH their
+               speakers (the continuity tail, +8.1/+3.2 on Re:Zero) instead
+               of bare index pairs whose indices restart every window.
 """
 import json
 
 from generate_script import call_llm_for_entries
 from three_pass_generate import build_attribute_request
 
-VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge")
+VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2")
 
 PASSAGE_INSTRUCTION = (
     "The passage below is continuous text from the book. Spoken lines are marked "
@@ -47,6 +55,40 @@ PASSAGE_INSTRUCTION = (
     "Step 3: return one {\"n\", \"speaker\"} object per input entry, including the "
     "narration entries (their speaker is NARRATOR), in index order. Do not repeat "
     "any text and do not explain.")
+
+
+MICHEL2_SYSTEM = (
+    "You assign speaker names to the spoken lines of a novel for a TTS system. "
+    "Output ONLY a valid JSON array - no markdown, no explanations.\n\n"
+    "You receive a ROSTER (each character, with the other names the text uses for them "
+    "in parentheses) and a PASSAGE of continuous text in which every entry is marked with "
+    "its index: spoken lines as |n|\"...\"|n|, narration entries as [n] ...; unmarked text "
+    "is surrounding narration shown only as evidence. Return one {\"n\", \"speaker\"} "
+    "object per marked entry, in index order, echoing n unchanged; narration entries "
+    "get exactly \"NARRATOR\"; spoken lines get the UPPERCASE roster name of whoever "
+    "says them.\n\n"
+    "HOW TO DECIDE A SPOKEN LINE, in this order:\n"
+    "1. A speech tag names the speaker: \"...\" said X / X asked / X's voice. A tag in "
+    "the narration right before or right after a line belongs to that line.\n"
+    "2. A name inside the line is usually the LISTENER, not the speaker (\"Yes, Ranta.\" "
+    "is said TO Ranta). Pick someone else who is present.\n"
+    "3. With no tag, use what the line says: who knows this, wants this, talks like this, "
+    "or is answering the previous line.\n"
+    "4. Do not assume speakers strictly alternate; the same person often continues.\n"
+    "5. Do not default to the story's main characters. Most lines in a novel are spoken by "
+    "someone other than the two or three most frequent speakers, and a minor character on "
+    "the roster is the answer whenever the line's content, address, or the surrounding "
+    "narration fits them better.\n"
+    "6. Use a roster name (any of its listed forms means the same character; answer with "
+    "the main form). Use a name not on the roster only for a character the roster is missing.\n"
+    "7. If the speaker is genuinely unknowable, use \"UNKNOWN\". A wrong name is worse than "
+    "UNKNOWN.\n\n"
+    "RULES: exactly one object per marked entry, every index once, nothing added or dropped; "
+    "do not repeat any text.")
+
+MICHEL2_INSTRUCTION = (
+    "Decide the speaker of every marked line in the PASSAGE and return the JSON array "
+    "of {\"n\", \"speaker\"} objects, one per marked entry, in index order.")
 
 
 JUDGE_INSTRUCTION = (
@@ -155,11 +197,18 @@ def make_provider(variant, alias_groups=None):
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, **_ignored):
         roster = list(roster or [])
-        if variant in ("aliases", "michel"):
+        if variant in ("aliases", "michel", "michel2"):
             roster_str = roster_line(roster, alias_groups)
         else:
             roster_str = ", ".join(roster) or "(none yet)"
-        if variant in ("passage", "michel"):
+        if variant == "michel2":
+            sys_prompt = MICHEL2_SYSTEM
+            tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
+            body = (f"ROSTER: {roster_str}\n\n"
+                    + (f"HOW THE PREVIOUS PASSAGE ENDED (speakers already decided; evidence "
+                       f"only, never attribute these):\n{tail}\n\n" if tail else "")
+                    + f"PASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}\n\n{MICHEL2_INSTRUCTION}")
+        elif variant in ("passage", "michel"):
             body = f"{PASSAGE_INSTRUCTION}\n\nROSTER: {roster_str}\n\nPASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}"
         else:
             _, canonical = build_attribute_request(frozen_batch, params, roster, neighbor_contexts)
@@ -185,7 +234,7 @@ def make_provider(variant, alias_groups=None):
             spoken = [(i, item.get("speaker")) for i, (f, item) in enumerate(zip(frozen_batch, named))
                       if f["type"] == "SPOKEN" and item.get("speaker")]
             memory["previous"] = spoken[-8:]
-            if variant == "continuity":
+            if variant in ("continuity", "michel2"):
                 memory["tail"] = [(item.get("speaker"), f["text"])
                                   for f, item in zip(frozen_batch, named)
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]
