@@ -37,13 +37,23 @@ three-step instruction, and the previous chunk's predictions as context.
                and the previous window carried as its last lines WITH their
                speakers (the continuity tail, +8.1/+3.2 on Re:Zero) instead
                of bare index pairs whose indices restart every window.
+- michel2_full: michel2 shown the whole window - every narration entry in
+               order, not just each line's +-1 neighbours - with the
+               segmented text before and after it as evidence. Michel et al.
+               attribute inside 4,096-token chunks of the complete text; the
+               context-size ablations of 2025-26 (ModernBERT 500->2000
+               tokens, WNU 2025 per-line context plateauing at 512-1024) all
+               point the same way. Needs `surround` from the caller.
+- michel2_shot: michel2 with one worked example passage and its answer
+               before the roster (WNU 2025's prompt shape; 6-shot beat CoT
+               and zero-shot in the ChatGPT study).
 """
 import json
 
 from generate_script import call_llm_for_entries
 from three_pass_generate import build_attribute_request
 
-VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2")
+VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2", "michel2_full", "michel2_shot")
 
 PASSAGE_INSTRUCTION = (
     "The passage below is continuous text from the book. Spoken lines are marked "
@@ -85,6 +95,45 @@ MICHEL2_SYSTEM = (
     "UNKNOWN.\n\n"
     "RULES: exactly one object per marked entry, every index once, nothing added or dropped; "
     "do not repeat any text.")
+
+MICHEL2_EXAMPLE = (
+    "EXAMPLE (a different book):\n"
+    "ROSTER: MARA (also: MISS ELLIS), TOM, THE INNKEEPER\n"
+    "PASSAGE:\n"
+    "The innkeeper set down two cups without a word.\n\n"
+    "|0|\"You're late, Tom.\"|0|\n\n"
+    "|1|\"The bridge was out.\"|1|\n\n"
+    "He would not meet her eye.\n\n"
+    "[2] Mara said nothing for a while.\n\n"
+    "|3|\"That will be a shilling for the room.\"|3|\n"
+    "ANSWER: [{\"n\": 0, \"speaker\": \"MARA\"}, {\"n\": 1, \"speaker\": \"TOM\"}, "
+    "{\"n\": 2, \"speaker\": \"NARRATOR\"}, {\"n\": 3, \"speaker\": \"THE INNKEEPER\"}]\n"
+    "(0 names Tom, so it is said TO Tom, by the other person present; 1 answers it; "
+    "3 is what an innkeeper says, not what Mara or Tom would.)\n\n")
+
+
+def surround_passage(surround):
+    """The whole window as running text: sent entries marked with their
+    frozen index, unsent narration entries as unmarked text, and the text
+    before/after the window as evidence-only blocks."""
+    parts = []
+    for e in surround.get("entries") or []:
+        if e.get("n") is None:
+            parts.append(e["text"])
+        elif e["type"] == "SPOKEN":
+            parts.append(f'|{e["n"]}|"{e["text"]}"|{e["n"]}|')
+        else:
+            parts.append(f"[{e['n']}] {e['text']}")
+    body = "\n\n".join(parts)
+    before, after = surround.get("before") or "", surround.get("after") or ""
+    if before:
+        body = f"BEFORE THE PASSAGE (evidence only, never attribute):\n{before}\n\nPASSAGE:\n{body}"
+    else:
+        body = f"PASSAGE:\n{body}"
+    if after:
+        body += f"\n\nAFTER THE PASSAGE (evidence only, never attribute):\n{after}"
+    return body
+
 
 MICHEL2_INSTRUCTION = (
     "Decide the speaker of every marked line in the PASSAGE and return the JSON array "
@@ -195,19 +244,27 @@ def make_provider(variant, alias_groups=None):
 
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
-                 roster=None, neighbor_contexts=None, **_ignored):
+                 roster=None, neighbor_contexts=None, surround=None, **_ignored):
         roster = list(roster or [])
-        if variant in ("aliases", "michel", "michel2"):
+        michel2_family = variant.startswith("michel2")
+        if variant in ("aliases", "michel") or michel2_family:
             roster_str = roster_line(roster, alias_groups)
         else:
             roster_str = ", ".join(roster) or "(none yet)"
-        if variant == "michel2":
+        if michel2_family:
             sys_prompt = MICHEL2_SYSTEM
             tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
-            body = (f"ROSTER: {roster_str}\n\n"
+            if variant == "michel2_full":
+                if not surround:
+                    raise ValueError("michel2_full needs the caller to pass surround=")
+                passage = surround_passage(surround)
+            else:
+                passage = f"PASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}"
+            body = ((MICHEL2_EXAMPLE if variant == "michel2_shot" else "")
+                    + f"ROSTER: {roster_str}\n\n"
                     + (f"HOW THE PREVIOUS PASSAGE ENDED (speakers already decided; evidence "
                        f"only, never attribute these):\n{tail}\n\n" if tail else "")
-                    + f"PASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}\n\n{MICHEL2_INSTRUCTION}")
+                    + f"{passage}\n\n{MICHEL2_INSTRUCTION}")
         elif variant in ("passage", "michel"):
             body = f"{PASSAGE_INSTRUCTION}\n\nROSTER: {roster_str}\n\nPASSAGE:\n{passage_text(frozen_batch, neighbor_contexts)}"
         else:
@@ -234,7 +291,7 @@ def make_provider(variant, alias_groups=None):
             spoken = [(i, item.get("speaker")) for i, (f, item) in enumerate(zip(frozen_batch, named))
                       if f["type"] == "SPOKEN" and item.get("speaker")]
             memory["previous"] = spoken[-8:]
-            if variant in ("continuity", "michel2"):
+            if variant == "continuity" or michel2_family:
                 memory["tail"] = [(item.get("speaker"), f["text"])
                                   for f, item in zip(frozen_batch, named)
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]

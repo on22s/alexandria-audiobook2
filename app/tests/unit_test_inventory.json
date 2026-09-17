@@ -278,6 +278,8 @@
     "tests.test_attribution_prompt_variants.MentionedRosterTests.test_attested_by_alias_or_carried_only_in_roster_order",
     "tests.test_attribution_prompt_variants.PromptVariants.test_every_variant_keeps_the_output_contract",
     "tests.test_attribution_prompt_variants.PromptVariants.test_incremental_carries_the_previous_window",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_full_shows_the_whole_window_and_its_surroundings",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_shot_puts_the_worked_example_first",
     "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_swaps_the_system_prompt_and_carries_the_tail",
     "tests.test_attribution_prompt_variants.PromptVariants.test_roster_line_and_passage_rendering",
     "tests.test_attribution_prompt_variants.PromptVariants.test_unknown_variant_is_refused",

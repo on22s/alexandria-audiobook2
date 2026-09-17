@@ -277,7 +277,7 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
-                    exhaustion_sink=None, entries_provider=None):
+                    exhaustion_sink=None, entries_provider=None, surround=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -317,7 +317,11 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
             attempt_observer=attempt_observer, frozen_batch=frozen_batch,
-            roster=roster, neighbor_contexts=neighbor_contexts)
+            roster=roster, neighbor_contexts=neighbor_contexts,
+            # what a provider that wants the window's full text needs: every
+            # entry of the window (narration included) in order and the text
+            # on either side; the production path ignores it
+            surround=surround)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text

@@ -147,6 +147,33 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     return gold, src, seg, roster, want
 
 
+def window_surround(seg, win, send, chars):
+    """The window as the model could see it whole: every entry of the window
+    in order, sent entries carrying their frozen index `n` (unsent narration
+    carries None), plus up to `chars` characters of segmented text before and
+    after the window. The harness otherwise shows a line only its +-1
+    neighbours; Michel et al. attribute inside 4,096-token chunks of the
+    complete text and every context-size ablation found (2025-26) says the
+    surrounding text is where the accuracy is."""
+    pos = {i: n for n, i in enumerate(send)}
+    entries = [{"type": seg[i]["type"], "text": seg[i]["text"], "n": pos.get(i)} for i in win]
+
+    def gather(indices, take_from_end):
+        out, total = [], 0
+        for i in indices:
+            t = seg[i].get("text") or ""
+            if seg[i].get("type") == "SPOKEN":
+                t = f"\u201c{t}\u201d"   # the segmenter strips quote marks; put them back as evidence
+            if total + len(t) > chars:
+                break
+            out.append(t)
+            total += len(t) + 1
+        return " ".join(reversed(out) if take_from_end else out)
+    before = gather(range(win[0] - 1, -1, -1), True) if win and win[0] else ""
+    after = gather(range(win[-1] + 1, len(seg)), False) if win else ""
+    return {"entries": entries, "before": before, "after": after}
+
+
 def make_windows(n, batch, cuts=()):
     """Fixed-stride windows over n entries, restarted at every index in cuts
     (the default, no cuts, is the product's own windowing)."""
@@ -205,6 +232,9 @@ def main():
                          "/lora-adapters state")
     ap.add_argument("--batch-size", type=int, default=BATCH,
                     help="segmented entries per attribution request")
+    ap.add_argument("--surround-chars", type=int, default=2000,
+                    help="characters of segmented text before and after the window "
+                         "handed to prompt variants that show the whole passage")
     ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS,
                     help="completion budget per request before escalation "
                          "(default: the product's own)")
@@ -337,6 +367,7 @@ def main():
                 ctx = [{"previous_context": seg[i - 1] if i else None,
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
+                surround = window_surround(seg, win, send, args.surround_chars)
                 why = f"{arm}|scale={scale}"
                 traces = []
                 observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
@@ -346,7 +377,8 @@ def main():
                                           shown_roster, neighbor_contexts=ctx,
                                           source_text=src,
                                           entries_provider=provider,
-                                          attempt_observer=observer)
+                                          attempt_observer=observer,
+                                          surround=surround)
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.

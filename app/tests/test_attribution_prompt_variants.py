@@ -13,6 +13,14 @@ FROZEN = [{"type": "NARRATOR", "text": "Ranta slurped his soup."},
           {"type": "SPOKEN", "text": "Tell us already."},
           {"type": "SPOKEN", "text": "Don't underestimate me!"}]
 ROSTER = ["HARUHIRO", "RANTA"]
+# the window as the harness sees it whole: FROZEN's entries in order with
+# their frozen index, plus an unsent narration entry, and text either side
+SURROUND = {"entries": [{"type": "NARRATOR", "text": "Ranta slurped his soup.", "n": 0},
+                        {"type": "SPOKEN", "text": "Tell us already.", "n": 1},
+                        {"type": "NARRATOR", "text": "Nobody answered him.", "n": None},
+                        {"type": "SPOKEN", "text": "Don't underestimate me!", "n": 2}],
+            "before": "Earlier that day the party had argued.",
+            "after": "The fire burned low."}
 
 
 class _Client:
@@ -45,7 +53,8 @@ class PromptVariants(unittest.TestCase):
         for variant in VARIANTS[1:]:
             client = _Client()
             out = tp.attribute_batch(client, "m", FROZEN, _params(), ROSTER,
-                                     entries_provider=make_provider(variant, [["HARUHIRO", "HARU"]]))
+                                     entries_provider=make_provider(variant, [["HARUHIRO", "HARU"]]),
+                                     surround=SURROUND)
             self.assertEqual(["NARRATOR", "HARUHIRO", "RANTA"], [e["speaker"] for e in out], variant)
             self.assertEqual("Tell us already.", out[1]["text"])   # text freeze intact
             # continuity makes one extra request after the window: the summary
@@ -58,11 +67,33 @@ class PromptVariants(unittest.TestCase):
             if variant in ("passage", "michel"):
                 self.assertIn('|1|"Tell us already."|1|', prompt)
                 self.assertIn("Step 3", prompt)
-            elif variant == "michel2":
+            elif variant.startswith("michel2"):
                 self.assertIn('|1|"Tell us already."|1|', prompt)
                 self.assertNotIn("Step 3", prompt)
             else:
                 self.assertIn('"n": 1', prompt)
+
+    def test_michel2_full_shows_the_whole_window_and_its_surroundings(self):
+        client = _Client()
+        tp.attribute_batch(client, "m", FROZEN, _params(), ROSTER,
+                           entries_provider=make_provider("michel2_full"), surround=SURROUND)
+        prompt = client.prompts[-1]
+        self.assertIn("BEFORE THE PASSAGE", prompt)
+        self.assertIn("Earlier that day the party had argued.", prompt)
+        self.assertIn("Nobody answered him.", prompt)          # unsent narration, unmarked
+        self.assertNotIn("[1] Nobody", prompt)
+        self.assertIn('|1|"Tell us already."|1|', prompt)
+        self.assertIn("AFTER THE PASSAGE", prompt)
+        with self.assertRaises(ValueError):
+            tp.attribute_batch(_Client(), "m", FROZEN, _params(), ROSTER,
+                               entries_provider=make_provider("michel2_full"))
+
+    def test_michel2_shot_puts_the_worked_example_first(self):
+        client = _Client()
+        tp.attribute_batch(client, "m", FROZEN, _params(), ROSTER,
+                           entries_provider=make_provider("michel2_shot"))
+        self.assertTrue(client.prompts[-1].startswith("EXAMPLE (a different book)"))
+        self.assertIn("ANSWER: [", client.prompts[-1])
 
     def test_michel2_swaps_the_system_prompt_and_carries_the_tail(self):
         client = _Client()
