@@ -606,6 +606,13 @@
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
                             <label class="form-label mt-2" for="llm-provider-headers">Custom headers (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-headers" rows="2" placeholder='{"X-Provider-Key": "..."}'></textarea>
+                            <label class="form-label mt-2" for="llm-on-this-gpu">Runs on this machine's GPU?</label>
+                            <select class="form-select" id="llm-on-this-gpu">
+                                <option value="">Auto (yes for a local address, no for a remote one)</option>
+                                <option value="true">Yes - shares the card with audio generation</option>
+                                <option value="false">No - hosted API, CPU-only server, or another machine</option>
+                            </select>
+                            <div class="form-text">When the LLM is not on this GPU, script generation, review and persona suggestions can run at the same time as audio generation instead of waiting for the card.</div>
                             <label class="form-label mt-2" for="llm-reasoning-effort">Reasoning effort</label>
                             <select class="form-select" id="llm-reasoning-effort">
                                 <option value="">Server default</option>

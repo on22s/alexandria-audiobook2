@@ -34,3 +34,51 @@ class MultiProcessStateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LlmOffGpuLockTests(unittest.TestCase):
+    """LLM-only tasks stop holding the GPU lock against audio work when the
+    active LLM profile is not on this machine's GPU; on it, nothing changes."""
+
+    def setUp(self):
+        import core
+        self.core = core
+        for name in ("script", "audio", "review", "lora_training"):
+            core.process_state[name]["running"] = False
+
+    def tearDown(self):
+        for name in ("script", "audio", "review", "lora_training"):
+            self.core.process_state[name]["running"] = False
+
+    def test_on_gpu_keeps_the_full_lock(self):
+        from unittest.mock import patch
+        with patch.object(self.core, "llm_is_on_this_gpu", return_value=True):
+            self.core.process_state["audio"]["running"] = True
+            with self.assertRaises(self.core.HTTPException):
+                self.core.check_global_gpu_lock("script")
+
+    def test_off_gpu_lets_script_and_audio_overlap_but_not_two_llm_tasks(self):
+        from unittest.mock import patch
+        with patch.object(self.core, "llm_is_on_this_gpu", return_value=False):
+            self.core.process_state["audio"]["running"] = True
+            self.core.check_global_gpu_lock("script")            # allowed now
+            self.core.process_state["audio"]["running"] = False
+            self.core.process_state["script"]["running"] = True
+            self.core.check_global_gpu_lock("audio")             # and the other way round
+            self.core.check_global_gpu_lock("lora_training")
+            with self.assertRaises(self.core.HTTPException):
+                self.core.check_global_gpu_lock("review")        # two LLM tasks still serialise
+
+    def test_profile_flag_and_endpoint_decide(self):
+        from unittest.mock import patch
+        cases = [
+            ({"llm_mode": "local", "llm": {"base_url": "http://localhost:1234/v1"}}, True),
+            ({"llm_mode": "local", "llm": {"base_url": "http://localhost:1234/v1", "on_this_gpu": False}}, False),
+            ({"llm_mode": "remote", "llm": {"base_url": "https://api.deepseek.com/v1"}}, False),
+            ({"llm_mode": "remote", "llm": {"base_url": "https://api.deepseek.com/v1", "on_this_gpu": True}}, True),
+        ]
+        for config, expected in cases:
+            with patch.object(self.core, "load_app_config", return_value=config):
+                self.assertEqual(expected, self.core.llm_is_on_this_gpu(), config)
+        with patch.object(self.core, "load_app_config", side_effect=OSError("no config")):
+            self.assertTrue(self.core.llm_is_on_this_gpu())

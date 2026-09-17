@@ -434,6 +434,13 @@ dataset gen/builder, preparer, voicelab, nicknames, ...) has an entry in
 (`suggest_voices`) is deliberately in `GPU_TASKS`, not excluded, since it
 runs local LLM inference. New background tasks must register in
 `process_state` and go through this lock unless they are provably CPU-only.
+One relaxation (2026-09-17): the LLM-only tasks (`LLM_TASKS`: script,
+batch_script, review, batch_review, persona, voices, nicknames) conflict only
+with each other when the active LLM profile is not on this GPU
+(`llm_is_on_this_gpu`: the profile's `on_this_gpu`, else "is the endpoint
+local?"), so a hosted-API or CPU-served LLM can annotate while the card
+renders audio. On this GPU, or on any error reading the config, the full lock
+applies.
 
 ### Voice Lab pipeline
 "Voice Lab" (audiobook → named LoRA voice). All four stage scripts live in this

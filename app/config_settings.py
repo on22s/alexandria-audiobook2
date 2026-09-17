@@ -32,6 +32,12 @@ class LLMConfig(BaseModel):
     model_name: str
     provider_headers: Dict[str, str] = Field(default_factory=dict)
     provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
+    # Does this LLM run on this machine's GPU? None = decide from the
+    # endpoint (a remote endpoint is not on this GPU; a local one is). When
+    # it is not, LLM-only tasks (script, review, personas) no longer hold the
+    # GPU lock against audio work, so a hosted-API or CPU-served LLM can
+    # annotate one book while the card renders another.
+    on_this_gpu: Optional[bool] = None
     # How much the model thinks before answering, sent as `reasoning_effort`
     # on every chat completion for this profile (None = the server's default).
     # Folded into the profile request body by llm_provider.get_provider_extra_body,
