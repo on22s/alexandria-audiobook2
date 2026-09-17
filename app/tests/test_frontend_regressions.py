@@ -384,8 +384,15 @@ class FrontendTests(unittest.TestCase):
         }
         app_mode = config_settings.AppConfig.model_json_schema()["properties"]["llm_mode"]
         tts_mode = config_settings.TTSConfig.model_json_schema()["properties"]["mode"]
+        # the attribution prompt is chosen through the preset select (built-ins
+        # are one per variant, rendered by JS); the schema enum and the module's
+        # user-selectable variants must agree
+        import attribution_prompt_variants
         variant = config_settings.GenerationConfig.model_json_schema()["properties"]["three_pass_attribute_prompt_variant"]
-        self.assertEqual(set(variant["enum"]), selects["tp-attribute-prompt-variant"])
+        self.assertEqual(set(variant["enum"]), set(attribution_prompt_variants.USER_VARIANTS))
+        self.assertIn("prompt-preset-select", html)
+        self.assertIn("prompt-example", html)
+        self.assertIn("prompt-preview-panel", html)
         self.assertEqual(set(app_mode["enum"]), selects["llm-mode"])
         self.assertEqual(set(tts_mode["enum"]), selects["tts-mode"])
         self.assertIn(app_mode["default"], selects["llm-mode"])

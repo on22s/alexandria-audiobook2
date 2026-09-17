@@ -194,3 +194,59 @@ class ContinuityVariantTests(unittest.TestCase):
                       "the summary sees the narration, not only the spoken lines")
         self.assertEqual("none", summary_calls[0]["extra_body"]["reasoning_effort"])
 
+
+
+class PresetTextsTests(unittest.TestCase):
+    """A preset carries the variant's texts; None sends exactly the builtin."""
+
+    def test_builtin_texts_are_what_every_variant_sends(self):
+        params = _params()
+        for variant in apv.USER_VARIANTS:
+            surround = {"before": "B", "after": "A"} if variant == "michel2_full" else None
+            client = _Client()
+            tp.attribute_batch(client, "m", FROZEN, params, ROSTER,
+                               entries_provider=make_provider(variant, [["HARUHIRO", "HARU"]]),
+                               surround=surround)
+            system, body = apv.build_variant_request(
+                variant, FROZEN, params, ROSTER, [["HARUHIRO", "HARU"]],
+                [{}] * len(FROZEN), surround, None, apv.builtin_texts(variant))
+            # continuity makes one extra request after the window (the summary)
+            at = -2 if variant == "continuity" else -1
+            self.assertEqual(client.systems[at], system, variant)
+            self.assertEqual(client.prompts[at], body, variant)
+
+    def test_custom_texts_replace_the_builtin_pieces(self):
+        params = _params()
+        texts = {"system": "MY SYSTEM", "user": "MY INSTRUCTION", "example": "MY EXAMPLE\n"}
+        system, body = apv.build_variant_request("michel2_shot", FROZEN, params, ROSTER,
+                                                 texts=texts)
+        self.assertEqual("MY SYSTEM", system)
+        self.assertTrue(body.startswith("MY EXAMPLE\n"))
+        self.assertTrue(body.endswith("MY INSTRUCTION"))
+        self.assertIn('|1|"Tell us already."|1|', body)          # the pipeline's part stays
+        system, body = apv.build_variant_request(
+            "default", FROZEN, params, ROSTER,
+            texts={"system": "S", "user": "R={roster} B={batch}", "example": ""})
+        self.assertEqual("S", system)
+        self.assertTrue(body.startswith("R=HARUHIRO, RANTA B=["))
+
+    def test_default_template_must_keep_its_placeholders(self):
+        self.assertIsNone(apv.validate_preset_texts("default", None))
+        self.assertIsNone(apv.validate_preset_texts("michel2", {"user": "anything"}))
+        self.assertIsNotNone(apv.validate_preset_texts("default", {"user": "no placeholders"}))
+        self.assertIsNotNone(apv.validate_preset_texts("continuity", {"user": "{roster} only"}))
+
+    def test_active_preset_resolution(self):
+        cfg = {"prompts": {"attribution_preset": "mine"},
+               "prompt_presets": [{"name": "mine", "variant": "michel2", "system_prompt": "S",
+                                   "user_prompt": "U", "example": ""}]}
+        self.assertEqual(("michel2", {"system": "S", "user": "U", "example": ""}, "mine"),
+                         apv.resolve_attribution_preset(cfg))
+        self.assertEqual(("michel", None, "michel"),
+                         apv.resolve_attribution_preset({"prompts": {"attribution_preset": "michel"}}))
+        self.assertEqual(("passage", None, "passage"), apv.resolve_attribution_preset(
+            {"generation": {"three_pass_attribute_prompt_variant": "passage"}}))
+        builtins = apv.builtin_presets()
+        self.assertEqual(list(apv.USER_VARIANTS), [b["name"] for b in builtins])
+        self.assertTrue(all(b["system_prompt"] and b["user_prompt"] for b in builtins))
+        self.assertTrue(next(b for b in builtins if b["name"] == "michel2_shot")["example"])

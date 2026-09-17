@@ -90,6 +90,48 @@
         "title": "AppConfig",
         "type": "object"
       },
+      "AttributionPreviewRequest": {
+        "properties": {
+          "context_chars": {
+            "default": 0,
+            "title": "Context Chars",
+            "type": "integer"
+          },
+          "example": {
+            "default": "",
+            "title": "Example",
+            "type": "string"
+          },
+          "system_prompt": {
+            "default": "",
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "default": "",
+            "title": "User Prompt",
+            "type": "string"
+          },
+          "variant": {
+            "default": "default",
+            "enum": [
+              "default",
+              "aliases",
+              "passage",
+              "incremental",
+              "michel",
+              "continuity",
+              "michel2",
+              "michel2_full",
+              "michel2_shot"
+            ],
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "title": "AttributionPreviewRequest",
+        "type": "object"
+      },
       "BatchGenerateRequest": {
         "properties": {
           "indices": {
@@ -1706,6 +1748,13 @@
       },
       "PromptConfig": {
         "properties": {
+          "attribution_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Attribution Preset",
+            "type": "string"
+          },
           "persona_advanced_prompt": {
             "anyOf": [
               {
@@ -1788,7 +1837,7 @@
         "type": "object"
       },
       "PromptPreset": {
-        "description": "A named, user-editable prompt pair with guidance for its use.",
+        "description": "A named, user-editable attribution prompt: which variant (the prompt's\nshape) plus the texts the variant sends - system prompt, user\ninstruction/template, and for michel2_shot the worked example.",
         "properties": {
           "builtin": {
             "default": false,
@@ -1799,6 +1848,12 @@
             "default": "",
             "maxLength": 500,
             "title": "Description",
+            "type": "string"
+          },
+          "example": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "Example",
             "type": "string"
           },
           "name": {
@@ -1817,6 +1872,22 @@
             "default": "",
             "maxLength": 100000,
             "title": "User Prompt",
+            "type": "string"
+          },
+          "variant": {
+            "default": "default",
+            "enum": [
+              "default",
+              "aliases",
+              "passage",
+              "incremental",
+              "michel",
+              "continuity",
+              "michel2",
+              "michel2_full",
+              "michel2_shot"
+            ],
+            "title": "Variant",
             "type": "string"
           }
         },
@@ -6025,6 +6096,43 @@
           }
         },
         "summary": "Preparer Start"
+      }
+    },
+    "/api/prompts/attribution_preview": {
+      "post": {
+        "description": "The exact system message and user message pass 2 would send for one\nsmall sample window under the given variant and texts. No model call.",
+        "operationId": "attribution_preview_api_prompts_attribution_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributionPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attribution Preview"
       }
     },
     "/api/reports": {

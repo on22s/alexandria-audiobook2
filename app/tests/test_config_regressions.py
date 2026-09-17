@@ -439,3 +439,23 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
         with self.assertRaises(Exception):
             cs.GenerationConfig(three_pass_attribute_prompt_variant="judge")   # gold-labelling only
 
+    def test_prompt_presets_carry_a_variant_and_legacy_ones_load_as_default(self):
+        import config_settings as cs
+        self.assertEqual("default", cs.PromptPreset(name="old", system_prompt="s", user_prompt="u").variant)
+        self.assertEqual("michel2_shot", cs.PromptPreset(name="n", variant="michel2_shot", example="E").variant)
+        with self.assertRaises(Exception):
+            cs.PromptPreset(name="n", variant="judge")
+        self.assertEqual("default", cs.PromptConfig().attribution_preset)
+
+
+    def test_stored_prompt_presets_load_as_dicts(self):
+        import json, os, tempfile
+        import config_settings as cs
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"prompt_presets": [{"name": "mine", "variant": "michel2",
+                                               "system_prompt": "S", "user_prompt": "U"}]}, fh)
+            loaded = cs.load_app_config_result(path).data
+        self.assertEqual([{"name": "mine", "variant": "michel2"}],
+                         [{"name": p["name"], "variant": p["variant"]} for p in loaded["prompt_presets"]])
