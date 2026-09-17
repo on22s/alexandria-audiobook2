@@ -79,7 +79,7 @@ single promotion score.
 | Gemma4-12B | "mixed-multin": task4k multi-entry + longcontext + hardcases + author-balanced, 1 epoch, r 16, 4096 ctx (2026-09-12) | **fails the product output contract**: 70.6 → 4.2, with 712 of 768 LoRA rows unanswered | `lora_serving_eval__gemma4-mixed-r16-seed2-a6000-product-batch25-mt4096-20260912.json` | emits one entry for a 12–25-entry window ("expected 13 entries, got 1"); its +9 batch-1 result does not reveal this |
 | Muse-Glimmer-30B | task4k-multin template-fixed, seed 2 (2026-09-11): 1 epoch, max_len 4096, lr 2e-4, r16 α16, bf16 LoRA on the HF model (A100 80 GB; the 30B in bf16 does not fit a 48 GB card), `muse_tplfix_queue_20260911b.sh`; served on llama.cpp `b6b003d2c` with the row below | works at the product window: 72.4 → 76.8, **+4.4** (+112/−78, p=0.016), LoRA arm 768/768 answered | `lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoningnone-20260913.json` | first Muse adapter measurable at batch 25; the base arm still leaves 89 windows unanswered (46 PassExhausted), which is Muse reasoning past the schema, not the adapter. Earlier batch-1 numbers (54.2 → 61.6 task4k, → 59.9 mixed) stand as batch-1 signal only |
 | Qwen3-14B | hardcases only: 1,271 curated rows (`train_hardcases_split_nonmajor.jsonl`), 2026-09-11 adapter | works at the product window: 61.7 → 66.4, **+4.7** (+104/−68, p=0.007) | `lora_serving_eval__qwen3-14b-hardcases-a6000-product-batch25-20260913.json` | 7% of the "mixed" set's rows for 60% of its +7.8 — a small curated set carries most of the skill (Maekawa et al., LREC 2026), not all of it |
-| Qwen3.8-27B | author-held-out balanced PDNC adapter, served on llama.cpp `b6b003d2c`, free-form JSON | **hurts at the product window**: 79.8 → 77.0, −2.9 (+33/−55, p=0.025), 54 LoRA rows blank | `lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-latest-20260913.json` | the loss is the output contract, not the adapter — see the next row; do not ship on batch-1 evidence |
+| Qwen3.8-27B | author-held-out balanced PDNC adapter, served on llama.cpp `b6b003d2c`, free-form JSON | **superseded - an instrument result** (54 blank LoRA rows were the deficit; see "Negatives that were setup defects"): read as 79.8 → 77.0, −2.9 (+33/−55, p=0.025), 54 LoRA rows blank | `lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-latest-20260913.json` | the loss is the output contract, not the adapter — see the next row; do not ship on batch-1 evidence |
 | Qwen3.8-27B | same adapter, same server, **request-level JSON schema** (2026-09-14) | null: 81.4 → 82.6, +1.2 (+37/−28, p=0.32), **0 blank rows** in either arm (was 14 base / 54 LoRA) | `lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-batch25-jsonschema-latest-20260914.json` | the schema recovers every blank window and moves the base arm +12 too; the "hurts" verdict above was an output-contract failure read as an adapter failure |
 | Qwen3-14B | "mixed" adapter (the works row above) + JSON schema + minor-speaker rule, tnr-1 A100, clean gold (2026-09-14) | works, replicated: 63.5 → 72.0, **+8.5** (+122/−57, p=1.3e-6); per book grimgar 287→318, index18 61→65, mushoku16 75→95, owari 65→75 | `lora_serving_eval__qwen3-14b-mixed-tnr1-cleangold-hint-schema-reasoning-none-20260914.json` (checkpoint; the artifact write refused a partial EXPERIMENT_ENV and is being finalised) | second measurement of the only works row, on a different box and the corrected gold; reasoning-on arm pending |
 | Muse-Glimmer-30B base, reasoning low | no adapter, UD-Q3_K_XL, `--reasoning on --reasoning-format deepseek --chat-template-kwargs '{"reasoning_strength":"low"}'` + request-level JSON schema + the shipped minor-speaker rule, llama.cpp `b6b003d2c`, max_tokens 4096 | **works, four books: 81.5%** (626/768, 0 blank rows) — grimgar03 86.0, index18 73.9, mushoku16 82.0, owarimonogatari3 74.7; Qwen3-14B base on the same rows 63.0 (71.9/67.0/56.4/45.1), its best adapter 68.8 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json` (`--base-only`; the tag names the adapter the server was launched for, which the base arm never touches) | the highest attribution number in the tree, from the base model alone; one seed, temperature 0, the four light novels only. ~44 s per 25-line window on an A6000. Serving on the product's own RX 9070 XT (16 GB): the same file offloads fully at 16k context with q8 KV, 28 tok/s (smoke 2026-09-14; the four-book local run is `run_chains/muse_local_reasoninglow_20260914.sh`). Replicated: 81.1 locally (623/768, per-book artifacts 2026-09-14), 81.4 locally on llama.cpp-hip 0.4.1-dev (`local-12h-muse-base-20260916`). Reasoning **medium** 80.6 (+31/−38, p=0.47 vs low) - no gain, slower. Out of genre: 86.9% on the 1,213 PDNC minor-speaker rows (`two_stage_attribution__usual_suspects_muse_reasoninglow_mt4096_20260914.json`; Qwen 57.2 on the same rows) |
@@ -138,6 +138,25 @@ single promotion score.
 
 These recovery results separate serving failures from model/prompt failures. A two-token response or a concurrent evaluator is an instrument failure, not an adapter score. Re-run the affected arm with one evaluator, one server, a fresh tag, and the updated binary before promotion.
 
+## Negatives that were setup defects, not results (2026-09-17)
+
+Three adapter verdicts in this file and in GOALS were written as "the adapter
+does not help" when what had been measured was a broken instrument. They are
+listed here so the pattern is visible: in every case the score was real, the
+sentence around it was wrong, and the defect was found by reading the raw
+artifact (server output, tokenised label window, trace file) rather than the
+loss curve or the accuracy number. Rule 19, again.
+
+| verdict as first written | what was actually wrong | how it was found | status |
+|---|---|---|---|
+| Muse gen 1 (09-09) adapters "0/768, unusable" | trainer built the assistant turn without the template's ` to=user<|message|>` header and ended it with the wrong token; the adapter dropped the leading `[` of every answer | reading the raw completions against the official template render | the zero was real, the adapter was never measurable; "tplfix" retrain |
+| Muse gen 2 (09-11, tplfix) "adapter + reasoning fails every window; harmony parser / channel envelope" | the loss window sliced one token short, so the first answer token (` to`) was never supervised and the adapter emitted `assistant=user`; the parser was right to reject it | `--verbose` server log + a 12-line tokenisation check of the label window | "lossfix" retrain; the tplfix +4.4/+8.5 stand only for the reasoning-off path |
+| Muse gen 3 (09-14/15, lossfix) "adapters do not help Muse: null / negative with reasoning on" | training turns carried no reasoning channel, so the adapter taught the model to answer without thinking and was served in a mode where thinking is the accuracy (reasoning-trace collapse, arXiv 2605.21127; Unsloth's Muse guide: "mix reasoning-style examples with direct answers"). 98-100% of Muse's own correct traces are grounded in the row's context, so the reasoning itself was never the problem | the trace-quality filter (`filter_traces.py`) and the literature | gen-3 RFT retrain in flight (k=4 at T=0.7, own traces as `reasoning_content`); the first Muse adapter measured with its training shaped like inference |
+| Qwen3.8-27B "hurts at the product window, −2.9" | free-form JSON with no schema: 54 LoRA rows blank; the blanks were the whole deficit | the schema rerun, 0 blank rows, +1.2 | null, not negative; and the base with reasoning is 82.9 - the second-strongest local-class base measured |
+| Qwen3-14B reasoning-on chains "wrong instrument (reasoning pinned to none against a 1024 server budget)" | my inference from the code; the checkpoints showed 76% bases with no blanks - the runs were fine | reading the artifact instead of the mechanism | withdrawn the same day; those chains produced the best Qwen3-14B number (mixed + reasoning, 78.0) |
+
+**Rule for this file:** a negative adapter row needs the sentence "served correctly: N/N windows answered, 0 parser failures, base arm matches the standalone base" before it can say the adapter is the cause. None of the rows above had it.
+
 ## Adapter and roster results checked against the artifacts (2026-09-17)
 
 Every completed artifact on the four boxes was pulled and rescored with the
@@ -169,6 +188,28 @@ base collapsing to 47.5% before the run died) and the RiQuA arm read "72.4 →
 72.8" with a base far above the shipped prompt's 63.0. The committed results
 stand: DraCor-English −3.9, RiQuA +6.0. Any run of that evaluator with
 `--reasoning on` on the server is diagnostic only. The 2026-09-11 Muse
-artifacts at 0% (`author-balanced-tplfix`, `hardcases`, `task4k`) are the
-pre-template-fix adapters, whose zero is the adapter's missing leading `[`;
-rerunning them reproduces the zero.
+artifacts at 0% (`author-balanced-tplfix`, `hardcases`, `task4k`) are invalid
+parser/instrument runs, not quality measurements. They are queued for a
+one-book Owari rerun with the corrected CUDA library path and fail-loud server
+health check; do not interpret the old zero as an adapter verdict.
+
+## Downloaded scores and Muse one-book reruns (2026-09-17)
+
+Completed cloud artifacts were pulled to `cloud_pull_20260917/` and rescored
+locally with the paired row-level scorer. Accuracy includes unanswered rows.
+
+| model/adapter | fixture | base | adapter | delta | paired p | verdict |
+|---|---|---:|---:|---:|---:|---|
+| Muse mixed-lossfix + Michel-low | four books, 768 rows | 645/768 (84.0%) | 586/768 (76.3%) | −7.7 pp | 3.83e-6 (`+51/-110`) | negative; do not promote |
+| Qwen RiQuA | four books, 768 rows | 556/768 (72.4%) | 559/768 (72.8%) | +0.4 pp | 0.864 (`+70/-67`) | null |
+| Qwen DraCor-English | four books, 768 rows | 214/768 (27.9%) | 495/768 (64.5%) | +36.6 pp | 1.87e-54 (`+324/-43`) | audit first: anomalous Grimgar base collapse |
+| Muse task4k-multin-lossfix | Owari, 162 rows | 121/162 (74.7%) | 114/162 (70.4%) | −4.3 pp | 0.324 (`+15/-22`) | negative; do not promote |
+
+The valid under-base Muse adapters (`longcontext-tplfix`, `mixed-lossfix`, and
+`task4k-multin-lossfix`) run first on tnr-0. The three historical 0% cases
+(`author-balanced-tplfix`, `hardcases`, and `task4k`) run afterward. The new
+launcher is `ab_test_runtime/muse_failed_onebook_queue_20260917b.sh`; it
+exports the CUDA library directories, checks that `llama-server` remains alive
+during health polling, and runs one evaluator per server. The first attempt
+failed before evaluation because `libcudart.so.13` was not discoverable; no
+score was taken from that attempt.
