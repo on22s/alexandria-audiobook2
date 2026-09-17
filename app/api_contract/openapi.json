@@ -1238,6 +1238,17 @@
             "title": "On Api Exhaustion",
             "type": "string"
           },
+          "on_this_gpu": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On This Gpu"
+          },
           "provider_extra_body": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"

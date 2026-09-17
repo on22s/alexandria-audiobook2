@@ -2035,6 +2035,9 @@
     "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
   ],
   "test_multi_process_state": [
+    "tests.test_multi_process_state.LlmOffGpuLockTests.test_off_gpu_lets_script_and_audio_overlap_but_not_two_llm_tasks",
+    "tests.test_multi_process_state.LlmOffGpuLockTests.test_on_gpu_keeps_the_full_lock",
+    "tests.test_multi_process_state.LlmOffGpuLockTests.test_profile_flag_and_endpoint_decide",
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],

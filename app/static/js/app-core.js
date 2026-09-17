@@ -641,6 +641,12 @@
             document.getElementById('llm-provider-extra-body').value =
                 JSON.stringify(p.provider_extra_body || {}, null, 2);
             document.getElementById('llm-reasoning-effort').value = p.reasoning_effort || '';
+            document.getElementById('llm-on-this-gpu').value = (p.on_this_gpu === true || p.on_this_gpu === false) ? String(p.on_this_gpu) : '';
+        }
+
+        function getOnThisGpuInput() {
+            const raw = document.getElementById('llm-on-this-gpu').value;
+            return raw === '' ? null : raw === 'true';
         }
 
         function getJsonObjectInput(id, label) {
@@ -684,7 +690,8 @@
                 retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
-                reasoning_effort: document.getElementById('llm-reasoning-effort').value || null
+                reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
+                on_this_gpu: getOnThisGpuInput()
             };
         }
 

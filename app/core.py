@@ -516,6 +516,37 @@ process_state = {
 # pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
 NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "chapter_export"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
+# Tasks whose only accelerator use is the LLM endpoint. When the active LLM
+# profile is not on this machine's GPU (hosted API, a CPU-served model, a
+# box across the network), these contend with each other for the endpoint
+# but not with the TTS/LoRA tasks for the card.
+LLM_TASKS = {"script", "batch_script", "review", "batch_review", "persona",
+             "voices", "nicknames"} & set(process_state.keys())
+
+
+def llm_is_on_this_gpu() -> bool:
+    """The active LLM profile's `on_this_gpu`, or - when unset - whether its
+    endpoint is local to this machine. Conservative on any failure: True."""
+    try:
+        from lmstudio_settings import get_active_llm_config, is_remote_llm
+        config = load_app_config(CONFIG_PATH)
+        llm = get_active_llm_config(config) or {}
+        explicit = llm.get("on_this_gpu")
+        if explicit is not None:
+            return bool(explicit)
+        return not is_remote_llm(config.get("llm_mode", "local"), llm.get("base_url", ""))
+    except Exception:
+        return True
+
+
+def gpu_lock_conflicts(new_task_name: str) -> set:
+    """The tasks that must not be running for `new_task_name` to start."""
+    others = GPU_TASKS - {new_task_name}
+    if llm_is_on_this_gpu():
+        return others
+    if new_task_name in LLM_TASKS:
+        return others & LLM_TASKS
+    return others - LLM_TASKS
 
 def check_global_gpu_lock(new_task_name: str):
     """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
@@ -534,8 +565,8 @@ def check_global_gpu_lock(new_task_name: str):
         # on other GPU tasks' running state, only guard against double-starting
         # themselves (handled above).
         return
-    for task_name in GPU_TASKS:
-        if task_name != new_task_name and process_state.get(task_name, {}).get("running"):
+    for task_name in gpu_lock_conflicts(new_task_name):
+        if process_state.get(task_name, {}).get("running"):
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM."
