@@ -123,8 +123,8 @@ class AttributionPresetSaveTests(unittest.TestCase):
             system_module.AttributionPreviewRequest(variant="michel2_full", context_chars=1500)))
         self.assertIn("|n|", preview["system_prompt"])
         self.assertIn("BEFORE THE PASSAGE", preview["user_message"])
-        self.assertIn('|1|"You\'re late, Tom."|1|', preview["user_message"])
-        self.assertIn("MARA (also: MISS ELLIS)", preview["user_message"])
+        self.assertIn('|1|"We sail at dawn, Lena."|1|', preview["user_message"])
+        self.assertIn("PIET (also: OLD PIET)", preview["user_message"])
         edited = asyncio.run(system_module.attribution_preview(
             system_module.AttributionPreviewRequest(variant="michel2", user_prompt="MY INSTRUCTION")))
         self.assertTrue(edited["user_message"].endswith("MY INSTRUCTION"))

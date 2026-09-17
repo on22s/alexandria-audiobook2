@@ -80,16 +80,16 @@ class AttributionPreviewRequest(BaseModel):
 
 
 _PREVIEW_WINDOW = [
-    {"type": "NARRATOR", "text": "The innkeeper set down two cups without a word."},
-    {"type": "SPOKEN", "text": "You're late, Tom."},
-    {"type": "SPOKEN", "text": "The bridge was out."},
-    {"type": "NARRATOR", "text": "Mara said nothing for a while."},
+    {"type": "NARRATOR", "text": "The captain did not look up from the chart."},
+    {"type": "SPOKEN", "text": "We sail at dawn, Lena."},
+    {"type": "SPOKEN", "text": "Then I had better pack."},
+    {"type": "NARRATOR", "text": "Old Piet laughed from the doorway."},
 ]
-_PREVIEW_ROSTER = ["MARA", "TOM", "THE INNKEEPER"]
-_PREVIEW_ALIASES = [["MARA", "MISS ELLIS"]]
+_PREVIEW_ROSTER = ["LENA", "THE CAPTAIN", "PIET"]
+_PREVIEW_ALIASES = [["PIET", "OLD PIET"]]
 _PREVIEW_SURROUND = {
-    "before": "Rain had followed them down from the pass. \u201cWe should have stayed,\u201d Mara had said.",
-    "after": "The fire burned low. \u201cGood night,\u201d said the innkeeper.",
+    "before": "The harbour had been quiet all evening. \u201cIs he still in there?\u201d Lena had asked.",
+    "after": "Piet shut the door behind her. \u201cDawn, he says,\u201d he muttered.",
 }
 
 
