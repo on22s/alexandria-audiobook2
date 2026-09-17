@@ -1194,3 +1194,50 @@ class AttributionContextKnobTests(unittest.TestCase):
             text, dict(settings, attribute_context_chars=3000), 32768, 1)
         attr = lambda r: max(q["prompt_tokens"] for q in r["requests"] if q["stage"] == "attribute")
         self.assertGreater(attr(wide), attr(plain) + 1500)
+
+    def test_prompt_variant_and_context_reach_the_attribution_request(self):
+        """The product path asks the attribution question the selected way
+        (here michel2, whose system prompt describes the marked passage) and
+        wraps it in the surrounding text when the knob is on."""
+        source = ('Morning came. The room was cold. "Tell me the truth." '
+                  'She waited. "I cannot." Night fell over the house.')
+        seg = [{"type": "NARRATOR", "text": "Morning came."},
+               {"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."},
+               {"type": "NARRATOR", "text": "She waited."},
+               {"type": "SPOKEN", "text": "I cannot."},
+               {"type": "NARRATOR", "text": "Night fell over the house."}]
+        seen = []
+
+        def create(**kwargs):
+            messages = kwargs["messages"]
+            seen.append((messages[0]["content"], messages[-1]["content"]))
+            if len(seen) == 1:
+                content = json.dumps(seg)
+            elif "PASSAGE" in messages[-1]["content"]:
+                # pass 2, michel2: one object per marked entry of the window,
+                # read off the markers (|n|"..."|n| spoken, [n] narration)
+                body = messages[-1]["content"].split("PASSAGE:", 1)[1].split("AFTER THE PASSAGE")[0]
+                spoken = {int(m.group(1)) for m in re.finditer(r'\|(\d+)\|"', body)}
+                narr = {int(m.group(1)) for m in re.finditer(r'(?m)^\[(\d+)\] ', body)}
+                content = json.dumps([{"n": i, "speaker": "ELENA" if i in spoken else "NARRATOR"}
+                                      for i in sorted(spoken | narr)])
+            else:
+                body = messages[-1]["content"]
+                content = json.dumps([{"n": int(m.group(1)), "head": " ".join(m.group(2).split()[:3]),
+                                       "instruct": "Plain."}
+                                      for m in re.finditer(r'"n": (\d+), "speaker": "[^"]*", "text": "([^"]*)"', body)])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        params = LLMGenParams(max_tokens=500, temperature=0.1, structured_output="off")
+        tp.run_three_pass(client, "m", source, params, chunk_size=6000,
+                          attribute_batch_size=2, attribute_context_chars=200,
+                          attribute_prompt_variant="michel2")
+        attribute_calls = [(s, u) for s, u in seen if "PASSAGE" in u]
+        self.assertTrue(attribute_calls, "no michel2 attribution request was made")
+        system, user = attribute_calls[0]
+        self.assertIn("|n|", system)                       # michel2's own system prompt
+        self.assertIn("BEFORE THE PASSAGE", user)          # the surround knob, in the variant's shape
+        self.assertIn("Morning came.", user)

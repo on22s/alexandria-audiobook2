@@ -434,4 +434,8 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 cs.GenerationConfig(**bad)
         self.assertEqual(30000, cs.ThreePassModelProfile(chunk_size=30000).chunk_size)
+        self.assertEqual("default", g.three_pass_attribute_prompt_variant)
+        self.assertEqual("michel2", cs.GenerationConfig(three_pass_attribute_prompt_variant="michel2").three_pass_attribute_prompt_variant)
+        with self.assertRaises(Exception):
+            cs.GenerationConfig(three_pass_attribute_prompt_variant="judge")   # gold-labelling only
 

@@ -112,6 +112,12 @@ class GenerationConfig(BaseModel):
     # behaviour every score in RECIPES was measured with).
     three_pass_attribute_batch_size: int = Field(default=25, ge=5, le=100)
     three_pass_attribute_context_chars: int = Field(default=0, ge=0, le=20000)
+    # Which way the attribution question is asked (attribution_prompt_variants;
+    # measured results per variant in RECIPES.md). "default" is the shipped
+    # prompt every adapter was trained on.
+    three_pass_attribute_prompt_variant: Literal[
+        "default", "aliases", "passage", "incremental", "michel", "continuity",
+        "michel2", "michel2_full", "michel2_shot"] = "default"
     three_pass_presegment_quotes: bool = True
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 

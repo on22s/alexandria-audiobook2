@@ -384,6 +384,8 @@ class FrontendTests(unittest.TestCase):
         }
         app_mode = config_settings.AppConfig.model_json_schema()["properties"]["llm_mode"]
         tts_mode = config_settings.TTSConfig.model_json_schema()["properties"]["mode"]
+        variant = config_settings.GenerationConfig.model_json_schema()["properties"]["three_pass_attribute_prompt_variant"]
+        self.assertEqual(set(variant["enum"]), selects["tp-attribute-prompt-variant"])
         self.assertEqual(set(app_mode["enum"]), selects["llm-mode"])
         self.assertEqual(set(tts_mode["enum"]), selects["tts-mode"])
         self.assertIn(app_mode["default"], selects["llm-mode"])

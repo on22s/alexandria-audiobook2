@@ -802,6 +802,9 @@
                     setIf('tp-chunk-size', g.three_pass_chunk_size);
                     setIf('tp-attribute-batch-size', g.three_pass_attribute_batch_size);
                     setIf('tp-attribute-context-chars', g.three_pass_attribute_context_chars);
+                    if (g.three_pass_attribute_prompt_variant) {
+                        document.getElementById('tp-attribute-prompt-variant').value = g.three_pass_attribute_prompt_variant;
+                    }
                     setIf('tp-segment-output-ratio', g.three_pass_segment_output_ratio);
                     setIf('tp-segment-temperature', g.three_pass_segment_temperature);
                     setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
@@ -919,6 +922,7 @@
                     three_pass_chunk_size: getNumFieldValue('tp-chunk-size', 3000, true),
                     three_pass_attribute_batch_size: getNumFieldValue('tp-attribute-batch-size', 25, true),
                     three_pass_attribute_context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
+                    three_pass_attribute_prompt_variant: document.getElementById('tp-attribute-prompt-variant').value || 'default',
                     three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),
                     three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),

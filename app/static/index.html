@@ -824,6 +824,21 @@
                                         <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="0">
                                         <div class="form-text">Book text shown before and after each window as evidence only. 0 = the window alone. Costs roughly chars/3 prompt tokens per side per request.</div>
                                     </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small mb-1" for="tp-attribute-prompt-variant">Attribution prompt</label>
+                                        <select class="form-select form-select-sm" id="tp-attribute-prompt-variant">
+                                            <option value="default" selected>Default (shipped prompt; what every adapter was trained on)</option>
+                                            <option value="michel">Michel et al. 2025: marked passage + aliases + previous window</option>
+                                            <option value="michel2">Michel 2: passage-format system prompt, minor-speaker rule, previous lines with speakers</option>
+                                            <option value="michel2_full">Michel 2 + surrounding text (uses the field to the left)</option>
+                                            <option value="michel2_shot">Michel 2 + one worked example</option>
+                                            <option value="continuity">Continuity: rolling story summary + last lines (one extra call per window)</option>
+                                            <option value="aliases">Default + roster aliases only</option>
+                                            <option value="passage">Default + marked-passage form only</option>
+                                            <option value="incremental">Default + previous window's speakers only</option>
+                                        </select>
+                                        <div class="form-text">Research prompts from this project's attribution work; each one's measured accuracy per model is in <code>RECIPES.md</code> ("Prompt"). A LoRA adapter learns the prompt it was trained on, so keep Default when serving one unless the adapter was trained for that variant.</div>
+                                    </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-segment-output-ratio" min="1.25" max="6" step="0.25" value="3">

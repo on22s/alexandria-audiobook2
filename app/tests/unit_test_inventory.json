@@ -277,6 +277,17 @@
     "tests.test_attribution_hybrid.AttributionHybridTest.test_preserves_source_alias_aware_correctness",
     "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
   ],
+  "test_attribution_prompt_variants": [
+    "tests.test_attribution_prompt_variants.ContinuityVariantTests.test_second_window_carries_summary_and_tail",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_every_variant_keeps_the_output_contract",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_incremental_carries_the_previous_window",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_full_shows_the_whole_window_and_its_surroundings",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_shot_puts_the_worked_example_first",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_michel2_swaps_the_system_prompt_and_carries_the_tail",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_roster_line_and_passage_rendering",
+    "tests.test_attribution_prompt_variants.PromptVariants.test_unknown_variant_is_refused",
+    "tests.test_attribution_prompt_variants.VariantProviderKeepsNarrationTests.test_aliases_request_is_the_canonical_request_with_contexts"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",
@@ -3238,6 +3249,7 @@
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_fingerprint_keeps_its_identity_at_the_defaults",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_preflight_counts_the_surround_in_the_attribute_estimate",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_preflight_flags_a_chunk_the_output_ceiling_cannot_fit",
+    "tests.test_three_pass_generate.AttributionContextKnobTests.test_prompt_variant_and_context_reach_the_attribution_request",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_surround_requotes_spoken_and_respects_the_budget",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_window_size_is_honoured",
     "tests.test_three_pass_generate.BoundedContextJoinTests.test_join_bounded_does_not_materialize_whole_book",

@@ -1024,6 +1024,22 @@
             "title": "Three Pass Attribute Context Chars",
             "type": "integer"
           },
+          "three_pass_attribute_prompt_variant": {
+            "default": "default",
+            "enum": [
+              "default",
+              "aliases",
+              "passage",
+              "incremental",
+              "michel",
+              "continuity",
+              "michel2",
+              "michel2_full",
+              "michel2_shot"
+            ],
+            "title": "Three Pass Attribute Prompt Variant",
+            "type": "string"
+          },
           "three_pass_attribute_temperature": {
             "default": 0.1,
             "maximum": 2.0,
