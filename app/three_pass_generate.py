@@ -113,6 +113,16 @@ def resolve_chunk_size(cli_value, config_value, model_value=None):
     return chunk_size
 
 
+def resolve_hard_max_tokens(configured_max_tokens):
+    """-> the escalation ceiling for a run whose Setup budget is `configured_max_tokens`.
+
+    Never below the dataclass default, so local setups keep their headroom; a
+    larger configured budget raises the ceiling with it. get_effective_max_tokens
+    still clamps every call to the server's real context when one is known.
+    """
+    return max(LLMGenParams.hard_max_tokens, int(configured_max_tokens))
+
+
 def resolve_three_pass_generation_settings(config, chunk_size_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
     llm = get_active_llm_config(config)
@@ -1786,6 +1796,15 @@ def main():
     print(heal_msg)
     params = LLMGenParams(
         max_tokens=generation_settings["max_tokens"],
+        # The escalation ceiling follows the configured budget. It used to stay
+        # at the dataclass default (16384) whatever Setup said, so a hosted
+        # reasoning model that thinks for 16k tokens was cut off at exactly
+        # that point with "cannot grow beyond 16384" while the user had set
+        # 65536 (reported 2026-09-17 against an OpenRouter model via a
+        # GPT-Load gateway). Never below the default, so local setups keep
+        # their headroom; get_effective_max_tokens still clamps to the
+        # server's real context when one is known.
+        hard_max_tokens=resolve_hard_max_tokens(generation_settings["max_tokens"]),
         temperature=gen.get("temperature", 0.6),
         top_p=gen.get("top_p", 0.8),
         top_k=gen.get("top_k"), min_p=gen.get("min_p"),
