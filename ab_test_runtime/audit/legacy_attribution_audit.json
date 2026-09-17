@@ -1,9 +1,9 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "9f35fc2a3887bdb4f620653ef352e4a5097f5a440014d2e65d6adae2212d271e",
+  "source_structural_sha256": "5ee1d3dafc57590e360c2547586dd0e88b9c6ce59cbb1637e36e25f616116861",
   "summary": {
-    "exploratory": 123,
-    "historical_only": 52,
+    "exploratory": 127,
+    "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 39
   },
@@ -2438,6 +2438,26 @@
       "semantic_limit": "Joint and shuffled controls answer ordering only within the tested fixtures."
     },
     {
+      "artifact": "lora_serving_eval__local-12h-muse-base-20260916.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__local-4book-base-20260907.json",
       "family": "lora_serving_eval",
       "rows": 768,
@@ -2666,6 +2686,117 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-base-tnr0-product-batch25-q3-jsonschema-reasoningmedium-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-base-tnr4-product-batch25-q3-jsonschema-reasoninglow-mentioned-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-tnr0-low-20260916_working.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": false,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-onebook-owari-workingrecipe-20260916.json",
+      "family": "lora_serving_eval",
+      "rows": 324,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-tnr0-product-batch25-q3-jsonschema-reasoninglow-hint-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false
@@ -2958,7 +3089,70 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__qwen3-14b-rightsclean-a6000-product-batch25-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-riqua3ep-a6000-product-batch25-20260914.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-riquax2-retry-20260915c.json",
       "family": "lora_serving_eval",
       "rows": 1536,
       "arms": [
@@ -4529,6 +4723,26 @@
       ],
       "classification": "historical_only",
       "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 488,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Three English PDNC books (Pride and Prejudice, The Awakening, The Sign of the Four), 2,494 quotes, one request per quote with the cast supplied, qwen3-14b, 2026-08-19: 54.5% against the one-pass baseline of 83.6% on these SAME books. The arm is 29 points WORSE, so this is evidence against this design, not for it - and it is one form (cast-supplied, single request) of one model, not two-stage attribution in general. The internal split is the interesting part and is also the reason not to read the headline alone: Explicit quotes, where the text names the speaker, score 52.9% - LOWER than Anaphoric at 61.7%. A method that misses half the cases the text answers outright is not a weaker method, it is a broken one, and the number to quote is that contrast rather than the 54.5%."
+    },
+    {
+      "artifact": "two_stage_attribution__usual_suspects_muse_reasoninglow_mt4096_20260914.json",
+      "family": "two_stage_attribution",
+      "rows": 1213,
+      "arms": [
+        "single"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
       "problems": [],
       "current_gold": {
         "available": true,

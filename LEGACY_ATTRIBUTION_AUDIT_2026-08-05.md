@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 225 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 235 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 123
-- `historical_only`: 52
+- `exploratory`: 127
+- `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 39
 
@@ -121,6 +121,7 @@ All 225 legacy-metadata artifacts are listed exactly once. Classification descri
 | `joint_scene__index18__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 297 | 0 | 0 | False |  |
 | `joint_scene__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | historical_only | 417 | 2 | 0 | False |  |
 | `joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | historical_only | 486 | 1 | 0 | False |  |
+| `lora_serving_eval__local-12h-muse-base-20260916.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-4book-base-20260907.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
 | `lora_serving_eval__local-hardcases-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
@@ -132,6 +133,11 @@ All 225 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-index18-20260914.json` | lora_serving_eval | supported_measurement | 88 | 0 | 0 | False |  |
 | `lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-mushoku16-20260914.json` | lora_serving_eval | supported_measurement | 133 | 0 | 0 | False |  |
 | `lora_serving_eval__muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-owarimonogatari3-20260914.json` | lora_serving_eval | supported_measurement | 162 | 0 | 0 | False |  |
+| `lora_serving_eval__muse-glimmer-30b-base-tnr0-product-batch25-q3-jsonschema-reasoningmedium-20260914.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
+| `lora_serving_eval__muse-glimmer-30b-base-tnr4-product-batch25-q3-jsonschema-reasoninglow-mentioned-20260914.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-tnr0-low-20260916_working.json` | lora_serving_eval | exploratory | 1536 | 0 | 766 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-onebook-owari-workingrecipe-20260916.json` | lora_serving_eval | exploratory | 324 | 0 | 0 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-tnr0-product-batch25-q3-jsonschema-reasoninglow-hint-20260914.json` | lora_serving_eval | exploratory | 1536 | 0 | 766 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -145,7 +151,10 @@ All 225 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen3-14b-dracor-mixed-a6000-product-batch25-20260913.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
 | `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | True |  |
+| `lora_serving_eval__qwen3-14b-rightsclean-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
+| `lora_serving_eval__qwen3-14b-riqua3ep-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
+| `lora_serving_eval__qwen3-14b-riquax2-retry-20260915c.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json` | lora_serving_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -215,6 +224,7 @@ All 225 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution__usual_suspects_control_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
 | `two_stage_attribution__usual_suspects_dropped_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
 | `two_stage_attribution__usual_suspects_hint_20260914.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_muse_reasoninglow_mt4096_20260914.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | False |  |
 | `two_stage_attribution__usual_suspects_reasoning_20260914.json` | two_stage_attribution | exploratory | 1213 | 0 | 488 | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
