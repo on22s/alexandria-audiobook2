@@ -3306,6 +3306,8 @@
     "tests.test_three_pass_generate.PassHelperTests.test_unique_batches_cap_source_windows_at_batch_size",
     "tests.test_three_pass_generate.PassHelperTests.test_unique_batches_isolate_duplicates_without_collapsing_prefix",
     "tests.test_three_pass_generate.PassHelperTests.test_unmatched_outer_quote_is_bounded_at_input_end",
+    "tests.test_three_pass_generate.ReasoningTokensFromTraceTests.test_a_server_that_counts_reasoning_is_believed",
+    "tests.test_three_pass_generate.ReasoningTokensFromTraceTests.test_the_attempt_record_estimates_reasoning_from_the_trace",
     "tests.test_three_pass_generate.RecombinationAcceptanceTests.test_accepts_recombination_when_trigram_only_defect_at_seam",
     "tests.test_three_pass_generate.RecombinationAcceptanceTests.test_recombination_floor_predicate_rejects_below_floor",
     "tests.test_three_pass_generate.RecombinationAcceptanceTests.test_rejects_recombination_on_real_recall_loss",

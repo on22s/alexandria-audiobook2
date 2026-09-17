@@ -1078,3 +1078,43 @@ class HardMaxTokensFollowsConfigTests(unittest.TestCase):
         self.assertEqual(LLMGenParams.hard_max_tokens, tp.resolve_hard_max_tokens(4096))
         self.assertEqual(16384, LLMGenParams.hard_max_tokens)
 
+
+class ReasoningTokensFromTraceTests(unittest.TestCase):
+    """llama.cpp returns message.reasoning_content but no usage reasoning_tokens.
+    The allowance then never grew, and Re:Zero vol. 3 failed pass 1 with
+    'cannot grow beyond 512' under Muse reasoning low (2026-09-15)."""
+
+    def test_the_attempt_record_estimates_reasoning_from_the_trace(self):
+        from generate_script import call_llm_for_entries
+        seen = []
+
+        def create(**_kwargs):
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps([{"n": 0, "speaker": "A"}]),
+                                        reasoning_content="x" * 4000),
+                finish_reason="stop")], usage=SimpleNamespace(prompt_tokens=10, completion_tokens=1100))
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        call_llm_for_entries(client, "m", "sys", "user", LLMGenParams(max_tokens=64),
+                             log_name="test.log", label="ATTRIBUTE",
+                             validate_entries=lambda e: {"passed": True},
+                             attempt_observer=seen.append)
+        self.assertEqual(1000, seen[0]["reasoning_tokens"])
+
+    def test_a_server_that_counts_reasoning_is_believed(self):
+        from generate_script import call_llm_for_entries
+        seen = []
+
+        def create(**_kwargs):
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps([{"n": 0, "speaker": "A"}]),
+                                        reasoning_content="x" * 4000),
+                finish_reason="stop")], usage=SimpleNamespace(
+                    prompt_tokens=10, completion_tokens=1100,
+                    completion_tokens_details=SimpleNamespace(reasoning_tokens=777)))
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        call_llm_for_entries(client, "m", "sys", "user", LLMGenParams(max_tokens=64),
+                             log_name="test.log", label="ATTRIBUTE",
+                             validate_entries=lambda e: {"passed": True},
+                             attempt_observer=seen.append)
+        self.assertEqual(777, seen[0]["reasoning_tokens"])
+
