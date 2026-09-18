@@ -2522,6 +2522,7 @@
     "tests.test_release_verifier.ReleaseVerifierTests.test_json_report_marks_interrupted_gate_and_returns_130",
     "tests.test_release_verifier.ReleaseVerifierTests.test_json_report_records_successful_gates_and_api_results",
     "tests.test_release_verifier.ReleaseVerifierTests.test_keyboard_interrupt_stops_child_group_before_propagating",
+    "tests.test_release_verifier.ReleaseVerifierTests.test_non_utf8_child_output_is_shown_not_fatal",
     "tests.test_release_verifier.ReleaseVerifierTests.test_python_compilation_includes_nonignored_untracked_files",
     "tests.test_release_verifier.ReleaseVerifierTests.test_unittest_summary_rejects_a_suite_that_collapsed_to_nothing",
     "tests.test_release_verifier.ReleaseVerifierTests.test_unittest_summary_rejects_skips_and_missing_success"

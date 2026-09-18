@@ -162,6 +162,20 @@ class ReleaseVerifierTests(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(grandchild_pid, 0)
 
+    def test_non_utf8_child_output_is_shown_not_fatal(self):
+        """A child that writes a raw byte to the shared pipe must not abort
+        the verifier: the byte is escaped into the log so its origin can be
+        found, and a clean exit still counts as passing."""
+        code = (
+            "import sys; sys.stdout.buffer.write(b'test_x ... \\xa1 ok\\n'); "
+            "sys.stdout.flush(); print('done')"
+        )
+        with contextlib.redirect_stdout(io.StringIO()) as captured:
+            combined = verify_release.run_command("raw bytes", [sys.executable, "-c", code], ".")
+        self.assertIn("\\xa1", combined)
+        self.assertIn("done", combined)
+        self.assertIn("\\xa1", captured.getvalue())
+
     def test_keyboard_interrupt_stops_child_group_before_propagating(self):
         class InterruptingOutput:
             def __iter__(self):
