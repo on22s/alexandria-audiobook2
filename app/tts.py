@@ -177,6 +177,50 @@ def sanitize_filename(name):
     return re.sub(r'[^\w\-]', '_', safe).lower()
 
 
+# Dead air the model emits around each line. Measured 2026-09-18 over 6,550
+# LoRA-path lines (ab_test_runtime/chapter_audio + voice_drift): median
+# 310-340 ms of leading silence (p90 540-600 ms) and 80 ms trailing, i.e.
+# 4-5% of a book, ~2.5-2.9 minutes per hour - and it sits on top of the
+# configured pause, so a 250 ms same-speaker gap was really ~670 ms. Trimmed
+# at join time (not at generation, so nothing on disk changes and the
+# editor's per-line files are untouched), keeping a short head and tail so no
+# onset is clipped. The CustomVoice path emits ~80 ms and is unaffected.
+EDGE_SILENCE_THRESHOLD_DBFS = -45.0
+EDGE_SILENCE_KEEP_HEAD_MS = 40
+EDGE_SILENCE_KEEP_TAIL_MS = 80
+_EDGE_SILENCE_STEP_MS = 10
+
+
+def _silent_edge_ms(segment, from_end, threshold_db):
+    """Milliseconds of silence at the start (or end) of a segment."""
+    length = len(segment)
+    silent = 0
+    while silent < length:
+        start = length - silent - _EDGE_SILENCE_STEP_MS if from_end else silent
+        slice_ = segment[max(0, start):max(0, start) + _EDGE_SILENCE_STEP_MS]
+        if len(slice_) == 0 or slice_.dBFS > threshold_db:
+            break
+        silent += _EDGE_SILENCE_STEP_MS
+    return min(silent, length)
+
+
+def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
+                      keep_head_ms=EDGE_SILENCE_KEEP_HEAD_MS,
+                      keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS):
+    """-> the segment with leading/trailing silence cut back to keep_head_ms /
+    keep_tail_ms. A segment that is silent throughout is returned unchanged
+    (a missing line must stay visible as its full length, not vanish)."""
+    if segment is None or len(segment) == 0:
+        return segment
+    lead = _silent_edge_ms(segment, False, threshold_db)
+    if lead >= len(segment):
+        return segment
+    tail = _silent_edge_ms(segment, True, threshold_db)
+    start = max(0, lead - keep_head_ms)
+    end = len(segment) - max(0, tail - keep_tail_ms)
+    return segment[start:end] if (start, end) != (0, len(segment)) else segment
+
+
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,
                               same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS,
                               pause_overrides=None):
@@ -190,6 +234,7 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
     if not audio_segments:
         return None
 
+    audio_segments = [trim_edge_silence(s) for s in audio_segments]
     combined = audio_segments[0]
     prev_speaker = speakers[0]
 
@@ -227,6 +272,7 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
     prev_chunk = None
 
     for chunk, segment in chunks_with_audio:
+        segment = trim_edge_silence(segment)   # same cut the combined audio gets
         if prev_speaker is not None:
             override = prev_chunk.get("pause_after")
             if override is not None:

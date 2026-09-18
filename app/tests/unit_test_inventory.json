@@ -3480,6 +3480,13 @@
     "tests.test_training_defaults.LearningRateIsSingleSourced.test_the_constant_is_the_rate_that_produced_working_adapters",
     "tests.test_training_defaults.LearningRateIsSingleSourced.test_the_ui_input_matches"
   ],
+  "test_trim_edge_silence": [
+    "tests.test_trim_edge_silence.TrimTests.test_a_line_with_no_dead_air_is_untouched",
+    "tests.test_trim_edge_silence.TrimTests.test_a_silent_line_is_not_deleted",
+    "tests.test_trim_edge_silence.TrimTests.test_leading_and_trailing_silence_are_cut_to_the_keep",
+    "tests.test_trim_edge_silence.TrimTests.test_short_edges_are_kept_not_extended",
+    "tests.test_trim_edge_silence.TrimTests.test_the_configured_pause_is_now_the_gap_the_listener_hears"
+  ],
   "test_tts_audio_validation": [
     "tests.test_tts_audio_validation.TestSaveWavIsTheOnlyFunnel.test_every_generation_path_writes_through_save_wav",
     "tests.test_tts_audio_validation.TestSaveWavIsTheOnlyFunnel.test_save_wav_validates",
