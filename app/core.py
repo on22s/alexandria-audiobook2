@@ -1696,12 +1696,20 @@ def _send_signal_tree(proc_or_pid, sig) -> None:
         os.kill(pid, sig)
 
 
+def pause_resume_supported():
+    """Pause is SIGSTOP/SIGCONT on the worker's process group, which Windows
+    does not have. The one answer for the 501 below and for GET /api/config's
+    `capabilities.pause_resume`, which the page reads to disable the Pause
+    buttons instead of letting every click fail (issue #588)."""
+    return sys.platform != "win32"
+
+
 def _posix_signal(proc, signame):
     """Send a POSIX signal by name (e.g. "SIGSTOP") to the process's whole group.
     Raises 501 on Windows, where SIGSTOP/SIGCONT don't exist on the signal module
     — the name is resolved here, after the platform check, so callers never
     reference the constant directly and crash with AttributeError on Windows."""
-    if sys.platform == "win32":
+    if not pause_resume_supported():
         raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
     try:
         sig = getattr(signal, signame)
