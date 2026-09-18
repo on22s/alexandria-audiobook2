@@ -1,0 +1,1141 @@
+{
+ "experiment": "instruct_audit",
+ "rules": "experiments.instruct_lexicon (buddies fork, MIT)",
+ "files": [
+  {
+   "file": "Arc 1 - Volume 1.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3385,
+   "codes": {
+    "conformant": 1288,
+    "timbre": 152,
+    "no_delivery": 1108,
+    "punctuation": 417,
+    "long": 686,
+    "over_specified": 301,
+    "scene": 298,
+    "action": 79
+   },
+   "mean_words": 10.3,
+   "p90_words": 13,
+   "mean_clauses": 2.7,
+   "share_over_3_clauses": 0.0889
+  },
+  {
+   "file": "Arc 1 - Volume 1_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2386,
+   "codes": {
+    "no_delivery": 769,
+    "conformant": 1042,
+    "timbre": 89,
+    "punctuation": 218,
+    "over_specified": 181,
+    "action": 56,
+    "long": 390,
+    "scene": 177
+   },
+   "mean_words": 9.55,
+   "p90_words": 13,
+   "mean_clauses": 2.68,
+   "share_over_3_clauses": 0.0759
+  },
+  {
+   "file": "Arc 1 - Volume 1_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3388,
+   "codes": {
+    "no_delivery": 1074,
+    "conformant": 1592,
+    "punctuation": 272,
+    "over_specified": 218,
+    "timbre": 139,
+    "scene": 242,
+    "long": 432,
+    "action": 83
+   },
+   "mean_words": 9.54,
+   "p90_words": 12,
+   "mean_clauses": 2.64,
+   "share_over_3_clauses": 0.0643
+  },
+  {
+   "file": "Arc 1 - Volume 1_4.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3356,
+   "codes": {
+    "no_delivery": 1144,
+    "conformant": 1332,
+    "punctuation": 421,
+    "over_specified": 285,
+    "timbre": 152,
+    "scene": 251,
+    "long": 634,
+    "action": 84
+   },
+   "mean_words": 10.06,
+   "p90_words": 13,
+   "mean_clauses": 2.68,
+   "share_over_3_clauses": 0.0849
+  },
+  {
+   "file": "Arc 2 - Volume 2.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3910,
+   "codes": {
+    "no_delivery": 1366,
+    "punctuation": 278,
+    "conformant": 1749,
+    "timbre": 156,
+    "over_specified": 277,
+    "action": 81,
+    "scene": 282,
+    "long": 574
+   },
+   "mean_words": 9.66,
+   "p90_words": 12,
+   "mean_clauses": 2.69,
+   "share_over_3_clauses": 0.0708
+  },
+  {
+   "file": "Arc 2 - Volume 2_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2563,
+   "codes": {
+    "no_delivery": 935,
+    "conformant": 1085,
+    "scene": 170,
+    "timbre": 87,
+    "long": 336,
+    "action": 65,
+    "over_specified": 156,
+    "punctuation": 219
+   },
+   "mean_words": 9.63,
+   "p90_words": 12,
+   "mean_clauses": 2.63,
+   "share_over_3_clauses": 0.0609
+  },
+  {
+   "file": "Arc 2 - Volume 2_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3912,
+   "codes": {
+    "no_delivery": 1283,
+    "conformant": 1674,
+    "timbre": 157,
+    "punctuation": 327,
+    "over_specified": 358,
+    "action": 88,
+    "scene": 341,
+    "long": 584
+   },
+   "mean_words": 9.75,
+   "p90_words": 12,
+   "mean_clauses": 2.72,
+   "share_over_3_clauses": 0.0915
+  },
+  {
+   "file": "Arc 2 - Volume 3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 4066,
+   "codes": {
+    "no_delivery": 1274,
+    "conformant": 1897,
+    "over_specified": 254,
+    "punctuation": 325,
+    "scene": 358,
+    "action": 90,
+    "timbre": 168,
+    "long": 467,
+    "speaker_name": 1
+   },
+   "mean_words": 9.35,
+   "p90_words": 12,
+   "mean_clauses": 2.68,
+   "share_over_3_clauses": 0.0625
+  },
+  {
+   "file": "Arc 2 - Volume 3_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2726,
+   "codes": {
+    "conformant": 1324,
+    "no_delivery": 806,
+    "punctuation": 199,
+    "scene": 167,
+    "action": 47,
+    "over_specified": 152,
+    "timbre": 90,
+    "long": 349
+   },
+   "mean_words": 9.27,
+   "p90_words": 12,
+   "mean_clauses": 2.66,
+   "share_over_3_clauses": 0.0558
+  },
+  {
+   "file": "Arc 2 - Volume 3_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 4111,
+   "codes": {
+    "no_delivery": 1268,
+    "timbre": 159,
+    "conformant": 1864,
+    "punctuation": 284,
+    "scene": 410,
+    "long": 592,
+    "over_specified": 299,
+    "action": 89
+   },
+   "mean_words": 9.42,
+   "p90_words": 12,
+   "mean_clauses": 2.71,
+   "share_over_3_clauses": 0.0727
+  },
+  {
+   "file": "Arc 2 - Volume 3_4.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 4121,
+   "codes": {
+    "conformant": 1705,
+    "no_delivery": 1371,
+    "timbre": 177,
+    "punctuation": 450,
+    "scene": 360,
+    "over_specified": 286,
+    "action": 102,
+    "long": 639
+   },
+   "mean_words": 9.84,
+   "p90_words": 13,
+   "mean_clauses": 2.64,
+   "share_over_3_clauses": 0.0694
+  },
+  {
+   "file": "Arc 3 - Volume 4.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3813,
+   "codes": {
+    "conformant": 1551,
+    "no_delivery": 1338,
+    "scene": 320,
+    "punctuation": 406,
+    "timbre": 192,
+    "over_specified": 333,
+    "long": 504,
+    "action": 72
+   },
+   "mean_words": 9.57,
+   "p90_words": 12,
+   "mean_clauses": 2.71,
+   "share_over_3_clauses": 0.0873
+  },
+  {
+   "file": "Arc 3 - Volume 4_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2470,
+   "codes": {
+    "conformant": 1068,
+    "no_delivery": 848,
+    "timbre": 101,
+    "scene": 179,
+    "over_specified": 188,
+    "punctuation": 264,
+    "action": 38,
+    "long": 305
+   },
+   "mean_words": 9.41,
+   "p90_words": 12,
+   "mean_clauses": 2.7,
+   "share_over_3_clauses": 0.0761
+  },
+  {
+   "file": "Arc 3 - Volume 4_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3824,
+   "codes": {
+    "conformant": 1367,
+    "timbre": 187,
+    "no_delivery": 1390,
+    "punctuation": 423,
+    "long": 758,
+    "scene": 346,
+    "over_specified": 399,
+    "action": 88
+   },
+   "mean_words": 9.94,
+   "p90_words": 13,
+   "mean_clauses": 2.72,
+   "share_over_3_clauses": 0.1043
+  },
+  {
+   "file": "Arc 3 - Volume 5.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3840,
+   "codes": {
+    "conformant": 1588,
+    "no_delivery": 1259,
+    "punctuation": 352,
+    "timbre": 162,
+    "long": 577,
+    "scene": 353,
+    "over_specified": 381,
+    "action": 86
+   },
+   "mean_words": 9.85,
+   "p90_words": 12,
+   "mean_clauses": 2.74,
+   "share_over_3_clauses": 0.0992
+  },
+  {
+   "file": "Arc 3 - Volume 5_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2232,
+   "codes": {
+    "no_delivery": 671,
+    "conformant": 1139,
+    "punctuation": 184,
+    "scene": 203,
+    "over_specified": 109,
+    "timbre": 81,
+    "long": 163,
+    "action": 40
+   },
+   "mean_words": 8.98,
+   "p90_words": 12,
+   "mean_clauses": 2.62,
+   "share_over_3_clauses": 0.0488
+  },
+  {
+   "file": "Arc 3 - Volume 5_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3873,
+   "codes": {
+    "no_delivery": 1153,
+    "conformant": 1656,
+    "punctuation": 395,
+    "long": 554,
+    "scene": 364,
+    "timbre": 170,
+    "action": 61,
+    "over_specified": 402
+   },
+   "mean_words": 9.73,
+   "p90_words": 12,
+   "mean_clauses": 2.76,
+   "share_over_3_clauses": 0.1038
+  },
+  {
+   "file": "Arc 3 - Volume 6.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3883,
+   "codes": {
+    "no_delivery": 1339,
+    "conformant": 1734,
+    "timbre": 138,
+    "scene": 348,
+    "punctuation": 337,
+    "over_specified": 221,
+    "action": 64,
+    "long": 460
+   },
+   "mean_words": 9.61,
+   "p90_words": 12,
+   "mean_clauses": 2.64,
+   "share_over_3_clauses": 0.0569
+  },
+  {
+   "file": "Arc 3 - Volume 6_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2343,
+   "codes": {
+    "no_delivery": 720,
+    "conformant": 1220,
+    "timbre": 83,
+    "punctuation": 152,
+    "over_specified": 93,
+    "long": 184,
+    "scene": 156,
+    "action": 25
+   },
+   "mean_words": 9.12,
+   "p90_words": 12,
+   "mean_clauses": 2.59,
+   "share_over_3_clauses": 0.0397
+  },
+  {
+   "file": "Arc 3 - Volume 6_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3752,
+   "codes": {
+    "conformant": 1649,
+    "no_delivery": 1223,
+    "punctuation": 401,
+    "long": 620,
+    "scene": 219,
+    "over_specified": 256,
+    "action": 58,
+    "timbre": 156
+   },
+   "mean_words": 10.21,
+   "p90_words": 13,
+   "mean_clauses": 2.68,
+   "share_over_3_clauses": 0.0682
+  },
+  {
+   "file": "Arc 3 - Volume 7.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3566,
+   "codes": {
+    "no_delivery": 1055,
+    "conformant": 1618,
+    "punctuation": 416,
+    "timbre": 146,
+    "over_specified": 257,
+    "scene": 312,
+    "long": 454,
+    "action": 51
+   },
+   "mean_words": 9.43,
+   "p90_words": 12,
+   "mean_clauses": 2.65,
+   "share_over_3_clauses": 0.0721
+  },
+  {
+   "file": "Arc 3 - Volume 7_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2260,
+   "codes": {
+    "no_delivery": 671,
+    "timbre": 78,
+    "conformant": 1026,
+    "punctuation": 238,
+    "over_specified": 157,
+    "action": 35,
+    "scene": 161,
+    "long": 313
+   },
+   "mean_words": 9.3,
+   "p90_words": 12,
+   "mean_clauses": 2.66,
+   "share_over_3_clauses": 0.0695
+  },
+  {
+   "file": "Arc 3 - Volume 8.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3923,
+   "codes": {
+    "no_delivery": 1245,
+    "punctuation": 476,
+    "conformant": 1716,
+    "timbre": 153,
+    "long": 548,
+    "over_specified": 301,
+    "scene": 314,
+    "action": 73,
+    "speaker_name": 1
+   },
+   "mean_words": 9.69,
+   "p90_words": 12,
+   "mean_clauses": 2.67,
+   "share_over_3_clauses": 0.0767
+  },
+  {
+   "file": "Arc 3 - Volume 8_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2791,
+   "codes": {
+    "no_delivery": 852,
+    "conformant": 1218,
+    "punctuation": 359,
+    "scene": 166,
+    "action": 40,
+    "timbre": 135,
+    "long": 431,
+    "over_specified": 239
+   },
+   "mean_words": 9.65,
+   "p90_words": 12,
+   "mean_clauses": 2.74,
+   "share_over_3_clauses": 0.0856
+  },
+  {
+   "file": "Arc 3 - Volume 8_3.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 3926,
+   "codes": {
+    "timbre": 188,
+    "no_delivery": 1360,
+    "conformant": 1520,
+    "punctuation": 557,
+    "scene": 283,
+    "action": 67,
+    "long": 716,
+    "over_specified": 338
+   },
+   "mean_words": 9.92,
+   "p90_words": 13,
+   "mean_clauses": 2.71,
+   "share_over_3_clauses": 0.0861
+  },
+  {
+   "file": "Arc 3 - Volume 9.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 4243,
+   "codes": {
+    "no_delivery": 1488,
+    "timbre": 183,
+    "conformant": 1747,
+    "punctuation": 433,
+    "scene": 353,
+    "over_specified": 362,
+    "action": 67,
+    "long": 644
+   },
+   "mean_words": 9.82,
+   "p90_words": 13,
+   "mean_clauses": 2.67,
+   "share_over_3_clauses": 0.0853
+  },
+  {
+   "file": "Arc 3 - Volume 9_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2493,
+   "codes": {
+    "timbre": 92,
+    "no_delivery": 808,
+    "conformant": 1168,
+    "punctuation": 282,
+    "scene": 206,
+    "long": 185,
+    "over_specified": 131,
+    "action": 39
+   },
+   "mean_words": 9.1,
+   "p90_words": 12,
+   "mean_clauses": 2.65,
+   "share_over_3_clauses": 0.0525
+  },
+  {
+   "file": "Arc 4 - Volume 10.json",
+   "source": "library",
+   "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+   "instructs": 4164,
+   "codes": {
+    "no_delivery": 1401,
+    "conformant": 1724,
+    "punctuation": 485,
+    "timbre": 178,
+    "over_specified": 349,
+    "scene": 329,
+    "long": 601,
+    "action": 97
+   },
+   "mean_words": 9.71,
+   "p90_words": 12,
+   "mean_clauses": 2.71,
+   "share_over_3_clauses": 0.0838
+  },
+  {
+   "file": "Arc 4 - Volume 10_2.json",
+   "source": "library",
+   "model": "unknown",
+   "instructs": 2839,
+   "codes": {
+    "conformant": 1244,
+    "no_delivery": 897,
+    "timbre": 122,
+    "long": 447,
+    "action": 56,
+    "over_specified": 201,
+    "scene": 179,
+    "punctuation": 286
+   },
+   "mean_words": 9.34,
+   "p90_words": 13,
+   "mean_clauses": 2.69,
+   "share_over_3_clauses": 0.0708
+  },
+  {
+   "file": "annotated_script.json",
+   "source": "active",
+   "model": "unknown",
+   "instructs": 2617,
+   "codes": {
+    "timbre": 106,
+    "no_delivery": 734,
+    "conformant": 1493,
+    "punctuation": 186,
+    "over_specified": 108,
+    "scene": 93,
+    "action": 46,
+    "long": 180,
+    "speaker_name": 1
+   },
+   "mean_words": 8.2,
+   "p90_words": 11,
+   "mean_clauses": 2.55,
+   "share_over_3_clauses": 0.0413
+  },
+  {
+   "file": "run1.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "over_specified": 7,
+    "long": 192,
+    "conformant": 1243,
+    "punctuation": 375,
+    "scene": 83,
+    "no_delivery": 997,
+    "timbre": 37,
+    "action": 5
+   },
+   "mean_words": 7.5,
+   "p90_words": 12,
+   "mean_clauses": 1.92,
+   "share_over_3_clauses": 0.0028
+  },
+  {
+   "file": "run2.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "conformant": 1229,
+    "no_delivery": 1023,
+    "timbre": 35,
+    "long": 195,
+    "scene": 89,
+    "punctuation": 349,
+    "action": 9,
+    "over_specified": 4
+   },
+   "mean_words": 7.42,
+   "p90_words": 12,
+   "mean_clauses": 1.91,
+   "share_over_3_clauses": 0.0016
+  },
+  {
+   "file": "run3.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "conformant": 1273,
+    "no_delivery": 1017,
+    "timbre": 33,
+    "punctuation": 281,
+    "scene": 69,
+    "long": 168,
+    "action": 7,
+    "over_specified": 1
+   },
+   "mean_words": 7.23,
+   "p90_words": 11,
+   "mean_clauses": 1.89,
+   "share_over_3_clauses": 0.0004
+  },
+  {
+   "file": "run4.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "conformant": 1251,
+    "no_delivery": 1031,
+    "timbre": 28,
+    "long": 150,
+    "scene": 65,
+    "punctuation": 327,
+    "over_specified": 2,
+    "action": 8
+   },
+   "mean_words": 7.25,
+   "p90_words": 11,
+   "mean_clauses": 1.86,
+   "share_over_3_clauses": 0.0008
+  },
+  {
+   "file": "run5.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "over_specified": 10,
+    "long": 238,
+    "conformant": 1211,
+    "scene": 92,
+    "punctuation": 366,
+    "no_delivery": 1017,
+    "timbre": 33,
+    "action": 6
+   },
+   "mean_words": 7.64,
+   "p90_words": 12,
+   "mean_clauses": 1.91,
+   "share_over_3_clauses": 0.0039
+  },
+  {
+   "file": "run6.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "over_specified": 6,
+    "long": 221,
+    "conformant": 1230,
+    "punctuation": 419,
+    "scene": 74,
+    "no_delivery": 981,
+    "timbre": 30,
+    "action": 9
+   },
+   "mean_words": 7.52,
+   "p90_words": 12,
+   "mean_clauses": 1.92,
+   "share_over_3_clauses": 0.0024
+  },
+  {
+   "file": "run7.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "over_specified": 12,
+    "long": 210,
+    "conformant": 1252,
+    "scene": 77,
+    "punctuation": 341,
+    "no_delivery": 1003,
+    "timbre": 32,
+    "action": 3
+   },
+   "mean_words": 7.52,
+   "p90_words": 12,
+   "mean_clauses": 1.91,
+   "share_over_3_clauses": 0.0047
+  },
+  {
+   "file": "run8.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2540,
+   "codes": {
+    "over_specified": 4,
+    "long": 197,
+    "conformant": 1218,
+    "punctuation": 391,
+    "scene": 82,
+    "timbre": 31,
+    "no_delivery": 1033,
+    "action": 8
+   },
+   "mean_words": 7.5,
+   "p90_words": 12,
+   "mean_clauses": 1.92,
+   "share_over_3_clauses": 0.0016
+  },
+  {
+   "file": "index18__three_pass.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2479,
+   "codes": {
+    "conformant": 1184,
+    "no_delivery": 858,
+    "over_specified": 49,
+    "timbre": 32,
+    "punctuation": 487,
+    "long": 515,
+    "scene": 58,
+    "action": 3,
+    "speaker_name": 48
+   },
+   "mean_words": 9.02,
+   "p90_words": 14,
+   "mean_clauses": 2.39,
+   "share_over_3_clauses": 0.0198
+  },
+  {
+   "file": "mushoku16__three_pass.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 2056,
+   "codes": {
+    "conformant": 1117,
+    "no_delivery": 748,
+    "long": 299,
+    "punctuation": 209,
+    "over_specified": 27,
+    "action": 3,
+    "scene": 36,
+    "timbre": 20,
+    "speaker_name": 48
+   },
+   "mean_words": 8.3,
+   "p90_words": 13,
+   "mean_clauses": 2.27,
+   "share_over_3_clauses": 0.0131
+  },
+  {
+   "file": "owarimonogatari3__three_pass.json",
+   "source": "three_pass_artifacts",
+   "model": "unknown",
+   "instructs": 3929,
+   "codes": {
+    "conformant": 2121,
+    "no_delivery": 1465,
+    "long": 677,
+    "scene": 22,
+    "punctuation": 269,
+    "timbre": 18,
+    "over_specified": 14,
+    "action": 3
+   },
+   "mean_words": 8.77,
+   "p90_words": 14,
+   "mean_clauses": 2.23,
+   "share_over_3_clauses": 0.0036
+  }
+ ],
+ "by_source": {
+  "library": {
+   "files": 29,
+   "instructs": 98159,
+   "share": {
+    "action": 0.0196,
+    "conformant": 0.433,
+    "long": 0.1441,
+    "no_delivery": 0.3272,
+    "over_specified": 0.0762,
+    "punctuation": 0.1004,
+    "scene": 0.0799,
+    "speaker_name": 0.0,
+    "timbre": 0.0415
+   }
+  },
+  "active": {
+   "files": 1,
+   "instructs": 2617,
+   "share": {
+    "action": 0.0176,
+    "conformant": 0.5705,
+    "long": 0.0688,
+    "no_delivery": 0.2805,
+    "over_specified": 0.0413,
+    "punctuation": 0.0711,
+    "scene": 0.0355,
+    "speaker_name": 0.0004,
+    "timbre": 0.0405
+   }
+  },
+  "three_pass_artifacts": {
+   "files": 11,
+   "instructs": 28784,
+   "share": {
+    "action": 0.0022,
+    "conformant": 0.4978,
+    "long": 0.1064,
+    "no_delivery": 0.3882,
+    "over_specified": 0.0047,
+    "punctuation": 0.1325,
+    "scene": 0.026,
+    "speaker_name": 0.0033,
+    "timbre": 0.0114
+   }
+  }
+ },
+ "by_model": {
+  "gemma-4-e4b-uncensored-hauhaucs-aggressive": {
+   "files": 19,
+   "instructs": 73056,
+   "share": {
+    "action": 0.0203,
+    "conformant": 0.4239,
+    "long": 0.1512,
+    "no_delivery": 0.3304,
+    "over_specified": 0.0804,
+    "punctuation": 0.102,
+    "scene": 0.0833,
+    "speaker_name": 0.0,
+    "timbre": 0.0426
+   }
+  },
+  "unknown": {
+   "files": 22,
+   "instructs": 56504,
+   "share": {
+    "action": 0.0098,
+    "conformant": 0.4841,
+    "long": 0.1123,
+    "no_delivery": 0.3519,
+    "over_specified": 0.0328,
+    "punctuation": 0.1133,
+    "scene": 0.0461,
+    "speaker_name": 0.0017,
+    "timbre": 0.0247
+   }
+  }
+ },
+ "examples": {
+  "timbre": [
+   {
+    "instruct": "Author name announcement; clear and resonant voice.",
+    "detail": "resonant (acoustic identity - belongs in Character Style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Simple declaration; slightly resonant quality.",
+    "detail": "resonant (acoustic identity - belongs in Character Style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Exhausted realization; breathy, low voice cracking slightly under stress.",
+    "detail": "breathy (acoustic identity - belongs in Character Style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Gravelly narration; descriptive language delivered with heavy effort.",
+    "detail": "gravelly (acoustic identity - belongs in Character Style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "no_delivery": [
+   {
+    "instruct": "Author name announcement; clear and resonant voice.",
+    "detail": "no emotion/delivery/pacing word - nothing for the voice to act on",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Informative, smooth delivery; slightly softer than the author's name.",
+    "detail": "no emotion/delivery/pacing word - nothing for the voice to act on",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Book title announcement; slightly dramatic and engaging tone.",
+    "detail": "no emotion/delivery/pacing word - nothing for the voice to act on",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Quick, precise reading of the copyright line; professional quality.",
+    "detail": "no emotion/delivery/pacing word - nothing for the voice to act on",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "punctuation": [
+   {
+    "instruct": "Informative, smooth delivery; slightly softer than the author's name.",
+    "detail": "quotes/brackets (stage-direction style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Dramatic summation; slowing down on 'checkmate' for impact.",
+    "detail": "quotes/brackets (stage-direction style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Terminal announcement; slow, heavy finality to the word 'life.'",
+    "detail": "quotes/brackets (stage-direction style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Building tension narration; slowing down on 'strange' to create suspenseful emphasis.",
+    "detail": "quotes/brackets (stage-direction style)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "long": [
+   {
+    "instruct": "Sharp, sudden gasp of relief or surprise; high pitch and immediate burst of sound.",
+    "detail": "14 words / 82 chars",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Fading resolve; breathy whisper with a hint of fierce promise in the tone.",
+    "detail": "13 words / 74 chars",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Internal monologue narration; slightly ruminative and stressed delivery, emphasizing the contradiction.",
+    "detail": "11 words / 103 chars",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Analytical narration; slightly mocking or dry tone as he summarizes his mundane existence.",
+    "detail": "13 words / 90 chars",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "over_specified": [
+   {
+    "instruct": "Terminal announcement; slow, heavy finality to the word 'life.'",
+    "detail": "4 clauses (max 3)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Descriptive, steady narration; adopting an objective, observational quality.",
+    "detail": "4 clauses (max 3)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Informative, grounding narration; steady, factual delivery.",
+    "detail": "4 clauses (max 3)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Concluding thought narration; slow, trailing off delivery, ending on a note of lingering confusion.",
+    "detail": "4 clauses (max 3)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "scene": [
+   {
+    "instruct": "Detailed visual description; slightly softer focus on the nuance of his expression.",
+    "detail": "description (scene/meta wording the voice cannot act on)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Action description; brief, clipped pacing.",
+    "detail": "description (scene/meta wording the voice cannot act on)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Dramatic action description; powerful, sweeping delivery emphasizing the sudden submission.",
+    "detail": "description (scene/meta wording the voice cannot act on)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Rapid-fire description; increasing urgency to match the action.",
+    "detail": "description (scene/meta wording the voice cannot act on)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "action": [
+   {
+    "instruct": "Sharp, quick action narration; energetic delivery matching the gesture.",
+    "detail": "gesture (an action or gesture, not a voice direction)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Finalizing action narration; the difference between 'breath' and 'sigh' should be audible in the vocal texture.",
+    "detail": "sigh (an action or gesture, not a voice direction)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Sarcastic acceptance; a brief, dry laugh punctuates his resignation.",
+    "detail": "laugh (an action or gesture, not a voice direction)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Disappointed sigh implied; monotone delivery that cracks slightly on 'letdown'.",
+    "detail": "sigh (an action or gesture, not a voice direction)",
+    "file": "Arc 1 - Volume 1.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   }
+  ],
+  "speaker_name": [
+   {
+    "instruct": "Quoted dialogue delivered as internal thought/reaction by the NARRATOR, maintaining Puck's slightly superior tone.",
+    "detail": "mentions 'NARRATOR'",
+    "file": "Arc 2 - Volume 3.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Inquisitive, slightly formal tone; TB's characteristic measured delivery.",
+    "detail": "mentions 'TB'",
+    "file": "Arc 3 - Volume 8.json",
+    "model": "gemma-4-e4b-uncensored-hauhaucs-aggressive"
+   },
+   {
+    "instruct": "Teasing, warm delivery; smooth and affectionate, drawing out 'Emilia'.",
+    "detail": "mentions 'Emilia'",
+    "file": "annotated_script.json",
+    "model": "unknown"
+   },
+   {
+    "instruct": "LIMEIA speaks with a sharp, sarcastic tone, emphasizing words with a clipped, almost mocking cadence.",
+    "detail": "mentions 'LIMEIA'",
+    "file": "index18__three_pass.json",
+    "model": "unknown"
+   }
+  ]
+ },
+ "total_instructs": 129560,
+ "provenance": {
+  "script": "instruct_audit.py",
+  "written": "2026-09-18T11:43:23",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "2e49262a04f4c843d7605c09a00f955fe23ff04b",
+   "branch": "probe/instruct-audit",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/instruct_audit.py",
+    "app/experiments/instruct_lexicon.py"
+   ],
+   "harness_sha256": "32c73d0bcb04500f684137772af8cac5d732f41ccf95ff4b1cf11d1d4e67c33d"
+  },
+  "args": {
+   "out": "ab_test_runtime/experiments/instruct_audit_20260918.json",
+   "repo": "alexandria-audiobook2.git"
+  }
+ }
+}
