@@ -11,6 +11,7 @@ import random
 import re
 import threading
 import time
+from types import SimpleNamespace
 
 import httpx
 from openai import OpenAI
@@ -308,9 +309,109 @@ def make_run_client(config, active_llm_config, timeout):
                           secondary_label="remote" if mode == "local" else "local")
 
 
+MANUAL_DIR_NAME = "manual_llm"
+
+
+def manual_llm_dir(data_dir):
+    return os.path.join(data_dir, MANUAL_DIR_NAME)
+
+
+class ManualClient:
+    """The user is the model (issue #593).
+
+    Same surface the pipelines use - client.chat.completions.create(...) ->
+    choices[0].message.content - but no HTTP: each request is written to
+    <data_dir>/manual_llm/pending.json, the call blocks until a
+    response.json with the same id appears (the Script tab's Submit, or a
+    user's own script through /api/manual_llm/response), and the reply is
+    returned as the model's content. Nothing about validation, retries or
+    checkpoints changes: a bad paste is a rejected attempt, and the retry
+    prompt becomes the next pending request. No timeout on purpose - the run
+    waits for a person; Cancel kills the run and clears the files."""
+
+    POLL_SECONDS = 0.5
+
+    def __init__(self, data_dir):
+        self.dir = manual_llm_dir(data_dir)
+        self.sequence = 0
+        self.chat = _ManualChat(self)
+        # a run killed mid-wait leaves its request behind; it is not ours
+        for stale in (self.pending_path, self.response_path):
+            try:
+                os.remove(stale)
+            except FileNotFoundError:
+                pass
+
+    @property
+    def pending_path(self):
+        return os.path.join(self.dir, "pending.json")
+
+    @property
+    def response_path(self):
+        return os.path.join(self.dir, "response.json")
+
+    def with_options(self, **_kwargs):
+        return self
+
+    def close(self):
+        pass
+
+    def create(self, **kwargs):
+        import json
+        import uuid
+        from types import SimpleNamespace
+        from utils import atomic_json_write
+        os.makedirs(self.dir, exist_ok=True)
+        self.sequence += 1
+        request = {
+            "id": uuid.uuid4().hex, "sequence": self.sequence, "created": time.time(),
+            "model": kwargs.get("model"), "messages": kwargs.get("messages") or [],
+            "params": {"temperature": kwargs.get("temperature"),
+                       "max_tokens": kwargs.get("max_tokens"),
+                       "json_schema": bool(kwargs.get("response_format"))},
+        }
+        for stale in (self.response_path,):
+            try:
+                os.remove(stale)
+            except FileNotFoundError:
+                pass
+        atomic_json_write(request, self.pending_path)
+        while True:
+            try:
+                with open(self.response_path, "r", encoding="utf-8") as handle:
+                    response = json.load(handle)
+            except (FileNotFoundError, ValueError):
+                time.sleep(self.POLL_SECONDS)
+                continue
+            if response.get("id") != request["id"]:
+                # a reply to an earlier request that arrived late; not ours
+                os.remove(self.response_path)
+                continue
+            break
+        os.remove(self.response_path)
+        try:
+            os.remove(self.pending_path)
+        except FileNotFoundError:
+            pass
+        content = str(response.get("content") or "")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),
+                                     finish_reason="stop")],
+            usage=None, model=request["model"])
+
+
+class _ManualChat:
+    def __init__(self, client):
+        self.completions = SimpleNamespace(create=client.create)
+
+
 def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     """Create an OpenAI-compatible client with the profile's provider options."""
     llm_config = llm_config or {}
+    if llm_config.get("transport") == "manual":
+        from utils import get_runtime_data_dir
+        return ManualClient(get_runtime_data_dir(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
         api_key=resolve_api_key(llm_config.get("api_key", "local")),

@@ -606,6 +606,12 @@
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
                             <label class="form-label mt-2" for="llm-provider-headers">Custom headers (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-headers" rows="2" placeholder='{"X-Provider-Key": "..."}'></textarea>
+                            <label class="form-label mt-2" for="llm-transport">How requests are sent</label>
+                            <select class="form-select" id="llm-transport">
+                                <option value="http" selected>To the server address above</option>
+                                <option value="manual">Manual - I supply every reply myself</option>
+                            </select>
+                            <div class="form-text"><strong>Manual:</strong> nothing is sent anywhere. Every request the pipeline would make appears on the Script tab for you to copy, answer in any chat or script you like, and paste back; the pipeline checks the reply exactly as it would a model's, and asks again if it is not usable. A novel is a few hundred requests - the run prints the exact count ("Plan:") when it starts. Paste only the answer, not a model's thinking. The address above is ignored in this mode.</div>
                             <label class="form-label mt-2" for="llm-on-this-gpu">Runs on this machine's GPU?</label>
                             <select class="form-select" id="llm-on-this-gpu">
                                 <option value="">Auto (yes for a local address, no for a remote one)</option>
@@ -1192,6 +1198,19 @@
                     </span>
                 </div>
                 <div class="card-body p-0">
+                    <div id="manual-llm-panel" class="p-2 border-bottom bg-light" hidden>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <strong><i class="fas fa-hand-paper me-1"></i>Your turn: <span id="manual-llm-title"></span></strong>
+                            <span><button class="btn btn-sm btn-outline-primary" onclick="copyManualPrompt()"><i class="fas fa-copy me-1"></i>Copy prompt</button></span>
+                        </div>
+                        <div class="small text-muted mb-1" id="manual-llm-hint"></div>
+                        <details class="mb-1"><summary class="small">Show the prompt</summary><pre class="small bg-white border p-2 mb-0" id="manual-llm-prompt" style="white-space:pre-wrap;max-height:260px;overflow:auto"></pre></details>
+                        <textarea class="form-control form-control-sm font-monospace" id="manual-llm-reply" rows="4" placeholder="Paste the model's answer here (the answer only, not its thinking)"></textarea>
+                        <div class="mt-1 d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-primary" id="manual-llm-submit" onclick="submitManualReply()"><i class="fas fa-paper-plane me-1"></i>Submit reply</button>
+                            <span class="small text-muted">The pipeline validates it; if it is not usable you will get the retry prompt next.</span>
+                        </div>
+                    </div>
                     <div id="script-activity" class="small text-muted px-2 py-1 border-bottom" hidden></div>
                     <div id="script-logs" class="log-window"></div>
                 </div>
