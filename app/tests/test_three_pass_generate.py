@@ -536,6 +536,39 @@ class EndToEndTests(unittest.TestCase):
                                     chunk_size=6000)
         self.assertEqual(["ALICE", "BOB"], [e["speaker"] for e in entries])
 
+    def test_every_model_call_is_announced_and_every_unit_finished(self):
+        """The Script tab and core._compute_eta read these lines; without
+        them a slow reply looks like an idle run (#588). "of" while waiting,
+        "/" when done, so the ETA counts only finished units."""
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
+        import io, contextlib
+        for mode, asked, done in (
+                ("auto", False, "Step 1 (split): chunk 1/1 done - from quote marks"),
+                ("llm", True, "Step 1 (split): chunk 1/1 done - from the model")):
+            with self.subTest(mode=mode):
+                client = _client_returning(([seg] if mode == "llm" else []) + [named, instructed])
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    tp.run_three_pass(client, "m", source,
+                                      LLMGenParams(max_tokens=500, temperature=0.1, segmentation=mode),
+                                      chunk_size=6000)
+                lines = out.getvalue().splitlines()
+                self.assertEqual(asked, "Step 1 (split): chunk 1 of 1 - asking the model" in lines)
+                self.assertIn(done, lines)
+                for step, note in ((2, "speakers assigned"), (3, "delivery notes written")):
+                    announce = f"Step {step} ({tp.STEP_NAMES[step]}): window 1 of 1 - asking the model"
+                    finish = f"Step {step} ({tp.STEP_NAMES[step]}): window 1/1 done - {note}"
+                    self.assertIn(announce, lines)
+                    self.assertIn(finish, lines)
+                    reply = [i for i, l in enumerate(lines) if "finish_reason" in l]
+                    self.assertTrue(any(lines.index(announce) < r < lines.index(finish) for r in reply))
+
     def test_three_passes_assemble_final_entries(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},

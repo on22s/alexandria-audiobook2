@@ -24,6 +24,21 @@ class MultiProcessStateTests(unittest.TestCase):
         self.assertTrue(core.process_state[self.key]["cancel"])
         self.assertEqual(self.processes, [call.args[0] for call in signal_tree.call_args_list])
 
+    def test_eta_reads_the_three_pass_step_markers(self):
+        """"Step 2 (speakers): window 2/4" is the marker the Script tab and
+        this parser share; the reply's "took 12.3s" line and the VRAM
+        watchdog's "(10.5/12.0 GB)" must not displace it."""
+        state = {"start_time": 1.0, "logs": [
+            "Step 2 (speakers): window 2/4 done - speakers assigned",
+            "Step 2 (speakers): window 3 of 4 - asking the model",
+            "  finish_reason=stop | tokens: prompt=1386 completion=2274 | took 59.1s",
+            "VRAM watchdog: (10.5/12.0 GB)",
+        ]}
+        with patch.object(core.time, "time", return_value=101.0):
+            eta = core._compute_eta(state)
+        self.assertEqual("2/4", eta["progress"])
+        self.assertEqual(0.5, eta["fraction"])
+
     def test_pause_and_resume_signal_every_process(self):
         with patch.object(core, "_posix_signal") as signal_process:
             core._pause_task(self.key, "idle", "starting", "Batch")

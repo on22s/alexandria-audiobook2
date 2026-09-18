@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import config_settings
+import three_pass_generate as tp
 import utils
 from fastapi.testclient import TestClient
 
@@ -333,6 +334,25 @@ class FrontendTests(unittest.TestCase):
         self.assertNotIn("message.innerHTML", renderer)
         self.assertIn("renderConfigWarnings(config);", html)
         self.assertIn("renderConfigWarnings(savedConfig);", html)
+
+    def test_script_tab_activity_line_shares_the_markers_with_the_pipeline(self):
+        """One wording in three places: the pipeline prints it, the ETA parser
+        reads cur/total from it, and the page's activity line matches it."""
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        pipeline = (Path(__file__).resolve().parent.parent / "three_pass_generate.py").read_text(encoding="utf-8")
+        retry = (Path(__file__).resolve().parent.parent / "generate_script.py").read_text(encoding="utf-8")
+        self.assertIn('id="script-activity"', html)
+        self.assertIn("function renderActivity(", js)
+        self.assertEqual({"script", "review", "nicknames"},
+                         set(re.findall(r"pollScriptLogs\('(\w+)'", js)))
+        self.assertIn("'script-logs', onDone, 'script-activity'", js)
+        self.assertEqual({1: "split", 2: "speakers", 3: "delivery"}, tp.STEP_NAMES)
+        self.assertIn('print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total} - asking the model"', pipeline)
+        self.assertIn(r"Step \d \([a-z]+\): ", js)   # the activity line's regex literal
+        self.assertIn('return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"', retry)
+        self.assertNotIn('print("Retrying...")', retry)
+        self.assertIn("waiting on the model for", js)
 
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value

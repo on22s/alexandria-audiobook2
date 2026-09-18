@@ -1154,7 +1154,7 @@
                     first_person_narrator:
                         document.getElementById('script-first-person-narrator').value.trim() || null,
                 });
-                pollLogs('script', 'script-logs', () => {
+                pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
@@ -1448,7 +1448,7 @@
                 cancelBtn.style.display = 'inline-block';
                 pauseBtn.style.display = 'inline-block';
                 _resetPauseBtn('btn-pause-script');
-                pollLogs('script', 'script-logs', () => {
+                pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
@@ -1737,7 +1737,7 @@
                 _disableReviewButtons(true);
                 _showReviewControls(true);
                 await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked() });
-                pollLogs('review', 'script-logs', _onReviewDone);
+                pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
                 showToast("Failed to start review: " + e.message, 'error');
@@ -1757,7 +1757,7 @@
                         ? `Estimated LLM calls: ~${result.estimated_calls} for ${result.total_entries} entries with batches of ${result.batch_size}.`
                         : 'Contextual review started.';
                 }
-                pollLogs('review', 'script-logs', _onReviewDone);
+                pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
                 showToast("Failed to start contextual review: " + e.message, 'error');
@@ -1943,7 +1943,7 @@
             _resetPauseBtn('btn-pause-nick');
             try {
                 await API.post('/api/find_nicknames', {});
-                pollLogs('nicknames', 'script-logs', async (status) => {
+                pollScriptLogs('nicknames', async (status) => {
                     _showTaskRecoveryPanel('nickname-recovery-panel', 'nicknames', status,
                         'Inspect the log, correct aliases if needed, and retry.');
                     btn.disabled = false;
@@ -4504,16 +4504,55 @@
             if (!status.running) { _autoPauseNotified[taskName] = false; }
         }
 
-        async function pollLogs(taskName, elementId, onDone) {
+        // What a run is waiting on, and for how long. A slow model can take
+        // minutes per reply and the log window stops moving; the log's own
+        // markers ("Step 2 (speakers): window 2/4", "Retrying... (attempt 3
+        // of 4)") say what is in flight, and the clock since the log last
+        // grew says how long. Client-side only (#588).
+        const ACTIVITY_MARKER = /Step \d \([a-z]+\): |Retrying\.\.\.|Reviewing batch \d+\/\d+|Progress: \d+\/\d+/;
+        const ACTIVITY_QUIET_MS = 10000;
+        function renderActivity(el, status, track) {
+            if (!el) { return; }
+            if (!status.running) { el.hidden = true; return; }
+            const logs = status.logs || [];
+            const now = Date.now();
+            if (logs.length !== track.count) { track.count = logs.length; track.changedAt = now; }
+            let marker = null, retry = null;
+            for (let i = logs.length - 1; i >= 0 && !(marker && retry !== null); i--) {
+                const line = logs[i];
+                if (marker === null && ACTIVITY_MARKER.test(line) && !line.startsWith('Retrying')) { marker = line.trim(); }
+                if (retry === null && line.startsWith('Retrying')) { retry = line.trim(); }
+                if (marker !== null && line.startsWith('Step')) { break; }
+            }
+            const quietMs = now - (track.changedAt || now);
+            const parts = ['Working'];
+            if (marker) { parts.push(marker); }
+            if (retry && (!marker || logs.lastIndexOf(retry) > logs.lastIndexOf(marker))) { parts.push(retry); }
+            if (quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
+            el.textContent = parts.join(' \u00b7 ');
+            el.hidden = false;
+        }
+
+        // Every task that renders into the Script tab's log window gets the
+        // activity line above it.
+        function pollScriptLogs(taskName, onDone) {
+            return pollLogs(taskName, 'script-logs', onDone, 'script-activity');
+        }
+
+        async function pollLogs(taskName, elementId, onDone, activityId) {
             const el = document.getElementById(elementId);
+            const activityEl = activityId ? document.getElementById(activityId) : null;
+            const track = { count: -1, changedAt: Date.now() };
             _startPolling(`logs:${taskName}`, () => API.get(`/api/status/${taskName}`), {
                 doneCheck: status => !status.running,
                 onTick: status => {
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
                     syncPauseButton(taskName, status);
+                    renderActivity(activityEl, status, track);
                 },
                 onDone: status => {
+                    if (activityEl) { activityEl.hidden = true; }
                     notifyJobDone(taskName);
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {

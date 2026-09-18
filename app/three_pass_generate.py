@@ -637,6 +637,22 @@ def quote_regions_decision(mode, chunk, analysis):
              "text": chunk.strip()}], "quote_forced"
 
 
+# Progress lines the Script tab's activity row and core._compute_eta both
+# read (#588: a slow reply looked like an idle run). "announce" says what is
+# about to be waited on, in prose so the ETA parser ignores it; "finish"
+# carries the current/total marker the ETA parser counts as done.
+STEP_NAMES = {1: "split", 2: "speakers", 3: "delivery"}
+
+
+def announce_step(step, unit, number, total):
+    print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total} - asking the model",
+          flush=True)
+
+
+def finish_step(step, unit, number, total, note):
+    print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number}/{total} done - {note}", flush=True)
+
+
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
                              attempt_sink=None, quote_analysis=None):
@@ -1320,10 +1336,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         sink = []
         failures = []
         attempts_before = len(attempts)
+        by_marks = quote_regions_decision(params.segmentation, chunks[i], quote_analyses[i])[0] is not None
+        if not by_marks:
+            announce_step(1, "chunk", i + 1, len(chunks))
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
                                        resolution_sink=sink, failure_sink=failures,
                                        attempt_sink=attempts,
                                        quote_analysis=quote_analyses[i])
+        finish_step(1, "chunk", i + 1, len(chunks),
+                    "from quote marks" if by_marks else "from the model")
         for attempt in attempts[observed_attempts:]:
             attempt.setdefault("pass", "segment")
             reasoning_allowance.observe(
@@ -1405,8 +1426,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # The batch in flight, so a fail-fast can record exactly what failed for
     # the recovery panel (issue #522 s23 / s4.4).
     in_flight = {"current": None, "attempt_start": 0}
+    window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size))
+    window_number = 0
     try:
         for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
+            window_number += 1
             pending = [(index, entry) for index, entry in indexed_batch
                        if (named[index] is None or index in deterministic)
                        and not any(
@@ -1428,6 +1452,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # blocks, when the user asks for it (attribute_context_chars).
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
+                announce_step(2, "window", window_number, window_total)
                 try:
                     attempt_start = len(attempts)
                     in_flight["current"], in_flight["attempt_start"] = current, attempt_start
@@ -1490,6 +1515,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # Each accepted subdivision is durable; a later single-entry
                 # failure resumes after this work instead of replaying the batch.
                 save("attribute")
+            finish_step(2, "window", window_number, window_total, "speakers assigned")
     except PassExhausted as exc:
         elapsed_s["attribute"] = attr_base + time.time() - attr_start
         passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
@@ -1521,7 +1547,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             annotated[index] = {**entry, "instruct": default_instruct(entry)}
     inst_start = time.time()
     inst_base = elapsed_s.get("instruct", 0)
+    window_total = sum(1 for _ in iter_unique_entry_batches(named))
+    window_number = 0
     for indexed_batch in iter_unique_entry_batches(named):
+        window_number += 1
         pending = [(index, entry) for index, entry in indexed_batch
                    if annotated[index] is None]
         if not pending:
@@ -1543,6 +1572,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 continue
             exhausted = []
             attempt_start = len(attempts)
+            announce_step(3, "window", window_number, window_total)
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,
                 exhaustion_sink=exhausted,
@@ -1582,6 +1612,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 annotated[index] = entry
             elapsed_s["instruct"] = inst_base + time.time() - inst_start
             save("instruct")
+        finish_step(3, "window", window_number, window_total, "delivery notes written")
     elapsed_s["instruct"] = inst_base + time.time() - inst_start
     passes["instruct"] = {"elapsed_s": round(elapsed_s["instruct"], 3),
                           "status": ("incomplete" if any(

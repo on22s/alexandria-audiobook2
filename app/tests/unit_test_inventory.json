@@ -1330,6 +1330,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_review_summary_and_health_eta_are_rendered",
     "tests.test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
     "tests.test_frontend_regressions.FrontendTests.test_saved_script_audit_surfaces_nonprose_validation_state",
+    "tests.test_frontend_regressions.FrontendTests.test_script_tab_activity_line_shares_the_markers_with_the_pipeline",
     "tests.test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
     "tests.test_frontend_regressions.FrontendTests.test_stale_build_banner_is_wired_without_a_new_timer",
     "tests.test_frontend_regressions.FrontendTests.test_voice_cards_expose_age_version_generation",
@@ -2045,6 +2046,7 @@
     "tests.test_multi_process_state.LlmOffGpuLockTests.test_on_gpu_keeps_the_full_lock",
     "tests.test_multi_process_state.LlmOffGpuLockTests.test_profile_flag_and_endpoint_decide",
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
+    "tests.test_multi_process_state.MultiProcessStateTests.test_eta_reads_the_three_pass_step_markers",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],
   "test_name_variant_triage": [
@@ -3298,6 +3300,7 @@
     "tests.test_three_pass_generate.ContextBleedTests.test_context_bleed_is_not_captured_as_trigram_near_miss",
     "tests.test_three_pass_generate.ContextBleedTests.test_context_rescue_rejects_bleeding_output",
     "tests.test_three_pass_generate.EndToEndTests.test_attribution_exhaustion_subdivides_and_completes",
+    "tests.test_three_pass_generate.EndToEndTests.test_every_model_call_is_announced_and_every_unit_finished",
     "tests.test_three_pass_generate.EndToEndTests.test_fallback_mode_completes_and_rebuilds_roster",
     "tests.test_three_pass_generate.EndToEndTests.test_fallback_roster_rebuild_keeps_first_person_narrator",
     "tests.test_three_pass_generate.EndToEndTests.test_first_person_narrator_is_seeded_into_attribution_roster",
