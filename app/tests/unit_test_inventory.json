@@ -1696,6 +1696,12 @@
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_one_good_fill_and_one_bad_change_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
   ],
+  "test_instruct_audit": [
+    "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_no_delivery_misses_common_english_delivery_words",
+    "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_punctuation_fires_on_an_apostrophe",
+    "tests.test_instruct_audit.TrustworthyFindings.test_clause_and_length_limits",
+    "tests.test_instruct_audit.TrustworthyFindings.test_timbre_words_are_flagged_and_delivery_words_are_not"
+  ],
   "test_instruct_listening": [
     "tests.test_instruct_listening.ArmRequestTests.test_every_arm_strips_the_styles_the_engine_would_re_add",
     "tests.test_instruct_listening.ArmRequestTests.test_identical_renders_are_named_and_distinct_ones_are_not",

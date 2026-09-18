@@ -1094,6 +1094,7 @@ identity_recheck__velvety_mezzo_30s_f_gothic__seed20260902.json,supported_struct
 identity_recheck__warm_baritone_30s_m_3__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__warm_baritone_40s_m_1__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__warm_baritone_50s_m_gothic__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+instruct_audit_20260918.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 instruct_listening.json,exploratory,git+naming,no,instruct_listening.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 instruct_listening_fixed.json,supported_structure,provenance,yes,,,,20260822,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 instruct_value.json,exploratory,git+naming,no,instruct_value.py,a19adc68,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
