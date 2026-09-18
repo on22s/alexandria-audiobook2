@@ -426,6 +426,14 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("API.post('/api/voice_library/save'", keep)
         self.assertIn("return false;", keep)
 
+    def test_snapshot_button_shows_with_the_run_and_posts_a_name(self):
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        self.assertIn('id="btn-snapshot-script"', html)
+        self.assertIn("API.post('/api/generate_script/snapshot', { name })", js)
+        self.assertIn("document.getElementById('btn-snapshot-script').style.display = 'inline-block';", js)
+        self.assertGreaterEqual(js.count("_snap.style.display = 'none'"), 3)
+
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value
         the API refuses, or hides one it accepts."""

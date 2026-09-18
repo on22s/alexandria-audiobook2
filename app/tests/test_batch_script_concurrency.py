@@ -1,3 +1,5 @@
+import json
+import os
 import tempfile
 import asyncio
 import unittest
@@ -282,6 +284,48 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                     "prompts": {}}):
                 message = script.three_pass_refusal(jobs)
         self.assertIn("write back in one reply", message)
+
+    def test_snapshot_saves_the_finished_prefix_while_the_run_continues(self):
+        """#600: the completed prefix (entries with a speaker AND a delivery
+        note) goes to the library under the given name with the voice config
+        beside it; the run is not touched; nothing finished -> 409; not
+        running -> 409."""
+        seg = [{"type": "NARRATOR", "text": f"line {i}"} for i in range(5)]
+        named = [{"speaker": "NARRATOR", "text": f"line {i}"} for i in range(4)] + [None]
+        annotated = [{"speaker": "NARRATOR", "text": f"line {i}", "instruct": "calm"} for i in range(3)] + [None, None]
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "annotated_script.json")
+            Path(script.three_pass_checkpoint_path(script_path)).write_text(json.dumps(
+                {"stage": "instruct", "chunks_done": 2, "segmented": seg, "named": named, "annotated": annotated}),
+                encoding="utf-8")
+            Path(tmp, "voice_config.json").write_text('{"NARRATOR": {"type": "custom"}}', encoding="utf-8")
+            scripts_dir = os.path.join(tmp, "scripts")
+            state = script.process_state["script"]; original = dict(state)
+            try:
+                state.update({"running": True})
+                with patch.object(script, "SCRIPT_PATH", script_path), \
+                     patch.object(script, "VOICE_CONFIG_PATH", os.path.join(tmp, "voice_config.json")), \
+                     patch.object(script, "SCRIPTS_DIR", scripts_dir), \
+                     patch.object(script, "get_active_book_id", return_value="book"), \
+                     patch.object(script, "_saved_book_meta_path", lambda name: os.path.join(scripts_dir, f"{name}.meta.json")):
+                    res = asyncio.run(script.snapshot_script(script.SnapshotRequest(name="first forty")))
+                    self.assertEqual((3, 5, 2), (res["entries"], res["segmented"], res["chunks_done"]))
+                    saved = json.loads(Path(scripts_dir, "first forty.json").read_text(encoding="utf-8"))
+                    self.assertEqual(["line 0", "line 1", "line 2"], [e["text"] for e in saved])
+                    self.assertTrue(Path(scripts_dir, "first forty.voice_config.json").exists())
+                    self.assertEqual(3, json.loads(Path(scripts_dir, "first forty.meta.json").read_text())["snapshot"]["entries"])
+                    # nothing finished yet
+                    Path(script.three_pass_checkpoint_path(script_path)).write_text(json.dumps(
+                        {"stage": "segment", "chunks_done": 1, "segmented": seg, "named": [], "annotated": []}), encoding="utf-8")
+                    with self.assertRaises(script.HTTPException) as ctx:
+                        asyncio.run(script.snapshot_script(script.SnapshotRequest(name="x")))
+                    self.assertEqual(409, ctx.exception.status_code)
+                    state["running"] = False
+                    with self.assertRaises(script.HTTPException) as ctx:
+                        asyncio.run(script.snapshot_script(script.SnapshotRequest(name="x")))
+                    self.assertEqual(409, ctx.exception.status_code)
+            finally:
+                state.clear(); state.update(original)
 
     def test_start_over_discards_the_checkpoint_and_plain_generate_keeps_it(self):
         with tempfile.TemporaryDirectory() as tmp:

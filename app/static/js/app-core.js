@@ -1189,6 +1189,7 @@
             retryBtn.style.display = 'none';
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
+            document.getElementById('btn-snapshot-script').style.display = 'inline-block';
             pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             pauseBtn.classList.remove('btn-outline-success');
             pauseBtn.classList.add('btn-outline-warning');
@@ -1204,12 +1205,14 @@
                 pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
+                    const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                     pauseBtn.style.display = 'none';
                     refreshScriptRecovery();
                 });
             } catch (e) {
                 genBtn.disabled = false;
                 cancelBtn.style.display = 'none';
+                const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                 pauseBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
@@ -1324,6 +1327,23 @@
             '/api/generate_script/pause', '/api/generate_script/resume', 'btn-pause-script');
         const _batchPauseResume  = _makePauseResumeHandler(
             '/api/generate_script/batch/pause', '/api/generate_script/batch/resume', 'btn-pause-batch-script');
+
+        // #600: the finished part of a running generation into the library,
+        // run untouched. Loading it while the run continues is refused by the
+        // library (the run would overwrite the active book when it finishes),
+        // so the toast says how to use it.
+        window.snapshotScript = async () => {
+            const loaded = (document.getElementById('upload-status')?.textContent || '').replace(/^.*Loaded:\s*/, '').trim().replace(/\.[^.]+$/, '');
+            const suggested = `${loaded || 'book'} snapshot ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+            const name = prompt('Save the finished part of this run to the library as:', suggested);
+            if (!name) { return; }
+            try {
+                const res = await API.post('/api/generate_script/snapshot', { name });
+                showToast(`Snapshot "${res.name}" saved: ${res.entries} finished lines (${res.chunks_done} chunks split). To work on it now, cancel this run (Generate resumes it later) and load the snapshot from the library.`, 'success', 12000);
+            } catch (e) {
+                showToast('Snapshot not saved: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
 
         window.cancelScript = () => cancelTask('/api/generate_script/cancel', {
             onSuccess: () => _resetPauseBtn('btn-pause-script'),
@@ -1510,6 +1530,7 @@
                 pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
+                    const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                     pauseBtn.style.display = 'none';
                     refreshScriptRecovery();
                 });

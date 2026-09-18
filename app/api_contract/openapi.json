@@ -2074,6 +2074,19 @@
         "title": "SkipChunkRequest",
         "type": "object"
       },
+      "SnapshotRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SnapshotRequest",
+        "type": "object"
+      },
       "SpeakerRepairRequest": {
         "properties": {
           "expected_sha256": {
@@ -4841,6 +4854,43 @@
           }
         },
         "summary": "Generate Script Skip"
+      }
+    },
+    "/api/generate_script/snapshot": {
+      "post": {
+        "description": "Save the finished part of the running generation to the library\nwithout stopping it (#600). Reads the run's checkpoint - the pipeline\nwrites it atomically after every unit - and stores the completed prefix\nas a saved script, with the current voice config as its companion, the\nsame shape /api/scripts/save produces. The run keeps going; when it\nfinishes it becomes the active script as usual, and the snapshot stays\nin the library.",
+        "operationId": "snapshot_script_api_generate_script_snapshot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot Script"
       }
     },
     "/api/llm/models": {
