@@ -61,9 +61,16 @@ def stop_process_group(process, interrupt=False, timeout=5):
 
 def run_command(label, command, cwd, reject_unittest_skips=False):
     print(f"\n== {label} ==", flush=True)
+    # errors="backslashreplace": this stream is displayed and searched for
+    # text markers, never parsed as data, so a stray non-UTF-8 byte from a
+    # child must show up as \xNN in the log rather than abort the whole
+    # verifier with a UnicodeDecodeError at the reader (PR #586, 2026-09-18:
+    # the unit-test gate died at "byte 0xa1 in position 3793" with every
+    # test passing, and the strict decoder left no trace of which child
+    # wrote it).
     process = subprocess.Popen(
         command, cwd=cwd, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True,
+        stderr=subprocess.STDOUT, text=True, errors="backslashreplace",
         start_new_session=(os.name == "posix"),
         creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
     )
