@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-18 from `ab_test_runtime/experiments/` — 1681 artifacts, 1973 arms.
+Generated 2026-09-18 from `ab_test_runtime/experiments/` — 1682 artifacts, 1973 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2569,6 +2569,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `identity_recheck__warm_baritone_30s_m_3__seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `identity_recheck__warm_baritone_40s_m_1__seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `identity_recheck__warm_baritone_50s_m_gothic__seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `instruct_audit_20260918.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_listening_fixed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
