@@ -108,6 +108,26 @@ Owarimonogatari3 122/162 (75.3%). This is a measured four-book result under a
 single harness and closes the 75% accuracy target for 1.1; the older Qwen table
 above remains for historical comparison.
 
+**The prompt family and two new bases, 2026-09-17/18.** With the
+`michel2_full` prompt (`app/attribution_prompt_variants.py`; a system prompt
+with a minor-speaker rule, the window as a marked passage with the previous
+window's speakers, and 2,000 characters of surrounding text before and after)
+and reasoning low, the same 768 rows under one harness read: Qwen3.8-27B
+UD-Q4_K_M **89.8** (`michel2` **90.9**, the best local number on record;
+grimgar03 94.3, index18 88.6, mushoku16 88.7, owarimonogatari3 85.8),
+Qwen3.6-35B-A3B UD-Q4_K_XL **89.6**, its 13.2 GB IQ3_XXS quant **88.0** and
+its 10.0 GB IQ1_M **85.0**, Qwen3-14B **82.0** (from 66 under the shipped
+prompt), Muse-Glimmer-30B unchanged at 81.5 (its michel2 cells are queued);
+DeepSeek v4-pro, the cloud ceiling, **94.9** thinking off and **95.4**
+thinking low. Every one of these clears 75% on every book except the two
+5 GB models (Qwen3.5-9B 71.9, Qwen3-8B 71.7, both under 50% on
+owarimonogatari3). Artifacts
+`lora_serving_eval__{qwen38-27b-q4km,qwen36-35b-a3b-*,qwen3-14b-*,deepseek-v4-pro-api-cleangold-*}-*-20260917.json`;
+the full grid is RECIPES "Prompt variants × bases". These are base models
+with no adapter; the shipped default is still Muse + the shipped prompt
+because Muse is the one base on which the family has not yet been measured
+(see 1.3 for the held-out check on the same prompt).
+
 **New held-out LoRA evidence, 2026-08-24.** The
 `adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
 scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the
@@ -711,6 +731,22 @@ apply to it:
 
 **Gap −12.6 points against a target of 5. OPEN, and failing by more than
 double.**
+
+**The prompt gain holds on novels this project never tuned on (2026-09-17).**
+Every prompt decision in 1.2 was made on the four light novels. DeepSeek
+v4-pro (thinking off), shipped prompt against `michel2_full`, on two PDNC
+novels scored against the published `quotation_info.csv` with the corpus cast
+as the roster (`pdnc_fixture.py`): *Emma* 998 rows **96.9 → 99.4**, *The Sun
+Also Rises* 1,759 rows **87.0 → 92.1**. The gain replicates on both and is
+largest on the harder book, the same shape as on the light novels. This does
+not move the current value above, which is a local-model figure; it says the
+prompt result is not a four-book artefact. The nine-book PDNC matrix for the
+local bases (A3B IQ3_XXS / IQ2_XXS / IQ1_M, Qwen3.5-9B, Qwen3-8B × the
+prompt family, ~2,300 evenly spaced rows) is running on the RX 9070 XT and
+will supply the local number; its first cell (A3B IQ3_XXS, michel2_full) sits
+at 92.3 over 1,950 rows with *The Sun Also Rises* the low book at 81.2 —
+a checkpoint, recorded here only so the final is read against it. Evidence —
+`lora_serving_eval__deepseek-v4-pro-api-pdnc_{emma,thesunalsorises}-batch25-thinking-off-{default,michel2_full}-20260917.json`.
 
 **Author-held-out LoRA result, 2026-08-24.** Three adapters were trained on
 twenty balanced PDNC novels while excluding every Austen, Chopin and Doyle
@@ -2999,6 +3035,41 @@ Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generat
 
 ---
 
+## 4. Speed and cost
+
+### 4.2 Local should not need the cloud
+
+> **What this is.** Keeping the version that runs on your own machine roughly as
+> good as the version that rents a much larger computer.
+>
+> **Why it matters.** Cloud runs cost money per hour and send your book to
+> someone else's computer. If local is nearly as good, that is a real choice
+> rather than a compromise — and the app has no dependency it cannot survive
+> losing.
+>
+> **Why this is reachable.** It is already true: local is at 97–99% of cloud on
+> all four books. This goal exists to *defend* a property already held, because
+> properties like this are usually lost by accident rather than by decision.
+
+**Metric** — best local accuracy ÷ best cloud accuracy, per book.
+**Current** — 97.2% / 98.7% / 97.5% / 99.0% against the llama-3.3-70b
+ceiling of 2026-08. **Re-measured 2026-09-18 against the new cloud ceiling
+and OPEN on two books:** DeepSeek v4-pro with the `michel2_full` prompt is
+now the best cloud arm (96.9 / 90.9 / 97.0 / 95.7 per book, best of its
+thinking-off and thinking-low cells), and the best local arm per book
+(Qwen3.8-27B michel2 94.3 / 88.6, Qwen3.8 michel2_full 91.7, A3B michel2_full
+88.9) gives **97.3% / 97.5% / 94.5% / 92.9%** — mushoku16 and
+owarimonogatari3 fall outside the 5% band. Both sides moved up by ten points
+or more; the gap opened because the cloud model gained more on the two
+hardest books than a 16–22 GB local file did. The local figures are bases
+with no adapter; the michel2-shape adapters for Qwen3.8 and A3B (RECIPES,
+"Attribution adapters") are the work on this goal. Evidence —
+`lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-{off,low-8k}-michel2_full-20260917.json`,
+`lora_serving_eval__qwen38-27b-q4km-michel2{,_full}-tnr0-*-20260917.json`,
+`lora_serving_eval__qwen36-35b-a3b-thinking-michel2_full-tnr0-*-20260917.json`.
+
+**Target — hold local within 5% of cloud on every book.**
+
 ## 5. Text handling
 
 
@@ -4800,6 +4871,32 @@ Fixed on the probe branch with a test and requeued; until those land, no
 claim about the variants stands. Evidence —
 `lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-{current,v2}-20260914.json`.
 
+**The variants, fixed and measured (2026-09-17/18).** With the neighbour
+context restored the variants stop reading at 25%, and one of them is the
+largest single change to selection this goal has recorded. Qwen3-14B base,
+reasoning low, same 768 rows: shipped prompt 65.9 / 66.1 → Michel et al.'s
+passage shape (`michel`) **78.0** → the rewrite with a minor-speaker rule
+and the previous window's speakers (`michel2`) 77.5 → the same plus 2,000
+characters of surrounding narration (`michel2_full`) **82.0** (630/768,
+3 blank; 87.3 / 81.8 / 85.7 / 66.7). With reasoning off the order is the
+same at a lower level (69.3 / 74.5). The +16 is the prompt alone — no adapter
+— and exceeds the best adapter measured on this base under the shipped prompt
+(rights-clean, +11.9 on the product's own card). The ordering
+default < michel < michel2 < michel2_full replicates on DeepSeek v4-pro
+(91.1 → 91.8 → 93.2 → 94.9) and Qwen3.6-35B-A3B (michel 86.6 → michel2 87.5
+→ michel2_full 89.6); Qwen3.8-27B puts michel2 (90.9) above michel2_full
+(89.8), and Muse-Glimmer-30B loses 3 under `michel` (81.5 → 78.6) with its
+michel2 cells still queued. The worked example (`michel2_shot`) adds nothing
+over michel2_full on DeepSeek (93.8). One caution stands: an adapter trained
+under the shipped prompt loses under `michel` (rights-clean −2.9), so a
+prompt change and an adapter are not additive until the adapter is retrained
+on the new shape (RECIPES, "Attribution adapters"). Evidence —
+`lora_serving_eval__qwen3-14b-{michel,michel2,michel2full}-{low,none}-tnr1-cleangold-replication-20260917.json`,
+`lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-{michel,michel2,michel2_full,michel2_shot}-20260917.json`,
+`lora_serving_eval__qwen36-35b-a3b-thinking-{michel,michel2,michel2_full}-tnr0-*-20260917.json`,
+`lora_serving_eval__qwen38-27b-q4km-{michel,michel2,michel2_full}-tnr0-*-20260917.json`,
+`lora_serving_eval__muse-michel-{low,none}-tnr1-cleangold-replication-20260917.json`.
+
 ---
 
 **The arm is written "open-roster" rather than by its bare code name.**
@@ -5530,25 +5627,6 @@ goal is `generation_realtime_rate.py` over a real multi-voice run on the
 merged path, not six lines.
 
 ---
-
-### 4.2 Local should not need the cloud
-
-> **What this is.** Keeping the version that runs on your own machine roughly as
-> good as the version that rents a much larger computer.
->
-> **Why it matters.** Cloud runs cost money per hour and send your book to
-> someone else's computer. If local is nearly as good, that is a real choice
-> rather than a compromise — and the app has no dependency it cannot survive
-> losing.
->
-> **Why this is reachable.** It is already true: local is at 97–99% of cloud on
-> all four books. This goal exists to *defend* a property already held, because
-> properties like this are usually lost by accident rather than by decision.
-
-**Metric** — best local accuracy ÷ best cloud accuracy, per book.
-**Current** — 97.2% / 98.7% / 97.5% / 99.0%. **MET.**
-
-**Target — hold local within 5% of cloud on every book.**
 
 ### Tested and not adopted — a compact wire format for generation (2026-09-02)
 

@@ -89,6 +89,10 @@ product's own `build_variant_request`. Every one of those chains now runs a
 serve on the target quant → one michel2_full window must parse at adapter
 scale 1.0 and 0.0; `adapter_preflight_20260917.py`) - the check that would have
 caught the Muse gen-1 and gen-2 defects in ten minutes instead of a night.
+The Qwen3.8 preflight **passed** on tnr-4 at 06:32Z 2026-09-18 (a 40-step
+adapter served on the Q4_K_M base answered one michel2_full window in contract
+at scale 1.0 and at scale 0.0; `qwen38_adapter_tnr4_20260917.log`), and the
+full 2,540-step training started on that verdict.
 The A3B adapter trains on the A100, not an A6000: Qwen3.6's routed experts are
 fused `nn.Parameter`s that bitsandbytes cannot quantise, so a "4-bit" load
 still holds ~62 GB of bf16 experts.
@@ -119,7 +123,7 @@ still holds ~62 GB of bf16 experts.
 | reasoning on the base model | `reasoning_effort: medium`, **budget 1024** | works but under-read: minor rows 57.2 → 62.9 pooled — **21% of rows (252) spent the whole budget thinking and never answered**; on the rows that answered, 752/961 = 78.3% | `two_stage_attribution__usual_suspects_reasoning_20260914.json`, `reasoning_trace_probe__usual_suspects_20260914.json` (GOALS 1.2) | trace length predicts the failure: deciles 9–10 (traces at the cap) score 3–5%, the rest 76–88%. 4096-budget reruns in progress; `--max-tokens 1024` is the failure that looked like a model limit |
 | Michel et al. prompt shape | `prompt_variant: michel`, product batch 25, max tokens 4096. **Adapters trained on the default shape lose under it** (rights-clean +29/−43 at 427 rows, tnr-4 2026-09-17) - a prompt-variant score with an adapter is only meaningful when the adapter was trained on that variant | **the "reasoning-sensitive" verdict is withdrawn (2026-09-17):** the reasoning-low readings of 25.3% (Qwen) and 34–37% (Muse) were broken runs; replicated on one harness on the A100 the same cells read Qwen 78.0 and Muse 78.6 (next row). Clean reasoning-off Qwen run: 68.6% (527/768), replicated 69.3. The matched Muse + mixed-lossfix run is even lower: base **34.4%** (264/768), LoRA **35.3%** (271/768), 0 blank rows; this is a valid four-book artifact but a negative result, not a promotion score. These low-reasoning results are retained as evidence of a prompt/reasoning interaction, not as a general prompt verdict. | `cloud_pull_20260915/lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-michel-ctxfix-20260914.json`; `cloud_pull_20260916/tnr0/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-tnr0-low-20260915b.json`; prior cloud reruns `qwen3-14b-production-michel-tnr2-20260915.json` and `muse-glimmer-30b-production-michel-tnr0-20260915.json` | use Michel only with reasoning disabled until a matched reasoning-on study is completed; do not attribute the Muse low result to the adapter because both base and LoRA are poor |
 | Michel-low prompt | `prompt_variant: michel_low`: Michel aliases + marked-passage format + prior-window speakers, followed by a five-step compact decision order (cue → address → roster match → plausibility check → emit); no explanations; current-passage evidence overrides continuity | **fails to repair Muse low-reasoning collapse**: reasoning none = 35.8% base / 37.1% LoRA; reasoning low = 36.5% base / 36.7% LoRA. The low arm changes only +5/−0 base and −3/+0 LoRA correct rows versus none; both arms remain far below Muse's shipped prompt result. | `cloud_pull_20260916/tnr4/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-low-tnr4-none-20260915.json`; `cloud_pull_20260916/tnr4/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-low-tnr4-low-20260915.json` | do not promote Michel or Michel-low for Muse; the rewrite did not recover low-reasoning accuracy, so isolate aliases/passage/incremental components before further prompt work |
-| **Prompt variants, base models, one harness (2026-09-17)** — `default` / `michel` / `michel2` / `michel2_full` / `michel2_shot` (`app/attribution_prompt_variants.py`, selectable in Setup since #581) | same 768 rows, batch 25, JSON schema, temperature 0, base only | **DeepSeek v4-pro, thinking off:** default 91.1 → michel 91.8 → michel2 93.2 → **michel2_full 94.9** → michel2_shot 93.8 (each ~$0.50–0.75). **Qwen3-14B, reasoning low (server budget 1024):** default 65.9/66.1 (two runs) → **michel 78.0** (599/768, 4 blank; grimgar 82.3, index18 77.3, mushoku 79.7, owari 66.7 — every book up, the hard books most). The 2026-09-15 "Qwen michel + low = 25.3" and "Muse michel + low = 34–37" readings were broken runs (see the row above), not the prompt. **Qwen3-14B, reasoning off:** default 63.0 → michel 69.3 (532/768, 21 blank). **Muse-30B, reasoning low:** default 81.5 → michel **78.6** (604/768, 0 blank; grimgar 81.8, index18 73.9, mushoku 79.7, owari 72.8) - the one base Michel does not help; its michel2 / full cells follow. **Qwen3.8-27B Q4_K_M, reasoning low:** default 82.9 → **michel2_full 89.8** (690/768, 0 blank; grimgar 92.2, index18 87.5, mushoku 91.7, owari 84.0). **Qwen3.6-35B-A3B Q4_K_XL, reasoning low, temperature 0.6:** michel2_full **89.6** (688/768, 0 blank; 91.7 / 81.8 / 89.5 / **88.9** - the best owari of any local model); its default-prompt control is queued. **Qwen3.5-9B Q4_K_M on the RX 9070 XT, reasoning low:** michel2_full 71.9 (552/768, 10 blank; 82.6 / 69.3 / 72.9 / 46.9) - a 5.7 GB file at the level of Qwen3-14B's default-prompt base, collapsing only on owari; its default control is running. michel2 / full / shot for Qwen3-14B and Muse, and the other rounds for the big bases, are in flight | `cloud_pull_20260917/deepseek/lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-{michel,michel2,michel2_full,michel2_shot}-20260917.json`; `cloud_pull_20260917/tnr1/lora_serving_eval__qwen3-14b-michel-low-tnr1-cleangold-replication-20260917.json`; tnr-1 `*-michel-none-*` and `muse-michel-low-*`; tnr-0 `lora_serving_eval__qwen38-27b-q4km-michel2_full-*` and `qwen36-35b-a3b-thinking-michel2_full-*`; local `qwen35-9b-q4km-michel2_full-*` (dev11) | on Qwen3-14B the prompt alone (+12) equals the best adapter (mixed + reasoning, 78.0) with no adapter; on DeepSeek the surrounding text is the biggest single step (+1.7 over michel2) and the worked example adds nothing over it. On every reasoning model but Muse the prompt is worth +7 to +12; on Muse `michel` costs 3. Product default stays `default` until Muse's michel2 / michel2_full cells land (tnr-1, tonight) |
+| **Prompt variants, base models, one harness (2026-09-17)** — `default` / `michel` / `michel2` / `michel2_full` / `michel2_shot` (`app/attribution_prompt_variants.py`, selectable in Setup since #581) | same 768 rows, batch 25, JSON schema, temperature 0, base only | **DeepSeek v4-pro, thinking off:** default 91.1 → michel 91.8 → michel2 93.2 → **michel2_full 94.9** → michel2_shot 93.8 (each ~$0.50–0.75). **Qwen3-14B, reasoning low (server budget 1024):** default 65.9/66.1 (two runs) → **michel 78.0** (599/768, 4 blank; grimgar 82.3, index18 77.3, mushoku 79.7, owari 66.7 — every book up, the hard books most). The 2026-09-15 "Qwen michel + low = 25.3" and "Muse michel + low = 34–37" readings were broken runs (see the row above), not the prompt. **Qwen3-14B, reasoning off:** default 63.0 → michel 69.3 (532/768, 21 blank). **Muse-30B, reasoning low:** default 81.5 → michel **78.6** (604/768, 0 blank; grimgar 81.8, index18 73.9, mushoku 79.7, owari 72.8) - the one base Michel does not help; its michel2 / full cells follow. **Qwen3.8-27B Q4_K_M, reasoning low:** default 82.9 → **michel2_full 89.8** (690/768, 0 blank; grimgar 92.2, index18 87.5, mushoku 91.7, owari 84.0). **Qwen3.6-35B-A3B Q4_K_XL, reasoning low, temperature 0.6:** michel2_full **89.6** (688/768, 0 blank; 91.7 / 81.8 / 89.5 / **88.9** - the best owari of any local model); its default-prompt control is queued. **Qwen3.5-9B Q4_K_M on the RX 9070 XT, reasoning low:** michel2_full 71.9 (552/768, 10 blank; 82.6 / 69.3 / 72.9 / 46.9) - a 5.7 GB file at the level of Qwen3-14B's default-prompt base, collapsing only on owari; its default control is running. The complete cells as of 2026-09-18 are in the "Prompt variants × bases" table below; Muse michel2 / full / shot and the michel2_shot rounds for Qwen3-14B, Qwen3.8 and A3B are still in flight | `cloud_pull_20260917/deepseek/lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-{michel,michel2,michel2_full,michel2_shot}-20260917.json`; `cloud_pull_20260917/tnr1/lora_serving_eval__qwen3-14b-michel-low-tnr1-cleangold-replication-20260917.json`; tnr-1 `*-michel-none-*` and `muse-michel-low-*`; tnr-0 `lora_serving_eval__qwen38-27b-q4km-michel2_full-*` and `qwen36-35b-a3b-thinking-michel2_full-*`; local `qwen35-9b-q4km-michel2_full-*` (dev11) | on Qwen3-14B the prompt alone (+12) equals the best adapter (mixed + reasoning, 78.0) with no adapter; on DeepSeek the surrounding text is the biggest single step (+1.7 over michel2) and the worked example adds nothing over it. On every reasoning model but Muse the prompt is worth +7 to +12; on Muse `michel` costs 3. Product default stays `default` until Muse's michel2 / michel2_full cells land (tnr-1, tonight) |
 
 ## Serving and measuring (the instrument, not the model)
 
@@ -198,9 +202,10 @@ transition count against the arm's own base on the same server.
 | Muse task4k-multin-lossfix, one book | owarimonogatari3, 162 | 74.7 | 70.4 | −4.3 | +15/−22, p=0.32 | null on a slice of the row above |
 | Muse base, reasoning low, roster-by-mention | four books, 768 | 81.5 (full roster) | 78.3 | −3.2 | - | **negative**: the serial-novel roster rule (names attested in the window + the previous window's cast) loses on Muse as it did on Qwen (63.4 vs 63.0, null) |
 | Qwen RiQuA adapter, reasoning low (budget 1024), schema, default prompt (Codex tag "michel-hardness" = default prompt; its base per book equals the rights-clean run's base exactly) | four books, 768 | 66.1 | 71.4 | +5.3 | +100/−60 | works; below rights-clean + reasoning (74.7) and mixed + reasoning (78.0) |
-| Qwen rights-clean adapter on the product's own RX 9070 XT, reasoning low (budget 1024), schema, default prompt (`run_chains/qwen_local_rightsclean_budget_20260917.sh`) | grimgar03 385 / index18 88 / mushoku16 133 (owari pending) | 70.4 / – / – | 83.1 / – / – | **+12.7** / +3.4 / **+13.5** | +63/−14 p=1e-8 / +8/−5 p=0.58 / +33/−15 p=0.013 | works locally as it did on the A6000; the local default for Qwen3-14B once owari lands |
+| Qwen rights-clean adapter on the product's own RX 9070 XT, reasoning low (budget 1024), schema, default prompt (`run_chains/qwen_local_rightsclean_budget_20260917.sh`) | grimgar03 385 / index18 88 / mushoku16 133 / owarimonogatari3 162 | 70.4 / 68.2 / 64.7 / 48.8 (pooled 64.6) | 83.1 / 71.6 / 78.2 / 62.3 (pooled **76.6**) | **+12.7** / +3.4 / **+13.5** / **+13.6** (pooled **+11.9**) | +63/−14 / +8/−5 / +33/−15 / +33/−11 | works locally as it did on the A6000 (+11.7); **the local default for Qwen3-14B**. Artifacts `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-{grimgar03,index18,mushoku16,owarimonogatari3}-20260917.json` |
 | Qwen RiQuA, 3 epochs | four books, 768 | 61.7 | 69.7 | +8.0 | +112/−51, p=2e-6 | works; below the rights-clean stack |
 | Qwen rights-clean stack with RiQuA ×2 | four books, 768 | 61.7 | 70.6 | +8.9 | +131/−63, p=1e-6 | works; below the plain stack's **+11.7** (73.4, the best Qwen adapter measured) - more RiQuA does not help |
+| Qwen rights-clean, **reasoning budget 512** instead of 1024 (tnr-2, 2026-09-17) | four books, 768 | 66.7 | 74.7 | **+8.1** | +119/−57 | the same gain as budget 1024 (+8.6) at half the thinking; budget 2048 is running (`budget_dial_tnr2_20260917d.sh`). `lora_serving_eval__qwen3-14b-rightsclean-tnr2-cleangold-budget512-schema-20260917.json` |
 
 **On Muse the base with reasoning low is the recipe.** Three loss-fixed
 adapters have now been served correctly with reasoning on: task4k-multin is a
@@ -254,13 +259,85 @@ size is a RAM requirement, not a VRAM one.
 | model | quant | file | score | evidence |
 |---|---|---|---:|---|
 | Qwen3.6-35B-A3B (temp 0.6) | UD-Q4_K_XL | 22.4 GB | **89.6** (0 blank) | tnr-0 `qwen36-35b-a3b-thinking-michel2_full-*` |
-| Qwen3.6-35B-A3B | UD-IQ1_M | 10.0 GB | 85.8 at 625/768 (grimgar 87.8, index18 81.8, mushoku 83.5), running | tnr-0 `*-iq1m-*` |
-| Qwen3.6-35B-A3B | UD-IQ2_XXS / UD-IQ3_XXS | 10.8 / 13.2 GB | queued (tnr-0 / tnr-2) | |
+| Qwen3.6-35B-A3B | UD-IQ3_XXS | 13.2 GB | **88.0** (0 blank; 91.4 / 83.0 / 88.7 / 82.1) | tnr-2 `*-iq3xxs-*` |
+| Qwen3.6-35B-A3B | UD-IQ2_XXS | 10.8 GB | **87.8** (0 blank; 91.7 / 81.8 / 88.7 / 80.9) | tnr-0 `*-iq2xxs-*` |
+| Qwen3.6-35B-A3B | UD-IQ1_M | 10.0 GB | **85.0** (0 blank; 87.8 / 81.8 / 83.5 / 81.5) | tnr-0 `*-iq1m-*` |
 | Qwen3.8-27B (dense) | UD-Q4_K_M | 16.5 GB | **89.8** (0 blank) | tnr-0 |
-| Qwen3.8-27B | UD-IQ2_XXS / UD-Q3_K_XL | 7.3 / 13.1 GB | queued (tnr-2) | |
-| Qwen3.5-9B (dense) | Q4_K_M | 5.7 GB | 71.9 (10 blank) | local |
+| Qwen3.8-27B | UD-Q3_K_XL | 13.1 GB | **87.5** (0 blank; 88.8 / 87.5 / 91.0 / 81.5) | tnr-2 `*-q3kxl-*` |
+| Qwen3.8-27B | UD-IQ2_XXS | 7.3 GB | **83.1** (5 blank; 85.5 / 78.4 / 84.2 / 79.0) | tnr-2 `*-iq2xxs-*` |
+| Qwen3-30B-A3B-Thinking-2507 | UD-Q4_K_XL | 17.7 GB | 78.5 (**41 blank**; 86.2 / 75.0 / 68.4 / 70.4) | tnr-4 - the older MoE; blanks are windows that spent the budget thinking |
+| Qwen3.5-9B (dense) | Q4_K_M | 5.7 GB | 71.9 (10 blank; default prompt 62.6) | local |
+| Qwen3-8B (dense) | Q4_K_M | 5.0 GB | 71.7 (4 blank; default prompt 60.8) | local |
+
+Read across: the A3B loses 1.6 points from 22.4 GB to 13.2 GB, 1.8 to 10.8 GB
+and 4.6 to 10.0 GB; the dense Qwen3.8 loses 2.3 to 13.1 GB and 6.7 to 7.3 GB.
+Every A3B rung beats every Qwen3.8 rung of similar file size, and the 10 GB
+IQ1_M (85.0) beats Muse's 13.4 GB Q3 (81.5) and Qwen3-14B's best prompt
+(82.0). Speed on the RX 9070 XT, measured 2026-09-17: IQ1_M fully on the card
+82 tok/s; with experts in system RAM (`--n-cpu-moe`) IQ1_M 22, IQ2_XXS 20,
+IQ3_XXS 17 tok/s - so a 6–8 GB card runs the 88-point model at 17 tok/s
+provided it has ~16 GB of RAM for the experts.
 
 Then the same ladder with a michel2-shape rights-clean adapter on each base
 (A3B on the A100, Qwen3.8 on tnr-4), paired, to see whether an adapter closes
 the low-quant gap. Not in this table until measured.
+
+## Prompt variants × bases, complete cells (2026-09-18)
+
+Same 768 rows, batch 25, JSON schema, base only, reasoning low with the server
+`--reasoning-budget 1024` unless the column says otherwise; DeepSeek is the API
+with thinking off (its thinking-low cell is separate). A blank cell is not yet
+measured. Every artifact is
+`ab_test_runtime/experiments/lora_serving_eval__<tag>-20260917.json`; the
+structural audit classes them **provisional** (probe-branch harness
+`probe/attribute-prompt-v2` at 7a781e4…4d33772, run from a worktree it reports
+as dirty), so they are cited here as measured numbers, not as release evidence.
+
+| base | file | default | michel | michel2 | michel2_full | michel2_shot | notes |
+|---|---|---:|---:|---:|---:|---:|---|
+| DeepSeek v4-pro (API, thinking off) | - | 91.1 | 91.8 | 93.2 | **94.9** | 93.8 | thinking **low, 8k**: michel2_full **95.4** (1 blank) - the ceiling; ~$0.50–0.75 per cell |
+| Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 84.8 | **90.9** | 89.8 | running | the best local number on record; michel2 beats full here by 1.1 (94.3 / 88.6 / 88.7 / 85.8) |
+| Qwen3.6-35B-A3B UD-Q4_K_XL (temp 0.6) | 22.4 GB | queued | 86.6 | 87.5 | **89.6** | queued | the best owari of any local base (88.9) |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | **81.5** | 78.6 (none: 75.7, 83 blank) | queued | queued | queued | the one base `michel` hurts; verdict on michel2 waits for tnr-1 |
+| Qwen3-14B Q4_K_M | 9.0 GB | 65.9 / 66.1 | 78.0 (none 69.3) | 77.5 (none 74.5) | **82.0** (3 blank; 87.3 / 81.8 / 85.7 / 66.7) | running | +16 from the prompt alone, the largest gain of any base; the rights-clean adapter under `default` reaches 74.7–76.6 |
+| Qwen3-30B-A3B-Thinking-2507 UD-Q4_K_XL | 17.7 GB | - | - | - | 78.5 (41 blank) | - | not pursued further |
+| Qwen3.5-9B Q4_K_M (RX 9070 XT) | 5.7 GB | 62.6 | - | - | 71.9 (10 blank) | - | |
+| Qwen3-8B Q4_K_M (RX 9070 XT) | 5.0 GB | 60.8 | - | - | 71.7 (4 blank) | - | Qwen3.5-9B and Qwen3-8B are within noise of each other; both collapse on owari (46.9 / 62.3) |
+
+What holds across bases: michel2_full ≥ michel2 ≥ michel ≥ default on
+DeepSeek, A3B and Qwen3-14B; on Qwen3.8 michel2 edges michel2_full; on Muse
+`michel` costs 3 and its michel2 cells are unmeasured. The surrounding-text
+block (`--surround-chars 2000`, `three_pass_attribute_context_chars` in the
+product) is the single biggest step on DeepSeek (+1.7) and Qwen3-14B (+4.5),
+and the worked example (`michel2_shot`) adds nothing over it on DeepSeek. The
+product default stays `default` until Muse's michel2_full cell lands, because
+Muse is the shipped base and the one base where the family has not yet won.
+
+## Independence check on novels this project never tuned on (2026-09-17/18)
+
+Every number above is on the same four light novels (768 rows) that every
+prompt and adapter decision was made against. The check: DeepSeek v4-pro
+(thinking off), `default` against `michel2_full`, on two PDNC novels whose
+gold is the published `quotation_info.csv` with the corpus cast as the roster
+(`pdnc_fixture.py`; the attestation gate is off for corpus-cast fixtures).
+
+| novel | rows | default | michel2_full | delta | evidence |
+|---|---:|---:|---:|---:|---|
+| *Emma* (Austen) | 998 | 96.9 | **99.4** | +2.5 | `lora_serving_eval__deepseek-v4-pro-api-pdnc_emma-batch25-thinking-off-{default,michel2_full}-20260917.json` |
+| *The Sun Also Rises* (Hemingway) | 1,759 | 87.0 | **92.1** | +5.1 | `…pdnc_thesunalsorises-…` |
+
+The prompt's gain replicates on both, and is largest on the harder book -
+the same shape as on the four light novels, on text that shares nothing with
+them. Rule adopted: **a product default needs both fixtures; owari is the
+tie-breaker.** The nine-book version (Emma, Mansfield Park, Northanger Abbey,
+Persuasion, Pride and Prejudice, Sense and Sensibility, The Awakening, The Sign
+of the Four, The Sun Also Rises; ~2,300 evenly spaced rows via
+`--window-limit`) is running on the RX 9070 XT for A3B IQ3_XXS / IQ2_XXS /
+IQ1_M × five prompts, then Qwen3.5-9B, Qwen3-8B, Qwen3.5-9B-Uncensored and
+Gemma-E4B (`local_matrix_20260917d.sh`); on tnr-4 Muse and Qwen3-14B × six
+prompts follow the Qwen3.8 adapter ladder (`pdnc9_tnr4_20260917.sh`). First
+cell, A3B IQ3_XXS · michel2_full, at 1,950 of ~2,300 rows: 92.3 (Emma 97.8,
+Northanger 97.3, S&S 96.0, P&P 93.2, Persuasion 89.8, Mansfield 89.3, Sun Also
+Rises 81.2) - the checkpoint, not a final; it goes in the table when the
+artifact is written.
 
