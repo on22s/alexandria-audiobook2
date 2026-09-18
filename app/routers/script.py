@@ -834,7 +834,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     check_global_gpu_lock("script")
     if not require_recovery:
         try:
-            refusal = output_ceiling_refusal([{
+            refusal = three_pass_refusal([{
                 "filename": os.path.basename(input_file), "input_path": input_file,
                 "first_person_narrator": None}])
         except (OSError, ValueError) as exc:
@@ -1701,21 +1701,50 @@ def build_batch_script_preflight(jobs):
             "chunk_size": settings["chunk_size"]}
 
 
-def output_ceiling_refusal(jobs):
+# Above this share of chunks with no quote mark at all, a book does not mark
+# its dialogue with quotes. The worst quote-marked PDNC novel (Mansfield Park)
+# is 0.15; a book with em-dash dialogue is 1.0.
+UNQUOTED_BOOK_THRESHOLD = 0.5
+
+
+def three_pass_refusal(jobs):
+    """-> the 400 message that stops a single or batch run before it starts,
+    or None. One helper for both routes so they cannot drift (Rule 15):
+    first the output-ceiling check, then the quotes-only check. Needs no
+    server status - only the configured settings and the source text."""
+    config = load_app_config(CONFIG_PATH)
+    settings = resolve_three_pass_generation_settings(config)
+    reports = []
+    for job in jobs:
+        text, _ = _read_and_validate_batch_script_source(job)
+        reports.append((job["filename"], build_three_pass_request_preflight(text, settings, 0, 1)))
+    return (output_ceiling_refusal(settings, reports)
+            or unquoted_book_refusal(settings, reports))
+
+
+def unquoted_book_refusal(settings, reports):
+    """Dialogue detection "Quote marks only" on a book that does not use quote
+    marks would silently narrate the whole book - the plausible-looking
+    non-result Rule 21 warns about - so it is refused with the count."""
+    if settings["segmentation"] != "quotes":
+        return None
+    for name, report in reports:
+        seg = report["segmentation"]
+        if seg["chunks"] and seg["chunks_without_quote_marks"] / seg["chunks"] > UNQUOTED_BOOK_THRESHOLD:
+            return (f"Dialogue detection is set to \"Quote marks only\", but "
+                    f"{seg['chunks_without_quote_marks']} of {seg['chunks']} pieces of {name} "
+                    "contain no quote marks - this book does not seem to mark its dialogue "
+                    "with quotes. Switch Dialogue detection to Auto (or Model only) for it.")
+    return None
+
+
+def output_ceiling_refusal(settings, reports):
     """-> the 400 message when some job's largest chunk cannot be re-emitted
     within the run's output ceiling, or None when every chunk fits. Pass 1
     returns the chunk verbatim, so a chunk that needs more output tokens than
     the model may ever be asked for fails on every retry; refusing before the
-    run starts is the cheaper failure. Needs no server status - only the
-    configured chunk size, max_tokens and the source text."""
-    config = load_app_config(CONFIG_PATH)
-    settings = resolve_three_pass_generation_settings(config)
-    over = []
-    for job in jobs:
-        text, _ = _read_and_validate_batch_script_source(job)
-        report = build_three_pass_request_preflight(text, settings, 0, 1)
-        if report["exceeds_output_ceiling"]:
-            over.append((job["filename"], report))
+    run starts is the cheaper failure."""
+    over = [(name, report) for name, report in reports if report["exceeds_output_ceiling"]]
     if not over:
         return None
     name, worst = max(over, key=lambda item: item[1]["largest_predicted_completion"])
@@ -1793,7 +1822,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             })
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    refusal = output_ceiling_refusal([
+    refusal = three_pass_refusal([
         {"filename": task.filename, "input_path": _resolve_batch_script_input(task.filename),
          "first_person_narrator": narrator}
         for task, narrator in zip(request.tasks, narrators)])

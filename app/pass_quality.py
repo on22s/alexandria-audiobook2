@@ -17,6 +17,9 @@ from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 _QUOTE_CHARS = {'"', '“', '”', '「', '」', '『', '』'}
+# The marks analyze_outer_quote_regions opens a spoken region on; "does this
+# chunk contain any" is the question the quotes-only refusal asks.
+QUOTE_MARKS = ('"', '“', '「', '『')
 # Set by _quote_region_findings when it declines to run, read by the report so
 # a caller can tell "checked and clean" from "did not check". A list rather
 # than a flag because one report covers many entries.

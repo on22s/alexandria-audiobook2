@@ -39,7 +39,8 @@ from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
 from pass_quality import (is_attested_name,
                           validate_segment_quality, validate_attribution,
                           validate_instruct, index_head_check,
-                          analyze_outer_quote_regions, split_outer_quote_regions)
+                          analyze_outer_quote_regions, split_outer_quote_regions,
+                          QUOTE_MARKS)
 from review_script import normalize_text
 from config_settings import load_app_config
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -123,7 +124,8 @@ def resolve_hard_max_tokens(configured_max_tokens):
     return max(LLMGenParams.hard_max_tokens, int(configured_max_tokens))
 
 
-def resolve_three_pass_generation_settings(config, chunk_size_override=None):
+def resolve_three_pass_generation_settings(config, chunk_size_override=None,
+                                           segmentation_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
@@ -139,8 +141,8 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None):
         "max_tokens": gen.get("max_tokens", 10000),
         "segment_output_ratio": model_profile.get(
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
-        "presegment_quotes": model_profile.get(
-            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)),
+        "segmentation": segmentation_override or model_profile.get(
+            "segmentation", gen.get("three_pass_segmentation") or "auto"),
         "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
         "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 0)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "default",
@@ -595,6 +597,46 @@ def _resolved_near_miss(near_miss, resolution_sink):
     return entries
 
 
+SEGMENTATION_MODES = ("auto", "quotes", "llm")
+
+
+def quote_regions_decision(mode, chunk, analysis):
+    """-> (entries, resolution) when the chunk's quote marks settle pass 1
+    without the model, else (None, None).
+
+    "auto": only when the marks split the chunk into more than one region AND
+    the segment gate passes on them - the rule every three-pass result was
+    measured with; otherwise the model decides. "quotes" (issue #588): the
+    model is never asked. A chunk auto would accept is accepted the same way;
+    any other chunk is what its marks say - the regions if there are any, else
+    the whole chunk as one entry typed by whether a quote was open when the
+    chunk began - and is recorded as `quote_forced` so the manifest says the
+    gate did not vouch for it. "llm": never."""
+    if mode == "llm":
+        return None, None
+    regions = analysis["regions"]
+    if len(regions) > 1:
+        quality = validate_segment_quality(chunk, regions, quote_analysis=analysis)
+        if quality["passed"]:
+            # Outer quotes already answer the only pass-1 question: inside is
+            # spoken, outside is narration. Do not ask the model to rewrite
+            # tiny attribution regions; live testing showed that invites
+            # hallucinated expansion despite perfect source coverage.
+            return regions, ("quote_presegmented_repaired" if analysis["repairs"]
+                             else "quote_presegmented_continuation"
+                             if (analysis.get("initial_depth") or analysis.get("final_depth"))
+                             else "quote_presegmented")
+        if mode == "quotes":
+            print("  quote marks only: segment gate not met, keeping the quote regions "
+                  f"unverified ({sorted({f.get('code') for f in quality['findings']})})")
+    if mode != "quotes":
+        return None, None
+    if regions:
+        return regions, "quote_forced"
+    return [{"type": "SPOKEN" if analysis.get("initial_depth") else "NARRATOR",
+             "text": chunk.strip()}], "quote_forced"
+
+
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
                              attempt_sink=None, quote_analysis=None):
@@ -606,24 +648,12 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     how the chunk was handled (clean / adaptive_split / recombination_near_miss /
     near_miss / fail). Only the top-level call should pass a sink; recursive
     part-calls do not, so inner resolutions don't pollute the record."""
-    if params.presegment_quotes:
-        quote_analysis = quote_analysis or analyze_outer_quote_regions(chunk)
-        regions = quote_analysis["regions"]
-        if len(regions) > 1:
-            # Outer quotes already answer the only pass-1 question: inside is
-            # spoken, outside is narration. Do not ask the model to rewrite
-            # tiny attribution regions; live testing showed that invites
-            # hallucinated expansion despite perfect source coverage.
-            if validate_segment_quality(
-                    chunk, regions, quote_analysis=quote_analysis)["passed"]:
-                resolution = ("quote_presegmented_repaired"
-                              if quote_analysis["repairs"]
-                              else "quote_presegmented_continuation"
-                              if (quote_analysis.get("initial_depth") or
-                                  quote_analysis.get("final_depth"))
-                              else "quote_presegmented")
-                _record_resolution(resolution_sink, resolution)
-                return regions
+    if params.segmentation != "llm":
+        regions, resolution = quote_regions_decision(
+            params.segmentation, chunk, quote_analysis or analyze_outer_quote_regions(chunk))
+        if regions is not None:
+            _record_resolution(resolution_sink, resolution)
+            return regions
     near_miss = []
     local_failures = []
     entries = segment_chunk(client, model_name, chunk, params,
@@ -727,21 +757,21 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     params = LLMGenParams(
         max_tokens=settings["max_tokens"], context_length=context_length,
         segment_output_ratio=settings["segment_output_ratio"],
-        presegment_quotes=settings["presegment_quotes"])
+        segmentation=settings["segmentation"])
     records = split_into_chunk_records(source_text, max_size=chunk_size)
     chunks = [record["text"] for record in records]
     predicted_entries = []
     unresolved_chunks = []
     quote_depth = 0
+    chunks_without_quote_marks = 0
     for index, chunk in enumerate(chunks):
         analysis = analyze_outer_quote_regions(
             chunk, initial_depth=quote_depth,
             allow_open_end=index < len(chunks) - 1)
         quote_depth = analysis["final_depth"]
-        regions = analysis["regions"]
-        if (settings["presegment_quotes"] and len(regions) > 1
-                and validate_segment_quality(
-                    chunk, regions, quote_analysis=analysis)["passed"]):
+        chunks_without_quote_marks += not any(mark in chunk for mark in QUOTE_MARKS)
+        regions, _ = quote_regions_decision(settings["segmentation"], chunk, analysis)
+        if regions is not None:
             predicted_entries.extend(regions)
         else:
             # Unknown pass-1 output: SPOKEN exercises both later LLM passes and
@@ -828,6 +858,13 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     p95 = totals[max(0, math.ceil(len(totals) * 0.95) - 1)] if totals else 0
     return {
         "chunk_count": len(chunks), "context_length": context_length,
+        # what pass 1 will cost in model calls, and whether this book marks
+        # its dialogue at all (the quotes-only refusal reads these)
+        "segmentation": {
+            "mode": settings["segmentation"], "chunks": len(chunks),
+            "quote_presegmented": len(chunks) - len(unresolved_chunks),
+            "llm_chunks": len(unresolved_chunks),
+            "chunks_without_quote_marks": chunks_without_quote_marks},
         "parallel": parallel, "per_slot_context": per_slot,
         "worst_predicted_tokens": worst, "p95_predicted_tokens": p95,
         "average_predicted_tokens": (
@@ -1024,6 +1061,7 @@ def _resolution_counts(resolutions):
                              for r in resolutions),
         "quote_continuations": sum(r == "quote_presegmented_continuation"
                                    for r in resolutions),
+        "quote_forced": sum(r == "quote_forced" for r in resolutions),
     }
 
 
@@ -1088,8 +1126,15 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
             "context_length", "hard_max_tokens", "segment_temperature",
             "attribute_temperature", "instruct_temperature",
-            "segment_output_ratio", "presegment_quotes", "structured_output",
+            "segment_output_ratio", "structured_output",
             "response_schema")})
+        # The pass-1 knob used to be the bool `presegment_quotes`; keep that key
+        # with the same meaning so every checkpoint written before the
+        # three-way mode existed still resumes, and add the mode only in
+        # "quotes", where pass 1 is a different contract.
+        settings["presegment_quotes"] = getattr(params, "segmentation", "llm") != "llm"
+        if getattr(params, "segmentation", None) == "quotes":
+            settings["segmentation"] = "quotes"
         # The attribution schema is installed inside attribute_batch rather
         # than on the caller's params object. Include it in the checkpoint
         # identity so changing the request contract cannot resume old output.
@@ -1839,6 +1884,10 @@ def main():
     parser.add_argument("--prompt-variant", default=None,
                         help="Override generation.three_pass_attribute_prompt_variant "
                              "(one of attribution_prompt_variants.VARIANTS)")
+    parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
+                        help="Override generation.three_pass_segmentation: auto "
+                             "(quote marks where unambiguous, else the model), quotes "
+                             "(never the model), llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
@@ -1910,7 +1959,7 @@ def main():
     model_name = llm.get("model_name")
     try:
         generation_settings = resolve_three_pass_generation_settings(
-            config, args.chunk_size)
+            config, args.chunk_size, segmentation_override=args.segmentation)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -1961,7 +2010,7 @@ def main():
         instruct_temperature=model_profile.get(
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=generation_settings["segment_output_ratio"],
-        presegment_quotes=generation_settings["presegment_quotes"],
+        segmentation=generation_settings["segmentation"],
         reasoning_effort=args.reasoning_effort,
         provider_extra_body=llm.get("provider_extra_body"),
         structured_output=llm.get("structured_output", "auto"),

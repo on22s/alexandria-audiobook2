@@ -513,7 +513,9 @@ class LLMGenParams:
     attribute_temperature: float = None
     instruct_temperature: float = None
     segment_output_ratio: float = 3.0
-    presegment_quotes: bool = False
+    # pass-1 mode (three_pass_generate.SEGMENTATION_MODES); the single-pass
+    # path never pre-segments, so "llm" here
+    segmentation: str = "llm"
     reasoning_allowance: int = 0
     reasoning_effort: str = None
     # LM Studio honours seed: same seed twice is identical, a different seed

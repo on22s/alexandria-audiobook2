@@ -334,6 +334,20 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("renderConfigWarnings(config);", html)
         self.assertIn("renderConfigWarnings(savedConfig);", html)
 
+    def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
+        """A select whose options drift from the pydantic Literal saves a value
+        the API refuses, or hides one it accepts."""
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        select = re.search(r'<select[^>]*id="tp-segmentation"[^>]*>(.*?)</select>', html, re.S)
+        self.assertIsNotNone(select)
+        options = re.findall(r'<option value="([^"]+)"', select.group(1))
+        schema = config_settings.GenerationConfig.model_json_schema()
+        self.assertEqual(schema["properties"]["three_pass_segmentation"]["enum"], options)
+        self.assertNotIn("tp-presegment-quotes", html)
+        js = _read_frontend_source()
+        self.assertIn("three_pass_segmentation", js)
+        self.assertNotIn("three_pass_presegment_quotes", js)
+
     def test_frontend_config_controls_match_backend_schema(self):
         html = _read_frontend_source()
         input_tags = {
