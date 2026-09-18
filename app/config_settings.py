@@ -90,6 +90,14 @@ PromptVariant = Literal[
     "default", "aliases", "passage", "incremental", "michel", "continuity",
     "michel2", "michel2_full", "michel2_shot"]
 
+# How pass 1 decides what is speech. "auto": quote marks where the chunk makes
+# them unambiguous, the model for the rest (the behaviour every three-pass
+# result was measured with). "quotes": never ask the model - quoted text is
+# dialogue, the rest narration, no pass-1 calls (issue #588; a plain quote
+# segmenter finds 99.84% of PDNC's labelled quotations,
+# quote_segmenter_pdnc_20260918.json). "llm": always ask the model.
+SegmentationMode = Literal["auto", "quotes", "llm"]
+
 
 class ThreePassModelProfile(BaseModel):
     chunk_size: Optional[int] = Field(default=None, ge=500, le=30000)
@@ -97,7 +105,7 @@ class ThreePassModelProfile(BaseModel):
     attribute_temperature: Optional[float] = Field(default=None, ge=0, le=2)
     instruct_temperature: Optional[float] = Field(default=None, ge=0, le=2)
     segment_output_ratio: Optional[float] = Field(default=None, ge=1.25, le=6.0)
-    presegment_quotes: Optional[bool] = None
+    segmentation: Optional[SegmentationMode] = None
 
 
 class GenerationConfig(BaseModel):
@@ -127,7 +135,7 @@ class GenerationConfig(BaseModel):
     # measured results per variant in RECIPES.md). "default" is the shipped
     # prompt every adapter was trained on.
     three_pass_attribute_prompt_variant: PromptVariant = "default"
-    three_pass_presegment_quotes: bool = True
+    three_pass_segmentation: SegmentationMode = "auto"
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 
@@ -191,6 +199,27 @@ def _get_field_adapter(model: type[BaseModel], field_name: str) -> TypeAdapter:
     return TypeAdapter(annotation)
 
 
+def _migrate_presegment_quotes(config: dict) -> None:
+    """The pass-1 knob was a bool, `three_pass_presegment_quotes` (and
+    `presegment_quotes` per model profile), until 2026-09-18; it is now the
+    three-way `segmentation`. A saved config keeps its meaning: True was the
+    automatic rule, False was "always the model". The old key is dropped so
+    GET /api/config never shows both."""
+    gen = config.get("generation")
+    if not isinstance(gen, dict):
+        return
+    if "three_pass_presegment_quotes" in gen:
+        old = gen.pop("three_pass_presegment_quotes")
+        gen.setdefault("three_pass_segmentation", "auto" if old is not False else "llm")
+    profiles = gen.get("three_pass_model_profiles")
+    if isinstance(profiles, dict):
+        for profile in profiles.values():
+            if isinstance(profile, dict) and "presegment_quotes" in profile:
+                old = profile.pop("presegment_quotes")
+                if old is not None:
+                    profile.setdefault("segmentation", "auto" if old else "llm")
+
+
 def _validate_present_fields(section_name: str, data: dict,
                              model: type[BaseModel], warnings: list) -> dict:
     validated = dict(data)
@@ -230,6 +259,7 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
             {}, (ConfigWarning("$", "Configuration must be a JSON object"),), True
         )
     config = dict(loaded)
+    _migrate_presegment_quotes(config)
 
     for section, model in _DICT_SECTIONS.items():
         if section not in config:

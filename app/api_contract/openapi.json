@@ -1110,11 +1110,6 @@
             "title": "Three Pass Model Profiles",
             "type": "object"
           },
-          "three_pass_presegment_quotes": {
-            "default": true,
-            "title": "Three Pass Presegment Quotes",
-            "type": "boolean"
-          },
           "three_pass_segment_output_ratio": {
             "default": 3.0,
             "maximum": 6.0,
@@ -1128,6 +1123,16 @@
             "minimum": 0.0,
             "title": "Three Pass Segment Temperature",
             "type": "number"
+          },
+          "three_pass_segmentation": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "quotes",
+              "llm"
+            ],
+            "title": "Three Pass Segmentation",
+            "type": "string"
           },
           "top_k": {
             "default": 0,
@@ -2275,17 +2280,6 @@
             ],
             "title": "Instruct Temperature"
           },
-          "presegment_quotes": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Presegment Quotes"
-          },
           "segment_output_ratio": {
             "anyOf": [
               {
@@ -2311,6 +2305,22 @@
               }
             ],
             "title": "Segment Temperature"
+          },
+          "segmentation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "quotes",
+                  "llm"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segmentation"
           }
         },
         "title": "ThreePassModelProfile",

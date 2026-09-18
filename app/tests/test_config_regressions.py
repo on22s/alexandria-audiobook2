@@ -67,6 +67,38 @@ class ConfigTests(unittest.TestCase):
                     loaded["changed"] = True
                     self.assertEqual(expected, config_settings.load_app_config(str(path)))
 
+    def test_presegment_quotes_bool_loads_as_the_three_way_mode(self):
+        """The pass-1 knob was a bool until 2026-09-18. A saved config keeps
+        its meaning (True was the automatic rule, False was always-the-model),
+        the old key never reaches the API, and the profile bool maps the same
+        way. A saved mode wins over a stale bool."""
+        cases = (
+            ('{"generation": {"three_pass_presegment_quotes": false}}', "llm", None),
+            ('{"generation": {"three_pass_presegment_quotes": true}}', "auto", None),
+            ('{"generation": {"three_pass_presegment_quotes": false, '
+             '"three_pass_segmentation": "quotes"}}', "quotes", None),
+            ('{"generation": {"three_pass_model_profiles": {"m": {"presegment_quotes": false}}}}',
+             None, "llm"),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            for document, mode, profile_mode in cases:
+                with self.subTest(document=document):
+                    path.write_text(document, encoding="utf-8")
+                    gen = config_settings.load_app_config(str(path))["generation"]
+                    self.assertNotIn("three_pass_presegment_quotes", gen)
+                    self.assertEqual(mode, gen.get("three_pass_segmentation"))
+                    if profile_mode:
+                        profile = gen["three_pass_model_profiles"]["m"]
+                        self.assertNotIn("presegment_quotes", profile)
+                        self.assertEqual(profile_mode, profile["segmentation"])
+
+    def test_segmentation_mode_is_bounded(self):
+        with self.assertRaises(ValueError):
+            config_settings.GenerationConfig(three_pass_segmentation="regex")
+        self.assertEqual("quotes", config_settings.GenerationConfig(
+            three_pass_segmentation="quotes").three_pass_segmentation)
+
     def test_app_config_loader_ignores_invalid_legacy_values_without_writing(self):
         document = json.dumps({
             "llm_mode": "cloud",

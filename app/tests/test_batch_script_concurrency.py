@@ -103,10 +103,10 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
                 "llm": {"model_name": "model"},
                 "generation": {
                     "three_pass_chunk_size": 4000,
-                    "three_pass_presegment_quotes": True,
+                    "three_pass_segmentation": "auto",
                     "three_pass_model_profiles": {
                         "model": {"chunk_size": 2200,
-                                  "presegment_quotes": False},
+                                  "segmentation": "llm"},
                     },
                 },
             }
@@ -118,12 +118,12 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
                 script.build_batch_script_preflight(jobs)
 
         self.assertEqual(2200, observed["chunk_size"])
-        self.assertFalse(observed["presegment_quotes"])
+        self.assertEqual("llm", observed["segmentation"])
 
     def test_three_pass_estimator_covers_each_llm_stage(self):
         settings = {
             "chunk_size": 6000, "max_tokens": 4096,
-            "segment_output_ratio": 3.0, "presegment_quotes": True,
+            "segment_output_ratio": 3.0, "segmentation": "auto",
         }
         report = tp.build_three_pass_request_preflight(
             'Narration. "Spoken words." More narration.', settings,
@@ -137,7 +137,7 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
     def test_three_pass_estimator_includes_context_rescue_for_unknown_split(self):
         settings = {
             "chunk_size": 6000, "max_tokens": 4096,
-            "segment_output_ratio": 3.0, "presegment_quotes": True,
+            "segment_output_ratio": 3.0, "segmentation": "auto",
         }
         report = tp.build_three_pass_request_preflight(
             "Unquoted source text.", settings, context_length=32768,
@@ -215,7 +215,7 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                     "llm": {"model_name": "model"},
                     "generation": {"three_pass_chunk_size": chunk_size, "max_tokens": 4096},
                     "prompts": {}}):
-                return script.output_ceiling_refusal(jobs)
+                return script.three_pass_refusal(jobs)
 
     def test_too_large_a_chunk_is_refused_with_a_suggested_size(self):
         message = self._refusal(30000)
@@ -226,6 +226,44 @@ class OutputCeilingRefusalTests(unittest.TestCase):
 
     def test_a_chunk_that_fits_is_not_refused(self):
         self.assertIsNone(self._refusal(3000))
+
+    def _quotes_refusal(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text(text, encoding="utf-8")
+            jobs = [{"filename": "book.txt", "input_path": str(path)}]
+            with patch.object(script, "load_app_config", return_value={
+                    "llm": {"model_name": "model"},
+                    "generation": {"three_pass_chunk_size": 3000, "max_tokens": 4096,
+                                   "three_pass_segmentation": "quotes"},
+                    "prompts": {}}):
+                return script.three_pass_refusal(jobs)
+
+    def test_quotes_only_refuses_a_book_that_does_not_mark_dialogue(self):
+        """Em-dash dialogue: not one quote mark. Narrating the whole book would
+        look like a result; the refusal names the count instead."""
+        text = "\n\n".join(["— Where are you going? — she asked. " * 40] * 8)
+        message = self._quotes_refusal(text)
+        self.assertIsNotNone(message)
+        self.assertIn("Quote marks only", message)
+        self.assertRegex(message, r"\d+ of \d+ pieces of book.txt contain no quote marks")
+
+    def test_quotes_only_admits_a_quote_marked_book(self):
+        text = "\n\n".join(['"Where are you going?" she asked. ' * 40] * 8)
+        self.assertIsNone(self._quotes_refusal(text))
+
+    def test_the_output_ceiling_refusal_comes_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text(" ".join(["word"] * 12000), encoding="utf-8")
+            jobs = [{"filename": "book.txt", "input_path": str(path)}]
+            with patch.object(script, "load_app_config", return_value={
+                    "llm": {"model_name": "model"},
+                    "generation": {"three_pass_chunk_size": 30000, "max_tokens": 4096,
+                                   "three_pass_segmentation": "quotes"},
+                    "prompts": {}}):
+                message = script.three_pass_refusal(jobs)
+        self.assertIn("write back in one reply", message)
 
     def test_single_book_start_refuses_before_claiming_the_gpu(self):
         with tempfile.TemporaryDirectory() as tmp:

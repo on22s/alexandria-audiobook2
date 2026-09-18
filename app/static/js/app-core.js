@@ -900,7 +900,7 @@
                     setIf('tp-segment-temperature', g.three_pass_segment_temperature);
                     setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
                     setIf('tp-instruct-temperature', g.three_pass_instruct_temperature);
-                    document.getElementById('tp-presegment-quotes').checked = g.three_pass_presegment_quotes !== false;
+                    setIf('tp-segmentation', g.three_pass_segmentation || 'auto');
                     if (Array.isArray(g.context_rescue_windows)) { document.getElementById('context-rescue-windows').value = g.context_rescue_windows.join(', '); }
                     setIf('context-rescue-retries', g.context_rescue_retries);
                 }
@@ -1018,7 +1018,7 @@
                     three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
                     three_pass_instruct_temperature: getNumFieldValue('tp-instruct-temperature', 0.1),
-                    three_pass_presegment_quotes: document.getElementById('tp-presegment-quotes').checked,
+                    three_pass_segmentation: document.getElementById('tp-segmentation').value || 'auto',
                     context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
                     context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
                 }

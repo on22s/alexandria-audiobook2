@@ -282,8 +282,103 @@ class PassHelperTests(unittest.TestCase):
                 raise AssertionError("quote pre-segmentation should be deterministic")
         source = 'Ilya said. "Stay behind me."'
         out = tp.segment_chunk_adaptively(
-            NoCalls(), "m", source, LLMGenParams(presegment_quotes=True))
+            NoCalls(), "m", source, LLMGenParams(segmentation="auto"))
         self.assertEqual(tp.split_outer_quote_regions(source), out)
+
+
+class SegmentationModeTests(unittest.TestCase):
+    """The three-way pass-1 knob (issue #588). "quotes" never calls the model;
+    "auto" keeps the measured rule; "llm" never pre-segments; and the
+    checkpoint identity of every auto/llm run is unchanged."""
+
+    class NoCalls:
+        @property
+        def chat(self):
+            raise AssertionError("pass 1 must not call the model in this mode")
+
+    def test_quotes_mode_narrates_an_unquoted_chunk_without_a_call(self):
+        sink = []
+        out = tp.segment_chunk_adaptively(
+            self.NoCalls(), "m", "The road was long and nobody spoke.",
+            LLMGenParams(segmentation="quotes"), resolution_sink=sink)
+        self.assertEqual([{"type": "NARRATOR", "text": "The road was long and nobody spoke."}], out)
+        self.assertEqual(["quote_forced"], sink)
+
+    def test_quotes_mode_keeps_the_regions_when_the_gate_declines(self):
+        # a lone opening mark with no close: the analyzer repairs it, the gate
+        # would send auto to the model; quotes keeps what the marks say
+        source = 'He said "come here and nothing followed'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertTrue(analysis["repairs"])
+        sink = []
+        out = tp.segment_chunk_adaptively(
+            self.NoCalls(), "m", source, LLMGenParams(segmentation="quotes"),
+            resolution_sink=sink)
+        self.assertEqual([e["type"] for e in out], ["NARRATOR", "SPOKEN"])
+        self.assertIn(sink[0], ("quote_forced", "quote_presegmented_repaired"))
+
+    def test_quotes_mode_marks_a_continued_quote_as_spoken(self):
+        analysis = tp.analyze_outer_quote_regions("still talking here.", initial_depth=1,
+                                                  allow_open_end=True)
+        regions, resolution = tp.quote_regions_decision("quotes", "still talking here.", analysis)
+        self.assertEqual("SPOKEN", regions[0]["type"])
+
+    def test_auto_mode_still_asks_the_model_for_an_unquoted_chunk(self):
+        calls = []
+
+        def create(**kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(
+                    [{"type": "NARRATOR", "text": "The road was long and nobody spoke."}])),
+                finish_reason="stop")], usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        out = tp.segment_chunk_adaptively(
+            client, "m", "The road was long and nobody spoke.",
+            LLMGenParams(segmentation="auto", max_tokens=500))
+        self.assertEqual(1, len(calls))
+        self.assertEqual("NARRATOR", out[0]["type"])
+
+    def test_llm_mode_never_presegments(self):
+        self.assertEqual((None, None), tp.quote_regions_decision(
+            "llm", 'A. "B." C.', tp.analyze_outer_quote_regions('A. "B." C.')))
+
+    def test_fingerprint_is_unchanged_for_auto_and_llm_and_new_for_quotes(self):
+        auto = tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation="auto"))
+        llm = tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation="llm"))
+        quotes = tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation="quotes"))
+        self.assertNotEqual(auto, llm)
+        self.assertNotEqual(auto, quotes)
+        self.assertNotEqual(llm, quotes)
+        # the identity every checkpoint before the mode existed was written
+        # with: the bool `presegment_quotes`, and no `segmentation` key at all
+        with patch.object(tp, "load_segment_prompts", return_value=("s", "u")), \
+             patch.object(tp, "load_attribute_prompts", return_value=("s", "u")), \
+             patch.object(tp, "load_instruct_prompts", return_value=("s", "u")):
+            for mode, legacy in (("auto", True), ("llm", False)):
+                seen = {}
+                real = json.dumps
+
+                def spy(obj, **kw):
+                    seen.update(obj) if isinstance(obj, dict) and "presegment_quotes" in obj else None
+                    return real(obj, **kw)
+                with patch.object(tp.json, "dumps", side_effect=spy):
+                    tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation=mode))
+                self.assertEqual(legacy, seen["presegment_quotes"])
+                self.assertNotIn("segmentation", seen)
+
+    def test_preflight_reports_what_pass_1_will_cost(self):
+        text = 'Narration. "Spoken words." More narration.\n\n' + "Only narration here. " * 200
+        settings = {"chunk_size": 3000, "max_tokens": 4096,
+                    "segment_output_ratio": 3.0, "segmentation": "auto"}
+        report = tp.build_three_pass_request_preflight(text, settings, 0, 1)["segmentation"]
+        self.assertEqual("auto", report["mode"])
+        self.assertEqual(report["chunks"], report["quote_presegmented"] + report["llm_chunks"])
+        self.assertGreaterEqual(report["llm_chunks"], 1)
+        self.assertGreaterEqual(report["chunks_without_quote_marks"], 1)
+        forced = tp.build_three_pass_request_preflight(
+            text, dict(settings, segmentation="quotes"), 0, 1)["segmentation"]
+        self.assertEqual(0, forced["llm_chunks"])
 
 
 def _client_returning(payloads):
@@ -975,7 +1070,7 @@ class ManifestTests(unittest.TestCase):
         client = SimpleNamespace(chat=SimpleNamespace(
             completions=SimpleNamespace(create=unavailable)))
         params = LLMGenParams(max_tokens=500, temperature=0.1,
-                              presegment_quotes=True)
+                              segmentation="auto")
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
             with self.assertRaisesRegex(RuntimeError, "LLM unavailable"):
@@ -1189,7 +1284,7 @@ class AttributionContextKnobTests(unittest.TestCase):
     def test_preflight_flags_a_chunk_the_output_ceiling_cannot_fit(self):
         text = " ".join(["word"] * 12000)      # one 12k-word chunk at 30000 chars is ~60k chars; split
         settings = {"chunk_size": 30000, "max_tokens": 4096,
-                    "segment_output_ratio": 3.0, "presegment_quotes": True}
+                    "segment_output_ratio": 3.0, "segmentation": "auto"}
         report = tp.build_three_pass_request_preflight(text, settings, 0, 1)
         self.assertEqual(16384, report["output_ceiling"])
         self.assertTrue(report["exceeds_output_ceiling"])
@@ -1202,7 +1297,7 @@ class AttributionContextKnobTests(unittest.TestCase):
     def test_preflight_counts_the_surround_in_the_attribute_estimate(self):
         text = 'Narration. "Spoken words." More narration.'
         settings = {"chunk_size": 6000, "max_tokens": 4096,
-                    "segment_output_ratio": 3.0, "presegment_quotes": True}
+                    "segment_output_ratio": 3.0, "segmentation": "auto"}
         plain = tp.build_three_pass_request_preflight(text, settings, 32768, 1)
         wide = tp.build_three_pass_request_preflight(
             text, dict(settings, attribute_context_chars=3000), 32768, 1)

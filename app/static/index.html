@@ -835,11 +835,14 @@
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-segment-output-ratio" min="1.25" max="6" step="0.25" value="3">
                                     </div>
-                                    <div class="col-md-4 d-flex align-items-end">
-                                        <label class="form-check d-inline-flex align-items-center mb-1">
-                                            <input type="checkbox" class="form-check-input me-1" id="tp-presegment-quotes" checked>
-                                            <small>Pre-segment quotes</small>
-                                        </label>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-segmentation">Step 1: dialogue detection</label>
+                                        <select class="form-select form-select-sm" id="tp-segmentation">
+                                            <option value="auto" selected>Auto (recommended)</option>
+                                            <option value="quotes">Quote marks only (no Step 1 model calls)</option>
+                                            <option value="llm">Model only</option>
+                                        </select>
+                                        <div class="form-text"><strong>Auto</strong> uses the quote marks where the text makes it clear which parts are speech and asks the model about the rest. <strong>Quote marks only</strong> never asks the model: anything inside quote marks is dialogue, everything else is narration, and Step 1 makes no model calls at all — only for books that put their dialogue in quote marks (the run refuses to start on one that does not). <strong>Model only</strong> always asks the model, even where the quote marks are clear.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-temperature">Segment temperature</label>
