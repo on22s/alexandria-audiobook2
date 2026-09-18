@@ -744,8 +744,15 @@ prompt result is not a four-book artefact. The nine-book PDNC matrix for the
 local bases (A3B IQ3_XXS / IQ2_XXS / IQ1_M, Qwen3.5-9B, Qwen3-8B × the
 prompt family, ~2,300 evenly spaced rows) is running on the RX 9070 XT and
 will supply the local number; its first cell (A3B IQ3_XXS, michel2_full) sits
-at 92.3 over 1,950 rows with *The Sun Also Rises* the low book at 81.2 —
-a checkpoint, recorded here only so the final is read against it. Evidence —
+is final: **2,432/2,655 = 91.6%**, 0 blank — Emma 97.8, Northanger Abbey
+97.3, Sense and Sensibility 96.0, Persuasion 94.5, The Awakening 93.4, Pride
+and Prejudice 93.2, Mansfield Park 89.3, The Sign of the Four 82.0, The Sun
+Also Rises 81.2 — on a 13 GB file with its experts in system RAM; its
+`default` control on the same rows reads 73.9 over its first 1,200 rows
+(the cell was interrupted and resumes). That is the local held-out number
+this goal wanted: a nine-novel, 2,655-row fixture this project never tuned
+on, above the four development books' 88.0 for the same model. Evidence —
+`lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json`,
 `lora_serving_eval__deepseek-v4-pro-api-pdnc_{emma,thesunalsorises}-batch25-thinking-off-{default,michel2_full}-20260917.json`.
 
 **Author-held-out LoRA result, 2026-08-24.** Three adapters were trained on
@@ -4896,6 +4903,17 @@ on the new shape (RECIPES, "Attribution adapters"). Evidence —
 `lora_serving_eval__qwen36-35b-a3b-thinking-{michel,michel2,michel2_full}-tnr0-*-20260917.json`,
 `lora_serving_eval__qwen38-27b-q4km-{michel,michel2,michel2_full}-tnr0-*-20260917.json`,
 `lora_serving_eval__muse-michel-{low,none}-tnr1-cleangold-replication-20260917.json`.
+
+**The family wins on the shipped base too (2026-09-18).** Muse-Glimmer-30B,
+reasoning low, `michel2`: **665/768 = 86.6%**, 0 blank (grimgar03 90.4,
+index18 81.8, mushoku16 84.2, owarimonogatari3 82.1) - paired on the same
+rows +68/−29 against the shipped prompt's 81.5 and +76/−15 against
+`michel`'s 78.6. The worked example never helps: `michel2_shot` reads 75.7
+on Qwen3-14B (27 blank), 86.6 on A3B, 90.1 on Qwen3.8 against fulls of
+82.0 / 89.6 / 89.8. Evidence -
+`lora_serving_eval__muse-michel2-low-tnr1-cleangold-replication-20260917.json`,
+`lora_serving_eval__qwen3-14b-michel2shot-low-tnr1-cleangold-replication-20260917.json`,
+`lora_serving_eval__{qwen38-27b-q4km,qwen36-35b-a3b-thinking}-michel2_shot-tnr0-*-20260917.json`.
 
 ---
 

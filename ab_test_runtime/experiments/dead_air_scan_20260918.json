@@ -1,0 +1,38 @@
+{
+ "chapter_audio (150 lines, product path)": {
+  "lines": 150,
+  "hours": 0.28,
+  "lead_med_ms": 310,
+  "lead_p90_ms": 540,
+  "tail_med_ms": 80,
+  "tail_p90_ms": 180,
+  "dead_air_share": 0.06,
+  "removable_share": 0.0419,
+  "removable_s_per_hour": 150.8,
+  "fully_silent_lines": 1
+ },
+ "voice_drift LoRA runs (6400 lines)": {
+  "lines": 6400,
+  "hours": 9.87,
+  "lead_med_ms": 340,
+  "lead_p90_ms": 600,
+  "tail_med_ms": 80,
+  "tail_p90_ms": 160,
+  "dead_air_share": 0.0696,
+  "removable_share": 0.048,
+  "removable_s_per_hour": 172.7,
+  "fully_silent_lines": 0
+ },
+ "custom_voice_instruct_drift so far": {
+  "lines": 43,
+  "hours": 0.12,
+  "lead_med_ms": 80,
+  "lead_p90_ms": 80,
+  "tail_med_ms": 40,
+  "tail_p90_ms": 80,
+  "dead_air_share": 0.0125,
+  "removable_share": 0.0008,
+  "removable_s_per_hour": 2.9,
+  "fully_silent_lines": 0
+ }
+}

@@ -94,7 +94,7 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 17,
+   "cited": 18,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json",
@@ -103,10 +103,10 @@
    "weakest_evidence": "exploratory",
    "classifications": {
     "exploratory": 6,
-    "provisional": 8,
+    "provisional": 9,
     "supported_structure": 1
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 3,
    "no_commit": 6,
    "artifacts": [
     {
@@ -132,6 +132,12 @@
      "classification": "exploratory",
      "dirty": false,
      "commit": ""
+    },
+    {
+     "name": "lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "4d337725"
     },
     {
      "name": "lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json",
@@ -677,15 +683,15 @@
   {
    "goal": "1.2",
    "title": "Close the selection gap",
-   "cited": 13,
+   "cited": 15,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
-    "provisional": 12,
+    "provisional": 14,
     "supported_structure": 1
    },
-   "dirty_artifacts": 8,
+   "dirty_artifacts": 10,
    "no_commit": 0,
    "artifacts": [
     {
@@ -693,6 +699,12 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "231a460e"
+    },
+    {
+     "name": "lora_serving_eval__muse-michel2-low-tnr1-cleangold-replication-20260917.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "cf6e35c9"
     },
     {
      "name": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-minorhint-20260914.json",
@@ -711,6 +723,12 @@
      "classification": "provisional",
      "dirty": false,
      "commit": "30d09501"
+    },
+    {
+     "name": "lora_serving_eval__qwen3-14b-michel2shot-low-tnr1-cleangold-replication-20260917.json",
+     "classification": "provisional",
+     "dirty": true,
+     "commit": "95dd6700"
     },
     {
      "name": "lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json",

@@ -137,6 +137,39 @@ Not yet measured: pass-2 accuracy under `quotes` against `auto` on the same
 rows (expected within noise, since `auto` already uses the marks on 93% of
 chunks). A book with em-dash or unmarked dialogue must stay on `auto`.
 
+## Voice: dead air, per-line instructs, identity anchor (2026-09-18)
+
+Three measurements behind PR #603, all on this machine's card (RX 9070 XT).
+
+**Dead air at the joins** (`dead_air_scan_20260918.json`, 6,593 generated
+lines, −45 dBFS over 20 ms frames): the LoRA path emits a median **310–340 ms
+of leading silence** per line (p90 540–600 ms) and 80 ms trailing - 4–5% of a
+book, ~2.5–2.9 min per hour - on top of the configured pause, so a 250 ms
+same-speaker gap was really ~670 ms. The CustomVoice path emits ~80 ms. Fix:
+trim at join time to 40 ms head / 80 ms tail (`tts.trim_edge_silence`);
+on the 150 real chapter lines 991.8 s → 948.6 s, 40 ms lead left, no onset
+level jump.
+
+**Per-line instructs and the identity anchor on the CustomVoice path**
+(`custom_voice_instruct_drift__ryan_arc1_20260918.json`, 120 real narrator
+lines with the instructs pass 3 actually wrote, same text, same seed, Ryan):
+
+| arm | ECAPA to own opening (mean / p10) | pitch spread | VTL spread | s/line |
+|---|---|---|---|---|
+| as_written | 0.737 / 0.604 | 3.49 st | 0.738 | 10.26 |
+| no_timbre (lexicon rule) | 0.737 / 0.604 | 3.48 st | 0.744 | 10.25 |
+| anchored (constant identity + line) | 0.771 / 0.643 | **2.53 st** | 0.712 | 10.25 |
+| anchor_only | **0.825 / 0.740** | **2.42 st** | 0.741 | 9.90 |
+
+The buddies fork's strip-timbre-words rule does nothing (only 1–4% of our
+instructs carry such words: `instruct_audit_20260918.json`, 129,560
+instructs). A constant identity in front of each line's emotion cuts the
+run's pitch wander from 3.5 to 2.5 semitones and raises self-similarity;
+the anchor alone is the ceiling but loses the emotion. Shipped as the
+anchor-first CustomVoice instruct (`tts.anchored_instruct`) with
+change points (`style_timeline`) so an aged character or a time skip is a
+point, not a second speaker. Not yet listened to (6.5).
+
 ## Serving and measuring (the instrument, not the model)
 
 ### Qwen reasoning and output references
@@ -217,7 +250,7 @@ transition count against the arm's own base on the same server.
 | Qwen rights-clean adapter on the product's own RX 9070 XT, reasoning low (budget 1024), schema, default prompt (`run_chains/qwen_local_rightsclean_budget_20260917.sh`) | grimgar03 385 / index18 88 / mushoku16 133 / owarimonogatari3 162 | 70.4 / 68.2 / 64.7 / 48.8 (pooled 64.6) | 83.1 / 71.6 / 78.2 / 62.3 (pooled **76.6**) | **+12.7** / +3.4 / **+13.5** / **+13.6** (pooled **+11.9**) | +63/−14 / +8/−5 / +33/−15 / +33/−11 | works locally as it did on the A6000 (+11.7); **the local default for Qwen3-14B**. Artifacts `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-{grimgar03,index18,mushoku16,owarimonogatari3}-20260917.json` |
 | Qwen RiQuA, 3 epochs | four books, 768 | 61.7 | 69.7 | +8.0 | +112/−51, p=2e-6 | works; below the rights-clean stack |
 | Qwen rights-clean stack with RiQuA ×2 | four books, 768 | 61.7 | 70.6 | +8.9 | +131/−63, p=1e-6 | works; below the plain stack's **+11.7** (73.4, the best Qwen adapter measured) - more RiQuA does not help |
-| Qwen rights-clean, **reasoning budget 512** instead of 1024 (tnr-2, 2026-09-17) | four books, 768 | 66.7 | 74.7 | **+8.1** | +119/−57 | the same gain as budget 1024 (+8.6) at half the thinking; budget 2048 is running (`budget_dial_tnr2_20260917d.sh`). `lora_serving_eval__qwen3-14b-rightsclean-tnr2-cleangold-budget512-schema-20260917.json` |
+| Qwen rights-clean, **reasoning budget 512 / 1024 / 2048** (tnr-2, 2026-09-17/18) | four books, 768 | 66.7 / 66.1 / 67.1 | 74.7 / 74.7 / 75.9 | **+8.1 / +8.6 / +8.8** | +119/−57 / +127/−61 / +124/−56 | the budget dial is flat: thinking longer buys the adapter nothing, and 512 is the cheap setting. `lora_serving_eval__qwen3-14b-rightsclean-tnr2-cleangold-budget{512,2048}-schema-20260917.json` |
 
 **On Muse the base with reasoning low is the recipe.** Three loss-fixed
 adapters have now been served correctly with reasoning on: task4k-multin is a
@@ -308,22 +341,26 @@ as dirty), so they are cited here as measured numbers, not as release evidence.
 | base | file | default | michel | michel2 | michel2_full | michel2_shot | notes |
 |---|---|---:|---:|---:|---:|---:|---|
 | DeepSeek v4-pro (API, thinking off) | - | 91.1 | 91.8 | 93.2 | **94.9** | 93.8 | thinking **low, 8k**: michel2_full **95.4** (1 blank) - the ceiling; ~$0.50–0.75 per cell |
-| Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 84.8 | **90.9** | 89.8 | running | the best local number on record; michel2 beats full here by 1.1 (94.3 / 88.6 / 88.7 / 85.8) |
-| Qwen3.6-35B-A3B UD-Q4_K_XL (temp 0.6) | 22.4 GB | queued | 86.6 | 87.5 | **89.6** | queued | the best owari of any local base (88.9) |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | **81.5** | 78.6 (none: 75.7, 83 blank) | queued | queued | queued | the one base `michel` hurts; verdict on michel2 waits for tnr-1 |
-| Qwen3-14B Q4_K_M | 9.0 GB | 65.9 / 66.1 | 78.0 (none 69.3) | 77.5 (none 74.5) | **82.0** (3 blank; 87.3 / 81.8 / 85.7 / 66.7) | running | +16 from the prompt alone, the largest gain of any base; the rights-clean adapter under `default` reaches 74.7–76.6 |
+| Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 84.8 | **90.9** | 89.8 | 90.1 | the best local number on record; the three michel2 variants are within a point (michel2 94.3 / 88.6 / 88.7 / 85.8; shot owari **94.4**, the best owari of any local base); the one base where the worked example does not hurt |
+| Qwen3.6-35B-A3B UD-Q4_K_XL (temp 0.6) | 22.4 GB | queued | 86.6 | 87.5 | **89.6** | 86.6 | shot = michel (86.6 both); the surround block is the whole gain |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | 78.6 (none: 75.7, 83 blank) | **86.6** (665/768, 0 blank; 90.4 / 81.8 / 84.2 / 82.1) | queued | queued | `michel` cost 3, `michel2` gains 5 - paired on the same rows against default low: +68/-29; against michel low: +76/-15. The shipped base's first owari over 80. full / shot land after the A3B adapter on tnr-1 |
+| Qwen3-14B Q4_K_M | 9.0 GB | 65.9 / 66.1 | 78.0 (none 69.3) | 77.5 (none 74.5) | **82.0** (3 blank; 87.3 / 81.8 / 85.7 / 66.7) | 75.7 (27 blank) | +16 from the prompt alone, the largest gain of any base; the worked example hurts here (-6 vs full, 27 blank); the rights-clean adapter under `default` reaches 74.7–76.6 |
 | Qwen3-30B-A3B-Thinking-2507 UD-Q4_K_XL | 17.7 GB | - | - | - | 78.5 (41 blank) | - | not pursued further |
 | Qwen3.5-9B Q4_K_M (RX 9070 XT) | 5.7 GB | 62.6 | - | - | 71.9 (10 blank) | - | |
 | Qwen3-8B Q4_K_M (RX 9070 XT) | 5.0 GB | 60.8 | - | - | 71.7 (4 blank) | - | Qwen3.5-9B and Qwen3-8B are within noise of each other; both collapse on owari (46.9 / 62.3) |
 
-What holds across bases: michel2_full ≥ michel2 ≥ michel ≥ default on
-DeepSeek, A3B and Qwen3-14B; on Qwen3.8 michel2 edges michel2_full; on Muse
-`michel` costs 3 and its michel2 cells are unmeasured. The surrounding-text
-block (`--surround-chars 2000`, `three_pass_attribute_context_chars` in the
-product) is the single biggest step on DeepSeek (+1.7) and Qwen3-14B (+4.5),
-and the worked example (`michel2_shot`) adds nothing over it on DeepSeek. The
-product default stays `default` until Muse's michel2_full cell lands, because
-Muse is the shipped base and the one base where the family has not yet won.
+What holds across bases (2026-09-18, every cell but Muse full/shot in):
+michel2_full ≥ michel2 ≥ michel ≥ default on DeepSeek, A3B and Qwen3-14B;
+on Qwen3.8 michel2 edges michel2_full; on Muse `michel` costs 3 and `michel2`
+gains 5. The surrounding-text block (`--surround-chars 2000`,
+`three_pass_attribute_context_chars` in the product) is the single biggest
+step on DeepSeek (+1.7), Qwen3-14B (+4.5) and A3B (+2.1). The worked example
+(`michel2_shot`) never helps: DeepSeek −1.1, Qwen3-14B −6.3, A3B −3.0,
+Qwen3.8 +0.3 vs full. **The michel2 family has now won on every base
+measured, including the shipped one.** Product default moves to
+`michel2_full` once Muse's own michel2_full cell confirms it beats michel2
+there too (tnr-1, tonight); until then `michel2` is the measured best for
+Muse.
 
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
@@ -348,8 +385,17 @@ of the Four, The Sun Also Rises; ~2,300 evenly spaced rows via
 IQ1_M × five prompts, then Qwen3.5-9B, Qwen3-8B, Qwen3.5-9B-Uncensored and
 Gemma-E4B (`local_matrix_20260917d.sh`); on tnr-4 Muse and Qwen3-14B × six
 prompts follow the Qwen3.8 adapter ladder (`pdnc9_tnr4_20260917.sh`). First
-cell, A3B IQ3_XXS · michel2_full, at 1,950 of ~2,300 rows: 92.3 (Emma 97.8,
-Northanger 97.3, S&S 96.0, P&P 93.2, Persuasion 89.8, Mansfield 89.3, Sun Also
-Rises 81.2) - the checkpoint, not a final; it goes in the table when the
-artifact is written.
+cell is final:
+
+| model | fixture | score | per book |
+|---|---|---:|---|
+| A3B UD-IQ3_XXS 13.2 GB, michel2_full, reasoning low, experts in RAM (RX 9070 XT) | nine PDNC novels, 2,655 rows | **91.6** (0 blank) | Emma 97.8, Northanger 97.3, S&S 96.0, Persuasion 94.5, Awakening 93.4, P&P 93.2, Mansfield 89.3, Sign of the Four 82.0, Sun Also Rises 81.2 |
+| same, `default` prompt | same, partial 1,200 rows (cell interrupted, resumes in the make-up chain) | 73.9 | Sun Also Rises 66.4, Emma 78.3, P&P 80.4, Mansfield 71.0 |
+
+`lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json`.
+The two hard books are Doyle and Hemingway - terse, sparsely attributed
+dialogue - the same shape DeepSeek showed (Sun Also Rises its low book at
+92.1). Higher than its four-book 88.0: the light novels are the harder
+fixture. Against its own `default` control on the same rows the prompt is
+worth ~18 points on books this project never tuned on.
 
