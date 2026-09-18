@@ -4546,6 +4546,7 @@
             const parts = ['Working'];
             if (marker) { parts.push(marker); }
             if (retry && (!marker || logs.lastIndexOf(retry) > logs.lastIndexOf(marker))) { parts.push(retry); }
+            if (status.eta && status.eta.eta_seconds != null) { parts.push(`about ${formatDuration(status.eta.eta_seconds)} left`); }
             if (quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
             el.textContent = parts.join(' \u00b7 ');
             el.hidden = false;

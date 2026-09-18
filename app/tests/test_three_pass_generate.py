@@ -569,6 +569,56 @@ class EndToEndTests(unittest.TestCase):
                     reply = [i for i, l in enumerate(lines) if "finish_reason" in l]
                     self.assertTrue(any(lines.index(announce) < r < lines.index(finish) for r in reply))
 
+    def test_a_planned_run_prints_its_own_eta_after_every_model_call(self):
+        """The pipeline is the one thing that knows the plan, the real counts
+        and the call rate, so it prints the estimate; core._compute_eta and
+        the Script tab only read it. A pass's real total replaces the plan's
+        guess, and the fraction reaches 1.0 on the last call."""
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
+        import io, contextlib, re
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tp.run_three_pass(_client_returning([seg, named, instructed]), "m", source,
+                              LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
+                              chunk_size=6000, planned_calls={1: 1, 2: 9, 3: 9})
+        etas = [l for l in out.getvalue().splitlines() if l.startswith("ETA: ")]
+        self.assertEqual(3, len(etas), etas)
+        tails = [re.search(r"\[eta_seconds=(\d+) fraction=([0-9.]+)\]$", l) for l in etas]
+        self.assertTrue(all(tails), etas)
+        # Step 1's real total (1) is known from the start, Steps 2/3 still the
+        # plan's 9 each; Step 2's real total (1) replaces its 9 when it starts;
+        # Step 3's likewise
+        self.assertIn("(Step 1 of 3, 1 of 19 model calls done)", etas[0])
+        self.assertIn("(Step 2 of 3, 2 of 11 model calls done)", etas[1])
+        self.assertIn("(Step 3 of 3, 3 of 3 model calls done)", etas[2])
+        self.assertEqual("1.000", tails[2].group(2))
+        self.assertEqual("0", tails[2].group(1))
+        no_plan = io.StringIO()
+        with contextlib.redirect_stdout(no_plan):
+            tp.run_three_pass(_client_returning([seg, named, instructed]), "m", source,
+                              LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
+                              chunk_size=6000)
+        self.assertNotIn("ETA: ", no_plan.getvalue())
+
+    def test_eta_line_is_what_the_endpoint_parses(self):
+        p = tp.RunProgress({1: 2, 2: 4, 3: 4})
+        p.set_total(1, 2); p.note_call_started(); p.started -= 30; p.note_done(1)
+        line = p.eta_line(1, now=p.started + 30)
+        import core
+        m = core._ETA_LINE_RE.match(line)
+        self.assertIsNotNone(m, line)
+        self.assertEqual("about 4m 30s left (Step 1 of 3, 1 of 10 model calls done)", m.group(1))
+        self.assertEqual(("270", "0.100"), (m.group(2), m.group(3)))
+        self.assertEqual({1: 3, 2: 5, 3: 4}, tp.planned_calls_from_preflight({"requests": [
+            {"stage": "segment"}] * 3 + [{"stage": "segment_context_rescue"}] * 2
+            + [{"stage": "attribute"}] * 5 + [{"stage": "instruct"}] * 4}))
+
     def test_three_passes_assemble_final_entries(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},

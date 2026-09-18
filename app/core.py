@@ -615,6 +615,11 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
 
 
 _PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
+# The three-pass pipeline prints its own estimate after every finished unit
+# (three_pass_generate.RunProgress.eta_line): it knows the plan, the actual
+# counts and the call rate, which this tail scan cannot. Its fixed tail is
+# what is read; the text before it is shown as the progress string.
+_ETA_LINE_RE = re.compile(r'^ETA: (.*?) \[eta_seconds=(\d+) fraction=([0-9.]+)\]\s*$')
 
 # Tasks worth surfacing a progress/ETA estimate for, most-relevant first.
 ETA_TASKS = [
@@ -645,7 +650,18 @@ def _compute_eta(state: dict) -> dict:
 
     sub_fraction = 0.0
     sub_progress = None
-    for line in reversed(state.get("logs", [])[-30:]):
+    pipeline_eta = None
+    tail = state.get("logs", [])[-30:]
+    # The pipeline's own line wins over any N/M marker after it ("chunk 5/5
+    # done" would otherwise read as 100% between two ETA lines).
+    for line in reversed(tail):
+        m = _ETA_LINE_RE.match(line.strip())
+        if m:
+            sub_progress = m.group(1)
+            sub_fraction = min(1.0, max(0.0, float(m.group(3))))
+            pipeline_eta = float(m.group(2))
+            break
+    for line in reversed(tail if pipeline_eta is None else []):
         if "VRAM" in line:
             # The VRAM watchdog prints lines like "(10.5/12.0 GB)" which can
             # otherwise be mistaken for a "current/total" progress marker.
@@ -705,7 +721,9 @@ def _compute_eta(state: dict) -> dict:
         progress = sub_progress
 
     eta_seconds = None
-    if fraction and fraction > 0.001:  # Avoid enormous ETAs at start
+    if pipeline_eta is not None and not (tasks and idx is not None and idx >= 0):
+        eta_seconds = pipeline_eta
+    elif fraction and fraction > 0.001:  # Avoid enormous ETAs at start
         eta_seconds = elapsed * (1 - fraction) / fraction
     return {"elapsed_seconds": elapsed, "eta_seconds": eta_seconds, "progress": progress, "fraction": fraction}
 

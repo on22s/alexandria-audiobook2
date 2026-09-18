@@ -353,6 +353,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"', retry)
         self.assertNotIn('print("Retrying...")', retry)
         self.assertIn("waiting on the model for", js)
+        self.assertIn("status.eta.eta_seconds", js)
     def test_every_pause_button_is_greyed_by_the_capability_hook(self):
         """The hook disables buttons by selector; a Pause button wired any
         other way would still fail on click on Windows."""

@@ -653,6 +653,73 @@ def finish_step(step, unit, number, total, note):
     print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number}/{total} done - {note}", flush=True)
 
 
+def planned_calls_from_preflight(report):
+    """{step: predicted model calls} from build_three_pass_request_preflight's
+    request list - one entry per predicted call, context-rescue retries not
+    counted (they are the exception, not the plan)."""
+    counts = {1: 0, 2: 0, 3: 0}
+    for request in report["requests"]:
+        step = {"segment": 1, "attribute": 2, "instruct": 3}.get(request["stage"])
+        if step:
+            counts[step] += 1
+    return counts
+
+
+def plan_line(planned):
+    return (f"Plan: Step 1 ~ {planned[1]} model calls, Step 2 ~ {planned[2]} windows, "
+            f"Step 3 ~ {planned[3]} windows")
+
+
+def format_duration(seconds):
+    seconds = int(round(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m {seconds % 60}s"
+    return f"{seconds // 3600}h {(seconds % 3600) // 60}m"
+
+
+class RunProgress:
+    """Where the run is in model calls, and the ETA it prints after every
+    finished unit. One estimate for the whole job (Rule 15): the pipeline is
+    the only thing that knows the plan, the actual counts as each pass
+    starts, and when the first call went out. Average seconds per call so
+    far, over the calls left - an estimate, and the line says "about".
+
+    `planned` = {step: predicted calls} from the preflight; each step's actual
+    total replaces its estimate when known (set_total). Quote-mark chunks are
+    not calls. The machine-readable tail is what core._compute_eta reads."""
+
+    def __init__(self, planned):
+        self.planned = dict(planned)
+        self.totals = {}
+        self.done = {1: 0, 2: 0, 3: 0}
+        self.started = None
+
+    def set_total(self, step, total):
+        self.totals[step] = total
+
+    def note_call_started(self):
+        if self.started is None:
+            self.started = time.time()
+
+    def note_done(self, step):
+        self.done[step] += 1
+
+    def total_calls(self):
+        return sum(self.totals.get(step, self.planned.get(step, 0)) for step in (1, 2, 3))
+
+    def eta_line(self, step, now=None):
+        done = sum(self.done.values())
+        total = max(self.total_calls(), done)
+        fraction = done / total if total else 1.0
+        elapsed = ((now or time.time()) - self.started) if self.started else 0.0
+        remaining = (elapsed / done) * (total - done) if done else 0.0
+        return (f"ETA: about {format_duration(remaining)} left "
+                f"(Step {step} of 3, {done} of {total} model calls done) "
+                f"[eta_seconds={int(round(remaining))} fraction={fraction:.3f}]")
+
+
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
                              attempt_sink=None, quote_analysis=None):
@@ -1193,7 +1260,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    unicode_report=None, attribution_votes=1,
                    vote_temperature=0.3, first_person_narrator=None,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
-                   attribute_prompt_variant="default", attribute_prompt_texts=None):
+                   attribute_prompt_variant="default", attribute_prompt_texts=None,
+                   planned_calls=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -1332,19 +1400,30 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # reporting "cannot grow beyond 2700" - the visible-output budget with no
     # room for reasoning at all.
     observed_attempts = 0
+    progress = RunProgress(planned_calls) if planned_calls else None
+    needs_model = [quote_regions_decision(params.segmentation, chunk, analysis)[0] is None
+                   for chunk, analysis in zip(chunks, quote_analyses)]
+    if progress:
+        progress.set_total(1, sum(needs_model))
+        progress.done[1] = sum(needs_model[:chunks_done])
     for i in range(chunks_done, len(chunks)):
         sink = []
         failures = []
         attempts_before = len(attempts)
-        by_marks = quote_regions_decision(params.segmentation, chunks[i], quote_analyses[i])[0] is not None
+        by_marks = not needs_model[i]
         if not by_marks:
             announce_step(1, "chunk", i + 1, len(chunks))
+            if progress:
+                progress.note_call_started()
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
                                        resolution_sink=sink, failure_sink=failures,
                                        attempt_sink=attempts,
                                        quote_analysis=quote_analyses[i])
         finish_step(1, "chunk", i + 1, len(chunks),
                     "from quote marks" if by_marks else "from the model")
+        if progress and not by_marks:
+            progress.note_done(1)
+            print(progress.eta_line(1), flush=True)
         for attempt in attempts[observed_attempts:]:
             attempt.setdefault("pass", "segment")
             reasoning_allowance.observe(
@@ -1428,6 +1507,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     in_flight = {"current": None, "attempt_start": 0}
     window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size))
     window_number = 0
+    if progress:
+        progress.set_total(2, window_total)
     try:
         for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
             window_number += 1
@@ -1453,6 +1534,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
                 announce_step(2, "window", window_number, window_total)
+                if progress:
+                    progress.note_call_started()
                 try:
                     attempt_start = len(attempts)
                     in_flight["current"], in_flight["attempt_start"] = current, attempt_start
@@ -1516,6 +1599,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # failure resumes after this work instead of replaying the batch.
                 save("attribute")
             finish_step(2, "window", window_number, window_total, "speakers assigned")
+            if progress:
+                progress.note_done(2)
+                print(progress.eta_line(2), flush=True)
     except PassExhausted as exc:
         elapsed_s["attribute"] = attr_base + time.time() - attr_start
         passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
@@ -1549,6 +1635,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     inst_base = elapsed_s.get("instruct", 0)
     window_total = sum(1 for _ in iter_unique_entry_batches(named))
     window_number = 0
+    if progress:
+        progress.set_total(3, window_total)
     for indexed_batch in iter_unique_entry_batches(named):
         window_number += 1
         pending = [(index, entry) for index, entry in indexed_batch
@@ -1573,6 +1661,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             exhausted = []
             attempt_start = len(attempts)
             announce_step(3, "window", window_number, window_total)
+            if progress:
+                progress.note_call_started()
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,
                 exhaustion_sink=exhausted,
@@ -1613,6 +1703,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             elapsed_s["instruct"] = inst_base + time.time() - inst_start
             save("instruct")
         finish_step(3, "window", window_number, window_total, "delivery notes written")
+        if progress:
+            progress.note_done(3)
+            print(progress.eta_line(3), flush=True)
     elapsed_s["instruct"] = inst_base + time.time() - inst_start
     passes["instruct"] = {"elapsed_s": round(elapsed_s["instruct"], 3),
                           "status": ("incomplete" if any(
@@ -2083,6 +2176,9 @@ def main():
           f"attribute_context_chars={attribute_context_chars}, "
           f"attribute_prompt_variant={attribute_prompt_variant}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
+    planned_calls = planned_calls_from_preflight(
+        build_three_pass_request_preflight(book, generation_settings, 0, 1))
+    print(plan_line(planned_calls), flush=True)
     if args.preflight:
         summary = {"status": "complete", "model_name": model_name, "samples": []}
         for label, index, sample in select_preflight_chunks(book, chunk_size):
@@ -2116,6 +2212,7 @@ def main():
                                  collect_all_failures=args.collect_all_failures,
                                  unicode_report=unicode_report,
                                  thinking_mode=args.reasoning_effort,
+                                 planned_calls=planned_calls,
                                  attribution_votes=args.attribution_votes,
                                  vote_temperature=args.vote_temperature,
                                  first_person_narrator=narrator,

@@ -46,6 +46,7 @@ from utils import file_lock
 
 from core import (
     BASE_DIR,
+    _compute_eta,
     CHARACTER_ALIASES_PATH,
     CONFIG_PATH,
     DATA_DIR,
@@ -1963,6 +1964,9 @@ async def get_status(task_name: str):
     state = dict(process_state[task_name])
     state.pop("process", None)
     state.pop("processes", None)
+    # the same estimate /api/status/eta serves, so the polling page needs no
+    # second request to show "about 4m left"
+    state["eta"] = _compute_eta(process_state[task_name]) if state.get("running") else None
     return state
 
 
