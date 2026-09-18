@@ -21,6 +21,8 @@ from urllib.parse import unquote, urlsplit
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from llm_provider import manual_llm_dir
 from config_settings import load_app_config
 from generate_script import fix_mojibake
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -1967,7 +1969,68 @@ async def get_status(task_name: str):
     # the same estimate /api/status/eta serves, so the polling page needs no
     # second request to show "about 4m left"
     state["eta"] = _compute_eta(process_state[task_name]) if state.get("running") else None
+    # a manual-transport run waiting on the user: id + where it is, so the
+    # page fetches the full prompt only when the request changes
+    pending = read_manual_pending() if state.get("running") else None
+    state["manual_request"] = ({"id": pending["id"], "sequence": pending["sequence"],
+                                "stage_hint": _stage_hint(state.get("logs") or [])}
+                               if pending else None)
     return state
+
+
+_STAGE_HINT_RE = re.compile(r"^(Step \d \([a-z]+\): .*|Retrying\.\.\..*|Warning: .*)$")
+
+
+def _stage_hint(logs):
+    """The last log lines that say where the run is (#592's markers) and, if
+    the previous paste was rejected, why - so the manual panel can say
+    'Step 2 (speakers): window 2 of 4 · Retrying... (attempt 2 of 4)'."""
+    hints = []
+    for line in reversed(logs[-40:]):
+        if _STAGE_HINT_RE.match(line.strip()):
+            hints.append(line.strip())
+            if line.strip().startswith("Step"):
+                break
+    return " · ".join(reversed(hints))
+
+
+def read_manual_pending():
+    """The request a manual-transport run is waiting on, or None."""
+    path = os.path.join(manual_llm_dir(DATA_DIR), "pending.json")
+    data = safe_load_json(path, None)
+    return data if isinstance(data, dict) and data.get("id") else None
+
+
+class ManualReply(BaseModel):
+    id: str
+    content: str
+
+
+@router.get("/api/manual_llm/pending")
+async def manual_llm_pending():
+    """The prompt to copy for the request the run is waiting on (issue #593).
+    The messages are the exact request the model would have received."""
+    pending = read_manual_pending()
+    if not pending:
+        return {"pending": None}
+    running = [name for name, state in process_state.items() if state.get("running")]
+    hint = _stage_hint(process_state[running[0]]["logs"]) if running else ""
+    return {"pending": {**pending, "stage_hint": hint, "task": running[0] if running else None}}
+
+
+@router.post("/api/manual_llm/response")
+async def manual_llm_response(reply: ManualReply):
+    """The user's (or their script's) answer to the pending request. Whether
+    the content is acceptable is the pipeline's call - a rejected paste comes
+    back as the next pending request, carrying the retry prompt."""
+    pending = read_manual_pending()
+    if not pending:
+        raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
+    if reply.id != pending["id"]:
+        raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
+    atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
+                      os.path.join(manual_llm_dir(DATA_DIR), "response.json"))
+    return {"accepted": True, "sequence": pending["sequence"]}
 
 
 @router.get("/api/logs/{task_name}")

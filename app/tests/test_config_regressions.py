@@ -93,6 +93,13 @@ class ConfigTests(unittest.TestCase):
                         self.assertNotIn("presegment_quotes", profile)
                         self.assertEqual(profile_mode, profile["segmentation"])
 
+    def test_llm_transport_is_bounded_and_defaults_to_http(self):
+        profile = dict(base_url="http://localhost:1234/v1", api_key="k", model_name="m")
+        self.assertEqual("http", config_settings.LLMConfig(**profile).transport)
+        self.assertEqual("manual", config_settings.LLMConfig(**profile, transport="manual").transport)
+        with self.assertRaises(ValueError):
+            config_settings.LLMConfig(**profile, transport="carrier-pigeon")
+
     def test_segmentation_mode_is_bounded(self):
         with self.assertRaises(ValueError):
             config_settings.GenerationConfig(three_pass_segmentation="regex")
