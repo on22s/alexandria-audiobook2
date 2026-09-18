@@ -54,7 +54,7 @@ def strip_timbre(instruct):
     out = re.sub(r"\s+", " ", out)
     out = re.sub(r"\s*([,;])\s*([,;])", r"\1", out)
     out = re.sub(r"\(\s*\)", "", out)
-    out = re.sub(r"\s+([,;.])", r"\1", out).strip(" ,;.")
+    out = re.sub(r"\s+([,;.])", r"\1", out).strip(" ,;")
     return out if re.search(r"[A-Za-z]", out) else "neutral"
 
 
