@@ -1344,7 +1344,8 @@
     "tests.test_frontend_regressions.FrontendTests.test_voice_cards_expose_age_version_generation",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
-    "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
+    "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start",
+    "tests.test_frontend_regressions.FrontendTests.test_voices_scope_control_drives_personas_and_suggestions"
   ],
   "test_full_sequence_scoring": [],
   "test_gate_provenance": [
@@ -3790,6 +3791,7 @@
     "tests.test_voices_regressions.VoicesTests.test_gender_fallback_and_recurring_mismatch",
     "tests.test_voices_regressions.VoicesTests.test_gender_marker_does_not_treat_digit_suffix_as_gender",
     "tests.test_voices_regressions.VoicesTests.test_generic_cast_keys_are_book_scoped",
+    "tests.test_voices_regressions.VoicesTests.test_has_a_voice_means_a_persona_or_an_assigned_voice_not_a_bare_entry",
     "tests.test_voices_regressions.VoicesTests.test_legacy_generic_cast_member_is_not_auto_matched",
     "tests.test_voices_regressions.VoicesTests.test_library_entry_records_known_as_and_tolerates_legacy_entries",
     "tests.test_voices_regressions.VoicesTests.test_llm_traits_replace_local_traits_only_with_stronger_authority",
@@ -3801,6 +3803,7 @@
     "tests.test_voices_regressions.VoicesTests.test_narrator_strategy_requires_narrator_and_persists",
     "tests.test_voices_regressions.VoicesTests.test_numbered_generic_cast_keys_are_book_scoped",
     "tests.test_voices_regressions.VoicesTests.test_numeric_age_boundaries_and_precedence",
+    "tests.test_voices_regressions.VoicesTests.test_persona_generation_can_be_limited_to_characters_without_a_voice",
     "tests.test_voices_regressions.VoicesTests.test_persona_generation_can_target_one_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_rejects_unknown_speaker",
     "tests.test_voices_regressions.VoicesTests.test_persona_recovery_requires_integrity_fields",

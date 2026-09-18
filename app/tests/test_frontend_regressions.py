@@ -408,6 +408,24 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("await copyToClipboard(manualPromptText(req), 'Prompt')", js)
         self.assertIn("API.post('/api/manual_llm/response'", js)
 
+    def test_voices_scope_control_drives_personas_and_suggestions(self):
+        """#602: one scope select feeds both runs; an "all" run offers to save
+        the current voices to the library first and does not start if that
+        save fails."""
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        self.assertIn('id="voices-scope"', html)
+        self.assertIn('id="voices-keep-in-library"', html)
+        self.assertIn("new_only: newOnly", js)
+        self.assertIn("only_unset: onlyUnset", js)
+        self.assertIn("refreshVoicesScope();", js)
+        personas = js[js.index("async function generatePersonas()"):js.index("API.post('/api/generate_personas'", js.index("async function generatePersonas()"))]
+        self.assertIn("keepCurrentVoicesIfAsked()", personas)
+        self.assertIn("return; }", personas)
+        keep = js[js.index("async function keepCurrentVoicesIfAsked()"):js.index("async function generatePersonas()")]
+        self.assertIn("API.post('/api/voice_library/save'", keep)
+        self.assertIn("return false;", keep)
+
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value
         the API refuses, or hides one it accepts."""

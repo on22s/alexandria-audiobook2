@@ -1262,6 +1262,17 @@
                             <select class="form-select" id="narrator-version"></select>
                         </div>
                         <span id="narrator-preview-status" class="small text-muted"></span>
+                        <div class="input-group input-group-sm" style="width: 330px;" title="Which characters Generate Personas and Suggest LoRA Voices work on">
+                            <span class="input-group-text">For</span>
+                            <select class="form-select" id="voices-scope" onchange="onVoicesScopeChange()">
+                                <option value="new">Only characters without a voice yet</option>
+                                <option value="all">All characters (regenerate)</option>
+                            </select>
+                        </div>
+                        <label class="form-check d-inline-flex align-items-center m-0 small" id="voices-keep-wrap" style="display:none;">
+                            <input class="form-check-input me-1" type="checkbox" id="voices-keep-in-library" checked>
+                            <span>Save the current voices to the library first (<span id="voices-keep-cast"></span>)</span>
+                        </label>
                         <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">

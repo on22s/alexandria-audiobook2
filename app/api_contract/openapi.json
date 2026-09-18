@@ -952,6 +952,11 @@
             "title": "Context Lines",
             "type": "integer"
           },
+          "new_only": {
+            "default": false,
+            "title": "New Only",
+            "type": "boolean"
+          },
           "speaker": {
             "anyOf": [
               {
@@ -4444,7 +4449,8 @@
                 "default": {
                   "advanced": false,
                   "batch_size": 40,
-                  "context_lines": 8
+                  "context_lines": 8,
+                  "new_only": false
                 }
               }
             }

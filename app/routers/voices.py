@@ -41,7 +41,7 @@ from core import (
     run_process,
 )
 from lmstudio_settings import get_current_status, get_effective_max_tokens
-from tts import resolve_narrator_voice_config, voice_category
+from tts import resolve_narrator_voice_config, voice_category, voice_is_set
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -113,6 +113,11 @@ class GeneratePersonasRequest(BaseModel):
     context_lines: int = Field(default=8, ge=1, le=200)
     speaker: Optional[str] = Field(default=None, max_length=200)
     age_group: Optional[str] = Field(default=None, max_length=40)
+    # Only characters with no entry in voice_config.json (the ones /api/voices
+    # reports as persona_pending); the rest keep their persona and preview.
+    # Issue #602: a script regenerated with more chapters should not re-roll
+    # every voice.
+    new_only: bool = False
 
 
 class PersonaRecoveryRequest(BaseModel):
@@ -220,7 +225,8 @@ async def get_voices():
             _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
             voice_config = {}
 
-    missing_speakers = {voice_name for voice_name in voices_list if voice_name not in voice_config}
+    missing_speakers = {voice_name for voice_name in voices_list
+                        if not voice_is_set(voice_config.get(voice_name))}
 
     result = []
     for voice_name in voices_list:
@@ -410,6 +416,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     if request.advanced:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])
+    if request.new_only:
+        command.append("--new-only")
     claim_gpu_task("persona")
     background_tasks.add_task(run_process, command, "persona")
     return {"status": "started", "advanced": request.advanced}

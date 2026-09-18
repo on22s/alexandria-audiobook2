@@ -2190,6 +2190,71 @@
             }
         }
 
+        // Which characters Generate Personas / Suggest LoRA Voices act on (#602).
+        // "new" = the ones /api/voices reports as persona_pending (no entry in
+        // voice_config.json); "all" re-rolls every persona and preview, so it
+        // offers to save the current voices to the library first.
+        function _voicesScopeState() {
+            const rows = Object.values(window._voicesByName || {});
+            const pending = rows.filter(v => v.persona_pending).map(v => v.name);
+            const have = rows.filter(v => !v.persona_pending).map(v => v.name);
+            return { pending, have };
+        }
+
+        function refreshVoicesScope() {
+            const select = document.getElementById('voices-scope');
+            if (!select) { return; }
+            const { pending, have } = _voicesScopeState();
+            select.options[0].textContent = `Only characters without a voice yet (${pending.length})`;
+            select.options[1].textContent = `All characters (regenerate ${have.length + pending.length})`;
+            if (!select.dataset.userSet) {
+                select.value = (pending.length >= 1 && have.length >= 1) ? 'new' : 'all';
+            }
+            onVoicesScopeChange(true);
+        }
+
+        function _keepCastName() {
+            if (window._selectedCast) { return window._selectedCast; }
+            const loaded = (document.getElementById('upload-status')?.textContent || '').replace(/^.*Loaded:\s*/, '').trim();
+            return (loaded || 'current book').replace(/\.[^.]+$/, '');
+        }
+
+        function onVoicesScopeChange(fromRefresh = false) {
+            const select = document.getElementById('voices-scope');
+            if (!fromRefresh) { select.dataset.userSet = '1'; }
+            const { have } = _voicesScopeState();
+            const wrap = document.getElementById('voices-keep-wrap');
+            const show = select.value === 'all' && have.length > 0;
+            wrap.style.display = show ? '' : 'none';
+            if (show) { document.getElementById('voices-keep-cast').textContent = `cast: ${_keepCastName()}`; }
+        }
+
+        function voicesScopeIsNew() {
+            return (document.getElementById('voices-scope')?.value || 'all') === 'new';
+        }
+
+        // Before an "all characters" run: the current voices into a cast, so a
+        // regenerate never silently destroys them. -> false when the save
+        // failed and the run must not start.
+        async function keepCurrentVoicesIfAsked() {
+            const wrap = document.getElementById('voices-keep-wrap');
+            const box = document.getElementById('voices-keep-in-library');
+            if (!wrap || wrap.style.display === 'none' || !box.checked) { return true; }
+            const { have } = _voicesScopeState();
+            if (!have.length) { return true; }
+            const cast = _keepCastName();
+            try {
+                try { await API.post('/api/voice_library/casts', { name: cast }); } catch (e) { if (e.status !== 409) { throw e; } }
+                const res = await API.post('/api/voice_library/save', { cast, characters: have, cast_specific: [] });
+                showToast(`Saved ${have.length} current voices to the library as "${cast}".`, 'success');
+                if (typeof loadCastLibrary === 'function') { try { await loadCastLibrary(); } catch (e) { /* display only */ } }
+                return !!res;
+            } catch (e) {
+                showToast('Not started: could not save the current voices to the library first (' + (e.message || 'unknown error') + ').', 'error');
+                return false;
+            }
+        }
+
         async function generatePersonas() {
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
@@ -2198,12 +2263,14 @@
             const advanced = !!(advancedToggle && advancedToggle.checked);
             const batchSize = Math.max(1, Math.min(parseInt(batchInput?.value || '40', 10) || 40, 200));
             const contextLines = getPersonaContextLines();
+            const newOnly = voicesScopeIsNew();
+            if (!newOnly && !(await keepCurrentVoicesIfAsked())) { return; }
             try {
                 statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${advanced ? 'Starting advanced...' : 'Starting...'}`;
                 if (cancelButton) {
                     cancelButton.style.display = '';
                 }
-                await API.post('/api/generate_personas', { advanced, batch_size: batchSize, context_lines: contextLines });
+                await API.post('/api/generate_personas', { advanced, batch_size: batchSize, context_lines: contextLines, new_only: newOnly });
                 pollPersonaStatus();
             } catch (e) {
                 showToast('Failed to start persona generation: ' + e.message, 'error');
@@ -2549,6 +2616,7 @@
             // Cache simple names for alias dropdowns
             window._voicesNames = voices.map(v => v.name);
             window._voicesByName = Object.fromEntries(voices.map(v => [v.name, v]));
+            refreshVoicesScope();
             const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
             const narratorSelect = document.getElementById('narrator-strategy');
             if (narratorSelect && narrator?.config?.narrator_strategy) {
@@ -2732,13 +2800,15 @@
         async function suggestVoices(characterNames = null) {
             const btn = document.getElementById('btn-suggest-voices');
             const status = document.getElementById('suggest-status');
+            const onlyUnset = characterNames ? false : voicesScopeIsNew();
+            if (!characterNames && !onlyUnset && !(await keepCurrentVoicesIfAsked())) { return; }
             btn.disabled = true;
             status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing characters and matching voices...';
             try {
                 // Make sure lora caches are fresh so we can resolve suggested adapters in the dropdowns
                 try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { console.debug('lora-models cache refresh failed', e); }
                 const res = await API.post('/api/suggest_voices', {
-                    only_unset: false,
+                    only_unset: onlyUnset,
                     cast: window._selectedCast || null,
                     characters: characterNames,
                 });

@@ -39,6 +39,19 @@ DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
+def voice_is_set(voice_data):
+    """Does this character have a voice yet? True for any assigned LoRA /
+    clone / designed / ensemble voice, and for a custom entry that carries a
+    persona (a description or reference audio). False for the bare default
+    the Voices tab writes for every character as soon as it renders - which
+    is why "has an entry in voice_config.json" is not the test (#602: that
+    made "only characters without a voice" select nobody)."""
+    data = voice_data or {}
+    if voice_category(data) != "custom":
+        return True
+    return bool((data.get("description") or "").strip() or data.get("ref_audio"))
+
+
 def voice_category(voice_data):
     """Normalize a voice config entry's type into a routing category.
 
