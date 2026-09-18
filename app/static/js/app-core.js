@@ -1150,7 +1150,17 @@
             }
         });
 
+        // Generate resumes saved progress for the same text and settings;
+        // Start over asks for a fresh run (#597). Same handler, one flag.
+        let _scriptStartOver = false;
+        document.getElementById('btn-gen-script-fresh').addEventListener('click', () => {
+            if (!confirm('Discard the saved progress for this text and start again from chunk 1?')) { return; }
+            _scriptStartOver = true;
+            document.getElementById('btn-gen-script').click();
+        });
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
+            const startOver = _scriptStartOver;
+            _scriptStartOver = false;
             if (document.getElementById('script-batch-mode').checked) {
                 return _startBatchScript();
             }
@@ -1187,6 +1197,7 @@
                     strip_front_matter: _isStripFrontMatterChecked(),
                     first_person_narrator:
                         document.getElementById('script-first-person-narrator').value.trim() || null,
+                    start_over: startOver,
                 });
                 pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
