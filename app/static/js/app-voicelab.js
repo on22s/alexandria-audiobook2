@@ -252,13 +252,14 @@
         }
 
         window.copyVoicelabDiagnostics = async () => {
+            let text;
             try {
-                const text = await _fetchVoicelabDiagnostics();
-                await navigator.clipboard.writeText(text);
-                showToast('Sanitized diagnostics copied to clipboard.', 'success');
+                text = await _fetchVoicelabDiagnostics();
             } catch (e) {
-                showToast('Could not copy diagnostics: ' + (e.message || String(e)), 'error');
+                showToast('Could not fetch diagnostics: ' + (e.message || String(e)), 'error');
+                return;
             }
+            await copyToClipboard(text, 'Sanitized diagnostics');
         };
 
         window.downloadVoicelabDiagnostics = async () => {
