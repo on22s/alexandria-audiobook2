@@ -675,6 +675,7 @@
                 JSON.stringify(p.provider_extra_body || {}, null, 2);
             document.getElementById('llm-reasoning-effort').value = p.reasoning_effort || '';
             document.getElementById('llm-on-this-gpu').value = (p.on_this_gpu === true || p.on_this_gpu === false) ? String(p.on_this_gpu) : '';
+            document.getElementById('llm-transport').value = p.transport || 'http';
         }
 
         function getOnThisGpuInput() {
@@ -724,7 +725,8 @@
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
-                on_this_gpu: getOnThisGpuInput()
+                on_this_gpu: getOnThisGpuInput(),
+                transport: document.getElementById('llm-transport').value || 'http'
             };
         }
 
@@ -4592,6 +4594,61 @@
             return pollLogs(taskName, 'script-logs', onDone, 'script-activity');
         }
 
+        // Manual transport (#593): the run is waiting for the user to answer a
+        // request. /api/status/<task> says which one (id + where the run is);
+        // the full prompt is fetched only when the id changes.
+        let _manualShown = null;
+        async function renderManualRequest(status) {
+            const panel = document.getElementById('manual-llm-panel');
+            if (!panel) { return; }
+            const req = status.running ? status.manual_request : null;
+            if (!req) {
+                if (_manualShown !== null) { _manualShown = null; panel.hidden = true; }
+                return;
+            }
+            if (_manualShown === req.id) { return; }
+            let full;
+            try { full = (await API.get('/api/manual_llm/pending')).pending; } catch (e) { return; }
+            if (!full || full.id !== req.id) { return; }
+            _manualShown = req.id;
+            window._manualPending = full;
+            document.getElementById('manual-llm-title').textContent = `request ${full.sequence}`;
+            document.getElementById('manual-llm-hint').textContent = full.stage_hint || '';
+            document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
+            const reply = document.getElementById('manual-llm-reply');
+            reply.value = '';
+            reply.disabled = false;
+            document.getElementById('manual-llm-submit').disabled = false;
+            panel.hidden = false;
+        }
+
+        function manualPromptText(req) {
+            return (req.messages || []).map(m => `${(m.role || '').toUpperCase()}:\n${m.content}`).join('\n\n');
+        }
+
+        async function copyManualPrompt() {
+            const req = window._manualPending;
+            if (!req) { return; }
+            await copyToClipboard(manualPromptText(req), 'Prompt');
+        }
+
+        async function submitManualReply() {
+            const req = window._manualPending;
+            const reply = document.getElementById('manual-llm-reply');
+            const btn = document.getElementById('manual-llm-submit');
+            if (!req || !reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            btn.disabled = true;
+            reply.disabled = true;
+            try {
+                await API.post('/api/manual_llm/response', { id: req.id, content: reply.value });
+                showToast(`Reply to request ${req.sequence} sent to the pipeline.`, 'success');
+            } catch (e) {
+                showToast('Could not submit: ' + (e.message || 'unknown error'), 'error');
+                btn.disabled = false;
+                reply.disabled = false;
+            }
+        }
+
         async function pollLogs(taskName, elementId, onDone, activityId) {
             const el = document.getElementById(elementId);
             const activityEl = activityId ? document.getElementById(activityId) : null;
@@ -4603,9 +4660,11 @@
                     el.scrollTop = el.scrollHeight;
                     syncPauseButton(taskName, status);
                     renderActivity(activityEl, status, track);
+                    if (activityId) { renderManualRequest(status); }
                 },
                 onDone: status => {
                     if (activityEl) { activityEl.hidden = true; }
+                    if (activityId) { renderManualRequest({ running: false }); }
                     notifyJobDone(taskName);
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {

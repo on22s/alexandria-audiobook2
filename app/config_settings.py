@@ -38,6 +38,10 @@ class LLMConfig(BaseModel):
     # GPU lock against audio work, so a hosted-API or CPU-served LLM can
     # annotate one book while the card renders another.
     on_this_gpu: Optional[bool] = None
+    # "manual": no HTTP at all - every request the pipeline would send is
+    # handed to the user on the Script tab to answer elsewhere and paste back
+    # (issue #593). The pipeline's own validation and retries gate the paste.
+    transport: Literal["http", "manual"] = "http"
     # How much the model thinks before answering, sent as `reasoning_effort`
     # on every chat completion for this profile (None = the server's default).
     # Folded into the profile request body by llm_provider.get_provider_extra_body,

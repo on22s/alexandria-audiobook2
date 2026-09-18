@@ -392,6 +392,21 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("start_over: startOver,", js)
         self.assertIn("_scriptStartOver = true;", js)
         self.assertIn("confirm('Discard the saved progress", js)
+    def test_manual_transport_is_selectable_and_the_panel_is_wired(self):
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        select = re.search(r'<select[^>]*id="llm-transport"[^>]*>(.*?)</select>', html, re.S)
+        self.assertIsNotNone(select)
+        options = re.findall(r'<option value="([^"]+)"', select.group(1))
+        self.assertEqual(config_settings.LLMConfig.model_json_schema()["properties"]["transport"]["enum"], options)
+        for element in ("manual-llm-panel", "manual-llm-prompt", "manual-llm-reply", "manual-llm-submit"):
+            self.assertIn(f'id="{element}"', html)
+        self.assertIn("transport: document.getElementById('llm-transport').value", js)
+        self.assertIn("document.getElementById('llm-transport').value = p.transport", js)
+        self.assertIn("async function renderManualRequest(status)", js)
+        self.assertIn("if (activityId) { renderManualRequest(status); }", js)
+        self.assertIn("await copyToClipboard(manualPromptText(req), 'Prompt')", js)
+        self.assertIn("API.post('/api/manual_llm/response'", js)
 
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value

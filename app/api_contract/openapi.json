@@ -1347,6 +1347,15 @@
             ],
             "title": "Structured Output",
             "type": "string"
+          },
+          "transport": {
+            "default": "http",
+            "enum": [
+              "http",
+              "manual"
+            ],
+            "title": "Transport",
+            "type": "string"
           }
         },
         "required": [
@@ -1632,6 +1641,24 @@
           }
         },
         "title": "M4bExportRequest",
+        "type": "object"
+      },
+      "ManualReply": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content"
+        ],
+        "title": "ManualReply",
         "type": "object"
       },
       "NarratorPreviewRequest": {
@@ -5800,6 +5827,60 @@
           }
         },
         "summary": "Upload M4B Cover"
+      }
+    },
+    "/api/manual_llm/pending": {
+      "get": {
+        "description": "The prompt to copy for the request the run is waiting on (issue #593).\nThe messages are the exact request the model would have received.",
+        "operationId": "manual_llm_pending_api_manual_llm_pending_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Manual Llm Pending"
+      }
+    },
+    "/api/manual_llm/response": {
+      "post": {
+        "description": "The user's (or their script's) answer to the pending request. Whether\nthe content is acceptable is the pipeline's call - a rejected paste comes\nback as the next pending request, carrying the retry prompt.",
+        "operationId": "manual_llm_response_api_manual_llm_response_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manual Llm Response"
       }
     },
     "/api/merge": {

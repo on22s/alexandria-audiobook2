@@ -760,6 +760,7 @@
     "tests.test_config_regressions.ConfigTests.test_llm_failure_logs_are_unique_within_one_second",
     "tests.test_config_regressions.ConfigTests.test_llm_normalization_preserves_validation_behavior",
     "tests.test_config_regressions.ConfigTests.test_llm_normalization_returns_copy_without_mutating_profile",
+    "tests.test_config_regressions.ConfigTests.test_llm_transport_is_bounded_and_defaults_to_http",
     "tests.test_config_regressions.ConfigTests.test_presegment_quotes_bool_loads_as_the_three_way_mode",
     "tests.test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "tests.test_config_regressions.ConfigTests.test_prompt_presets_validate_and_round_trip",
@@ -1328,6 +1329,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints",
     "tests.test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion",
     "tests.test_frontend_regressions.FrontendTests.test_lora_candidate_lifecycle_summary_is_rendered",
+    "tests.test_frontend_regressions.FrontendTests.test_manual_transport_is_selectable_and_the_panel_is_wired",
     "tests.test_frontend_regressions.FrontendTests.test_narrator_preview_uses_inline_scenario_selectors",
     "tests.test_frontend_regressions.FrontendTests.test_persona_failure_opens_manual_recovery",
     "tests.test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
@@ -2033,6 +2035,15 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_verifies_produced_adapter_and_reports_metrics"
   ],
   "test_luar_character_selector": [],
+  "test_manual_llm": [
+    "tests.test_manual_llm.ManualClientTests.test_a_manual_profile_is_never_on_this_gpu",
+    "tests.test_manual_llm.ManualClientTests.test_a_reply_to_another_request_is_ignored",
+    "tests.test_manual_llm.ManualClientTests.test_dispatch_returns_the_manual_client_only_for_that_transport",
+    "tests.test_manual_llm.ManualClientTests.test_request_is_written_reply_is_returned_and_files_are_cleaned",
+    "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
+    "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
+    "tests.test_manual_llm.ManualThreePassTests.test_a_three_pass_run_completes_with_a_person_answering_every_request"
+  ],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",

@@ -531,6 +531,8 @@ def llm_is_on_this_gpu() -> bool:
         from lmstudio_settings import get_active_llm_config, is_remote_llm
         config = load_app_config(CONFIG_PATH)
         llm = get_active_llm_config(config) or {}
+        if llm.get("transport") == "manual":
+            return False   # the user is the model; no GPU involved
         explicit = llm.get("on_this_gpu")
         if explicit is not None:
             return bool(explicit)
