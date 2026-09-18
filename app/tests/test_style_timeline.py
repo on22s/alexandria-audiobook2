@@ -54,6 +54,10 @@ class EngineReceivesTheAnchorTests(unittest.TestCase):
                  "style_timeline": [{"from_index": 300, "character_style": "thirty, worn, lower"}]}
         engine = tts.TTSEngine.__new__(tts.TTSEngine)
         seen = []
+        # CI hides torch (ci_env); the method imports it before the print
+        import sys, types
+        fake_torch = types.ModuleType("torch")
+        fake_torch.manual_seed = lambda *_: None
 
         def no_model():
             raise RuntimeError("stop before loading the model")
@@ -61,7 +65,8 @@ class EngineReceivesTheAnchorTests(unittest.TestCase):
         for index in (0, 300, 900):
             config = tts.voice_config_for_chunk({"HERO": entry}, "HERO", index)
             out = io.StringIO()
-            with contextlib.redirect_stdout(out), contextlib.suppress(Exception):
+            with contextlib.redirect_stdout(out), contextlib.suppress(Exception), \
+                 patch.dict(sys.modules, {"torch": sys.modules.get("torch") or fake_torch}):
                 engine._local_generate_custom("Hello.", "Cold fury.", "HERO", config, "/nonexistent/out.wav")
             line = next((l for l in out.getvalue().splitlines() if "generating with instruct=" in l), "")
             seen.append((index, line.split("instruct='")[1].split("'")[0] if "instruct='" in line else None))
