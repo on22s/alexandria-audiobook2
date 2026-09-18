@@ -815,6 +815,10 @@
     "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_preserves_text_and_boundaries",
     "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_rejects_partial_alignment"
   ],
+  "test_custom_voice_instruct_drift": [
+    "tests.test_custom_voice_instruct_drift.ArmTests.test_each_arm_sends_what_it_says",
+    "tests.test_custom_voice_instruct_drift.ArmTests.test_no_timbre_removes_only_identity_words"
+  ],
   "test_dataset_tone_spread": [
     "tests.test_dataset_tone_spread.Correlate.test_a_constant_column_correlates_with_nothing",
     "tests.test_dataset_tone_spread.Correlate.test_it_reports_both_coefficients_and_their_p_values",
@@ -1699,6 +1703,12 @@
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_identical_files_are_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_one_good_fill_and_one_bad_change_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
+  ],
+  "test_instruct_audit": [
+    "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_no_delivery_misses_common_english_delivery_words",
+    "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_punctuation_fires_on_an_apostrophe",
+    "tests.test_instruct_audit.TrustworthyFindings.test_clause_and_length_limits",
+    "tests.test_instruct_audit.TrustworthyFindings.test_timbre_words_are_flagged_and_delivery_words_are_not"
   ],
   "test_instruct_listening": [
     "tests.test_instruct_listening.ArmRequestTests.test_every_arm_strips_the_styles_the_engine_would_re_add",

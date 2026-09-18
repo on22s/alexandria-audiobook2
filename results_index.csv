@@ -396,7 +396,7 @@ crossover__grimgar03__local.json,historical_only,git+naming,no,crossover.py,7746
 crossover__grimgar03__local.json,historical_only,git+naming,no,crossover.py,7746a7ae,,,segmentation_crossover,grimgar03,gemma-4-e4b-uncensored-hauhaucs-aggressive|qwen/qwen3-14b,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,"seg=qwen,attr=qwen,t=0.6,rep=3",399,232,58.1,ok,False,54573393,1832.5,07-27 20:37,http://localhost:1234/v1,
 ctc_japanese_boundary_n10.json,exploratory,none,no,,567bb25c,5.4,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 ctc_japanese_boundary_n150.json,exploratory,none,no,,cc7f9194,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-custom_voice_instruct_drift__ryan_arc1_20260918.json,supported_structure,none,no,,,,42,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+custom_voice_instruct_drift__ryan_arc1_20260918.json,supported_structure,provenance,yes,,,,42,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dataset_prosodic_spread.json,supported_structure,git+naming,no,dataset_prosodic_spread.py,da9e8495,2.7,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dataset_ref_audit.json,supported_structure,provenance,yes,,,,11,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dataset_source_identification.json,exploratory,none,no,,567bb25c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -1095,6 +1095,7 @@ identity_recheck__velvety_mezzo_30s_f_gothic__seed20260902.json,supported_struct
 identity_recheck__warm_baritone_30s_m_3__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__warm_baritone_40s_m_1__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 identity_recheck__warm_baritone_50s_m_gothic__seed20260902.json,supported_structure,provenance,yes,,,,20260902,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+instruct_audit_20260918.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 instruct_listening.json,exploratory,git+naming,no,instruct_listening.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 instruct_listening_fixed.json,supported_structure,provenance,yes,,,,20260822,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 instruct_value.json,exploratory,git+naming,no,instruct_value.py,a19adc68,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
