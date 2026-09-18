@@ -2432,6 +2432,15 @@
     "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_the_gate_still_catches_a_real_misclassification",
     "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_the_report_always_carries_the_field"
   ],
+  "test_quote_segmenter": [
+    "tests.test_quote_segmenter.ScoreTest.test_found_needs_95_percent_coverage_and_true_needs_half_inside",
+    "tests.test_quote_segmenter.SegmentTest.test_a_single_quote_inside_a_word_never_opens",
+    "tests.test_quote_segmenter.SegmentTest.test_apostrophes_are_not_single_quotes",
+    "tests.test_quote_segmenter.SegmentTest.test_curly_doubles_pair_by_shape",
+    "tests.test_quote_segmenter.SegmentTest.test_paragraph_break_closes_and_the_next_mark_reopens",
+    "tests.test_quote_segmenter.SegmentTest.test_straight_quotes_alternate",
+    "tests.test_quote_segmenter.SegmentTest.test_unclosed_quote_at_end_yields_nothing"
+  ],
   "test_reasoning_budget": [
     "tests.test_reasoning_budget.NullContentTest.test_a_null_content_response_does_not_raise",
     "tests.test_reasoning_budget.NullContentTest.test_null_content_classifies_as_escalate_then_overflow",

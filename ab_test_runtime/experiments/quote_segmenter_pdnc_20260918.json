@@ -1,0 +1,396 @@
+{
+ "experiment": "quote_segmenter_pdnc",
+ "novels": {
+  "AHandfulOfDust": {
+   "gold": 2617,
+   "predicted": 2732,
+   "found": 2605,
+   "true": 2625,
+   "recall": 0.9954145968666412,
+   "precision": 0.9608345534407028,
+   "marks": {
+    "\"": 5462,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "APassageToIndia": {
+   "gold": 2398,
+   "predicted": 2527,
+   "found": 2398,
+   "true": 2373,
+   "recall": 1.0,
+   "precision": 0.9390581717451524,
+   "marks": {
+    "\"": 5054,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "ARoomWithAView": {
+   "gold": 1989,
+   "predicted": 2071,
+   "found": 1988,
+   "true": 1938,
+   "recall": 0.9994972347913524,
+   "precision": 0.9357798165137615,
+   "marks": {
+    "\"": 4140,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "AlicesAdventuresInWonderland": {
+   "gold": 1048,
+   "predicted": 1122,
+   "found": 1046,
+   "true": 1042,
+   "recall": 0.9980916030534351,
+   "precision": 0.928698752228164,
+   "marks": {
+    "\"": 2236,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "AnneOfGreenGables": {
+   "gold": 1779,
+   "predicted": 1841,
+   "found": 1777,
+   "true": 1731,
+   "recall": 0.9988757729061271,
+   "precision": 0.9402498642042368,
+   "marks": {
+    "\"": 3676,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "DaisyMiller": {
+   "gold": 725,
+   "predicted": 749,
+   "found": 725,
+   "true": 722,
+   "recall": 1.0,
+   "precision": 0.9639519359145527,
+   "marks": {
+    "\"": 1498,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "Emma": {
+   "gold": 2109,
+   "predicted": 2108,
+   "found": 2095,
+   "true": 1970,
+   "recall": 0.993361782835467,
+   "precision": 0.9345351043643264,
+   "marks": {
+    "\"": 4196,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "HardTimes": {
+   "gold": 2414,
+   "predicted": 2474,
+   "found": 2402,
+   "true": 2414,
+   "recall": 0.9950289975144988,
+   "precision": 0.9757477768795473,
+   "marks": {
+    "\"": 4937,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "HowardsEnd": {
+   "gold": 3111,
+   "predicted": 3304,
+   "found": 3111,
+   "true": 3088,
+   "recall": 1.0,
+   "precision": 0.9346246973365617,
+   "marks": {
+    "\"": 6602,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "MansfieldPark": {
+   "gold": 1568,
+   "predicted": 1649,
+   "found": 1566,
+   "true": 1553,
+   "recall": 0.9987244897959183,
+   "precision": 0.9417828987265009,
+   "marks": {
+    "\"": 3292,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "NightAndDay": {
+   "gold": 2795,
+   "predicted": 2901,
+   "found": 2795,
+   "true": 2787,
+   "recall": 1.0,
+   "precision": 0.9607032057911065,
+   "marks": {
+    "\"": 5802,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "NorthangerAbbey": {
+   "gold": 1014,
+   "predicted": 1072,
+   "found": 1014,
+   "true": 1014,
+   "recall": 1.0,
+   "precision": 0.9458955223880597,
+   "marks": {
+    "\"": 2144,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "OliverTwist": {
+   "gold": 4253,
+   "predicted": 4288,
+   "found": 4249,
+   "true": 4232,
+   "recall": 0.9990594874206442,
+   "precision": 0.9869402985074627,
+   "marks": {
+    "\"": 8572,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "Persuasion": {
+   "gold": 682,
+   "predicted": 786,
+   "found": 682,
+   "true": 680,
+   "recall": 1.0,
+   "precision": 0.8651399491094147,
+   "marks": {
+    "\"": 1572,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "PrideAndPrejudice": {
+   "gold": 1708,
+   "predicted": 1779,
+   "found": 1706,
+   "true": 1705,
+   "recall": 0.9988290398126464,
+   "precision": 0.9584035975267003,
+   "marks": {
+    "\"": 3550,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "SenseAndSensibility": {
+   "gold": 1543,
+   "predicted": 1546,
+   "found": 1539,
+   "true": 1505,
+   "recall": 0.9974076474400518,
+   "precision": 0.9734799482535575,
+   "marks": {
+    "\"": 3083,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheAgeOfInnocence": {
+   "gold": 1592,
+   "predicted": 1912,
+   "found": 1592,
+   "true": 1578,
+   "recall": 1.0,
+   "precision": 0.8253138075313807,
+   "marks": {
+    "\"": 3824,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheAwakening": {
+   "gold": 728,
+   "predicted": 782,
+   "found": 728,
+   "true": 719,
+   "recall": 1.0,
+   "precision": 0.9194373401534527,
+   "marks": {
+    "\"": 1564,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheGambler": {
+   "gold": 1066,
+   "predicted": 1128,
+   "found": 1064,
+   "true": 1052,
+   "recall": 0.99812382739212,
+   "precision": 0.9326241134751773,
+   "marks": {
+    "\"": 2254,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheInvisibleMan": {
+   "gold": 1245,
+   "predicted": 1277,
+   "found": 1241,
+   "true": 1192,
+   "recall": 0.9967871485943776,
+   "precision": 0.9334377447141738,
+   "marks": {
+    "\"": 2466,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheManWhoWasThursday": {
+   "gold": 1351,
+   "predicted": 1339,
+   "found": 1351,
+   "true": 1313,
+   "recall": 1.0,
+   "precision": 0.9805825242718447,
+   "marks": {
+    "\"": 2676,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheMysteriousAffairAtStyles": {
+   "gold": 2212,
+   "predicted": 2228,
+   "found": 2210,
+   "true": 2162,
+   "recall": 0.9990958408679927,
+   "precision": 0.9703770197486535,
+   "marks": {
+    "\"": 4433,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "ThePictureOfDorianGray": {
+   "gold": 1500,
+   "predicted": 1539,
+   "found": 1499,
+   "true": 1489,
+   "recall": 0.9993333333333333,
+   "precision": 0.967511371020143,
+   "marks": {
+    "\"": 3076,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheSignOfTheFour": {
+   "gold": 891,
+   "predicted": 900,
+   "found": 890,
+   "true": 824,
+   "recall": 0.9988776655443322,
+   "precision": 0.9155555555555556,
+   "marks": {
+    "\"": 1701,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheSportOfTheGods": {
+   "gold": 810,
+   "predicted": 885,
+   "found": 810,
+   "true": 806,
+   "recall": 1.0,
+   "precision": 0.9107344632768362,
+   "marks": {
+    "\"": 1768,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "TheSunAlsoRises": {
+   "gold": 3245,
+   "predicted": 3324,
+   "found": 3245,
+   "true": 3226,
+   "recall": 1.0,
+   "precision": 0.970517448856799,
+   "marks": {
+    "\"": 6642,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "WhereAngelsFearToTread": {
+   "gold": 1236,
+   "predicted": 1285,
+   "found": 1235,
+   "true": 1238,
+   "recall": 0.9991909385113269,
+   "precision": 0.9634241245136187,
+   "marks": {
+    "\"": 2568,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  },
+  "WinnieThePooh": {
+   "gold": 1181,
+   "predicted": 1200,
+   "found": 1167,
+   "true": 1176,
+   "recall": 0.9881456392887383,
+   "precision": 0.98,
+   "marks": {
+    "\"": 2400,
+    "\u201c": 0,
+    "\u2018": 0
+   }
+  }
+ },
+ "pooled": {
+  "gold": 48810,
+  "predicted": 50748,
+  "recall": 0.998360991600082,
+  "precision": 0.9488846851107433
+ },
+ "scoring": "gold FOUND when one predicted span covers >=95% of it; predicted TRUE when >=50% of it lies in a gold span",
+ "provenance": {
+  "script": "quote_segmenter.py",
+  "written": "2026-09-18T06:07:28",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "4140d88c3781297ec2150f641d3c68c87a90b432",
+   "branch": "probe/quote-segmenter-pdnc",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/quote_segmenter.py",
+    "app/tests/test_quote_segmenter.py"
+   ],
+   "harness_sha256": "e8c428b1dd8e170e7f44f071699ef7639c48767014e4d44020dfd86606952978"
+  },
+  "args": {
+   "folder": "data",
+   "out": "ab_test_runtime/experiments/quote_segmenter_pdnc_20260918.json"
+  }
+ }
+}
