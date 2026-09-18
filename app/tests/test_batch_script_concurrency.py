@@ -57,6 +57,24 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
         self.assertNotIn("process", public)
         self.assertNotIn("processes", public)
 
+    def test_status_carries_the_pipelines_eta_while_running(self):
+        """The Script tab polls /api/status/<task>; the estimate rides along so
+        it needs no second request. None once the task is over."""
+        state = script.process_state["script"]
+        original = dict(state)
+        try:
+            state.update({"running": True, "start_time": 1.0, "logs": [
+                "ETA: about 2m left (Step 2 of 3, 5 of 9 model calls done) [eta_seconds=120 fraction=0.556]"]})
+            running = asyncio.run(script.get_status("script"))
+            state["running"] = False
+            done = asyncio.run(script.get_status("script"))
+        finally:
+            state.clear()
+            state.update(original)
+        self.assertEqual(120.0, running["eta"]["eta_seconds"])
+        self.assertIn("5 of 9 model calls", running["eta"]["progress"])
+        self.assertIsNone(done["eta"])
+
     def test_preflight_uses_planned_runtime_profile(self):
         report = self._preflight(32768, 2, 9441)
         self.assertEqual(32768, report["context_length"])

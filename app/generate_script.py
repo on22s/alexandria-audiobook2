@@ -789,6 +789,14 @@ def pause_for_operator(error_details):
     return True
 
 
+def retry_line(attempt, max_retries):
+    """The one wording for "about to retry" - `attempt` is the 0-based attempt
+    that just failed, so the next one is attempt+2 of max_retries+1, the same
+    numbering as "Succeeded on retry N". A bare "Retrying..." left a user
+    watching a slow model unable to tell attempt 2 from attempt 4 (#588)."""
+    return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
@@ -1070,7 +1078,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f"Warning: {label} repeats text across adjacent arrays "
                   f"(attempt {attempt_number}): {exc}")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-                print("Retrying...")
+                print(retry_line(attempt, max_retries))
                 continue
             return []
 
@@ -1081,7 +1089,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f"Warning: Could not find {codec.name} payload in {label} "
                   f"response (attempt {attempt_number})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-                print("Retrying...")
+                print(retry_line(attempt, max_retries))
                 continue
             # Last-attempt recovery: clean_json_string deliberately rejects
             # ambiguous multi-array structure, but repair_json_array can still
@@ -1108,7 +1116,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print(f"Warning: {label} has unresolved deterministic repairs "
                           f"(attempt {attempt_number}): {transformed['unresolved']}")
                     if attempt < max_retries:
-                        print("Retrying...")
+                        print(retry_line(attempt, max_retries))
                         continue
                     return []
                 entries = transformed["entries"]
@@ -1156,7 +1164,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         print("  Repeated unproductive response; switching to adaptive split")
                         return []
                     if attempt < max_retries:
-                        print("Retrying...")
+                        print(retry_line(attempt, max_retries))
                         continue
                     return []
             if finish_reason == "length":
@@ -1182,7 +1190,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         print(f"JSON preview: {json_text[:300]}...")
 
         if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-            print("Retrying...")
+            print(retry_line(attempt, max_retries))
             continue
         if finish_reason == "length":
             return []

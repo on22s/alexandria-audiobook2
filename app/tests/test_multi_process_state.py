@@ -24,6 +24,39 @@ class MultiProcessStateTests(unittest.TestCase):
         self.assertTrue(core.process_state[self.key]["cancel"])
         self.assertEqual(self.processes, [call.args[0] for call in signal_tree.call_args_list])
 
+    def test_eta_reads_the_three_pass_step_markers(self):
+        """"Step 2 (speakers): window 2/4" is the marker the Script tab and
+        this parser share; the reply's "took 12.3s" line and the VRAM
+        watchdog's "(10.5/12.0 GB)" must not displace it."""
+        state = {"start_time": 1.0, "logs": [
+            "Step 2 (speakers): window 2/4 done - speakers assigned",
+            "Step 2 (speakers): window 3 of 4 - asking the model",
+            "  finish_reason=stop | tokens: prompt=1386 completion=2274 | took 59.1s",
+            "VRAM watchdog: (10.5/12.0 GB)",
+        ]}
+        with patch.object(core.time, "time", return_value=101.0):
+            eta = core._compute_eta(state)
+        self.assertEqual("2/4", eta["progress"])
+        self.assertEqual(0.5, eta["fraction"])
+    def test_eta_prefers_the_pipelines_own_estimate(self):
+        """An "ETA:" line from the three-pass carries the whole-job estimate;
+        a later N/M marker must not displace it, and a batch run still folds
+        its fraction into the per-book progress."""
+        logs = ["Step 2 (speakers): window 2/4 done - speakers assigned",
+                "ETA: about 4m 10s left (Step 2 of 3, 7 of 13 model calls done) [eta_seconds=250 fraction=0.538]",
+                "Step 1 (split): chunk 5/5 done - from quote marks",   # an N/M after the ETA line
+                "Step 2 (speakers): window 3 of 4 - asking the model",
+                "  finish_reason=stop | tokens: prompt=1386 completion=2274 | took 59.1s"]
+        with patch.object(core.time, "time", return_value=101.0):
+            single = core._compute_eta({"start_time": 1.0, "logs": logs})
+            batch = core._compute_eta({"start_time": 1.0, "logs": logs,
+                                       "tasks": ["a", "b"], "current_task_idx": 1})
+        self.assertEqual(250.0, single["eta_seconds"])
+        self.assertEqual(0.538, single["fraction"])
+        self.assertIn("7 of 13 model calls", single["progress"])
+        self.assertAlmostEqual((1 + 0.538) / 2, batch["fraction"])
+        self.assertIn("item 2/2", batch["progress"])
+
     def test_pause_is_refused_with_501_where_the_signals_do_not_exist(self):
         """Windows has no SIGSTOP; the same predicate that refuses the request
         is what GET /api/config reports, so the page can grey the button."""
