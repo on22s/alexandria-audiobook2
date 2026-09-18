@@ -3,7 +3,7 @@
   "experiment": "lora_serving_eval",
   "notes": "Paired serving evaluation. Arms share one server and differ only by adapter scale, toggled via POST /lora-adapters. The evaluator does not observe base quantisation or adapter precision and makes no claim about either.",
   "git": {
-   "commit": "cc5380f704fe1141a04a839efff37481266af7b8",
+   "commit": "84cd78d98a06242b24a90cb917114a0d20e0dfed",
    "branch": "main",
    "dirty": false,
    "modified_tracked_files": null,
@@ -50,8 +50,8 @@
    "temporary": true
   },
   "validation": "ok",
-  "finished": 1789663331.7085748,
-  "elapsed_s": 3880.0
+  "finished": 1789698804.3749363,
+  "elapsed_s": 3766.7
  },
  "summary": {
   "base": {
