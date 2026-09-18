@@ -39,6 +39,61 @@ DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
+def active_character_style(voice_data, chunk_index=None):
+    """The identity anchor in force at a line: the entry's `character_style`,
+    replaced by the last `style_timeline` point at or before `chunk_index`.
+    A point is {"from_index": N, "character_style": "..."} - a character can
+    change from a place in the book (a time skip, an aged character) without
+    becoming a different speaker. No index -> the base anchor."""
+    data = voice_data or {}
+    style = (data.get("character_style") or data.get("default_style") or "").strip()
+    if chunk_index is None:
+        return style
+    for point in sorted((p for p in data.get("style_timeline") or [] if isinstance(p, dict)),
+                        key=lambda p: int(p.get("from_index", 0))):
+        if int(point.get("from_index", 0)) <= chunk_index:
+            style = (point.get("character_style") or "").strip()
+    return style
+
+
+def voice_config_for_chunk(voice_config, speaker, chunk_index):
+    """A shallow copy of voice_config whose entry for `speaker` carries the
+    anchor in force at `chunk_index`, so every engine path reads the same
+    `character_style` key it already reads and none has to know about the
+    timeline."""
+    entry = (voice_config or {}).get(speaker)
+    if not isinstance(entry, dict) or not entry.get("style_timeline"):
+        return voice_config
+    return {**voice_config, speaker: {**entry, "character_style": active_character_style(entry, chunk_index)}}
+
+
+def anchored_instruct(voice_data, instruct_text):
+    """CustomVoice: the identity anchor first, the line's own emotion after.
+    Measured 2026-09-18 (custom_voice_instruct_drift, 120 real lines, Ryan):
+    the per-line instructs alone wander 3.5 semitones in pitch over a run at
+    ECAPA 0.74 to the voice's own opening; a constant anchor in front of them
+    holds it to 2.5 st at 0.77 (anchor alone: 2.4 st, 0.82, but no emotion).
+    This path ignored `character_style` entirely before."""
+    anchor = (voice_data.get("character_style") or "").strip()
+    line = (instruct_text or "").strip()
+    if anchor and line:
+        return f"{anchor} {line}"
+    return anchor or line or (voice_data.get("default_style") or "").strip() or "neutral"
+
+
+def voice_is_set(voice_data):
+    """Does this character have a voice yet? True for any assigned LoRA /
+    clone / designed / ensemble voice, and for a custom entry that carries a
+    persona (a description or reference audio). False for the bare default
+    the Voices tab writes for every character as soon as it renders - which
+    is why "has an entry in voice_config.json" is not the test (#602: that
+    made "only characters without a voice" select nobody)."""
+    data = voice_data or {}
+    if voice_category(data) != "custom":
+        return True
+    return bool((data.get("description") or "").strip() or data.get("ref_audio"))
+
+
 def voice_category(voice_data):
     """Normalize a voice config entry's type into a routing category.
 
@@ -177,6 +232,50 @@ def sanitize_filename(name):
     return re.sub(r'[^\w\-]', '_', safe).lower()
 
 
+# Dead air the model emits around each line. Measured 2026-09-18 over 6,550
+# LoRA-path lines (ab_test_runtime/chapter_audio + voice_drift): median
+# 310-340 ms of leading silence (p90 540-600 ms) and 80 ms trailing, i.e.
+# 4-5% of a book, ~2.5-2.9 minutes per hour - and it sits on top of the
+# configured pause, so a 250 ms same-speaker gap was really ~670 ms. Trimmed
+# at join time (not at generation, so nothing on disk changes and the
+# editor's per-line files are untouched), keeping a short head and tail so no
+# onset is clipped. The CustomVoice path emits ~80 ms and is unaffected.
+EDGE_SILENCE_THRESHOLD_DBFS = -45.0
+EDGE_SILENCE_KEEP_HEAD_MS = 40
+EDGE_SILENCE_KEEP_TAIL_MS = 80
+_EDGE_SILENCE_STEP_MS = 10
+
+
+def _silent_edge_ms(segment, from_end, threshold_db):
+    """Milliseconds of silence at the start (or end) of a segment."""
+    length = len(segment)
+    silent = 0
+    while silent < length:
+        start = length - silent - _EDGE_SILENCE_STEP_MS if from_end else silent
+        slice_ = segment[max(0, start):max(0, start) + _EDGE_SILENCE_STEP_MS]
+        if len(slice_) == 0 or slice_.dBFS > threshold_db:
+            break
+        silent += _EDGE_SILENCE_STEP_MS
+    return min(silent, length)
+
+
+def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
+                      keep_head_ms=EDGE_SILENCE_KEEP_HEAD_MS,
+                      keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS):
+    """-> the segment with leading/trailing silence cut back to keep_head_ms /
+    keep_tail_ms. A segment that is silent throughout is returned unchanged
+    (a missing line must stay visible as its full length, not vanish)."""
+    if segment is None or len(segment) == 0:
+        return segment
+    lead = _silent_edge_ms(segment, False, threshold_db)
+    if lead >= len(segment):
+        return segment
+    tail = _silent_edge_ms(segment, True, threshold_db)
+    start = max(0, lead - keep_head_ms)
+    end = len(segment) - max(0, tail - keep_tail_ms)
+    return segment[start:end] if (start, end) != (0, len(segment)) else segment
+
+
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,
                               same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS,
                               pause_overrides=None):
@@ -190,6 +289,7 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
     if not audio_segments:
         return None
 
+    audio_segments = [trim_edge_silence(s) for s in audio_segments]
     combined = audio_segments[0]
     prev_speaker = speakers[0]
 
@@ -227,6 +327,7 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
     prev_chunk = None
 
     for chunk, segment in chunks_with_audio:
+        segment = trim_edge_silence(segment)   # same cut the combined audio gets
         if prev_speaker is not None:
             override = prev_chunk.get("pause_after")
             if override is not None:
@@ -1445,10 +1546,9 @@ class TTSEngine:
                 return False
 
             voice = voice_data.get("voice", "Ryan")
-            default_style = voice_data.get("default_style", "")
             seed = int(voice_data.get("seed", -1))
 
-            instruct = instruct_text if instruct_text else (default_style if default_style else "neutral")
+            instruct = anchored_instruct(voice_data, instruct_text)
 
             import time
 
@@ -2000,10 +2100,9 @@ class TTSEngine:
                 return False
 
             voice = voice_data.get("voice", "Ryan")
-            default_style = voice_data.get("default_style", "")
             seed = int(voice_data.get("seed", -1))
 
-            instruct = instruct_text if instruct_text else (default_style if default_style else "neutral")
+            instruct = anchored_instruct(voice_data, instruct_text)
 
             print(f"TTS [external] generating with instruct='{instruct}' for text='{text[:50]}...'")
 

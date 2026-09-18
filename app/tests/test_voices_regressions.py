@@ -192,6 +192,50 @@ class VoicesTests(unittest.TestCase):
             self.assertIn("--age-group", tasks.tasks[0].args[0])
             self.assertIn("teen", tasks.tasks[0].args[0])
 
+    def test_has_a_voice_means_a_persona_or_an_assigned_voice_not_a_bare_entry(self):
+        """The Voices tab writes a default custom entry for every character on
+        render, so "in voice_config" is not the test; /api/voices and
+        --new-only share tts.voice_is_set."""
+        import tts
+        self.assertFalse(tts.voice_is_set(None))
+        self.assertFalse(tts.voice_is_set({"type": "custom", "voice": "Aiden", "character_style": "", "seed": "-1"}))
+        self.assertTrue(tts.voice_is_set({"type": "custom", "voice": "Aiden", "description": "warm baritone"}))
+        self.assertTrue(tts.voice_is_set({"type": "custom", "ref_audio": "x.wav"}))
+        self.assertTrue(tts.voice_is_set({"type": "lora", "adapter_id": "a"}))
+        self.assertTrue(tts.voice_is_set({"type": "design", "description": ""}))
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            voice_path = os.path.join(tmp, "voices.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "Bare"}, {"speaker": "New"}]), encoding="utf-8")
+            Path(voice_path).write_text(json.dumps({"Hero": {"type": "lora", "adapter_id": "a"},
+                                                    "Bare": {"type": "custom", "voice": "Aiden", "seed": "-1"}}), encoding="utf-8")
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                rows = {r["name"]: r["persona_pending"] for r in asyncio.run(voices_module.get_voices())}
+        self.assertEqual({"Hero": False, "Bare": True, "New": True}, rows)
+
+    def test_persona_generation_can_be_limited_to_characters_without_a_voice(self):
+        """#602: new_only reaches generate_personas.py as --new-only; the
+        default regenerates everyone, as before."""
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]), encoding="utf-8")
+            commands = []
+            for new_only in (True, False):
+                tasks = voices_module.BackgroundTasks()
+                with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                     patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "voices.json")), \
+                     patch.object(voices_module, "check_global_gpu_lock"), \
+                     patch.object(voices_module, "claim_gpu_task"), \
+                     patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)), \
+                     patch.object(voices_module, "run_process"):
+                    asyncio.run(voices_module.generate_personas(
+                        tasks, voices_module.GeneratePersonasRequest(new_only=new_only)))
+                commands.append(tasks.tasks[0].args[0])
+            self.assertIn("--new-only", commands[0])
+            self.assertNotIn("--new-only", commands[1])
+            self.assertFalse(voices_module.GeneratePersonasRequest().new_only)
+
     def test_voice_candidate_favorite_round_trips(self):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "script.json")

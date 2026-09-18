@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 996,
+    "supported_structure": 997,
     "exploratory": 414,
     "provisional": 272,
     "artifacts_that_generated_nothing": 15
@@ -3860,6 +3860,24 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "custom_voice_instruct_drift__ryan_arc1_20260918.json",
+      "bytes": 157413,
+      "sha256": "052209b2ee10075a50b47d78ff4daeb3c5db1a5332a5b6652ae012a3dc44b9fb",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": 42,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-18T12:07:31",
+      "commit": "16d1c7611ce6125675637ae9f72f8d86a985fc0f",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "dataset_prosodic_spread.json",

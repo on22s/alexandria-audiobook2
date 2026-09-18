@@ -952,6 +952,11 @@
             "title": "Context Lines",
             "type": "integer"
           },
+          "new_only": {
+            "default": false,
+            "title": "New Only",
+            "type": "boolean"
+          },
           "speaker": {
             "anyOf": [
               {
@@ -2069,6 +2074,19 @@
         "title": "SkipChunkRequest",
         "type": "object"
       },
+      "SnapshotRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SnapshotRequest",
+        "type": "object"
+      },
       "SpeakerRepairRequest": {
         "properties": {
           "expected_sha256": {
@@ -2115,6 +2133,26 @@
           "new_speaker"
         ],
         "title": "SpeakerSelection",
+        "type": "object"
+      },
+      "StylePointRequest": {
+        "properties": {
+          "character_style": {
+            "maxLength": 400,
+            "title": "Character Style",
+            "type": "string"
+          },
+          "from_index": {
+            "minimum": 0.0,
+            "title": "From Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_index",
+          "character_style"
+        ],
+        "title": "StylePointRequest",
         "type": "object"
       },
       "SuggestVoicesRequest": {
@@ -2623,6 +2661,14 @@
             ],
             "default": "-1",
             "title": "Seed"
+          },
+          "style_timeline": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Style Timeline",
+            "type": "array"
           },
           "type": {
             "default": "custom",
@@ -4444,7 +4490,8 @@
                 "default": {
                   "advanced": false,
                   "batch_size": 40,
-                  "context_lines": 8
+                  "context_lines": 8,
+                  "new_only": false
                 }
               }
             }
@@ -4835,6 +4882,43 @@
           }
         },
         "summary": "Generate Script Skip"
+      }
+    },
+    "/api/generate_script/snapshot": {
+      "post": {
+        "description": "Save the finished part of the running generation to the library\nwithout stopping it (#600). Reads the run's checkpoint - the pipeline\nwrites it atomically after every unit - and stores the completed prefix\nas a saved script, with the current voice config as its companion, the\nsame shape /api/scripts/save produces. The run keeps going; when it\nfinishes it becomes the active script as usual, and the snapshot stays\nin the library.",
+        "operationId": "snapshot_script_api_generate_script_snapshot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot Script"
       }
     },
     "/api/llm/models": {
@@ -8413,6 +8497,100 @@
           }
         },
         "summary": "Update Persona Voice Audit"
+      }
+    },
+    "/api/voices/{speaker}/style_timeline": {
+      "post": {
+        "description": "From this line on, the character sounds like `character_style` (an\naged character, a time skip). Replaces a point at the same index.",
+        "operationId": "add_style_point_api_voices__speaker__style_timeline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Style Point"
+      }
+    },
+    "/api/voices/{speaker}/style_timeline/{from_index}": {
+      "delete": {
+        "operationId": "remove_style_point_api_voices__speaker__style_timeline__from_index__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "from_index",
+            "required": true,
+            "schema": {
+              "title": "From Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Style Point"
       }
     },
     "/api/voices/{speaker}/versions": {

@@ -6,6 +6,7 @@ import logging
 import os
 import posixpath
 import re
+import shutil
 import sys
 import threading
 import time
@@ -47,6 +48,8 @@ from generate_script import LLMGenParams
 from utils import file_lock
 
 from core import (
+    _saved_book_meta_path,
+    get_active_book_id,
     BASE_DIR,
     _compute_eta,
     CHARACTER_ALIASES_PATH,
@@ -829,6 +832,61 @@ def get_script_recovery_manifest() -> Optional[dict]:
             "failed", "incomplete"}:
         return None
     return manifest
+
+
+def completed_script_prefix(checkpoint):
+    """The entries a running three-pass has fully finished (all three passes),
+    in order, stopping at the first one that has not - the snapshot #600
+    asks for. Pass 3 fills `annotated` window by window in source order, so
+    the finished part is a prefix; narration filled deterministically ahead
+    of its window is skipped past rather than counted, so the snapshot never
+    contains a line whose neighbours are still unwritten."""
+    annotated = checkpoint.get("annotated") or []
+    named = checkpoint.get("named") or []
+    prefix = []
+    for index, entry in enumerate(annotated):
+        if not isinstance(entry, dict) or index >= len(named) or named[index] is None:
+            break
+        prefix.append({key: value for key, value in entry.items()})
+    return prefix
+
+
+class SnapshotRequest(BaseModel):
+    name: str
+
+
+@router.post("/api/generate_script/snapshot")
+async def snapshot_script(request: SnapshotRequest):
+    """Save the finished part of the running generation to the library
+    without stopping it (#600). Reads the run's checkpoint - the pipeline
+    writes it atomically after every unit - and stores the completed prefix
+    as a saved script, with the current voice config as its companion, the
+    same shape /api/scripts/save produces. The run keeps going; when it
+    finishes it becomes the active script as usual, and the snapshot stays
+    in the library."""
+    if not process_state["script"].get("running"):
+        raise HTTPException(status_code=409, detail="No script generation is running; use Save script instead.")
+    checkpoint = safe_load_json(three_pass_checkpoint_path(SCRIPT_PATH), None)
+    if not isinstance(checkpoint, dict):
+        raise HTTPException(status_code=409, detail="The run has not written a checkpoint yet.")
+    entries = completed_script_prefix(checkpoint)
+    if not entries:
+        raise HTTPException(status_code=409, detail="Nothing is fully finished yet - Step 3 has not completed a window.")
+    safe_name = _require_safe_filename(request.name, "Invalid snapshot name.")
+    dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    os.makedirs(SCRIPTS_DIR, exist_ok=True)
+    atomic_json_write(entries, dest)
+    if os.path.exists(VOICE_CONFIG_PATH):
+        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json"))
+    atomic_json_write({"book_id": get_active_book_id() or safe_name,
+                       "snapshot": {"entries": len(entries),
+                                    "segmented": len(checkpoint.get("segmented") or []),
+                                    "chunks_done": checkpoint.get("chunks_done"),
+                                    "stage": checkpoint.get("stage"), "taken": time.time()}},
+                      _saved_book_meta_path(safe_name))
+    return {"status": "saved", "name": safe_name, "entries": len(entries),
+            "segmented": len(checkpoint.get("segmented") or []),
+            "chunks_done": checkpoint.get("chunks_done")}
 
 
 def discard_script_progress():

@@ -739,7 +739,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
 
 def main():
     parser = argparse.ArgumentParser(description="Generate personas for speakers in annotated script")
-    parser.add_argument("--new-only", action="store_true", help="Process only speakers missing from voice_config.json")
+    parser.add_argument("--new-only", action="store_true", help="Only speakers without a voice yet (tts.voice_is_set)")
     parser.add_argument("--alias-check", action="store_true", help="Use LLM + heuristics to decide alias_of vs truly new character")
     parser.add_argument("--advanced", action="store_true", help="Batch the full script into per-character reference files before compiling voice personas")
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
@@ -826,7 +826,8 @@ def main():
 
     selected_speakers = list(samples.keys())
     if args.new_only:
-        selected_speakers = [s for s in selected_speakers if s not in voice_config]
+        from tts import voice_is_set
+        selected_speakers = [s for s in selected_speakers if not voice_is_set(voice_config.get(s))]
     if args.speakers.strip():
         allow = {s.strip() for s in args.speakers.split(",") if s.strip()}
         selected_speakers = [s for s in selected_speakers if s in allow]
