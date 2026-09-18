@@ -67,6 +67,39 @@
             return true;
         }
 
+        // navigator.clipboard exists only in a secure context (https, or
+        // http on localhost). Pinokio reaches the app through other hosts
+        // too, and there it is undefined - "Cannot read properties of
+        // undefined (reading 'writeText')" on every Copy button (#594). So:
+        // the modern API where it exists, the old execCommand path where it
+        // doesn't, and if both fail the text is put where the user can copy
+        // it by hand rather than a toast that says it cannot be done.
+        async function copyToClipboard(text, what = 'Text') {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast(`${what} copied to the clipboard.`, 'success');
+                    return true;
+                } catch (e) { /* fall through to the legacy path */ }
+            }
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            area.style.position = 'fixed';
+            area.style.left = '-9999px';
+            document.body.appendChild(area);
+            area.select();
+            let copied = false;
+            try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+            document.body.removeChild(area);
+            if (copied) {
+                showToast(`${what} copied to the clipboard.`, 'success');
+                return true;
+            }
+            window.prompt(`${what} - the browser refused clipboard access here, so select and copy it by hand:`, text);
+            return false;
+        }
+
         function escapeHtml(str) {
             if (str == null) { return ''; }
             return String(str)
@@ -1384,12 +1417,7 @@
                 return;
             }
             const text = `SYSTEM:\n${detail.prompt.system}\n\nUSER:\n${detail.prompt.user}`;
-            try {
-                await navigator.clipboard.writeText(text);
-                showToast('Prompt copied to the clipboard.', 'success');
-            } catch (e) {
-                showToast('Clipboard unavailable: ' + e.message, 'error');
-            }
+            await copyToClipboard(text, 'Prompt');
         }
 
         function renderRecoveryFindings(detail) {
@@ -2213,12 +2241,7 @@
         const narration = document.getElementById('persona-recovery-narration')?.value.trim() || '(none provided)';
         const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)
             .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}`;
-        try {
-            await navigator.clipboard.writeText(prompt);
-            showToast('Persona prompt copied to the clipboard.', 'success');
-        } catch (e) {
-            showToast('Clipboard unavailable: ' + e.message, 'error');
-        }
+        await copyToClipboard(prompt, 'Persona prompt');
     };
 
         async function pollPersonaStatus() {

@@ -1319,6 +1319,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_dialogue_detection_select_offers_exactly_the_config_modes",
     "tests.test_frontend_regressions.FrontendTests.test_docker_image_includes_root_runtime_dependencies",
     "tests.test_frontend_regressions.FrontendTests.test_docker_mounts_single_persistent_runtime_root",
+    "tests.test_frontend_regressions.FrontendTests.test_every_copy_button_goes_through_the_clipboard_fallback",
     "tests.test_frontend_regressions.FrontendTests.test_every_pause_button_is_greyed_by_the_capability_hook",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_config_controls_match_backend_schema",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save",

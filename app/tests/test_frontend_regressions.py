@@ -370,6 +370,21 @@ class FrontendTests(unittest.TestCase):
         self.assertTrue(all(name.startswith(prefix) for name in pause_buttons), pause_buttons)
         self.assertIn("Use Cancel", js)
 
+    def test_every_copy_button_goes_through_the_clipboard_fallback(self):
+        """navigator.clipboard is undefined outside a secure context (#594:
+        every Copy button failed on a non-localhost host). One helper owns
+        the modern API, the execCommand fallback and the hand-copy prompt;
+        no caller may touch navigator.clipboard directly."""
+        js = _read_frontend_source()
+        self.assertIn("async function copyToClipboard(text", js)
+        self.assertIn("document.execCommand('copy')", js)
+        self.assertIn("window.prompt(", js)
+        direct = [m.start() for m in re.finditer(r"navigator\.clipboard\.writeText", js)]
+        helper_start = js.index("async function copyToClipboard(text")
+        helper_end = js.index("function escapeHtml(str)")
+        self.assertTrue(all(helper_start < i < helper_end for i in direct), direct)
+        self.assertGreaterEqual(len(re.findall(r"await copyToClipboard\(", js)), 3)
+
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value
         the API refuses, or hides one it accepts."""
