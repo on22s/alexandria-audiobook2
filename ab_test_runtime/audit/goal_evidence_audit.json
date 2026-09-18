@@ -1,6 +1,6 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 16,
+ "goals_scored": 17,
  "goals_citing_no_artifact": [
   "2.5",
   "4.2",
@@ -8,7 +8,6 @@
   "7.2",
   "2.2",
   "2.3",
-  "2.8",
   "3.1",
   "3.3",
   "3.4",
@@ -823,6 +822,27 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "6a3f6698"
+    }
+   ]
+  },
+  {
+   "goal": "2.8",
+   "title": "A voice stays the same voice across a whole book",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "supported_structure",
+   "classifications": {
+    "supported_structure": 1
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 0,
+   "artifacts": [
+    {
+     "name": "custom_voice_instruct_drift__ryan_arc1_20260918.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "16d1c761"
     }
    ]
   },

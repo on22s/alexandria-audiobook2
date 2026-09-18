@@ -5220,6 +5220,22 @@ failures. **MET.**
 **Target — |drift| ≤ 0.03 across a book-length run.** All three clear it with
 an order of magnitude to spare.
 
+**Scope note, 2026-09-18: this is a LoRA-voice result; the CustomVoice path
+was unmeasured until today, and it wanders.** 120 consecutive narrator
+lines from a real script, rendered by the CustomVoice engine (Ryan) with the
+per-line instructs pass 3 actually wrote, same seed: median pitch spread
+across the run **3.49 semitones**, ECAPA to the run's own opening 0.737 (p10
+0.604) — a LoRA voice at book length sits near 0.9. The cause is not the
+words the buddies fork blamed (stripping timbre terms: 3.48 / 0.737,
+unchanged) but the per-line instruct itself re-describing the voice every
+line. A constant identity in front of each instruct holds it to **2.53 st /
+0.771**; the identity alone reaches 2.42 / 0.825 at the cost of all
+emotion. #603 ships the anchor-first instruct with change points. The metric
+here is spread, not this goal's slope; whether the anchored path also clears
+the 0.03 drift bound at 2,000 lines is unmeasured and is the next
+`voice_drift.py` run once the local card is free. Evidence —
+`custom_voice_instruct_drift__ryan_arc1_20260918.json`.
+
 #### The 400-line result was noise, and this supersedes it
 
 An earlier run over 400 lines reported drift of −0.018, −0.050 and −0.017 and
