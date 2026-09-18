@@ -2,8 +2,8 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 997,
-    "exploratory": 414,
-    "provisional": 272,
+    "exploratory": 415,
+    "provisional": 278,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -3983,6 +3983,21 @@
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "dead_air_scan_20260918.json",
+      "bytes": 842,
+      "sha256": "4f88218e2f40cbd044ee433df1b2a89fabf59f4d44885ecb8456357761c47d11",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "decontaminate_batch1.json",
@@ -11877,6 +11892,24 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json",
+      "bytes": 4444259,
+      "sha256": "fd16f760cfa0fb82a6ad17b9703bf62309ae150540d6e4b0d5df51f527e71969",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 2655,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -12987,6 +13020,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__muse-michel2-low-tnr1-cleangold-replication-20260917.json",
+      "bytes": 681845,
+      "sha256": "8b9b6647d16be7b8de64a87d2294ba198174e1dad7c29cd70d7489891e05b300",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 768,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "cf6e35c9f5ba9838e85c085f3c847c1bb509dafa",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
       "bytes": 312292,
       "sha256": "6610ac90fd4f71aa632966d2b8fe0ff53269ee0e143d8b2bf33152337ec59e0b",
@@ -13293,6 +13344,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__qwen3-14b-michel2shot-low-tnr1-cleangold-replication-20260917.json",
+      "bytes": 682935,
+      "sha256": "e21be2863a1d0090c9b6549c02996bb100b9a31f0ea0ce3358bad0541a6633ae",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 768,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "95dd67001b32cff561fbfd2180e57faa95afceb8",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__qwen3-14b-mixed-a6000-gold-schema-checked-20260911.json",
       "bytes": 658084,
       "sha256": "cac072e4de56986d69eefa8e44c1f5474541762eaaaf3a6916f3912d909b0e6b",
@@ -13487,6 +13556,24 @@
       "commit": "f1d107ea22d3f86d2162b369ab7f64181def2dfb",
       "written": null,
       "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-rightsclean-tnr2-cleangold-budget2048-schema-20260917.json",
+      "bytes": 1361767,
+      "sha256": "3a3763333df29bafd79334a4e4da082fffc77561d2c56e9b9cf374cc098adb90",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1536,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "95dd67001b32cff561fbfd2180e57faa95afceb8",
+      "written": null,
+      "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },
@@ -14058,6 +14145,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__qwen36-35b-a3b-thinking-michel2_shot-tnr0-cleangold-low-budget1024-schema-20260917.json",
+      "bytes": 681884,
+      "sha256": "04512b73d9cb58f1f5704abca0f7bc8e92d498338120bfc331e78e1206c1661e",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 768,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "95dd67001b32cff561fbfd2180e57faa95afceb8",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__qwen36-q4km-untuned-clean-gold.json",
       "bytes": 175141,
       "sha256": "1dd3e592b74483fcd228a01efb86cf45a21f2448a63e2b3e439864be34372322",
@@ -14151,6 +14256,24 @@
       "artifact": "lora_serving_eval__qwen38-27b-q4km-michel2_full-tnr0-cleangold-low-budget1024-schema-20260917.json",
       "bytes": 682663,
       "sha256": "7c7d29f3e5b1f0ee32020ec3ea1e06c28c3c88e382f85081701d18acd7e9315f",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 768,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "95dd67001b32cff561fbfd2180e57faa95afceb8",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-27b-q4km-michel2_shot-tnr0-cleangold-low-budget1024-schema-20260917.json",
+      "bytes": 682082,
+      "sha256": "48eaad5aec2583a9337951e7ced3f77c78814cc950ab1b0430d470bbd0623999",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
