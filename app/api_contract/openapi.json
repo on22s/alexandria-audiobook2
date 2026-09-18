@@ -981,6 +981,11 @@
             ],
             "title": "First Person Narrator"
           },
+          "start_over": {
+            "default": false,
+            "title": "Start Over",
+            "type": "boolean"
+          },
           "strip_front_matter": {
             "default": true,
             "title": "Strip Front Matter",

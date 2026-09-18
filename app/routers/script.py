@@ -777,6 +777,11 @@ async def upload_file(file: UploadFile = File(...)):
 class GenerateScriptRequest(BaseModel):
     strip_front_matter: bool = True
     first_person_narrator: Optional[str] = None
+    # Discard the saved progress for this book and begin at chunk 1. Without
+    # it a run on the same text with the same settings resumes where it
+    # stopped - by design (a crash or Cancel loses nothing), but there was no
+    # way to ask for a fresh run short of changing a setting (#597).
+    start_over: bool = False
 
 
 def get_active_reasoning_effort() -> Optional[str]:
@@ -826,6 +831,19 @@ def get_script_recovery_manifest() -> Optional[dict]:
     return manifest
 
 
+def discard_script_progress():
+    """Remove the single-book run's checkpoint and manifest so the next run
+    starts at chunk 1. -> the paths that existed."""
+    removed = []
+    for path in (three_pass_checkpoint_path(SCRIPT_PATH), three_pass_manifest_path(SCRIPT_PATH)):
+        try:
+            os.remove(path)
+            removed.append(path)
+        except FileNotFoundError:
+            pass
+    return removed
+
+
 def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             request: Optional[GenerateScriptRequest],
                             require_recovery: bool = False):
@@ -849,6 +867,8 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         "first_person_narrator": (request.first_person_narrator
                                   if request is not None else None),
     }
+    if request is not None and request.start_over and not require_recovery:
+        discard_script_progress()
     try:
         command = build_generate_script_command(
             input_file,

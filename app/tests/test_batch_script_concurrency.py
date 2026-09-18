@@ -283,6 +283,32 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                 message = script.three_pass_refusal(jobs)
         self.assertIn("write back in one reply", message)
 
+    def test_start_over_discards_the_checkpoint_and_plain_generate_keeps_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text('"Hello," she said. ' * 50, encoding="utf-8")
+            script_path = str(Path(tmp, "annotated_script.json"))
+            ckpt = Path(script.three_pass_checkpoint_path(script_path))
+            manifest = Path(script.three_pass_manifest_path(script_path))
+            for start_over, kept in ((False, True), (True, False)):
+                ckpt.write_text("{}", encoding="utf-8")
+                manifest.write_text("{}", encoding="utf-8")
+                with patch.object(script, "SCRIPT_PATH", script_path), \
+                     patch.object(script, "DATA_DIR", tmp), \
+                     patch.object(script, "load_app_config", return_value={
+                         "llm": {"model_name": "model"},
+                         "generation": {"three_pass_chunk_size": 3000, "max_tokens": 4096},
+                         "prompts": {}}), \
+                     patch.object(script, "check_global_gpu_lock"), \
+                     patch.object(script, "claim_gpu_task"), \
+                     patch.object(script, "build_generate_script_command", return_value=["x"]):
+                    tasks = script.BackgroundTasks()
+                    script.start_script_generation(
+                        tasks, str(path), script.GenerateScriptRequest(start_over=start_over))
+                with self.subTest(start_over=start_over):
+                    self.assertEqual(kept, ckpt.exists())
+                    self.assertEqual(kept, manifest.exists())
+
     def test_single_book_start_refuses_before_claiming_the_gpu(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "book.txt")

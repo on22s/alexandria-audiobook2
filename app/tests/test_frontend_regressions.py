@@ -385,6 +385,13 @@ class FrontendTests(unittest.TestCase):
         self.assertTrue(all(helper_start < i < helper_end for i in direct), direct)
         self.assertGreaterEqual(len(re.findall(r"await copyToClipboard\(", js)), 3)
 
+    def test_start_over_button_sends_the_flag_and_generate_alone_resumes(self):
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        self.assertIn('id="btn-gen-script-fresh"', html)
+        self.assertIn("start_over: startOver,", js)
+        self.assertIn("_scriptStartOver = true;", js)
+        self.assertIn("confirm('Discard the saved progress", js)
     def test_manual_transport_is_selectable_and_the_panel_is_wired(self):
         html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
         js = _read_frontend_source()

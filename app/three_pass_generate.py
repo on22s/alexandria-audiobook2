@@ -1307,6 +1307,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
+    if state:
+        # Say so: a run that silently picks up mid-book reads as "it skipped
+        # the start" to someone who cancelled and pressed Generate again (#597).
+        print(f"Resuming saved progress for this text and these settings: "
+              f"{chunks_done}/{len(chunks)} chunks already split, stage '{state.get('stage')}'. "
+              "Use 'Start over' to begin at chunk 1.", flush=True)
     named = state["named"] if state else []
     annotated = state["annotated"] if state else []
     legacy_resume = bool(state and "resolutions" not in state)
