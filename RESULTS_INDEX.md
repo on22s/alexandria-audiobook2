@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-18 from `ab_test_runtime/experiments/` — 1681 artifacts, 1973 arms.
+Generated 2026-09-18 from `ab_test_runtime/experiments/` — 1682 artifacts, 1973 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2305,6 +2305,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `ctc_japanese_boundary_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ctc_japanese_boundary_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `custom_voice_instruct_drift__ryan_arc1_20260918.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_prosodic_spread.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

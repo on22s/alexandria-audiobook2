@@ -1,0 +1,4392 @@
+{
+ "experiment": "custom_voice_instruct_drift",
+ "script": "Arc 1 - Volume 1.json",
+ "speaker": "NARRATOR",
+ "voice": "Ryan",
+ "seed": 42,
+ "anchor": "A calm, mid-register adult male voice; steady, measured pace.",
+ "lines": 120,
+ "arms": {
+  "as_written": {
+   "summary": {
+    "generated": 120,
+    "failed": 0,
+    "ecapa_error": null,
+    "ecapa_mean": 0.737,
+    "ecapa_p10": 0.6039,
+    "f0_median_hz": 140.7,
+    "f0_spread_semitones": 3.488,
+    "vtl_spread": 0.7381,
+    "seconds_mean": 10.256,
+    "seconds_per_char": 0.0758
+   },
+   "rows": [
+    {
+     "i": 0,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00000.wav",
+     "instruct": "Book title announcement; slightly dramatic and engaging tone.",
+     "seconds": 4.72,
+     "f0_median": 188.3,
+     "vtl": 15.81
+    },
+    {
+     "i": 1,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00001.wav",
+     "instruct": "Quick, precise reading of the copyright line; professional quality.",
+     "seconds": 5.92,
+     "f0_median": 139.0,
+     "vtl": 16.96
+    },
+    {
+     "i": 2,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00002.wav",
+     "instruct": "Straightforward informational delivery; slightly crisp articulation.",
+     "seconds": 6.0,
+     "f0_median": 200.7,
+     "vtl": 15.47
+    },
+    {
+     "i": 3,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00003.wav",
+     "instruct": "Slightly more formal and legalistic tone; steady pace.",
+     "seconds": 12.4,
+     "f0_median": 169.7,
+     "vtl": 15.86
+    },
+    {
+     "i": 4,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00004.wav",
+     "instruct": "Brief, authoritative reading of the date and holder; clear enunciation.",
+     "seconds": 5.12,
+     "f0_median": 214.5,
+     "vtl": 16.42
+    },
+    {
+     "i": 5,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00005.wav",
+     "instruct": "Uplifting, persuasive tone; slightly warmer than standard narration.",
+     "seconds": 11.36,
+     "f0_median": 158.3,
+     "vtl": 15.88
+    },
+    {
+     "i": 6,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00006.wav",
+     "instruct": "Clear, measured address reading; professional cadence.",
+     "seconds": 2.96,
+     "f0_median": 140.3,
+     "vtl": 17.44
+    },
+    {
+     "i": 7,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00007.wav",
+     "instruct": "Quick, energetic reading of web addresses; slightly accelerated pace.",
+     "seconds": 8.32,
+     "f0_median": 185.1,
+     "vtl": 17.79
+    },
+    {
+     "i": 8,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00008.wav",
+     "instruct": "Rapid-fire legal disclaimer; highly professional and steady delivery.",
+     "seconds": 13.36,
+     "f0_median": 176.7,
+     "vtl": 15.69,
+     "ecapa_vs_anchor": 0.852349579334259
+    },
+    {
+     "i": 9,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00009.wav",
+     "instruct": "Precise, almost robotic reading of numbers; very clear articulation.",
+     "seconds": 18.32,
+     "f0_median": 159.3,
+     "vtl": 16.32,
+     "ecapa_vs_anchor": 0.8799450993537903
+    },
+    {
+     "i": 10,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00010.wav",
+     "instruct": "Technical code reading; clipped and efficient delivery.",
+     "seconds": 6.56,
+     "f0_median": 220.1,
+     "vtl": 15.41,
+     "ecapa_vs_anchor": 0.5860393047332764
+    },
+    {
+     "i": 11,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00011.wav",
+     "instruct": "Simple directional cues; clear and inviting tone.",
+     "seconds": 4.64,
+     "f0_median": 142.7,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.7685635089874268
+    },
+    {
+     "i": 12,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00012.wav",
+     "instruct": "Dramatic, pronounced title reading; slow and weighty delivery.",
+     "seconds": 3.76,
+     "f0_median": 248.5,
+     "vtl": 15.09,
+     "ecapa_vs_anchor": 0.5322401523590088
+    },
+    {
+     "i": 13,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00013.wav",
+     "instruct": "Analytical, horrified narration; slightly faster pace as the realization sinks in.",
+     "seconds": 19.44,
+     "f0_median": 157.4,
+     "vtl": 15.59,
+     "ecapa_vs_anchor": 0.6561216711997986
+    },
+    {
+     "i": 14,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00014.wav",
+     "instruct": "Dramatic summation; slowing down on 'checkmate' for impact.",
+     "seconds": 14.16,
+     "f0_median": 185.6,
+     "vtl": 16.05,
+     "ecapa_vs_anchor": 0.8614464998245239
+    },
+    {
+     "i": 15,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00015.wav",
+     "instruct": "Visual narration; quiet awe mixed with dread.",
+     "seconds": 16.56,
+     "f0_median": 118.6,
+     "vtl": 16.76,
+     "ecapa_vs_anchor": 0.5818197131156921
+    },
+    {
+     "i": 16,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00016.wav",
+     "instruct": "Resigned, weary tone; very soft delivery.",
+     "seconds": 5.84,
+     "f0_median": 150.3,
+     "vtl": 14.83,
+     "ecapa_vs_anchor": 0.665715217590332
+    },
+    {
+     "i": 17,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00017.wav",
+     "instruct": "Awe-struck narration; the pace quickens dramatically leading into the exclamation.",
+     "seconds": 10.64,
+     "f0_median": 165.8,
+     "vtl": 15.01,
+     "ecapa_vs_anchor": 0.7176985144615173
+    },
+    {
+     "i": 18,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00018.wav",
+     "instruct": "Urgent action narration; quickened pace conveying sudden movement and impact.",
+     "seconds": 8.16,
+     "f0_median": 131.6,
+     "vtl": 15.71,
+     "ecapa_vs_anchor": 0.7072016000747681
+    },
+    {
+     "i": 19,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00019.wav",
+     "instruct": "Intimate, tender narration; very soft delivery focusing on tactile sensation.",
+     "seconds": 14.32,
+     "f0_median": 122.1,
+     "vtl": 16.73,
+     "ecapa_vs_anchor": 0.6086503267288208
+    },
+    {
+     "i": 20,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00020.wav",
+     "instruct": "Intense, effortful narration; conveying immense internal struggle and fight for life.",
+     "seconds": 6.56,
+     "f0_median": 156.5,
+     "vtl": 15.76,
+     "ecapa_vs_anchor": 0.7339726686477661
+    },
+    {
+     "i": 21,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00021.wav",
+     "instruct": "Terminal announcement; slow, heavy finality to the word 'life.'",
+     "seconds": 7.44,
+     "f0_median": 157.4,
+     "vtl": 16.83,
+     "ecapa_vs_anchor": 0.43842047452926636
+    },
+    {
+     "i": 22,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00022.wav",
+     "instruct": "Detailed visual description; slightly softer focus on the nuance of his expression.",
+     "seconds": 13.2,
+     "f0_median": 112.0,
+     "vtl": 16.08,
+     "ecapa_vs_anchor": 0.827649712562561
+    },
+    {
+     "i": 23,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00023.wav",
+     "instruct": "Building tension narration; slowing down on 'strange' to create suspenseful emphasis.",
+     "seconds": 16.48,
+     "f0_median": 167.8,
+     "vtl": 15.89,
+     "ecapa_vs_anchor": 0.7545273303985596
+    },
+    {
+     "i": 24,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00024.wav",
+     "instruct": "Observational narration; building a sense of contrast and strangeness.",
+     "seconds": 7.92,
+     "f0_median": 208.9,
+     "vtl": 17.54,
+     "ecapa_vs_anchor": 0.7956749200820923
+    },
+    {
+     "i": 25,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00025.wav",
+     "instruct": "Descriptive, flowing narration; emphasizing variety with slight pauses.",
+     "seconds": 29.28,
+     "f0_median": 145.2,
+     "vtl": 16.48,
+     "ecapa_vs_anchor": 0.6160647869110107
+    },
+    {
+     "i": 26,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00026.wav",
+     "instruct": "Action-oriented narration; a moment of quiet resignation settling in.",
+     "seconds": 9.76,
+     "f0_median": 135.5,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7838988304138184
+    },
+    {
+     "i": 27,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00027.wav",
+     "instruct": "Sharp, quick action narration; energetic delivery matching the gesture.",
+     "seconds": 3.6,
+     "f0_median": 158.3,
+     "vtl": 16.63,
+     "ecapa_vs_anchor": 0.7571492195129395
+    },
+    {
+     "i": 28,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00028.wav",
+     "instruct": "Neutral narration, establishing context; slightly breathless to convey immediate action.",
+     "seconds": 6.88,
+     "f0_median": 171.7,
+     "vtl": 15.59,
+     "ecapa_vs_anchor": 0.6178130507469177
+    },
+    {
+     "i": 29,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00029.wav",
+     "instruct": "Informative, grounding narration; steady, factual delivery.",
+     "seconds": 8.96,
+     "f0_median": 116.6,
+     "vtl": 16.35,
+     "ecapa_vs_anchor": 0.833035945892334
+    },
+    {
+     "i": 30,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00030.wav",
+     "instruct": "Philosophical narration; measured and thoughtful pacing.",
+     "seconds": 14.24,
+     "f0_median": 156.5,
+     "vtl": 15.21,
+     "ecapa_vs_anchor": 0.8570460081100464
+    },
+    {
+     "i": 31,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00031.wav",
+     "instruct": "Conclusive narration; slightly melancholic inflection on 'weep over'.",
+     "seconds": 11.76,
+     "f0_median": 111.3,
+     "vtl": 16.69,
+     "ecapa_vs_anchor": 0.6510512828826904
+    },
+    {
+     "i": 32,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00032.wav",
+     "instruct": "Internal monologue narration; tone of disbelief mixed with physical annoyance.",
+     "seconds": 10.56,
+     "f0_median": 143.5,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.8080699443817139
+    },
+    {
+     "i": 33,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00033.wav",
+     "instruct": "Quietly tired narration; slowing down to emphasize his current state of weary observation.",
+     "seconds": 12.24,
+     "f0_median": 110.7,
+     "vtl": 16.87,
+     "ecapa_vs_anchor": 0.7154184579849243
+    },
+    {
+     "i": 34,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00034.wav",
+     "instruct": "Procedural narration; objective, like ticking items off a mental list.",
+     "seconds": 12.08,
+     "f0_median": 122.1,
+     "vtl": 15.37,
+     "ecapa_vs_anchor": 0.8184318542480469
+    },
+    {
+     "i": 35,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00035.wav",
+     "instruct": "Relief-tinged narration; tone brightens slightly on 'fortunately'.",
+     "seconds": 10.56,
+     "f0_median": 193.8,
+     "vtl": 15.02,
+     "ecapa_vs_anchor": 0.8307680487632751
+    },
+    {
+     "i": 36,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00036.wav",
+     "instruct": "Subtle disappointment in the delivery; quiet confirmation of negativity.",
+     "seconds": 6.88,
+     "f0_median": 113.3,
+     "vtl": 16.87,
+     "ecapa_vs_anchor": 0.8344904184341431
+    },
+    {
+     "i": 37,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00037.wav",
+     "instruct": "Reflective narration; a grateful, slightly amused tone when mentioning his own disposition.",
+     "seconds": 15.12,
+     "f0_median": 127.1,
+     "vtl": 16.22,
+     "ecapa_vs_anchor": 0.8684120774269104
+    },
+    {
+     "i": 38,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00038.wav",
+     "instruct": "Wistful narration; a slight hesitation before the final thought.",
+     "seconds": 15.92,
+     "f0_median": 144.4,
+     "vtl": 15.43,
+     "ecapa_vs_anchor": 0.7170240879058838
+    },
+    {
+     "i": 39,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00039.wav",
+     "instruct": "Emphatic narration; a slight downward inflection to convey the weight of his circumstances.",
+     "seconds": 6.0,
+     "f0_median": 158.3,
+     "vtl": 15.92,
+     "ecapa_vs_anchor": 0.7160505056381226
+    },
+    {
+     "i": 40,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00040.wav",
+     "instruct": "Slightly humorous resignation; narrative tone suggesting inevitability.",
+     "seconds": 7.04,
+     "f0_median": 167.8,
+     "vtl": 17.92,
+     "ecapa_vs_anchor": 0.7644507884979248
+    },
+    {
+     "i": 41,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00041.wav",
+     "instruct": "Detailed recounting narration; a slight pause before 'realizing' to emphasize the dawning horror.",
+     "seconds": 14.4,
+     "f0_median": 120.0,
+     "vtl": 16.15,
+     "ecapa_vs_anchor": 0.7846795320510864
+    },
+    {
+     "i": 42,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00042.wav",
+     "instruct": "Pragmatic, grounding tone; firm assertion of reality.",
+     "seconds": 2.96,
+     "f0_median": 201.8,
+     "vtl": 15.97,
+     "ecapa_vs_anchor": 0.7489300966262817
+    },
+    {
+     "i": 43,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00043.wav",
+     "instruct": "Dismissive narration; a quick, decisive delivery suggesting hope has been instantly crushed.",
+     "seconds": 13.28,
+     "f0_median": 171.7,
+     "vtl": 14.7,
+     "ecapa_vs_anchor": 0.8135555982589722
+    },
+    {
+     "i": 44,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00044.wav",
+     "instruct": "Observationally focused narration; building intensity toward 'half-humans'.",
+     "seconds": 14.32,
+     "f0_median": 122.8,
+     "vtl": 16.94,
+     "ecapa_vs_anchor": 0.838637113571167
+    },
+    {
+     "i": 45,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00045.wav",
+     "instruct": "Descriptive listing; smooth, flowing delivery that paints a clear picture.",
+     "seconds": 8.8,
+     "f0_median": 171.7,
+     "vtl": 14.85,
+     "ecapa_vs_anchor": 0.7606844305992126
+    },
+    {
+     "i": 46,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00046.wav",
+     "instruct": "Calm counterpoint narration; bringing the focus back to his own relatable nature.",
+     "seconds": 4.56,
+     "f0_median": 191.6,
+     "vtl": 15.81,
+     "ecapa_vs_anchor": 0.7362867593765259
+    },
+    {
+     "i": 47,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00047.wav",
+     "instruct": "Finalizing action narration; the difference between 'breath' and 'sigh' should be audible in the vocal texture.",
+     "seconds": 5.76,
+     "f0_median": 120.0,
+     "vtl": 17.44,
+     "ecapa_vs_anchor": 0.7973564863204956
+    },
+    {
+     "i": 48,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00048.wav",
+     "instruct": "Resigned narration; voice becomes softer, settling into a familiar melancholy.",
+     "seconds": 12.0,
+     "f0_median": 128.6,
+     "vtl": 15.16,
+     "ecapa_vs_anchor": 0.7837231755256653
+    },
+    {
+     "i": 49,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00049.wav",
+     "instruct": "Action description; brief, clipped pacing.",
+     "seconds": 4.4,
+     "f0_median": 171.7,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.8314591646194458
+    },
+    {
+     "i": 50,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00050.wav",
+     "instruct": "Dynamic action narration; pace increases rapidly to convey the sudden stop.",
+     "seconds": 13.12,
+     "f0_median": 128.2,
+     "vtl": 15.47,
+     "ecapa_vs_anchor": 0.7162258625030518
+    },
+    {
+     "i": 51,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00051.wav",
+     "instruct": "Philosophical, matter-of-fact narration; pacing slows for emphasis.",
+     "seconds": 13.12,
+     "f0_median": 137.8,
+     "vtl": 15.04,
+     "ecapa_vs_anchor": 0.758662223815918
+    },
+    {
+     "i": 52,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00052.wav",
+     "instruct": "Elated narration; tone swells with growing confidence.",
+     "seconds": 8.08,
+     "f0_median": 174.7,
+     "vtl": 14.38,
+     "ecapa_vs_anchor": 0.7617663145065308
+    },
+    {
+     "i": 53,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00053.wav",
+     "instruct": "Suspenseful narration; pace slows dramatically right before the final reveal.",
+     "seconds": 10.24,
+     "f0_median": 181.9,
+     "vtl": 15.32,
+     "ecapa_vs_anchor": 0.7977684736251831
+    },
+    {
+     "i": 54,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00054.wav",
+     "instruct": "Dramatic action description; powerful, sweeping delivery emphasizing the sudden submission.",
+     "seconds": 12.08,
+     "f0_median": 146.0,
+     "vtl": 16.21,
+     "ecapa_vs_anchor": 0.8938330411911011
+    },
+    {
+     "i": 55,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00055.wav",
+     "instruct": "Grave, philosophical narration; slow, weighted delivery.",
+     "seconds": 13.76,
+     "f0_median": 106.3,
+     "vtl": 17.46,
+     "ecapa_vs_anchor": 0.7096821069717407
+    },
+    {
+     "i": 56,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00056.wav",
+     "instruct": "Disappointed realization; measured, slightly deflated tone.",
+     "seconds": 12.96,
+     "f0_median": 118.6,
+     "vtl": 15.48,
+     "ecapa_vs_anchor": 0.7889328598976135
+    },
+    {
+     "i": 57,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00057.wav",
+     "instruct": "Gravelly observation; heavy emphasis on 'didn't hold back'.",
+     "seconds": 5.92,
+     "f0_median": 111.6,
+     "vtl": 17.69,
+     "ecapa_vs_anchor": 0.5906119346618652
+    },
+    {
+     "i": 58,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00058.wav",
+     "instruct": "Internal monologue; desperate, building tension and urgency.",
+     "seconds": 15.28,
+     "f0_median": 141.9,
+     "vtl": 15.66,
+     "ecapa_vs_anchor": 0.6975953578948975
+    },
+    {
+     "i": 59,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00059.wav",
+     "instruct": "Tense description; slow pacing emphasizing the threat of the blade.",
+     "seconds": 10.56,
+     "f0_median": 176.7,
+     "vtl": 15.84,
+     "ecapa_vs_anchor": 0.8249127864837646
+    },
+    {
+     "i": 60,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00060.wav",
+     "instruct": "Meditative reflection; very slow, weighted delivery.",
+     "seconds": 15.92,
+     "f0_median": 116.2,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.7080810070037842
+    },
+    {
+     "i": 61,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00061.wav",
+     "instruct": "Quick action narration; pace speeds up to match the sudden interruption.",
+     "seconds": 11.68,
+     "f0_median": 131.6,
+     "vtl": 15.2,
+     "ecapa_vs_anchor": 0.8226966857910156
+    },
+    {
+     "i": 62,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00062.wav",
+     "instruct": "Triumphant realization; bright, soaring tone.",
+     "seconds": 9.84,
+     "f0_median": 199.5,
+     "vtl": 14.95,
+     "ecapa_vs_anchor": 0.7739599347114563
+    },
+    {
+     "i": 63,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00063.wav",
+     "instruct": "Abrupt shift; a sharp, deflating tone.",
+     "seconds": 4.0,
+     "f0_median": 215.1,
+     "vtl": 16.51,
+     "ecapa_vs_anchor": 0.6770936250686646
+    },
+    {
+     "i": 64,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00064.wav",
+     "instruct": "Sudden stillness; quiet, reverberating tone suggesting shock.",
+     "seconds": 12.16,
+     "f0_median": 147.7,
+     "vtl": 16.18,
+     "ecapa_vs_anchor": 0.6643273830413818
+    },
+    {
+     "i": 65,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00065.wav",
+     "instruct": "Matter-of-fact transition; a slight dip in energy to signal the return of danger.",
+     "seconds": 4.56,
+     "f0_median": 223.9,
+     "vtl": 16.25,
+     "ecapa_vs_anchor": 0.7801030278205872
+    },
+    {
+     "i": 66,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00066.wav",
+     "instruct": "Heavy, oppressive narration; slow pace emphasizing the inescapable threat.",
+     "seconds": 10.96,
+     "f0_median": 117.3,
+     "vtl": 16.32,
+     "ecapa_vs_anchor": 0.6696922779083252
+    },
+    {
+     "i": 67,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00067.wav",
+     "instruct": "Tense observation; building dread with each word.",
+     "seconds": 17.2,
+     "f0_median": 133.9,
+     "vtl": 16.0,
+     "ecapa_vs_anchor": 0.7041537165641785
+    },
+    {
+     "i": 68,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00068.wav",
+     "instruct": "Deep, melancholic narration; very slow pace conveying profound sadness.",
+     "seconds": 18.08,
+     "f0_median": 113.9,
+     "vtl": 15.95,
+     "ecapa_vs_anchor": 0.5496490597724915
+    },
+    {
+     "i": 69,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00069.wav",
+     "instruct": "Whispered internal monologue; breathy quality, sinking into low register.",
+     "seconds": 10.0,
+     "f0_median": 132.4,
+     "vtl": 16.15,
+     "ecapa_vs_anchor": 0.5973488688468933
+    },
+    {
+     "i": 70,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00070.wav",
+     "instruct": "Exaggerated impact narration; dramatic rise in vocal energy.",
+     "seconds": 13.44,
+     "f0_median": 194.9,
+     "vtl": 15.77,
+     "ecapa_vs_anchor": 0.8523673415184021
+    },
+    {
+     "i": 71,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00071.wav",
+     "instruct": "Philosophical conclusion; reflective, measured delivery with a slight awe in the voice.",
+     "seconds": 7.76,
+     "f0_median": 102.1,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.6771777272224426
+    },
+    {
+     "i": 72,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00072.wav",
+     "instruct": "Intimate portraiture; softer vocal quality, emphasizing the duality of her looks.",
+     "seconds": 12.0,
+     "f0_median": 118.6,
+     "vtl": 15.93,
+     "ecapa_vs_anchor": 0.7366335391998291
+    },
+    {
+     "i": 73,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00073.wav",
+     "instruct": "Highlighting detail; slightly more pronounced enunciation on 'cloak' and 'majesty'.",
+     "seconds": 12.0,
+     "f0_median": 113.9,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.6206396222114563
+    },
+    {
+     "i": 74,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00074.wav",
+     "instruct": "Final, conclusive thought; quiet, breathy emphasis, fading slightly at the end.",
+     "seconds": 5.28,
+     "f0_median": 158.8,
+     "vtl": 14.96,
+     "ecapa_vs_anchor": 0.6554298400878906
+    },
+    {
+     "i": 75,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00075.wav",
+     "instruct": "Warm, evocative narration; slightly lingering pace on 'undone'.",
+     "seconds": 12.72,
+     "f0_median": 125.0,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.7749743461608887
+    },
+    {
+     "i": 76,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00076.wav",
+     "instruct": "Neutral, observant pacing; slight downturn in pitch suggesting apprehension.",
+     "seconds": 5.12,
+     "f0_median": 139.4,
+     "vtl": 15.14,
+     "ecapa_vs_anchor": 0.6038956642150879
+    },
+    {
+     "i": 77,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00077.wav",
+     "instruct": "Intense focus narration; quiet, heartfelt delivery.",
+     "seconds": 4.0,
+     "f0_median": 126.4,
+     "vtl": 17.05,
+     "ecapa_vs_anchor": 0.5311424732208252
+    },
+    {
+     "i": 78,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00078.wav",
+     "instruct": "Subtle tension building; low register, slightly breathless tone.",
+     "seconds": 10.4,
+     "f0_median": 129.4,
+     "vtl": 16.33,
+     "ecapa_vs_anchor": 0.6323179602622986
+    },
+    {
+     "i": 79,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00079.wav",
+     "instruct": "Simple action narration; steady, flat pacing.",
+     "seconds": 2.48,
+     "f0_median": 105.4,
+     "vtl": 16.79,
+     "ecapa_vs_anchor": 0.667899489402771
+    },
+    {
+     "i": 80,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00080.wav",
+     "instruct": "Slightly judgmental narration; quickening pace reflecting their haste.",
+     "seconds": 11.2,
+     "f0_median": 120.0,
+     "vtl": 16.67,
+     "ecapa_vs_anchor": 0.7891504168510437
+    },
+    {
+     "i": 81,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00081.wav",
+     "instruct": "Smooth transition narration; steady, thoughtful pacing before the final action.",
+     "seconds": 11.76,
+     "f0_median": 135.5,
+     "vtl": 16.07,
+     "ecapa_vs_anchor": 0.6894547939300537
+    },
+    {
+     "i": 82,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00082.wav",
+     "instruct": "Narrative crescendo; slightly dramatic pause before 'when...'.",
+     "seconds": 14.16,
+     "f0_median": 125.0,
+     "vtl": 15.21,
+     "ecapa_vs_anchor": 0.6635218858718872
+    },
+    {
+     "i": 83,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00083.wav",
+     "instruct": "Visual description narration; smooth flow, emphasizing the 'shining' quality.",
+     "seconds": 8.72,
+     "f0_median": 116.9,
+     "vtl": 15.67,
+     "ecapa_vs_anchor": 0.8343254327774048
+    },
+    {
+     "i": 84,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00084.wav",
+     "instruct": "Detailed description narration; slightly faster pace to convey swift evaporation.",
+     "seconds": 9.2,
+     "f0_median": 174.7,
+     "vtl": 15.45,
+     "ecapa_vs_anchor": 0.8566706776618958
+    },
+    {
+     "i": 85,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00085.wav",
+     "instruct": "Internal realization narration; quickening pace to reflect the sudden thought process.",
+     "seconds": 11.76,
+     "f0_median": 155.6,
+     "vtl": 16.1,
+     "ecapa_vs_anchor": 0.9111136198043823
+    },
+    {
+     "i": 86,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00086.wav",
+     "instruct": "Pondering narration; a slight dip in volume as he processes the information.",
+     "seconds": 7.36,
+     "f0_median": 118.6,
+     "vtl": 17.11,
+     "ecapa_vs_anchor": 0.7371630668640137
+    },
+    {
+     "i": 87,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00087.wav",
+     "instruct": "Action description narration; slightly ragged delivery to match his state.",
+     "seconds": 5.2,
+     "f0_median": 112.0,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.7718155980110168
+    },
+    {
+     "i": 88,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00088.wav",
+     "instruct": "Anticipatory narration; very smooth delivery, building suspense towards the reveal.",
+     "seconds": 10.96,
+     "f0_median": 156.5,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.8592448234558105
+    },
+    {
+     "i": 89,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00089.wav",
+     "instruct": "Reaction narration; sudden spike in volume and pitch to capture the terror.",
+     "seconds": 10.8,
+     "f0_median": 147.7,
+     "vtl": 15.99,
+     "ecapa_vs_anchor": 0.6941361427307129
+    },
+    {
+     "i": 90,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00090.wav",
+     "instruct": "Informational header; clear, steady pacing, slightly formal tone.",
+     "seconds": 19.04,
+     "f0_median": 130.1,
+     "vtl": 17.09,
+     "ecapa_vs_anchor": 0.572585940361023
+    },
+    {
+     "i": 91,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00091.wav",
+     "instruct": "Neutral narration; pacing is brisk, reflecting hurried movement.",
+     "seconds": 10.32,
+     "f0_median": 136.3,
+     "vtl": 17.06,
+     "ecapa_vs_anchor": 0.7840479016304016
+    },
+    {
+     "i": 92,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00092.wav",
+     "instruct": "Informational narration; measured pace, emphasizing the difference between the threats.",
+     "seconds": 10.08,
+     "f0_median": 99.2,
+     "vtl": 17.08,
+     "ecapa_vs_anchor": 0.7511162757873535
+    },
+    {
+     "i": 93,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00093.wav",
+     "instruct": "Neutral narration; slightly quickened pace conveys their sudden fear.",
+     "seconds": 12.8,
+     "f0_median": 143.5,
+     "vtl": 15.69,
+     "ecapa_vs_anchor": 0.7067043781280518
+    },
+    {
+     "i": 94,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00094.wav",
+     "instruct": "Descriptive narration; building suspense with a slight pause before 'but...'.",
+     "seconds": 18.96,
+     "f0_median": 146.9,
+     "vtl": 15.98,
+     "ecapa_vs_anchor": 0.6771873831748962
+    },
+    {
+     "i": 95,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00095.wav",
+     "instruct": "Smooth narration; warm and appreciative tone describing her demeanor.",
+     "seconds": 10.16,
+     "f0_median": 126.4,
+     "vtl": 16.94,
+     "ecapa_vs_anchor": 0.6227061748504639
+    },
+    {
+     "i": 96,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00096.wav",
+     "instruct": "Smooth transition narration; soft, almost pained delivery for his internal reaction.",
+     "seconds": 10.88,
+     "f0_median": 127.9,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7458422183990479
+    },
+    {
+     "i": 97,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00097.wav",
+     "instruct": "Quiet affirmation; gentle tone confirming her realization.",
+     "seconds": 4.64,
+     "f0_median": 126.4,
+     "vtl": 16.43,
+     "ecapa_vs_anchor": 0.7716840505599976
+    },
+    {
+     "i": 98,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00098.wav",
+     "instruct": "Narrative description; warm, hopeful tone anticipating the final charming line.",
+     "seconds": 10.96,
+     "f0_median": 190.5,
+     "vtl": 16.1,
+     "ecapa_vs_anchor": 0.8427987694740295
+    },
+    {
+     "i": 99,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00099.wav",
+     "instruct": "Urgent description; pace accelerates to convey the sudden loss of balance.",
+     "seconds": 7.04,
+     "f0_median": 205.3,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.5713520646095276
+    },
+    {
+     "i": 100,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00100.wav",
+     "instruct": "Short, impactful narration; emphasizing the timing of the intervention.",
+     "seconds": 3.6,
+     "f0_median": 122.5,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7196900844573975
+    },
+    {
+     "i": 101,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00101.wav",
+     "instruct": "Sensory description; voice should sound distant and fading as he loses control.",
+     "seconds": 8.4,
+     "f0_median": 120.0,
+     "vtl": 16.33,
+     "ecapa_vs_anchor": 0.6222639083862305
+    },
+    {
+     "i": 102,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00102.wav",
+     "instruct": "Echoing narration; distant, ethereal quality suggesting fading awareness.",
+     "seconds": 15.76,
+     "f0_median": 121.4,
+     "vtl": 15.55,
+     "ecapa_vs_anchor": 0.7378004193305969
+    },
+    {
+     "i": 103,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00103.wav",
+     "instruct": "Slow, drawn-out narration; pace becomes extremely languid, mirroring his drifting state.",
+     "seconds": 13.68,
+     "f0_median": 139.8,
+     "vtl": 18.18,
+     "ecapa_vs_anchor": 0.5258223414421082
+    },
+    {
+     "i": 104,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00104.wav",
+     "instruct": "Urgent narration; building momentum towards a final burst of emotion.",
+     "seconds": 10.48,
+     "f0_median": 129.4,
+     "vtl": 16.3,
+     "ecapa_vs_anchor": 0.8299479484558105
+    },
+    {
+     "i": 105,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00105.wav",
+     "instruct": "Thoughtful, admiring narration; lighthearted and appreciative tone, a moment of internal respite.",
+     "seconds": 5.28,
+     "f0_median": 233.2,
+     "vtl": 15.54,
+     "ecapa_vs_anchor": 0.8094204068183899
+    },
+    {
+     "i": 106,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00106.wav",
+     "instruct": "Neutral, descriptive narration; pacing picks up slightly to match the action.",
+     "seconds": 6.08,
+     "f0_median": 145.2,
+     "vtl": 15.71,
+     "ecapa_vs_anchor": 0.8643964529037476
+    },
+    {
+     "i": 107,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00107.wav",
+     "instruct": "Thoughtful, appreciative narration; warm tone suggesting contentment.",
+     "seconds": 16.72,
+     "f0_median": 131.6,
+     "vtl": 15.63,
+     "ecapa_vs_anchor": 0.7867887616157532
+    },
+    {
+     "i": 108,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00108.wav",
+     "instruct": "Neutral narration; smooth pacing, painting the scene with quiet observation.",
+     "seconds": 14.48,
+     "f0_median": 124.2,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.7553552985191345
+    },
+    {
+     "i": 109,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00109.wav",
+     "instruct": "Introspective narration; slightly reverent tone, emphasizing the lasting impression of the girl.",
+     "seconds": 12.64,
+     "f0_median": 117.3,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.7064276933670044
+    },
+    {
+     "i": 110,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00110.wav",
+     "instruct": "Observational narration; tone is impressed and slightly overwhelmed by the display of strength.",
+     "seconds": 17.12,
+     "f0_median": 129.4,
+     "vtl": 16.19,
+     "ecapa_vs_anchor": 0.681770920753479
+    },
+    {
+     "i": 111,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00111.wav",
+     "instruct": "Neutral, concluding narration for the action; steady rhythm.",
+     "seconds": 7.52,
+     "f0_median": 155.6,
+     "vtl": 15.18,
+     "ecapa_vs_anchor": 0.7507522106170654
+    },
+    {
+     "i": 112,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00112.wav",
+     "instruct": "Analytical narration; slightly wistful or admiring tone, reflecting on her character.",
+     "seconds": 7.52,
+     "f0_median": 168.2,
+     "vtl": 15.16,
+     "ecapa_vs_anchor": 0.8408177495002747
+    },
+    {
+     "i": 113,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00113.wav",
+     "instruct": "Brief, impactful action description; the delivery is sharp and definitive.",
+     "seconds": 3.04,
+     "f0_median": 142.7,
+     "vtl": 16.35,
+     "ecapa_vs_anchor": 0.7223808765411377
+    },
+    {
+     "i": 114,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00114.wav",
+     "instruct": "Neutral narration; a slight pause before 'However' emphasizes the recurring nature of the question.",
+     "seconds": 10.16,
+     "f0_median": 151.2,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.8865336775779724
+    },
+    {
+     "i": 115,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00115.wav",
+     "instruct": "Simple, factual narration; quick pace to convey familiarity with the event.",
+     "seconds": 4.16,
+     "f0_median": 123.5,
+     "vtl": 17.43,
+     "ecapa_vs_anchor": 0.7978391647338867
+    },
+    {
+     "i": 116,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00116.wav",
+     "instruct": "Reflective narration; slightly questioning inflection at the end.",
+     "seconds": 12.72,
+     "f0_median": 121.4,
+     "vtl": 16.69,
+     "ecapa_vs_anchor": 0.7618299722671509
+    },
+    {
+     "i": 117,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00117.wav",
+     "instruct": "Neutral narration; steady rhythm, building anticipation for her reaction.",
+     "seconds": 12.64,
+     "f0_median": 119.0,
+     "vtl": 16.46,
+     "ecapa_vs_anchor": 0.7657190561294556
+    },
+    {
+     "i": 118,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00118.wav",
+     "instruct": "Explanatory narration; the word 'twisted' should be delivered with a slight emphasis.",
+     "seconds": 6.48,
+     "f0_median": 141.1,
+     "vtl": 16.31,
+     "ecapa_vs_anchor": 0.860461413860321
+    },
+    {
+     "i": 119,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/as_written/line_00119.wav",
+     "instruct": "Action-oriented narration; brisk delivery suggesting finality and impatience.",
+     "seconds": 6.0,
+     "f0_median": 168.2,
+     "vtl": 16.83,
+     "ecapa_vs_anchor": 0.7715891003608704
+    }
+   ]
+  },
+  "no_timbre": {
+   "summary": {
+    "generated": 120,
+    "failed": 0,
+    "ecapa_error": null,
+    "ecapa_mean": 0.7365,
+    "ecapa_p10": 0.6044,
+    "f0_median_hz": 141.1,
+    "f0_spread_semitones": 3.477,
+    "vtl_spread": 0.7435,
+    "seconds_mean": 10.251,
+    "seconds_per_char": 0.07576
+   },
+   "rows": [
+    {
+     "i": 0,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00000.wav",
+     "instruct": "Book title announcement; slightly dramatic and engaging tone.",
+     "seconds": 4.72,
+     "f0_median": 188.3,
+     "vtl": 15.81
+    },
+    {
+     "i": 1,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00001.wav",
+     "instruct": "Quick, precise reading of the copyright line; professional quality.",
+     "seconds": 5.92,
+     "f0_median": 139.0,
+     "vtl": 16.96
+    },
+    {
+     "i": 2,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00002.wav",
+     "instruct": "Straightforward informational delivery; slightly crisp articulation.",
+     "seconds": 6.0,
+     "f0_median": 200.7,
+     "vtl": 15.47
+    },
+    {
+     "i": 3,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00003.wav",
+     "instruct": "Slightly more formal and legalistic tone; steady pace.",
+     "seconds": 12.4,
+     "f0_median": 169.7,
+     "vtl": 15.86
+    },
+    {
+     "i": 4,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00004.wav",
+     "instruct": "Brief, authoritative reading of the date and holder; clear enunciation.",
+     "seconds": 5.12,
+     "f0_median": 214.5,
+     "vtl": 16.42
+    },
+    {
+     "i": 5,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00005.wav",
+     "instruct": "Uplifting, persuasive tone; slightly warmer than standard narration.",
+     "seconds": 11.36,
+     "f0_median": 158.3,
+     "vtl": 15.88
+    },
+    {
+     "i": 6,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00006.wav",
+     "instruct": "Clear, measured address reading; professional cadence.",
+     "seconds": 2.96,
+     "f0_median": 140.3,
+     "vtl": 17.44
+    },
+    {
+     "i": 7,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00007.wav",
+     "instruct": "Quick, energetic reading of web addresses; slightly accelerated pace.",
+     "seconds": 8.32,
+     "f0_median": 185.1,
+     "vtl": 17.79
+    },
+    {
+     "i": 8,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00008.wav",
+     "instruct": "Rapid-fire legal disclaimer; highly professional and steady delivery.",
+     "seconds": 13.36,
+     "f0_median": 176.7,
+     "vtl": 15.69,
+     "ecapa_vs_anchor": 0.852349579334259
+    },
+    {
+     "i": 9,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00009.wav",
+     "instruct": "Precise, almost robotic reading of numbers; very clear articulation.",
+     "seconds": 18.32,
+     "f0_median": 159.3,
+     "vtl": 16.32,
+     "ecapa_vs_anchor": 0.8799450993537903
+    },
+    {
+     "i": 10,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00010.wav",
+     "instruct": "Technical code reading; clipped and efficient delivery.",
+     "seconds": 6.56,
+     "f0_median": 220.1,
+     "vtl": 15.41,
+     "ecapa_vs_anchor": 0.5860393047332764
+    },
+    {
+     "i": 11,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00011.wav",
+     "instruct": "Simple directional cues; clear and inviting tone.",
+     "seconds": 4.64,
+     "f0_median": 142.7,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.7685635089874268
+    },
+    {
+     "i": 12,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00012.wav",
+     "instruct": "Dramatic, pronounced title reading; slow and weighty delivery.",
+     "seconds": 3.76,
+     "f0_median": 248.5,
+     "vtl": 15.09,
+     "ecapa_vs_anchor": 0.5322401523590088
+    },
+    {
+     "i": 13,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00013.wav",
+     "instruct": "Analytical, horrified narration; slightly faster pace as the realization sinks in.",
+     "seconds": 19.44,
+     "f0_median": 157.4,
+     "vtl": 15.59,
+     "ecapa_vs_anchor": 0.6561216711997986
+    },
+    {
+     "i": 14,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00014.wav",
+     "instruct": "Dramatic summation; slowing down on 'checkmate' for impact.",
+     "seconds": 14.16,
+     "f0_median": 185.6,
+     "vtl": 16.05,
+     "ecapa_vs_anchor": 0.8614464998245239
+    },
+    {
+     "i": 15,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00015.wav",
+     "instruct": "Visual narration; quiet awe mixed with dread.",
+     "seconds": 16.56,
+     "f0_median": 118.6,
+     "vtl": 16.76,
+     "ecapa_vs_anchor": 0.5818197131156921
+    },
+    {
+     "i": 16,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00016.wav",
+     "instruct": "Resigned, weary tone; very soft delivery.",
+     "seconds": 5.84,
+     "f0_median": 150.3,
+     "vtl": 14.83,
+     "ecapa_vs_anchor": 0.665715217590332
+    },
+    {
+     "i": 17,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00017.wav",
+     "instruct": "Awe-struck narration; the pace quickens dramatically leading into the exclamation.",
+     "seconds": 10.64,
+     "f0_median": 165.8,
+     "vtl": 15.01,
+     "ecapa_vs_anchor": 0.7176985144615173
+    },
+    {
+     "i": 18,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00018.wav",
+     "instruct": "Urgent action narration; quickened pace conveying sudden movement and impact.",
+     "seconds": 8.16,
+     "f0_median": 131.6,
+     "vtl": 15.71,
+     "ecapa_vs_anchor": 0.7072016000747681
+    },
+    {
+     "i": 19,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00019.wav",
+     "instruct": "Intimate, tender narration; very soft delivery focusing on tactile sensation.",
+     "seconds": 14.32,
+     "f0_median": 122.1,
+     "vtl": 16.73,
+     "ecapa_vs_anchor": 0.6086503267288208
+    },
+    {
+     "i": 20,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00020.wav",
+     "instruct": "Intense, effortful narration; conveying immense internal struggle and fight for life.",
+     "seconds": 6.56,
+     "f0_median": 156.5,
+     "vtl": 15.76,
+     "ecapa_vs_anchor": 0.7339726686477661
+    },
+    {
+     "i": 21,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00021.wav",
+     "instruct": "Terminal announcement; slow, heavy finality to the word 'life.'",
+     "seconds": 7.44,
+     "f0_median": 157.4,
+     "vtl": 16.83,
+     "ecapa_vs_anchor": 0.43842047452926636
+    },
+    {
+     "i": 22,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00022.wav",
+     "instruct": "Detailed visual description; slightly softer focus on the nuance of his expression.",
+     "seconds": 13.2,
+     "f0_median": 112.0,
+     "vtl": 16.08,
+     "ecapa_vs_anchor": 0.827649712562561
+    },
+    {
+     "i": 23,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00023.wav",
+     "instruct": "Building tension narration; slowing down on 'strange' to create suspenseful emphasis.",
+     "seconds": 16.48,
+     "f0_median": 167.8,
+     "vtl": 15.89,
+     "ecapa_vs_anchor": 0.7545273303985596
+    },
+    {
+     "i": 24,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00024.wav",
+     "instruct": "Observational narration; building a sense of contrast and strangeness.",
+     "seconds": 7.92,
+     "f0_median": 208.9,
+     "vtl": 17.54,
+     "ecapa_vs_anchor": 0.7956749200820923
+    },
+    {
+     "i": 25,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00025.wav",
+     "instruct": "Descriptive, flowing narration; emphasizing variety with slight pauses.",
+     "seconds": 29.28,
+     "f0_median": 145.2,
+     "vtl": 16.48,
+     "ecapa_vs_anchor": 0.6160647869110107
+    },
+    {
+     "i": 26,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00026.wav",
+     "instruct": "Action-oriented narration; a moment of quiet resignation settling in.",
+     "seconds": 9.76,
+     "f0_median": 135.5,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7838988304138184
+    },
+    {
+     "i": 27,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00027.wav",
+     "instruct": "Sharp, quick action narration; energetic delivery matching the gesture.",
+     "seconds": 3.6,
+     "f0_median": 158.3,
+     "vtl": 16.63,
+     "ecapa_vs_anchor": 0.7571492195129395
+    },
+    {
+     "i": 28,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00028.wav",
+     "instruct": "Neutral narration, establishing context; slightly breathless to convey immediate action.",
+     "seconds": 6.88,
+     "f0_median": 171.7,
+     "vtl": 15.59,
+     "ecapa_vs_anchor": 0.6178130507469177
+    },
+    {
+     "i": 29,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00029.wav",
+     "instruct": "Informative, grounding narration; steady, factual delivery.",
+     "seconds": 8.96,
+     "f0_median": 116.6,
+     "vtl": 16.35,
+     "ecapa_vs_anchor": 0.833035945892334
+    },
+    {
+     "i": 30,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00030.wav",
+     "instruct": "Philosophical narration; measured and thoughtful pacing.",
+     "seconds": 14.24,
+     "f0_median": 156.5,
+     "vtl": 15.21,
+     "ecapa_vs_anchor": 0.8570460081100464
+    },
+    {
+     "i": 31,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00031.wav",
+     "instruct": "Conclusive narration; slightly melancholic inflection on 'weep over'.",
+     "seconds": 11.76,
+     "f0_median": 111.3,
+     "vtl": 16.69,
+     "ecapa_vs_anchor": 0.6510512828826904
+    },
+    {
+     "i": 32,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00032.wav",
+     "instruct": "Internal monologue narration; tone of disbelief mixed with physical annoyance.",
+     "seconds": 10.56,
+     "f0_median": 143.5,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.8080699443817139
+    },
+    {
+     "i": 33,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00033.wav",
+     "instruct": "Quietly tired narration; slowing down to emphasize his current state of weary observation.",
+     "seconds": 12.24,
+     "f0_median": 110.7,
+     "vtl": 16.87,
+     "ecapa_vs_anchor": 0.7154184579849243
+    },
+    {
+     "i": 34,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00034.wav",
+     "instruct": "Procedural narration; objective, like ticking items off a mental list.",
+     "seconds": 12.08,
+     "f0_median": 122.1,
+     "vtl": 15.37,
+     "ecapa_vs_anchor": 0.8184318542480469
+    },
+    {
+     "i": 35,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00035.wav",
+     "instruct": "Relief-tinged narration; tone brightens slightly on 'fortunately'.",
+     "seconds": 10.56,
+     "f0_median": 193.8,
+     "vtl": 15.02,
+     "ecapa_vs_anchor": 0.8307680487632751
+    },
+    {
+     "i": 36,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00036.wav",
+     "instruct": "Subtle disappointment in the delivery; quiet confirmation of negativity.",
+     "seconds": 6.88,
+     "f0_median": 113.3,
+     "vtl": 16.87,
+     "ecapa_vs_anchor": 0.8344904184341431
+    },
+    {
+     "i": 37,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00037.wav",
+     "instruct": "Reflective narration; a grateful, slightly amused tone when mentioning his own disposition.",
+     "seconds": 15.12,
+     "f0_median": 127.1,
+     "vtl": 16.22,
+     "ecapa_vs_anchor": 0.8684120774269104
+    },
+    {
+     "i": 38,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00038.wav",
+     "instruct": "Wistful narration; a slight hesitation before the final thought.",
+     "seconds": 15.92,
+     "f0_median": 144.4,
+     "vtl": 15.43,
+     "ecapa_vs_anchor": 0.7170240879058838
+    },
+    {
+     "i": 39,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00039.wav",
+     "instruct": "Emphatic narration; a slight downward inflection to convey the weight of his circumstances.",
+     "seconds": 6.0,
+     "f0_median": 158.3,
+     "vtl": 15.92,
+     "ecapa_vs_anchor": 0.7160505056381226
+    },
+    {
+     "i": 40,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00040.wav",
+     "instruct": "Slightly humorous resignation; narrative tone suggesting inevitability.",
+     "seconds": 7.04,
+     "f0_median": 167.8,
+     "vtl": 17.92,
+     "ecapa_vs_anchor": 0.7644507884979248
+    },
+    {
+     "i": 41,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00041.wav",
+     "instruct": "Detailed recounting narration; a slight pause before 'realizing' to emphasize the dawning horror.",
+     "seconds": 14.4,
+     "f0_median": 120.0,
+     "vtl": 16.15,
+     "ecapa_vs_anchor": 0.7846795320510864
+    },
+    {
+     "i": 42,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00042.wav",
+     "instruct": "Pragmatic, grounding tone; firm assertion of reality.",
+     "seconds": 2.96,
+     "f0_median": 201.8,
+     "vtl": 15.97,
+     "ecapa_vs_anchor": 0.7489300966262817
+    },
+    {
+     "i": 43,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00043.wav",
+     "instruct": "Dismissive narration; a quick, decisive delivery suggesting hope has been instantly crushed.",
+     "seconds": 13.28,
+     "f0_median": 171.7,
+     "vtl": 14.7,
+     "ecapa_vs_anchor": 0.8135555982589722
+    },
+    {
+     "i": 44,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00044.wav",
+     "instruct": "Observationally focused narration; building intensity toward 'half-humans'.",
+     "seconds": 14.32,
+     "f0_median": 122.8,
+     "vtl": 16.94,
+     "ecapa_vs_anchor": 0.838637113571167
+    },
+    {
+     "i": 45,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00045.wav",
+     "instruct": "Descriptive listing; smooth, flowing delivery that paints a clear picture.",
+     "seconds": 8.8,
+     "f0_median": 171.7,
+     "vtl": 14.85,
+     "ecapa_vs_anchor": 0.7606844305992126
+    },
+    {
+     "i": 46,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00046.wav",
+     "instruct": "Calm counterpoint narration; bringing the focus back to his own relatable nature.",
+     "seconds": 4.56,
+     "f0_median": 191.6,
+     "vtl": 15.81,
+     "ecapa_vs_anchor": 0.7362867593765259
+    },
+    {
+     "i": 47,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00047.wav",
+     "instruct": "Finalizing action narration; the difference between 'breath' and 'sigh' should be audible in the vocal texture.",
+     "seconds": 5.76,
+     "f0_median": 120.0,
+     "vtl": 17.44,
+     "ecapa_vs_anchor": 0.7973564863204956
+    },
+    {
+     "i": 48,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00048.wav",
+     "instruct": "Resigned narration; voice becomes softer, settling into a familiar melancholy.",
+     "seconds": 12.0,
+     "f0_median": 128.6,
+     "vtl": 15.16,
+     "ecapa_vs_anchor": 0.7837231755256653
+    },
+    {
+     "i": 49,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00049.wav",
+     "instruct": "Action description; brief, clipped pacing.",
+     "seconds": 4.4,
+     "f0_median": 171.7,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.8314591646194458
+    },
+    {
+     "i": 50,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00050.wav",
+     "instruct": "Dynamic action narration; pace increases rapidly to convey the sudden stop.",
+     "seconds": 13.12,
+     "f0_median": 128.2,
+     "vtl": 15.47,
+     "ecapa_vs_anchor": 0.7162258625030518
+    },
+    {
+     "i": 51,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00051.wav",
+     "instruct": "Philosophical, matter-of-fact narration; pacing slows for emphasis.",
+     "seconds": 13.12,
+     "f0_median": 137.8,
+     "vtl": 15.04,
+     "ecapa_vs_anchor": 0.758662223815918
+    },
+    {
+     "i": 52,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00052.wav",
+     "instruct": "Elated narration; tone swells with growing confidence.",
+     "seconds": 8.08,
+     "f0_median": 174.7,
+     "vtl": 14.38,
+     "ecapa_vs_anchor": 0.7617663145065308
+    },
+    {
+     "i": 53,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00053.wav",
+     "instruct": "Suspenseful narration; pace slows dramatically right before the final reveal.",
+     "seconds": 10.24,
+     "f0_median": 181.9,
+     "vtl": 15.32,
+     "ecapa_vs_anchor": 0.7977684736251831
+    },
+    {
+     "i": 54,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00054.wav",
+     "instruct": "Dramatic action description; powerful, sweeping delivery emphasizing the sudden submission.",
+     "seconds": 12.08,
+     "f0_median": 146.0,
+     "vtl": 16.21,
+     "ecapa_vs_anchor": 0.8938330411911011
+    },
+    {
+     "i": 55,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00055.wav",
+     "instruct": "Grave, philosophical narration; slow, weighted delivery.",
+     "seconds": 13.76,
+     "f0_median": 106.3,
+     "vtl": 17.46,
+     "ecapa_vs_anchor": 0.7096821069717407
+    },
+    {
+     "i": 56,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00056.wav",
+     "instruct": "Disappointed realization; measured, slightly deflated tone.",
+     "seconds": 12.96,
+     "f0_median": 118.6,
+     "vtl": 15.48,
+     "ecapa_vs_anchor": 0.7889328598976135
+    },
+    {
+     "i": 57,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00057.wav",
+     "instruct": "observation; heavy emphasis on 'didn't hold back'.",
+     "seconds": 6.4,
+     "f0_median": 161.1,
+     "vtl": 16.26,
+     "ecapa_vs_anchor": 0.6390811204910278
+    },
+    {
+     "i": 58,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00058.wav",
+     "instruct": "Internal monologue; desperate, building tension and urgency.",
+     "seconds": 15.28,
+     "f0_median": 141.9,
+     "vtl": 15.66,
+     "ecapa_vs_anchor": 0.6975953578948975
+    },
+    {
+     "i": 59,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00059.wav",
+     "instruct": "Tense description; slow pacing emphasizing the threat of the blade.",
+     "seconds": 10.56,
+     "f0_median": 176.7,
+     "vtl": 15.84,
+     "ecapa_vs_anchor": 0.8249127864837646
+    },
+    {
+     "i": 60,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00060.wav",
+     "instruct": "Meditative reflection; very slow, weighted delivery.",
+     "seconds": 15.92,
+     "f0_median": 116.2,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.7080810070037842
+    },
+    {
+     "i": 61,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00061.wav",
+     "instruct": "Quick action narration; pace speeds up to match the sudden interruption.",
+     "seconds": 11.68,
+     "f0_median": 131.6,
+     "vtl": 15.2,
+     "ecapa_vs_anchor": 0.8226966857910156
+    },
+    {
+     "i": 62,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00062.wav",
+     "instruct": "Triumphant realization; bright, soaring tone.",
+     "seconds": 9.84,
+     "f0_median": 199.5,
+     "vtl": 14.95,
+     "ecapa_vs_anchor": 0.7739599347114563
+    },
+    {
+     "i": 63,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00063.wav",
+     "instruct": "Abrupt shift; a sharp, deflating tone.",
+     "seconds": 4.0,
+     "f0_median": 215.1,
+     "vtl": 16.51,
+     "ecapa_vs_anchor": 0.6770936250686646
+    },
+    {
+     "i": 64,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00064.wav",
+     "instruct": "Sudden stillness; quiet, reverberating tone suggesting shock.",
+     "seconds": 12.16,
+     "f0_median": 147.7,
+     "vtl": 16.18,
+     "ecapa_vs_anchor": 0.6643273830413818
+    },
+    {
+     "i": 65,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00065.wav",
+     "instruct": "Matter-of-fact transition; a slight dip in energy to signal the return of danger.",
+     "seconds": 4.56,
+     "f0_median": 223.9,
+     "vtl": 16.25,
+     "ecapa_vs_anchor": 0.7801030278205872
+    },
+    {
+     "i": 66,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00066.wav",
+     "instruct": "Heavy, oppressive narration; slow pace emphasizing the inescapable threat.",
+     "seconds": 10.96,
+     "f0_median": 117.3,
+     "vtl": 16.32,
+     "ecapa_vs_anchor": 0.6696922779083252
+    },
+    {
+     "i": 67,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00067.wav",
+     "instruct": "Tense observation; building dread with each word.",
+     "seconds": 17.2,
+     "f0_median": 133.9,
+     "vtl": 16.0,
+     "ecapa_vs_anchor": 0.7041537165641785
+    },
+    {
+     "i": 68,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00068.wav",
+     "instruct": "Deep, melancholic narration; very slow pace conveying profound sadness.",
+     "seconds": 18.08,
+     "f0_median": 113.9,
+     "vtl": 15.95,
+     "ecapa_vs_anchor": 0.5496490597724915
+    },
+    {
+     "i": 69,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00069.wav",
+     "instruct": "Whispered internal monologue; quality, sinking into low.",
+     "seconds": 8.8,
+     "f0_median": 118.6,
+     "vtl": 15.73,
+     "ecapa_vs_anchor": 0.5535514950752258
+    },
+    {
+     "i": 70,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00070.wav",
+     "instruct": "Exaggerated impact narration; dramatic rise in vocal energy.",
+     "seconds": 13.44,
+     "f0_median": 194.9,
+     "vtl": 15.77,
+     "ecapa_vs_anchor": 0.8523673415184021
+    },
+    {
+     "i": 71,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00071.wav",
+     "instruct": "Philosophical conclusion; reflective, measured delivery with a slight awe in the voice.",
+     "seconds": 7.76,
+     "f0_median": 102.1,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.6771777272224426
+    },
+    {
+     "i": 72,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00072.wav",
+     "instruct": "Intimate portraiture; softer vocal quality, emphasizing the duality of her looks.",
+     "seconds": 12.0,
+     "f0_median": 118.6,
+     "vtl": 15.93,
+     "ecapa_vs_anchor": 0.7366335391998291
+    },
+    {
+     "i": 73,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00073.wav",
+     "instruct": "Highlighting detail; slightly more pronounced enunciation on 'cloak' and 'majesty'.",
+     "seconds": 12.0,
+     "f0_median": 113.9,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.6206396222114563
+    },
+    {
+     "i": 74,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00074.wav",
+     "instruct": "Final, conclusive thought; quiet, emphasis, fading slightly at the end.",
+     "seconds": 4.88,
+     "f0_median": 128.2,
+     "vtl": 14.91,
+     "ecapa_vs_anchor": 0.6281274557113647
+    },
+    {
+     "i": 75,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00075.wav",
+     "instruct": "Warm, evocative narration; slightly lingering pace on 'undone'.",
+     "seconds": 12.72,
+     "f0_median": 125.0,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.7749743461608887
+    },
+    {
+     "i": 76,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00076.wav",
+     "instruct": "Neutral, observant pacing; slight downturn in pitch suggesting apprehension.",
+     "seconds": 5.12,
+     "f0_median": 139.4,
+     "vtl": 15.14,
+     "ecapa_vs_anchor": 0.6038956642150879
+    },
+    {
+     "i": 77,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00077.wav",
+     "instruct": "Intense focus narration; quiet, heartfelt delivery.",
+     "seconds": 4.0,
+     "f0_median": 126.4,
+     "vtl": 17.05,
+     "ecapa_vs_anchor": 0.5311424732208252
+    },
+    {
+     "i": 78,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00078.wav",
+     "instruct": "Subtle tension building; low, slightly breathless tone.",
+     "seconds": 10.96,
+     "f0_median": 141.1,
+     "vtl": 17.91,
+     "ecapa_vs_anchor": 0.6044209599494934
+    },
+    {
+     "i": 79,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00079.wav",
+     "instruct": "Simple action narration; steady, flat pacing.",
+     "seconds": 2.48,
+     "f0_median": 105.4,
+     "vtl": 16.79,
+     "ecapa_vs_anchor": 0.667899489402771
+    },
+    {
+     "i": 80,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00080.wav",
+     "instruct": "Slightly judgmental narration; quickening pace reflecting their haste.",
+     "seconds": 11.2,
+     "f0_median": 120.0,
+     "vtl": 16.67,
+     "ecapa_vs_anchor": 0.7891504168510437
+    },
+    {
+     "i": 81,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00081.wav",
+     "instruct": "Smooth transition narration; steady, thoughtful pacing before the final action.",
+     "seconds": 11.76,
+     "f0_median": 135.5,
+     "vtl": 16.07,
+     "ecapa_vs_anchor": 0.6894547939300537
+    },
+    {
+     "i": 82,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00082.wav",
+     "instruct": "Narrative crescendo; slightly dramatic pause before 'when...'.",
+     "seconds": 14.16,
+     "f0_median": 125.0,
+     "vtl": 15.21,
+     "ecapa_vs_anchor": 0.6635218858718872
+    },
+    {
+     "i": 83,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00083.wav",
+     "instruct": "Visual description narration; smooth flow, emphasizing the 'shining' quality.",
+     "seconds": 8.72,
+     "f0_median": 116.9,
+     "vtl": 15.67,
+     "ecapa_vs_anchor": 0.8343254327774048
+    },
+    {
+     "i": 84,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00084.wav",
+     "instruct": "Detailed description narration; slightly faster pace to convey swift evaporation.",
+     "seconds": 9.2,
+     "f0_median": 174.7,
+     "vtl": 15.45,
+     "ecapa_vs_anchor": 0.8566706776618958
+    },
+    {
+     "i": 85,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00085.wav",
+     "instruct": "Internal realization narration; quickening pace to reflect the sudden thought process.",
+     "seconds": 11.76,
+     "f0_median": 155.6,
+     "vtl": 16.1,
+     "ecapa_vs_anchor": 0.9111136198043823
+    },
+    {
+     "i": 86,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00086.wav",
+     "instruct": "Pondering narration; a slight dip in volume as he processes the information.",
+     "seconds": 7.36,
+     "f0_median": 118.6,
+     "vtl": 17.11,
+     "ecapa_vs_anchor": 0.7371630668640137
+    },
+    {
+     "i": 87,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00087.wav",
+     "instruct": "Action description narration; slightly ragged delivery to match his state.",
+     "seconds": 5.2,
+     "f0_median": 112.0,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.7718155980110168
+    },
+    {
+     "i": 88,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00088.wav",
+     "instruct": "Anticipatory narration; very smooth delivery, building suspense towards the reveal.",
+     "seconds": 10.96,
+     "f0_median": 156.5,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.8592448234558105
+    },
+    {
+     "i": 89,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00089.wav",
+     "instruct": "Reaction narration; sudden spike in volume and pitch to capture the terror.",
+     "seconds": 10.8,
+     "f0_median": 147.7,
+     "vtl": 15.99,
+     "ecapa_vs_anchor": 0.6941361427307129
+    },
+    {
+     "i": 90,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00090.wav",
+     "instruct": "Informational header; clear, steady pacing, slightly formal tone.",
+     "seconds": 19.04,
+     "f0_median": 130.1,
+     "vtl": 17.09,
+     "ecapa_vs_anchor": 0.572585940361023
+    },
+    {
+     "i": 91,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00091.wav",
+     "instruct": "Neutral narration; pacing is brisk, reflecting hurried movement.",
+     "seconds": 10.32,
+     "f0_median": 136.3,
+     "vtl": 17.06,
+     "ecapa_vs_anchor": 0.7840479016304016
+    },
+    {
+     "i": 92,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00092.wav",
+     "instruct": "Informational narration; measured pace, emphasizing the difference between the threats.",
+     "seconds": 10.08,
+     "f0_median": 99.2,
+     "vtl": 17.08,
+     "ecapa_vs_anchor": 0.7511162757873535
+    },
+    {
+     "i": 93,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00093.wav",
+     "instruct": "Neutral narration; slightly quickened pace conveys their sudden fear.",
+     "seconds": 12.8,
+     "f0_median": 143.5,
+     "vtl": 15.69,
+     "ecapa_vs_anchor": 0.7067043781280518
+    },
+    {
+     "i": 94,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00094.wav",
+     "instruct": "Descriptive narration; building suspense with a slight pause before 'but...'.",
+     "seconds": 18.96,
+     "f0_median": 146.9,
+     "vtl": 15.98,
+     "ecapa_vs_anchor": 0.6771873831748962
+    },
+    {
+     "i": 95,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00095.wav",
+     "instruct": "Smooth narration; warm and appreciative tone describing her demeanor.",
+     "seconds": 10.16,
+     "f0_median": 126.4,
+     "vtl": 16.94,
+     "ecapa_vs_anchor": 0.6227061748504639
+    },
+    {
+     "i": 96,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00096.wav",
+     "instruct": "Smooth transition narration; soft, almost pained delivery for his internal reaction.",
+     "seconds": 10.88,
+     "f0_median": 127.9,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7458422183990479
+    },
+    {
+     "i": 97,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00097.wav",
+     "instruct": "Quiet affirmation; gentle tone confirming her realization.",
+     "seconds": 4.64,
+     "f0_median": 126.4,
+     "vtl": 16.43,
+     "ecapa_vs_anchor": 0.7716840505599976
+    },
+    {
+     "i": 98,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00098.wav",
+     "instruct": "Narrative description; warm, hopeful tone anticipating the final charming line.",
+     "seconds": 10.96,
+     "f0_median": 190.5,
+     "vtl": 16.1,
+     "ecapa_vs_anchor": 0.8427987694740295
+    },
+    {
+     "i": 99,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00099.wav",
+     "instruct": "Urgent description; pace accelerates to convey the sudden loss of balance.",
+     "seconds": 7.04,
+     "f0_median": 205.3,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.5713520646095276
+    },
+    {
+     "i": 100,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00100.wav",
+     "instruct": "Short, impactful narration; emphasizing the timing of the intervention.",
+     "seconds": 3.6,
+     "f0_median": 122.5,
+     "vtl": 16.55,
+     "ecapa_vs_anchor": 0.7196900844573975
+    },
+    {
+     "i": 101,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00101.wav",
+     "instruct": "Sensory description; voice should sound distant and fading as he loses control.",
+     "seconds": 8.4,
+     "f0_median": 120.0,
+     "vtl": 16.33,
+     "ecapa_vs_anchor": 0.6222639083862305
+    },
+    {
+     "i": 102,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00102.wav",
+     "instruct": "Echoing narration; distant, ethereal quality suggesting fading awareness.",
+     "seconds": 15.76,
+     "f0_median": 121.4,
+     "vtl": 15.55,
+     "ecapa_vs_anchor": 0.7378004193305969
+    },
+    {
+     "i": 103,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00103.wav",
+     "instruct": "Slow, drawn-out narration; pace becomes extremely languid, mirroring his drifting state.",
+     "seconds": 13.68,
+     "f0_median": 139.8,
+     "vtl": 18.18,
+     "ecapa_vs_anchor": 0.5258223414421082
+    },
+    {
+     "i": 104,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00104.wav",
+     "instruct": "Urgent narration; building momentum towards a final burst of emotion.",
+     "seconds": 10.48,
+     "f0_median": 129.4,
+     "vtl": 16.3,
+     "ecapa_vs_anchor": 0.8299479484558105
+    },
+    {
+     "i": 105,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00105.wav",
+     "instruct": "Thoughtful, admiring narration; lighthearted and appreciative tone, a moment of internal respite.",
+     "seconds": 5.28,
+     "f0_median": 233.2,
+     "vtl": 15.54,
+     "ecapa_vs_anchor": 0.8094204068183899
+    },
+    {
+     "i": 106,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00106.wav",
+     "instruct": "Neutral, descriptive narration; pacing picks up slightly to match the action.",
+     "seconds": 6.08,
+     "f0_median": 145.2,
+     "vtl": 15.71,
+     "ecapa_vs_anchor": 0.8643964529037476
+    },
+    {
+     "i": 107,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00107.wav",
+     "instruct": "Thoughtful, appreciative narration; warm tone suggesting contentment.",
+     "seconds": 16.72,
+     "f0_median": 131.6,
+     "vtl": 15.63,
+     "ecapa_vs_anchor": 0.7867887616157532
+    },
+    {
+     "i": 108,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00108.wav",
+     "instruct": "Neutral narration; smooth pacing, painting the scene with quiet observation.",
+     "seconds": 14.48,
+     "f0_median": 124.2,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.7553552985191345
+    },
+    {
+     "i": 109,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00109.wav",
+     "instruct": "Introspective narration; slightly reverent tone, emphasizing the lasting impression of the girl.",
+     "seconds": 12.64,
+     "f0_median": 117.3,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.7064276933670044
+    },
+    {
+     "i": 110,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00110.wav",
+     "instruct": "Observational narration; tone is impressed and slightly overwhelmed by the display of strength.",
+     "seconds": 17.12,
+     "f0_median": 129.4,
+     "vtl": 16.19,
+     "ecapa_vs_anchor": 0.681770920753479
+    },
+    {
+     "i": 111,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00111.wav",
+     "instruct": "Neutral, concluding narration for the action; steady rhythm.",
+     "seconds": 7.52,
+     "f0_median": 155.6,
+     "vtl": 15.18,
+     "ecapa_vs_anchor": 0.7507522106170654
+    },
+    {
+     "i": 112,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00112.wav",
+     "instruct": "Analytical narration; slightly wistful or admiring tone, reflecting on her character.",
+     "seconds": 7.52,
+     "f0_median": 168.2,
+     "vtl": 15.16,
+     "ecapa_vs_anchor": 0.8408177495002747
+    },
+    {
+     "i": 113,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00113.wav",
+     "instruct": "Brief, impactful action description; the delivery is sharp and definitive.",
+     "seconds": 3.04,
+     "f0_median": 142.7,
+     "vtl": 16.35,
+     "ecapa_vs_anchor": 0.7223808765411377
+    },
+    {
+     "i": 114,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00114.wav",
+     "instruct": "Neutral narration; a slight pause before 'However' emphasizes the recurring nature of the question.",
+     "seconds": 10.16,
+     "f0_median": 151.2,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.8865336775779724
+    },
+    {
+     "i": 115,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00115.wav",
+     "instruct": "Simple, factual narration; quick pace to convey familiarity with the event.",
+     "seconds": 4.16,
+     "f0_median": 123.5,
+     "vtl": 17.43,
+     "ecapa_vs_anchor": 0.7978391647338867
+    },
+    {
+     "i": 116,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00116.wav",
+     "instruct": "Reflective narration; slightly questioning inflection at the end.",
+     "seconds": 12.72,
+     "f0_median": 121.4,
+     "vtl": 16.69,
+     "ecapa_vs_anchor": 0.7618299722671509
+    },
+    {
+     "i": 117,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00117.wav",
+     "instruct": "Neutral narration; steady rhythm, building anticipation for her reaction.",
+     "seconds": 12.64,
+     "f0_median": 119.0,
+     "vtl": 16.46,
+     "ecapa_vs_anchor": 0.7657190561294556
+    },
+    {
+     "i": 118,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00118.wav",
+     "instruct": "Explanatory narration; the word 'twisted' should be delivered with a slight emphasis.",
+     "seconds": 6.48,
+     "f0_median": 141.1,
+     "vtl": 16.31,
+     "ecapa_vs_anchor": 0.860461413860321
+    },
+    {
+     "i": 119,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/no_timbre/line_00119.wav",
+     "instruct": "Action-oriented narration; brisk delivery suggesting finality and impatience.",
+     "seconds": 6.0,
+     "f0_median": 168.2,
+     "vtl": 16.83,
+     "ecapa_vs_anchor": 0.7715891003608704
+    }
+   ]
+  },
+  "anchored": {
+   "summary": {
+    "generated": 120,
+    "failed": 0,
+    "ecapa_error": null,
+    "ecapa_mean": 0.7711,
+    "ecapa_p10": 0.643,
+    "f0_median_hz": 128.6,
+    "f0_spread_semitones": 2.532,
+    "vtl_spread": 0.7117,
+    "seconds_mean": 10.254,
+    "seconds_per_char": 0.07578
+   },
+   "rows": [
+    {
+     "i": 0,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00000.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Book title announcement; slightly dramatic and engaging tone.",
+     "seconds": 4.64,
+     "f0_median": 177.7,
+     "vtl": 16.94
+    },
+    {
+     "i": 1,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00001.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Quick, precise reading of the copyright line; professional quality.",
+     "seconds": 5.84,
+     "f0_median": 131.2,
+     "vtl": 16.35
+    },
+    {
+     "i": 2,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00002.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Straightforward informational delivery; slightly crisp articulation.",
+     "seconds": 6.4,
+     "f0_median": 171.7,
+     "vtl": 16.34
+    },
+    {
+     "i": 3,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00003.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Slightly more formal and legalistic tone; steady pace.",
+     "seconds": 14.56,
+     "f0_median": 180.8,
+     "vtl": 16.0
+    },
+    {
+     "i": 4,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00004.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Brief, authoritative reading of the date and holder; clear enunciation.",
+     "seconds": 4.56,
+     "f0_median": 135.5,
+     "vtl": 16.12
+    },
+    {
+     "i": 5,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00005.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Uplifting, persuasive tone; slightly warmer than standard narration.",
+     "seconds": 11.12,
+     "f0_median": 150.3,
+     "vtl": 15.76
+    },
+    {
+     "i": 6,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00006.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Clear, measured address reading; professional cadence.",
+     "seconds": 3.12,
+     "f0_median": 112.6,
+     "vtl": 16.59
+    },
+    {
+     "i": 7,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00007.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Quick, energetic reading of web addresses; slightly accelerated pace.",
+     "seconds": 9.84,
+     "f0_median": 188.8,
+     "vtl": 17.62
+    },
+    {
+     "i": 8,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00008.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Rapid-fire legal disclaimer; highly professional and steady delivery.",
+     "seconds": 13.92,
+     "f0_median": 134.7,
+     "vtl": 15.36,
+     "ecapa_vs_anchor": 0.8813458681106567
+    },
+    {
+     "i": 9,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00009.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Precise, almost robotic reading of numbers; very clear articulation.",
+     "seconds": 27.92,
+     "f0_median": 133.2,
+     "vtl": 16.37,
+     "ecapa_vs_anchor": 0.8898602724075317
+    },
+    {
+     "i": 10,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00010.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Technical code reading; clipped and efficient delivery.",
+     "seconds": 6.88,
+     "f0_median": 137.8,
+     "vtl": 14.83,
+     "ecapa_vs_anchor": 0.7559394836425781
+    },
+    {
+     "i": 11,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00011.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Simple directional cues; clear and inviting tone.",
+     "seconds": 6.24,
+     "f0_median": 179.8,
+     "vtl": 15.28,
+     "ecapa_vs_anchor": 0.7882383465766907
+    },
+    {
+     "i": 12,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00012.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Dramatic, pronounced title reading; slow and weighty delivery.",
+     "seconds": 3.28,
+     "f0_median": 108.5,
+     "vtl": 15.97,
+     "ecapa_vs_anchor": 0.6934795379638672
+    },
+    {
+     "i": 13,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00013.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Analytical, horrified narration; slightly faster pace as the realization sinks in.",
+     "seconds": 17.84,
+     "f0_median": 137.0,
+     "vtl": 15.58,
+     "ecapa_vs_anchor": 0.7222764492034912
+    },
+    {
+     "i": 14,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00014.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Dramatic summation; slowing down on 'checkmate' for impact.",
+     "seconds": 14.0,
+     "f0_median": 150.8,
+     "vtl": 15.42,
+     "ecapa_vs_anchor": 0.8571216464042664
+    },
+    {
+     "i": 15,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00015.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Visual narration; quiet awe mixed with dread.",
+     "seconds": 13.68,
+     "f0_median": 115.9,
+     "vtl": 16.56,
+     "ecapa_vs_anchor": 0.6344475746154785
+    },
+    {
+     "i": 16,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00016.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Resigned, weary tone; very soft delivery.",
+     "seconds": 5.2,
+     "f0_median": 129.4,
+     "vtl": 16.23,
+     "ecapa_vs_anchor": 0.644471287727356
+    },
+    {
+     "i": 17,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00017.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Awe-struck narration; the pace quickens dramatically leading into the exclamation.",
+     "seconds": 15.44,
+     "f0_median": 143.5,
+     "vtl": 15.22,
+     "ecapa_vs_anchor": 0.7272039651870728
+    },
+    {
+     "i": 18,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00018.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Urgent action narration; quickened pace conveying sudden movement and impact.",
+     "seconds": 8.88,
+     "f0_median": 115.2,
+     "vtl": 16.29,
+     "ecapa_vs_anchor": 0.736248254776001
+    },
+    {
+     "i": 19,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00019.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Intimate, tender narration; very soft delivery focusing on tactile sensation.",
+     "seconds": 12.32,
+     "f0_median": 113.3,
+     "vtl": 16.62,
+     "ecapa_vs_anchor": 0.6491124629974365
+    },
+    {
+     "i": 20,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00020.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Intense, effortful narration; conveying immense internal struggle and fight for life.",
+     "seconds": 5.36,
+     "f0_median": 112.6,
+     "vtl": 16.91,
+     "ecapa_vs_anchor": 0.7693527340888977
+    },
+    {
+     "i": 21,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00021.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Terminal announcement; slow, heavy finality to the word 'life.'",
+     "seconds": 7.36,
+     "f0_median": 120.7,
+     "vtl": 17.88,
+     "ecapa_vs_anchor": 0.5873026847839355
+    },
+    {
+     "i": 22,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00022.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Detailed visual description; slightly softer focus on the nuance of his expression.",
+     "seconds": 13.84,
+     "f0_median": 110.7,
+     "vtl": 16.44,
+     "ecapa_vs_anchor": 0.8472752571105957
+    },
+    {
+     "i": 23,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00023.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Building tension narration; slowing down on 'strange' to create suspenseful emphasis.",
+     "seconds": 13.84,
+     "f0_median": 145.2,
+     "vtl": 15.84,
+     "ecapa_vs_anchor": 0.8439234495162964
+    },
+    {
+     "i": 24,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00024.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Observational narration; building a sense of contrast and strangeness.",
+     "seconds": 7.84,
+     "f0_median": 122.5,
+     "vtl": 17.16,
+     "ecapa_vs_anchor": 0.856673002243042
+    },
+    {
+     "i": 25,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00025.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Descriptive, flowing narration; emphasizing variety with slight pauses.",
+     "seconds": 15.68,
+     "f0_median": 108.2,
+     "vtl": 17.43,
+     "ecapa_vs_anchor": 0.7735681533813477
+    },
+    {
+     "i": 26,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00026.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Action-oriented narration; a moment of quiet resignation settling in.",
+     "seconds": 9.28,
+     "f0_median": 133.9,
+     "vtl": 15.99,
+     "ecapa_vs_anchor": 0.8229737877845764
+    },
+    {
+     "i": 27,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00027.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Sharp, quick action narration; energetic delivery matching the gesture.",
+     "seconds": 3.92,
+     "f0_median": 168.7,
+     "vtl": 16.83,
+     "ecapa_vs_anchor": 0.8521018028259277
+    },
+    {
+     "i": 28,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00028.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration, establishing context; slightly breathless to convey immediate action.",
+     "seconds": 6.24,
+     "f0_median": 170.7,
+     "vtl": 15.22,
+     "ecapa_vs_anchor": 0.6319677829742432
+    },
+    {
+     "i": 29,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00029.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Informative, grounding narration; steady, factual delivery.",
+     "seconds": 9.68,
+     "f0_median": 104.5,
+     "vtl": 16.4,
+     "ecapa_vs_anchor": 0.816943347454071
+    },
+    {
+     "i": 30,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00030.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Philosophical narration; measured and thoughtful pacing.",
+     "seconds": 13.12,
+     "f0_median": 154.7,
+     "vtl": 15.12,
+     "ecapa_vs_anchor": 0.8171408176422119
+    },
+    {
+     "i": 31,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00031.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Conclusive narration; slightly melancholic inflection on 'weep over'.",
+     "seconds": 10.16,
+     "f0_median": 119.7,
+     "vtl": 16.47,
+     "ecapa_vs_anchor": 0.7968135476112366
+    },
+    {
+     "i": 32,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00032.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Internal monologue narration; tone of disbelief mixed with physical annoyance.",
+     "seconds": 10.72,
+     "f0_median": 171.7,
+     "vtl": 15.32,
+     "ecapa_vs_anchor": 0.8183271884918213
+    },
+    {
+     "i": 33,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00033.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Quietly tired narration; slowing down to emphasize his current state of weary observation.",
+     "seconds": 11.68,
+     "f0_median": 112.6,
+     "vtl": 17.52,
+     "ecapa_vs_anchor": 0.7208682298660278
+    },
+    {
+     "i": 34,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00034.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Procedural narration; objective, like ticking items off a mental list.",
+     "seconds": 11.36,
+     "f0_median": 135.5,
+     "vtl": 16.08,
+     "ecapa_vs_anchor": 0.8880835771560669
+    },
+    {
+     "i": 35,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00035.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Relief-tinged narration; tone brightens slightly on 'fortunately'.",
+     "seconds": 10.48,
+     "f0_median": 160.2,
+     "vtl": 15.43,
+     "ecapa_vs_anchor": 0.8781505823135376
+    },
+    {
+     "i": 36,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00036.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Subtle disappointment in the delivery; quiet confirmation of negativity.",
+     "seconds": 6.56,
+     "f0_median": 144.4,
+     "vtl": 16.75,
+     "ecapa_vs_anchor": 0.814184308052063
+    },
+    {
+     "i": 37,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00037.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Reflective narration; a grateful, slightly amused tone when mentioning his own disposition.",
+     "seconds": 14.24,
+     "f0_median": 124.2,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.877008855342865
+    },
+    {
+     "i": 38,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00038.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Wistful narration; a slight hesitation before the final thought.",
+     "seconds": 11.44,
+     "f0_median": 117.3,
+     "vtl": 16.31,
+     "ecapa_vs_anchor": 0.8722031116485596
+    },
+    {
+     "i": 39,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00039.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Emphatic narration; a slight downward inflection to convey the weight of his circumstances.",
+     "seconds": 6.48,
+     "f0_median": 132.0,
+     "vtl": 16.28,
+     "ecapa_vs_anchor": 0.621803343296051
+    },
+    {
+     "i": 40,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00040.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Slightly humorous resignation; narrative tone suggesting inevitability.",
+     "seconds": 6.64,
+     "f0_median": 105.1,
+     "vtl": 17.4,
+     "ecapa_vs_anchor": 0.8222808241844177
+    },
+    {
+     "i": 41,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00041.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Detailed recounting narration; a slight pause before 'realizing' to emphasize the dawning horror.",
+     "seconds": 16.8,
+     "f0_median": 122.8,
+     "vtl": 16.24,
+     "ecapa_vs_anchor": 0.6920093894004822
+    },
+    {
+     "i": 42,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00042.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Pragmatic, grounding tone; firm assertion of reality.",
+     "seconds": 3.28,
+     "f0_median": 150.3,
+     "vtl": 17.34,
+     "ecapa_vs_anchor": 0.7124297618865967
+    },
+    {
+     "i": 43,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00043.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Dismissive narration; a quick, decisive delivery suggesting hope has been instantly crushed.",
+     "seconds": 19.2,
+     "f0_median": 124.2,
+     "vtl": 16.51,
+     "ecapa_vs_anchor": 0.7261652946472168
+    },
+    {
+     "i": 44,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00044.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Observationally focused narration; building intensity toward 'half-humans'.",
+     "seconds": 13.2,
+     "f0_median": 119.7,
+     "vtl": 16.86,
+     "ecapa_vs_anchor": 0.8967974781990051
+    },
+    {
+     "i": 45,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00045.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Descriptive listing; smooth, flowing delivery that paints a clear picture.",
+     "seconds": 8.88,
+     "f0_median": 143.9,
+     "vtl": 15.82,
+     "ecapa_vs_anchor": 0.8414968252182007
+    },
+    {
+     "i": 46,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00046.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Calm counterpoint narration; bringing the focus back to his own relatable nature.",
+     "seconds": 4.4,
+     "f0_median": 154.3,
+     "vtl": 16.61,
+     "ecapa_vs_anchor": 0.8013821840286255
+    },
+    {
+     "i": 47,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00047.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Finalizing action narration; the difference between 'breath' and 'sigh' should be audible in the vocal texture.",
+     "seconds": 7.52,
+     "f0_median": 110.0,
+     "vtl": 17.59,
+     "ecapa_vs_anchor": 0.7460731267929077
+    },
+    {
+     "i": 48,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00048.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Resigned narration; voice becomes softer, settling into a familiar melancholy.",
+     "seconds": 12.64,
+     "f0_median": 124.2,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.7471010684967041
+    },
+    {
+     "i": 49,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00049.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Action description; brief, clipped pacing.",
+     "seconds": 4.08,
+     "f0_median": 117.9,
+     "vtl": 16.57,
+     "ecapa_vs_anchor": 0.8365288972854614
+    },
+    {
+     "i": 50,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00050.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Dynamic action narration; pace increases rapidly to convey the sudden stop.",
+     "seconds": 14.24,
+     "f0_median": 176.7,
+     "vtl": 15.11,
+     "ecapa_vs_anchor": 0.8069764971733093
+    },
+    {
+     "i": 51,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00051.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Philosophical, matter-of-fact narration; pacing slows for emphasis.",
+     "seconds": 9.12,
+     "f0_median": 148.6,
+     "vtl": 15.15,
+     "ecapa_vs_anchor": 0.7798370122909546
+    },
+    {
+     "i": 52,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00052.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Elated narration; tone swells with growing confidence.",
+     "seconds": 10.16,
+     "f0_median": 133.5,
+     "vtl": 15.1,
+     "ecapa_vs_anchor": 0.7374711036682129
+    },
+    {
+     "i": 53,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00053.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Suspenseful narration; pace slows dramatically right before the final reveal.",
+     "seconds": 9.36,
+     "f0_median": 128.6,
+     "vtl": 16.25,
+     "ecapa_vs_anchor": 0.7953814268112183
+    },
+    {
+     "i": 54,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00054.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Dramatic action description; powerful, sweeping delivery emphasizing the sudden submission.",
+     "seconds": 9.76,
+     "f0_median": 153.8,
+     "vtl": 15.9,
+     "ecapa_vs_anchor": 0.9089688062667847
+    },
+    {
+     "i": 55,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00055.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Grave, philosophical narration; slow, weighted delivery.",
+     "seconds": 13.76,
+     "f0_median": 111.3,
+     "vtl": 16.45,
+     "ecapa_vs_anchor": 0.727617621421814
+    },
+    {
+     "i": 56,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00056.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Disappointed realization; measured, slightly deflated tone.",
+     "seconds": 13.28,
+     "f0_median": 135.5,
+     "vtl": 15.7,
+     "ecapa_vs_anchor": 0.8495814204216003
+    },
+    {
+     "i": 57,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00057.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Gravelly observation; heavy emphasis on 'didn't hold back'.",
+     "seconds": 5.52,
+     "f0_median": 110.7,
+     "vtl": 17.45,
+     "ecapa_vs_anchor": 0.6668065786361694
+    },
+    {
+     "i": 58,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00058.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Internal monologue; desperate, building tension and urgency.",
+     "seconds": 14.64,
+     "f0_median": 140.3,
+     "vtl": 14.97,
+     "ecapa_vs_anchor": 0.8040618300437927
+    },
+    {
+     "i": 59,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00059.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Tense description; slow pacing emphasizing the threat of the blade.",
+     "seconds": 9.84,
+     "f0_median": 129.4,
+     "vtl": 16.61,
+     "ecapa_vs_anchor": 0.811097264289856
+    },
+    {
+     "i": 60,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00060.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Meditative reflection; very slow, weighted delivery.",
+     "seconds": 17.28,
+     "f0_median": 145.6,
+     "vtl": 16.45,
+     "ecapa_vs_anchor": 0.706159234046936
+    },
+    {
+     "i": 61,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00061.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Quick action narration; pace speeds up to match the sudden interruption.",
+     "seconds": 12.24,
+     "f0_median": 117.9,
+     "vtl": 15.77,
+     "ecapa_vs_anchor": 0.8903513550758362
+    },
+    {
+     "i": 62,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00062.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Triumphant realization; bright, soaring tone.",
+     "seconds": 9.04,
+     "f0_median": 152.9,
+     "vtl": 14.86,
+     "ecapa_vs_anchor": 0.8152979612350464
+    },
+    {
+     "i": 63,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00063.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Abrupt shift; a sharp, deflating tone.",
+     "seconds": 3.84,
+     "f0_median": 115.2,
+     "vtl": 16.91,
+     "ecapa_vs_anchor": 0.5859560966491699
+    },
+    {
+     "i": 64,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00064.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Sudden stillness; quiet, reverberating tone suggesting shock.",
+     "seconds": 12.88,
+     "f0_median": 130.1,
+     "vtl": 16.46,
+     "ecapa_vs_anchor": 0.6858712434768677
+    },
+    {
+     "i": 65,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00065.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Matter-of-fact transition; a slight dip in energy to signal the return of danger.",
+     "seconds": 5.28,
+     "f0_median": 122.8,
+     "vtl": 16.53,
+     "ecapa_vs_anchor": 0.837985634803772
+    },
+    {
+     "i": 66,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00066.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Heavy, oppressive narration; slow pace emphasizing the inescapable threat.",
+     "seconds": 13.76,
+     "f0_median": 120.7,
+     "vtl": 16.19,
+     "ecapa_vs_anchor": 0.6461188793182373
+    },
+    {
+     "i": 67,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00067.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Tense observation; building dread with each word.",
+     "seconds": 16.88,
+     "f0_median": 126.4,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.746726393699646
+    },
+    {
+     "i": 68,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00068.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Deep, melancholic narration; very slow pace conveying profound sadness.",
+     "seconds": 16.8,
+     "f0_median": 108.8,
+     "vtl": 16.4,
+     "ecapa_vs_anchor": 0.5881173610687256
+    },
+    {
+     "i": 69,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00069.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Whispered internal monologue; breathy quality, sinking into low register.",
+     "seconds": 9.04,
+     "f0_median": 136.3,
+     "vtl": 15.5,
+     "ecapa_vs_anchor": 0.6276671886444092
+    },
+    {
+     "i": 70,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00070.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Exaggerated impact narration; dramatic rise in vocal energy.",
+     "seconds": 14.72,
+     "f0_median": 133.1,
+     "vtl": 15.69,
+     "ecapa_vs_anchor": 0.7919338941574097
+    },
+    {
+     "i": 71,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00071.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Philosophical conclusion; reflective, measured delivery with a slight awe in the voice.",
+     "seconds": 6.48,
+     "f0_median": 110.7,
+     "vtl": 16.34,
+     "ecapa_vs_anchor": 0.8119289875030518
+    },
+    {
+     "i": 72,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00072.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Intimate portraiture; softer vocal quality, emphasizing the duality of her looks.",
+     "seconds": 12.32,
+     "f0_median": 117.3,
+     "vtl": 15.17,
+     "ecapa_vs_anchor": 0.710919976234436
+    },
+    {
+     "i": 73,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00073.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Highlighting detail; slightly more pronounced enunciation on 'cloak' and 'majesty'.",
+     "seconds": 12.4,
+     "f0_median": 112.0,
+     "vtl": 16.91,
+     "ecapa_vs_anchor": 0.6429877281188965
+    },
+    {
+     "i": 74,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00074.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Final, conclusive thought; quiet, breathy emphasis, fading slightly at the end.",
+     "seconds": 4.96,
+     "f0_median": 126.4,
+     "vtl": 15.01,
+     "ecapa_vs_anchor": 0.6808092594146729
+    },
+    {
+     "i": 75,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00075.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Warm, evocative narration; slightly lingering pace on 'undone'.",
+     "seconds": 12.48,
+     "f0_median": 112.6,
+     "vtl": 15.68,
+     "ecapa_vs_anchor": 0.7909014821052551
+    },
+    {
+     "i": 76,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00076.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral, observant pacing; slight downturn in pitch suggesting apprehension.",
+     "seconds": 4.56,
+     "f0_median": 127.1,
+     "vtl": 15.28,
+     "ecapa_vs_anchor": 0.642548680305481
+    },
+    {
+     "i": 77,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00077.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Intense focus narration; quiet, heartfelt delivery.",
+     "seconds": 3.84,
+     "f0_median": 123.5,
+     "vtl": 16.29,
+     "ecapa_vs_anchor": 0.6376625299453735
+    },
+    {
+     "i": 78,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00078.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Subtle tension building; low register, slightly breathless tone.",
+     "seconds": 10.4,
+     "f0_median": 125.7,
+     "vtl": 17.76,
+     "ecapa_vs_anchor": 0.6942580938339233
+    },
+    {
+     "i": 79,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00079.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Simple action narration; steady, flat pacing.",
+     "seconds": 2.64,
+     "f0_median": 121.7,
+     "vtl": 16.28,
+     "ecapa_vs_anchor": 0.7540645003318787
+    },
+    {
+     "i": 80,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00080.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Slightly judgmental narration; quickening pace reflecting their haste.",
+     "seconds": 11.6,
+     "f0_median": 106.3,
+     "vtl": 16.9,
+     "ecapa_vs_anchor": 0.7949965596199036
+    },
+    {
+     "i": 81,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00081.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Smooth transition narration; steady, thoughtful pacing before the final action.",
+     "seconds": 16.72,
+     "f0_median": 152.1,
+     "vtl": 16.16,
+     "ecapa_vs_anchor": 0.7343233227729797
+    },
+    {
+     "i": 82,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00082.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Narrative crescendo; slightly dramatic pause before 'when...'.",
+     "seconds": 18.0,
+     "f0_median": 138.6,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.748656690120697
+    },
+    {
+     "i": 83,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00083.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Visual description narration; smooth flow, emphasizing the 'shining' quality.",
+     "seconds": 10.56,
+     "f0_median": 117.9,
+     "vtl": 16.17,
+     "ecapa_vs_anchor": 0.8255385160446167
+    },
+    {
+     "i": 84,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00084.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Detailed description narration; slightly faster pace to convey swift evaporation.",
+     "seconds": 13.44,
+     "f0_median": 157.0,
+     "vtl": 16.29,
+     "ecapa_vs_anchor": 0.7518186569213867
+    },
+    {
+     "i": 85,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00085.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Internal realization narration; quickening pace to reflect the sudden thought process.",
+     "seconds": 12.32,
+     "f0_median": 151.2,
+     "vtl": 16.54,
+     "ecapa_vs_anchor": 0.9126598834991455
+    },
+    {
+     "i": 86,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00086.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Pondering narration; a slight dip in volume as he processes the information.",
+     "seconds": 6.88,
+     "f0_median": 150.3,
+     "vtl": 17.25,
+     "ecapa_vs_anchor": 0.7831825613975525
+    },
+    {
+     "i": 87,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00087.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Action description narration; slightly ragged delivery to match his state.",
+     "seconds": 5.6,
+     "f0_median": 100.9,
+     "vtl": 15.58,
+     "ecapa_vs_anchor": 0.7924336791038513
+    },
+    {
+     "i": 88,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00088.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Anticipatory narration; very smooth delivery, building suspense towards the reveal.",
+     "seconds": 11.28,
+     "f0_median": 150.3,
+     "vtl": 15.76,
+     "ecapa_vs_anchor": 0.8461760878562927
+    },
+    {
+     "i": 89,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00089.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Reaction narration; sudden spike in volume and pitch to capture the terror.",
+     "seconds": 9.76,
+     "f0_median": 149.5,
+     "vtl": 15.58,
+     "ecapa_vs_anchor": 0.6590926647186279
+    },
+    {
+     "i": 90,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00090.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Informational header; clear, steady pacing, slightly formal tone.",
+     "seconds": 13.6,
+     "f0_median": 110.0,
+     "vtl": 17.03,
+     "ecapa_vs_anchor": 0.6949777603149414
+    },
+    {
+     "i": 91,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00091.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration; pacing is brisk, reflecting hurried movement.",
+     "seconds": 10.0,
+     "f0_median": 120.0,
+     "vtl": 16.12,
+     "ecapa_vs_anchor": 0.7986814975738525
+    },
+    {
+     "i": 92,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00092.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Informational narration; measured pace, emphasizing the difference between the threats.",
+     "seconds": 9.6,
+     "f0_median": 94.7,
+     "vtl": 16.72,
+     "ecapa_vs_anchor": 0.8175804615020752
+    },
+    {
+     "i": 93,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00093.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration; slightly quickened pace conveys their sudden fear.",
+     "seconds": 12.64,
+     "f0_median": 149.5,
+     "vtl": 15.56,
+     "ecapa_vs_anchor": 0.7481112480163574
+    },
+    {
+     "i": 94,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00094.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Descriptive narration; building suspense with a slight pause before 'but...'.",
+     "seconds": 15.6,
+     "f0_median": 124.2,
+     "vtl": 15.84,
+     "ecapa_vs_anchor": 0.8123933672904968
+    },
+    {
+     "i": 95,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00095.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Smooth narration; warm and appreciative tone describing her demeanor.",
+     "seconds": 8.16,
+     "f0_median": 125.7,
+     "vtl": 16.24,
+     "ecapa_vs_anchor": 0.7595981359481812
+    },
+    {
+     "i": 96,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00096.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Smooth transition narration; soft, almost pained delivery for his internal reaction.",
+     "seconds": 10.24,
+     "f0_median": 105.1,
+     "vtl": 17.94,
+     "ecapa_vs_anchor": 0.6939719915390015
+    },
+    {
+     "i": 97,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00097.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Quiet affirmation; gentle tone confirming her realization.",
+     "seconds": 4.64,
+     "f0_median": 137.0,
+     "vtl": 17.06,
+     "ecapa_vs_anchor": 0.7984172105789185
+    },
+    {
+     "i": 98,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00098.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Narrative description; warm, hopeful tone anticipating the final charming line.",
+     "seconds": 16.0,
+     "f0_median": 111.3,
+     "vtl": 17.08,
+     "ecapa_vs_anchor": 0.8328272700309753
+    },
+    {
+     "i": 99,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00099.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Urgent description; pace accelerates to convey the sudden loss of balance.",
+     "seconds": 7.6,
+     "f0_median": 132.0,
+     "vtl": 15.82,
+     "ecapa_vs_anchor": 0.7308052182197571
+    },
+    {
+     "i": 100,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00100.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Short, impactful narration; emphasizing the timing of the intervention.",
+     "seconds": 3.6,
+     "f0_median": 141.1,
+     "vtl": 16.14,
+     "ecapa_vs_anchor": 0.7816768288612366
+    },
+    {
+     "i": 101,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00101.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Sensory description; voice should sound distant and fading as he loses control.",
+     "seconds": 7.6,
+     "f0_median": 132.4,
+     "vtl": 16.03,
+     "ecapa_vs_anchor": 0.7824162244796753
+    },
+    {
+     "i": 102,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00102.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Echoing narration; distant, ethereal quality suggesting fading awareness.",
+     "seconds": 14.48,
+     "f0_median": 107.5,
+     "vtl": 15.28,
+     "ecapa_vs_anchor": 0.8623169660568237
+    },
+    {
+     "i": 103,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00103.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Slow, drawn-out narration; pace becomes extremely languid, mirroring his drifting state.",
+     "seconds": 9.92,
+     "f0_median": 147.7,
+     "vtl": 15.88,
+     "ecapa_vs_anchor": 0.6835951209068298
+    },
+    {
+     "i": 104,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00104.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Urgent narration; building momentum towards a final burst of emotion.",
+     "seconds": 9.36,
+     "f0_median": 138.6,
+     "vtl": 16.53,
+     "ecapa_vs_anchor": 0.900993824005127
+    },
+    {
+     "i": 105,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00105.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Thoughtful, admiring narration; lighthearted and appreciative tone, a moment of internal respite.",
+     "seconds": 8.24,
+     "f0_median": 135.1,
+     "vtl": 16.26,
+     "ecapa_vs_anchor": 0.6309565901756287
+    },
+    {
+     "i": 106,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00106.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral, descriptive narration; pacing picks up slightly to match the action.",
+     "seconds": 7.28,
+     "f0_median": 116.6,
+     "vtl": 16.05,
+     "ecapa_vs_anchor": 0.8581624031066895
+    },
+    {
+     "i": 107,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00107.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Thoughtful, appreciative narration; warm tone suggesting contentment.",
+     "seconds": 15.92,
+     "f0_median": 118.6,
+     "vtl": 15.61,
+     "ecapa_vs_anchor": 0.8664401769638062
+    },
+    {
+     "i": 108,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00108.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration; smooth pacing, painting the scene with quiet observation.",
+     "seconds": 15.68,
+     "f0_median": 113.3,
+     "vtl": 16.71,
+     "ecapa_vs_anchor": 0.7852075099945068
+    },
+    {
+     "i": 109,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00109.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Introspective narration; slightly reverent tone, emphasizing the lasting impression of the girl.",
+     "seconds": 11.04,
+     "f0_median": 164.9,
+     "vtl": 15.52,
+     "ecapa_vs_anchor": 0.8880906701087952
+    },
+    {
+     "i": 110,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00110.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Observational narration; tone is impressed and slightly overwhelmed by the display of strength.",
+     "seconds": 16.8,
+     "f0_median": 125.0,
+     "vtl": 16.07,
+     "ecapa_vs_anchor": 0.7243524193763733
+    },
+    {
+     "i": 111,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00111.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral, concluding narration for the action; steady rhythm.",
+     "seconds": 7.92,
+     "f0_median": 129.7,
+     "vtl": 16.06,
+     "ecapa_vs_anchor": 0.7139556407928467
+    },
+    {
+     "i": 112,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00112.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Analytical narration; slightly wistful or admiring tone, reflecting on her character.",
+     "seconds": 9.28,
+     "f0_median": 128.6,
+     "vtl": 15.17,
+     "ecapa_vs_anchor": 0.8313289284706116
+    },
+    {
+     "i": 113,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00113.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Brief, impactful action description; the delivery is sharp and definitive.",
+     "seconds": 3.52,
+     "f0_median": 111.3,
+     "vtl": 17.24,
+     "ecapa_vs_anchor": 0.6237789988517761
+    },
+    {
+     "i": 114,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00114.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration; a slight pause before 'However' emphasizes the recurring nature of the question.",
+     "seconds": 10.24,
+     "f0_median": 123.9,
+     "vtl": 15.64,
+     "ecapa_vs_anchor": 0.8757296204566956
+    },
+    {
+     "i": 115,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00115.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Simple, factual narration; quick pace to convey familiarity with the event.",
+     "seconds": 4.4,
+     "f0_median": 129.7,
+     "vtl": 16.66,
+     "ecapa_vs_anchor": 0.8649247288703918
+    },
+    {
+     "i": 116,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00116.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Reflective narration; slightly questioning inflection at the end.",
+     "seconds": 12.32,
+     "f0_median": 120.7,
+     "vtl": 15.8,
+     "ecapa_vs_anchor": 0.7669048309326172
+    },
+    {
+     "i": 117,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00117.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Neutral narration; steady rhythm, building anticipation for her reaction.",
+     "seconds": 12.88,
+     "f0_median": 115.2,
+     "vtl": 16.66,
+     "ecapa_vs_anchor": 0.8271999359130859
+    },
+    {
+     "i": 118,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00118.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Explanatory narration; the word 'twisted' should be delivered with a slight emphasis.",
+     "seconds": 6.56,
+     "f0_median": 102.7,
+     "vtl": 17.39,
+     "ecapa_vs_anchor": 0.8195960521697998
+    },
+    {
+     "i": 119,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchored/line_00119.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace. Action-oriented narration; brisk delivery suggesting finality and impatience.",
+     "seconds": 6.08,
+     "f0_median": 169.7,
+     "vtl": 16.86,
+     "ecapa_vs_anchor": 0.8590624928474426
+    }
+   ]
+  },
+  "anchor_only": {
+   "summary": {
+    "generated": 120,
+    "failed": 0,
+    "ecapa_error": null,
+    "ecapa_mean": 0.8245,
+    "ecapa_p10": 0.74,
+    "f0_median_hz": 120.7,
+    "f0_spread_semitones": 2.421,
+    "vtl_spread": 0.7407,
+    "seconds_mean": 9.903,
+    "seconds_per_char": 0.07319
+   },
+   "rows": [
+    {
+     "i": 0,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00000.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.76,
+     "f0_median": 133.9,
+     "vtl": 18.09
+    },
+    {
+     "i": 1,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00001.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.88,
+     "f0_median": 125.7,
+     "vtl": 17.51
+    },
+    {
+     "i": 2,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00002.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 7.44,
+     "f0_median": 116.6,
+     "vtl": 16.4
+    },
+    {
+     "i": 3,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00003.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.16,
+     "f0_median": 172.7,
+     "vtl": 15.2
+    },
+    {
+     "i": 4,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00004.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.88,
+     "f0_median": 163.5,
+     "vtl": 16.03
+    },
+    {
+     "i": 5,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00005.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.0,
+     "f0_median": 120.7,
+     "vtl": 16.33
+    },
+    {
+     "i": 6,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00006.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.76,
+     "f0_median": 130.9,
+     "vtl": 16.51
+    },
+    {
+     "i": 7,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00007.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.96,
+     "f0_median": 141.9,
+     "vtl": 16.33
+    },
+    {
+     "i": 8,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00008.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.64,
+     "f0_median": 132.4,
+     "vtl": 15.96,
+     "ecapa_vs_anchor": 0.8822664022445679
+    },
+    {
+     "i": 9,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00009.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 17.84,
+     "f0_median": 134.7,
+     "vtl": 16.41,
+     "ecapa_vs_anchor": 0.8938908576965332
+    },
+    {
+     "i": 10,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00010.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 7.04,
+     "f0_median": 119.3,
+     "vtl": 14.43,
+     "ecapa_vs_anchor": 0.8145066499710083
+    },
+    {
+     "i": 11,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00011.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.0,
+     "f0_median": 98.6,
+     "vtl": 16.44,
+     "ecapa_vs_anchor": 0.8301007747650146
+    },
+    {
+     "i": 12,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00012.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 2.64,
+     "f0_median": 115.2,
+     "vtl": 15.97,
+     "ecapa_vs_anchor": 0.75078284740448
+    },
+    {
+     "i": 13,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00013.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 16.56,
+     "f0_median": 112.0,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.7861974239349365
+    },
+    {
+     "i": 14,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00014.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.72,
+     "f0_median": 125.0,
+     "vtl": 15.58,
+     "ecapa_vs_anchor": 0.8670346736907959
+    },
+    {
+     "i": 15,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00015.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 16.96,
+     "f0_median": 112.6,
+     "vtl": 16.25,
+     "ecapa_vs_anchor": 0.8191393613815308
+    },
+    {
+     "i": 16,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00016.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.12,
+     "f0_median": 132.4,
+     "vtl": 15.14,
+     "ecapa_vs_anchor": 0.8201150894165039
+    },
+    {
+     "i": 17,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00017.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.84,
+     "f0_median": 142.7,
+     "vtl": 15.13,
+     "ecapa_vs_anchor": 0.768294095993042
+    },
+    {
+     "i": 18,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00018.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.72,
+     "f0_median": 107.5,
+     "vtl": 16.16,
+     "ecapa_vs_anchor": 0.8288789987564087
+    },
+    {
+     "i": 19,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00019.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.76,
+     "f0_median": 113.3,
+     "vtl": 16.34,
+     "ecapa_vs_anchor": 0.8494603633880615
+    },
+    {
+     "i": 20,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00020.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.6,
+     "f0_median": 100.9,
+     "vtl": 16.21,
+     "ecapa_vs_anchor": 0.8052686452865601
+    },
+    {
+     "i": 21,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00021.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.92,
+     "f0_median": 152.1,
+     "vtl": 15.67,
+     "ecapa_vs_anchor": 0.6581008434295654
+    },
+    {
+     "i": 22,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00022.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.12,
+     "f0_median": 91.5,
+     "vtl": 16.63,
+     "ecapa_vs_anchor": 0.7933272123336792
+    },
+    {
+     "i": 23,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00023.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 15.84,
+     "f0_median": 163.0,
+     "vtl": 16.07,
+     "ecapa_vs_anchor": 0.8745039701461792
+    },
+    {
+     "i": 24,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00024.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.32,
+     "f0_median": 141.1,
+     "vtl": 17.55,
+     "ecapa_vs_anchor": 0.8052202463150024
+    },
+    {
+     "i": 25,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00025.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 16.16,
+     "f0_median": 115.2,
+     "vtl": 17.22,
+     "ecapa_vs_anchor": 0.8162398934364319
+    },
+    {
+     "i": 26,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00026.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.24,
+     "f0_median": 137.0,
+     "vtl": 16.0,
+     "ecapa_vs_anchor": 0.8811080455780029
+    },
+    {
+     "i": 27,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00027.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.4,
+     "f0_median": 112.0,
+     "vtl": 16.96,
+     "ecapa_vs_anchor": 0.6820562481880188
+    },
+    {
+     "i": 28,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00028.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.16,
+     "f0_median": 168.7,
+     "vtl": 15.75,
+     "ecapa_vs_anchor": 0.7288826704025269
+    },
+    {
+     "i": 29,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00029.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.92,
+     "f0_median": 117.3,
+     "vtl": 16.08,
+     "ecapa_vs_anchor": 0.8537788391113281
+    },
+    {
+     "i": 30,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00030.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.24,
+     "f0_median": 143.5,
+     "vtl": 15.0,
+     "ecapa_vs_anchor": 0.8817409873008728
+    },
+    {
+     "i": 31,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00031.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.8,
+     "f0_median": 109.7,
+     "vtl": 16.15,
+     "ecapa_vs_anchor": 0.9231351017951965
+    },
+    {
+     "i": 32,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00032.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.48,
+     "f0_median": 144.4,
+     "vtl": 14.8,
+     "ecapa_vs_anchor": 0.7688603401184082
+    },
+    {
+     "i": 33,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00033.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.64,
+     "f0_median": 145.2,
+     "vtl": 16.19,
+     "ecapa_vs_anchor": 0.8933403491973877
+    },
+    {
+     "i": 34,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00034.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.4,
+     "f0_median": 142.7,
+     "vtl": 14.96,
+     "ecapa_vs_anchor": 0.8642489910125732
+    },
+    {
+     "i": 35,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00035.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.96,
+     "f0_median": 173.7,
+     "vtl": 15.79,
+     "ecapa_vs_anchor": 0.8352924585342407
+    },
+    {
+     "i": 36,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00036.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.52,
+     "f0_median": 169.7,
+     "vtl": 16.13,
+     "ecapa_vs_anchor": 0.7745950222015381
+    },
+    {
+     "i": 37,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00037.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 15.44,
+     "f0_median": 120.0,
+     "vtl": 16.08,
+     "ecapa_vs_anchor": 0.8658097982406616
+    },
+    {
+     "i": 38,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00038.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.88,
+     "f0_median": 140.3,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.8044768571853638
+    },
+    {
+     "i": 39,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00039.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.28,
+     "f0_median": 133.1,
+     "vtl": 16.24,
+     "ecapa_vs_anchor": 0.7682669758796692
+    },
+    {
+     "i": 40,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00040.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.8,
+     "f0_median": 152.5,
+     "vtl": 16.54,
+     "ecapa_vs_anchor": 0.8831175565719604
+    },
+    {
+     "i": 41,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00041.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.2,
+     "f0_median": 130.1,
+     "vtl": 15.84,
+     "ecapa_vs_anchor": 0.9215253591537476
+    },
+    {
+     "i": 42,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00042.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.04,
+     "f0_median": 98.0,
+     "vtl": 17.82,
+     "ecapa_vs_anchor": 0.5883288383483887
+    },
+    {
+     "i": 43,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00043.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 17.52,
+     "f0_median": 130.9,
+     "vtl": 15.5,
+     "ecapa_vs_anchor": 0.8030827045440674
+    },
+    {
+     "i": 44,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00044.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.52,
+     "f0_median": 125.3,
+     "vtl": 16.34,
+     "ecapa_vs_anchor": 0.9154590368270874
+    },
+    {
+     "i": 45,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00045.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.96,
+     "f0_median": 158.3,
+     "vtl": 15.06,
+     "ecapa_vs_anchor": 0.8162248730659485
+    },
+    {
+     "i": 46,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00046.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.12,
+     "f0_median": 133.5,
+     "vtl": 17.14,
+     "ecapa_vs_anchor": 0.7209200859069824
+    },
+    {
+     "i": 47,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00047.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.92,
+     "f0_median": 127.1,
+     "vtl": 17.16,
+     "ecapa_vs_anchor": 0.8168069124221802
+    },
+    {
+     "i": 48,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00048.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.4,
+     "f0_median": 110.7,
+     "vtl": 15.51,
+     "ecapa_vs_anchor": 0.8462371230125427
+    },
+    {
+     "i": 49,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00049.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.64,
+     "f0_median": 116.6,
+     "vtl": 16.28,
+     "ecapa_vs_anchor": 0.8614933490753174
+    },
+    {
+     "i": 50,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00050.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.12,
+     "f0_median": 138.6,
+     "vtl": 15.26,
+     "ecapa_vs_anchor": 0.8459873795509338
+    },
+    {
+     "i": 51,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00051.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.6,
+     "f0_median": 120.7,
+     "vtl": 15.36,
+     "ecapa_vs_anchor": 0.8762787580490112
+    },
+    {
+     "i": 52,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00052.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.88,
+     "f0_median": 108.8,
+     "vtl": 15.8,
+     "ecapa_vs_anchor": 0.8489049673080444
+    },
+    {
+     "i": 53,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00053.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.52,
+     "f0_median": 132.4,
+     "vtl": 16.29,
+     "ecapa_vs_anchor": 0.8695273399353027
+    },
+    {
+     "i": 54,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00054.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.36,
+     "f0_median": 110.0,
+     "vtl": 16.68,
+     "ecapa_vs_anchor": 0.8798919320106506
+    },
+    {
+     "i": 55,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00055.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.84,
+     "f0_median": 106.3,
+     "vtl": 17.11,
+     "ecapa_vs_anchor": 0.7685964107513428
+    },
+    {
+     "i": 56,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00056.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.08,
+     "f0_median": 118.6,
+     "vtl": 15.51,
+     "ecapa_vs_anchor": 0.9116283655166626
+    },
+    {
+     "i": 57,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00057.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.84,
+     "f0_median": 151.2,
+     "vtl": 17.24,
+     "ecapa_vs_anchor": 0.8028961420059204
+    },
+    {
+     "i": 58,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00058.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.84,
+     "f0_median": 131.6,
+     "vtl": 15.03,
+     "ecapa_vs_anchor": 0.7950048446655273
+    },
+    {
+     "i": 59,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00059.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.36,
+     "f0_median": 117.9,
+     "vtl": 17.33,
+     "ecapa_vs_anchor": 0.7982209920883179
+    },
+    {
+     "i": 60,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00060.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.72,
+     "f0_median": 116.6,
+     "vtl": 15.97,
+     "ecapa_vs_anchor": 0.8777660727500916
+    },
+    {
+     "i": 61,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00061.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.92,
+     "f0_median": 108.2,
+     "vtl": 15.78,
+     "ecapa_vs_anchor": 0.9188829660415649
+    },
+    {
+     "i": 62,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00062.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.8,
+     "f0_median": 175.2,
+     "vtl": 14.78,
+     "ecapa_vs_anchor": 0.7529454827308655
+    },
+    {
+     "i": 63,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00063.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.08,
+     "f0_median": 106.9,
+     "vtl": 17.51,
+     "ecapa_vs_anchor": 0.6977471113204956
+    },
+    {
+     "i": 64,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00064.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.24,
+     "f0_median": 110.7,
+     "vtl": 17.25,
+     "ecapa_vs_anchor": 0.8318260908126831
+    },
+    {
+     "i": 65,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00065.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.24,
+     "f0_median": 97.8,
+     "vtl": 17.05,
+     "ecapa_vs_anchor": 0.7825874090194702
+    },
+    {
+     "i": 66,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00066.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.44,
+     "f0_median": 113.9,
+     "vtl": 15.82,
+     "ecapa_vs_anchor": 0.8637062311172485
+    },
+    {
+     "i": 67,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00067.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 16.4,
+     "f0_median": 113.3,
+     "vtl": 16.46,
+     "ecapa_vs_anchor": 0.8838986158370972
+    },
+    {
+     "i": 68,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00068.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.08,
+     "f0_median": 112.6,
+     "vtl": 16.28,
+     "ecapa_vs_anchor": 0.7783061265945435
+    },
+    {
+     "i": 69,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00069.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 7.76,
+     "f0_median": 113.3,
+     "vtl": 15.54,
+     "ecapa_vs_anchor": 0.7980929613113403
+    },
+    {
+     "i": 70,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00070.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.48,
+     "f0_median": 126.4,
+     "vtl": 15.94,
+     "ecapa_vs_anchor": 0.8242108225822449
+    },
+    {
+     "i": 71,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00071.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.32,
+     "f0_median": 111.3,
+     "vtl": 15.94,
+     "ecapa_vs_anchor": 0.8047605752944946
+    },
+    {
+     "i": 72,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00072.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.16,
+     "f0_median": 113.9,
+     "vtl": 16.24,
+     "ecapa_vs_anchor": 0.8831298351287842
+    },
+    {
+     "i": 73,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00073.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.64,
+     "f0_median": 115.9,
+     "vtl": 15.91,
+     "ecapa_vs_anchor": 0.8138958215713501
+    },
+    {
+     "i": 74,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00074.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.72,
+     "f0_median": 124.2,
+     "vtl": 15.55,
+     "ecapa_vs_anchor": 0.8248716592788696
+    },
+    {
+     "i": 75,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00075.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.84,
+     "f0_median": 120.7,
+     "vtl": 15.64,
+     "ecapa_vs_anchor": 0.833438515663147
+    },
+    {
+     "i": 76,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00076.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.16,
+     "f0_median": 117.3,
+     "vtl": 16.47,
+     "ecapa_vs_anchor": 0.7368545532226562
+    },
+    {
+     "i": 77,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00077.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.44,
+     "f0_median": 117.9,
+     "vtl": 18.13,
+     "ecapa_vs_anchor": 0.7564517855644226
+    },
+    {
+     "i": 78,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00078.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.88,
+     "f0_median": 120.7,
+     "vtl": 16.21,
+     "ecapa_vs_anchor": 0.8156848549842834
+    },
+    {
+     "i": 79,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00079.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 2.64,
+     "f0_median": 116.6,
+     "vtl": 17.1,
+     "ecapa_vs_anchor": 0.6778969764709473
+    },
+    {
+     "i": 80,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00080.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.0,
+     "f0_median": 112.0,
+     "vtl": 16.4,
+     "ecapa_vs_anchor": 0.8837103247642517
+    },
+    {
+     "i": 81,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00081.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.4,
+     "f0_median": 127.1,
+     "vtl": 16.23,
+     "ecapa_vs_anchor": 0.8173253536224365
+    },
+    {
+     "i": 82,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00082.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 17.76,
+     "f0_median": 119.3,
+     "vtl": 15.94,
+     "ecapa_vs_anchor": 0.8220906257629395
+    },
+    {
+     "i": 83,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00083.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.64,
+     "f0_median": 126.4,
+     "vtl": 15.48,
+     "ecapa_vs_anchor": 0.8330619931221008
+    },
+    {
+     "i": 84,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00084.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.6,
+     "f0_median": 135.5,
+     "vtl": 15.7,
+     "ecapa_vs_anchor": 0.9046000838279724
+    },
+    {
+     "i": 85,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00085.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.16,
+     "f0_median": 118.6,
+     "vtl": 16.28,
+     "ecapa_vs_anchor": 0.9173406362533569
+    },
+    {
+     "i": 86,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00086.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.56,
+     "f0_median": 120.7,
+     "vtl": 17.18,
+     "ecapa_vs_anchor": 0.8884512186050415
+    },
+    {
+     "i": 87,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00087.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.08,
+     "f0_median": 107.5,
+     "vtl": 16.06,
+     "ecapa_vs_anchor": 0.847640872001648
+    },
+    {
+     "i": 88,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00088.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 12.88,
+     "f0_median": 115.9,
+     "vtl": 15.96,
+     "ecapa_vs_anchor": 0.9017477035522461
+    },
+    {
+     "i": 89,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00089.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.8,
+     "f0_median": 163.5,
+     "vtl": 15.65,
+     "ecapa_vs_anchor": 0.8434136509895325
+    },
+    {
+     "i": 90,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00090.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.72,
+     "f0_median": 105.1,
+     "vtl": 16.31,
+     "ecapa_vs_anchor": 0.7814781665802002
+    },
+    {
+     "i": 91,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00091.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.88,
+     "f0_median": 133.1,
+     "vtl": 16.33,
+     "ecapa_vs_anchor": 0.8516420722007751
+    },
+    {
+     "i": 92,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00092.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.24,
+     "f0_median": 112.6,
+     "vtl": 16.61,
+     "ecapa_vs_anchor": 0.9019834995269775
+    },
+    {
+     "i": 93,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00093.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 13.36,
+     "f0_median": 128.2,
+     "vtl": 16.01,
+     "ecapa_vs_anchor": 0.7563997507095337
+    },
+    {
+     "i": 94,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00094.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.2,
+     "f0_median": 147.7,
+     "vtl": 16.12,
+     "ecapa_vs_anchor": 0.8659125566482544
+    },
+    {
+     "i": 95,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00095.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.2,
+     "f0_median": 137.0,
+     "vtl": 17.92,
+     "ecapa_vs_anchor": 0.7758622169494629
+    },
+    {
+     "i": 96,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00096.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.92,
+     "f0_median": 115.9,
+     "vtl": 17.02,
+     "ecapa_vs_anchor": 0.8571145534515381
+    },
+    {
+     "i": 97,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00097.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 4.4,
+     "f0_median": 93.6,
+     "vtl": 17.59,
+     "ecapa_vs_anchor": 0.8568679094314575
+    },
+    {
+     "i": 98,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00098.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.88,
+     "f0_median": 128.6,
+     "vtl": 17.27,
+     "ecapa_vs_anchor": 0.8448277711868286
+    },
+    {
+     "i": 99,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00099.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.88,
+     "f0_median": 145.2,
+     "vtl": 16.02,
+     "ecapa_vs_anchor": 0.7400029897689819
+    },
+    {
+     "i": 100,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00100.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.12,
+     "f0_median": 80.1,
+     "vtl": 17.21,
+     "ecapa_vs_anchor": 0.6700671911239624
+    },
+    {
+     "i": 101,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00101.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 7.28,
+     "f0_median": 122.1,
+     "vtl": 16.32,
+     "ecapa_vs_anchor": 0.8943431973457336
+    },
+    {
+     "i": 102,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00102.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.72,
+     "f0_median": 135.5,
+     "vtl": 15.81,
+     "ecapa_vs_anchor": 0.8716359734535217
+    },
+    {
+     "i": 103,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00103.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.56,
+     "f0_median": 119.3,
+     "vtl": 15.94,
+     "ecapa_vs_anchor": 0.7631485462188721
+    },
+    {
+     "i": 104,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00104.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.84,
+     "f0_median": 124.2,
+     "vtl": 16.01,
+     "ecapa_vs_anchor": 0.8702934384346008
+    },
+    {
+     "i": 105,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00105.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.2,
+     "f0_median": 115.2,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.7413517832756042
+    },
+    {
+     "i": 106,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00106.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 7.44,
+     "f0_median": 134.7,
+     "vtl": 15.88,
+     "ecapa_vs_anchor": 0.8494128584861755
+    },
+    {
+     "i": 107,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00107.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 15.84,
+     "f0_median": 132.4,
+     "vtl": 15.82,
+     "ecapa_vs_anchor": 0.8697097301483154
+    },
+    {
+     "i": 108,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00108.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 14.96,
+     "f0_median": 117.9,
+     "vtl": 16.24,
+     "ecapa_vs_anchor": 0.8670288324356079
+    },
+    {
+     "i": 109,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00109.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.64,
+     "f0_median": 106.6,
+     "vtl": 16.31,
+     "ecapa_vs_anchor": 0.9143810868263245
+    },
+    {
+     "i": 110,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00110.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 18.24,
+     "f0_median": 138.6,
+     "vtl": 16.58,
+     "ecapa_vs_anchor": 0.7343547344207764
+    },
+    {
+     "i": 111,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00111.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 9.12,
+     "f0_median": 142.7,
+     "vtl": 15.18,
+     "ecapa_vs_anchor": 0.8392235040664673
+    },
+    {
+     "i": 112,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00112.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.2,
+     "f0_median": 125.7,
+     "vtl": 15.53,
+     "ecapa_vs_anchor": 0.8424670100212097
+    },
+    {
+     "i": 113,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00113.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 3.6,
+     "f0_median": 107.5,
+     "vtl": 17.28,
+     "ecapa_vs_anchor": 0.7267192602157593
+    },
+    {
+     "i": 114,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00114.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 10.32,
+     "f0_median": 124.2,
+     "vtl": 16.1,
+     "ecapa_vs_anchor": 0.9101008176803589
+    },
+    {
+     "i": 115,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00115.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 5.6,
+     "f0_median": 120.7,
+     "vtl": 17.07,
+     "ecapa_vs_anchor": 0.8689165115356445
+    },
+    {
+     "i": 116,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00116.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.96,
+     "f0_median": 137.4,
+     "vtl": 15.8,
+     "ecapa_vs_anchor": 0.8638646602630615
+    },
+    {
+     "i": 117,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00117.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 11.6,
+     "f0_median": 105.7,
+     "vtl": 16.63,
+     "ecapa_vs_anchor": 0.8389726281166077
+    },
+    {
+     "i": 118,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00118.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 6.08,
+     "f0_median": 118.6,
+     "vtl": 16.58,
+     "ecapa_vs_anchor": 0.8541989922523499
+    },
+    {
+     "i": 119,
+     "wav": "ab_test_runtime/custom_voice_instruct_drift/anchor_only/line_00119.wav",
+     "instruct": "A calm, mid-register adult male voice; steady, measured pace.",
+     "seconds": 8.0,
+     "f0_median": 122.8,
+     "vtl": 17.72,
+     "ecapa_vs_anchor": 0.745987057685852
+    }
+   ]
+  }
+ },
+ "provenance": {
+  "script": "custom_voice_instruct_drift.py",
+  "written": "2026-09-18T12:07:31",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "16d1c7611ce6125675637ae9f72f8d86a985fc0f",
+   "branch": "probe/instruct-audit",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "be988c6ace002bc964270995801fcdc5710d7ab59c73bcb2758da4449ac0903f"
+  },
+  "args": {
+   "script": "Arc 1 - Volume 1.json",
+   "voice": "Ryan",
+   "lines": 120,
+   "anchor_lines": 8,
+   "seed": 42,
+   "arms": [
+    "as_written",
+    "no_timbre",
+    "anchored",
+    "anchor_only"
+   ],
+   "work": "custom_voice_instruct_drift",
+   "out": "ab_test_runtime/experiments/custom_voice_instruct_drift__ryan_arc1_20260918.json"
+  },
+  "seed": 42
+ }
+}

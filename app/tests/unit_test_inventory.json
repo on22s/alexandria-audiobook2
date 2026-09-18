@@ -1344,6 +1344,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_stale_build_banner_is_wired_without_a_new_timer",
     "tests.test_frontend_regressions.FrontendTests.test_start_over_button_sends_the_flag_and_generate_alone_resumes",
     "tests.test_frontend_regressions.FrontendTests.test_voice_cards_expose_age_version_generation",
+    "tests.test_frontend_regressions.FrontendTests.test_voice_change_points_are_reachable_from_the_editor_and_survive_a_save",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start",
@@ -3215,6 +3216,13 @@
     "tests.test_structured_output.StructuredOutput.test_other_errors_are_not_mistaken_for_schema_rejection",
     "tests.test_structured_output.StructuredOutput.test_real_server_wordings_for_an_unsupported_response_format",
     "tests.test_structured_output.StructuredOutput.test_rejection_falls_back_once_and_sticks_for_the_server"
+  ],
+  "test_style_timeline": [
+    "tests.test_style_timeline.ActiveStyleTests.test_custom_voice_puts_the_anchor_before_the_lines_emotion",
+    "tests.test_style_timeline.ActiveStyleTests.test_the_engine_sees_the_anchor_for_that_line_and_nothing_else_changes",
+    "tests.test_style_timeline.ActiveStyleTests.test_the_last_point_at_or_before_the_line_wins",
+    "tests.test_style_timeline.EngineReceivesTheAnchorTests.test_the_custom_path_sends_the_anchor_in_force_at_the_line",
+    "tests.test_style_timeline.StyleTimelineEndpointTests.test_points_are_added_replaced_and_removed"
   ],
   "test_suite_imports_are_ci_installable": [
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed",

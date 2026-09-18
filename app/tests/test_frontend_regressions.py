@@ -434,6 +434,16 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("document.getElementById('btn-snapshot-script').style.display = 'inline-block';", js)
         self.assertGreaterEqual(js.count("_snap.style.display = 'none'"), 3)
 
+    def test_voice_change_points_are_reachable_from_the_editor_and_survive_a_save(self):
+        js = _read_frontend_source()
+        self.assertIn('onclick="voiceChangesHere(${chunk.id})"', js)
+        self.assertIn("API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`", js)
+        self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`)", js)
+        self.assertIn("renderStyleTimeline(v.name, config)", js)
+        # collectVoiceConfig rebuilds entries from the form; the timeline must pass through
+        collector = js[js.index("function collectVoiceConfig()"):js.index("return config;", js.index("function collectVoiceConfig()"))]
+        self.assertIn("'style_timeline'", collector)
+
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value
         the API refuses, or hides one it accepts."""

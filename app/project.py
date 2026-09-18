@@ -26,8 +26,8 @@ from tts import (
     sanitize_filename,
     voice_category,
     DEFAULT_PAUSE_MS,
-    SAME_SPEAKER_PAUSE_MS
-)
+    SAME_SPEAKER_PAUSE_MS,
+                 voice_config_for_chunk)
 from pydub import AudioSegment
 
 MAX_CHUNK_CHARS = 500
@@ -647,8 +647,12 @@ class ProjectManager:
             fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
             os.close(fd)  # Close the file descriptor, we'll write via TTS engine
 
-            # Pass canonical speaker to the TTS engine so it uses the aliased config
-            success = engine.generate_voice(text, instruct, speaker_to_use, voice_config, temp_path)
+            # Pass canonical speaker to the TTS engine so it uses the aliased config;
+            # the identity anchor in force at this line (a character can change
+            # from a point in the book - tts.active_character_style)
+            success = engine.generate_voice(
+                text, instruct, speaker_to_use,
+                voice_config_for_chunk(voice_config, speaker_to_use, index), temp_path)
 
             if success:
                 validate_generated_audio(

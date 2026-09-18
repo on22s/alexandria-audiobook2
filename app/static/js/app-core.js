@@ -2478,6 +2478,7 @@
                                         </div>
                                         <div class="col-md-6">
                                             <input type="text" class="form-control character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
+                                            ${renderStyleTimeline(v.name, config)}
                                         </div>
                                     </div>
                                 </div>
@@ -3412,6 +3413,45 @@
             } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
+        // Identity anchors that take over from a line onward (#603): shown under
+        // the character's style, added from the Editor ("Voice changes here").
+        function renderStyleTimeline(name, config) {
+            const points = (config && config.style_timeline) || [];
+            if (!points.length) { return ''; }
+            return `<div class="small text-muted mt-1">Changes:` + points.map(p =>
+                ` <span class="badge bg-light text-dark border">from line ${p.from_index + 1}: ${escapeHtml(p.character_style)}` +
+                ` <a href="#" title="Remove" onclick="removeStylePoint('${escapeHtml(name)}', ${p.from_index}); return false;">&times;</a></span>`).join('') + `</div>`;
+        }
+
+        async function removeStylePoint(name, fromIndex) {
+            try {
+                await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`);
+                await loadVoices();
+            } catch (e) {
+                showToast('Could not remove: ' + (e.message || 'unknown error'), 'error');
+            }
+        }
+
+        // Editor: from this line on, this character sounds different (an aged
+        // character, a time skip). The anchor is prefixed to every later line's
+        // instruct on the CustomVoice path; measured to hold pitch to 2.5 st
+        // over a run where per-line instructs alone wander 3.5.
+        async function voiceChangesHere(chunkId) {
+            const row = document.querySelector(`#chunks-table-body tr[data-id="${chunkId}"]`);
+            const speaker = row ? (row.querySelector('.chunk-speaker')?.value || row.querySelector('select')?.value || '') : '';
+            if (!speaker) { showToast('Pick the line\'s speaker first.', 'warning'); return; }
+            const current = (window._voicesByName && window._voicesByName[speaker])?.config || {};
+            const style = prompt(`From line ${chunkId + 1} on, ${speaker} sounds like:`, current.character_style || current.default_style || '');
+            if (style === null) { return; }
+            try {
+                const res = await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, { from_index: chunkId, character_style: style });
+                if (window._voicesByName && window._voicesByName[speaker]) { window._voicesByName[speaker].config.style_timeline = res.style_timeline; }
+                showToast(style.trim() ? `${speaker} changes from line ${chunkId + 1}. Regenerate the later lines to hear it.` : `Change point at line ${chunkId + 1} removed.`, 'success', 8000);
+            } catch (e) {
+                showToast('Could not save the change: ' + (e.message || 'unknown error'), 'error');
+            }
+        }
+
         function collectVoiceConfig() {
             const cards = document.querySelectorAll('.voice-card');
             const config = {};
@@ -3477,7 +3517,7 @@
                 if (readyBox && readyBox.checked) {
                     config[name].ready = true;
                 }
-                for (const key of ['persona_status', 'voice_status', 'active_version', 'active_candidate', 'age_group', 'versions', 'candidates', 'narrator_strategy']) {
+                for (const key of ['persona_status', 'voice_status', 'active_version', 'active_candidate', 'age_group', 'versions', 'candidates', 'narrator_strategy', 'style_timeline']) {
                     if (metadata[key] !== undefined) { config[name][key] = metadata[key]; }
                 }
             });
@@ -3818,7 +3858,7 @@
                         return `
                             <tr data-id="${chunk.id}" class="chunk-row">
                                 <td class="text-center align-middle" style="white-space:nowrap;">
-                                    <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button>
+                                    <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>
                                 </td>
                                 <td>${buildSpeakerSelect(chunk)}</td>
                                 <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>

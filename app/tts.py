@@ -39,6 +39,48 @@ DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
+def active_character_style(voice_data, chunk_index=None):
+    """The identity anchor in force at a line: the entry's `character_style`,
+    replaced by the last `style_timeline` point at or before `chunk_index`.
+    A point is {"from_index": N, "character_style": "..."} - a character can
+    change from a place in the book (a time skip, an aged character) without
+    becoming a different speaker. No index -> the base anchor."""
+    data = voice_data or {}
+    style = (data.get("character_style") or data.get("default_style") or "").strip()
+    if chunk_index is None:
+        return style
+    for point in sorted((p for p in data.get("style_timeline") or [] if isinstance(p, dict)),
+                        key=lambda p: int(p.get("from_index", 0))):
+        if int(point.get("from_index", 0)) <= chunk_index:
+            style = (point.get("character_style") or "").strip()
+    return style
+
+
+def voice_config_for_chunk(voice_config, speaker, chunk_index):
+    """A shallow copy of voice_config whose entry for `speaker` carries the
+    anchor in force at `chunk_index`, so every engine path reads the same
+    `character_style` key it already reads and none has to know about the
+    timeline."""
+    entry = (voice_config or {}).get(speaker)
+    if not isinstance(entry, dict) or not entry.get("style_timeline"):
+        return voice_config
+    return {**voice_config, speaker: {**entry, "character_style": active_character_style(entry, chunk_index)}}
+
+
+def anchored_instruct(voice_data, instruct_text):
+    """CustomVoice: the identity anchor first, the line's own emotion after.
+    Measured 2026-09-18 (custom_voice_instruct_drift, 120 real lines, Ryan):
+    the per-line instructs alone wander 3.5 semitones in pitch over a run at
+    ECAPA 0.74 to the voice's own opening; a constant anchor in front of them
+    holds it to 2.5 st at 0.77 (anchor alone: 2.4 st, 0.82, but no emotion).
+    This path ignored `character_style` entirely before."""
+    anchor = (voice_data.get("character_style") or "").strip()
+    line = (instruct_text or "").strip()
+    if anchor and line:
+        return f"{anchor} {line}"
+    return anchor or line or (voice_data.get("default_style") or "").strip() or "neutral"
+
+
 def voice_is_set(voice_data):
     """Does this character have a voice yet? True for any assigned LoRA /
     clone / designed / ensemble voice, and for a custom entry that carries a
@@ -1504,10 +1546,9 @@ class TTSEngine:
                 return False
 
             voice = voice_data.get("voice", "Ryan")
-            default_style = voice_data.get("default_style", "")
             seed = int(voice_data.get("seed", -1))
 
-            instruct = instruct_text if instruct_text else (default_style if default_style else "neutral")
+            instruct = anchored_instruct(voice_data, instruct_text)
 
             import time
 
@@ -2059,10 +2100,9 @@ class TTSEngine:
                 return False
 
             voice = voice_data.get("voice", "Ryan")
-            default_style = voice_data.get("default_style", "")
             seed = int(voice_data.get("seed", -1))
 
-            instruct = instruct_text if instruct_text else (default_style if default_style else "neutral")
+            instruct = anchored_instruct(voice_data, instruct_text)
 
             print(f"TTS [external] generating with instruct='{instruct}' for text='{text[:50]}...'")
 

@@ -81,6 +81,9 @@ class VoiceConfigItem(BaseModel):
     versions: Dict[str, Dict] = Field(default_factory=dict)
     candidates: List[Dict] = Field(default_factory=list)
     narrator_strategy: Optional[str] = None
+    # Identity anchors that take over from a line onward (tts.active_character_style):
+    # [{"from_index": N, "character_style": "..."}]. Set from the Editor.
+    style_timeline: List[Dict] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_ensemble_members(self):
@@ -352,6 +355,37 @@ async def preview_narrator(request: NarratorPreviewRequest):
                           "voice": selected.get("voice"),
                           "adapter_id": selected.get("adapter_id"),
                           "description": selected.get("description", "")}}
+
+
+class StylePointRequest(BaseModel):
+    from_index: int = Field(ge=0)
+    character_style: str = Field(max_length=400)
+
+
+@router.post("/api/voices/{speaker}/style_timeline")
+async def add_style_point(speaker: str, request: StylePointRequest):
+    """From this line on, the character sounds like `character_style` (an
+    aged character, a time skip). Replaces a point at the same index."""
+    _require_script_speaker(speaker)
+    def add(current):
+        points = [p for p in (current.get("style_timeline") or [])
+                  if isinstance(p, dict) and int(p.get("from_index", -1)) != request.from_index]
+        if request.character_style.strip():
+            points.append({"from_index": request.from_index,
+                           "character_style": request.character_style.strip()})
+        current["style_timeline"] = sorted(points, key=lambda p: int(p["from_index"]))
+    entry = _mutate_voice_entry(speaker, add)
+    return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
+
+
+@router.delete("/api/voices/{speaker}/style_timeline/{from_index}")
+async def remove_style_point(speaker: str, from_index: int):
+    _require_script_speaker(speaker)
+    def remove(current):
+        current["style_timeline"] = [p for p in (current.get("style_timeline") or [])
+                                     if isinstance(p, dict) and int(p.get("from_index", -1)) != from_index]
+    entry = _mutate_voice_entry(speaker, remove)
+    return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
 
 
 @router.post("/api/voices/{speaker}/approval")

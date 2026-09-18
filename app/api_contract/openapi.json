@@ -2135,6 +2135,26 @@
         "title": "SpeakerSelection",
         "type": "object"
       },
+      "StylePointRequest": {
+        "properties": {
+          "character_style": {
+            "maxLength": 400,
+            "title": "Character Style",
+            "type": "string"
+          },
+          "from_index": {
+            "minimum": 0.0,
+            "title": "From Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_index",
+          "character_style"
+        ],
+        "title": "StylePointRequest",
+        "type": "object"
+      },
       "SuggestVoicesRequest": {
         "properties": {
           "cast": {
@@ -2641,6 +2661,14 @@
             ],
             "default": "-1",
             "title": "Seed"
+          },
+          "style_timeline": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Style Timeline",
+            "type": "array"
           },
           "type": {
             "default": "custom",
@@ -8469,6 +8497,100 @@
           }
         },
         "summary": "Update Persona Voice Audit"
+      }
+    },
+    "/api/voices/{speaker}/style_timeline": {
+      "post": {
+        "description": "From this line on, the character sounds like `character_style` (an\naged character, a time skip). Replaces a point at the same index.",
+        "operationId": "add_style_point_api_voices__speaker__style_timeline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Style Point"
+      }
+    },
+    "/api/voices/{speaker}/style_timeline/{from_index}": {
+      "delete": {
+        "operationId": "remove_style_point_api_voices__speaker__style_timeline__from_index__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "from_index",
+            "required": true,
+            "schema": {
+              "title": "From Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Style Point"
       }
     },
     "/api/voices/{speaker}/versions": {
