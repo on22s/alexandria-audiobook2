@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 237 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 239 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 127
 - `historical_only`: 58
 - `provisional`: 11
-- `supported_measurement`: 41
+- `supported_measurement`: 43
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -154,6 +154,8 @@ All 237 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen3-14b-rightsclean-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-grimgar03-20260917.json` | lora_serving_eval | supported_measurement | 770 | 0 | 0 | False |  |
 | `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-index18-20260917.json` | lora_serving_eval | supported_measurement | 176 | 0 | 0 | False |  |
+| `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-mushoku16-20260917.json` | lora_serving_eval | supported_measurement | 266 | 0 | 0 | False |  |
+| `lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-owarimonogatari3-20260917.json` | lora_serving_eval | supported_measurement | 324 | 0 | 0 | False |  |
 | `lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-riqua3ep-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-riquax2-retry-20260915c.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |

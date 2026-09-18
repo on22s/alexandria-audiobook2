@@ -1,11 +1,11 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "a72dfa7f492e7b12a3b580a401e6e1f36952ed72ce1bfd796713048c71e4340f",
+  "source_structural_sha256": "85db8da88e82be36cbf7262b39cec195297053f8e54c7eacc9f7b23cc26e75e9",
   "summary": {
     "exploratory": 127,
     "historical_only": 58,
     "provisional": 11,
-    "supported_measurement": 41
+    "supported_measurement": 43
   },
   "artifacts": [
     {
@@ -3134,6 +3134,48 @@
       "artifact": "lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-index18-20260917.json",
       "family": "lora_serving_eval",
       "rows": 176,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-mushoku16-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 266,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-14b-rightsclean-local-9070xt-product-batch25-budget1024-schema-owarimonogatari3-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 324,
       "arms": [
         "base",
         "lora"

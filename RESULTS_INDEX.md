@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1645 artifacts, 1845 arms.
+Generated 2026-09-17 from `ab_test_runtime/experiments/` — 1647 artifacts, 1849 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -870,7 +870,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 53.8% | exploratory | ok | False | 1301.1s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 53.8% | exploratory | ok | False | 1320.8s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 4835.2s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 70.4% | supported_measurement | ok | False | 5260.4s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 70.4% | supported_measurement | ok | False | 5221.2s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5573.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5180.3s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 74.0% | historical_only | ok | False | 5428.7s |
@@ -895,7 +895,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 68.3% | exploratory | ok | False | 1301.1s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 68.8% | exploratory | ok | False | 1320.8s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 83.9% | historical_only | ok | False | 4835.2s |
-| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 83.1% | supported_measurement | ok | False | 5260.4s |
+| grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 83.1% | supported_measurement | ok | False | 5221.2s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 79.0% | historical_only | ok | False | 5573.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 79.0% | historical_only | ok | False | 5180.3s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 82.1% | historical_only | ok | False | 5428.7s |
@@ -984,7 +984,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 1301.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 53.4% | exploratory | ok | False | 1320.8s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 4835.2s |
-| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 68.2% | supported_measurement | ok | False | 3319.1s |
+| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 68.2% | supported_measurement | ok | False | 3290.9s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5573.5s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5180.3s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 88 | 65.9% | historical_only | ok | False | 5428.7s |
@@ -1002,7 +1002,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 54.5% | exploratory | ok | False | 1301.1s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 58.0% | exploratory | ok | False | 1320.8s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 70.5% | historical_only | ok | False | 4835.2s |
-| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 71.6% | supported_measurement | ok | False | 3319.1s |
+| index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 71.6% | supported_measurement | ok | False | 3290.9s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | historical_only | ok | False | 5573.5s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | historical_only | ok | False | 5180.3s |
 | index18 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 88 | 65.9% | historical_only | ok | False | 5428.7s |
@@ -1182,6 +1182,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 37.6% | exploratory | ok | False | 1301.1s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 37.6% | exploratory | ok | False | 1320.8s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | historical_only | ok | False | 4835.2s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 64.7% | supported_measurement | ok | False | 3766.7s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | historical_only | ok | False | 5573.5s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | historical_only | ok | False | 5180.3s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 133 | 54.1% | historical_only | ok | False | 5428.7s |
@@ -1202,6 +1203,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 48.9% | exploratory | ok | False | 1301.1s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 42.1% | exploratory | ok | False | 1320.8s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 66.2% | historical_only | ok | False | 4835.2s |
+| mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 78.2% | supported_measurement | ok | False | 3766.7s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 58.6% | historical_only | ok | False | 5573.5s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 63.2% | historical_only | ok | False | 5180.3s |
 | mushoku16 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 133 | 61.7% | historical_only | ok | False | 5428.7s |
@@ -1370,6 +1372,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 22.2% | exploratory | ok | False | 1301.1s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 22.2% | exploratory | ok | False | 1320.8s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 36.4% | historical_only | ok | False | 4835.2s |
+| owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 48.8% | supported_measurement | ok | False | 7675.4s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 36.4% | historical_only | ok | False | 5573.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 36.4% | historical_only | ok | False | 5180.3s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 36.4% | historical_only | ok | False | 5428.7s |
@@ -1391,6 +1394,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 22.8% | exploratory | ok | False | 1301.1s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 23.5% | exploratory | ok | False | 1320.8s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 56.2% | historical_only | ok | False | 4835.2s |
+| owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 62.3% | supported_measurement | ok | False | 7675.4s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 45.1% | historical_only | ok | False | 5573.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 50.6% | historical_only | ok | False | 5180.3s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 53.1% | historical_only | ok | False | 5428.7s |
