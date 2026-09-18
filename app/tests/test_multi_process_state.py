@@ -38,6 +38,16 @@ class MultiProcessStateTests(unittest.TestCase):
             eta = core._compute_eta(state)
         self.assertEqual("2/4", eta["progress"])
         self.assertEqual(0.5, eta["fraction"])
+    def test_pause_is_refused_with_501_where_the_signals_do_not_exist(self):
+        """Windows has no SIGSTOP; the same predicate that refuses the request
+        is what GET /api/config reports, so the page can grey the button."""
+        with patch.object(core.sys, "platform", "win32"):
+            self.assertFalse(core.pause_resume_supported())
+            with self.assertRaises(core.HTTPException) as ctx:
+                core._posix_signal(self.processes[0], "SIGSTOP")
+        self.assertEqual(501, ctx.exception.status_code)
+        with patch.object(core.sys, "platform", "linux"):
+            self.assertTrue(core.pause_resume_supported())
 
     def test_pause_and_resume_signal_every_process(self):
         with patch.object(core, "_posix_signal") as signal_process:

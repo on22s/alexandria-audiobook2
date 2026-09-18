@@ -770,6 +770,7 @@
             try {
                 const config = await API.get('/api/config');
                 renderConfigWarnings(config);
+                applyPauseSupport(config.capabilities);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
@@ -1172,6 +1173,23 @@
                 }
             }
         });
+
+        // Pause is SIGSTOP on the worker, which Windows does not have; the
+        // server reports that in GET /api/config capabilities. Every Pause
+        // button shares _makePauseResumeHandler, which returns before posting
+        // when the button is disabled, and the start paths only touch
+        // display/innerHTML - so disabling here is enough to make all six
+        // inert without changing any of them (issue #588: "Pause failed" on
+        // every click on Windows).
+        function applyPauseSupport(capabilities) {
+            if (!capabilities || capabilities.pause_resume !== false) { return; }
+            document.querySelectorAll('button[onclick^="pauseResume"]').forEach((btn) => {
+                btn.disabled = true;
+                btn.title = 'Pause is not available on Windows. Use Cancel; a cancelled run resumes from its checkpoint.';
+                btn.classList.remove('btn-outline-warning');
+                btn.classList.add('btn-outline-secondary');
+            });
+        }
 
         // Restores a pause/resume button to its "Pause"/btn-outline-warning
         // appearance. _makePauseResumeHandler derives paused/running state from

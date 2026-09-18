@@ -413,6 +413,30 @@ class ConfigTests(unittest.TestCase):
         write_config.assert_not_called()
         invalidate.assert_not_called()
 
+    def test_get_config_reports_pause_capability_and_a_save_does_not_keep_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            config_path.write_text("{}", encoding="utf-8")
+            with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                with patch.object(system_module, "pause_resume_supported", return_value=False):
+                    config = asyncio.run(system_module.get_config())
+                self.assertEqual({"pause_resume": False}, config["capabilities"])
+                config = asyncio.run(system_module.get_config())
+                self.assertIs(True, config["capabilities"]["pause_resume"])
+                profile = system_module.LLMConfig(
+                    base_url="http://localhost:1234/v1", api_key="x", model_name="m")
+                payload = system_module.AppConfig(
+                    llm=profile, llm_mode="local", llm_local=profile,
+                    tts=system_module.TTSConfig(), generation=system_module.GenerationConfig(),
+                ).model_dump(mode="json")
+                payload["capabilities"] = {"pause_resume": False}
+                with TestClient(app_module.app) as client:
+                    response = client.post("/api/config", json=payload)
+                self.assertEqual(200, response.status_code, response.text)
+                saved = json.loads(config_path.read_text(encoding="utf-8"))
+                self.assertEqual("m", saved["llm"]["model_name"])   # the save happened
+                self.assertNotIn("capabilities", saved)
+
     def test_get_config_recovers_without_rewriting_invalid_json(self):
         invalid_documents = (
             "", "{bad", "null", "[]",

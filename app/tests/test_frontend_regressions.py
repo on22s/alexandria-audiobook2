@@ -353,6 +353,21 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"', retry)
         self.assertNotIn('print("Retrying...")', retry)
         self.assertIn("waiting on the model for", js)
+    def test_every_pause_button_is_greyed_by_the_capability_hook(self):
+        """The hook disables buttons by selector; a Pause button wired any
+        other way would still fail on click on Windows."""
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        self.assertIn("function applyPauseSupport(capabilities)", js)
+        self.assertIn("applyPauseSupport(config.capabilities);", js)
+        selector = re.search(r"querySelectorAll\('button\[onclick\^=\"(\w+)\"\]'\)", js)
+        self.assertIsNotNone(selector)
+        prefix = selector.group(1)
+        pause_buttons = re.findall(r'<button\b[^>]*\bonclick="(\w+)\(\)"[^>]*>', html)
+        pause_buttons = [name for name in pause_buttons if "pause" in name.lower()]
+        self.assertEqual(6, len(pause_buttons))
+        self.assertTrue(all(name.startswith(prefix) for name in pause_buttons), pause_buttons)
+        self.assertIn("Use Cancel", js)
 
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value

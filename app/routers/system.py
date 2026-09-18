@@ -38,6 +38,7 @@ from core import (
     _compute_eta,
     _load_llm_config,
     _validate_local_llm_base_url,
+    pause_resume_supported,
     _warn_corrupted_json,
     check_disk_space,
     claim_gpu_task,
@@ -729,6 +730,9 @@ async def get_config():
         for warning in load_result.warnings
     ]
     config["config_needs_backup"] = load_result.needs_backup
+    # What this host can do, for the page to grey out rather than fail on
+    # click. Not a config field: AppConfig has no such key, so a save drops it.
+    config["capabilities"] = {"pause_resume": pause_resume_supported()}
 
     return _redact_config_secrets(config)
 

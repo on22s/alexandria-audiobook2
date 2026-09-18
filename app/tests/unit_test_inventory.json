@@ -753,6 +753,7 @@
     "tests.test_config_regressions.ConfigTests.test_generation_config_banned_tokens_default_is_not_shared",
     "tests.test_config_regressions.ConfigTests.test_get_config_backfills_partial_top_level_config",
     "tests.test_config_regressions.ConfigTests.test_get_config_recovers_without_rewriting_invalid_json",
+    "tests.test_config_regressions.ConfigTests.test_get_config_reports_pause_capability_and_a_save_does_not_keep_it",
     "tests.test_config_regressions.ConfigTests.test_keep_unsent_prompt_presets_for_legacy_client",
     "tests.test_config_regressions.ConfigTests.test_llm_failure_logs_are_unique_within_one_second",
     "tests.test_config_regressions.ConfigTests.test_llm_normalization_preserves_validation_behavior",
@@ -1317,6 +1318,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_dialogue_detection_select_offers_exactly_the_config_modes",
     "tests.test_frontend_regressions.FrontendTests.test_docker_image_includes_root_runtime_dependencies",
     "tests.test_frontend_regressions.FrontendTests.test_docker_mounts_single_persistent_runtime_root",
+    "tests.test_frontend_regressions.FrontendTests.test_every_pause_button_is_greyed_by_the_capability_hook",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_config_controls_match_backend_schema",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_wires_preparer_duration_and_lora_cancel",
@@ -2047,7 +2049,8 @@
     "tests.test_multi_process_state.LlmOffGpuLockTests.test_profile_flag_and_endpoint_decide",
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_eta_reads_the_three_pass_step_markers",
-    "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
+    "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process",
+    "tests.test_multi_process_state.MultiProcessStateTests.test_pause_is_refused_with_501_where_the_signals_do_not_exist"
   ],
   "test_name_variant_triage": [
     "tests.test_name_variant_triage.ClassifyTest.test_a_drawn_out_name_is_a_deliberate_stretch",
