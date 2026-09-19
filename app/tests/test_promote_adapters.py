@@ -174,6 +174,54 @@ class GateVerdictTests(unittest.TestCase):
             promote_adapters.GATE_PREFIX = original
 
 
+class UnseenCampaignTests(unittest.TestCase):
+    """The unseen campaign compares the two arms scored on the same clips
+    neither adapter trained on; the shipped-score table is not consulted."""
+    def _pair(self, root, clean, shipped, failures=0):
+        gates = Path(root) / "gates"; gates.mkdir()
+        models = Path(root) / "models"; (models / "voice").mkdir(parents=True)
+        for arm, score in (("clean", clean), ("shipped", shipped)):
+            (gates / f"unseen_gate__voice__{arm}.json").write_text(json.dumps({
+                "adapter": "retrain/voice/adapter" if arm == "clean" else "lora_models/voice",
+                "median_ecapa": score, "lines": 20, "threshold": 0.45,
+                "generation_failures": failures if arm == "shipped" else 0,
+                "passed": score >= 0.45}))
+        return gates, models
+
+    def _check(self, root, clean, shipped, failures=0):
+        gates, models = self._pair(root, clean, shipped, failures)
+        with patch.object(promote_adapters, "GATES", str(gates)), \
+             patch.object(promote_adapters, "MODELS", str(models)), \
+             patch.object(promote_adapters, "GATE_PREFIX", promote_adapters.UNSEEN_PREFIX), \
+             patch.object(promote_adapters, "get_adapter_source", return_value=str(models)):
+            # a rigged shipped score far above both arms must be ignored
+            return promote_adapters.check("voice", {"voice": 0.99})
+
+    def test_clean_beating_shipped_on_unseen_clips_is_promoted(self):
+        with tempfile.TemporaryDirectory() as root:
+            ok, score, reason = self._check(root, clean=0.6865, shipped=0.6576)
+        self.assertTrue(ok, reason); self.assertEqual(0.6865, score); self.assertIn("0.658", reason)
+
+    def test_clean_not_beating_shipped_on_unseen_clips_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            ok, _score, reason = self._check(root, clean=0.5693, shipped=0.5693)
+        self.assertFalse(ok); self.assertIn("unseen", reason)
+
+    def test_a_shipped_arm_with_generation_failures_blocks_the_comparison(self):
+        with tempfile.TemporaryDirectory() as root:
+            ok, _score, reason = self._check(root, clean=0.70, shipped=0.50, failures=1)
+        self.assertFalse(ok); self.assertIn("no shipped arm", reason)
+
+    def test_discovery_yields_bare_names_from_the_clean_artifacts(self):
+        with tempfile.TemporaryDirectory() as root:
+            gates, _ = self._pair(root, 0.6, 0.5)
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(sys, "argv", ["promote_adapters.py", "--gate-campaign", "unseen", "--dry-run"]), \
+                 patch.object(promote_adapters, "promote", return_value=0) as run:
+                promote_adapters.main()
+            run.assert_called_once(); self.assertEqual(["voice"], run.call_args[0][0])
+
+
 class GateCampaignTests(unittest.TestCase):
     """A campaign must not be addable in one place and not the other.
 
