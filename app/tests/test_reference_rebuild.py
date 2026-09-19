@@ -102,6 +102,38 @@ class DistanceTest(unittest.TestCase):
         self.assertIsNone(self.m.distance({}, centre))
 
 
+class SeparatingArmsTest(unittest.TestCase):
+    """2.6's long-reference result changed length and typicality together;
+    these are the two knobs that let one arm move at a time."""
+    def setUp(self):
+        from experiments import reference_rebuild
+        self.m = reference_rebuild
+
+    def _runs(self, durations, target, band):
+        import sys
+        from unittest import mock
+        entries = [{"audio_filepath": f"{i}.wav", "text": f"t{i}"} for i in range(len(durations))]
+        info = lambda p: mock.Mock(frames=durations[int(p.split("/")[-1][:-4])] * 24000, samplerate=24000)  # noqa: E731
+        with mock.patch.dict(sys.modules, {"soundfile": mock.Mock(info=info)}):
+            return self.m.candidates(entries, "/x", target, band)
+
+    def test_a_short_band_yields_short_typical_length_runs(self):
+        runs = self._runs([3.0] * 6, 3.5, (3.0, 6.0))
+        self.assertTrue(runs)
+        for _s, _p, _t, seconds in runs:
+            self.assertTrue(3.0 <= seconds <= 6.0, seconds)
+
+    def test_the_default_band_is_unchanged_when_none_is_given(self):
+        self.assertEqual(self._runs([9.0] * 6, self.m.TARGET_SECONDS, None),
+                         self._runs([9.0] * 6, self.m.TARGET_SECONDS, self.m.BAND))
+
+    def test_rebuild_refuses_an_unknown_pick(self):
+        import inspect
+        src = inspect.getsource(self.m.rebuild)
+        self.assertIn('pick not in ("typical", "atypical")', src)
+        self.assertIn('scored[0] if pick == "typical" else scored[-1]', src)
+
+
 class BandConstantTest(unittest.TestCase):
     def test_the_band_is_the_published_one(self):
         """10-15s, from Qwen's cloning guide. reference_audit judges against

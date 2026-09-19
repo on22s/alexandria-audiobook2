@@ -2554,7 +2554,10 @@
     "tests.test_reference_rebuild.DistanceTest.test_an_exact_match_scores_zero",
     "tests.test_reference_rebuild.DistanceTest.test_being_high_is_penalised_exactly_as_much_as_being_low",
     "tests.test_reference_rebuild.DistanceTest.test_it_uses_both_measures_not_just_pitch",
-    "tests.test_reference_rebuild.DistanceTest.test_missing_measures_do_not_crash_the_ranking"
+    "tests.test_reference_rebuild.DistanceTest.test_missing_measures_do_not_crash_the_ranking",
+    "tests.test_reference_rebuild.SeparatingArmsTest.test_a_short_band_yields_short_typical_length_runs",
+    "tests.test_reference_rebuild.SeparatingArmsTest.test_rebuild_refuses_an_unknown_pick",
+    "tests.test_reference_rebuild.SeparatingArmsTest.test_the_default_band_is_unchanged_when_none_is_given"
   ],
   "test_reference_spread": [
     "tests.test_reference_spread.MeanMetricTest.test_a_missing_metric_is_none_not_zero",

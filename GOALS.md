@@ -1314,6 +1314,37 @@ literature, worth stating so it is not tried by accident: BSC measured
 **degrading** speaker similarity (SECS 0.35 → 0.28). Cleaning the reference is
 the plausible move that backfires.
 
+**The cheapest lever was pulled on 2026-08-21 and never written here — it
+does not close the English gap, and the Chinese arm is invalid (recorded
+2026-09-19).** `reference_rebuild.py` gave each eval set a reference that is
+long enough and typical of its speaker (3.45/5.17/6.15 s → 11.8/10.8/10.5 s);
+the clone arm was regenerated against it and scored with the same
+`ljspeech_score` instrument (`longref__{en,ja,zh}_score.json`). 2.6 recorded
+what it did to pitch and tract length; this goal's own number was scored the
+same day and sat unread in the artifacts:
+
+| language | long-reference clone | ceiling (same run) | % of ceiling | short-reference clone, same anchor rule |
+|---|---:|---:|---:|---:|
+| English (LJSpeech) | 0.728 | 0.833 | **87%** | 0.757 → 91% |
+| Japanese (Kokoro) | 0.799 | 0.835 | **96%** | 0.779 → 93% |
+| Chinese (AISHELL-3) | *0.642 — arm invalid* | 0.765 | — | 0.765 — the 2.2 anchor problem: clone equals ceiling, unreadable |
+
+Two things this settles and one it cannot. **Japanese crosses the target
+with the long reference** (96% against 95%), the first language to do so on
+a valid anchor. **English gets worse, not better** — the long reference cost
+the clone 0.029 while the pitch measures in 2.6 improved, so timbre similarity
+and pitch fidelity moved in opposite directions on the same input, and a
+longer prompt is not the English lever. **The Chinese cell is not a
+measurement**: 46 of its 150 clone clips ran past 20 s for lines of 3–4 s
+(median output 3.1 s, longest 163.8 s, `dur_ratio` 12.6) — runaway
+generation against the concatenated `concat@4x3` reference, and the ECAPA
+of a 164-second clip against a 3-second reading says nothing about the voice.
+It has to be regenerated before the Chinese row can be read; queued
+(`longref_zh_regen`), with the duration guard the product has carried since
+goal 3.2. The ceilings in this table are the 2026-08-19 anchors (9.4–10.4 s),
+which is why the short-reference numbers differ from the 2026-08-06 table
+above; the comparison within each row is on one anchor.
+
 **Target — reach 95% of the ceiling in every language with a valid anchor.**
 
 **A result worth stating plainly: the simple method beat the elaborate one.**
