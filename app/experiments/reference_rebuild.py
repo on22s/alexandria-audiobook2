@@ -107,7 +107,7 @@ def corpus_medians(clip_paths, limit):
     return out
 
 
-def candidates(entries, train_dir, target):
+def candidates(entries, train_dir, target, band=None):
     """Every consecutive run of utterances that reaches `target` seconds.
 
     Returns (start_index, [paths], [texts], seconds). Runs are minimal: each
@@ -131,7 +131,7 @@ def candidates(entries, train_dir, target):
     # reference built to fix a length problem must not overshoot into the other
     # end of the same curve. Every prefix that lands INSIDE the band is a
     # candidate; a run that jumps the band entirely contributes none.
-    lo, hi = BAND
+    lo, hi = band or BAND
     out = []
     for i in range(len(entries)):
         total, paths, texts = 0.0, [], []
@@ -180,7 +180,13 @@ def distance(m, centre):
     return sum(terms) / len(terms) if terms else None
 
 
-def rebuild(build_path, target, out_build, out_wav, corpus_limit, keep):
+def rebuild(build_path, target, out_build, out_wav, corpus_limit, keep,
+            pick="typical", band=None):
+    """`pick` chooses among the measured candidates: "typical" is the one
+    closest to the speaker's corpus centre (the 2026-08-21 build), "atypical"
+    the farthest - the arm that separates length from typicality, which that
+    build changed together. `band` overrides the 10-15s window so a SHORT but
+    typical reference can be built the same way (the other separating arm)."""
     with open(build_path, encoding="utf-8") as handle:
         build = json.load(handle)
     meta = resolve(build.get("metadata"))
@@ -195,10 +201,11 @@ def rebuild(build_path, target, out_build, out_wav, corpus_limit, keep):
     if not centre:
         raise SystemExit(f"{build_path}: could not measure the speaker's corpus")
 
-    runs = candidates(entries, train_dir, target)
+    runs = candidates(entries, train_dir, target, band)
     if not runs:
+        lo, hi = band or BAND
         raise SystemExit(f"{build_path}: no consecutive run of utterances "
-                         f"lands inside {BAND[0]}-{BAND[1]}s")
+                         f"lands inside {lo}-{hi}s")
 
     scored = []
     for start, paths, texts, seconds in runs[:keep]:
@@ -216,7 +223,9 @@ def rebuild(build_path, target, out_build, out_wav, corpus_limit, keep):
     if not scored:
         raise SystemExit(f"{build_path}: no candidate could be measured")
     scored.sort(key=lambda s: s["distance"])
-    best = scored[0]
+    if pick not in ("typical", "atypical"):
+        raise ValueError(f"pick must be typical or atypical, not {pick!r}")
+    best = scored[0] if pick == "typical" else scored[-1]
 
     os.replace(best["tmp"], out_wav)
     for s in scored:
@@ -238,9 +247,17 @@ def rebuild(build_path, target, out_build, out_wav, corpus_limit, keep):
         "chosen_measures": {k: round(v, 4) for k, v in best["measures"].items()
                             if isinstance(v, (int, float))},
         "chosen_distance": round(best["distance"], 5),
+        "closest_distance": round(scored[0]["distance"], 5),
         "worst_distance": round(scored[-1]["distance"], 5),
-        "note": "length and typicality were both changed; a result from this "
-                "build cannot attribute a difference to either alone",
+        "pick": pick,
+        "band": list(band or BAND),
+        "note": ("length and typicality were both changed; a result from this "
+                 "build cannot attribute a difference to either alone")
+                if pick == "typical" and band is None else
+                ("a separating arm: "
+                 + ("long but atypical (farthest candidate from the corpus centre)"
+                    if pick == "atypical" else
+                    f"typical but inside {list(band)}s instead of the 10-15s band")),
     }
     new["provenance"] = provenance(__file__)
     with open(out_build, "w", encoding="utf-8") as handle:
@@ -258,7 +275,16 @@ def main():
     ap.add_argument("--out-build", required=True)
     ap.add_argument("--out-wav", required=True)
     ap.add_argument("--audio-root", action="append", default=[])
+    ap.add_argument("--pick", choices=("typical", "atypical"), default="typical",
+                    help="closest candidate to the speaker's corpus centre (default) "
+                         "or the farthest - the arm that separates typicality from length")
+    ap.add_argument("--band", default=None,
+                    help="lo,hi seconds instead of the published 10-15 band - the "
+                         "arm that separates length from typicality (e.g. 3,6)")
     args = ap.parse_args()
+    band = tuple(float(x) for x in args.band.split(",")) if args.band else None
+    if band and not (0 < band[0] < band[1]):
+        raise SystemExit(f"--band must be lo,hi with 0 < lo < hi, not {args.band}")
 
     ROOTS[:] = [r for r in (args.audio_root or []) if r] or [REPO]
     main_checkout = _main_checkout()
@@ -268,7 +294,7 @@ def main():
     build = resolve(args.build) or args.build
     os.makedirs(os.path.dirname(os.path.abspath(args.out_wav)), exist_ok=True)
     new = rebuild(build, args.target_seconds, args.out_build, args.out_wav,
-                  args.corpus_clips, args.candidates)
+                  args.corpus_clips, args.candidates, pick=args.pick, band=band)
     r = new["reference_rebuild"]
     print(f"{os.path.basename(build)}")
     print(f"  was  {r['previous_ref_seconds']}s  {r['previous_ref_sample']}")
