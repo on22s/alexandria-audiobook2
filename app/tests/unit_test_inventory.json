@@ -70,6 +70,18 @@
     "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_records_changed_score_without_mutating_artifact",
     "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_unrelated_rows_produce_no_ledger_entry"
   ],
+  "test_aligned_japanese_accent": [
+    "tests.test_aligned_japanese_accent.Aggregate.test_nones_are_ignored_and_coverage_is_reported",
+    "tests.test_aligned_japanese_accent.MoraUnits.test_every_label_is_one_the_aligner_knows",
+    "tests.test_aligned_japanese_accent.MoraUnits.test_geminate_nasal_and_long_vowel_each_count_one_mora",
+    "tests.test_aligned_japanese_accent.MoraUnits.test_phrases_follow_the_accent_field_not_punctuation",
+    "tests.test_aligned_japanese_accent.MoraUnits.test_the_minimal_pair_differs_only_in_the_nucleus",
+    "tests.test_aligned_japanese_accent.ScorePhrase.test_a_flat_phrase_has_no_drop_and_no_correlation",
+    "tests.test_aligned_japanese_accent.ScorePhrase.test_accent_one_has_no_rise_and_drops_from_the_first_mora",
+    "tests.test_aligned_japanese_accent.ScorePhrase.test_an_accent_two_phrase_with_l_h_l_scores_everything",
+    "tests.test_aligned_japanese_accent.ScorePhrase.test_heiban_never_enters_drop_even_when_the_voice_falls",
+    "tests.test_aligned_japanese_accent.ScorePhrase.test_unvoiced_morae_make_the_score_none_not_false"
+  ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
