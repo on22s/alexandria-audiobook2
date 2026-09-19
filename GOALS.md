@@ -1897,6 +1897,20 @@ different things, and only one of them is more training:
     which. Choosing by score afterwards would be selection on the outcome, so
     the rule must be stated and the hash stamped before this is extended.
 
+  **PROMOTED 2026-09-19.** `promote_adapters.py --gate-campaign unseen`
+  (#615) read those pairs back from the `unseen_gate__*__{clean,shipped}`
+  artifacts and installed the two real winners — husky_tenor_30s_m_literary
+  0.658 → 0.686 and husky_baritone_40s_m_scifi 0.551 → 0.578 — refusing the
+  three zero-delta controls ("clean does not beat shipped") and husky_tenor_30s_m
+  (gate FAIL at 0.45, holdout void). Originals backed up, receipt
+  `ab_test_runtime/promotion_backups/20260919_165610.json`; the manifest now carries
+  `retrained_at`/`gate_ecapa` and sample_count 180 for both. The library was
+  restored from `Om22s/alexandria-attribution-adapters/voice-adapters/` the same
+  day (75/75 dirs verified) — the promoter had nothing to replace until then.
+  The remaining 18 sample_count-200 adapters wait on `contamination_20260919.sh`
+  (unseen comparisons for 12, tight rebuilds for 5), queued behind the local
+  matrix.
+
 | trained on | adapters |
 |---|---|
 | all 200 clips, including its own val split | **21** |

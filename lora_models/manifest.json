@@ -241,9 +241,9 @@
       "2": 4.2654,
       "3": 4.071
     },
-    "final_loss": 4.070996505022049,
-    "best_loss": 4.265445133447647,
-    "sample_count": 200,
+    "final_loss": 4.028802103466457,
+    "best_loss": 4.028802103466457,
+    "sample_count": 180,
     "lora_r": 64,
     "lr": 1e-06,
     "target_loss": 4.15,
@@ -259,7 +259,9 @@
       "smoothness": 0.35,
       "flatness": 0.0464,
       "mean_f0_caveat": "indicative only: profiled before the 2026-08-04 seed fix, so each value is a mean over independent draws of the voice. Measured error against seeded generation is 12.9 Hz mean / 29.7 Hz worst, against a within-voice spread of 32.4 Hz median (range 14.4-71.9). Usable to RANK voices; not precise enough to compute pairwise separation or to gate casting by number. Re-profile seeded before using numerically."
-    }
+    },
+    "retrained_at": "20260919_165610",
+    "gate_ecapa": 0.6865
   },
   {
     "id": "warm_baritone_30s_m_fantasy_1",
@@ -1068,9 +1070,9 @@
       "2": 4.1758,
       "3": 3.9792
     },
-    "final_loss": 3.979197564125061,
-    "best_loss": 4.175805827379227,
-    "sample_count": 200,
+    "final_loss": 3.952643781238132,
+    "best_loss": 3.952643781238132,
+    "sample_count": 180,
     "lora_r": 64,
     "lr": 1e-06,
     "target_loss": 4.15,
@@ -1086,7 +1088,9 @@
       "flatness": 0.0349,
       "mean_f0_caveat": "indicative only: profiled before the 2026-08-04 seed fix, so each value is a mean over independent draws of the voice. Measured error against seeded generation is 12.9 Hz mean / 29.7 Hz worst, against a within-voice spread of 32.4 Hz median (range 14.4-71.9). Usable to RANK voices; not precise enough to compute pairwise separation or to gate casting by number. Re-profile seeded before using numerically."
     },
-    "description": "Husky dramatic baritone, weighty and inquisitive \u2014 best for 40s\u201355s intrepid explorers or seasoned sci-fi adventurers"
+    "description": "Husky dramatic baritone, weighty and inquisitive \u2014 best for 40s\u201355s intrepid explorers or seasoned sci-fi adventurers",
+    "retrained_at": "20260919_165610",
+    "gate_ecapa": 0.5781
   },
   {
     "id": "warm_baritone_50s_m",

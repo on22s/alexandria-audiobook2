@@ -1,0 +1,17 @@
+{
+  "promoted_at": "20260919_165610",
+  "backup": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/promotion_backups/20260919_165610",
+  "min_ecapa": 0.45,
+  "adapters": [
+    {
+      "adapter": "husky_baritone_40s_m_scifi",
+      "gate_ecapa": 0.5781,
+      "shipped_ecapa": 0.5553
+    },
+    {
+      "adapter": "husky_tenor_30s_m_literary",
+      "gate_ecapa": 0.6865,
+      "shipped_ecapa": 0.7313
+    }
+  ]
+}
