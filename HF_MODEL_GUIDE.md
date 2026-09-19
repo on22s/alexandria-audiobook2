@@ -166,6 +166,14 @@ positive at IQ2_XXS is a release with a positive headline — the IQ2 row —
 not a negative with a footnote. "Negative" means negative at every quant it
 would ship on, measured paired at that quant.
 
+**Traces.** Row-level evaluation files and `--keep-traces` output from the
+four-book fixture never go up: every trace quotes a copyrighted window. Trace
+*examples* do, from Emma (public domain, held out) — at `v1.1.0` each card
+gets three or four windows showing base reasoning, adapter reasoning and the
+gold label. The gen-3 Muse rejection-sampled traces are a candidate dataset
+release, after the PDNC authors answer on the annotation licence — a trace
+set redistributes their labelling more directly than weights do.
+
 A negative row still goes on the card, with "served correctly" stated first
 (adapter loaded, scale toggled, rows answered) — a card that only carries the
 wins is the kind of card the Hub page warns about — but it never decides the
