@@ -1155,9 +1155,38 @@
         // Generate resumes saved progress for the same text and settings;
         // Start over asks for a fresh run (#597). Same handler, one flag.
         let _scriptStartOver = false;
-        document.getElementById('btn-gen-script-fresh').addEventListener('click', () => {
-            if (!confirm('Discard the saved progress for this text and start again from chunk 1?')) { return; }
+        // Start over while a run is active (#613): the server answers 409
+        // ("Script generation is running") and the page showed nothing. Now the
+        // click means "cancel this run, then start again": confirm, cancel,
+        // wait for the task to report not running (bounded), then generate.
+        async function waitForScriptToStop(maxMs = 30000) {
+            const started = Date.now();
+            while (Date.now() - started < maxMs) {
+                let status;
+                try { status = await API.get('/api/status/script'); } catch (e) { return true; }
+                if (!status.running) { return true; }
+                await new Promise(r => setTimeout(r, 500));
+            }
+            return false;
+        }
+        document.getElementById('btn-gen-script-fresh').addEventListener('click', async () => {
+            let running = false;
+            try { running = !!(await API.get('/api/status/script')).running; } catch (e) { running = false; }
+            const question = running
+                ? 'Cancel the current run, discard its saved progress, and start again from chunk 1?'
+                : 'Discard the saved progress for this text and start again from chunk 1?';
+            if (!confirm(question)) { return; }
+            if (running) {
+                await cancelTask('/api/generate_script/cancel', { onSuccess: () => _resetPauseBtn('btn-pause-script') });
+                if (!(await waitForScriptToStop())) {
+                    showToast('The run has not stopped yet - try Start over again in a moment.', 'warning');
+                    return;
+                }
+            }
             _scriptStartOver = true;
+            // the page's own poller re-enables Generate a tick after the run
+            // stops; a click on a still-disabled button is silently dropped
+            document.getElementById('btn-gen-script').disabled = false;
             document.getElementById('btn-gen-script').click();
         });
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
@@ -1189,7 +1218,6 @@
             retryBtn.style.display = 'none';
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
-            document.getElementById('btn-snapshot-script').style.display = 'inline-block';
             pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             pauseBtn.classList.remove('btn-outline-success');
             pauseBtn.classList.add('btn-outline-warning');
@@ -1205,14 +1233,12 @@
                 pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
-                    const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                     pauseBtn.style.display = 'none';
                     refreshScriptRecovery();
                 });
             } catch (e) {
                 genBtn.disabled = false;
                 cancelBtn.style.display = 'none';
-                const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                 pauseBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
@@ -1530,7 +1556,6 @@
                 pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
-                    const _snap = document.getElementById('btn-snapshot-script'); if (_snap) { _snap.style.display = 'none'; }
                     pauseBtn.style.display = 'none';
                     refreshScriptRecovery();
                 });
@@ -4721,8 +4746,20 @@
 
         // Every task that renders into the Script tab's log window gets the
         // activity line above it.
+        // The Save-snapshot button follows the run, not the path that started
+        // it (#612): Generate showed it, Resume failed run never did, and the
+        // manual-recovery flow goes through Resume. One rule - visible while
+        // the script task is running - applied on every status tick.
+        function syncSnapshotButton(status) {
+            const snap = document.getElementById('btn-snapshot-script');
+            if (snap) { snap.style.display = status && status.running ? 'inline-block' : 'none'; }
+        }
+
         function pollScriptLogs(taskName, onDone) {
-            return pollLogs(taskName, 'script-logs', onDone, 'script-activity');
+            return pollLogs(taskName, 'script-logs', status => {
+                syncSnapshotButton({ running: false });
+                if (onDone) { onDone(status); }
+            }, 'script-activity');
         }
 
         // Manual transport (#593): the run is waiting for the user to answer a
@@ -4790,6 +4827,7 @@
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
                     syncPauseButton(taskName, status);
+                    if (taskName === 'script') { syncSnapshotButton(status); }
                     renderActivity(activityEl, status, track);
                     if (activityId) { renderManualRequest(status); }
                 },

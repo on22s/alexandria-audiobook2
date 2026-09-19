@@ -346,7 +346,8 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function renderActivity(", js)
         self.assertEqual({"script", "review", "nicknames"},
                          set(re.findall(r"pollScriptLogs\('(\w+)'", js)))
-        self.assertIn("'script-logs', onDone, 'script-activity'", js)
+        self.assertIn("'script-logs', status => {", js)
+        self.assertIn("}, 'script-activity');", js)
         self.assertEqual({1: "split", 2: "speakers", 3: "delivery"}, tp.STEP_NAMES)
         self.assertIn('print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total} - asking the model"', pipeline)
         self.assertIn(r"Step \d \([a-z]+\): ", js)   # the activity line's regex literal
@@ -391,7 +392,21 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('id="btn-gen-script-fresh"', html)
         self.assertIn("start_over: startOver,", js)
         self.assertIn("_scriptStartOver = true;", js)
-        self.assertIn("confirm('Discard the saved progress", js)
+        self.assertIn("Discard the saved progress for this text", js)
+
+    def test_start_over_while_running_cancels_first_then_waits(self):
+        """#613: the server answers 409 while a run is active; the click must
+        cancel, wait for the task to stop, and only then generate."""
+        js = _read_frontend_source()
+        start = js.index("btn-gen-script-fresh').addEventListener")
+        block = js[start:js.index("btn-gen-script').addEventListener", start)]
+        self.assertIn("await API.get('/api/status/script')", block)
+        self.assertIn("Cancel the current run, discard its saved progress", block)
+        cancel = block.index("cancelTask('/api/generate_script/cancel'")
+        wait = block.index("await waitForScriptToStop()")
+        go = block.index("btn-gen-script').click()")
+        self.assertTrue(cancel < wait < go, (cancel, wait, go))
+        self.assertIn("The run has not stopped yet", block)
     def test_manual_transport_is_selectable_and_the_panel_is_wired(self):
         html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
         js = _read_frontend_source()
@@ -431,8 +446,13 @@ class FrontendTests(unittest.TestCase):
         js = _read_frontend_source()
         self.assertIn('id="btn-snapshot-script"', html)
         self.assertIn("API.post('/api/generate_script/snapshot', { name })", js)
-        self.assertIn("document.getElementById('btn-snapshot-script').style.display = 'inline-block';", js)
-        self.assertGreaterEqual(js.count("_snap.style.display = 'none'"), 3)
+        # #612: one rule, on every status tick, instead of per-path toggles that
+        # the Resume-failed-run path (manual recovery) never had.
+        self.assertIn("function syncSnapshotButton(status)", js)
+        self.assertIn("if (taskName === 'script') { syncSnapshotButton(status); }", js)
+        self.assertEqual(1, js.count("getElementById('btn-snapshot-script')"),
+                         "the button's visibility must be decided in one place")
+        self.assertNotIn("_snap.style.display", js)
 
     def test_voice_change_points_are_reachable_from_the_editor_and_survive_a_save(self):
         js = _read_frontend_source()
