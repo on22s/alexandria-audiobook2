@@ -374,6 +374,8 @@ ffmpeg 缺失或不在 PATH；安装器会把它装进环境，所以 428 字节
 - [Ayush Naphade](https://github.com/aayushnaphade)——上游的人设生成、说话人别名解析和上下文审阅；以及从他的分支审阅采纳的 UX 修复。
 - [buddies](https://github.com/buddies/alexandria-audiobook) 的分支（Xiao Zhang）——移植进 `instruct_lexicon.py` 的逐行 instruct 词表（MIT；声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
 - [Darkkingwill](https://github.com/Darkkingwill/alexandria-audiobook) 的分支——#534 中重做的可取消合并与 Result 页修复。
+- [cjdell](https://github.com/cjdell/alexandria-audiobook) 的分支——#573 移植的 AMD APU fp32 修复。
+- [XinchaoGou](https://github.com/XinchaoGou/alexandria-audiobook) 的分支——#574 移植的 OpenAI 推理模型请求格式与 `env:NAME` 密钥引用，以及外部 TTS 服务器池的思路（#532）。
 - Qwen3-TTS、Qwen3 和 Muse-Glimmer 提供模型；Project Dialogism Novel Corpus（Vishnubhotla、Hammond、Hirst）、RiQuA（Papay & Padó）和 DraCor 提供每个归属数字所依赖的标注文本——PDNC 的标注未声明许可证，已向作者请求授权；Kokoro、LJSpeech、Hi-Fi TTS 和 AISHELL-3 提供声音上限所用的真人朗读。
 
 ## 许可证

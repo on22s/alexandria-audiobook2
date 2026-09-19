@@ -97,6 +97,80 @@ SOFTWARE.
 
 ---
 
+## cjdell/alexandria-audiobook (fork of Finrandojin/alexandria-audiobook)
+
+- Source: https://github.com/cjdell/alexandria-audiobook — commit `adb3a66`
+- Licence: MIT (the fork carries upstream's licence file, © 2026 Finrandojin)
+- Used in: `app/device_utils.py` (`compute_dtype`), reached from every model-load
+  site in `app/tts.py` (#573, 2026-09-14)
+
+The finding and the fix are theirs: bf16 HIP GEMMs segfault inside
+`torch.Linear` on AMD APU iGPUs (gfx1035 — Radeon 660M/680M — on ROCm 6.4
+wheels), so those parts load in fp32. Rewritten around `gcnArchName` with our
+own tests, but the change is a port of theirs and is recorded as such.
+
+```
+MIT License
+
+Copyright (c) 2026 Finrandojin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## XinchaoGou/alexandria-audiobook (fork of Finrandojin/alexandria-audiobook)
+
+- Source: https://github.com/XinchaoGou/alexandria-audiobook — `llm_utils.py`
+- Licence: MIT (the fork carries upstream's licence file, © 2026 Finrandojin)
+- Used in: `app/llm_provider.py` — `adapt_request_for_reasoning_model` (OpenAI
+  reasoning models want `max_completion_tokens` and reject sampling keys with
+  reasoning on) and API keys by environment reference (`env:NAME`, `${NAME}`)
+  in `make_llm_client` (#574, 2026-09-14). Done at our single dispatch point
+  rather than by monkey-patching the client, but both behaviours are ports.
+
+```
+MIT License
+
+Copyright (c) 2026 Finrandojin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
 ## Ideas adopted without code
 
 These projects shaped a design but no code was copied from them. No licence
@@ -110,6 +184,7 @@ above is where the obligation gets written down.
 | [DrewThomasson/VoxNovel](https://github.com/DrewThomasson/VoxNovel) | MIT | That BookNLP is the field-standard baseline for quotation speaker attribution, and that our ledger had never measured against it. See `app/experiments/booknlp_baseline.py`. |
 | [nazdridoy/kokoro-tts](https://github.com/nazdridoy/kokoro-tts) | MIT | Voice blending by weighted interpolation as a way to widen a cast's voice pool. See `app/experiments/voice_blending.py`. |
 | [WhiskeyCoder/Qwen3-Audiobook-Converter](https://github.com/WhiskeyCoder/Qwen3-Audiobook-Converter) | MIT | An independent choice of a 200-character chunk cap for Qwen3-TTS voice cloning, matching the cap our own external path enforces and our local path does not. |
+| [XinchaoGou/alexandria-audiobook](https://github.com/XinchaoGou/alexandria-audiobook) | MIT | The external-TTS endpoint pool (#532): one client per server, round-robin, concurrent batches. We kept the Gradio per-line API rather than their batch server. Code ports from the same fork are the entry above. |
 | [Darkkingwill/alexandria-audiobook](https://github.com/Darkkingwill/alexandria-audiobook) | MIT | Five UX fixes rebuilt on our own patterns, not merged (#534, 2026-09-11): cancellable merge/export, and the Result-tab affordances around it. |
 | [aayushnaphade/alexandria-audiobook](https://github.com/aayushnaphade/alexandria-audiobook) | MIT | Reviewed 2026-09-18 alongside the buddies fork; nothing copied. |
 | Michel, Epure, Cerisara — the quotation-attribution prompt formulation behind `michel`, `michel2`, `michel2_full`, `michel2_shot` (`app/attribution_prompt_variants.py`) | paper | The prompt shape that won on every base measured (RECIPES §"Prompt variants × bases"); our variants are re-writings of the idea, no text copied. |
@@ -306,6 +381,7 @@ file for the Chinese sets since August without the entry existing.
 | [DraCor](https://dracor.org) play corpora | per-play TEI `<licence>`; the builder (`dracor_trainset.py`) keeps CC0 / public-domain / CC BY(-SA) plays and refuses BY-NC / ND. `ibs` is BY-NC despite the registry and is excluded. | Prose renderings of speaker-labelled plays as training rows. | adapters public; corpus not redistributed |
 | Chinese quotation attribution sets — WP (World of Plainness, 平凡的世界) and JY (Jin Yong) | **Apache-2.0** (the released speaker-identification datasets; characters anonymised as `[C0]`…) | Evaluation only (`chinese_attribution.py`). | no |
 | JY-QuotePlus | **no licence**, and it annotates a novel still in copyright. | Evaluation of the Chinese frame only (`chinese_attribution_frame.py`), which records the same caveat in its artifact. | no; nothing trained on it |
+| WP2021 — 1,835 Chinese quotations whose gold is a character rather than a mention (#397) | no stated licence | Read locally to test the Elson-style frame in Chinese; fetched and converted locally, fixtures gitignored, only the script and derived counts committed. | no |
 | [LibriQuote](https://huggingface.co/datasets/gasmichel/LibriQuote) — Michel, Epure, Cerisara, Findings of ACL 2026 | **CC BY-NC 4.0** | Evidence only: quotes-trained vs narration-trained voice adapters, cross-scored. | **never** — nothing trained on it ships |
 | [LitBank](https://github.com/dbamman/litbank) / BookNLP — Bamman et al. | CC BY 4.0 (LitBank) | The published attribution baseline our end-to-end PDNC number is compared against (`external_comparability.py`); no data copied. | no |
 
@@ -330,6 +406,8 @@ by the scripts named, none is redistributed.
 | `jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn` | Apache-2.0 | `contextual_tone_model.py` — Mandarin syllable alignment for 2.9 |
 | `speechbrain/spkrec-ecapa-voxceleb` | Apache-2.0 | every ECAPA speaker-similarity number (`_ecapa_batch.py`, `voice_reference.py`) — this one is also used by the shipped drift check |
 | [pyopenjtalk](https://github.com/r9y9/pyopenjtalk) / OpenJTalk | MIT / modified BSD | Japanese accent labels (`expected_prosody.py`, `aligned_japanese_accent.py`) |
+| [pypinyin](https://github.com/mozillazg/python-pinyin) | MIT | Mandarin tone per syllable (`expected_prosody.py`, `contextual_tone_model.py`) |
+| [SudachiPy](https://github.com/WorksApplications/SudachiPy) + SudachiDict | Apache-2.0 (chosen over JMdict's CC BY-SA, whose share-alike reaches a shipped app) | Japanese tokenisation for the Latinized-word discovery behind goal 5.5 (#325) |
 | [Muse-Glimmer-30B](https://huggingface.co/meta-models/Muse-Glimmer-30B), Qwen3 / Qwen3.6 / Qwen3.8 | Apache-2.0 | attribution bases; adapters for the Qwen models are published, trained as recorded in RECIPES |
 | DeepSeek v4-pro (API) | vendor terms | the cloud ceiling in RECIPES; nothing trained on its outputs except the distillation rows RECIPES names, none of which is in a public adapter |
 
@@ -338,3 +416,8 @@ by the scripts named, none is redistributed.
 - Michel, Epure, Cerisara — the Michel et al. prompt formulation and LibriQuote (above).
 - The nine papers read 2026-09-13 (usual-suspect prior, hard-case selection, prosodic pruning, quotes-vs-narration, chapter cuts) — findings and which held are in `docs/` and RECIPES; no code or text taken.
 - Vishnubhotla, Hammond, Hirst — PDNC and the alias-oracle caveat on every published PDNC number (GOALS 1.3).
+- arXiv 2608.02359 — the "field considers this solved" framing that prompted the context-window sweep (#351), and the source of the alias-oracle caveat: systems on the PDNC benchmark "access the gold-labelled character list both at training and evaluation time" (#498).
+- arXiv 2307.03734 (BookNLP-OG, the one end-to-end PDNC number, 0.40) and arXiv 2406.11380 (#498).
+- arXiv 2408.09452 (NLPCC 2024) and arXiv 2312.14590 (SIG) — the zero-shot GPT-3.5 numbers that GOALS 1.3 says must not be quoted as targets (#389).
+- EmergentTTS-Eval, arXiv 2505.23009 — homographs and syntactic complexity as TTS challenge categories, confirming the "only a listener can see it" finding (#413).
+- Elson & McKeown's attribution categories, re-implemented for Chinese word order in `chinese_attribution_frame.py` (#390); no code taken.

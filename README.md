@@ -1126,6 +1126,11 @@ alexandria-audiobook2/
   (MIT; notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 - The [Darkkingwill](https://github.com/Darkkingwill/alexandria-audiobook)
   fork — the cancellable-merge and Result-tab fixes rebuilt in #534.
+- The [cjdell](https://github.com/cjdell/alexandria-audiobook) fork — the
+  AMD-APU fp32 fix ported in #573.
+- The [XinchaoGou](https://github.com/XinchaoGou/alexandria-audiobook) fork —
+  the OpenAI reasoning-model request shape and `env:NAME` API keys ported in
+  #574, and the external-TTS server pool idea (#532).
 - Qwen3-TTS, Qwen3 and Muse-Glimmer for the models; the Project Dialogism
   Novel Corpus (Vishnubhotla, Hammond, Hirst), RiQuA (Papay & Padó) and
   DraCor for the annotated text every attribution number rests on — the PDNC
