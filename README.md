@@ -8,8 +8,10 @@ A research fork of [Alexandria](https://github.com/Finrandojin/alexandria-audiob
 that turns a book into a multi-voice audiobook — and **measures every choice
 along the way**: which model and prompt assign speakers correctly on annotated
 gold, how close a synthetic voice gets to a human reading, whether Japanese
-pitch accent survives synthesis. The settings that won are recorded, selectable
-in Setup, and become the defaults as each measurement confirms them. The
+pitch accent survives synthesis. The settings that won are the defaults —
+the `michel2_full` attribution prompt became the shipped default on
+2026-09-19, the day the last base confirmed it — and every alternative stays
+selectable in Setup. The
 numbers, the failures and the recipes are in the repo, not in a blog post.
 
 **[GOALS.md](GOALS.md)** — what "good" means, per goal, with the current
@@ -42,7 +44,7 @@ low (RECIPES §"Prompt variants × bases", 2026-09-18):
 | DeepSeek v4-pro (API, thinking off) | — | 91.1 | **94.9** | thinking low, 8k: **95.4** — the cloud ceiling, ~$0.50–0.75 per run of the fixture |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 89.8 | `michel2` **90.9** — the best local number on record |
 | Qwen3.6-35B-A3B UD-Q4_K_XL | 22.4 GB | — | **89.6** | IQ3_XXS (13.2 GB) and IQ2_XXS (10.8 GB) hold 91.6 / 90.5 on nine PDNC novels |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | (running) | `michel2` **86.6** |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | **90.5** | the shipped base; `michel2` 86.6; without reasoning 72.1 |
 | Qwen3-14B Q4_K_M | 9.0 GB | 66.1 | **82.0** | +16 from the prompt alone, the largest gain of any base |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | 71.9 / 71.7 | both collapse on the hardest book |
 
@@ -355,8 +357,8 @@ Pick **LLM Location** (Local or Remote), fill **Base URL**, **API Key** and
 **Model Name** (the refresh button lists what the server advertises), set
 **Reasoning effort** to *low* for a thinking model, and click **Test
 Connection**. Leave the TTS section on `local` / `auto`. Under **Prompt
-Settings**, choose the attribution prompt — `michel2_full` is the measured
-best on every base — and click **Save Configuration**. **Auto-Configure**
+Settings** the attribution prompt is already `michel2_full`, the measured
+best on every base. Click **Save Configuration**. **Auto-Configure**
 fills the TTS batch settings from your card.
 
 ### Step 2 — Script
@@ -439,8 +441,8 @@ Order**, **Sub-batching** with **Min Sub-batch Size** and **Length Ratio**,
 - Three-pass: **Step 1: text per request** (default 3,000 characters),
   **Step 1: dialogue detection** (Auto / Quote marks only / Model only),
   **Segment output ratio**, **Step 2: lines per request** (default 25),
-  **Step 2: extra text around each request** (0 by default; 2,000 is what
-  `michel2_full` measures with), per-pass **temperatures**, **Context
+  **Step 2: extra text around each request** (2,000 by default — the
+  `michel2_full` surround block; 0 reproduces the pre-2026-09-19 scores), per-pass **temperatures**, **Context
   rescue windows** and **Rescue retries per window**.
 - **Attribution prompt** dropdown (each option starts with the variant name
   RECIPES uses), the **System prompt**, **User instruction** (the pipeline

@@ -343,9 +343,10 @@ as dirty), so they are cited here as measured numbers, not as release evidence.
 | DeepSeek v4-pro (API, thinking off) | - | 91.1 | 91.8 | 93.2 | **94.9** | 93.8 | thinking **low, 8k**: michel2_full **95.4** (1 blank) - the ceiling; ~$0.50–0.75 per cell |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 84.8 | **90.9** | 89.8 | 90.1 | the best local number on record; the three michel2 variants are within a point (michel2 94.3 / 88.6 / 88.7 / 85.8; shot owari **94.4**, the best owari of any local base); the one base where the worked example does not hurt |
 | Qwen3.6-35B-A3B UD-Q4_K_XL (temp 0.6) | 22.4 GB | queued | 86.6 | 87.5 | **89.6** | 86.6 | shot = michel (86.6 both); the surround block is the whole gain |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | 78.6 (none: 75.7, 83 blank) | **86.6** (665/768, 0 blank; 90.4 / 81.8 / 84.2 / 82.1) | queued | queued | `michel` cost 3, `michel2` gains 5 - paired on the same rows against default low: +68/-29; against michel low: +76/-15. The shipped base's first owari over 80. full / shot land after the A3B adapter on tnr-1 |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | 78.6 (none: 75.7, 83 blank) | 86.6 (665/768, 0 blank; 90.4 / 81.8 / 84.2 / 82.1; **none: 72.1, 136 blank** - Muse without reasoning loses 14 and goes blank on a sixth of the rows) | **90.5** (695/768, 0 blank; 91.4 / 87.5 / 85.7 / **93.8** - the shipped base's best owari on record, +11.7 over its michel2 owari; `muse-michel2full-low-tnr1-cleangold-replication-20260917`) | queued | `michel` cost 3, `michel2` gains 5 - paired on the same rows against default low: +68/-29; against michel low: +76/-15. The shipped base's first owari over 80. full / shot land after the A3B adapter on tnr-1 |
 | Qwen3-14B Q4_K_M | 9.0 GB | 65.9 / 66.1 | 78.0 (none 69.3) | 77.5 (none 74.5) | **82.0** (3 blank; 87.3 / 81.8 / 85.7 / 66.7) | 75.7 (27 blank) | +16 from the prompt alone, the largest gain of any base; the worked example hurts here (-6 vs full, 27 blank); the rights-clean adapter under `default` reaches 74.7–76.6 |
 | Qwen3-30B-A3B-Thinking-2507 UD-Q4_K_XL | 17.7 GB | - | - | - | 78.5 (41 blank) | - | not pursued further |
+| Qwen3-30B-A3B-2507 UD-Q4_K_XL, Instruct / Thinking, default prompt, schema | 17.7 GB | 64.6 / 66.4 (7 blank) | - | - | - | - | below Qwen3-14B under the same prompt (66.1); `qwen3-30b-a3b-{instruct,thinking}-2507-tnr0-cleangold-product-batch25-schema-20260917`; not pursued |
 | Qwen3.5-9B Q4_K_M (RX 9070 XT) | 5.7 GB | 62.6 | - | - | 71.9 (10 blank) | - | |
 | Qwen3-8B Q4_K_M (RX 9070 XT) | 5.0 GB | 60.8 | - | - | 71.7 (4 blank) | - | Qwen3.5-9B and Qwen3-8B are within noise of each other; both collapse on owari (46.9 / 62.3) |
 
@@ -356,11 +357,17 @@ gains 5. The surrounding-text block (`--surround-chars 2000`,
 `three_pass_attribute_context_chars` in the product) is the single biggest
 step on DeepSeek (+1.7), Qwen3-14B (+4.5) and A3B (+2.1). The worked example
 (`michel2_shot`) never helps: DeepSeek −1.1, Qwen3-14B −6.3, A3B −3.0,
-Qwen3.8 +0.3 vs full. **The michel2 family has now won on every base
-measured, including the shipped one.** Product default moves to
-`michel2_full` once Muse's own michel2_full cell confirms it beats michel2
-there too (tnr-1, tonight); until then `michel2` is the measured best for
-Muse.
+Qwen3.8 +0.3 vs full. **The michel2 family has won on every base measured, including the shipped
+one, and `michel2_full` is the product default since 2026-09-19.** Muse's own
+cell confirmed it that morning: `michel2_full` 90.5 vs `michel2` 86.6 vs
+default 81.5, zero blank rows, owari 93.8. `generation.three_pass_attribute_prompt_variant`
+defaults to `michel2_full` and `three_pass_attribute_context_chars` to 2000
+(`config_settings.py`); the Setup dropdown opens on it. A saved `config.json`
+keeps whatever it holds - only a fresh install gets the new default. The one
+standing exception: the Qwen3-14B rights-clean adapters were trained on the
+`default` shape and lose under any other (row above), so serve them under
+`default`; the `michel2`-shape A3B and Qwen3.8 adapters are the ones built
+for the new default.
 
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 

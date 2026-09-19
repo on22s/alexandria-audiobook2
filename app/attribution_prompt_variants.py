@@ -301,7 +301,7 @@ def resolve_attribution_preset(config):
     if not name:
         # a config from before presets carried the variant (#581) still says
         # which one it meant through the generation key
-        name = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "default"
+        name = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "michel2_full"
     for preset in config.get("prompt_presets") or []:
         if isinstance(preset, dict) and preset.get("name") == name and not preset.get("builtin"):
             variant = preset.get("variant") or "default"
@@ -312,7 +312,7 @@ def resolve_attribution_preset(config):
                              "example": preset.get("example") or ""}, name
     if name in USER_VARIANTS:
         return name, None, name
-    variant = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "default"
+    variant = (config.get("generation") or {}).get("three_pass_attribute_prompt_variant") or "michel2_full"
     return variant, None, variant
 
 

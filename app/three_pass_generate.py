@@ -144,8 +144,8 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "segmentation": segmentation_override or model_profile.get(
             "segmentation", gen.get("three_pass_segmentation") or "auto"),
         "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
-        "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 0)),
-        "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "default",
+        "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 2000)),
+        "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
     }
 
 
