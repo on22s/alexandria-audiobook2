@@ -366,17 +366,23 @@
   {
    "goal": "2.9",
    "title": "Pitch-carried meaning survives synthesis",
-   "cited": 8,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "exploratory": 2,
-    "supported_structure": 6
+    "supported_structure": 7,
+    "exploratory": 2
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 2,
    "artifacts": [
+    {
+     "name": "aligned_japanese_accent__n150.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "3b6b05ed"
+    },
     {
      "name": "contextual_mandarin_tone_generated_n150.json",
      "classification": "exploratory",
