@@ -130,3 +130,21 @@ repo you are calling identical (`model_info(rid, files_metadata=True)` →
 `siblings[].lfs.sha256`), and list the repo to check nothing stray went up.
 A tag that was created minutes ago can be moved (`delete_tag` +
 `create_tag`); one that has been public for a day should not.
+
+## Cards owed as cells land (2026-09-19)
+
+Uploaded unscored or partly scored, each card says so in bold; when the
+cell lands, put the number on the adapter's card **and** in the collection's
+list and `model-index`, then tag `v1.1.0`:
+
+| adapter | waiting on | where it runs |
+|---|---|---|
+| `qwen3.6-35b-a3b-rightsclean-michel2` | quant ladder (IQ1_M off/on, IQ2_XXS, IQ3_XXS, Q4_K_XL), four-book + Emma; nine-book on IQ3_XXS | tnr-0 `a3b_adapter_ladder_tnr0_20260917c.sh`; tnr-2 `pdnc9_tnr2_20260919b.sh` |
+| `qwen3.8-27b-rightsclean-michel2` | Q4_K_M reasoning on, Q3_K_XL, IQ2_XXS; Emma; nine-book on Q4_K_M | tnr-4 `qwen38_adapter_tnr4_20260917d.sh` → `qwen38_pdnc2_tnr4_20260918.sh` → `pdnc9_tnr4_20260919c.sh` |
+| `qwen3-14b-rightsclean` (+ seed 2) | nine-book paired, default and michel2_full | tnr-2 `pdnc9_tnr2_20260919b.sh` |
+
+Nine-book aggregates go on the cards as **eight held-out novels**, with The
+Sun Also Rises reported separately as a training book. A negative number
+goes on the card too, with "served correctly" stated first (adapter loaded,
+scale toggled, rows answered) — a card that only carries the wins is the
+kind of card the Hub page warns about.
