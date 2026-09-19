@@ -420,18 +420,52 @@ def get_preprocessed_source(text, strip_front_matter=True):
         "publisher_matter": publisher_matter,
     }
 
+def _safe_cut_points(piece, convention=None):
+    """Offsets in `piece` where a chunk may end without cutting a quotation:
+    every newline, and every sentence end (.!?) followed by whitespace, that
+    lies outside a spoken span. Spans come from dialogue_spans - the same
+    quote/dash/label detector pass 1's gate uses - so "cut inside a quote"
+    means the same thing here as it does there. `convention` is the book's,
+    detected once on the whole text: detect_convention wants five spans and
+    a single paragraph rarely has them, so with none given a piece that holds
+    quote marks is read as paired quotes."""
+    from dialogue_spans import spoken_spans, detect_convention
+    convention = convention or detect_convention(piece) or (
+        "paired_quotes" if re.search(r'["\u201c\u201d]', piece) else None)
+    spans = spoken_spans(piece, convention) if convention else []
+
+    def inside(offset):
+        return any(start < offset < end for start, end in spans)
+    points = set(m.start() for m in re.finditer(r"\n", piece))
+    points.update(m.end() for m in re.finditer(r"[.!?][\"'\u201d\u2019)]*(?=\s)", piece))
+    return sorted(o for o in points if 0 < o < len(piece) and not inside(o))
+
+
 def split_into_chunk_records(text, max_size=3000):
-    """Split text with explicit oversized-paragraph continuation metadata."""
+    """Split text with explicit oversized-paragraph continuation metadata.
+
+    A paragraph longer than `max_size` is cut only at a newline or a sentence
+    end that is OUTSIDE a quotation (issue #611: a book with one paragraph per
+    line has no blank lines, so a chapter was one paragraph and the old
+    sentence split put "My dream is not to be a scholar!" and the rest of the
+    same quotation in different chunks). When a stretch between safe cuts is
+    itself longer than `max_size` the old space split applies and the record
+    says so (`cut_inside_quote`)."""
+    from dialogue_spans import detect_convention
     max_size = get_valid_chunk_size(max_size)
+    convention = detect_convention(text)
     paragraphs = re.split(r'\n\s*\n', text)
     records = []
     current_chunk = ""
 
-    def emit(text, continues_from=False, continues_to=False):
+    def emit(text, continues_from=False, continues_to=False, cut_inside_quote=False):
         if text.strip():
-            records.append({"text": text.strip(),
-                            "continues_paragraph_from_previous": continues_from,
-                            "continues_paragraph_to_next": continues_to})
+            record = {"text": text.strip(),
+                      "continues_paragraph_from_previous": continues_from,
+                      "continues_paragraph_to_next": continues_to}
+            if cut_inside_quote:
+                record["cut_inside_quote"] = True
+            records.append(record)
 
     def split_long_piece(piece):
         pieces = []
@@ -446,6 +480,27 @@ def split_into_chunk_records(text, max_size=3000):
             pieces.append(remaining)
         return pieces
 
+    def split_paragraph(para):
+        """-> [(piece, cut_inside_quote)] for an oversized paragraph."""
+        cuts = _safe_cut_points(para, convention)
+        units, last = [], 0
+        for cut in cuts:
+            units.append(para[last:cut]); last = cut
+        units.append(para[last:])
+        out = []
+        for unit in units:
+            if not unit.strip():
+                continue
+            if len(unit.strip()) > max_size:
+                for piece in split_long_piece(unit):
+                    out.append([piece, True])
+                continue
+            if out and len(out[-1][0]) + len(unit) <= max_size:
+                out[-1][0] += unit                  # a flagged piece keeps its flag
+            else:
+                out.append([unit, False])
+        return [(piece.strip(), flagged) for piece, flagged in out if piece.strip()]
+
     for para in paragraphs:
         para = para.strip()
         if not para:
@@ -457,18 +512,11 @@ def split_into_chunk_records(text, max_size=3000):
                 current_chunk = ""
 
             if len(para) > max_size:
-                sentences = re.split(r'(?<=[.!?])\s+', para)
-                paragraph_pieces = []
-                for sentence in sentences:
-                    for piece in split_long_piece(sentence):
-                        if (paragraph_pieces and
-                                len(paragraph_pieces[-1]) + len(piece) + 1 <= max_size):
-                            paragraph_pieces[-1] += " " + piece
-                        else:
-                            paragraph_pieces.append(piece)
-                for index, piece in enumerate(paragraph_pieces):
+                paragraph_pieces = split_paragraph(para)
+                for index, (piece, flagged) in enumerate(paragraph_pieces):
                     emit(piece, continues_from=index > 0,
-                         continues_to=index + 1 < len(paragraph_pieces))
+                         continues_to=index + 1 < len(paragraph_pieces),
+                         cut_inside_quote=flagged)
             else:
                 current_chunk = para
         else:

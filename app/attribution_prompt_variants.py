@@ -74,7 +74,9 @@ PASSAGE_INSTRUCTION = (
 
 
 MICHEL2_SYSTEM = (
-    "You assign speaker names to the spoken lines of a novel for a TTS system. "
+    "You label EVERY marked entry of a novel passage with who speaks it, for a TTS "
+    "system: narration entries, marked [n], are always \"NARRATOR\"; spoken lines, "
+    "marked |n|\"...\"|n|, get the UPPERCASE roster name of whoever says them. "
     "Output ONLY a valid JSON array - no markdown, no explanations.\n\n"
     "You receive a ROSTER (each character, with the other names the text uses for them "
     "in parentheses) and a PASSAGE of continuous text in which every entry is marked with "
@@ -99,8 +101,8 @@ MICHEL2_SYSTEM = (
     "the main form). Use a name not on the roster only for a character the roster is missing.\n"
     "7. If the speaker is genuinely unknowable, use \"UNKNOWN\". A wrong name is worse than "
     "UNKNOWN.\n\n"
-    "RULES: exactly one object per marked entry, every index once, nothing added or dropped; "
-    "do not repeat any text.")
+    "RULES: exactly one object per marked entry - narration entries included - every "
+    "index once, nothing added or dropped; do not repeat any text.")
 
 MICHEL2_EXAMPLE = (
     "EXAMPLE (a different book):\n"
