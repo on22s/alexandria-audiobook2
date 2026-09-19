@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 278 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 282 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 166
+- `exploratory`: 170
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -152,6 +152,8 @@ All 278 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-michel-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel-none-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel2-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-michel2-none-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-michel2full-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -180,7 +182,9 @@ All 278 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen3-14b-riqua-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-riqua3ep-a6000-product-batch25-20260914.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
 | `lora_serving_eval__qwen3-14b-riquax2-retry-20260915c.json` | lora_serving_eval | historical_only | 1536 | 0 | 766 | False |  |
+| `lora_serving_eval__qwen3-30b-a3b-instruct-2507-tnr0-cleangold-product-batch25-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-30b-a3b-thinking-2507-michel2_full-tnr4-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-30b-a3b-thinking-2507-tnr0-cleangold-product-batch25-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-q4km-default-local-9070xt-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-q4km-michel2_full-local-9070xt-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |

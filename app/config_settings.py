@@ -131,14 +131,18 @@ class GenerationConfig(BaseModel):
     three_pass_segment_output_ratio: float = Field(default=3.0, ge=1.25, le=6.0)
     three_pass_chunk_size: int = Field(default=3000, ge=500, le=30000)
     # How much text pass 2 sees: entries per attribution window, and characters
-    # of the book before/after the window shown as evidence (0 = none, the
-    # behaviour every score in RECIPES was measured with).
+    # of the book before/after the window shown as evidence. 2000 is the
+    # michel2_full setting that won on every base measured (RECIPES, "Prompt
+    # variants x bases"); 0 is what the pre-2026-09-19 scores were taken with.
     three_pass_attribute_batch_size: int = Field(default=25, ge=5, le=100)
-    three_pass_attribute_context_chars: int = Field(default=0, ge=0, le=20000)
+    three_pass_attribute_context_chars: int = Field(default=2000, ge=0, le=20000)
     # Which way the attribution question is asked (attribution_prompt_variants;
-    # measured results per variant in RECIPES.md). "default" is the shipped
-    # prompt every adapter was trained on.
-    three_pass_attribute_prompt_variant: PromptVariant = "default"
+    # measured results per variant in RECIPES.md). michel2_full since
+    # 2026-09-19, when Muse's cell (90.5 vs michel2 86.6) made it the winner
+    # on every base. "default" is the shape the Qwen3-14B rights-clean
+    # adapters were trained on - serve those under it. A saved config keeps
+    # whatever it holds; only a fresh one gets the new default.
+    three_pass_attribute_prompt_variant: PromptVariant = "michel2_full"
     three_pass_segmentation: SegmentationMode = "auto"
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
@@ -149,7 +153,7 @@ class PromptConfig(BaseModel):
     # name of the active attribution preset (a builtin variant name or a
     # user preset); generation.three_pass_attribute_prompt_variant is derived
     # from it on save so the CLI keeps working
-    attribution_preset: str = Field(default="default", min_length=1, max_length=80)
+    attribution_preset: str = Field(default="michel2_full", min_length=1, max_length=80)
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
     persona_system_prompt: Optional[str] = None

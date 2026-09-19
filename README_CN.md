@@ -4,7 +4,7 @@
 
 [English](README.md) | 中文
 
-[Alexandria](https://github.com/Finrandojin/alexandria-audiobook) 的研究分支：把一本书变成多角色配音的有声书，并且**对每一个选择都做测量**——哪个模型、哪种提示词能在标注好的金标数据上正确判断“这句话是谁说的”，合成的声音离真人朗读有多近，日语的音高重音在合成后是否还在。胜出的设置会被记录下来、可以在 Setup 页选择，并在每项测量确认后成为默认值。数字、失败和配方都在仓库里，而不是在博客里。
+[Alexandria](https://github.com/Finrandojin/alexandria-audiobook) 的研究分支：把一本书变成多角色配音的有声书，并且**对每一个选择都做测量**——哪个模型、哪种提示词能在标注好的金标数据上正确判断“这句话是谁说的”，合成的声音离真人朗读有多近，日语的音高重音在合成后是否还在。胜出的设置就是默认值——`michel2_full` 归属提示词在 2026-09-19 最后一个基座确认后成为产品默认，其他变体仍可在 Setup 页选择。数字、失败和配方都在仓库里，而不是在博客里。
 
 **[GOALS.md](GOALS.md)** — 每个目标的定义和当前测量值 · **[RECIPES.md](RECIPES.md)** — 产生过有效结果的训练/推理设置，以及每一个“看起来像但其实失败”的对照 · **[RESULTS_INDEX.md](RESULTS_INDEX.md)** — 全部实验产物索引 · **[Hugging Face 上的适配器](https://huggingface.co/Om22s/alexandria-qwen3-attribution)** · **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** — 适配器的发布规范
 
@@ -23,7 +23,7 @@
 | DeepSeek v4-pro（API，关闭思考） | — | 91.1 | **94.9** | 思考 low、8k：**95.4**——云端上限，跑一遍测试集约 $0.50–0.75 |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 82.9 | 89.8 | `michel2` **90.9**——本地最好成绩 |
 | Qwen3.6-35B-A3B UD-Q4_K_XL | 22.4 GB | — | **89.6** | IQ3_XXS（13.2 GB）/ IQ2_XXS（10.8 GB）在九部 PDNC 小说上为 91.6 / 90.5 |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | （运行中） | `michel2` **86.6** |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | **90.5** | 产品自带的基座；`michel2` 86.6；关闭推理 72.1 |
 | Qwen3-14B Q4_K_M | 9.0 GB | 66.1 | **82.0** | 仅靠提示词 +16，所有基座里增益最大 |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | 71.9 / 71.7 | 在最难的一本书上都崩了 |
 
@@ -212,7 +212,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 - 中端 GPU 上一本短书约二十分钟；其余的 Script 页会边跑边告诉你。
 
 ### 第 1 步——Setup
-选择 **LLM Location**（Local 或 Remote），填 **Base URL**、**API Key**、**Model Name**（刷新按钮列出服务器提供的模型），思考型模型把 **Reasoning effort** 设为 *low*，点 **Test Connection**。TTS 部分保持 `local` / `auto`。在 **Prompt Settings** 里选归属提示词——`michel2_full` 在所有基座上都是测得的最佳——然后 **Save Configuration**。**Auto-Configure** 会根据你的显卡填好 TTS 批处理设置。
+选择 **LLM Location**（Local 或 Remote），填 **Base URL**、**API Key**、**Model Name**（刷新按钮列出服务器提供的模型），思考型模型把 **Reasoning effort** 设为 *low*，点 **Test Connection**。TTS 部分保持 `local` / `auto`。**Prompt Settings** 里的归属提示词已经是 `michel2_full`（所有基座上测得的最佳），直接 **Save Configuration**。**Auto-Configure** 会根据你的显卡填好 TTS 批处理设置。
 
 ### 第 2 步——Script
 选择书（或复用之前的上传）。如果小说是第一人称叙述，填入该角色的准确名字。点 **Generate Annotated Script**。按钮下方的活动行会显示 *Step 1 (split) · unit 3 of 41 — asking the model*，然后 *Step 2 (speakers)*、*Step 3 (delivery)*，重试按尝试次数显示，流水线掌握速度后给出剩余时间。你可以 **Pause**、**Save snapshot**（把完成的部分存成脚本）、**Start over**，或之后 **Resume failed run**。完成后可选 **Review Script** 或 **Contextual Review (+/- N)**，用 **Find Nicknames** 和 **Edit aliases** 让“Betty”和“BEATRICE”共用一个声音，再 **Save Current** 存入库。

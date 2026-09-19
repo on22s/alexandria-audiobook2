@@ -475,7 +475,7 @@
         let currentIsRemote = false;
         let failoverIsRemote = false;   // server-computed: llm_failover on AND the other profile is remote
         let promptPresets = [];
-        let activePromptPreset = 'default';
+        let activePromptPreset = 'michel2_full';
 
         function promptBoxes() {
             return {
@@ -520,7 +520,7 @@
             if (mine.childElementCount) { select.appendChild(mine); }
             select.onchange = () => applyPromptPreset(Number(select.value));
             let index = promptPresets.findIndex(p => p.name === (activeName || activePromptPreset));
-            if (index < 0) { index = promptPresets.findIndex(p => p.name === 'default'); }
+            if (index < 0) { index = promptPresets.findIndex(p => p.name === 'michel2_full'); }
             if (index < 0 && promptPresets.length) { index = 0; }
             if (index >= 0) {
                 select.value = String(index);
@@ -609,9 +609,9 @@
             if (!preset || preset.builtin) { showToast('Built-in prompts cannot be deleted.', 'warning'); return; }
             if (!window.confirm(`Delete preset "${preset.name}"?`)) { return; }
             promptPresets = promptPresets.filter(p => p !== preset);
-            activePromptPreset = 'default';
-            renderPromptPresets(promptPresets, 'default');
-            try { await persistPromptPresets(); await reloadPromptPresets('default'); showToast('Prompt preset deleted.', 'success'); }
+            activePromptPreset = 'michel2_full';
+            renderPromptPresets(promptPresets, 'michel2_full');
+            try { await persistPromptPresets(); await reloadPromptPresets('michel2_full'); showToast('Prompt preset deleted.', 'success'); }
             catch (e) { showToast('Could not delete prompt preset: ' + e.message, 'error'); }
         };
 
@@ -871,7 +871,7 @@
                         document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
                     }
                 }
-                activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'default';
+                activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'michel2_full';
                 renderPromptPresets(config.prompt_presets || [], activePromptPreset);
 
                 // If review/persona prompts are still empty, fetch defaults
@@ -1049,7 +1049,7 @@
                     three_pass_chunk_size: getNumFieldValue('tp-chunk-size', 3000, true),
                     three_pass_attribute_batch_size: getNumFieldValue('tp-attribute-batch-size', 25, true),
                     three_pass_attribute_context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
-                    three_pass_attribute_prompt_variant: (selectedPromptPreset() || {}).variant || 'default',
+                    three_pass_attribute_prompt_variant: (selectedPromptPreset() || {}).variant || 'michel2_full',
                     three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),
                     three_pass_segment_temperature: getNumFieldValue('tp-segment-temperature', 0.1),
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),

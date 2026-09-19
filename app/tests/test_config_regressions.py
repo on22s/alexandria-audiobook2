@@ -490,14 +490,14 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
         with self.assertRaises(Exception):
             cs.GenerationConfig(three_pass_chunk_size=30001)
         g = cs.GenerationConfig()
-        self.assertEqual((25, 0), (g.three_pass_attribute_batch_size, g.three_pass_attribute_context_chars))
+        self.assertEqual((25, 2000), (g.three_pass_attribute_batch_size, g.three_pass_attribute_context_chars))
         self.assertEqual(100, cs.GenerationConfig(three_pass_attribute_batch_size=100).three_pass_attribute_batch_size)
         for bad in ({"three_pass_attribute_batch_size": 4}, {"three_pass_attribute_batch_size": 101},
                     {"three_pass_attribute_context_chars": -1}, {"three_pass_attribute_context_chars": 20001}):
             with self.assertRaises(Exception):
                 cs.GenerationConfig(**bad)
         self.assertEqual(30000, cs.ThreePassModelProfile(chunk_size=30000).chunk_size)
-        self.assertEqual("default", g.three_pass_attribute_prompt_variant)
+        self.assertEqual("michel2_full", g.three_pass_attribute_prompt_variant)   # the winner on every base, 2026-09-19
         self.assertEqual("michel2", cs.GenerationConfig(three_pass_attribute_prompt_variant="michel2").three_pass_attribute_prompt_variant)
         with self.assertRaises(Exception):
             cs.GenerationConfig(three_pass_attribute_prompt_variant="judge")   # gold-labelling only
@@ -508,7 +508,7 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
         self.assertEqual("michel2_shot", cs.PromptPreset(name="n", variant="michel2_shot", example="E").variant)
         with self.assertRaises(Exception):
             cs.PromptPreset(name="n", variant="judge")
-        self.assertEqual("default", cs.PromptConfig().attribution_preset)
+        self.assertEqual("michel2_full", cs.PromptConfig().attribution_preset)
 
 
     def test_stored_prompt_presets_load_as_dicts(self):

@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "fba4b4338d5729f3b823ce70d50c537ccb7b6e12e67587a2468a8cc6de5a62ef",
+  "source_structural_sha256": "6030d9e93deb512eef7bd41c20216a3a7111dbd75ef55e2c3012974cfabdca50",
   "summary": {
-    "exploratory": 166,
+    "exploratory": 170,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -3109,6 +3109,50 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__muse-michel2-none-tnr1-cleangold-replication-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-michel2full-low-tnr1-cleangold-replication-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
       "family": "lora_serving_eval",
       "rows": 770,
@@ -3718,7 +3762,51 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__qwen3-30b-a3b-instruct-2507-tnr0-cleangold-product-batch25-schema-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__qwen3-30b-a3b-thinking-2507-michel2_full-tnr4-cleangold-low-budget1024-schema-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-30b-a3b-thinking-2507-tnr0-cleangold-product-batch25-schema-20260917.json",
       "family": "lora_serving_eval",
       "rows": 768,
       "arms": [

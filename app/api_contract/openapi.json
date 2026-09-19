@@ -1070,14 +1070,14 @@
             "type": "integer"
           },
           "three_pass_attribute_context_chars": {
-            "default": 0,
+            "default": 2000,
             "maximum": 20000.0,
             "minimum": 0.0,
             "title": "Three Pass Attribute Context Chars",
             "type": "integer"
           },
           "three_pass_attribute_prompt_variant": {
-            "default": "default",
+            "default": "michel2_full",
             "enum": [
               "default",
               "aliases",
@@ -1802,7 +1802,7 @@
       "PromptConfig": {
         "properties": {
           "attribution_preset": {
-            "default": "default",
+            "default": "michel2_full",
             "maxLength": 80,
             "minLength": 1,
             "title": "Attribution Preset",
