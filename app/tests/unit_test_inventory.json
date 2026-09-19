@@ -1360,6 +1360,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_snapshot_button_shows_with_the_run_and_posts_a_name",
     "tests.test_frontend_regressions.FrontendTests.test_stale_build_banner_is_wired_without_a_new_timer",
     "tests.test_frontend_regressions.FrontendTests.test_start_over_button_sends_the_flag_and_generate_alone_resumes",
+    "tests.test_frontend_regressions.FrontendTests.test_start_over_while_running_cancels_first_then_waits",
     "tests.test_frontend_regressions.FrontendTests.test_voice_cards_expose_age_version_generation",
     "tests.test_frontend_regressions.FrontendTests.test_voice_change_points_are_reachable_from_the_editor_and_survive_a_save",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
