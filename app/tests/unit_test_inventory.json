@@ -2417,7 +2417,11 @@
     "tests.test_promote_adapters.GateVerdictTests.test_an_unfinished_identity_check_is_refused",
     "tests.test_promote_adapters.GateVerdictTests.test_reference_rank_campaign_selects_its_own_gate_prefix",
     "tests.test_promote_adapters.RollbackRevertsManifestTests.test_a_missing_receipt_drops_the_score_rather_than_keeping_it",
-    "tests.test_promote_adapters.RollbackRevertsManifestTests.test_rollback_restores_the_pre_promotion_score"
+    "tests.test_promote_adapters.RollbackRevertsManifestTests.test_rollback_restores_the_pre_promotion_score",
+    "tests.test_promote_adapters.UnseenCampaignTests.test_a_shipped_arm_with_generation_failures_blocks_the_comparison",
+    "tests.test_promote_adapters.UnseenCampaignTests.test_clean_beating_shipped_on_unseen_clips_is_promoted",
+    "tests.test_promote_adapters.UnseenCampaignTests.test_clean_not_beating_shipped_on_unseen_clips_is_refused",
+    "tests.test_promote_adapters.UnseenCampaignTests.test_discovery_yields_bare_names_from_the_clean_artifacts"
   ],
   "test_prompt_variant": [
     "tests.test_prompt_variant.PromptVariantTest.test_an_unknown_variant_is_refused_not_silently_treated_as_control",

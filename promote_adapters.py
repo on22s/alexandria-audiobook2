@@ -44,7 +44,15 @@ GATE_CAMPAIGNS = {
     "promote": "gate_promote__",
     "reference-rank1": "gate_reference_rank1__",
     "reference-rank2": "gate_reference_rank2__",
+    # Both adapters scored on clips NEITHER trained on (build_unseen_holdout +
+    # verify_adapter_identity, GOALS 2.7 2026-09-04): the artifact pair is
+    # unseen_gate__<name>__clean.json and unseen_gate__<name>__shipped.json,
+    # and "beats the shipped adapter" is decided between those two, not
+    # against a shipped score measured on the shipped adapter's own training
+    # clips - the comparison that blocked fourteen passing retrains.
+    "unseen": "unseen_gate__",
 }
+UNSEEN_PREFIX = GATE_CAMPAIGNS["unseen"]
 GATE_PREFIX = GATE_CAMPAIGNS["promote"]
 
 
@@ -116,7 +124,8 @@ def shipped_scores():
 
 def gate_result(name):
     """The gate's verdict for one adapter, or None if it was never gated."""
-    path = os.path.join(GATES, f"{GATE_PREFIX}{name}.json")
+    suffix = "__clean" if GATE_PREFIX == UNSEEN_PREFIX else ""
+    path = os.path.join(GATES, f"{GATE_PREFIX}{name}{suffix}.json")
     if not os.path.exists(path):
         return None
     try:
@@ -124,6 +133,21 @@ def gate_result(name):
             return json.load(handle)
     except ValueError:
         return None
+
+
+def shipped_unseen_score(name):
+    """The shipped adapter's median on the same unseen clips, or None."""
+    path = os.path.join(GATES, f"{UNSEEN_PREFIX}{name}__shipped.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            gate = json.load(handle)
+    except ValueError:
+        return None
+    if gate.get("generation_failures"):
+        return None
+    return gate.get("median_ecapa", gate.get("ecapa"))
 
 
 def check(name, before):
@@ -153,11 +177,19 @@ def check(name, before):
         return False, score, f"gate had {failures} generation failure(s)"
     if score < MIN_ECAPA:
         return False, score, f"gate score {score:.3f} below {MIN_ECAPA}"
-    old = before.get(name)
-    if old is None:
-        return False, score, "no shipped score to compare against"
-    if score <= old:
-        return False, score, f"gate {score:.3f} does not beat shipped {old:.3f}"
+    if GATE_PREFIX == UNSEEN_PREFIX:
+        old = shipped_unseen_score(name)
+        if old is None:
+            return False, score, "no shipped arm on the same unseen clips"
+        if score <= old:
+            return False, score, (f"clean {score:.3f} does not beat shipped "
+                                  f"{old:.3f} on unseen clips")
+    else:
+        old = before.get(name)
+        if old is None:
+            return False, score, "no shipped score to compare against"
+        if score <= old:
+            return False, score, f"gate {score:.3f} does not beat shipped {old:.3f}"
     if get_adapter_source(name) is None:
         return False, score, "no retrained adapter on disk"
     if not os.path.isdir(os.path.join(MODELS, name)):
@@ -349,6 +381,8 @@ def main():
         names = sorted(os.path.basename(p)[len(GATE_PREFIX):-len(".json")]
                        for p in glob.glob(os.path.join(
                            GATES, f"{GATE_PREFIX}*.json")))
+        if GATE_PREFIX == UNSEEN_PREFIX:
+            names = sorted(n[:-len("__clean")] for n in names if n.endswith("__clean"))
     if not names:
         print("no gate artifacts found")
         return 1
