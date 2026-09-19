@@ -1653,6 +1653,22 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
   ],
+  "test_guards_sixth_tranche": [
+    "tests.test_guards_sixth_tranche.BenchmarkFixtureGuards.test_each_fixture_validator_rejects_an_empty_fixture",
+    "tests.test_guards_sixth_tranche.FilenameAndPathGuards.test_a_name_that_sanitises_to_nothing_is_a_400",
+    "tests.test_guards_sixth_tranche.FilenameAndPathGuards.test_a_traversal_is_flattened_to_one_component_that_cannot_climb",
+    "tests.test_guards_sixth_tranche.FilenameAndPathGuards.test_a_voicelab_path_inside_a_content_directory_is_a_400",
+    "tests.test_guards_sixth_tranche.FilenameAndPathGuards.test_a_voicelab_path_outside_every_content_directory_passes",
+    "tests.test_guards_sixth_tranche.NetworkGuards.test_a_public_llm_endpoint_is_refused_and_a_local_one_is_not",
+    "tests.test_guards_sixth_tranche.NetworkGuards.test_an_ssh_alias_that_ssh_would_read_as_an_option_is_refused",
+    "tests.test_guards_sixth_tranche.NetworkGuards.test_the_thunder_allowlist_does_not_admit_a_lookalike_host",
+    "tests.test_guards_sixth_tranche.PayloadGuards.test_a_config_field_holding_the_wrong_type_is_dropped_with_a_warning",
+    "tests.test_guards_sixth_tranche.PayloadGuards.test_persona_payloads_that_are_not_a_description_plus_ref_text_are_refused",
+    "tests.test_guards_sixth_tranche.ReviewAndDiskGuards.test_a_review_that_dropped_a_fifth_of_the_words_fails_the_loss_check",
+    "tests.test_guards_sixth_tranche.ReviewAndDiskGuards.test_check_disk_space_says_no_when_free_space_is_short_or_unreadable",
+    "tests.test_guards_sixth_tranche.RouteGuards.test_a_speaker_absent_from_the_active_script_is_a_404_and_no_script_a_422",
+    "tests.test_guards_sixth_tranche.RouteGuards.test_recovery_without_a_failed_unit_is_a_409_and_the_wrong_chunk_too"
+  ],
   "test_helper_review_fixes": [
     "tests.test_helper_review_fixes.HelperReviewTests.test_audio_paths_reject_escape_in_loading_and_fingerprinting",
     "tests.test_helper_review_fixes.HelperReviewTests.test_auth_rejects_garbage_and_supports_unicode",

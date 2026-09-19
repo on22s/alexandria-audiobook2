@@ -3941,8 +3941,13 @@ Goals about the instruments themselves. These earned their place by failing.
 
 **Metric** — checks whose rejecting case is exercised, over checks relied on.
 
-**Current — OPEN.** The rule is written; the audit of existing checks is not
-done.
+**Current — OPEN, six tranches in.** Tranches 1–5 audited guards found by
+their cost; the sixth (2026-09-19) enumerated the 44 guard-shaped functions in
+the app and covered the 17 that had no rejecting test. Still owed: the same
+enumeration over `app/experiments/` (the measurement scripts' own refusals)
+and the shell chains' wait predicates — a `.ready` marker written with
+`touch` and waited on with `test -s` held a GPU idle for four hours the same
+day, and no test can see a chain.
 
 **FIRST AUDIT TRANCHE, 2026-09-04.** Seven more checks could pass without
 looking: the goal-evidence freshness gate explicitly returned PASS without a
@@ -4089,6 +4094,38 @@ per artifact), not by an audit. The third is new: a rejecting test that passes
 in the repository says nothing about a copy of the code that never received
 it. An artifact whose `git.commit` is null was produced by code the repository
 cannot identify, and the campaign produced thirty-one of them.
+
+**SIXTH AUDIT TRANCHE, 2026-09-19 — the first one done by enumeration
+rather than by cost.** Every function in `app/` and `app/routers/` named
+like a guard (`check_`, `verify_`, `validate_`, `require_`, `refuse_`,
+`guard_`, `gate_`, `ensure_`, and their private forms) was listed — 44 — and
+the suite searched for a test that calls it inside a rejecting assertion.
+**13 had never been called by any test; 4 more were called only on their
+accepting path.** Among the thirteen were the guards that matter most when
+they are wrong: `_require_safe_filename` (every user-supplied name),
+`_validate_voicelab_path` (a pipeline script must not live in an upload
+directory), `_validate_local_llm_base_url` (the endpoint allow-list, including
+the `thundercompute.net` suffix rule), `_validate_ssh_alias` (an alias
+beginning with `-` is an `ssh` option), `validate_persona_payload`,
+`check_text_loss` (a review pass that dropped a fifth of the words),
+`_require_failed_unit` / `_require_script_speaker` (two route 4xx guards),
+`check_disk_space`, `_validate_present_fields` (a wrong-typed stored setting)
+and the four benchmark fixture validators.
+`app/tests/test_guards_sixth_tranche.py` constructs the input each must
+reject and watches it reject — a public API host, a look-alike
+`thundercompute.net.evil.com`, `-oProxyCommand=…`, an 80% word count — with
+an accepting control beside each.
+
+**What was found: no inert guard, and one contract I had wrong.** All
+thirteen reject what they should. The one test that failed was mine:
+`_require_safe_filename("../../etc/passwd")` does not reject, it flattens to
+`_.._etc_passwd` — one path component with no separator, which is the
+contract (a literal `..` inside a name cannot climb). The rejecting test now
+asserts *that* — no separator survives, the result equals its own basename —
+instead of a rule the guard never promised. A tranche that finds every guard
+sound is still worth its cost: before it, "these thirteen reject bad input"
+was a belief; after it, it is a measurement, and a regression in any of them
+now fails a test named for the attack it stops.
 
 **Target — every guard, linter and comparison relied on carries a test that
 fails without the fix, and any comparison of two identifiers requires them to
