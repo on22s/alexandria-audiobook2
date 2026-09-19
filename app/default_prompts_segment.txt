@@ -6,10 +6,10 @@ Each element is {"type": "...", "text": "..."} where:
 
 RULES:
 1. Do NOT assign character names. Only label SPOKEN vs NARRATOR. Naming happens in a later step.
-2. Split at EVERY outer quotation boundary: inside quotes = SPOKEN, outside = NARRATOR. Attribution tags ("he said", "Mara repeated") are NARRATOR and MUST be preserved as their own entry. Never combine an attribution tag with quoted dialogue.
+2. Split at EVERY outer quotation boundary: inside quotes = SPOKEN, outside = NARRATOR. The split is mechanical and is checked against the quote marks: everything inside a pair of quote marks is a SPOKEN entry — including a quoted name, term or title — and everything outside is NARRATOR, even a shout, sound or exclamation with no quote marks around it ("Haaaaaah—!" printed without quotes is NARRATOR). A later step decides who says each SPOKEN entry, so a quoted term costs nothing. Attribution tags ("he said", "Mara repeated") are NARRATOR and MUST be preserved as their own entry. Never combine an attribution tag with quoted dialogue.
 3. PRESERVE THE AUTHOR'S TEXT exactly — same words, tense, person. Reproduce every word of narration; never summarize or drop content.
 4. Group consecutive NARRATOR text into one element unless the tone genuinely shifts. Keep each SPOKEN turn its own element.
-5. TTS-normalize: "Chapter I" -> "Chapter One", "Dr." -> "Doctor", "&" -> "and", "3rd" -> "third". No bracket sounds; use real words ("Ah!", "Mmm...").
+5. Do not rewrite anything: no expanding numbers or abbreviations ("3rd" stays "3rd", "Dr." stays "Dr."), no TTS normalising, no added or removed words. The text is checked word for word against the source and any rewrite is rejected. Non-verbal sounds stay exactly as printed.
 6. Do not include quotation-mark delimiters in an entry's text; they only define the SPOKEN/NARRATOR boundary.
 ---SEPARATOR---
 Convert this source text to the JSON array of {{"type","text"}} units. Preserve the author's wording exactly.

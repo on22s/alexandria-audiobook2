@@ -677,6 +677,13 @@
     "tests.test_chinese_attribution_frame.PlumbingTest.test_the_alias_map_is_built_from_the_corpus_itself",
     "tests.test_chinese_attribution_frame.PlumbingTest.test_the_last_non_blank_pre_sentence_is_used"
   ],
+  "test_chunk_cuts_respect_quotes": [
+    "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_one_paragraph_per_line_book_is_cut_between_lines_never_inside_a_quotation",
+    "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_paragraph_with_no_newline_still_cuts_at_sentence_ends",
+    "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_quotation_longer_than_the_chunk_falls_back_and_is_flagged",
+    "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_sentence_end_inside_a_quotation_is_not_a_cut_point",
+    "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_continuation_metadata_still_links_the_pieces"
+  ],
   "test_chunk_quality": [
     "tests.test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
     "tests.test_chunk_quality.ChunkQualityTests.test_adaptive_split_handles_grimgar_sized_failure",
@@ -2446,6 +2453,13 @@
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_is_a_pure_suffix_of_the_control",
     "tests.test_prompt_variant.PromptVariantTest.test_the_hint_survives_alongside_the_narrator_prior",
     "tests.test_prompt_variant.PromptVariantTest.test_the_variant_list_is_what_the_cli_offers"
+  ],
+  "test_prompts_match_the_gate": [
+    "tests.test_prompts_match_the_gate.Pass1PromptMatchesItsGate.test_a_quoted_term_must_be_its_own_spoken_entry",
+    "tests.test_prompts_match_the_gate.Pass1PromptMatchesItsGate.test_the_gate_rejects_the_normalised_reply_and_accepts_the_verbatim_one",
+    "tests.test_prompts_match_the_gate.Pass1PromptMatchesItsGate.test_the_prompt_no_longer_asks_for_a_rewrite_the_gate_rejects",
+    "tests.test_prompts_match_the_gate.Pass1PromptMatchesItsGate.test_the_prompt_says_the_split_is_mechanical_and_names_both_traps",
+    "tests.test_prompts_match_the_gate.Pass2PromptLabelsEveryEntry.test_michel2_opens_as_an_every_entry_task_and_names_narration_first"
   ],
   "test_pronunciation": [
     "tests.test_pronunciation.LexiconTest.test_a_malformed_lexicon_degrades_to_no_substitution",
