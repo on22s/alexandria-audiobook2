@@ -372,12 +372,13 @@ ffmpeg 缺失或不在 PATH；安装器会把它装进环境，所以 428 字节
 
 - [Finrandojin](https://github.com/Finrandojin/alexandria-audiobook)——原版 Alexandria，本分支建立在其上，绝大部分代码仍与之共享。
 - [Ayush Naphade](https://github.com/aayushnaphade)——上游的人设生成、说话人别名解析和上下文审阅；以及从他的分支审阅采纳的 UX 修复。
-- [buddies](https://github.com/buddies) 的分支——instruct 审计所依据的逐行 instruct 规则。
-- Qwen3-TTS、Qwen3 和 Muse-Glimmer 提供模型；Project Dialogism Novel Corpus、RiQuA 和 DraCor 提供每个归属数字所依赖的标注文本；Kokoro、LJSpeech、Hi-Fi TTS 和 AISHELL-3 提供声音上限所用的真人朗读。
+- [buddies](https://github.com/buddies/alexandria-audiobook) 的分支（Xiao Zhang）——移植进 `instruct_lexicon.py` 的逐行 instruct 词表（MIT；声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
+- [Darkkingwill](https://github.com/Darkkingwill/alexandria-audiobook) 的分支——#534 中重做的可取消合并与 Result 页修复。
+- Qwen3-TTS、Qwen3 和 Muse-Glimmer 提供模型；Project Dialogism Novel Corpus（Vishnubhotla、Hammond、Hirst）、RiQuA（Papay & Padó）和 DraCor 提供每个归属数字所依赖的标注文本——PDNC 的标注未声明许可证，已向作者请求授权；Kokoro、LJSpeech、Hi-Fi TTS 和 AISHELL-3 提供声音上限所用的真人朗读。
 
 ## 许可证
 
-MIT（见 [LICENSE](LICENSE)）。Hub 上的归属适配器为 Apache-2.0。
+MIT（见 [LICENSE](LICENSE)）。Hub 上的归属适配器为 Apache-2.0；训练数据的权利见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ### 第三方许可证
 

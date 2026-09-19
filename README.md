@@ -1121,17 +1121,24 @@ alexandria-audiobook2/
 - [Ayush Naphade](https://github.com/aayushnaphade) — persona generation,
   speaker alias resolution and contextual review upstream; the UX fixes
   reviewed from his fork.
-- The [buddies](https://github.com/buddies) fork — the per-line instruct
-  rules that the instruct audit was built from.
+- The [buddies](https://github.com/buddies/alexandria-audiobook) fork (Xiao
+  Zhang) — the per-line instruct lexicon ported into `instruct_lexicon.py`
+  (MIT; notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+- The [Darkkingwill](https://github.com/Darkkingwill/alexandria-audiobook)
+  fork — the cancellable-merge and Result-tab fixes rebuilt in #534.
 - Qwen3-TTS, Qwen3 and Muse-Glimmer for the models; the Project Dialogism
-  Novel Corpus, RiQuA and DraCor for the annotated text every attribution
-  number rests on; Kokoro, LJSpeech, Hi-Fi TTS and AISHELL-3 for the human
-  readings the voice ceilings come from.
+  Novel Corpus (Vishnubhotla, Hammond, Hirst), RiQuA (Papay & Padó) and
+  DraCor for the annotated text every attribution number rests on — the PDNC
+  annotations carry no stated licence and permission has been requested;
+  Kokoro, LJSpeech, Hi-Fi TTS and AISHELL-3 for the human readings the voice
+  ceilings come from. Every licence and what was taken is in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
 MIT (see [LICENSE](LICENSE)). The attribution adapters on the Hub are
-Apache-2.0.
+Apache-2.0; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
+rights of the data they were trained on.
 
 ### Third-party licenses
 
