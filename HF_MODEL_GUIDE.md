@@ -147,7 +147,18 @@ list and `model-index`, then tag `v1.1.0`:
 | Muse-Glimmer-30B rights-clean, gen 3 (**not uploaded**) | training now: rejection-sampled traces then the loss-fixed trainer; upload only if it serves in the JSON contract and scores paired against the base. The only rights-clean Muse adapter so far (`rightsclean-lossfix`) failed the contract (4.6%, 555 of 606 unanswered) and is not release material. Base is Apache-2.0, so licence is not the obstacle. | tnr-1 `muse_gen3_rightsclean_tnr1_20260917b.sh` |
 
 Nine-book aggregates go on the cards as **eight held-out novels**, with The
-Sun Also Rises reported separately as a training book. A negative number
-goes on the card too, with "served correctly" stated first (adapter loaded,
-scale toggled, rows answered) — a card that only carries the wins is the
-kind of card the Hub page warns about.
+Sun Also Rises reported separately as a training book.
+
+**Release criterion: does it help at the quant it ships on.** The Qwen3-14B
+adapters ship at Q4_K_M, so their four-book Q4 row is the headline. The A3B
+and Muse adapters exist to close the low-quant gap (goal 4.2): A3B ships at
+IQ2_XXS/IQ3_XXS on a 16 GB card, Muse at UD-Q3_K_XL. For those, the card
+carries **one row per rung**, and an adapter that is flat at Q4_K_XL but
+positive at IQ2_XXS is a release with a positive headline — the IQ2 row —
+not a negative with a footnote. "Negative" means negative at every quant it
+would ship on, measured paired at that quant.
+
+A negative row still goes on the card, with "served correctly" stated first
+(adapter loaded, scale toggled, rows answered) — a card that only carries the
+wins is the kind of card the Hub page warns about — but it never decides the
+release on its own if a shipping-quant row is positive.
