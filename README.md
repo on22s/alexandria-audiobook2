@@ -980,10 +980,29 @@ Rules that held on every base:
 ## Troubleshooting
 
 ### Pinokio does not reach "Open Web UI"
-`start.js` waits for the server's URL line. Check `logs/api/start-latest.log`
-(Pinokio's log for the launcher): a missing `app/env`, a torch that got
-swapped for a CPU build by a later install, or port 4200 in use are the three
-causes seen. `env_doctor.py` prints which.
+
+`start.js` waits for Alexandria to print its serving URL. Import failures,
+port-binding failures, Python tracebacks and FastAPI startup failures stop
+the launcher visibly instead of leaving the sidebar at **Starting**.
+
+1. Open **Terminal** beside the running or failed Start entry and read the
+   first traceback or startup error. The navbar build label identifies the
+   revision that is actually running; hover it for Python and package
+   versions.
+2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its
+   **Get Help** report bundles the related launcher logs and system context,
+   with Pinokio's normal secret/path redaction, for sharing.
+3. For direct file inspection the current launcher log is
+   `logs/api/start.js/latest`; timestamped runs sit beside it, and
+   `logs/sessions/` groups related install/start/helper runs. App task logs
+   (script generation, review, audio) stay under `logs/api/*-latest.log`.
+4. Fix the first startup error, then stop and start the existing `start.js`
+   entry. Do not launch a second copy to work around an address-in-use error.
+   `env_doctor.py` reports a missing `app/env` or a torch that a later install
+   swapped for a CPU build — the two causes seen most.
+
+The launcher uses a Pinokio-selected free port and binds Alexandria to
+`127.0.0.1`; a hard-coded port is neither required nor recommended.
 
 ### "Idle" for a long time during script generation
 Read the activity line under Generate: it names the step, the unit, the

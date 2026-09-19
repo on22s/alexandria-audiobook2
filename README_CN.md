@@ -312,7 +312,15 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 ## 常见问题
 
 ### Pinokio 到不了 “Open Web UI”
-`start.js` 等待服务器打印 URL。看 `logs/api/start-latest.log`：`app/env` 缺失、torch 被后来的安装换成 CPU 版、4200 端口被占，是见过的三个原因。`env_doctor.py` 会指出是哪个。
+
+`start.js` 等待 Alexandria 打印服务地址。导入失败、端口占用、Python 回溯和 FastAPI 启动失败都会让启动器明确停下，而不是停在 **Starting**。
+
+1. 打开正在运行或失败的 Start 条目旁的 **Terminal**，读第一个回溯或启动错误。导航栏的构建标签显示实际运行的版本；悬停可看 Python 与包版本。
+2. 打开 Pinokio 的 **Logs** 页，选最近的 Alexandria 会话。其 **Get Help** 报告会打包相关启动器日志和系统信息（经 Pinokio 常规的密钥/路径脱敏）便于分享。
+3. 直接看文件：当前启动器日志是 `logs/api/start.js/latest`，带时间戳的运行在旁边，`logs/sessions/` 把相关的 install/start/helper 运行归组。应用任务日志（脚本生成、审阅、音频）仍在 `logs/api/*-latest.log`。
+4. 修好第一个启动错误后，停止并重新启动已有的 `start.js` 条目。不要为绕过端口占用再启动一份。`env_doctor.py` 会报告 `app/env` 缺失或 torch 被后续安装换成 CPU 版——这是最常见的两个原因。
+
+启动器使用 Pinokio 分配的空闲端口并把 Alexandria 绑定到 `127.0.0.1`；不需要也不建议写死端口。
 
 ### 脚本生成时“闲置”很久
 看 Generate 下方的活动行：它写着步骤、单元、第几次尝试、在等什么（模型、限流退避、重试）。如果几分钟没有变化，是 LLM 服务器不回应了——在 Setup 里测试。“重试耗尽时 → 暂停”的运行会等待 Resume。
