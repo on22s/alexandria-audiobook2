@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-19 from `ab_test_runtime/experiments/` — 1690 artifacts, 2006 arms.
+Generated 2026-09-19 from `ab_test_runtime/experiments/` — 1691 artifacts, 2006 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -2214,6 +2214,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `aishell3_SSB0748_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `aligned_japanese_accent__n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `alignment_diagnosis.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `alignment_diagnosis_trimmed.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `alignment_diagnosis_zh.json` | SKIPPED: 'rows' is not a list of scored arms |

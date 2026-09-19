@@ -72,6 +72,7 @@
   ],
   "test_aligned_japanese_accent": [
     "tests.test_aligned_japanese_accent.Aggregate.test_nones_are_ignored_and_coverage_is_reported",
+    "tests.test_aligned_japanese_accent.MoraUnits.test_a_nucleus_on_the_last_mora_is_read_as_unaccented",
     "tests.test_aligned_japanese_accent.MoraUnits.test_every_label_is_one_the_aligner_knows",
     "tests.test_aligned_japanese_accent.MoraUnits.test_geminate_nasal_and_long_vowel_each_count_one_mora",
     "tests.test_aligned_japanese_accent.MoraUnits.test_phrases_follow_the_accent_field_not_punctuation",

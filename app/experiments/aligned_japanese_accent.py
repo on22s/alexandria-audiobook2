@@ -111,8 +111,13 @@ def phrases_of(morae):
 
 def _phrase(group, start):
     positions = [m["position"] for m in group]
+    accent = (positions.index(0) + 1) if 0 in positions else 0
+    # OpenJTalk writes an unaccented (heiban) phrase as one whose nucleus is
+    # its LAST mora - 桜 and 学校 come out 4_4, not 4_0 - which is also how an
+    # odaka phrase is written, and inside the phrase the two sound the same:
+    # a rise and no fall. Neither has a drop to score, so both are 0 here.
     return {"moras": len(group), "start": start,
-            "accent": (positions.index(0) + 1) if 0 in positions else 0}
+            "accent": 0 if accent == len(group) else accent}
 
 
 def score_phrase(phrase, medians):

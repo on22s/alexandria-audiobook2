@@ -18,10 +18,17 @@ MMS_LABELS = set("abcdefghijklmnopqrstuvwxyz'-*")
 @unittest.skipUnless(HAVE_OPENJTALK, "pyopenjtalk not installed")
 class MoraUnits(unittest.TestCase):
     def test_the_minimal_pair_differs_only_in_the_nucleus(self):
-        hashi_chopsticks = phrases_of(mora_units("箸"))
-        hashi_bridge = phrases_of(mora_units("橋"))
-        self.assertEqual(hashi_chopsticks, [{"moras": 2, "start": 0, "accent": 1}])
-        self.assertEqual(hashi_bridge, [{"moras": 2, "start": 0, "accent": 2}])
+        # With the particle: 箸が falls after mora 1, 橋が after mora 2, and
+        # 端が (edge, heiban) never falls. In isolation OpenJTalk writes 橋
+        # and 端 identically (2_2), so the bare word cannot be the fixture.
+        self.assertEqual(phrases_of(mora_units("箸が")), [{"moras": 3, "start": 0, "accent": 1}])
+        self.assertEqual(phrases_of(mora_units("橋が")), [{"moras": 3, "start": 0, "accent": 2}])
+        self.assertEqual(phrases_of(mora_units("端が")), [{"moras": 3, "start": 0, "accent": 0}])
+
+    def test_a_nucleus_on_the_last_mora_is_read_as_unaccented(self):
+        # OpenJTalk encodes heiban as accent type == mora count (桜 -> 4_4).
+        self.assertEqual(phrases_of(mora_units("桜")), [{"moras": 3, "start": 0, "accent": 0}])
+        self.assertEqual(phrases_of(mora_units("学校"))[0]["accent"], 0)
 
     def test_geminate_nasal_and_long_vowel_each_count_one_mora(self):
         gakkoo = mora_units("学校")            # ga-k-ko-o

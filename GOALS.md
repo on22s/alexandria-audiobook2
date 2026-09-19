@@ -2873,7 +2873,7 @@ says it should have.
 
 The fused measure — produced f0 against the *expected* accent, which is the
 one that works on a real audiobook rather than an eval set — now has a first
-coarse baseline. A linguistically aligned comparison is not yet built.
+coarse baseline. The linguistically aligned comparison was built on 2026-09-19 (below).
 
 **Expectation extraction expanded to every available line, 2026-08-22.** The
 reference-free half now runs on all 150 Japanese and all 150 Chinese evaluation
@@ -2916,6 +2916,41 @@ accent naturalness, and overall delivery as separate questions, with an explicit
 mapping is `japanese_accent_calibration_key.json`. This prepares the listener
 calibration called for above but supplies no rating evidence until a Japanese
 speaker completes it; non-speakers can validly rate delivery only.
+
+**The aligned Japanese baseline, 2026-09-19.** `aligned_japanese_accent.py`
+gives every mora a start and end from a CTC forced alignment (torchaudio's
+MMS aligner; pyopenjtalk's romanised phones are its vocabulary, so no kana
+normalisation) and reads f0 inside that interval, on all 150 Kokoro lines
+per arm — 4,074 morae, 94–95% voiced, no line skipped. Three scores are
+kept apart: the H→L **drop** after the accent nucleus (the cue that
+separates 箸 from 橋), the initial **rise** of a phrase whose nucleus is not
+mora 1, and the **correlation** of the whole H/L template with the mora
+medians. Unaccented phrases (427 of 1,082 — OpenJTalk writes heiban with the
+nucleus on the last mora, which inside the phrase is indistinguishable from
+odaka) never enter the drop score.
+(`aligned_japanese_accent__n150.json`; hand-checked on three lines before
+the run — morae 60–140 ms in text order, the 、 pause left out of every
+vowel — and the 箸が / 橋が / 端が minimal set pinned in
+`test_aligned_japanese_accent.py`.)
+
+| arm | drop realised (accented phrases) | initial rise | template correlation |
+|---|---:|---:|---:|
+| **human** (the ceiling) | **72.6%** of 606 | 63.5% of 666 | 0.353 (790 phrases) |
+| clone | 74.4% of 614 | 68.7% of 671 | 0.370 (799) |
+| LoRA | 71.2% of 597 | 66.3% of 643 | 0.347 (765) |
+
+**The instrument discriminates**: the human reader realises the drop on 73%
+of accented phrases against a 50% chance line, and the template correlation
+is 0.35 where the equal-time baseline above reported 0.085. By nucleus
+position the human reader is at 82.3% when the nucleus is after the first
+mora and 59.9% when it is the first mora (atamadaka, n=262) — mora 1 is also
+the pitch onset, so a first-mora fall is the hardest case for the measure,
+not for the reader. **Both synthetic arms sit within two points of the human
+on every score**, clone slightly above and LoRA slightly below — the same
+ordering the reference-based f0 correlation gave (0.742 / 0.717). On these
+150 lines Japanese pitch accent survives synthesis at about the human rate.
+The Chinese half keeps its own contextual baseline above; this does not
+replace it. No target is set from a first run.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
