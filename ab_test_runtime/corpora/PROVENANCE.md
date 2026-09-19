@@ -35,9 +35,11 @@ differently from Western quotation marks.
 | `wp_names.txt` | speaker roster |
 | `jy_test.json` | Jin Yong (JY) test split |
 
-From the Chinese speaker-identification datasets released under Apache-2.0 and
-recorded in `THIRD_PARTY_NOTICES.md`. These are the corpora whose existence was
-wrongly denied on 2026-08-03 before being found — see the note in that file.
+From the Chinese speaker-identification datasets released under Apache-2.0,
+recorded in `THIRD_PARTY_NOTICES.md` ("Corpora and annotations used for
+attribution training and evaluation", added 2026-09-19 — this paragraph
+pointed at an entry that did not exist for six weeks). These are the corpora
+whose existence was wrongly denied on 2026-08-03 before being found.
 
 ## Reconstructing
 
