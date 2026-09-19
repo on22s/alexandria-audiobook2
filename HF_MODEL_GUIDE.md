@@ -149,6 +149,14 @@ list and `model-index`, then tag `v1.1.0`:
 Nine-book aggregates go on the cards as **eight held-out novels**, with The
 Sun Also Rises reported separately as a training book.
 
+**What the adapters are for (2026-09-19).** They were built to lift the
+base models; the `michel2_full` prompt turned out to be most of that lift.
+Their job now is to find how small a quant can ship: for each base, the
+smallest rung at which base+adapter under `michel2_full` holds the goal-4.2
+band, and whether the adapter buys a rung the base cannot hold alone. A card
+therefore leads with "smallest quant within band" and shows every rung
+against the same model's Q4 `michel2_full` base.
+
 **Release criterion: does it help at the quant it ships on.** The Qwen3-14B
 adapters ship at Q4_K_M, so their four-book Q4 row is the headline. The A3B
 and Muse adapters exist to close the low-quant gap (goal 4.2): A3B ships at
