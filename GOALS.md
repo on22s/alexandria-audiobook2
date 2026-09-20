@@ -1263,6 +1263,32 @@ ranked against each other (`external_comparability.json`).
 The corpus is fetched locally and not vendored — it carries no licence and
 annotates a novel still in copyright.
 
+#### The rights-clean adapters on the smallest quants, and on eight held-out PDNC novels — 2026-09-20
+
+The michel2-shape rights-clean adapters (20 PDNC novels + RiQuA + DraCor
+prose; public on the Hub) were served paired, base → adapter on one server,
+across each base's quant ladder under the product prompt. On the four-book
+fixture the dense **Qwen3.8-27B** adapter's gain grows as the quant shrinks —
+Q4_K_M 0 (reasoning on) / +0.9 (off), Q3_K_XL **+1.3**, IQ2_XXS **+2.6** — and
+the **Qwen3.6-35B-A3B** adapter helps only at IQ1_M with reasoning off
+(**+3.0**, +65/−42) and is flat-to-negative with reasoning on at every rung
+(−2.5 / −0.4 / −0.9 / −2.2 at Q4_K_XL). On Emma (held out) the Qwen3.8 adapter is at the
+ceiling either way (99.1 / 99.7 base); the A3B adapter moves Emma by ±2 in
+either direction by reasoning mode. The Qwen3-14B adapter, the one with the
+large four-book gain (+8.6 / +8.8 under `default`), is **84.3 → 84.3 (0)**
+over nine PDNC novels under `michel2_full` after **67.6 → 72.6 (+5.0)** under
+`default`: Emma 89.6 → 95.9 but Pride and Prejudice 88.9 → 77.0 — the
+adapter and the product prompt supply the same information, and the
+adapter's `default`-shape training does not carry. One defect surfaced on
+the PDNC rosters (which carry aliases): the A3B adapter copies the roster
+line back (`EMMA (also: EMMA WOODHOUSE, …)`) on up to 12% of rows; the app
+reads that as the main form since #625, the harness scores it as the model
+wrote it, and RECIPES carries both numbers. Full table in RECIPES §"The same
+ladder with the michel2-shape rights-clean adapters". Evidence —
+`lora_serving_eval__qwen38-27b-{q4-k-m,q3-k-xl,iq2-xxs}-rightsclean-michel2-adapter-tnr4-*-20260917.json`,
+`lora_serving_eval__qwen36-35b-a3b-{iq1m,iq2xxs,iq3xxs,q4kxl}-rightsclean-michel2-adapter-tnr0-*-20260917.json`,
+`lora_serving_eval__qwen3-14b-rightsclean-{default,michel2_full}-tnr2-pdnc9lite-low-schema-20260917.json`.
+
 ### 2.1 Speaker similarity against a human ceiling
 
 > **What this is.** The app can imitate a specific narrator's voice. This
@@ -3154,6 +3180,16 @@ with no adapter; the michel2-shape adapters for Qwen3.8 and A3B (RECIPES,
 `lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-{off,low-8k}-michel2_full-20260917.json`,
 `lora_serving_eval__qwen38-27b-q4km-michel2{,_full}-tnr0-*-20260917.json`,
 `lora_serving_eval__qwen36-35b-a3b-thinking-michel2_full-tnr0-*-20260917.json`.
+
+**The adapters' contribution, measured 2026-09-20.** Per book, the best
+local arm with an adapter does not move the ratio: the Qwen3.8 adapter's
+gains land at Q3_K_XL and IQ2_XXS (+1.3, +2.6), rungs below the best local
+file, and at Q4_K_M it is 0 with reasoning on; the A3B adapter's only gain is
+IQ1_M reasoning-off (+3.0), also below the best rung. So the two open books
+stay open at 94.5% / 92.9%, and what the adapters bought is a lower floor:
+Qwen3.8 IQ2_XXS (7.3 GB) with its adapter reaches 85.7, the number the base
+needs 13.1 GB for. RECIPES §"The same ladder with the michel2-shape
+rights-clean adapters"; evidence as in 1.3's entry of the same date.
 
 **Target — hold local within 5% of cloud on every book.**
 

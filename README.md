@@ -60,21 +60,30 @@ novels, RiQuA and CC0 play scripts rendered as prose (no light-novel text,
 nothing you could not redistribute). Public on the Hub:
 [Om22s/alexandria-qwen3-attribution](https://huggingface.co/Om22s/alexandria-qwen3-attribution).
 
-| adapter | fixture | base | adapter | change |
-|---|---|---:|---:|---:|
-| Qwen3-14B rights-clean, seed 1 | four-book, reasoning low, budget 1024 | 66.1 | 74.7 | **+8.6** |
-| same recipe, seed 2 | same | 66.1 | 74.9 | **+8.8** |
-| seed 1 / seed 2 | Emma, held out of training (318 rows) | 68.9 | 75.8 / 69.5 | +6.9 / +0.6 |
-| Qwen3.8-27B `michel2` adapter | four-book, Q4_K_M, reasoning off | 87.4 | 88.3 | +0.9 (first rung; lower quants queued) |
-| Qwen3.6-35B-A3B `michel2` adapter | quant ladder IQ1_M → Q4_K_XL | — | — | queued |
+| adapter | rung | reasoning | base → adapter | Emma (held out, 318 rows) |
+|---|---|---|---:|---:|
+| Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | 83.1 → **85.7 (+2.6)** | queued |
+| Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | 87.5 → **88.8 (+1.3)** | queued |
+| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on / off | 89.8 → 89.8 / 87.4 → 88.3 | 99.7 → 99.4 / 99.1 → 99.1 |
+| Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | off | 82.9 → **85.9 (+3.0)** | 97.8 → 96.2 |
+| Qwen3.6-35B-A3B `michel2` | IQ1_M | on | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
+| Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
+| Qwen3.6-35B-A3B `michel2` | IQ3_XXS 13.2 GB | on | 87.5 → 86.6 (−0.9) | 95.6 → 82.7 (roster-line echo; 93.1 read as the app reads it) |
+| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | 90.8 → 88.5 (−2.2) | queued (~10:30 AM) |
+| Qwen3-14B rights-clean, seed 1 / 2 | Q4_K_M 9.0 GB, `default` prompt | low, budget 1024 | 66.1 → **74.7 / 74.9** | 68.9 → 75.8 / 69.5 |
+| Qwen3-14B rights-clean | Q4_K_M, `michel2_full`, nine PDNC novels (2,655 rows) | low | 84.3 → 84.3 (0) | 89.6 → 95.9, but P&P 88.9 → 77.0 |
 
-The four-book gain replicates across seeds; the held-out gain does not yet
-(the two seeds disagree on Emma). The adapters were built to lift the base
-models — the prompt did most of that — so their job now is **how small a quant
-can ship**: for each base, the smallest rung at which base + adapter under
-`michel2_full` stays within the 4.2 band. One note of honesty the cards
-carry too: The Sun Also Rises is one of the 20 training novels, so PDNC
-results are reported over the eight novels that are genuinely held out.
+Four-book rows are 768 paired rows on one server with the adapter scale
+toggled (RECIPES §"Attribution adapters", 2026-09-20). The adapters were built
+to lift the base models — the prompt did most of that — so their job now is
+**how small a quant can ship**, and the answer so far: the Qwen3.8 adapter
+earns its place at IQ2_XXS and Q3_K_XL, where the gain grows as the quant
+shrinks; the A3B adapter helps only at IQ1_M with reasoning off; the Qwen3-14B
+adapter's +8.7 under the `default` prompt is a null under the product
+prompt. One note of honesty the cards carry too: The Sun Also Rises is one of
+the 20 training novels, so PDNC results are reported over the eight novels
+that are genuinely held out. `ATTRIBUTION_ADAPTER_SETUP.md` says how to load
+one.
 
 ### Voices — against a human ceiling
 
