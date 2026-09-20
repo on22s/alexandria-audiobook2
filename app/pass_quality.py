@@ -393,6 +393,25 @@ def index_head_check(frozen_entries, response_entries):
 # absent on purpose: it is both a type and a legitimate speaker.
 ENTRY_TYPE_NAMES = frozenset({"SPOKEN", "NARRATION", "DIALOGUE"})
 
+# The roster line shows each character as "EMMA (also: EMMA WOODHOUSE, MISS
+# WOODHOUSE)" (attribution_prompt_variants.roster_line). Rule 6 of that prompt
+# says answer with the main form; a model that copies the whole entry instead
+# hands back a string the prose never contains, is_attested_name rejects it,
+# the batch burns its retries and the line ships as UNKNOWN. Measured
+# 2026-09-20: the A3B IQ3_XXS adapter did it on 79 of 663 PDNC rows (12%),
+# IQ1_M on 52. The head is a name WE wrote, so undoing the echo is exact.
+_ROSTER_ALIAS_ECHO = re.compile(r"^(.*\S)\s*\(also:.*\)\s*$", re.DOTALL)
+
+
+def strip_roster_alias_echo(speaker):
+    """The speaker with a copied "(also: ...)" roster tail removed; unchanged
+    otherwise. Pure: returns a new string, never rewrites the entry."""
+    if not isinstance(speaker, str):
+        return speaker
+    match = _ROSTER_ALIAS_ECHO.match(speaker)
+    return match.group(1) if match else speaker
+
+
 MIN_NAME_ATTESTATIONS = 2
 # Below this the source is a test fixture or a fragment, not a book, and a
 # real name may legitimately appear once. Books in this corpus are 250k+.
@@ -441,7 +460,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
                 "findings": [{"code": "alignment_violated", "message": reason}]}
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
-        raw_speaker = item.get("speaker")
+        raw_speaker = strip_roster_alias_echo(item.get("speaker"))
         speaker = raw_speaker.strip() if isinstance(raw_speaker, str) else ""
         if frozen.get("type") == "SPOKEN":
             # The prompt shows each entry as {"n", "type", "text"}, so the model

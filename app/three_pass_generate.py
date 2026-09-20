@@ -36,7 +36,7 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
                              is_narrator_attested, normalize_narrator_name)
-from pass_quality import (is_attested_name,
+from pass_quality import (is_attested_name, strip_roster_alias_echo,
                           validate_segment_quality, validate_attribution,
                           validate_instruct, index_head_check,
                           analyze_outer_quote_regions, split_outer_quote_regions,
@@ -397,7 +397,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         if ordered is None:
             raise RuntimeError("validated attribution response lost its index binding")
         return [{**{k: v for k, v in f.items() if k != "type"},
-                 "speaker": item.get("speaker")}
+                 "speaker": strip_roster_alias_echo(item.get("speaker"))}
                 for f, item in zip(frozen_batch, ordered)]
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
