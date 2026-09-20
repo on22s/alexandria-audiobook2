@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "2468c8ce333dcce82b0707bd0a7c3c5cb5a479cc397f7049078ed3679c0d5df0",
+  "source_structural_sha256": "57373f98781d804e5307c6beeb68f473baf7d2e763278a25fa9a5c536a863e7a",
   "summary": {
-    "exploratory": 187,
+    "exploratory": 189,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -2459,6 +2459,28 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__a3b-iq3xxs-rightsclean-michel2-adapter-michel2_full-tnr2-pdnc9lite-low-schema-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 5310,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-low-8k-michel2_full-20260917.json",
       "family": "lora_serving_eval",
       "rows": 768,
@@ -4559,6 +4581,29 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 766,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen36-35b-a3b-q4kxl-rightsclean-michel2-adapter-tnr0-pdnc2lite-michel2_full-reasoningon-schema-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 1326,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": true,
+        "missing_rows": 690,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false
