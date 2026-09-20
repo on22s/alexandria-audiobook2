@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "e272a65229c11d8625c9d89b25c3bc898d837a9bf5462e65e05e3d696ab9a1d5",
+  "source_structural_sha256": "1a082f12f1c8700108358a2b23a9de9e46f498e4ae601ec056fe7bee0767ff68",
   "summary": {
-    "exploratory": 199,
+    "exploratory": 200,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -3322,6 +3322,28 @@
     },
     {
       "artifact": "lora_serving_eval__muse-michel2full-low-tnr1-cleangold-replication-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 768,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-michel2full-low-tnr1-cleangold-reworded-20260920.json",
       "family": "lora_serving_eval",
       "rows": 768,
       "arms": [
