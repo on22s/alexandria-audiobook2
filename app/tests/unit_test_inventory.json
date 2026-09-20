@@ -1785,6 +1785,20 @@
     "tests.test_inventory.UntrackedTestWarningTest.test_a_new_untracked_test_file_is_reported",
     "tests.test_inventory.UntrackedTestWarningTest.test_a_tracked_file_is_not_reported"
   ],
+  "test_issues_622_624": [
+    "tests.test_issues_622_624.FullNameAttested622.test_an_invented_full_name_is_still_rejected",
+    "tests.test_issues_622_624.FullNameAttested622.test_full_name_written_once_with_attested_first_name_passes",
+    "tests.test_issues_622_624.FullNameAttested622.test_gate_accepts_the_issue_reply",
+    "tests.test_issues_622_624.FullNameAttested622.test_rejection_message_names_the_threshold",
+    "tests.test_issues_622_624.IndexAsString623.test_digit_string_index_is_accepted",
+    "tests.test_issues_622_624.IndexAsString623.test_non_numeric_strings_are_still_rejected",
+    "tests.test_issues_622_624.IndexAsString623.test_padded_and_reordered_digit_strings_still_bind_by_index",
+    "tests.test_issues_622_624.IndexAsString623.test_prompt_states_the_integer_and_shows_one",
+    "tests.test_issues_622_624.RunOnQuote624.test_a_real_nested_quote_is_still_nested",
+    "tests.test_issues_622_624.RunOnQuote624.test_narration_labelled_spoken_is_now_rejected",
+    "tests.test_issues_622_624.RunOnQuote624.test_regions_split_at_the_run_on_and_record_the_repair",
+    "tests.test_issues_622_624.RunOnQuote624.test_the_correct_reply_passes"
+  ],
   "test_japanese_text_boundary": [],
   "test_launcher_supervisor": [
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_address_already_in_use_breaks_case_insensitively",
