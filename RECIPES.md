@@ -339,8 +339,8 @@ Every arm served correctly (0 errors, 0 retries, ≤1 blank row).
 |---|---|---|---:|---:|---:|---|
 | Qwen3.8-27B | Q4_K_M | off | 87.4 → 88.3 (+0.9, +21/−14) | 99.1 → 99.1 | 83.8 → 87.2 | tnr-4 `qwen38-27b-q4-k-m-rightsclean-michel2-adapter-*-reasoningoff` |
 | Qwen3.8-27B | Q4_K_M | on | 89.8 → 89.8 (0, +16/−16) | 99.7 → 99.4 | 93.3 → 90.4 | `…-reasoningon` |
-| Qwen3.8-27B | Q3_K_XL | on | 87.5 → **88.8 (+1.3, +30/−20)** | two-book running | | `qwen38-27b-q3-k-xl-…` |
-| Qwen3.8-27B | IQ2_XXS | on | 83.1 → **85.7 (+2.6, +49/−29)** | queued | | `qwen38-27b-iq2-xxs-…` |
+| Qwen3.8-27B | Q3_K_XL | on | 87.5 → **88.8 (+1.3, +30/−20)** | 99.4 → 99.7 | 87.5 → 87.0 | `qwen38-27b-q3-k-xl-…` |
+| Qwen3.8-27B | IQ2_XXS | on | 83.1 → **85.7 (+2.6, +49/−29)** | 91.2 → 92.1 | 82.3 → 81.2 | `qwen38-27b-iq2-xxs-…` |
 | Qwen3.6-35B-A3B | IQ1_M | off | 82.9 → **85.9 (+3.0, +65/−42)** | 97.8 → 96.2 | 71.6 → 67.0 (81.0 raw / 87.5 with the roster echo read as the app reads it) | tnr-0 `qwen36-35b-a3b-iq1m-rightsclean-michel2-adapter-*` |
 | Qwen3.6-35B-A3B | IQ1_M | on | 87.5 → 85.0 (−2.5, +38/−57) | 96.2 → 98.1 | 82.3 → 84.1 | |
 | Qwen3.6-35B-A3B | IQ2_XXS | on | 88.3 → 87.9 (−0.4, +46/−49) | 95.6 → 95.3 | 80.3 → 80.6 | |
@@ -421,16 +421,18 @@ them. Rule adopted: **a product default needs both fixtures; owari is the
 tie-breaker.** The nine-book version (Emma, Mansfield Park, Northanger Abbey,
 Persuasion, Pride and Prejudice, Sense and Sensibility, The Awakening, The Sign
 of the Four, The Sun Also Rises; ~2,300 evenly spaced rows via
-`--window-limit`) is running on the RX 9070 XT for A3B IQ3_XXS / IQ2_XXS /
-IQ1_M × five prompts, then Qwen3.5-9B, Qwen3-8B, Qwen3.5-9B-Uncensored and
-Gemma-E4B (`local_matrix_20260917d.sh`); on tnr-4 Muse and Qwen3-14B × six
-prompts follow the Qwen3.8 adapter ladder (`pdnc9_tnr4_20260917.sh`). First
-cell is final:
+`--window-limit`) ran on the RX 9070 XT for A3B IQ3_XXS / IQ2_XXS / IQ1_M
+(`local_matrix_20260917d.sh` + `local_matrix_makeup_20260918b.sh`); the
+Qwen3-14B and Muse prompt blocks moved to the cloud boxes (tnr-2 / tnr-0 /
+tnr-1, 2026-09-20). Complete cells:
 
-| model | fixture | score | per book |
-|---|---|---:|---|
-| A3B UD-IQ3_XXS 13.2 GB, michel2_full, reasoning low, experts in RAM (RX 9070 XT) | nine PDNC novels, 2,655 rows | **91.6** (0 blank) | Emma 97.8, Northanger 97.3, S&S 96.0, Persuasion 94.5, Awakening 93.4, P&P 93.2, Mansfield 89.3, Sign of the Four 82.0, Sun Also Rises 81.2 |
-| same, `default` prompt | same, partial 1,200 rows (cell interrupted, resumes in the make-up chain) | 73.9 | Sun Also Rises 66.4, Emma 78.3, P&P 80.4, Mansfield 71.0 |
+| A3B quant (experts in RAM, RX 9070 XT) | default | michel | michel2 | michel2_full | michel2_shot |
+|---|---:|---:|---:|---:|---:|
+| UD-IQ3_XXS 13.2 GB | 78.7 | running | 87.9 | **91.6** | queued |
+| UD-IQ2_XXS 10.8 GB | 75.1 | 85.3 | 87.5 | **90.5** | 87.5 |
+| UD-IQ1_M 10.0 GB | dropped | dropped | dropped | **89.3** | dropped |
+
+Nine-novel base scores, 2,655 rows each, 0 blank (`lora_serving_eval__a3b-<quant>-<variant>-local-9070xt-pdnc9lite-low-schema-20260917.json`, 2026-09-18/20). **The chain was cut on 2026-09-19 at 9:18 PM** after the IQ1_M `michel2_full` cell: the four other IQ1_M prompts, the Qwen3.5-9B / Qwen3-8B / Uncensored / Gemma-E4B sweep were dropped so the reference arms, the contamination campaign and the full-book drift run could have the card (they are recorded here as dropped, not pending). The product prompt is 13–16 points over `default` at every rung, and the three rungs sit within 2.3 points of each other under it (91.6 / 90.5 / 89.3) - the 10 GB IQ1_M loses less to quantisation on these novels than on the four light novels (85.0). The two hard books are the same at every rung: The Sun Also Rises 79–81 and The Sign of the Four 79–85.
 
 `lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json`.
 The two hard books are Doyle and Hemingway - terse, sparsely attributed

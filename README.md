@@ -62,8 +62,8 @@ nothing you could not redistribute). Public on the Hub:
 
 | adapter | rung | reasoning | base → adapter | Emma (held out, 318 rows) |
 |---|---|---|---:|---:|
-| Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | 83.1 → **85.7 (+2.6)** | queued |
-| Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | 87.5 → **88.8 (+1.3)** | queued |
+| Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | 83.1 → **85.7 (+2.6)** | 91.2 → 92.1 |
+| Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | 87.5 → **88.8 (+1.3)** | 99.4 → 99.7 |
 | Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on / off | 89.8 → 89.8 / 87.4 → 88.3 | 99.7 → 99.4 / 99.1 → 99.1 |
 | Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | off | 82.9 → **85.9 (+3.0)** | 97.8 → 96.2 |
 | Qwen3.6-35B-A3B `michel2` | IQ1_M | on | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
