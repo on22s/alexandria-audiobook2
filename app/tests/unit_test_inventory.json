@@ -1785,6 +1785,13 @@
     "tests.test_inventory.UntrackedTestWarningTest.test_a_new_untracked_test_file_is_reported",
     "tests.test_inventory.UntrackedTestWarningTest.test_a_tracked_file_is_not_reported"
   ],
+  "test_issue_628_whitespace_entries": [
+    "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_an_empty_unit_standing_for_real_text_is_kept_for_the_gate",
+    "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_line_break_units_between_quotations_are_dropped",
+    "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_prompt_says_never_emit_an_empty_entry",
+    "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_the_issue_reply_passes_the_gate_after_the_drop",
+    "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_unlocatable_neighbours_keep_the_unit"
+  ],
   "test_issues_622_624": [
     "tests.test_issues_622_624.FullNameAttested622.test_an_invented_full_name_is_still_rejected",
     "tests.test_issues_622_624.FullNameAttested622.test_full_name_written_once_with_attested_first_name_passes",

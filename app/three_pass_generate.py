@@ -475,6 +475,42 @@ def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None)
     return available >= max(256, 48 * len(prior_batch))
 
 
+_WS_ENTRY_GAP = re.compile(r'[\s"“”「」『』]*')
+
+
+def drop_whitespace_entries(entries, chunk):
+    """-> (entries without formatting-only units, the drop records).
+
+    A model shown one paragraph per line sometimes returns the line break
+    between two quotations as its own unit - {"type": "NARRATOR", "text":
+    "\n"} (#628). That is not dropped content, and finding #7 (an empty unit
+    must reach the gate, because it may be a lost line) still holds: a unit is
+    dropped ONLY when the source text between its neighbours is itself nothing
+    but whitespace and quote marks, checked against the chunk. Any unit whose
+    neighbours cannot be located, or with real text between them, is kept for
+    the gate's empty_text finding. Pure: returns new lists."""
+    kept, dropped, cursor = [], [], 0
+    texts = [str(e.get("text") or "") if isinstance(e, dict) else "" for e in entries]
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict) or texts[i].strip():
+            kept.append(entry)
+            if isinstance(entry, dict) and texts[i].strip():
+                found = chunk.find(texts[i].strip(), cursor)
+                if found >= 0:
+                    cursor = found + len(texts[i].strip())
+            continue
+        prev_text = texts[i - 1].strip() if i > 0 else ""
+        next_text = next((t.strip() for t in texts[i + 1:] if t.strip()), "")
+        prev_end = cursor if prev_text else 0
+        next_start = chunk.find(next_text, prev_end) if next_text else len(chunk)
+        gap = chunk[prev_end:next_start] if next_start >= 0 else None
+        if gap is not None and _WS_ENTRY_GAP.fullmatch(gap):
+            dropped.append({"entry_number": i + 1, "code": "dropped_whitespace_entry"})
+            continue
+        kept.append(entry)
+    return kept, dropped
+
+
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
                   label, max_retries, near_miss_sink, validate=None,
                   attempt_observer=None, retry_decider=None):
@@ -498,6 +534,10 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     def repair(entries):
         repaired = build_deterministic_repair(
             entries, chunk, merge_empty_into_pause=False)
+        without_ws, ws_dropped = drop_whitespace_entries(repaired["entries"], chunk)
+        if ws_dropped:
+            repaired["entries"] = without_ws
+            repaired.setdefault("changes", []).extend(ws_dropped)
         quote_split = []
         for number, entry in enumerate(repaired["entries"], 1):
             text = str(entry.get("text") or "").strip()
