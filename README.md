@@ -971,7 +971,7 @@ Setup.
 | DeepSeek v4-pro (hosted API) | — | none | `michel2_full`, thinking low 8k | **95.4** | the ceiling; ~$0.50–0.75 for a fixture-sized book |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 24 GB | `michel2` | **90.9** | best local; the worked example (`michel2_shot`) gives the best score on the hardest book (94.4) |
 | Qwen3.6-35B-A3B UD-Q4_K_XL / IQ3_XXS / IQ2_XXS | 22.4 / 13.2 / 10.8 GB | 24 / 16 / 16 GB | `michel2_full` | 89.6 four-book; 91.6 / 90.5 nine-book at IQ3 / IQ2 | the MoE that fits a 16 GB card at IQ3 or IQ2 (with `--n-cpu-moe` offloading some experts) and holds within a point of Q4 — the quant ladder is being measured down to IQ1_M |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2` | 86.6 | strong, but serve with reasoning on + the deepseek reasoning format, and never `--skip-chat-parsing` |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2_full` | **90.5** | strong, but serve with reasoning on + the deepseek reasoning format, and never `--skip-chat-parsing` |
 | Qwen3-14B Q4_K_M | 9.0 GB | 12 GB | `michel2_full` | 82.0 | +16 from the prompt; the rights-clean adapter adds +8.6 on top under the `default` prompt |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 8 GB | `michel2_full` | ~72 | the 8 GB-card option; both collapse on the hardest book (47 / 62) |
 
