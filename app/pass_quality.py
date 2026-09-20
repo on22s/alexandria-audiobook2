@@ -25,6 +25,8 @@ QUOTE_MARKS = ('"', '“', '「', '『')
 # than a flag because one report covers many entries.
 _skipped = []
 _CURLY_AND_JAPANESE_OPEN = {'“', '「', '『'}
+# A finished sentence before a second opening quote marks a run-on quote (#624).
+_SENTENCE_END = set('.!?…。！？')
 _CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
 
 
@@ -102,6 +104,19 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 # paragraph in one continuous, multi-paragraph speech.
                 saw_quote = True
             elif char == '“':
+                head = "".join(current).rstrip()
+                if depth == 1 and head and head[-1] in _SENTENCE_END and text[index - 1].isspace():
+                    # The source dropped a closing quote: a second opening
+                    # quote after a finished sentence and a space starts a
+                    # NEW speech (#624). Nesting it swallowed the narration
+                    # up to the next closer as SPOKEN, rejecting the right
+                    # labelling and accepting the wrong one.
+                    flush()
+                    repairs.append({"code": "inferred_missing_close_quote",
+                                    "position": index})
+                    pending_source_label = None
+                    saw_quote = True
+                    continue
                 paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
                 if paragraph_tail.count('”') >= 2:
                     depth += 1
@@ -380,6 +395,10 @@ def index_head_check(frozen_entries, response_entries):
         n = item.get("n")
         if isinstance(n, float) and n.is_integer():
             n = int(n)
+        # A model with no response schema (manual transport, #623) echoes the
+        # index it was shown as text: "8" for 8. A digit string is unambiguous.
+        if isinstance(n, str) and n.strip().isdigit():
+            n = int(n.strip())
         if isinstance(n, bool) or not isinstance(n, int) or not (0 <= n < k):
             return False, f"entry has a missing or out-of-range index n={n!r}", None
         if n in by_index:
@@ -447,7 +466,18 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
                              re.IGNORECASE)
     capitalized = sum(1 for found in occurrences if found[:1].isupper())
     lowercase = len(occurrences) - capitalized
-    return capitalized >= min_attestations and capitalized > lowercase * 2
+    if capitalized >= min_attestations and capitalized > lowercase * 2:
+        return True
+    # A full name the book writes once - "Ian Fairytale" at his introduction,
+    # "Ian" on every later page - is that character, not an invention (#622:
+    # IAN FAIRYTALE was rejected while IAN passed). The full form must be in
+    # the text and the first word must clear the gate on its own; an invented
+    # pairing of a real first name (IAN HUMPHREY) or a common word (FUTURE ME)
+    # still fails.
+    words = name.split()
+    if len(words) > 1 and capitalized >= 1:
+        return is_attested_name(words[0], source_text, min_attestations)
+    return False
 
 
 def validate_attribution(frozen_entries, response_entries, source_text=None):
@@ -483,7 +513,10 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
                                  "entry_number": i,
                                  "value": speaker,
                                  "message": "The speaker does not appear as a "
-                                            "name in the source text."})
+                                            "name in the source text (a name "
+                                            "must be written capitalised at "
+                                            "least twice, or be a full name the "
+                                            "text writes whose first name is)."})
                 continue
             if speaker.upper() in ENTRY_TYPE_NAMES:
                 findings.append({"code": "speaker_is_entry_type",
