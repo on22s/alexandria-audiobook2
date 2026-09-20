@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 299,
+    "provisional": 301,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -11928,6 +11928,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__a3b-iq3xxs-rightsclean-michel2-adapter-michel2_full-tnr2-pdnc9lite-low-schema-20260917.json",
+      "bytes": 8905083,
+      "sha256": "33dfceade56743a7153e9552eecb28af344ae8be4d322e42526c2963194a03ce",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -14370,6 +14388,24 @@
       "seed": null,
       "status": null,
       "row_count": 1536,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen36-35b-a3b-q4kxl-rightsclean-michel2-adapter-tnr0-pdnc2lite-michel2_full-reasoningon-schema-20260917.json",
+      "bytes": 2267650,
+      "sha256": "0d89bbeeaff2379f984c0087cc902074fcbf42bc71a966fec0fd5b61f85b7bbf",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1326,
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
