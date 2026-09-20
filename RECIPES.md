@@ -326,9 +326,37 @@ IQ1_M (85.0) beats Muse's 13.4 GB Q3 (81.5) and Qwen3-14B's best prompt
 IQ3_XXS 17 tok/s - so a 6–8 GB card runs the 88-point model at 17 tok/s
 provided it has ~16 GB of RAM for the experts.
 
-Then the same ladder with a michel2-shape rights-clean adapter on each base
-(A3B on the A100, Qwen3.8 on tnr-4), paired, to see whether an adapter closes
-the low-quant gap. Not in this table until measured.
+### The same ladder with the michel2-shape rights-clean adapters (2026-09-20)
+
+Paired base → adapter on one server, adapter scale toggled through
+`/lora-adapters`, `michel2_full`, JSON schema, temperature 0 (A3B 0.6), 768
+four-book rows; the two-book PDNC column is Emma (held out, 318 rows) and The
+Sun Also Rises (a training novel, 345 rows). "on/off" is server reasoning.
+Every arm served correctly (0 errors, 0 retries, ≤1 blank row).
+
+| base | rung | reasoning | four-book | Emma | Sun | evidence |
+|---|---|---|---:|---:|---:|---|
+| Qwen3.8-27B | Q4_K_M | off | 87.4 → 88.3 (+0.9, +21/−14) | 99.1 → 99.1 | 83.8 → 87.2 | tnr-4 `qwen38-27b-q4-k-m-rightsclean-michel2-adapter-*-reasoningoff` |
+| Qwen3.8-27B | Q4_K_M | on | 89.8 → 89.8 (0, +16/−16) | 99.7 → 99.4 | 93.3 → 90.4 | `…-reasoningon` |
+| Qwen3.8-27B | Q3_K_XL | on | 87.5 → **88.8 (+1.3, +30/−20)** | two-book running | | `qwen38-27b-q3-k-xl-…` |
+| Qwen3.8-27B | IQ2_XXS | on | 83.1 → **85.7 (+2.6, +49/−29)** | queued | | `qwen38-27b-iq2-xxs-…` |
+| Qwen3.6-35B-A3B | IQ1_M | off | 82.9 → **85.9 (+3.0, +65/−42)** | 97.8 → 96.2 | 71.6 → 67.0 (81.0 raw / 87.5 with the roster echo read as the app reads it) | tnr-0 `qwen36-35b-a3b-iq1m-rightsclean-michel2-adapter-*` |
+| Qwen3.6-35B-A3B | IQ1_M | on | 87.5 → 85.0 (−2.5, +38/−57) | 96.2 → 98.1 | 82.3 → 84.1 | |
+| Qwen3.6-35B-A3B | IQ2_XXS | on | 88.3 → 87.9 (−0.4, +46/−49) | 95.6 → 95.3 | 80.3 → 80.6 | |
+| Qwen3.6-35B-A3B | IQ3_XXS | on | 87.5 → 86.6 (−0.9, +36/−43) | 95.6 → 82.7 (93.1 echo-stripped) | 80.9 → 72.8 | 79 of 663 adapter rows are the roster-line echo (§Prompt) |
+| Qwen3.6-35B-A3B | Q4_K_XL | on | Q4KXL_ROW | Q4KXL_EMMA | Q4KXL_SUN | |
+| Qwen3-14B | Q4_K_M, nine PDNC novels (2,655 rows), `default` prompt | low | 67.6 → **72.6 (+5.0)** | | | tnr-2 `qwen3-14b-rightsclean-default-tnr2-pdnc9lite` |
+| Qwen3-14B | same, `michel2_full` | low | 84.3 → 84.3 (0; Emma 89.6 → 95.9, P&P 88.9 → 77.0, S&S 87.4 → 82.1) | | | `qwen3-14b-rightsclean-michel2_full-tnr2-pdnc9lite` |
+
+Read across: the dense Qwen3.8 adapter's gain grows as the quant shrinks
+(0 → +1.3 → +2.6), which is the shape the adapters were kept for - it earns
+its place at Q3_K_XL and below. The A3B adapter helps only at IQ1_M with
+reasoning off and is flat-to-negative with reasoning on at every rung; its
+rows were rendered with reasoning off, and the base's own reasoning already
+covers what it learned. The Qwen3-14B adapter's +5.0 on the nine novels
+under `default` is a null under the product prompt - the adapter and
+`michel2_full` supply the same information, and the adapter's `default`-shape
+training does not carry (§"Attribution adapters", first paragraph).
 
 ## Prompt variants × bases, complete cells (2026-09-18)
 

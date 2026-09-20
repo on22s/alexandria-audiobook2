@@ -628,7 +628,7 @@
                                 <option value="high">high</option>
                                 <option value="xhigh">xhigh</option>
                             </select>
-                            <div class="form-text">Sent as <code>reasoning_effort</code> on every request from this location (script generation, review, personas, nicknames). Attribution adapters are trained on direct answers, so <em>none</em> is the usual choice with them. Measured 2026-09-14 on the base model: <em>medium</em> lifts minor-character attribution 57 → 63% (as much as removing the leads from the cast would) at about 3× the wall time — worth it when time allows and no adapter is loaded.</div>
+                            <div class="form-text">Sent as <code>reasoning_effort</code> on every request from this location (script generation, review, personas, nicknames). Measured 2026-09-14 on the base model: <em>medium</em> lifts minor-character attribution 57 → 63% (as much as removing the leads from the cast would) at about 3× the wall time — worth it when time allows. With an attribution adapter loaded the setting depends on the adapter (2026-09-20): the Qwen3.8 adapter helps at its small quants with reasoning <em>on</em>; the A3B adapter helps only at IQ1_M with reasoning <em>none</em>. <code>ATTRIBUTION_ADAPTER_SETUP.md</code> has the per-quant table.</div>
                             <label class="form-label mt-2" for="llm-provider-extra-body">Custom request body (JSON object)</label>
                             <textarea class="form-control font-monospace" id="llm-provider-extra-body" rows="3" placeholder='{"top_k": 40}'></textarea>
                         </details>
@@ -899,7 +899,7 @@
                                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAttributionPrompt()">What the model will see</button>
                                     </div>
                                 </div>
-                                <div class="form-text mt-2">Built-in prompts are the ones this project measured; their names match <code>RECIPES.md</code> ("Prompt"). Pick one and its text appears below - edit it and it is what the next run sends. To keep an edit, <strong>Save as preset</strong> gives it a name; saving Setup with a built-in edited saves it as "<em>name</em> (edited)" and selects that. If you are using a trained adapter (LoRA), stay on <code>default</code>: adapters learn the wording they were trained with.</div>
+                                <div class="form-text mt-2">Built-in prompts are the ones this project measured; their names match <code>RECIPES.md</code> ("Prompt"). Pick one and its text appears below - edit it and it is what the next run sends. To keep an edit, <strong>Save as preset</strong> gives it a name; saving Setup with a built-in edited saves it as "<em>name</em> (edited)" and selects that. If you are using a trained adapter (LoRA), use the prompt it was trained with: the Qwen3-14B adapters were trained on <code>default</code> and are a null under <code>michel2_full</code>; the Qwen3.8 and A3B <code>michel2</code> adapters were trained on this shape and are measured under <code>michel2_full</code>.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">System prompt <span class="text-muted small">(sent as the system message)</span></label>
