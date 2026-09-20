@@ -344,14 +344,14 @@ Every arm served correctly (0 errors, 0 retries, ≤1 blank row).
 | Qwen3.6-35B-A3B | IQ1_M | on | 87.5 → 85.0 (−2.5, +38/−57) | 96.2 → 98.1 | 82.3 → 84.1 | |
 | Qwen3.6-35B-A3B | IQ2_XXS | on | 88.3 → 87.9 (−0.4, +46/−49) | 95.6 → 95.3 | 80.3 → 80.6 | |
 | Qwen3.6-35B-A3B | IQ3_XXS | on | 87.5 → 86.6 (−0.9, +36/−43) | 95.6 → 82.7 (93.1 echo-stripped) | 80.9 → 72.8 | 79 of 663 adapter rows are the roster-line echo (§Prompt) |
-| Qwen3.6-35B-A3B | Q4_K_XL | on | Q4KXL_ROW | Q4KXL_EMMA | Q4KXL_SUN | |
+| Qwen3.6-35B-A3B | Q4_K_XL | on | 90.8 → 88.5 (−2.2, +31/−48) | two-book running |  | |
 | Qwen3-14B | Q4_K_M, nine PDNC novels (2,655 rows), `default` prompt | low | 67.6 → **72.6 (+5.0)** | | | tnr-2 `qwen3-14b-rightsclean-default-tnr2-pdnc9lite` |
 | Qwen3-14B | same, `michel2_full` | low | 84.3 → 84.3 (0; Emma 89.6 → 95.9, P&P 88.9 → 77.0, S&S 87.4 → 82.1) | | | `qwen3-14b-rightsclean-michel2_full-tnr2-pdnc9lite` |
 
 Read across: the dense Qwen3.8 adapter's gain grows as the quant shrinks
 (0 → +1.3 → +2.6), which is the shape the adapters were kept for - it earns
 its place at Q3_K_XL and below. The A3B adapter helps only at IQ1_M with
-reasoning off and is flat-to-negative with reasoning on at every rung; its
+reasoning off and is flat-to-negative with reasoning on at every rung, including the shipping Q4_K_XL (−2.2); its
 rows were rendered with reasoning off, and the base's own reasoning already
 covers what it learned. The Qwen3-14B adapter's +5.0 on the nine novels
 under `default` is a null under the product prompt - the adapter and

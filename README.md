@@ -69,7 +69,7 @@ nothing you could not redistribute). Public on the Hub:
 | Qwen3.6-35B-A3B `michel2` | IQ1_M | on | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
 | Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
 | Qwen3.6-35B-A3B `michel2` | IQ3_XXS 13.2 GB | on | 87.5 → 86.6 (−0.9) | 95.6 → 82.7 (roster-line echo; 93.1 read as the app reads it) |
-| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | Q4KXL_ROW | Q4KXL_EMMA |
+| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | 90.8 → 88.5 (−2.2) | queued (~10:30 AM) |
 | Qwen3-14B rights-clean, seed 1 / 2 | Q4_K_M 9.0 GB, `default` prompt | low, budget 1024 | 66.1 → **74.7 / 74.9** | 68.9 → 75.8 / 69.5 |
 | Qwen3-14B rights-clean | Q4_K_M, `michel2_full`, nine PDNC novels (2,655 rows) | low | 84.3 → 84.3 (0) | 89.6 → 95.9, but P&P 88.9 → 77.0 |
 

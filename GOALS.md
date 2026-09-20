@@ -1272,7 +1272,7 @@ fixture the dense **Qwen3.8-27B** adapter's gain grows as the quant shrinks —
 Q4_K_M 0 (reasoning on) / +0.9 (off), Q3_K_XL **+1.3**, IQ2_XXS **+2.6** — and
 the **Qwen3.6-35B-A3B** adapter helps only at IQ1_M with reasoning off
 (**+3.0**, +65/−42) and is flat-to-negative with reasoning on at every rung
-(−2.5 / −0.4 / −0.9). On Emma (held out) the Qwen3.8 adapter is at the
+(−2.5 / −0.4 / −0.9 / −2.2 at Q4_K_XL). On Emma (held out) the Qwen3.8 adapter is at the
 ceiling either way (99.1 / 99.7 base); the A3B adapter moves Emma by ±2 in
 either direction by reasoning mode. The Qwen3-14B adapter, the one with the
 large four-book gain (+8.6 / +8.8 under `default`), is **84.3 → 84.3 (0)**

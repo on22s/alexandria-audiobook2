@@ -18,7 +18,7 @@ the public collection
 | Qwen3.6-35B-A3B | IQ1_M | on | 87.5 → 85.0 (−2.5) | no |
 | Qwen3.6-35B-A3B | IQ2_XXS (10.8 GB) | on | 88.3 → 87.9 (−0.4) | no |
 | Qwen3.6-35B-A3B | IQ3_XXS (13.2 GB) | on | 87.5 → 86.6 (−0.9) | no |
-| Qwen3.6-35B-A3B | Q4_K_XL (22.4 GB) | on | Q4KXL_ROW | Q4KXL_VERDICT |
+| Qwen3.6-35B-A3B | Q4_K_XL (22.4 GB) | on | 90.8 → 88.5 (−2.2) | no |
 | Qwen3-14B | Q4_K_M (9.0 GB) | low, budget 1024 | 66.1 → **74.7 / 74.9 (+8.6 / +8.8)** under `default`; **84.3 → 84.3 (0)** under `michel2_full` on nine PDNC novels | only with the `default` prompt; under `michel2_full` use the base |
 
 Two things the table does not say on its own. The A3B adapter on PDNC text

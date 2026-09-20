@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-20 from `ab_test_runtime/experiments/` — 1711 artifacts, 2146 arms.
+Generated 2026-09-20 from `ab_test_runtime/experiments/` — 1712 artifacts, 2154 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -942,6 +942,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 91.7% | exploratory | ok | True | 7207.3s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 91.2% | exploratory | ok | True | 14630.6s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 91.4% | exploratory | ok | True | 6489.7s |
+| grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 90.6% | exploratory | ok | True | 15843.8s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 88.3% | exploratory | ok | True | 7006.5s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 90.4% | exploratory | ok | True | 6296.2s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 385 | 91.7% | exploratory | ok | True | 590.8s |
@@ -950,6 +951,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 385 | 90.4% | exploratory | ok | True | 14974.4s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 385 | 90.6% | exploratory | ok | True | 15040.2s |
 | grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 385 | 92.2% | exploratory | ok | True | 14630.6s |
+| grimgar03 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 385 | 91.7% | exploratory | ok | True | 15843.8s |
 | grimgar03 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 385 | 85.5% | exploratory | ok | True | 21237.6s |
 | grimgar03 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 385 | 85.5% | exploratory | ok | True | 10995.8s |
 | grimgar03 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 385 | 88.8% | exploratory | ok | True | 25507.1s |
@@ -1166,6 +1168,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 81.8% | exploratory | ok | True | 7207.3s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 79.5% | exploratory | ok | True | 14630.6s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 83.0% | exploratory | ok | True | 6489.7s |
+| index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 79.5% | exploratory | ok | True | 15843.8s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 83.0% | exploratory | ok | True | 7006.5s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 83.0% | exploratory | ok | True | 6296.2s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 88 | 81.8% | exploratory | ok | True | 590.8s |
@@ -1174,6 +1177,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 88 | 80.7% | exploratory | ok | True | 14974.4s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 88 | 76.1% | exploratory | ok | True | 15040.2s |
 | index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 88 | 79.5% | exploratory | ok | True | 14630.6s |
+| index18 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 88 | 84.1% | exploratory | ok | True | 15843.8s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | True | 21237.6s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | True | 10995.8s |
 | index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 87.5% | exploratory | ok | True | 25507.1s |
@@ -1409,6 +1413,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 88.7% | exploratory | ok | True | 7207.3s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 91.0% | exploratory | ok | True | 14630.6s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 88.7% | exploratory | ok | True | 6489.7s |
+| mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 91.7% | exploratory | ok | True | 15843.8s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 88.7% | exploratory | ok | True | 7006.5s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 87.2% | exploratory | ok | True | 6296.2s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 133 | 89.5% | exploratory | ok | True | 590.8s |
@@ -1417,6 +1422,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 133 | 78.9% | exploratory | ok | True | 14974.4s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 133 | 85.7% | exploratory | ok | True | 15040.2s |
 | mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 133 | 83.5% | exploratory | ok | True | 14630.6s |
+| mushoku16 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 133 | 83.5% | exploratory | ok | True | 15843.8s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 84.2% | exploratory | ok | True | 21237.6s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 84.2% | exploratory | ok | True | 10995.8s |
 | mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 91.0% | exploratory | ok | True | 25507.1s |
@@ -1657,6 +1663,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 80.9% | exploratory | ok | True | 7207.3s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 80.2% | exploratory | ok | True | 14630.6s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 82.1% | exploratory | ok | True | 6489.7s |
+| owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 96.3% | exploratory | ok | True | 15843.8s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 82.7% | exploratory | ok | True | 7006.5s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 83.3% | exploratory | ok | True | 6296.2s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 162 | 88.9% | exploratory | ok | True | 590.8s |
@@ -1665,6 +1672,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 162 | 79.6% | exploratory | ok | True | 14974.4s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 162 | 89.5% | exploratory | ok | True | 15040.2s |
 | owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 162 | 79.6% | exploratory | ok | True | 14630.6s |
+| owarimonogatari3 | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 162 | 87.7% | exploratory | ok | True | 15843.8s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 79.0% | exploratory | ok | True | 21237.6s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 79.0% | exploratory | ok | True | 10995.8s |
 | owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 81.5% | exploratory | ok | True | 25507.1s |

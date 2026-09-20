@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "9319c9696c21939266386f1e8c95c2e6ce3abdb0f5b0a4b823eb51e42fa82602",
+  "source_structural_sha256": "2468c8ce333dcce82b0707bd0a7c3c5cb5a479cc397f7049078ed3679c0d5df0",
   "summary": {
-    "exploratory": 186,
+    "exploratory": 187,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -4536,6 +4536,29 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 383,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen36-35b-a3b-q4kxl-rightsclean-michel2-adapter-tnr0-cleangold-michel2_full-reasoningon-schema-20260917.json",
+      "family": "lora_serving_eval",
+      "rows": 1536,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 766,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 298,
+    "provisional": 299,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -14355,6 +14355,24 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "95dd67001b32cff561fbfd2180e57faa95afceb8",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen36-35b-a3b-q4kxl-rightsclean-michel2-adapter-tnr0-cleangold-michel2_full-reasoningon-schema-20260917.json",
+      "bytes": 1361663,
+      "sha256": "c7917604d25baea6140772bd7ba1ec89cde11bcdfd2bb280dbfc458e387f99ed",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 1536,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
       "classification": "provisional",
