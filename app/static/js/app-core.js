@@ -476,6 +476,8 @@
         let failoverIsRemote = false;   // server-computed: llm_failover on AND the other profile is remote
         let promptPresets = [];
         let activePromptPreset = 'michel2_full';
+        const passPromptPresets = {pass1: [], pass3: []};
+        const activePassPromptPreset = {pass1: 'default', pass3: 'default'};
 
         function promptBoxes() {
             return {
@@ -484,6 +486,77 @@
                 example: document.getElementById('prompt-example').value,
             };
         }
+
+        function passPromptFields(pass) {
+            return pass === 'pass1'
+                ? {system: 'pass1-system-prompt', user: 'pass1-user-prompt'}
+                : {system: 'pass3-system-prompt', user: 'pass3-user-prompt'};
+        }
+
+        function renderPassPromptPresets(pass, presets, activeName) {
+            passPromptPresets[pass] = Array.isArray(presets) ? presets : [];
+            activePassPromptPreset[pass] = activeName || 'default';
+            const select = document.getElementById(`${pass}-prompt-preset-select`);
+            if (!select) { return; }
+            select.replaceChildren();
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '-1';
+            defaultOption.textContent = 'Default (checked-in prompt)';
+            select.appendChild(defaultOption);
+            passPromptPresets[pass].forEach((preset, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = preset.name;
+                select.appendChild(option);
+            });
+            select.onchange = () => applyPassPromptPreset(pass, Number(select.value));
+            const index = passPromptPresets[pass].findIndex(p => p.name === activePassPromptPreset[pass]);
+            select.value = index >= 0 ? String(index) : '-1';
+            applyPassPromptPreset(pass, index);
+        }
+
+        function applyPassPromptPreset(pass, index) {
+            const preset = passPromptPresets[pass][index];
+            const fields = passPromptFields(pass);
+            document.getElementById(fields.system).value = preset?.system_prompt || '';
+            document.getElementById(fields.user).value = preset?.user_prompt || '';
+            activePassPromptPreset[pass] = preset?.name || 'default';
+        }
+
+        window.savePassPromptPreset = async (pass) => {
+            const fields = passPromptFields(pass);
+            const name = window.prompt('Preset name:', activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass]);
+            if (!name || !name.trim()) { return; }
+            const description = window.prompt('When should it be used?', '') || '';
+            const preset = {name: name.trim(), description: description.trim(),
+                system_prompt: document.getElementById(fields.system).value,
+                user_prompt: document.getElementById(fields.user).value};
+            const presets = passPromptPresets[pass];
+            const index = presets.findIndex(p => p.name === preset.name);
+            if (index >= 0) { presets[index] = preset; } else { presets.push(preset); }
+            activePassPromptPreset[pass] = preset.name;
+            renderPassPromptPresets(pass, presets, preset.name);
+            try {
+                await persistPromptPresets();
+                showToast(`${pass} prompt preset saved.`, 'success');
+            } catch (e) { showToast('Could not save prompt preset: ' + e.message, 'error'); }
+        };
+
+        window.deletePassPromptPreset = async (pass) => {
+            const presets = passPromptPresets[pass];
+            const index = presets.findIndex(p => p.name === activePassPromptPreset[pass]);
+            if (index < 0) { showToast('Select a saved preset first.', 'warning'); return; }
+            if (!window.confirm(`Delete preset "${presets[index].name}"?`)) { return; }
+            presets.splice(index, 1);
+            activePassPromptPreset[pass] = 'default';
+            renderPassPromptPresets(pass, presets, 'default');
+            try {
+                await persistPromptPresets();
+                showToast('Prompt preset deleted.', 'success');
+            } catch (e) {
+                showToast('Could not delete prompt preset: ' + e.message, 'error');
+            }
+        };
 
         function selectedPromptPreset() {
             const select = document.getElementById('prompt-preset-select');
@@ -855,6 +928,12 @@
 
                 // Load custom prompts if they exist and are non-empty
                 if (config.prompts) {
+                    if (config.prompts.system_prompt) {
+                        document.getElementById('system-prompt').value = config.prompts.system_prompt;
+                    }
+                    if (config.prompts.user_prompt) {
+                        document.getElementById('user-prompt').value = config.prompts.user_prompt;
+                    }
                     if (config.prompts.review_system_prompt) {
                         document.getElementById('review-system-prompt').value = config.prompts.review_system_prompt;
                     }
@@ -873,6 +952,10 @@
                 }
                 activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'michel2_full';
                 renderPromptPresets(config.prompt_presets || [], activePromptPreset);
+                renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
+                    config.prompts?.pass1_preset || 'default');
+                renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
+                    config.prompts?.pass3_preset || 'default');
 
                 // If review/persona prompts are still empty, fetch defaults
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
@@ -1026,12 +1109,18 @@
                     pause_same_speaker_ms: getNumFieldValue('pause-same-speaker', 250, true)
                 },
                 prompts: {
+                    system_prompt: document.getElementById('system-prompt').value,
+                    user_prompt: document.getElementById('user-prompt').value,
                     attribution_preset: presetPayload.active,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
                     review_user_prompt: document.getElementById('review-user-prompt').value,
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
-                    persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value
+                    persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
+                    pass1_preset: activePassPromptPreset.pass1,
+                    pass1_prompt_presets: passPromptPresets.pass1,
+                    pass3_preset: activePassPromptPreset.pass3,
+                    pass3_prompt_presets: passPromptPresets.pass3
                 },
                 prompt_presets: presetPayload.own,
                 generation: {

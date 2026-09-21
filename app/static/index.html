@@ -846,9 +846,10 @@
                                         <select class="form-select form-select-sm" id="tp-segmentation">
                                             <option value="auto" selected>Auto (recommended)</option>
                                             <option value="quotes">Quote marks only (no Step 1 model calls)</option>
+                                            <option value="lexical">Quote-aware (quoted terms as narration)</option>
                                             <option value="llm">Model only</option>
                                         </select>
-                                        <div class="form-text"><strong>Auto</strong> uses the quote marks where the text makes it clear which parts are speech and asks the model about the rest. <strong>Quote marks only</strong> never asks the model: anything inside quote marks is dialogue, everything else is narration, and Step 1 makes no model calls at all — only for books that put their dialogue in quote marks (the run refuses to start on one that does not). <strong>Model only</strong> always asks the model, even where the quote marks are clear.</div>
+                                        <div class="form-text"><strong>Auto</strong> uses the quote marks where the text makes it clear which parts are speech and asks the model about the rest. <strong>Quote marks only</strong> never asks the model: anything inside quote marks is dialogue, everything else is narration. <strong>Quote-aware</strong> is the same deterministic split but treats strongly signalled quoted terms (for example, “known as X”) as narration. <strong>Model only</strong> always asks the model.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-temperature">Segment temperature</label>
@@ -902,7 +903,24 @@
                                 <div class="form-text mt-2">Built-in prompts are the ones this project measured; their names match <code>RECIPES.md</code> ("Prompt"). Pick one and its text appears below - edit it and it is what the next run sends. To keep an edit, <strong>Save as preset</strong> gives it a name; saving Setup with a built-in edited saves it as "<em>name</em> (edited)" and selects that. If you are using a trained adapter (LoRA), use the prompt it was trained with: the Qwen3-14B adapters were trained on <code>default</code> and are a null under <code>michel2_full</code>; the Qwen3.8 and A3B <code>michel2</code> adapters were trained on this shape and are measured under <code>michel2_full</code>.</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">System prompt <span class="text-muted small">(sent as the system message)</span></label>
+                                <div class="row g-2 align-items-end mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label mb-1" for="pass1-prompt-preset-select">Pass 1 prompt preset</label>
+                                        <select class="form-select" id="pass1-prompt-preset-select"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1" onclick="savePassPromptPreset('pass1')">Save as preset</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePassPromptPreset('pass1')">Delete selected</button>
+                                    </div>
+                                </div>
+                                <label class="form-label">Pass 1 system prompt <span class="text-muted small">(sent during deterministic segmentation)</span></label>
+                                <textarea class="form-control font-monospace" id="pass1-system-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <label class="form-label mt-2">Pass 1 user prompt template</label>
+                                <textarea class="form-control font-monospace" id="pass1-user-prompt" rows="5" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Leave the preset at Default to use the checked-in Pass 1 prompt. Custom templates must keep <code>{chunk}</code>.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">System prompt <span class="text-muted small">(single-pass attribution)</span></label>
                                 <textarea class="form-control font-monospace" id="system-prompt" rows="12" style="font-size: 0.85em;"></textarea>
                             </div>
                             <div class="mb-3">
@@ -927,6 +945,23 @@
                             </div>
                             <hr>
                             <h6 class="mb-3">Review Prompt Customization</h6>
+                            <div class="mb-3">
+                                <div class="row g-2 align-items-end mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label mb-1" for="pass3-prompt-preset-select">Pass 3 prompt preset</label>
+                                        <select class="form-select" id="pass3-prompt-preset-select"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1" onclick="savePassPromptPreset('pass3')">Save as preset</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePassPromptPreset('pass3')">Delete selected</button>
+                                    </div>
+                                </div>
+                                <label class="form-label">Pass 3 system prompt <span class="text-muted small">(sent during delivery-note generation)</span></label>
+                                <textarea class="form-control font-monospace" id="pass3-system-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <label class="form-label mt-2">Pass 3 user prompt template</label>
+                                <textarea class="form-control font-monospace" id="pass3-user-prompt" rows="5" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Leave the preset at Default to use the checked-in Pass 3 prompt. Custom templates must keep <code>{batch}</code>.</div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Review System Prompt</label>
                                 <textarea class="form-control font-monospace" id="review-system-prompt" rows="12" style="font-size: 0.85em;"></textarea>

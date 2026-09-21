@@ -1139,6 +1139,7 @@
             "enum": [
               "auto",
               "quotes",
+              "lexical",
               "llm"
             ],
             "title": "Three Pass Segmentation",
@@ -1808,6 +1809,36 @@
             "title": "Attribution Preset",
             "type": "string"
           },
+          "pass1_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pass1 Preset",
+            "type": "string"
+          },
+          "pass1_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/TextPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Pass1 Prompt Presets",
+            "type": "array"
+          },
+          "pass3_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pass3 Preset",
+            "type": "string"
+          },
+          "pass3_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/TextPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Pass3 Prompt Presets",
+            "type": "array"
+          },
           "persona_advanced_prompt": {
             "anyOf": [
               {
@@ -2309,6 +2340,40 @@
         "title": "TTSConfig",
         "type": "object"
       },
+      "TextPromptPreset": {
+        "description": "Named system/user text for one numbered generation pass.",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "User Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TextPromptPreset",
+        "type": "object"
+      },
       "ThreePassModelProfile": {
         "properties": {
           "attribute_temperature": {
@@ -2382,6 +2447,7 @@
                 "enum": [
                   "auto",
                   "quotes",
+                  "lexical",
                   "llm"
                 ],
                 "type": "string"

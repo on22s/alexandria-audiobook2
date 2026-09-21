@@ -510,6 +510,20 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
             cs.PromptPreset(name="n", variant="judge")
         self.assertEqual("michel2_full", cs.PromptConfig().attribution_preset)
 
+    def test_numbered_pass_prompt_presets_are_named_and_bounded(self):
+        import config_settings as cs
+        prompt = cs.PromptConfig(
+            pass1_preset="clean",
+            pass1_prompt_presets=[cs.TextPromptPreset(
+                name="clean", system_prompt="S", user_prompt="U")],
+            pass3_preset="review",
+            pass3_prompt_presets=[cs.TextPromptPreset(
+                name="review", system_prompt="RS", user_prompt="RU")])
+        self.assertEqual("U", prompt.pass1_prompt_presets[0].user_prompt)
+        self.assertEqual("review", prompt.pass3_preset)
+        with self.assertRaises(Exception):
+            cs.TextPromptPreset(name="x", system_prompt="x" * 100001)
+
 
     def test_stored_prompt_presets_load_as_dicts(self):
         import json, os, tempfile

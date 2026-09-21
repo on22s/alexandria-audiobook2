@@ -100,7 +100,7 @@ PromptVariant = Literal[
 # dialogue, the rest narration, no pass-1 calls (issue #588; a plain quote
 # segmenter finds 99.84% of PDNC's labelled quotations,
 # quote_segmenter_pdnc_20260918.json). "llm": always ask the model.
-SegmentationMode = Literal["auto", "quotes", "llm"]
+SegmentationMode = Literal["auto", "quotes", "lexical", "llm"]
 
 
 class ThreePassModelProfile(BaseModel):
@@ -147,6 +147,14 @@ class GenerationConfig(BaseModel):
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 
+class TextPromptPreset(BaseModel):
+    """Named system/user text for one numbered generation pass."""
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=500)
+    system_prompt: str = Field(default="", max_length=100_000)
+    user_prompt: str = Field(default="", max_length=100_000)
+
+
 class PromptConfig(BaseModel):
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
@@ -159,6 +167,10 @@ class PromptConfig(BaseModel):
     persona_system_prompt: Optional[str] = None
     persona_user_prompt: Optional[str] = None
     persona_advanced_prompt: Optional[str] = None
+    pass1_preset: str = Field(default="default", min_length=1, max_length=80)
+    pass1_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
+    pass3_preset: str = Field(default="default", min_length=1, max_length=80)
+    pass3_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
 
 
 class PromptPreset(BaseModel):

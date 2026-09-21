@@ -1,6 +1,7 @@
 from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
-from pass_quality import (split_outer_quote_regions, validate_attribution,
+from pass_quality import (classify_lexical_quote_regions, analyze_outer_quote_regions,
+                          split_outer_quote_regions, validate_attribution,
                           validate_segment_quality)
 from pass_quality import validate_instruct, index_head_check
 import default_prompts
@@ -11,6 +12,24 @@ def _seg(text, type_="NARRATOR"):
 
 
 class SegmentQualityTests(unittest.TestCase):
+    def test_lexical_quote_classifier_relabels_reference_term_only(self):
+        source = 'He was known as "the Fox". Then she said, "Run!"'
+        analysis = analyze_outer_quote_regions(source)
+        classified = classify_lexical_quote_regions(source, analysis)
+        self.assertEqual(
+            ["NARRATOR", "NARRATOR", "NARRATOR", "SPOKEN"],
+            [region["type"] for region in classified["regions"]])
+        self.assertEqual("LEXICAL_QUOTE", classified["regions"][1]["quote_role"])
+        self.assertEqual("SPOKEN", analysis["regions"][1]["type"])
+
+    def test_lexical_quote_classifier_keeps_repeated_dialogue_term_spoken(self):
+        source = 'He was known as "the Fox". "The Fox" shouted.'
+        classified = classify_lexical_quote_regions(
+            source, analyze_outer_quote_regions(source))
+        self.assertEqual(
+            ["NARRATOR", "NARRATOR", "NARRATOR", "SPOKEN", "NARRATOR"],
+            [region["type"] for region in classified["regions"]])
+
     def test_chapter_title_in_source_credit_is_not_dialogue(self):
         source = ('Light Novel Adaptation found in Volume 9, Interlude '
                   '“To Each Their Vows”.')

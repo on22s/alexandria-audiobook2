@@ -587,6 +587,10 @@ class LLMGenParams:
     retry_multiplier: float = 2
     retry_max_delay_seconds: float = 30
     retry_jitter: float = 0
+    segment_system_prompt: str = None
+    segment_user_prompt_template: str = None
+    instruct_system_prompt: str = None
+    instruct_user_prompt_template: str = None
     # What to do when the API retry budget runs out on a RETRYABLE error (rate
     # limit, 5xx, timeout): "fail" gives the chunk up as today; "pause" freezes
     # the run in place so an operator can fix the provider and press Resume,
