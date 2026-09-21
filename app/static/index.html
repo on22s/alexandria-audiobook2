@@ -77,6 +77,121 @@
             --log-color:      #4a8a4a;
         }
 
+        /* ── Cyberpunk mode ───────────────────────────────────────────── */
+        html[data-theme="cyberpunk"] {
+            color-scheme: dark;
+            --bg-page:        #090b12;
+            --bg-card:        #111522;
+            --bg-card-header: #171d2c;
+            --bg-input:       #0d111c;
+            --bg-navbar:      #080a10;
+            --bg-modal:       #111522;
+            --text-primary:   #e5f7ff;
+            --text-muted:     #8aa0b3;
+            --text-heading:   #f5fbff;
+            --border-color:   rgba(0,240,255,0.22);
+            --border-input:   #2b4355;
+            --shadow:         rgba(0,0,0,0.65);
+            --step-bg:        #202a3d;
+            --step-color:     #8aa0b3;
+            --hr-color:       rgba(0,240,255,0.18);
+            --badge-muted-bg: #26354a;
+            --log-bg:         #05070c;
+            --log-color:      #fcee54;
+            --cyber-cyan:     #00f0ff;
+            --cyber-yellow:   #fcee54;
+            --cyber-pink:     #ff2bd6;
+        }
+
+        html[data-theme="cyberpunk"] body {
+            background-image: linear-gradient(rgba(0,240,255,0.035) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0,240,255,0.035) 1px, transparent 1px),
+                              radial-gradient(circle at 85% 0%, rgba(255,43,214,0.12), transparent 32rem);
+            background-size: 28px 28px, 28px 28px, auto;
+            background-attachment: fixed;
+        }
+        html[data-theme="cyberpunk"] .navbar {
+            border-bottom: 1px solid rgba(0,240,255,0.45);
+            box-shadow: 0 0 18px rgba(0,240,255,0.12);
+        }
+        html[data-theme="cyberpunk"] .card {
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0 0 1px rgba(255,43,214,0.04), 0 8px 24px var(--shadow);
+        }
+        html[data-theme="cyberpunk"] .card-header {
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom-color: rgba(0,240,255,0.28);
+        }
+        html[data-theme="cyberpunk"] .form-control:focus,
+        html[data-theme="cyberpunk"] .form-select:focus {
+            border-color: var(--cyber-yellow);
+            box-shadow: 0 0 0 0.2rem rgba(252,238,84,0.16), 0 0 12px rgba(255,43,214,0.18);
+        }
+        html[data-theme="cyberpunk"] .btn-primary,
+        html[data-theme="cyberpunk"] .btn-info {
+            --bs-btn-bg: #087f91;
+            --bs-btn-border-color: var(--cyber-cyan);
+            --bs-btn-hover-bg: #00a6b8;
+            --bs-btn-hover-border-color: var(--cyber-cyan);
+        }
+        html[data-theme="cyberpunk"] .btn-warning {
+            --bs-btn-color: #090b12;
+            --bs-btn-bg: var(--cyber-yellow);
+            --bs-btn-border-color: var(--cyber-yellow);
+        }
+        html[data-theme="cyberpunk"] .btn-success {
+            --bs-btn-bg: #16805d;
+            --bs-btn-border-color: #2cffad;
+        }
+        html[data-theme="cyberpunk"] .nav-link.nav-pipeline.active {
+            background-color: #087f91;
+            box-shadow: 0 0 10px rgba(0,240,255,0.3);
+        }
+        html[data-theme="cyberpunk"] .nav-link.nav-advanced.active {
+            background-color: #a51d88;
+            box-shadow: 0 0 10px rgba(255,43,214,0.3);
+        }
+        html[data-theme="cyberpunk"] .step-active {
+            background-color: var(--cyber-yellow);
+            color: #090b12;
+            box-shadow: 0 0 10px rgba(252,238,84,0.35);
+        }
+        html[data-theme="cyberpunk"] .voice-card { border-left-color: var(--cyber-pink); }
+        html[data-theme="cyberpunk"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+            background-color: rgba(0,240,255,0.035);
+        }
+        html[data-theme="cyberpunk"] .progress { background-color: var(--bg-input); }
+        html[data-theme="cyberpunk"] .progress-bar { background-color: var(--cyber-cyan); color: #090b12; }
+        html[data-theme="cyberpunk"] #theme-toggle {
+            border-color: rgba(252,238,84,0.65);
+            color: var(--cyber-yellow);
+        }
+        html[data-theme="cyberpunk"] #theme-toggle:hover {
+            background: rgba(255,43,214,0.16);
+            border-color: var(--cyber-pink);
+            color: #fff;
+        }
+        html[data-theme="cyberpunk"] select option,
+        html[data-theme="cyberpunk"] .bg-white,
+        html[data-theme="cyberpunk"] .bg-light,
+        html[data-theme="cyberpunk"] .bg-body {
+            background-color: var(--bg-input) !important;
+            color: var(--text-primary);
+        }
+        html[data-theme="cyberpunk"] {
+            --bs-body-bg: var(--bg-page);
+            --bs-body-color: var(--text-primary);
+            --bs-border-color: var(--border-color);
+            --bs-card-bg: var(--bg-card);
+            --bs-card-cap-bg: var(--bg-card-header);
+            --bs-modal-bg: var(--bg-modal);
+            --bs-secondary-bg: var(--bg-card-header);
+            --bs-tertiary-bg: var(--bg-card);
+            --bs-secondary-color: var(--text-muted);
+            --bs-tertiary-color: var(--text-muted);
+        }
+
         /* ── Base styles using tokens ──────────────────────────────────── */
         body {
             background-color: var(--bg-page);
@@ -334,35 +449,40 @@
 
         /* ── Bootstrap contextual table class overrides ────────────────── */
         html[data-theme="night"] .table-light,
-        html[data-theme="super-night"] .table-light {
+        html[data-theme="super-night"] .table-light,
+        html[data-theme="cyberpunk"] .table-light {
             --bs-table-color: var(--text-primary);
             --bs-table-bg: var(--bg-card-header);
             --bs-table-border-color: var(--border-color);
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-primary,
-        html[data-theme="super-night"] .table-primary {
+        html[data-theme="super-night"] .table-primary,
+        html[data-theme="cyberpunk"] .table-primary {
             --bs-table-color: var(--text-primary);
             --bs-table-bg: rgba(13,110,253,0.18);
             --bs-table-border-color: var(--border-color);
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-info,
-        html[data-theme="super-night"] .table-info {
+        html[data-theme="super-night"] .table-info,
+        html[data-theme="cyberpunk"] .table-info {
             --bs-table-color: var(--text-primary);
             --bs-table-bg: rgba(13,202,240,0.12);
             --bs-table-border-color: var(--border-color);
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-warning,
-        html[data-theme="super-night"] .table-warning {
+        html[data-theme="super-night"] .table-warning,
+        html[data-theme="cyberpunk"] .table-warning {
             --bs-table-color: var(--text-primary);
             --bs-table-bg: rgba(255,193,7,0.14);
             --bs-table-border-color: var(--border-color);
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-secondary,
-        html[data-theme="super-night"] .table-secondary {
+        html[data-theme="super-night"] .table-secondary,
+        html[data-theme="cyberpunk"] .table-secondary {
             --bs-table-color: var(--text-primary);
             --bs-table-bg: var(--bg-card-header);
             --bs-table-border-color: var(--border-color);
@@ -409,7 +529,8 @@
 
         /* ── btn-outline-secondary in dark modes ───────────────────────── */
         html[data-theme="night"] .btn-outline-secondary,
-        html[data-theme="super-night"] .btn-outline-secondary {
+        html[data-theme="super-night"] .btn-outline-secondary,
+        html[data-theme="cyberpunk"] .btn-outline-secondary {
             --bs-btn-color:         var(--text-primary);
             --bs-btn-border-color:  rgba(255,255,255,0.28);
             --bs-btn-hover-color:   var(--text-heading);
@@ -425,23 +546,28 @@
            background. Brighten the resting text/border in dark modes; hover
            behavior (filled bg) keeps Bootstrap's defaults. ─────────────────── */
         html[data-theme="night"] .btn-outline-primary,
-        html[data-theme="super-night"] .btn-outline-primary {
+        html[data-theme="super-night"] .btn-outline-primary,
+        html[data-theme="cyberpunk"] .btn-outline-primary {
             --bs-btn-color: #6ea8fe; --bs-btn-border-color: #6ea8fe;
         }
         html[data-theme="night"] .btn-outline-success,
-        html[data-theme="super-night"] .btn-outline-success {
+        html[data-theme="super-night"] .btn-outline-success,
+        html[data-theme="cyberpunk"] .btn-outline-success {
             --bs-btn-color: #75b798; --bs-btn-border-color: #75b798;
         }
         html[data-theme="night"] .btn-outline-danger,
-        html[data-theme="super-night"] .btn-outline-danger {
+        html[data-theme="super-night"] .btn-outline-danger,
+        html[data-theme="cyberpunk"] .btn-outline-danger {
             --bs-btn-color: #ea868f; --bs-btn-border-color: #ea868f;
         }
         html[data-theme="night"] .btn-outline-warning,
-        html[data-theme="super-night"] .btn-outline-warning {
+        html[data-theme="super-night"] .btn-outline-warning,
+        html[data-theme="cyberpunk"] .btn-outline-warning {
             --bs-btn-color: #ffda6a; --bs-btn-border-color: #ffda6a;
         }
         html[data-theme="night"] .btn-outline-info,
-        html[data-theme="super-night"] .btn-outline-info {
+        html[data-theme="super-night"] .btn-outline-info,
+        html[data-theme="cyberpunk"] .btn-outline-info {
             --bs-btn-color: #6edff6; --bs-btn-border-color: #6edff6;
         }
 
