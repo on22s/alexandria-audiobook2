@@ -3685,8 +3685,10 @@
     "tests.test_two_step_attribution.ValidationIsNotBypassed.test_stage1_only_returns_nothing_when_the_validator_refuses"
   ],
   "test_ui_contract": [
+    "tests.test_ui_contract.UIContractTests.test_error_toasts_are_assertive_but_other_toasts_are_polite",
     "tests.test_ui_contract.UIContractTests.test_pass_prompt_defaults_have_a_server_and_browser_path",
     "tests.test_ui_contract.UIContractTests.test_primary_navigation_is_keyboard_addressable",
+    "tests.test_ui_contract.UIContractTests.test_reset_preserves_numbered_prompt_presets",
     "tests.test_ui_contract.UIContractTests.test_ui_docs_cover_required_review_dimensions"
   ],
   "test_ui_review_fixes": [
