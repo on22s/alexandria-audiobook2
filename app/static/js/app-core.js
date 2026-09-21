@@ -266,6 +266,7 @@
             { key: 'light',       icon: 'fa-sun',      label: 'Light'      },
             { key: 'night',       icon: 'fa-moon',     label: 'Night'      },
             { key: 'super-night', icon: 'fa-circle',   label: 'Super Night'},
+            { key: 'cyberpunk',   icon: 'fa-bolt',     label: 'Cyberpunk'  },
         ];
 
         function applyTheme(key) {
