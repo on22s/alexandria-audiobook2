@@ -30,6 +30,17 @@
             --badge-muted-bg: #6c757d;
             --log-bg:         #1e1e1e;
             --log-color:      #00ff00;
+            --accent:         #0d6efd;
+            --accent-strong:  #0a58ca;
+            --accent-soft:    rgba(13,110,253,0.12);
+            --success:        #198754;
+            --warning:        #ffc107;
+            --danger:         #dc3545;
+            --focus-ring:     rgba(13,110,253,0.28);
+            --radius-sm:      0.375rem;
+            --radius-md:      0.6rem;
+            --space-section:  1.5rem;
+            --motion-fast:    0.15s ease;
             --theme-transition: background-color 0.25s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -53,6 +64,10 @@
             --badge-muted-bg: #4a5568;
             --log-bg:         #111419;
             --log-color:      #4ade80;
+            --accent:         #6ea8fe;
+            --accent-strong:  #9ec5fe;
+            --accent-soft:    rgba(110,168,254,0.14);
+            --focus-ring:     rgba(110,168,254,0.34);
         }
 
         /* ── Super Night mode ─────────────────────────────────────────── */
@@ -75,6 +90,10 @@
             --badge-muted-bg: #2a2a2a;
             --log-bg:         #000000;
             --log-color:      #4a8a4a;
+            --accent:         #8ab4f8;
+            --accent-strong:  #aecbfa;
+            --accent-soft:    rgba(138,180,248,0.14);
+            --focus-ring:     rgba(138,180,248,0.38);
         }
 
         /* ── Cyberpunk mode ───────────────────────────────────────────── */
@@ -101,6 +120,10 @@
             --cyber-cyan:     #00f0ff;
             --cyber-yellow:   #fcee54;
             --cyber-pink:     #ff2bd6;
+            --accent:         #00f0ff;
+            --accent-strong:  #7df9ff;
+            --accent-soft:    rgba(0,240,255,0.14);
+            --focus-ring:     rgba(252,238,84,0.38);
         }
 
         html[data-theme="cyberpunk"] body {
@@ -200,6 +223,22 @@
         }
         .container-wide { max-width: 85%; margin-left: auto; margin-right: auto; padding-left: 12px; padding-right: 12px; }
         .nav-link { cursor: pointer; }
+
+        /* Shared interaction language. Keep keyboard focus visible without
+           changing the layout or relying on a color-only indication. */
+        :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+            outline: 3px solid var(--focus-ring);
+            outline-offset: 2px;
+        }
+        .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
+        .btn:not(:disabled):hover { filter: brightness(1.06); }
+        .btn:not(:disabled):active { transform: translateY(1px); }
+        .btn:disabled, .btn.disabled { cursor: not-allowed; opacity: 0.62; }
+        .card { border-radius: var(--radius-md); }
+        .card-header { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+        .form-control, .form-select { border-radius: var(--radius-sm); }
+        .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 0.2rem var(--focus-ring); }
+        .section-heading { margin-bottom: var(--space-section); }
 
         /* Cards */
         .card {
@@ -345,8 +384,8 @@
             margin-right: 10px;
             font-weight: bold;
         }
-        .step-active { background-color: #0d6efd; color: white; }
-        .voice-card { border-left: 4px solid #0d6efd; }
+        .step-active { background-color: var(--accent); color: white; }
+        .voice-card { border-left: 4px solid var(--accent); }
 
         /* Editor row expand/collapse */
         .chunk-action-btn {
@@ -363,11 +402,30 @@
         /* Core pipeline tabs - green */
         .nav-link.nav-pipeline { color: rgba(125, 227, 161, 0.7); }
         .nav-link.nav-pipeline:hover { color: #7de3a1; }
-        .nav-link.nav-pipeline.active { color: #fff; background-color: #198754; border-radius: 4px; }
+        .nav-link.nav-pipeline.active { color: #fff; background-color: var(--success); border-radius: 4px; }
         /* Advanced tabs - blue */
         .nav-link.nav-advanced { color: rgba(130, 177, 255, 0.7); }
         .nav-link.nav-advanced:hover { color: #82b1ff; }
-        .nav-link.nav-advanced.active { color: #fff; background-color: #0d6efd; border-radius: 4px; }
+        .nav-link.nav-advanced.active { color: #fff; background-color: var(--accent); border-radius: 4px; }
+        .navbar .nav-link { border-radius: var(--radius-sm); margin: 2px 1px; transition: background-color var(--motion-fast), color var(--motion-fast); }
+        .navbar .nav-link:focus-visible { outline-color: var(--focus-ring); }
+        .navbar .nav-link:not(.active):hover { background-color: var(--accent-soft); }
+        .nav-advanced-start { border-left: 1px solid rgba(255,255,255,0.22); padding-left: 0.75rem; margin-left: 0.5rem; }
+        .nav-section-label {
+            align-self: center;
+            color: rgba(255,255,255,0.48);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0 0.35rem;
+        }
+        .status-cluster {
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: var(--radius-sm);
+            padding: 0.25rem 0.5rem;
+            background: rgba(0,0,0,0.12);
+        }
 
         /* ── Theme toggle button ───────────────────────────────────────── */
         #theme-toggle {
@@ -396,6 +454,28 @@
         html[data-theme="super-night"] #theme-toggle {
             border-color: rgba(80,80,80,0.6);
             color: rgba(120,120,120,0.9);
+        }
+
+        /* Preserve readable density on narrow screens without hiding controls. */
+        @media (max-width: 991.98px) {
+            .container-wide { max-width: 100%; }
+            .navbar .navbar-nav { padding-top: 0.5rem; }
+            .nav-section-label { align-self: flex-start; padding-left: 0.5rem; margin-top: 0.35rem; }
+            .nav-advanced-start { border-left: 0; padding-left: 0; margin-left: 0; margin-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.22); padding-top: 0.5rem; }
+            .navbar-nav.ms-auto { align-items: flex-start !important; padding-bottom: 0.75rem; }
+            .navbar-nav.ms-auto .nav-item.small { flex-wrap: wrap; gap: 0.4rem; }
+        }
+        @media (max-width: 575.98px) {
+            .container-wide { padding-left: 8px; padding-right: 8px; }
+            .card { margin-bottom: 14px; }
+            .card-body { padding: 0.85rem; }
+            .table-responsive { margin-left: -0.25rem; margin-right: -0.25rem; }
+            .table { font-size: 0.9rem; }
+            #toast-container { left: 0; right: 0; bottom: 0; padding: 0.5rem !important; }
+            #toast-container .toast { width: 100%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
         }
 
         /* Tinted card headers in night modes */
@@ -593,25 +673,27 @@
         <button type="button" class="btn btn-sm btn-warning ms-2" onclick="location.reload()"><i class="fas fa-rotate-right me-1"></i>Reload now</button>
         <button type="button" class="btn-close" onclick="document.getElementById('stale-build-banner').style.display='none'" aria-label="Dismiss"></button>
     </div>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4" aria-label="Main navigation">
         <div class="container">
             <a class="navbar-brand" href="#"><i class="fas fa-book-open me-2"></i>Alexandria <span id="app-build-badge" class="badge bg-secondary fw-normal ms-1" style="font-size: 0.6em;" title="Running build"></span></a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link nav-pipeline active" data-tab="setup">1. Setup</a></li>
-                    <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="script">2. Script</a></li>
-                    <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="voices">3. Voices</a></li>
-                    <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
-                    <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
-                    <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="reports">Reports</a></li>
+                    <li class="nav-section-label" aria-hidden="true">Workflow</li>
+                    <li class="nav-item"><a href="#setup" class="nav-link nav-pipeline active" aria-current="page" data-tab="setup">1. Setup</a></li>
+                    <li class="nav-item"><a href="#script" class="nav-link nav-pipeline" data-tab="script">2. Script</a></li>
+                    <li class="nav-item"><a href="#voices" class="nav-link nav-pipeline" data-tab="voices">3. Voices</a></li>
+                    <li class="nav-item"><a href="#editor" class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
+                    <li class="nav-item"><a href="#audio" class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
+                    <li class="nav-section-label nav-advanced-start" aria-hidden="true">Advanced</li>
+                    <li class="nav-item"><a href="#designer" class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                    <li class="nav-item"><a href="#preparer" class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
+                    <li class="nav-item"><a href="#dataset-builder" class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
+                    <li class="nav-item"><a href="#training" class="nav-link nav-advanced" data-tab="training">Training</a></li>
+                    <li class="nav-item"><a href="#voicelab" class="nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
+                    <li class="nav-item"><a href="#reports" class="nav-link nav-advanced" data-tab="reports">Reports</a></li>
                 </ul>
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
                     <li class="nav-item">
@@ -620,7 +702,7 @@
                             <span id="theme-label">Light</span>
                         </button>
                     </li>
-                    <li class="nav-item small d-flex align-items-center" title="System Status">
+                    <li class="nav-item small d-flex align-items-center status-cluster" title="System Status" aria-label="System status">
                         <span id="sys-build" class="text-light d-flex align-items-center me-3" title="Runtime build"><i class="fas fa-code-branch me-1 text-secondary"></i><span id="sys-build-val" style="font-family: monospace;">build ?</span></span>
                         <span id="sys-eta" class="text-light align-items-center me-3" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span id="sys-eta-val" style="font-family: monospace;"></span></span>
                         <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span id="sys-gpu-val" style="font-family: monospace;">N/A</span></span>
@@ -2570,9 +2652,13 @@
         </div>
     </div>
 
-    <div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title" id="confirmModalTitle">Please confirm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
                 <div class="modal-body fs-6" id="confirmModalBody"></div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-secondary btn-sm" id="confirmModalCancel" data-bs-dismiss="modal">Cancel</button>

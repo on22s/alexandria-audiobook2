@@ -17,7 +17,7 @@ from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfi
                              TTSConfig, backup_damaged_app_config, load_app_config,
                              load_app_config_result)
 
-from default_prompts import load_default_prompts
+from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
 from llm_provider import is_api_key_reference
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
@@ -739,9 +739,15 @@ async def get_config():
 @router.get("/api/default_prompts")
 async def get_default_prompts():
     system_prompt, user_prompt = load_default_prompts()
+    pass1_system_prompt, pass1_user_prompt = load_segment_prompts()
+    pass3_system_prompt, pass3_user_prompt = load_instruct_prompts()
     result = {
         "system_prompt": system_prompt,
-        "user_prompt": user_prompt
+        "user_prompt": user_prompt,
+        "pass1_system_prompt": pass1_system_prompt,
+        "pass1_user_prompt": pass1_user_prompt,
+        "pass3_system_prompt": pass3_system_prompt,
+        "pass3_user_prompt": pass3_user_prompt,
     }
     try:
         review_sys, review_usr = load_review_prompts()

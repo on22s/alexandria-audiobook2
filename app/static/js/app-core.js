@@ -4,12 +4,14 @@
             const bgClass = type === 'success' ? 'bg-success' :
                            type === 'error' ? 'bg-danger' :
                            type === 'warning' ? 'bg-warning text-dark' : 'bg-info';
+            const liveRole = type === 'error' ? 'alert' : 'status';
+            const livePriority = type === 'error' ? 'assertive' : 'polite';
             const id = 'toast-' + Date.now();
             const html = `
-                <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+                <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${escapeHtml(message)}</div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
                     </div>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
@@ -193,37 +195,48 @@
         }
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
-                if (e.target.dataset.tab) { rememberTab(e.target.dataset.tab); }
+                e.preventDefault();
+                const selectedLink = e.currentTarget;
+                if (selectedLink.dataset.tab) { rememberTab(selectedLink.dataset.tab); }
                 // Remove active class from all links
-                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.nav-link').forEach(l => {
+                    l.classList.remove('active');
+                    l.removeAttribute('aria-current');
+                });
                 // Add active to clicked
-                e.target.classList.add('active');
+                selectedLink.classList.add('active');
+                selectedLink.setAttribute('aria-current', 'page');
 
                 // Hide all tabs
                 document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
                 // Show target tab
-                const targetId = e.target.dataset.tab + '-tab';
+                const targetId = selectedLink.dataset.tab + '-tab';
                 document.getElementById(targetId).style.display = 'block';
 
+                const nav = document.getElementById('navbarNav');
+                if (nav.classList.contains('show')) {
+                    bootstrap.Collapse.getOrCreateInstance(nav).hide();
+                }
+
                 // Trigger tab specific loads
-                if (e.target.dataset.tab === 'editor') {
+                if (selectedLink.dataset.tab === 'editor') {
                     loadChunks();
-                } else if (e.target.dataset.tab === 'voices') {
+                } else if (selectedLink.dataset.tab === 'voices') {
                     loadVoices();
-                } else if (e.target.dataset.tab === 'designer') {
+                } else if (selectedLink.dataset.tab === 'designer') {
                     loadDesignedVoices();
-                } else if (e.target.dataset.tab === 'training') {
+                } else if (selectedLink.dataset.tab === 'training') {
                     loadLoraDatasets();
                     loadLoraModels();
-                } else if (e.target.dataset.tab === 'dataset-builder') {
+                } else if (selectedLink.dataset.tab === 'dataset-builder') {
                     dsbLoadProjects(dsbCurrentProject);
-                } else if (e.target.dataset.tab === 'preparer') {
+                } else if (selectedLink.dataset.tab === 'preparer') {
                     loadPreparerOutputs();
-                } else if (e.target.dataset.tab === 'voicelab') {
+                } else if (selectedLink.dataset.tab === 'voicelab') {
                     loadVoicelabConfig();
                     voicelabInspect();
                     refreshVoicelabHealth();
-                } else if (e.target.dataset.tab === 'reports') {
+                } else if (selectedLink.dataset.tab === 'reports') {
                     loadReports();
                     loadCheckpoints();
                     loadRunHistory();
@@ -479,6 +492,10 @@
         let activePromptPreset = 'michel2_full';
         const passPromptPresets = {pass1: [], pass3: []};
         const activePassPromptPreset = {pass1: 'default', pass3: 'default'};
+        const passPromptDefaults = {
+            pass1: {system_prompt: '', user_prompt: ''},
+            pass3: {system_prompt: '', user_prompt: ''}
+        };
 
         function promptBoxes() {
             return {
@@ -518,9 +535,10 @@
 
         function applyPassPromptPreset(pass, index) {
             const preset = passPromptPresets[pass][index];
+            const defaults = passPromptDefaults[pass];
             const fields = passPromptFields(pass);
-            document.getElementById(fields.system).value = preset?.system_prompt || '';
-            document.getElementById(fields.user).value = preset?.user_prompt || '';
+            document.getElementById(fields.system).value = preset?.system_prompt || defaults.system_prompt;
+            document.getElementById(fields.user).value = preset?.user_prompt || defaults.user_prompt;
             activePassPromptPreset[pass] = preset?.name || 'default';
         }
 
@@ -958,11 +976,16 @@
                 renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
                     config.prompts?.pass3_preset || 'default');
 
-                // If review/persona prompts are still empty, fetch defaults
+                // If review/persona/pass prompts are still empty, fetch defaults.
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
-                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value) {
+                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
+                    || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt) {
                     try {
                         const defaults = await API.get('/api/default_prompts');
+                        passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
+                        passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
+                        passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
+                        passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
                         if (!document.getElementById('review-system-prompt').value && defaults.review_system_prompt) {
                             document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
                         }
@@ -978,6 +1001,10 @@
                         if (!document.getElementById('persona-advanced-prompt').value && defaults.persona_advanced_prompt) {
                             document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                         }
+                        renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
+                            config.prompts?.pass1_preset || 'default');
+                        renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
+                            config.prompts?.pass3_preset || 'default');
                     } catch (e) {
                         console.warn("Could not fetch default prompts", e);
                     }
@@ -1041,6 +1068,12 @@
                 const defaults = await API.get('/api/default_prompts');
                 document.getElementById('system-prompt').value = defaults.system_prompt;
                 document.getElementById('user-prompt').value = defaults.user_prompt;
+                passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
+                passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
+                passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
+                passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
+                renderPassPromptPresets('pass1', passPromptPresets.pass1, 'default');
+                renderPassPromptPresets('pass3', passPromptPresets.pass3, 'default');
                 if (defaults.review_system_prompt) {
                     document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
                 }
