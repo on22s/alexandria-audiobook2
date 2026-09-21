@@ -405,6 +405,11 @@ def test_get_default_prompts():
     assert_key(data, "user_prompt")
     if not data["system_prompt"]:
         raise TestFailure("system_prompt is empty")
+    for key in ("pass1_system_prompt", "pass1_user_prompt",
+                "pass3_system_prompt", "pass3_user_prompt"):
+        assert_key(data, key)
+        if not data[key]:
+            raise TestFailure(f"{key} is empty")
     assert_key(data, "review_system_prompt")
     assert_key(data, "review_user_prompt")
     if not data["review_system_prompt"]:

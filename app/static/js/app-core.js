@@ -490,6 +490,10 @@
         let activePromptPreset = 'michel2_full';
         const passPromptPresets = {pass1: [], pass3: []};
         const activePassPromptPreset = {pass1: 'default', pass3: 'default'};
+        const passPromptDefaults = {
+            pass1: {system_prompt: '', user_prompt: ''},
+            pass3: {system_prompt: '', user_prompt: ''}
+        };
 
         function promptBoxes() {
             return {
@@ -529,9 +533,10 @@
 
         function applyPassPromptPreset(pass, index) {
             const preset = passPromptPresets[pass][index];
+            const defaults = passPromptDefaults[pass];
             const fields = passPromptFields(pass);
-            document.getElementById(fields.system).value = preset?.system_prompt || '';
-            document.getElementById(fields.user).value = preset?.user_prompt || '';
+            document.getElementById(fields.system).value = preset?.system_prompt || defaults.system_prompt;
+            document.getElementById(fields.user).value = preset?.user_prompt || defaults.user_prompt;
             activePassPromptPreset[pass] = preset?.name || 'default';
         }
 
@@ -969,11 +974,16 @@
                 renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
                     config.prompts?.pass3_preset || 'default');
 
-                // If review/persona prompts are still empty, fetch defaults
+                // If review/persona/pass prompts are still empty, fetch defaults.
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
-                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value) {
+                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
+                    || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt) {
                     try {
                         const defaults = await API.get('/api/default_prompts');
+                        passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
+                        passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
+                        passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
+                        passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
                         if (!document.getElementById('review-system-prompt').value && defaults.review_system_prompt) {
                             document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
                         }
@@ -989,6 +999,10 @@
                         if (!document.getElementById('persona-advanced-prompt').value && defaults.persona_advanced_prompt) {
                             document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                         }
+                        renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
+                            config.prompts?.pass1_preset || 'default');
+                        renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
+                            config.prompts?.pass3_preset || 'default');
                     } catch (e) {
                         console.warn("Could not fetch default prompts", e);
                     }
@@ -1052,6 +1066,12 @@
                 const defaults = await API.get('/api/default_prompts');
                 document.getElementById('system-prompt').value = defaults.system_prompt;
                 document.getElementById('user-prompt').value = defaults.user_prompt;
+                passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
+                passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
+                passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
+                passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
+                renderPassPromptPresets('pass1', [], 'default');
+                renderPassPromptPresets('pass3', [], 'default');
                 if (defaults.review_system_prompt) {
                     document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
                 }
