@@ -243,6 +243,22 @@ logger = logging.getLogger(__name__)
 # audiobook were written at a rate that audibly degrades speech. 128 kbps is
 # transparent for mono speech at this sample rate and what listeners expect.
 MP3_BITRATE = "128k"
+
+
+def _load_audio_segment(path, **kwargs):
+    """Load audio with an explicitly owned input handle.
+
+    pydub 0.25 leaves the handle it opens for WAV input open on an early
+    return path; keeping ownership here makes the lifetime explicit.
+    """
+    with open(path, "rb") as source:
+        return AudioSegment.from_file(source, **kwargs)
+
+
+def _export_audio_segment(segment, path, format_name, **kwargs):
+    """Export audio with an explicitly owned output handle."""
+    with open(path, "wb+") as target:
+        segment.export(target, format=format_name, **kwargs)
 CHAPTER_EXPORT_DIR = "chapter_exports"
 DEFAULT_CHAPTER_TEMPLATE = "{chapter_number} - {chapter_name}"
 CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
@@ -738,7 +754,7 @@ class ProjectManager:
             if extension in ("mp3", "wav", "flac"):
                 load_kwargs = {"format": extension, "codec": extension}
             try:
-                segment = AudioSegment.from_file(full_path, **load_kwargs)
+                segment = _load_audio_segment(full_path, **load_kwargs)
                 result.append((chunk, segment))
             except Exception as e:
                 print(f"Error loading audio segment {path}: {e}")
@@ -772,7 +788,7 @@ class ProjectManager:
         output_path = os.path.join(self.root_dir, output_filename)
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
         try:
-            final_audio.export(pending_output, format="mp3", bitrate=MP3_BITRATE)
+            _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE)
             os.replace(pending_output, output_path)
         finally:
             self._remove_temp_file(pending_output)
@@ -1148,9 +1164,9 @@ class ProjectManager:
                 progress_callback(f"Writing chapter {index + 1}/{len(groups)}: {title[:60]}")
             path = os.path.join(out_dir, filename)
             if fmt == "mp3":
-                piece.export(path, format="mp3", bitrate=MP3_BITRATE)
+                _export_audio_segment(piece, path, "mp3", bitrate=MP3_BITRATE)
             else:
-                piece.export(path, format="wav")
+                _export_audio_segment(piece, path, "wav")
             rows.append({"index": index, "number": index + 1, "title": title,
                          "file": filename, "start_ms": start_ms, "end_ms": end_ms,
                          "chunks": [first, last], "fingerprint": fingerprint})
@@ -1248,9 +1264,9 @@ class ProjectManager:
                 progress_callback(f"Writing chapter {index + 1}/{len(groups)}: {title[:60]}")
             piece = final_audio[start_ms:end_ms]
             if fmt == "mp3":
-                piece.export(path, format="mp3", bitrate=MP3_BITRATE)
+                _export_audio_segment(piece, path, "mp3", bitrate=MP3_BITRATE)
             else:
-                piece.export(path, format="wav")
+                _export_audio_segment(piece, path, "wav")
             rows.append(row)
             written += 1
 
@@ -1461,14 +1477,14 @@ class ProjectManager:
         lacks an MP3 encoder. Returns the relative audio_path (under voicelines/).
         Raises ValueError if the source audio has zero duration.
         """
-        segment = AudioSegment.from_file(temp_path)
+        segment = _load_audio_segment(temp_path)
         if len(segment) == 0:
             raise ValueError("Audio has 0 duration")
 
         try:
             mp3_filename = f"{filename_base}.mp3"
             mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-            segment.export(mp3_filepath, format="mp3", bitrate=MP3_BITRATE)
+            _export_audio_segment(segment, mp3_filepath, "mp3", bitrate=MP3_BITRATE)
 
             # Validate: conda ffmpeg often lacks libmp3lame, producing a tiny
             # (~428 byte) header-only file without raising an error.

@@ -62,7 +62,8 @@ def load_states(path):
     reports the coverage it always did, instead of a number that silently
     depends on which version wrote its input.
     """
-    doc = json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as handle:
+        doc = json.load(handle)
     entries = {t.lower() for t in doc.get("entries", {})}
     unfixable = {r["term"].lower() for r in doc.get("could_not_fix", [])
                  if isinstance(r, dict) and r.get("term")}
@@ -83,7 +84,8 @@ def shipped_scripts(scripts_dir):
 
 def terms_in_script(path):
     """-> the set of whole words used in one script's spoken text."""
-    doc = json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as handle:
+        doc = json.load(handle)
     rows = doc if isinstance(doc, list) else (doc.get("entries") or [])
     seen = set()
     for row in rows:
@@ -162,7 +164,8 @@ def main():
     # alongside, and the reader can see which is which.
     triaged = {}
     if os.path.exists(args.triage):
-        tdoc = json.load(open(args.triage, encoding="utf-8"))
+        with open(args.triage, encoding="utf-8") as handle:
+            tdoc = json.load(handle)
         for kind, rows in (tdoc.get("classified") or {}).items():
             for row in rows:
                 term = (row.get("term") or "").lower()
@@ -197,7 +200,8 @@ def main():
     except Exception as exc:                                # noqa: BLE001
         doc["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    json.dump(doc, open(args.out, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    with open(args.out, "w", encoding="utf-8") as handle:
+        json.dump(doc, handle, indent=1, ensure_ascii=False)
 
     print(f"shipped books scanned      : {books}")
     print(f"measured terms in total    : {doc['terms_measured_total']}")

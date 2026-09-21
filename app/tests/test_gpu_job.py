@@ -443,8 +443,9 @@ class DirtyTreeGateTest(unittest.TestCase):
         # by default - the point of pinning is that the suite stops writing
         # into the real tree.
         patch_dir = os.path.join(self.tmp.name, "dirty_patches")
-        body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
-                    encoding="utf-8").read()
+        with open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
+                   encoding="utf-8") as handle:
+            body = handle.read()
         self.assertIn("brand_new_probe.py", body)
         self.assertIn("brand new, not yet committed", body)
 
@@ -460,8 +461,9 @@ class DirtyTreeGateTest(unittest.TestCase):
             handle.write("# written by a run, not by a person\n")
         self._run(allow_dirty="1")
         patch_dir = os.path.join(self.tmp.name, "dirty_patches")
-        body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
-                    encoding="utf-8").read()
+        with open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
+                   encoding="utf-8") as handle:
+            body = handle.read()
         self.assertIn("an uncommitted change", body)
         self.assertNotIn("generated_view.py", body,
                          "a file a run wrote is not the code that produced it")
@@ -510,7 +512,10 @@ class DirtyTreeGateTest(unittest.TestCase):
 
     def _log(self):
         path = os.path.join(self.root, "queue.log")
-        return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        if not os.path.exists(path):
+            return ""
+        with open(path, encoding="utf-8") as handle:
+            return handle.read()
 
     def test_a_dirty_tree_is_refused_and_the_command_never_runs(self):
         self._make_repo(dirty=True)
@@ -703,6 +708,8 @@ class LockInheritanceTest(unittest.TestCase):
             ["bash", GPU_JOB, "orphan", "bash", "-c",
              "echo $$ > %s; sleep 60" % marker],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(lambda: job.stdout.close() if job.stdout else None)
+        self.addCleanup(lambda: job.stderr.close() if job.stderr else None)
         self.addCleanup(job.kill)
         deadline = time.time() + 60
         while time.time() < deadline and not os.path.exists(marker):
@@ -751,7 +758,10 @@ class LlmPreflightGateTest(unittest.TestCase):
                               env=env, capture_output=True, text=True, timeout=60)
 
     def _log(self):
-        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+        if not os.path.exists(self.qlog):
+            return ""
+        with open(self.qlog, encoding="utf-8") as handle:
+            return handle.read()
 
     def test_no_check_happens_unless_asked(self):
         # Most jobs here are TTS and need no language model.
@@ -817,7 +827,10 @@ class VramGateTest(unittest.TestCase):
                               env=env, capture_output=True, text=True, timeout=60)
 
     def _log(self):
-        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+        if not os.path.exists(self.qlog):
+            return ""
+        with open(self.qlog, encoding="utf-8") as handle:
+            return handle.read()
 
     def _fake_gpu(self, total_bytes, used_bytes):
         """PATH entry whose rocm-smi reports a card of our choosing.
@@ -937,12 +950,16 @@ class PauseAndProcessGroupTest(unittest.TestCase):
                             REQUIRE_VRAM_GB="0", **extra)
 
     def _log(self):
-        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+        if not os.path.exists(self.qlog):
+            return ""
+        with open(self.qlog, encoding="utf-8") as handle:
+            return handle.read()
 
     def test_a_paused_queue_holds_the_job_before_the_lock(self):
         """Waiting must happen BEFORE flock, or a held queue blocks everything
         while looking busy."""
-        open(self.flag, "w").write("paused")
+        with open(self.flag, "w") as handle:
+            handle.write("paused")
         with self.assertRaises(subprocess.TimeoutExpired):
             subprocess.run(["bash", GPU_JOB, "probe", "true"],
                            env=self._env(), capture_output=True, timeout=8)
@@ -1192,7 +1209,12 @@ class PendingMarkerTest(unittest.TestCase):
         # feature missing. Flaked that way on 2026-09-14 locally and in CI.
         start_deadline = time.time() + 90
         while time.time() < start_deadline:
-            if os.path.exists(self.qlog) and "START    holder" in open(self.qlog, encoding="utf-8").read():
+            if os.path.exists(self.qlog):
+                with open(self.qlog, encoding="utf-8") as handle:
+                    started = "START    holder" in handle.read()
+            else:
+                started = False
+            if started:
                 break
             time.sleep(0.2)
         waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
@@ -1238,7 +1260,11 @@ class PendingMarkerTest(unittest.TestCase):
         for _ in range(3):
             self._run("probe", "true",
                       PATH=shadow + os.pathsep + os.environ["PATH"])
-        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        if os.path.exists(record):
+            with open(record) as handle:
+                alerts = handle.read().splitlines()
+        else:
+            alerts = []
         self.assertEqual(1, len(alerts), f"expected one alert, got {alerts}")
 
     def test_the_cooldown_can_be_shortened_for_a_genuinely_new_event(self):
@@ -1247,7 +1273,11 @@ class PendingMarkerTest(unittest.TestCase):
         for _ in range(2):
             self._run("probe", "true", GPU_NOTIFY_COOLDOWN="0",
                       PATH=shadow + os.pathsep + os.environ["PATH"])
-        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        if os.path.exists(record):
+            with open(record) as handle:
+                alerts = handle.read().splitlines()
+        else:
+            alerts = []
         self.assertEqual(2, len(alerts))
 
     def test_notifications_can_be_turned_off_entirely(self):
@@ -1449,4 +1479,3 @@ class PauseNowTest(unittest.TestCase):
         self.assertNotIn("OK", terminal, self._log())
         self.assertEqual(1, terminal.count("INTERRUPTED"), self._log())
         self.assertIn("rc=143", self._log(), "the wrapper, not gpu_pause, writes the marker")
-

@@ -38,11 +38,13 @@ def normalize_reference_audio(src, dst):
     Raises ValueError when the input does not decode as audio."""
     from pydub import AudioSegment
     try:
-        audio = AudioSegment.from_file(src)
+        with open(src, "rb") as source:
+            audio = AudioSegment.from_file(source)
     except Exception as exc:                                # noqa: BLE001
         raise ValueError(f"could not decode audio: {exc}") from exc
     audio = audio.set_channels(1).set_frame_rate(TARGET_RATE).set_sample_width(2)
-    audio.export(dst, format="wav")
+    with open(dst, "wb+") as target:
+        audio.export(target, format="wav")
     return dst
 
 

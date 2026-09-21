@@ -67,12 +67,14 @@ class Rendering(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             art = os.path.join(tmp, "a.json")
             out = os.path.join(tmp, "v.html")
-            json.dump(doc, open(art, "w", encoding="utf-8"))
+            with open(art, "w", encoding="utf-8") as handle:
+                json.dump(doc, handle)
             r = subprocess.run([sys.executable, SCRIPT, "--artifact", art,
                                 "--out", out], capture_output=True, text=True,
                                timeout=120)
             self.assertEqual(0, r.returncode, r.stderr[-400:])
-            page = open(out, encoding="utf-8").read()
+            with open(out, encoding="utf-8") as handle:
+                page = handle.read()
         self.assertIn("ALPHA BETA", page)     # asked
         self.assertIn("ALPHA GAMMA", page)    # heard
         self.assertIn("GAMMA</b>", page)      # the error pair, rendered

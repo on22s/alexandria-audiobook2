@@ -66,9 +66,12 @@ def load_novel(folder, name):
         quote_path = os.path.join(novel_dir, "quotation_info.csv")
         char_path = os.path.join(novel_dir, "character_info.csv")
         text_path = os.path.join(novel_dir, "novel_text.txt")
-    quotes = list(csv.DictReader(open(quote_path, encoding="utf-8")))
-    chars = list(csv.DictReader(open(char_path, encoding="utf-8")))
-    text = open(text_path, encoding="utf-8").read()
+    with open(quote_path, encoding="utf-8") as quotes_file:
+        quotes = list(csv.DictReader(quotes_file))
+    with open(char_path, encoding="utf-8") as chars_file:
+        chars = list(csv.DictReader(chars_file))
+    with open(text_path, encoding="utf-8") as text_file:
+        text = text_file.read()
     return quotes, chars, text
 
 

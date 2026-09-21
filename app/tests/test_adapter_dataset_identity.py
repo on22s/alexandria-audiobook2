@@ -21,6 +21,7 @@ import json
 import os
 import sys
 import unittest
+import warnings
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
@@ -44,6 +45,17 @@ def build_models_dir(root, adapters, manifest=None):
 
 
 class AdapterDatasetIdentityTest(unittest.TestCase):
+
+    def test_reading_training_meta_closes_the_file(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            build_models_dir(
+                root, {"voice_warning": "/x/lora_datasets/narrator/ref.wav"})
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", ResourceWarning)
+                adapter_sources(root)
+        self.assertEqual([], [warning for warning in caught
+                              if issubclass(warning.category, ResourceWarning)])
 
     def test_a_placeholder_is_replaced_by_the_recorded_dataset_id(self):
         import tempfile

@@ -91,7 +91,8 @@ def adapter_sources(models_dir):
         if not os.path.isfile(meta_path):
             continue
         try:
-            meta = json.load(open(meta_path, encoding="utf-8"))
+            with open(meta_path, encoding="utf-8") as handle:
+                meta = json.load(handle)
         except (OSError, ValueError):
             continue
         ref = str(meta.get("ref_sample_audio") or "")

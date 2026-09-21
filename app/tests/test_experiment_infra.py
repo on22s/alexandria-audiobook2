@@ -47,7 +47,8 @@ class GoldFollowsBookTest(unittest.TestCase):
     def test_no_harness_hardcodes_a_book_specific_gold_default(self):
         offenders = []
         for path in sorted(glob.glob(os.path.join(EXPERIMENTS, "*.py"))):
-            source = open(path, encoding="utf-8").read()
+            with open(path, encoding="utf-8") as handle:
+                source = handle.read()
             if "EXPERIMENT_GOLD" not in source:
                 continue
             # The default must mention BOOK. A literal book name in the default
@@ -178,7 +179,8 @@ class ManifestGuardTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = os.path.join(tmp, "artifact.json")
             record.write(target, contract={"expected_arms": ("armA", "armB")})
-            written = json.load(open(target))
+            with open(target) as handle:
+                written = json.load(handle)
         self.assertEqual(written["meta"]["validation"], "ok")
         self.assertEqual(len(written["rows"]), 2)
 
@@ -218,8 +220,9 @@ class CollectResultsRobustnessTest(unittest.TestCase):
     def test_rows_as_a_count_does_not_crash_the_index(self):
         """segmentation_classifier.json used 'rows' for a count, and iterating
         an int killed the whole index rather than skipping one file."""
-        source = open(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                      encoding="utf-8").read()
+        with open(os.path.join(os.path.dirname(APP), "collect_results.py"),
+                  encoding="utf-8") as handle:
+            source = handle.read()
         self.assertIn("isinstance(rr, list)", source,
                       "collect_results must check the shape of 'rows' before "
                       "iterating it")
@@ -242,7 +245,8 @@ class CollectResultsRobustnessTest(unittest.TestCase):
             subprocess.run(
                 [sys.executable, "collect_results.py"], cwd=tmp,
                 capture_output=True, check=True)
-            content = open(os.path.join(tmp, "results_index.csv"), "rb").read()
+            with open(os.path.join(tmp, "results_index.csv"), "rb") as handle:
+                content = handle.read()
         self.assertIn(b"\n", content)
         self.assertNotIn(b"\r\n", content)
 
@@ -316,8 +320,9 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                     json.dump({"artifacts": []}, handle)
             subprocess.run([sys.executable, "collect_results.py"], cwd=tmp,
                            capture_output=True, check=True)
-            content = open(os.path.join(tmp, "results_index.csv"),
-                           encoding="utf-8").read()
+            with open(os.path.join(tmp, "results_index.csv"),
+                      encoding="utf-8") as handle:
+                content = handle.read()
         self.assertIn("NOT INDEXED: TTS provenance artifact", content)
         self.assertNotIn(",raw,", content)
 
@@ -334,7 +339,8 @@ class AnalysisScriptTest(unittest.TestCase):
         broken = []
         for path in sorted(glob.glob(os.path.join(EXPERIMENTS, "*.py"))):
             try:
-                ast.parse(open(path, encoding="utf-8").read())
+                with open(path, encoding="utf-8") as handle:
+                    ast.parse(handle.read())
             except SyntaxError as exc:
                 broken.append(f"{os.path.basename(path)}: {exc}")
         self.assertEqual(broken, [], "\n".join(broken))
@@ -350,7 +356,8 @@ class AnalysisScriptTest(unittest.TestCase):
             path = os.path.join(EXPERIMENTS, name)
             if not os.path.exists(path):
                 continue
-            doc = ast.get_docstring(ast.parse(open(path, encoding="utf-8").read())) or ""
+            with open(path, encoding="utf-8") as handle:
+                doc = ast.get_docstring(ast.parse(handle.read())) or ""
             if "oracle" not in doc.lower() and "upper bound" not in doc.lower():
                 missing.append(name)
         self.assertEqual(missing, [],
