@@ -23,11 +23,14 @@ def _answer_when_pending(client, content, mismatch_first=False):
             if os.path.exists(client.pending_path):
                 break
             time.sleep(0.02)
-        req = json.load(open(client.pending_path, encoding="utf-8"))
+        with open(client.pending_path, encoding="utf-8") as handle:
+            req = json.load(handle)
         if mismatch_first:
-            json.dump({"id": "not-this-one", "content": "stale"}, open(client.response_path, "w"))
+            with open(client.response_path, "w") as handle:
+                json.dump({"id": "not-this-one", "content": "stale"}, handle)
             time.sleep(0.1)
-        json.dump({"id": req["id"], "content": content}, open(client.response_path, "w"))
+        with open(client.response_path, "w") as handle:
+            json.dump({"id": req["id"], "content": content}, handle)
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return t
@@ -56,8 +59,10 @@ class ManualClientTests(unittest.TestCase):
                     if os.path.exists(client.pending_path):
                         break
                     time.sleep(0.02)
-                seen.update(json.load(open(client.pending_path, encoding="utf-8")))
-                json.dump({"id": seen["id"], "content": "ok"}, open(client.response_path, "w"))
+                with open(client.pending_path, encoding="utf-8") as handle:
+                    seen.update(json.load(handle))
+                with open(client.response_path, "w") as handle:
+                    json.dump({"id": seen["id"], "content": "ok"}, handle)
             threading.Thread(target=run, daemon=True).start()
             client.create(model="m", messages=[{"role": "user", "content": "hello"}], temperature=0.1)
             self.assertEqual([{"role": "user", "content": "hello"}], seen["messages"])
@@ -119,7 +124,8 @@ class ManualThreePassTests(unittest.TestCase):
                 for content in answers:
                     for _ in range(500):   # wait for a request we have not answered yet
                         try:
-                            req = json.load(open(client.pending_path, encoding="utf-8"))
+                            with open(client.pending_path, encoding="utf-8") as handle:
+                                req = json.load(handle)
                         except (FileNotFoundError, ValueError):
                             req = None
                         if req and req["id"] != answered:
@@ -127,7 +133,8 @@ class ManualThreePassTests(unittest.TestCase):
                         time.sleep(0.02)
                     sequences.append(req["sequence"])
                     answered = req["id"]
-                    json.dump({"id": req["id"], "content": content}, open(client.response_path, "w"))
+                    with open(client.response_path, "w") as handle:
+                        json.dump({"id": req["id"], "content": content}, handle)
             threading.Thread(target=person, daemon=True).start()
             entries = tp.run_three_pass(client, "m", source,
                                         LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),

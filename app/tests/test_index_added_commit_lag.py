@@ -29,7 +29,8 @@ def csv(*rows):
 def _fn():
     """Import the helper without executing collect_results' main body."""
     import ast
-    src = open(os.path.join(REPO, "collect_results.py"), encoding="utf-8").read()
+    with open(os.path.join(REPO, "collect_results.py"), encoding="utf-8") as handle:
+        src = handle.read()
     tree = ast.parse(src)
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == "_only_added_commit_filled_in":

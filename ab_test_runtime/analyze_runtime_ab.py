@@ -51,7 +51,8 @@ def load_run(rep_dir):
     ambiguous_manifest = len(manifests) > 1
     if len(manifests) == 1:
         try:
-            manifest = json.load(open(manifests[0], encoding="utf-8"))
+            with open(manifests[0], encoding="utf-8") as handle:
+                manifest = json.load(handle)
         except (OSError, ValueError):
             manifest = None
     logs = sorted(glob.glob(os.path.join(rep_dir, "*.log")))

@@ -67,7 +67,8 @@ class ReviewIntegrationTests(unittest.TestCase):
     def test_full_blind_review_flow_over_real_evidence(self):
         with tempfile.TemporaryDirectory() as models, tempfile.TemporaryDirectory() as reviews:
             _adapter, _candidate, manifest_path = _build_evaluated_adapter(models)
-            manifest_before = open(manifest_path, encoding="utf-8").read()
+            with open(manifest_path, encoding="utf-8") as handle:
+                manifest_before = handle.read()
 
             comparison, prod, cand = lora._load_candidate_comparison_full(
                 "voice", models, manifest_path)
@@ -95,7 +96,9 @@ class ReviewIntegrationTests(unittest.TestCase):
             self.assertEqual("cand1", result["automated"]["recommended_candidate"])
 
             # Human feedback must not have touched the manifest/promotion state.
-            self.assertEqual(manifest_before, open(manifest_path, encoding="utf-8").read())
+            with open(manifest_path, encoding="utf-8") as handle:
+                manifest_after = handle.read()
+            self.assertEqual(manifest_before, manifest_after)
 
     def test_mutated_checkpoint_rejects_a_stale_submission(self):
         with tempfile.TemporaryDirectory() as models, tempfile.TemporaryDirectory() as reviews:

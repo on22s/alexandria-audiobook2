@@ -26,7 +26,10 @@ class DesignedVoiceUpdate(unittest.TestCase):
         req = vd.VoiceDesignSaveRequest(**fields)
         with patch.object(vd, "DESIGNED_VOICES_DIR", tmp), \
              patch.object(vd, "DESIGNED_VOICES_MANIFEST", os.path.join(tmp, "manifest.json")):
-            return asyncio.run(vd.voice_design_save(req)), json.load(open(os.path.join(tmp, "manifest.json")))
+            result = asyncio.run(vd.voice_design_save(req))
+            with open(os.path.join(tmp, "manifest.json")) as handle:
+                manifest = json.load(handle)
+            return result, manifest
 
     def test_editing_replaces_the_entry_instead_of_appending(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -60,13 +63,15 @@ class FrontendGuards(unittest.TestCase):
             path = os.path.join(STATIC, name)
             if not os.path.exists(path):
                 continue
-            for i, line in enumerate(open(path, encoding="utf-8"), 1):
-                if "localStorage." in line and "try" not in line:
-                    offenders.append(f"{name}:{i}")
+            with open(path, encoding="utf-8") as handle:
+                for i, line in enumerate(handle, 1):
+                    if "localStorage." in line and "try" not in line:
+                        offenders.append(f"{name}:{i}")
         self.assertEqual([], offenders)
 
     def test_dataset_delete_checks_the_response(self):
-        src = open(os.path.join(STATIC, "js", "app-workbench.js"), encoding="utf-8").read()
+        with open(os.path.join(STATIC, "js", "app-workbench.js"), encoding="utf-8") as handle:
+            src = handle.read()
         body = src[src.index("window.dsbDeleteProject"):src.index("window.dsbDeleteProject") + 800]
         self.assertIn("API._handleError(res)", body)
 

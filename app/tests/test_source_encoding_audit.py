@@ -36,7 +36,8 @@ class SourceEncodingAuditTest(unittest.TestCase):
         self._write("clean.txt", "He said, “Good evening.” " * 200)
         result = self._run()
         self.assertEqual(0, result.returncode, result.stdout)
-        rows = json.load(open(self.out))["results"]
+        with open(self.out) as handle:
+            rows = json.load(handle)["results"]
         self.assertTrue(rows[0]["passes_gate"])
 
     def test_a_damaged_book_fails_and_stops_the_chain(self):
@@ -50,7 +51,8 @@ class SourceEncodingAuditTest(unittest.TestCase):
     def test_the_report_names_what_has_to_be_rechecked(self):
         self._write("broken.txt", "�" * 50 + "x" * 100)
         self._run()
-        row = json.load(open(self.out))["results"][0]
+        with open(self.out) as handle:
+            row = json.load(handle)["results"][0]
         self.assertIn("artifacts_naming_this_book", row)
         self.assertIn("re-extract", row["remedy"])
 

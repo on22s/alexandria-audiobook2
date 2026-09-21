@@ -75,8 +75,10 @@ class RecoveryTests(unittest.TestCase):
                 try:
                     result = asyncio.run(fn(*args))
                 except HTTPException as exc:
-                    return exc, json.load(open(three_pass_checkpoint_path(script_path)))
-                return result, json.load(open(three_pass_checkpoint_path(script_path)))
+                    with open(three_pass_checkpoint_path(script_path)) as handle:
+                        return exc, json.load(handle)
+                with open(three_pass_checkpoint_path(script_path)) as handle:
+                    return result, json.load(handle)
 
     def test_detail_shows_where_why_and_the_exact_prompt(self):
         detail, _ = self._run(script_module.generate_script_recovery_detail)

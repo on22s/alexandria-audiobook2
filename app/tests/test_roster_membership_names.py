@@ -72,7 +72,8 @@ class RosterMembershipNamesTest(unittest.TestCase):
                             "attribution_gold_owarimonogatari3.json")
         if not os.path.exists(path):
             self.skipTest("owarimonogatari3 gold not present")
-        gold = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as handle:
+            gold = json.load(handle)
         groups = alias_groups(gold)
         roster = ["IZUKO GAEN"]
         names = set(roster_membership_names(roster, groups))

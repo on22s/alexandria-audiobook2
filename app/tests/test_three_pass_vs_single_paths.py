@@ -31,7 +31,8 @@ class PathResolutionTests(unittest.TestCase):
     """Relative paths must resolve against the INVOCATION directory."""
 
     def test_the_harness_resolves_its_three_path_arguments(self):
-        source = open(harness.__file__, encoding="utf-8").read()
+        with open(harness.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         for name in ("args.inputs = os.path.abspath",
                      "args.work = os.path.abspath",
                      "args.out = os.path.abspath"):
@@ -41,7 +42,8 @@ class PathResolutionTests(unittest.TestCase):
     def test_resolution_happens_before_the_paths_are_used(self):
         # Absolutising after `makedirs(args.work)` or after the arm loop would
         # look correct and fix nothing.
-        source = open(harness.__file__, encoding="utf-8").read()
+        with open(harness.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         resolved_at = source.index("args.inputs = os.path.abspath")
         used_at = source.index("os.makedirs(args.work")
         self.assertLess(resolved_at, used_at,
@@ -59,7 +61,8 @@ class ArmInvocationTests(unittest.TestCase):
     """The arms really do run from app/, which is why the above matters."""
 
     def test_the_harness_launches_arms_from_the_app_directory(self):
-        source = open(harness.__file__, encoding="utf-8").read()
+        with open(harness.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         self.assertIn("cwd=APP", source,
                       "if the arms stop running from app/, the absolute-path "
                       "resolution is no longer load-bearing and this test "
@@ -86,7 +89,8 @@ class FailureAdviceTests(unittest.TestCase):
     """The old hint said "check the LLM server" for every failure shape."""
 
     def test_advice_points_at_the_log_before_the_server(self):
-        source = open(harness.__file__, encoding="utf-8").read()
+        with open(harness.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         advice_at = source.index("Read the failing arm's log")
         server_at = source.index("then check the server")
         self.assertLess(advice_at, server_at,
@@ -98,7 +102,8 @@ class FailureAdviceTests(unittest.TestCase):
         The first version of this advice indexed f['arm'] blindly and raised
         KeyError while explaining someone else's failure.
         """
-        source = open(harness.__file__, encoding="utf-8").read()
+        with open(harness.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         # The guard's existence is covered by indexing it below; a separate
         # assertIn was redundant.
         # The indexed form is fine INSIDE that guard - what raised KeyError was

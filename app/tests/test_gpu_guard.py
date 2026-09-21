@@ -39,7 +39,13 @@ class GpuGuardTest(unittest.TestCase):
         """)
         proc = subprocess.Popen([sys.executable, "-c", code],
                                 stdout=subprocess.PIPE, text=True)
-        self.addCleanup(proc.kill)
+        def cleanup():
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+            if proc.stdout:
+                proc.stdout.close()
+        self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:
             if proc.stdout.readline().strip() == "held":
@@ -264,7 +270,13 @@ class StaleSentinelTest(unittest.TestCase):
                 "print('held',flush=True);time.sleep(30)" % self.lock)
         proc = subprocess.Popen([sys.executable, "-c", code],
                                 stdout=subprocess.PIPE, text=True)
-        self.addCleanup(proc.kill)
+        def cleanup():
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+            if proc.stdout:
+                proc.stdout.close()
+        self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:
             if proc.stdout.readline().strip() == "held":

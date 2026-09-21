@@ -102,7 +102,8 @@ class ExportChaptersTests(unittest.TestCase):
                                  sorted(os.listdir(out)))
                 info = sf.info(os.path.join(out, "Test Book 02 Chapter 2.wav"))
                 self.assertGreater(info.frames / info.samplerate, 1.0)   # 0.7 s + 0.8 s of audio + a pause
-                manifest = json.load(open(os.path.join(out, "manifest.json")))
+                with open(os.path.join(out, "manifest.json")) as handle:
+                    manifest = json.load(handle)
                 self.assertEqual([1, 2], [r["number"] for r in manifest["chapters"]])
                 # Second export with nothing changed: nothing rewritten.
                 ok, msg = pm.export_chapters(fmt="wav", book_name="Test Book",
@@ -202,9 +203,11 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(404, ctx.exception.status_code)
             out = os.path.join(tmp, CHAPTER_EXPORT_DIR); os.makedirs(out)
             for n in ("a.mp3", "b.mp3", "stray.mp3"):
-                open(os.path.join(out, n), "wb").write(b"X" + n.encode())
-            json.dump({"chapters": [{"index": 0, "file": "a.mp3"}, {"index": 1, "file": "b.mp3"}]},
-                      open(os.path.join(out, "manifest.json"), "w"))
+                with open(os.path.join(out, n), "wb") as handle:
+                    handle.write(b"X" + n.encode())
+            with open(os.path.join(out, "manifest.json"), "w") as handle:
+                json.dump({"chapters": [{"index": 0, "file": "a.mp3"},
+                                         {"index": 1, "file": "b.mp3"}]}, handle)
             resp = asyncio.run(editor_module.download_chapters_zip(names="b.mp3"))
             async def drain():
                 return b"".join([c async for c in resp.body_iterator])

@@ -116,7 +116,8 @@ class MeanOverlapFeaturesTest(unittest.TestCase):
 
     def test_the_summary_averages_only_the_discriminating_features(self):
         import experiments.character_distinctiveness as mod
-        source = open(mod.__file__, encoding="utf-8").read()
+        with open(mod.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         start = source.index('values = [row[k] for k in (')
         window = source[start:start + 200]
         self.assertIn('"f0_overlap"', window)

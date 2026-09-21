@@ -127,8 +127,8 @@ class LibraryContaminationTest(unittest.TestCase):
         counts = []
         for path in metas:
             try:
-                counts.append(json.load(open(path, encoding="utf-8"))
-                              .get("num_samples"))
+                with open(path, encoding="utf-8") as handle:
+                    counts.append(json.load(handle).get("num_samples"))
             except (OSError, ValueError):
                 continue
         return sum(1 for c in counts if c == 200), len(counts)

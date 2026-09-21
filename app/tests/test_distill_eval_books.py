@@ -92,7 +92,8 @@ class BookArgumentTests(unittest.TestCase):
 
     def test_what_was_scored_is_recorded_as_data(self):
         import experiments.distill_eval as m
-        src = open(m.__file__, encoding="utf-8").read()
+        with open(m.__file__, encoding="utf-8") as handle:
+            src = handle.read()
         self.assertIn('record.meta["books_scored"].append(book)', src,
                       "books_scored must be appended inside the loop, so it "
                       "cannot disagree with what actually ran")

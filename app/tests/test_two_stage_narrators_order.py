@@ -19,7 +19,8 @@ MODULE = os.path.join(
 
 
 def _main_body():
-    tree = ast.parse(open(MODULE, encoding="utf-8").read())
+    with open(MODULE, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "main":
             return node

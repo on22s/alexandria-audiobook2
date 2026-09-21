@@ -32,8 +32,9 @@ class Parsing(unittest.TestCase):
         matching would inflate every number in this scan."""
         with tempfile.TemporaryDirectory() as tmp:
             p = os.path.join(tmp, "b.json")
-            json.dump([{"speaker": "A", "text": "Sameness and samurai.",
-                        "instruct": ""}], open(p, "w", encoding="utf-8"))
+            with open(p, "w", encoding="utf-8") as handle:
+                json.dump([{"speaker": "A", "text": "Sameness and samurai.",
+                            "instruct": ""}], handle)
             words = self.m.terms_in_script(p)
         self.assertIn("samurai", words)
         self.assertIn("sameness", words)
@@ -46,7 +47,8 @@ class Parsing(unittest.TestCase):
             for n in ("Book One.json",
                       "Book One.json.generation_quality.json",
                       "Book One.voice_config.json"):
-                json.dump([], open(os.path.join(tmp, n), "w", encoding="utf-8"))
+                with open(os.path.join(tmp, n), "w", encoding="utf-8") as handle:
+                    json.dump([], handle)
             found = self.m.shipped_scripts(tmp)
         self.assertEqual(["Book One.json"],
                          [os.path.basename(f) for f in found])
@@ -54,10 +56,10 @@ class Parsing(unittest.TestCase):
     def test_the_three_states_are_read_apart(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = os.path.join(tmp, "c.json")
-            json.dump({"entries": {"Alpha": {}, "beta": {}},
-                       "could_not_fix": [{"term": "Gamma"}, {"term": "delta"}],
-                       "plain_already_works": ["Epsilon"]},
-                      open(p, "w", encoding="utf-8"))
+            with open(p, "w", encoding="utf-8") as handle:
+                json.dump({"entries": {"Alpha": {}, "beta": {}},
+                           "could_not_fix": [{"term": "Gamma"}, {"term": "delta"}],
+                           "plain_already_works": ["Epsilon"]}, handle)
             entries, unfixable, plain_ok = self.m.load_states(p)
         self.assertEqual({"alpha", "beta"}, entries)
         self.assertEqual({"gamma", "delta"}, unfixable)
@@ -70,10 +72,10 @@ class Parsing(unittest.TestCase):
         thing keeping 5.5 open, so it must not fall into either bucket."""
         with tempfile.TemporaryDirectory() as tmp:
             p = os.path.join(tmp, "c.json")
-            json.dump({"entries": {"tsundere": {}},
-                       "could_not_fix": [{"term": "aahaha"}],
-                       "plain_already_works": ["manga"]},
-                      open(p, "w", encoding="utf-8"))
+            with open(p, "w", encoding="utf-8") as handle:
+                json.dump({"entries": {"tsundere": {}},
+                           "could_not_fix": [{"term": "aahaha"}],
+                           "plain_already_works": ["manga"]}, handle)
             entries, unfixable, plain_ok = self.m.load_states(p)
         present = {"tsundere", "aahaha", "manga", "gaurururu"}
         handled = entries | unfixable | plain_ok

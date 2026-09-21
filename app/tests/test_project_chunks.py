@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from project import (EXPLICIT_SILENCE_MS, ProjectManager,
                      get_speakable_entries, group_into_chunks)
@@ -19,7 +19,10 @@ class AudioLoadingTest(unittest.TestCase):
                  patch("project.AudioSegment.from_file", return_value="audio") as load:
                 result, skipped = manager._load_chunks_with_audio()
 
-        load.assert_called_once_with(audio_path, format="mp3", codec="mp3")
+        load.assert_called_once()
+        source, kwargs = load.call_args
+        self.assertEqual(audio_path, source[0].name)
+        self.assertEqual({"format": "mp3", "codec": "mp3"}, kwargs)
         self.assertEqual([({"audio_path": "line.mp3"}, "audio")], result)
         self.assertEqual(0, skipped)
 
@@ -33,7 +36,8 @@ class AudioLoadingTest(unittest.TestCase):
                  patch("project.AudioSegment.from_file", return_value="audio") as load:
                 manager._load_chunks_with_audio()
 
-        load.assert_called_once_with(audio_path)
+        load.assert_called_once_with(ANY)
+        self.assertEqual(audio_path, load.call_args.args[0].name)
 
     def test_ambiguous_ogg_container_keeps_probe_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,7 +49,8 @@ class AudioLoadingTest(unittest.TestCase):
                  patch("project.AudioSegment.from_file", return_value="audio") as load:
                 manager._load_chunks_with_audio()
 
-        load.assert_called_once_with(audio_path)
+        load.assert_called_once_with(ANY)
+        self.assertEqual(audio_path, load.call_args.args[0].name)
 
 
 class SpeakableEntryTests(unittest.TestCase):

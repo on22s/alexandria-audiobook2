@@ -13,23 +13,27 @@ class ClassificationTemperatureTest(unittest.TestCase):
     than choosing a label."""
 
     def _params(self, generation):
-        source = open(tp.__file__, encoding="utf-8").read()
+        with open(tp.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         marker = 'gen.get("three_pass_segment_temperature"'
         self.assertIn(marker, source)
         return source
 
     def test_segment_and_attribute_default_to_zero(self):
-        source = open(tp.__file__, encoding="utf-8").read()
+        with open(tp.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         self.assertIn('gen.get("three_pass_segment_temperature", 0.0)', source)
         self.assertIn('gen.get("three_pass_attribute_temperature", 0.0)', source)
 
     def test_instruct_still_samples(self):
-        source = open(tp.__file__, encoding="utf-8").read()
+        with open(tp.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         self.assertIn('gen.get("three_pass_instruct_temperature", 0.1)', source)
 
     def test_config_can_still_override(self):
         # A user who wants sampling back must not be blocked by the new default.
-        source = open(tp.__file__, encoding="utf-8").read()
+        with open(tp.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         self.assertIn('model_profile.get(\n            "attribute_temperature"', source)
 
 

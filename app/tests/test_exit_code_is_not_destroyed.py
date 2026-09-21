@@ -50,7 +50,8 @@ class ExitCodeSurvives(unittest.TestCase):
         for rel in tracked_shell_scripts():
             path = os.path.join(REPO, rel)
             try:
-                lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+                with open(path, encoding="utf-8", errors="replace") as handle:
+                    lines = handle.read().split("\n")
             except OSError:
                 continue
             for n, line in enumerate(lines, 1):

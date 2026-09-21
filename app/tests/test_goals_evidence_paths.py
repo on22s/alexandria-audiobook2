@@ -63,7 +63,8 @@ def top_level_entries():
 
 
 def cited_paths():
-    text = open(os.path.join(REPO, "GOALS.md"), encoding="utf-8").read()
+    with open(os.path.join(REPO, "GOALS.md"), encoding="utf-8") as handle:
+        text = handle.read()
     return sorted(set(CITATION.findall(text)))
 
 

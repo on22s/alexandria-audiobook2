@@ -161,7 +161,8 @@ class SingleReaderTests(unittest.TestCase):
         # demonstrably so. Stubbing pdnc's call out entirely left that
         # assertion passing - the name still appears in the import line -
         # while the two behavioural tests below caught it immediately.
-        source = open(pdnc_narrator_prior.__file__, encoding="utf-8").read()
+        with open(pdnc_narrator_prior.__file__, encoding="utf-8") as handle:
+            source = handle.read()
         self.assertNotIn('"/props"', source,
                          "the /props URL should exist in one place only")
 

@@ -790,7 +790,8 @@ class CheckpointTests(unittest.TestCase):
             entries = tp.run_three_pass(
                 _client_returning([]), "m", source, params, chunk_size=18,
                 output_path=out, collect_all_failures=True)
-            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                manifest = json.load(handle)
         self.assertEqual("incomplete", manifest["status"])
         self.assertIn("segment", [f["pass"] for f in manifest["diagnostic_failures"]])
         self.assertEqual(2, manifest["progress"]["chunks_attempted"])
@@ -809,7 +810,8 @@ class CheckpointTests(unittest.TestCase):
             entries = tp.run_three_pass(
                 _client_returning([]), "m", source, params, chunk_size=6000,
                 output_path=out, collect_all_failures=True)
-            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                manifest = json.load(handle)
         failures = manifest["diagnostic_failures"]
         self.assertEqual([0, 1], [f["entry"] for f in failures])
         self.assertEqual([], entries)
@@ -832,7 +834,8 @@ class CheckpointTests(unittest.TestCase):
             tp.run_three_pass(_client_returning([]), "m", source, params,
                               chunk_size=6000, output_path=out,
                               collect_all_failures=True)
-            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                manifest = json.load(handle)
         failures = [f for f in manifest["diagnostic_failures"]
                     if f["pass"] == "instruct"]
         self.assertEqual([0, 1], [f["entry"] for f in failures])
@@ -1162,7 +1165,8 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
             tp.run_three_pass(client, "m", source, params, chunk_size=6000, output_path=out)
-            man = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                man = json.load(handle)
         self.assertEqual("complete", man["status"])
         self.assertEqual(3, man["progress"]["llm_calls"])
         self.assertEqual("clean", man["chunks"][0]["resolution"])
@@ -1182,7 +1186,8 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaises(tp.PassExhausted):
                 tp.run_three_pass(crashing, "m", source, params=LLMGenParams(
                     max_tokens=500, temperature=0.1), chunk_size=6000, output_path=out)
-            man = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                man = json.load(handle)
         self.assertEqual("failed", man["status"])
         self.assertEqual("attribute", man["failed_pass"])
 
@@ -1202,7 +1207,8 @@ class ManifestTests(unittest.TestCase):
                 tp.run_three_pass(
                     client, "m", source, params, chunk_size=6000,
                     output_path=out, on_exhaustion="fallback")
-            man = json.load(open(tp.three_pass_manifest_path(out)))
+            with open(tp.three_pass_manifest_path(out)) as handle:
+                man = json.load(handle)
 
         self.assertEqual("failed", man["status"])
         self.assertEqual("attribute", man["failed_pass"])
