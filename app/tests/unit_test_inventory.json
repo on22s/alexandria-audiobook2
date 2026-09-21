@@ -184,6 +184,10 @@
     "tests.test_apostrophe_repair.Repair.test_hyphenated_word_is_not_split",
     "tests.test_apostrophe_repair.Repair.test_length_is_preserved"
   ],
+  "test_architecture_patterns": [
+    "tests.test_architecture_patterns.ArchitecturePatternDocumentationTests.test_document_records_the_safety_invariants",
+    "tests.test_architecture_patterns.ArchitecturePatternDocumentationTests.test_pattern_map_names_existing_implementation_files"
+  ],
   "test_argparse_help_strings": [
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_no_help_string_contains_an_unescaped_percent",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
