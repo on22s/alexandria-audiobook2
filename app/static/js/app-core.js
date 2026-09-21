@@ -6,10 +6,10 @@
                            type === 'warning' ? 'bg-warning text-dark' : 'bg-info';
             const id = 'toast-' + Date.now();
             const html = `
-                <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+                <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="status" aria-live="polite" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${escapeHtml(message)}</div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
                     </div>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
@@ -193,37 +193,48 @@
         }
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
-                if (e.target.dataset.tab) { rememberTab(e.target.dataset.tab); }
+                e.preventDefault();
+                const selectedLink = e.currentTarget;
+                if (selectedLink.dataset.tab) { rememberTab(selectedLink.dataset.tab); }
                 // Remove active class from all links
-                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.nav-link').forEach(l => {
+                    l.classList.remove('active');
+                    l.removeAttribute('aria-current');
+                });
                 // Add active to clicked
-                e.target.classList.add('active');
+                selectedLink.classList.add('active');
+                selectedLink.setAttribute('aria-current', 'page');
 
                 // Hide all tabs
                 document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
                 // Show target tab
-                const targetId = e.target.dataset.tab + '-tab';
+                const targetId = selectedLink.dataset.tab + '-tab';
                 document.getElementById(targetId).style.display = 'block';
 
+                const nav = document.getElementById('navbarNav');
+                if (nav.classList.contains('show')) {
+                    bootstrap.Collapse.getOrCreateInstance(nav).hide();
+                }
+
                 // Trigger tab specific loads
-                if (e.target.dataset.tab === 'editor') {
+                if (selectedLink.dataset.tab === 'editor') {
                     loadChunks();
-                } else if (e.target.dataset.tab === 'voices') {
+                } else if (selectedLink.dataset.tab === 'voices') {
                     loadVoices();
-                } else if (e.target.dataset.tab === 'designer') {
+                } else if (selectedLink.dataset.tab === 'designer') {
                     loadDesignedVoices();
-                } else if (e.target.dataset.tab === 'training') {
+                } else if (selectedLink.dataset.tab === 'training') {
                     loadLoraDatasets();
                     loadLoraModels();
-                } else if (e.target.dataset.tab === 'dataset-builder') {
+                } else if (selectedLink.dataset.tab === 'dataset-builder') {
                     dsbLoadProjects(dsbCurrentProject);
-                } else if (e.target.dataset.tab === 'preparer') {
+                } else if (selectedLink.dataset.tab === 'preparer') {
                     loadPreparerOutputs();
-                } else if (e.target.dataset.tab === 'voicelab') {
+                } else if (selectedLink.dataset.tab === 'voicelab') {
                     loadVoicelabConfig();
                     voicelabInspect();
                     refreshVoicelabHealth();
-                } else if (e.target.dataset.tab === 'reports') {
+                } else if (selectedLink.dataset.tab === 'reports') {
                     loadReports();
                     loadCheckpoints();
                     loadRunHistory();
