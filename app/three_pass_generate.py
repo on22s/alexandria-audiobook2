@@ -37,6 +37,7 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
 from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
                              is_narrator_attested, normalize_narrator_name)
 from pass_quality import (is_attested_name, strip_roster_alias_echo,
+                          classify_lexical_quote_regions,
                           validate_segment_quality, validate_attribution,
                           validate_instruct, index_head_check,
                           analyze_outer_quote_regions, split_outer_quote_regions,
@@ -157,6 +158,18 @@ def resolve_attribute_prompt(config, variant_override=None):
         return variant_override, None
     variant, texts, _ = resolve_attribution_preset(config)
     return variant, texts
+
+
+def resolve_three_pass_prompt(config, pass_name):
+    """Return custom (system, user) text for a numbered pass, if selected."""
+    prompts = config.get("prompts") or {}
+    active = prompts.get(f"{pass_name}_preset") or "default"
+    if active == "default":
+        return None, None
+    for preset in prompts.get(f"{pass_name}_prompt_presets") or []:
+        if isinstance(preset, dict) and preset.get("name") == active:
+            return preset.get("system_prompt") or None, preset.get("user_prompt") or None
+    return None, None
 
 
 def build_window_surround(segmented, window_indices, chars):
@@ -413,9 +426,13 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
 def build_instruct_request(prior_batch, params, neighbor_contexts=None):
     """Build the canonical pass-3 system and user prompts."""
     sys_prompt, usr_template = load_instruct_prompts()
-    if params.system_prompt:
+    if params.instruct_system_prompt:
+        sys_prompt = params.instruct_system_prompt
+    elif params.system_prompt:
         sys_prompt = params.system_prompt
-    if params.user_prompt_template:
+    if params.instruct_user_prompt_template:
+        usr_template = params.instruct_user_prompt_template
+    elif params.user_prompt_template:
         usr_template = params.user_prompt_template
     neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
     batch_json = json.dumps([
@@ -596,11 +613,18 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
     (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
     exhaustion."""
     sys_prompt, usr_template = load_segment_prompts()
-    if params.system_prompt:
+    if params.segment_system_prompt:
+        sys_prompt = params.segment_system_prompt
+    elif params.system_prompt:
         sys_prompt = params.system_prompt
-    if params.user_prompt_template:
+    if params.segment_user_prompt_template:
+        usr_template = params.segment_user_prompt_template
+    elif params.user_prompt_template:
         usr_template = params.user_prompt_template
     user_prompt = usr_template.format(chunk=chunk)
+    quote_analysis = (classify_lexical_quote_regions(
+        chunk, analyze_outer_quote_regions(chunk))
+        if params.segmentation == "lexical" else None)
     attempts = []
     def observe(attempt):
         attempts.append(attempt)
@@ -615,7 +639,9 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
     entries = _call_segment(
         client, model_name, chunk, sys_prompt, user_prompt, params, "SEGMENT",
         max_retries, near_miss_sink, attempt_observer=observe,
-        retry_decider=decide)
+        retry_decider=decide,
+        validate=lambda candidate: validate_segment_quality(
+            chunk, candidate, quote_analysis=quote_analysis))
     if not entries and failure_sink is not None and attempts:
         failure_sink[:] = [set(attempts[-1].get("failure_codes") or [])]
     return entries
@@ -637,7 +663,7 @@ def _resolved_near_miss(near_miss, resolution_sink):
     return entries
 
 
-SEGMENTATION_MODES = ("auto", "quotes", "llm")
+SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
 
 
 def quote_regions_decision(mode, chunk, analysis):
@@ -654,6 +680,8 @@ def quote_regions_decision(mode, chunk, analysis):
     gate did not vouch for it. "llm": never."""
     if mode == "llm":
         return None, None
+    if mode == "lexical":
+        analysis = classify_lexical_quote_regions(chunk, analysis)
     regions = analysis["regions"]
     if len(regions) > 1:
         quality = validate_segment_quality(chunk, regions, quote_analysis=analysis)
@@ -803,7 +831,11 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         if failure_sink is not None:
             failure_sink[:] = local_failures
         return _resolved_near_miss(near_miss, resolution_sink)
-    combined_quality = validate_segment_quality(chunk, combined)
+    combined_analysis = (classify_lexical_quote_regions(
+        chunk, quote_analysis or analyze_outer_quote_regions(chunk))
+        if params.segmentation == "lexical" else None)
+    combined_quality = validate_segment_quality(
+        chunk, combined, quote_analysis=combined_analysis)
     if not combined_quality["passed"]:
         codes = {f.get("code") for f in combined_quality["findings"]}
         m = combined_quality["metrics"]
@@ -880,7 +912,11 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     params = LLMGenParams(
         max_tokens=settings["max_tokens"], context_length=context_length,
         segment_output_ratio=settings["segment_output_ratio"],
-        segmentation=settings["segmentation"])
+        segmentation=settings["segmentation"],
+        segment_system_prompt=settings.get("segment_system_prompt"),
+        segment_user_prompt_template=settings.get("segment_user_prompt_template"),
+        instruct_system_prompt=settings.get("instruct_system_prompt"),
+        instruct_user_prompt_template=settings.get("instruct_user_prompt_template"))
     records = split_into_chunk_records(source_text, max_size=chunk_size)
     chunks = [record["text"] for record in records]
     predicted_entries = []
@@ -912,6 +948,10 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                          "predicted_total_tokens": total})
 
     segment_system, segment_template = load_segment_prompts()
+    if params.segment_system_prompt:
+        segment_system = params.segment_system_prompt
+    if params.segment_user_prompt_template:
+        segment_template = params.segment_user_prompt_template
     # Pass 1 re-emits the chunk verbatim, so its output grows with the chunk.
     # The run's escalation ceiling is the most it can ever ask for; a chunk
     # whose predicted output exceeds it cannot succeed at any retry, and the
@@ -1046,7 +1086,9 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
     near-miss into near_miss_sink like the normal segment path. Returns
     [{type,text}] or []."""
     sys_prompt, _ = load_segment_prompts()
-    if params.system_prompt:
+    if params.segment_system_prompt:
+        sys_prompt = params.segment_system_prompt
+    elif params.system_prompt:
         sys_prompt = params.system_prompt
     user_prompt = _CONTEXT_SEGMENT_USER.format(before=before or "(start of book)",
                                                after=after or "(end of book)",
@@ -1057,7 +1099,11 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         # also pastes a reference-context sentence can otherwise pass recall /
         # trigram / ratio (the leaked sentence adds output but doesn't drop source
         # recall), so reject clear context-only entries as a validation failure.
-        report = validate_segment_quality(chunk, entries)
+        quote_analysis = (classify_lexical_quote_regions(
+            chunk, analyze_outer_quote_regions(chunk))
+            if params.segmentation == "lexical" else None)
+        report = validate_segment_quality(
+            chunk, entries, quote_analysis=quote_analysis)
         if _output_has_context_bleed(entries, chunk, before, after):
             report = dict(report)
             report["passed"] = False
@@ -1125,7 +1171,9 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     before_all = _tail_join(chunks[:index], max_window)
     after_all = _head_join(chunks[index + 1:], max_window)
     sys_prompt, _ = load_segment_prompts()
-    if params.system_prompt:
+    if params.segment_system_prompt:
+        sys_prompt = params.segment_system_prompt
+    elif params.system_prompt:
         sys_prompt = params.system_prompt
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
@@ -1250,14 +1298,16 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "context_length", "hard_max_tokens", "segment_temperature",
             "attribute_temperature", "instruct_temperature",
             "segment_output_ratio", "structured_output",
+            "segment_system_prompt", "segment_user_prompt_template",
+            "instruct_system_prompt", "instruct_user_prompt_template",
             "response_schema")})
         # The pass-1 knob used to be the bool `presegment_quotes`; keep that key
         # with the same meaning so every checkpoint written before the
         # three-way mode existed still resumes, and add the mode only in
         # "quotes", where pass 1 is a different contract.
         settings["presegment_quotes"] = getattr(params, "segmentation", "llm") != "llm"
-        if getattr(params, "segmentation", None) == "quotes":
-            settings["segmentation"] = "quotes"
+        if getattr(params, "segmentation", None) in ("quotes", "lexical"):
+            settings["segmentation"] = getattr(params, "segmentation")
         # The attribution schema is installed inside attribute_batch rather
         # than on the caller's params object. Include it in the checkpoint
         # identity so changing the request contract cannot resume old output.
@@ -2057,7 +2107,8 @@ def main():
     parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
                         help="Override generation.three_pass_segmentation: auto "
                              "(quote marks where unambiguous, else the model), quotes "
-                             "(never the model), llm (always the model)")
+                             "(never the model), lexical (quoted terms as narration), "
+                             "llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
@@ -2190,6 +2241,16 @@ def main():
         retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
         retry_jitter=llm.get("retry_jitter", 0.2),
         on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
+    params.segment_system_prompt, params.segment_user_prompt_template = resolve_three_pass_prompt(
+        config, "pass1")
+    params.instruct_system_prompt, params.instruct_user_prompt_template = resolve_three_pass_prompt(
+        config, "pass3")
+    generation_settings.update({
+        "segment_system_prompt": params.segment_system_prompt,
+        "segment_user_prompt_template": params.segment_user_prompt_template,
+        "instruct_system_prompt": params.instruct_system_prompt,
+        "instruct_user_prompt_template": params.instruct_user_prompt_template,
+    })
     attribute_prompt_variant, attribute_prompt_texts = resolve_attribute_prompt(
         config, args.prompt_variant)
     from attribution_prompt_variants import VARIANTS, builtin_texts, validate_preset_texts

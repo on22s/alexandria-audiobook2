@@ -323,6 +323,15 @@ class SegmentationModeTests(unittest.TestCase):
         regions, resolution = tp.quote_regions_decision("quotes", "still talking here.", analysis)
         self.assertEqual("SPOKEN", regions[0]["type"])
 
+    def test_lexical_mode_treats_a_quoted_term_as_narration(self):
+        source = 'He was known as "the Fox". Then she said, "Run!"'
+        regions, resolution = tp.quote_regions_decision(
+            "lexical", source, tp.analyze_outer_quote_regions(source))
+        self.assertEqual(
+            ["NARRATOR", "NARRATOR", "NARRATOR", "SPOKEN"],
+            [region["type"] for region in regions])
+        self.assertTrue(resolution.startswith("quote_presegmented"))
+
     def test_auto_mode_still_asks_the_model_for_an_unquoted_chunk(self):
         calls = []
 
@@ -342,6 +351,39 @@ class SegmentationModeTests(unittest.TestCase):
     def test_llm_mode_never_presegments(self):
         self.assertEqual((None, None), tp.quote_regions_decision(
             "llm", 'A. "B." C.', tp.analyze_outer_quote_regions('A. "B." C.')))
+
+    def test_custom_numbered_pass_prompts_reach_prompt_builders(self):
+        params = LLMGenParams(
+            segment_system_prompt="segment system",
+            segment_user_prompt_template="segment {chunk}",
+            instruct_system_prompt="instruct system",
+            instruct_user_prompt_template="instruct {batch}")
+        segment = tp.build_three_pass_request_preflight(
+            "A short source.", {"segmentation": "llm", "max_tokens": 1000,
+                                "chunk_size": 3000, "segment_output_ratio": 3.0,
+                                "attribute_batch_size": 25,
+                                "attribute_context_chars": 0,
+                                "segment_system_prompt": params.segment_system_prompt,
+                                "segment_user_prompt_template": params.segment_user_prompt_template,
+                                "instruct_system_prompt": params.instruct_system_prompt,
+                                "instruct_user_prompt_template": params.instruct_user_prompt_template},
+            context_length=0, parallel=1)
+        stages = {request["stage"]: request for request in segment["requests"]}
+        self.assertGreater(stages["segment"]["prompt_tokens"], 0)
+        self.assertGreater(stages["instruct"]["prompt_tokens"], 0)
+        self.assertEqual(("segment system", "segment {chunk}"),
+                         tp.resolve_three_pass_prompt({"prompts": {
+                             "pass1_preset": "clean",
+                             "pass1_prompt_presets": [{"name": "clean",
+                                "system_prompt": "segment system",
+                                "user_prompt": "segment {chunk}"}]}}, "pass1"))
+
+    def test_lexical_and_quotes_fingerprints_are_distinct(self):
+        quotes = tp.three_pass_fingerprint(
+            "text", "m", 3000, LLMGenParams(segmentation="quotes"))
+        lexical = tp.three_pass_fingerprint(
+            "text", "m", 3000, LLMGenParams(segmentation="lexical"))
+        self.assertNotEqual(quotes, lexical)
 
     def test_fingerprint_is_unchanged_for_auto_and_llm_and_new_for_quotes(self):
         auto = tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation="auto"))

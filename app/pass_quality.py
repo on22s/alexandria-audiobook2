@@ -183,6 +183,37 @@ def split_outer_quote_regions(text):
     return analyze_outer_quote_regions(text)["regions"]
 
 
+_LEXICAL_QUOTE_CONTEXT = re.compile(
+    r"(?:\b(?:known|referred)\s+as|\bcalled|\bnamed|\bclassified\s+as|"
+    r"\brated|\b(?:the\s+)?(?:word|term|title|grade|rank)|"
+    r"\b(?:his|her|their)|\b(?:use|uses|using)|\bability\s+to\s+use)"
+    r"\s*$", re.IGNORECASE)
+
+
+def classify_lexical_quote_regions(source_text, quote_analysis):
+    """Classify only strongly signalled quoted reference terms as narration."""
+    regions = []
+    quoted = list(re.finditer(r'["“「『]([^"”」』\n]+)["”」』]', source_text))
+    quote_cursor = 0
+    for region in quote_analysis.get("regions", []):
+        updated = dict(region)
+        if region.get("type") == "SPOKEN":
+            target = normalize_text(region.get("text") or "")
+            for match in quoted:
+                if match.start() < quote_cursor:
+                    continue
+                if normalize_text(match.group(1)) != target:
+                    continue
+                prefix = source_text[max(0, match.start() - 100):match.start()]
+                if _LEXICAL_QUOTE_CONTEXT.search(prefix):
+                    updated["type"] = "NARRATOR"
+                    updated["quote_role"] = "LEXICAL_QUOTE"
+                quote_cursor = match.end()
+                break
+        regions.append(updated)
+    return {**quote_analysis, "regions": regions}
+
+
 def _split_quote_regions(source_text):
     """Return normalized text regions outside and inside outer dialogue quotes."""
     regions = split_outer_quote_regions(source_text)
