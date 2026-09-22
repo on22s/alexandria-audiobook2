@@ -48,6 +48,13 @@ low (RECIPES §"Prompt variants × bases", 2026-09-18):
 | Qwen3-14B Q4_K_M | 9.0 GB | 66.1 | **82.0** | +16 from the prompt alone, the largest gain of any base |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | 71.9 / 71.7 | both collapse on the hardest book |
 
+Separately, paid OpenRouter base-only runs of Nemotron 3 Ultra scored 96.7%
+on *Mansfield Park*, 97.6% on *Northanger Abbey*, 97.1% on *Persuasion*,
+85.3% on *The Sign of the Four*, and 87.3% on *The Sun Also Rises*.
+These are per-book API baselines, not a pooled score or adapter comparison;
+the provider-routing caveat and artifacts are documented in
+[RECIPES.md](RECIPES.md#september-22-follow-up-low-quant-adapter-and-nemotron-api-baselines).
+
 **Local vs cloud** (goal 4.2, best local arm per book against DeepSeek's
 best): 97.3% / 97.5% / 94.5% / 92.9% of the cloud number on the four books.
 Two books sit outside the 5% band the goal asks for; the adapters below are
@@ -94,6 +101,11 @@ adapter's +8.7 under the `default` prompt is a null under the product
 prompt. Muse Gen 3 is promising only at scale 0.25 so far; that result is a
 10-window pilot and is not promotion-grade until the 40-window replication.
 `ATTRIBUTION_ADAPTER_SETUP.md` says how to load one.
+
+The separate eight-book PDNC pilot for Qwen3.8 IQ2_XXS measured 89.6% base
+vs 91.1% with the rights-clean adapter (+1.5 points; 2,310 rows). It is not
+the nine-book panel above and remains pilot evidence, not a release-wide
+claim; see [RECIPES.md](RECIPES.md#september-22-follow-up-low-quant-adapter-and-nemotron-api-baselines).
 
 ### Voices — against a human ceiling
 

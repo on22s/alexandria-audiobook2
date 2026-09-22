@@ -26,3 +26,10 @@ The same campaign found that the Qwen3.8 Q4 `michel2` adapter with reasoning
 off improved 94.9% to 97.1% on 2,305 held-out shared rows. In contrast, the
 A3B IQ1_M reasoning-off adapter regressed 91.4% to 88.9%; its earlier
 four-book gain did not generalise.
+
+A separate eight-book PDNC pilot measured the Qwen3.8 IQ2_XXS rights-clean
+adapter at 89.6% base versus 91.1% with the adapter (+1.5 points across
+2,310 rows; 2,292 strict shared rows, paired p=0.0486). This is pilot-scale
+evidence, not the nine-book replication or a release-wide claim. See
+[`RECIPES.md`](../../RECIPES.md#september-22-follow-up-low-quant-adapter-and-nemotron-api-baselines)
+for the paired details and artifact.
