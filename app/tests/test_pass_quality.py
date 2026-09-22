@@ -31,6 +31,131 @@ class SegmentQualityTests(unittest.TestCase):
             ["NARRATOR", "NARRATOR", "NARRATOR", "SPOKEN", "NARRATOR"],
             [region["type"] for region in classified["regions"]])
 
+    def test_lexical_quote_classifier_handles_exact_issue_644_grammar(self):
+        source = (
+            'After being used, that aura would end up leaving something known as a '
+            '"Mana Trail". It was evidence that proved whether or not the magic of a '
+            'specific element had been used. In addition to elemental types and mana '
+            'capacity, this mana evaluation also contained an additional hidden '
+            'evaluation factor that tested students for their ability in something '
+            'known as "Mana Control". Professor Fernando began to read each grade '
+            'aloud. "…Provisional 3rd Class. 1st, Grade C-."')
+        classified = classify_lexical_quote_regions(
+            source, analyze_outer_quote_regions(source))
+
+        self.assertEqual(
+            ["NARRATOR", "NARRATOR", "NARRATOR", "NARRATOR", "NARRATOR", "SPOKEN"],
+            [region["type"] for region in classified["regions"]])
+        entries = [
+            _seg('After being used, that aura would end up leaving something known as a'),
+            _seg('Mana Trail'),
+            _seg('. It was evidence that proved whether or not the magic of a specific '
+                 'element had been used. In addition to elemental types and mana '
+                 'capacity, this mana evaluation also contained an additional hidden '
+                 'evaluation factor that tested students for their ability in something '
+                 'known as'),
+            _seg('Mana Control'),
+            _seg('. Professor Fernando began to read each grade aloud.'),
+            _seg('…Provisional 3rd Class. 1st, Grade C-.', "SPOKEN"),
+        ]
+        report = validate_segment_quality(source, entries, quote_analysis=classified)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_lexical_quote_classifier_preserves_other_issue_644_terms(self):
+        source = ('Ian was able to enroll thanks to his "rarity". It was a result of '
+                  'Ian’s unique ability to use "light" magic.')
+        classified = classify_lexical_quote_regions(
+            source, analyze_outer_quote_regions(source))
+        self.assertEqual(
+            ["NARRATOR"] * 5,
+            [region["type"] for region in classified["regions"]])
+
+    def test_lexical_quote_classifier_keeps_reporting_verb_dialogue_spoken(self):
+        sources = (
+            'He called "Run!"',
+            'He called "John"',
+            'The man called "Run!"',
+            'He called out, "Run!"',
+            'Professor Fernando said, "Mana Trail."',
+            'She said the word "No."',
+            'She whispered the term "retreat".',
+            '"Mana Trail," he said.',
+            '"Run!" shouted Professor Fernando.',
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                classified = classify_lexical_quote_regions(
+                    source, analyze_outer_quote_regions(source))
+                quoted = [region for region in classified["regions"]
+                          if any(term in region["text"] for term in
+                                 ("Mana Trail", "Run!", "John", "No.", "retreat"))]
+                self.assertEqual(["SPOKEN"], [region["type"] for region in quoted])
+
+    def test_lexical_quote_classifier_handles_articles_and_quote_styles(self):
+        for opener, closer in (("\"", "\""), ("“", "”"), ("「", "」"), ("『", "』")):
+            for article, term in (("", "Mana Trail"), ("a ", "Mana Trail"),
+                                  ("an ", "Arcane Trace"), ("the ", "Mana Trail")):
+                source = f'The effect was known as {article}{opener}{term}{closer}.'
+                with self.subTest(source=source):
+                    classified = classify_lexical_quote_regions(
+                        source, analyze_outer_quote_regions(source))
+                    quoted = next(region for region in classified["regions"]
+                                  if region["text"] == term)
+                    self.assertEqual("NARRATOR", quoted["type"])
+                    self.assertEqual("LEXICAL_QUOTE", quoted["quote_role"])
+
+    def test_lexical_quote_classifier_handles_strong_grammar_contexts(self):
+        sources = (
+            'The effect was referred to as "Mana Trail".',
+            'The effect was classified as "rare".',
+            'The result was rated "E".',
+            'The result was ranked as "S".',
+            'The phenomenon was called "Mana Trail".',
+            'The sword was named "Dawn".',
+            'A phenomenon called "Mana Trail" appeared.',
+            'There was a man called "John".',
+            'There was a force called "aether".',
+            'The term "Mana Trail" was precise.',
+            'The concept of "rarity" mattered.',
+            'The sign means "stop".',
+            'She could use "light" magic.',
+            'The mage wielded "light" magic.',
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                classified = classify_lexical_quote_regions(
+                    source, analyze_outer_quote_regions(source))
+                quoted = classified["regions"][1]
+                self.assertEqual("NARRATOR", quoted["type"])
+                self.assertEqual("LEXICAL_QUOTE", quoted["quote_role"])
+
+    def test_lexical_suffix_does_not_cross_a_sentence_or_paragraph(self):
+        sources = (
+            'He shouted, "Run!" Magic filled the room.',
+            'He said, "No."\n\nSkill was useless here.',
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                classified = classify_lexical_quote_regions(
+                    source, analyze_outer_quote_regions(source))
+                quoted = classified["regions"][1]
+                self.assertEqual("SPOKEN", quoted["type"])
+                self.assertNotIn("quote_role", quoted)
+
+    def test_reporting_suffix_does_not_override_a_lexical_subject(self):
+        lexical = (
+            'The word "magic" said nothing about its origin.',
+            'The title "King" said little about his character.',
+            'The term "magic," as the old historian said, was imprecise.',
+        )
+        for source in lexical:
+            with self.subTest(source=source):
+                classified = classify_lexical_quote_regions(
+                    source, analyze_outer_quote_regions(source))
+                quoted = classified["regions"][1]
+                self.assertEqual("NARRATOR", quoted["type"])
+                self.assertEqual("LEXICAL_QUOTE", quoted["quote_role"])
+
     def test_chapter_title_in_source_credit_is_not_dialogue(self):
         source = ('Light Novel Adaptation found in Volume 9, Interlude '
                   '“To Each Their Vows”.')
