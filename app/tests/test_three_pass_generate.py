@@ -324,7 +324,7 @@ class SegmentationModeTests(unittest.TestCase):
         self.assertEqual("SPOKEN", regions[0]["type"])
 
     def test_lexical_mode_treats_a_quoted_term_as_narration(self):
-        source = 'He was known as "the Fox". Then she said, "Run!"'
+        source = 'The effect was known as a "Mana Trail". Then she said, "Run!"'
         regions, resolution = tp.quote_regions_decision(
             "lexical", source, tp.analyze_outer_quote_regions(source))
         self.assertEqual(

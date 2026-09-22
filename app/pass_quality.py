@@ -30,9 +30,11 @@ _SENTENCE_END = set('.!?…。！？')
 _CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
 
 
+_REPORTING_VERBS = (
+    r"(?:murmured|whispered|said|replied|answered|asked|cried|shouted|exclaimed)"
+)
 _REPORTING_VERB_TAIL = re.compile(
-    r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted),?\s+"
-    r"([^\n]{1,120})$", re.IGNORECASE)
+    rf"\b{_REPORTING_VERBS},?\s+([^\n]{{1,120}})$", re.IGNORECASE)
 _SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
 _METADATA_PARAGRAPH = re.compile(
     r"^(?:Light Novel Adaptation found in|Original Web Novel Chapter|"
@@ -183,11 +185,39 @@ def split_outer_quote_regions(text):
     return analyze_outer_quote_regions(text)["regions"]
 
 
-_LEXICAL_QUOTE_CONTEXT = re.compile(
-    r"(?:\b(?:known|referred)\s+as|\bcalled|\bnamed|\bclassified\s+as|"
-    r"\brated|\b(?:the\s+)?(?:word|term|title|grade|rank)|"
-    r"\b(?:his|her|their)|\b(?:use|uses|using)|\bability\s+to\s+use)"
+_DIALOGUE_QUOTE_SUFFIX = re.compile(
+    rf"^\s*[,;:]?\s*(?:(?:[\w’'-]+\s+){{1,4}})?{_REPORTING_VERBS}\b",
+    re.IGNORECASE)
+_LEXICAL_RELATION_CONTEXT = re.compile(
+    r"(?:\b(?:known|classified)\s+as|\breferred\s+to\s+as|"
+    r"\b(?:rated|ranked)(?:\s+as)?|"
+    r"\b(?:is|are|was|were|be|been|being)\s+(?:called|named)|\bnamed|\bmeans)"
+    r"(?:\s+(?:a|an|the))?\s*$", re.IGNORECASE)
+_LEXICAL_NAMING_CONTEXT = re.compile(
+    r"\b(?:something|anything|everything|nothing|word|term|title|grade|rank|"
+    r"concept|skill|spell|ability|technique|effect|phenomenon)\s+called"
+    r"(?:\s+(?:a|an|the))?\s*$", re.IGNORECASE)
+_LEXICAL_LABEL_CONTEXT = re.compile(
+    r"\b(?:the\s+)?(?:word|term|title|grade|rank|concept|skill|spell)"
+    r"(?:\s+(?:is|was|of))?\s*$", re.IGNORECASE)
+_LEXICAL_USAGE_CONTEXT = re.compile(
+    r"(?:\b(?:his|her|their)|\b(?:use|uses|using)|\bability\s+to\s+use)"
     r"\s*$", re.IGNORECASE)
+_LEXICAL_QUOTE_SUFFIX = re.compile(
+    r"^\s+(?:magic|skill|spell|ability|technique|concept)\b", re.IGNORECASE)
+
+
+def _get_quote_role(prefix, suffix):
+    """Return a role only when grammar strongly identifies a lexical quote."""
+    if _DIALOGUE_QUOTE_SUFFIX.search(suffix):
+        return None
+    if (_LEXICAL_RELATION_CONTEXT.search(prefix) or
+            _LEXICAL_NAMING_CONTEXT.search(prefix) or
+            _LEXICAL_LABEL_CONTEXT.search(prefix) or
+            _LEXICAL_USAGE_CONTEXT.search(prefix) or
+            _LEXICAL_QUOTE_SUFFIX.search(suffix)):
+        return "LEXICAL_QUOTE"
+    return None
 
 
 def classify_lexical_quote_regions(source_text, quote_analysis):
@@ -205,9 +235,11 @@ def classify_lexical_quote_regions(source_text, quote_analysis):
                 if normalize_text(match.group(1)) != target:
                     continue
                 prefix = source_text[max(0, match.start() - 100):match.start()]
-                if _LEXICAL_QUOTE_CONTEXT.search(prefix):
+                suffix = source_text[match.end():match.end() + 100]
+                quote_role = _get_quote_role(prefix, suffix)
+                if quote_role:
                     updated["type"] = "NARRATOR"
-                    updated["quote_role"] = "LEXICAL_QUOTE"
+                    updated["quote_role"] = quote_role
                 quote_cursor = match.end()
                 break
         regions.append(updated)
