@@ -859,7 +859,7 @@ process and **zero bytes written for 113 minutes**, twice, with no error. It was
 recovered with a resumable `curl -C -` against HuggingFace's range support.
 LM Studio cannot see the resulting file — its `gguf-metadata-cache.json` never
 learned about it — so the 70B must be served by llama.cpp by path, or refetched
-with `-hf`. Full details in `INFERENCE_STACK_NOTES.md`.
+with `-hf`. Full details in `../operations/INFERENCE_STACK_NOTES.md`.
 
 ## 13. Crossover: complete, and it does NOT resolve section 6.3
 
@@ -1555,7 +1555,7 @@ things I cannot resolve:
   one table with provenance (validation, dirty, endpoint, backend, context)
   beside each number. 31 artifacts, 98 arms. It immediately surfaces that **25
   of 98 rows are `dirty: true`** and 7 predate the validator.
-- **`INFERENCE_STACK_NOTES.md`** — the serving/model-management reference.
+- **`../operations/INFERENCE_STACK_NOTES.md`** — the serving/model-management reference.
 
 ## 15. Queue paused
 

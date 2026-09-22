@@ -21,6 +21,19 @@ settings that produced working results, each with its look-alike failure ·
 **[Adapters on Hugging Face](https://huggingface.co/Om22s/alexandria-qwen3-attribution)**
 · **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** — how those are released
 
+## New here? Start with the path that fits you
+
+| I want to… | Start here |
+|---|---|
+| **Try the audiobook app** | [Install](#installation), then follow [your first audiobook](#beginners-guide-your-first-audiobook). |
+| **Understand the evaluation results** | Read [results at a glance](#results-at-a-glance), then the [Muse quant comparison](docs/results/muse-quant-baselines.md) and [evaluation recipes](RECIPES.md). |
+| **Find a particular run or its raw data** | Search the [results index](RESULTS_INDEX.md); each entry links to the committed artifact. |
+| **Browse the supporting documentation** | Use the [documentation map](docs/README.md) to find user guides, operations notes, results, and history. |
+| **Understand the project or contribute** | Start with the [project wiki](docs/wiki/Home.md), then [contributing](#contributing) and [goals](GOALS.md). |
+
+The app guide, research results, and development notes serve different purposes;
+you do not need to read the research sections to install or use the app.
+
 ## Example: [sample.mp3](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 ## Results at a glance
@@ -47,6 +60,11 @@ low (RECIPES §"Prompt variants × bases", 2026-09-18):
 | Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | **90.5** | the shipped base; `michel2` 86.6; without reasoning 72.1 |
 | Qwen3-14B Q4_K_M | 9.0 GB | 66.1 | **82.0** | +16 from the prompt alone, the largest gain of any base |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | 71.9 / 71.7 | both collapse on the hardest book |
+
+On the separate nine-novel PDNC panel, the completed Muse base-only quant
+comparison is **93.33% (Q3)** and **94.61% (Q4)** across 2,655 rows. This is a
+different fixture from the four-book table above; see the [full comparison and
+artifacts](docs/results/muse-quant-baselines.md).
 
 Separately, paid OpenRouter base-only runs of Nemotron 3 Ultra scored 96.7%
 on *Mansfield Park*, 97.6% on *Northanger Abbey*, 97.1% on *Persuasion*,
@@ -100,7 +118,7 @@ line echoed back (21% of nine-novel rows), which the app now reads as the main f
 adapter's +8.7 under the `default` prompt is a null under the product
 prompt. Muse Gen 3 is promising only at scale 0.25 so far; that result is a
 10-window pilot and is not promotion-grade until the 40-window replication.
-`ATTRIBUTION_ADAPTER_SETUP.md` says how to load one.
+[`ATTRIBUTION_ADAPTER_SETUP.md`](docs/guides/ATTRIBUTION_ADAPTER_SETUP.md) says how to load one.
 
 The separate eight-book PDNC pilot for Qwen3.8 IQ2_XXS measured 89.6% base
 vs 91.1% with the rights-clean adapter (+1.5 points; 2,310 rows). It is not
@@ -180,7 +198,7 @@ Relative to upstream Alexandria, in the order you meet them:
   not measured.
 - **Measurement discipline**: `GOALS.md`, `RECIPES.md`, a results index that
   is rebuilt not merged, provenance on every artifact, a release verifier, and
-  3,348 unit tests.
+  3,330 unit tests.
 
 ## Screenshots
 
@@ -432,6 +450,9 @@ The activity line names what the run is waiting on. Check
 
 ## Web interface
 
+<details>
+<summary>Expand the screen-by-screen guide for Setup, Script, Voices, Editor, and the tools</summary>
+
 The interface is a **five-step pipeline** (numbered tabs) plus tools:
 Designer, Preparer, Dataset, Training, Voice Lab, Reports. The header shows
 the running build's commit, GPU memory in use, and a light/dark toggle.
@@ -552,7 +573,7 @@ Text**, **Disable auto-anchor**, **Chunk Size**, **Min Chunk Duration**,
 **Resume from dataset_temp/**, **LLM enrichment** (speaker attribution,
 narration style, emotional tone with an **Enrichment LLM Model Path**),
 **Language**, **Confidence**, **Min SNR**, **Speaker Diarization**
-(**Hugging Face Token**). See [PREPARER_GUIDE.md](PREPARER_GUIDE.md).
+(**Hugging Face Token**). See [PREPARER_GUIDE.md](docs/guides/PREPARER_GUIDE.md).
 
 ### Dataset
 
@@ -577,8 +598,8 @@ duplicate audit), **Train** (a LoRA per deduped voice with **Target loss**,
 **Max epochs**, **LoRA rank**), **Profile** (acoustic + LLM voice
 descriptions, **Profiler model**), **Name** (descriptive slug, rename with a
 dry-run preview); **Inspect**, **Run Pipeline**, **Pause**, **Cancel**,
-diagnostics copy/download. See [lora.md](lora.md) and
-[BATCH_PROCESSOR_GUIDE.md](BATCH_PROCESSOR_GUIDE.md).
+diagnostics copy/download. See [lora.md](docs/guides/lora.md) and
+[BATCH_PROCESSOR_GUIDE.md](docs/guides/BATCH_PROCESSOR_GUIDE.md).
 
 ### Reports
 
@@ -586,6 +607,8 @@ diagnostics copy/download. See [lora.md](lora.md) and
 (rendered views), **Benchmark** — **Preflight** / **Start** / **Cancel** a
 manifest (`stage`, `targets`, `fixtures`, `settings`) for the environment,
 LLM, TTS and training benches.
+
+</details>
 
 ## Performance
 
@@ -661,6 +684,9 @@ Everything lives under the app directory (or `ALEXANDRIA_DATA_DIR`):
 | `ab_test_runtime/experiments/` | every measurement artifact, indexed in `RESULTS_INDEX.md` |
 
 ## API reference
+
+<details>
+<summary>Advanced: HTTP examples, authentication, and the full 181-route reference</summary>
 
 Every UI action is an HTTP call; the reference is generated from the route
 decorators in `app/routers/` (181 routes).
@@ -979,6 +1005,8 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/benchmark/cancel` | benchmark cancel |
 | `GET` | `/api/benchmark/status` | benchmark status |
 
+</details>
+
 ## Recommended LLM models
 
 Every row is measured on the four-book product fixture (768 rows) with the
@@ -1118,6 +1146,9 @@ message with `{roster}` and `{batch}` placeholders). Review uses
 
 ## Project structure
 
+<details>
+<summary>Expand the repository map (for contributors and developers)</summary>
+
 ```
 alexandria-audiobook2/
 ├── app/
@@ -1136,7 +1167,7 @@ alexandria-audiobook2/
 │   ├── train_lora.py, voice_reference.py, speaker_identity.py
 │   ├── experiments/                 # ~290 measurement scripts (lora_serving_eval, voice_drift,
 │   │                                #   aligned_japanese_accent, quote_segmenter, …)
-│   ├── tests/                       # 3,348 unit tests + unit_test_inventory.json
+│   ├── tests/                       # 3,330 unit tests + unit_test_inventory.json
 │   ├── static/index.html            # the SPA (no build step)
 │   ├── static/js/app-*.js           # core, scripts, workbench, training, voicelab, reports
 │   └── requirements.txt, torch-constraints.txt
@@ -1151,6 +1182,8 @@ alexandria-audiobook2/
 ├── install.js, start.js, update.js, reset.js, pinokio.js, pinokio.json
 └── Dockerfile, docker-compose.yml, alexandria_colab.ipynb
 ```
+
+</details>
 
 ## Contributing
 

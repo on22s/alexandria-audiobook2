@@ -238,7 +238,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 - **3 · Voices**——每说话人一张卡片与 Alias of、隐藏已就绪、人设生成范围、先存库、LoRA 推荐、候选应用/忽略、暂停人设运行的校验并保存/续跑、风格时间线、系列角色表。
 - **4 · Editor**——顺序播放、渲染待处理、全部重新生成、检查声音（漂移）、仅看标记、文本完整性、全部合并。
 - **5 · Result**——播放与下载、Audacity 导出、M4B 导出（标题、作者、朗读者、年份、简介、封面、逐块章节）、分章导出（文件名模板、编号位数、格式、书名、系列名、卷、章节选择、逐块、仅变化、要求就绪、预览文件名、预设）。
-- **Designer / Preparer / Dataset / Training / Voice Lab / Reports**——见英文页对应小节，以及 [PREPARER_GUIDE.md](PREPARER_GUIDE.md)、[lora.md](lora.md)、[BATCH_PROCESSOR_GUIDE.md](BATCH_PROCESSOR_GUIDE.md)。
+- **Designer / Preparer / Dataset / Training / Voice Lab / Reports**——见英文页对应小节，以及 [PREPARER_GUIDE.md](docs/guides/PREPARER_GUIDE.md)、[lora.md](docs/guides/lora.md)、[BATCH_PROCESSOR_GUIDE.md](docs/guides/BATCH_PROCESSOR_GUIDE.md)。
 
 ## 性能
 

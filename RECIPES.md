@@ -420,6 +420,28 @@ for the new default.
 
 ## September 22 follow-up: low-quant adapter and Nemotron API baselines
 
+### Muse base quant comparison: nine PDNC novels (2026-09-17/21)
+
+Base-only Muse-Glimmer-30B measurements on the same nine-novel PDNC panel,
+with `michel2_full`, reasoning low, JSON schema, temperature 0, and 40 windows
+per novel (2,655 rows):
+
+| quant | result | accuracy | conditional accuracy | raw artifact |
+|---|---:|---:|---:|---|
+| Q3_K_XL, 13.4 GB | 2,478 / 2,655 | **93.33%** | 95.21% (1,869 / 1,963 available) | [`muse Q3`](ab_test_runtime/experiments/lora_serving_eval__muse-q3-michel2_full-tnr1-pdnc9lite-low-schema-20260917.json) |
+| Q4 K-quant, about 17 GB | 2,512 / 2,655 | **94.61%** | 95.42% (1,873 / 1,963 available) | [`muse Q4`](ab_test_runtime/experiments/lora_serving_eval__muse-q4-kquant17-michel2_full-tnr4-pdnc9lite-low-schema-20260921.json) |
+
+These artifacts validate as `ok` and share the same gold-fixture hashes and
+probe-harness hash, making the comparison like-for-like at the evaluation
+instrument level. Both record source commit `4d33772`; their provenance also
+records a dirty checkout with `app/default_prompts_attribute.txt` modified.
+The explicit `michel2_full` variant was selected for both runs, but this
+working-tree detail is retained as a reproducibility caveat. These are base
+quant baselines, not adapter gains. See the [reader-oriented comparison and
+method notes](docs/results/muse-quant-baselines.md). The queued Muse IQ3_XXS
+and IQ3_M measurements are not results yet and are intentionally not scored
+here.
+
 **Qwen3.8-27B UD-IQ2_XXS rights-clean adapter, eight-book PDNC pilot:**
 paired base → adapter at scale 0/1, `michel2_full`, reasoning low, JSON
 schema, temperature 0, 40 windows per book. On all 2,310 requested rows,
