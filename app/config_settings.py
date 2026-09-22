@@ -144,6 +144,8 @@ class GenerationConfig(BaseModel):
     # whatever it holds; only a fresh one gets the new default.
     three_pass_attribute_prompt_variant: PromptVariant = "michel2_full"
     three_pass_segmentation: SegmentationMode = "auto"
+    three_pass_quoted_must_be_spoken: bool = True
+    three_pass_unquoted_must_be_narrator: bool = True
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 

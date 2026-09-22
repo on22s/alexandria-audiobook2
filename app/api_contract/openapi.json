@@ -1120,6 +1120,11 @@
             "title": "Three Pass Model Profiles",
             "type": "object"
           },
+          "three_pass_quoted_must_be_spoken": {
+            "default": true,
+            "title": "Three Pass Quoted Must Be Spoken",
+            "type": "boolean"
+          },
           "three_pass_segment_output_ratio": {
             "default": 3.0,
             "maximum": 6.0,
@@ -1144,6 +1149,11 @@
             ],
             "title": "Three Pass Segmentation",
             "type": "string"
+          },
+          "three_pass_unquoted_must_be_narrator": {
+            "default": true,
+            "title": "Three Pass Unquoted Must Be Narrator",
+            "type": "boolean"
           },
           "top_k": {
             "default": 0,

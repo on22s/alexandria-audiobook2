@@ -34,6 +34,7 @@ from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_attribute_request,
                                  build_instruct_request,
                                  build_three_pass_request_preflight,
+                                 apply_segment_gate_controls,
                                  default_instruct,
                                  read_source_text,
                                  resolve_three_pass_generation_settings,
@@ -1023,6 +1024,10 @@ def build_recovery_detail(checkpoint):
                                     for i, e in enumerate(entries))}
     else:
         sys_prompt, usr_template = load_segment_prompts()
+        gate_params = LLMGenParams(
+            quoted_must_be_spoken=failed.get("quoted_must_be_spoken", True),
+            unquoted_must_be_narrator=failed.get("unquoted_must_be_narrator", True))
+        sys_prompt = apply_segment_gate_controls(sys_prompt, gate_params)
         user_prompt = usr_template.format(chunk=failed["source"])
         unit = {"failed_chunk": failed.get("chunk"), "chunks_total": failed.get("chunks_total"),
                 "source": failed["source"]}
@@ -1101,7 +1106,10 @@ def apply_manual_recovery(entries, resolution):
             checkpoint["stage"] = "instruct"
             unit = {"batch_indices": failed.get("indices") or []}
         else:
-            report = validate_segment_quality(failed["source"], entries)
+            report = validate_segment_quality(
+                failed["source"], entries,
+                quoted_must_be_spoken=failed.get("quoted_must_be_spoken", True),
+                unquoted_must_be_narrator=failed.get("unquoted_must_be_narrator", True))
             if not report.get("passed"):
                 return {"accepted": False, "report": report}
             checkpoint["segmented"] = list(checkpoint.get("segmented") or []) + [

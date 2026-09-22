@@ -602,6 +602,13 @@ class LLMGenParams:
     # the end so legacy positional constructors retain their meaning.
     schema_rejected_by: set = field(default_factory=set, repr=False,
                                     compare=False)
+    # Independent pass-1 quote-classification constraints. These affect only
+    # the quote-region gate; source coverage, ordering, duplication, Unicode,
+    # schema, and output-size checks remain active when either is disabled.
+    # Kept after every older field so legacy positional constructors retain
+    # their meaning.
+    quoted_must_be_spoken: bool = True
+    unquoted_must_be_narrator: bool = True
 
 
 

@@ -1060,6 +1060,18 @@
                                         <div class="form-text"><strong>Auto</strong> uses the quote marks where the text makes it clear which parts are speech and asks the model about the rest. <strong>Quote marks only</strong> never asks the model: anything inside quote marks is dialogue, everything else is narration. <strong>Quote-aware</strong> is the same deterministic split but treats strongly signalled quoted terms (for example, “known as X”) as narration. <strong>Model only</strong> always asks the model.</div>
                                     </div>
                                     <div class="col-md-4">
+                                        <label class="form-label small mb-1">Fidelity gate controls</label>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="tp-quoted-must-be-spoken" checked>
+                                            <label class="form-check-label" for="tp-quoted-must-be-spoken">Quoted must be Speaker</label>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="tp-unquoted-must-be-narrator" checked>
+                                            <label class="form-check-label" for="tp-unquoted-must-be-narrator">Unquoted must be Narrator</label>
+                                        </div>
+                                        <div class="form-text">Turn either off to let the Step 1 model decide that case. In Auto, this also sends quote-marked chunks to the model. All source-loss, ordering, duplication, Unicode, schema, and size checks stay active. Quote marks only and Quote-aware remain deterministic.</div>
+                                    </div>
+                                    <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-temperature">Segment temperature</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-segment-temperature" min="0" max="2" step="0.05" value="0.1">
                                     </div>

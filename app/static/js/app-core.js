@@ -1048,6 +1048,10 @@
                     setIf('tp-attribute-temperature', g.three_pass_attribute_temperature);
                     setIf('tp-instruct-temperature', g.three_pass_instruct_temperature);
                     setIf('tp-segmentation', g.three_pass_segmentation || 'auto');
+                    document.getElementById('tp-quoted-must-be-spoken').checked =
+                        g.three_pass_quoted_must_be_spoken !== false;
+                    document.getElementById('tp-unquoted-must-be-narrator').checked =
+                        g.three_pass_unquoted_must_be_narrator !== false;
                     if (Array.isArray(g.context_rescue_windows)) { document.getElementById('context-rescue-windows').value = g.context_rescue_windows.join(', '); }
                     setIf('context-rescue-retries', g.context_rescue_retries);
                 }
@@ -1178,6 +1182,8 @@
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
                     three_pass_instruct_temperature: getNumFieldValue('tp-instruct-temperature', 0.1),
                     three_pass_segmentation: document.getElementById('tp-segmentation').value || 'auto',
+                    three_pass_quoted_must_be_spoken: document.getElementById('tp-quoted-must-be-spoken').checked,
+                    three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
                     context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
                     context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
                 }
