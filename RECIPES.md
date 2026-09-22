@@ -418,6 +418,37 @@ standing exception: the Qwen3-14B rights-clean adapters were trained on the
 `default`; the `michel2`-shape A3B and Qwen3.8 adapters are the ones built
 for the new default.
 
+## September 22 follow-up: low-quant adapter and Nemotron API baselines
+
+**Qwen3.8-27B UD-IQ2_XXS rights-clean adapter, eight-book PDNC pilot:**
+paired base → adapter at scale 0/1, `michel2_full`, reasoning low, JSON
+schema, temperature 0, 40 windows per book. On all 2,310 requested rows,
+accuracy was **89.6% (2,070/2,310) → 91.1% (2,105/2,310), +1.5 pp**.
+The strict shared-row comparison (2,292 rows) was 90.2% → 91.4% (+1.2 pp;
+108 improved / 80 regressed, paired p=0.0486). This is a small pilot, not a
+release-wide claim; the evaluator does not independently observe quant or
+adapter precision. Evidence:
+`lora_serving_eval__qwen38-iq2-rightsclean-pdnc8-tnr2-20260922.json`.
+
+**Nemotron 3 Ultra 550B A55B, paid OpenRouter, base-only book baselines:**
+temperature 0, batch 8, max 4,096 tokens, low reasoning, `michel2_full`,
+structured output off. These runs load no adapter and therefore say nothing
+about adapter gains. OpenRouter reported the requested model; routing was
+configured to prefer Baseten then Venice with provider fallbacks, and provider
+hardware is not observed. Per-book accuracy (correct / total):
+
+| book | accuracy | evidence |
+|---|---:|---|
+| Mansfield Park | 96.7% (710/734) | `lora_serving_eval__nemotron3-ultra-paid-clean-mansfieldpark-michel2full-b8-low-20260922.json` |
+| Northanger Abbey | 97.6% (656/672) | `lora_serving_eval__nemotron3-ultra-paid-clean-northangerabbey-michel2full-b8-low-20260922.json` |
+| Persuasion | 97.1% (300/309) | `lora_serving_eval__nemotron3-ultra-paid-clean-persuasion-michel2full-b8-low-20260922.json` |
+| The Sign of the Four | 85.3% (301/353) | `lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json` |
+| The Sun Also Rises | 87.3% (1,536/1,759) | `lora_serving_eval__nemotron3-ultra-paid-clean-thesunalsorises-michel2full-b8-low-20260922.json` |
+
+These are independent per-book fixture runs, not a matched comparison to a
+local model or to one another; do not pool the percentages into a model-wide
+score. Full row-level traces and run metadata are in the linked artifacts.
+
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
 Every number above is on the same four light novels (768 rows) that every

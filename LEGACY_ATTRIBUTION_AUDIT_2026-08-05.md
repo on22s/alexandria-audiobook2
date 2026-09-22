@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 319 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 325 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 207
+- `exploratory`: 213
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -169,6 +169,11 @@ All 319 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-michel2full-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel2full-low-tnr1-cleangold-reworded-20260920.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q4-kquant17-rightsclean-lossfix-michel2_full-tnr4-pdnc9-rerun-b8-clean-20260922.json` | lora_serving_eval | exploratory | 1988 | None | None | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-mansfieldpark-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 734 | 0 | 0 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-northangerabbey-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 672 | 0 | 0 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-persuasion-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 309 | 0 | 0 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 353 | 0 | 0 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-thesunalsorises-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 1759 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -252,6 +257,7 @@ All 319 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen38-27b-q4km-michel2-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q4km-michel2_full-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q4km-michel2_shot-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen38-iq2-rightsclean-pdnc8-tnr2-20260922.json` | lora_serving_eval | exploratory | 4620 | 0 | 3984 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 800 | 29 | 8 | False | saved summary differs from row recomputation |
 | `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
