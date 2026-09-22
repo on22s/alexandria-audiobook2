@@ -1444,7 +1444,7 @@
     "tests.test_generation_dispatch.GenerationDispatchTests.test_only_failed_or_incomplete_manifest_is_recoverable",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_placeholder_narrator_is_rejected_before_dispatch",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_reasoning_effort_is_passed_to_three_pass_when_set",
-    "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_fallback"
+    "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_recovery"
   ],
   "test_generation_failure_experiments": [
     "tests.test_generation_failure_experiments.GenerationFailureExperimentTests.test_floor_splitter_binds_each_arm_independently",

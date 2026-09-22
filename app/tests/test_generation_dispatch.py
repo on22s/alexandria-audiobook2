@@ -9,7 +9,7 @@ from three_pass_generate import get_output_paths, three_pass_manifest_path
 
 
 class GenerationDispatchTests(unittest.TestCase):
-    def test_single_generation_uses_production_three_pass_fallback(self):
+    def test_single_generation_uses_production_three_pass_recovery(self):
         command = build_generate_script_command("book.txt")
 
         self.assertEqual(sys.executable, command[0])
@@ -17,7 +17,7 @@ class GenerationDispatchTests(unittest.TestCase):
         self.assertEqual("three_pass_generate.py", os.path.basename(command[2]))
         self.assertEqual("book.txt", command[3])
         self.assertEqual(
-            ["--pass2-on-exhaustion", "fallback"], command[4:])
+            ["--pass2-on-exhaustion", "fail"], command[4:])
 
     def test_reasoning_effort_is_passed_to_three_pass_when_set(self):
         with_effort = build_generate_script_command("book.txt", reasoning_effort="low")
@@ -34,7 +34,7 @@ class GenerationDispatchTests(unittest.TestCase):
 
         self.assertEqual("three_pass_generate.py", os.path.basename(command[2]))
         self.assertEqual(
-            ["book.txt", "--pass2-on-exhaustion", "fallback",
+            ["book.txt", "--pass2-on-exhaustion", "fail",
              "--output", "scripts/book.json", "--no-strip-front-matter"],
             command[3:])
 
