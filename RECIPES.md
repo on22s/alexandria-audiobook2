@@ -349,16 +349,32 @@ Every arm served correctly (0 errors, 0 retries, ≤1 blank row).
 | Qwen3.6-35B-A3B | IQ3_XXS, **nine PDNC novels** (2,655 rows), tnr-2 | low | **91.6 → 71.3 raw; 90.9 with the roster-line echo read as the app reads it** (546 of 2,655 adapter rows echo; Northanger 90.7 → 25.9 raw) | 96.2 → 75.5 (97.2 stripped) | 87.0 → 84.6 | `a3b-iq3xxs-rightsclean-michel2-adapter-michel2_full-tnr2-pdnc9lite-low-schema-20260917` |
 | Qwen3-14B | Q4_K_M, nine PDNC novels (2,655 rows), `default` prompt | low | 67.6 → **72.6 (+5.0)** | | | tnr-2 `qwen3-14b-rightsclean-default-tnr2-pdnc9lite` |
 | Qwen3-14B | same, `michel2_full` | low | 84.3 → 84.3 (0; Emma 89.6 → 95.9, P&P 88.9 → 77.0, S&S 87.4 → 82.1) | | | `qwen3-14b-rightsclean-michel2_full-tnr2-pdnc9lite` |
+| Qwen3.8-27B | Q4_K_M, **nine PDNC novels**, reasoning off | off | 93.5 → **95.8 (+2.4, +92/−29, p=8e-9)**; held-out eight 94.9 → **97.1** | 99.1 → 99.1 | 83.8 → 87.2 | `qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922` |
+| Qwen3.6-35B-A3B | IQ1_M, **nine PDNC novels**, reasoning off | off | 89.4 → 85.7 (−3.7, +130/−228, p=2.5e-7); held-out eight 91.4 → 88.9 | 97.8 → 96.5 | 75.5 → 63.7 | `a3b-iq1m-off-michel2_full-pdnc9-tnr0-20260922` |
+| Qwen3-14B | Q4_K_M, held-out eight novels, `default` replication | low | 72.2 → **74.9 (+2.7, +298/−235, p=.007)** | 76.1 → 81.8 | — | `qwen14-rightsclean-default-pdnc8-replication-tnr2-20260922` |
 
 Read across: the dense Qwen3.8 adapter's gain grows as the quant shrinks
 (0 → +1.3 → +2.6), which is the shape the adapters were kept for - it earns
-its place at Q3_K_XL and below. The A3B adapter helps only at IQ1_M with
-reasoning off and is flat-to-negative with reasoning on at every rung, including the shipping Q4_K_XL (−2.2); on the nine novels it is a null once the echo is read (91.6 → 90.9) and −20 as the model writes it, so on any alias-bearing roster its real output is the echo; its
+its place at Q3_K_XL and below. The nine-novel reasoning-off replication now
+shows that it also earns its place at Q4_K_M (+2.4). The A3B adapter's
+four-book IQ1_M gain does not generalise: the nine-novel reasoning-off run is
+significantly negative. It is also flat-to-negative with reasoning on at every rung, including the shipping Q4_K_XL (−2.2); on the nine novels it is a null once the echo is read (91.6 → 90.9) and −20 as the model writes it, so on any alias-bearing roster its real output is the echo; its
 rows were rendered with reasoning off, and the base's own reasoning already
 covers what it learned. The Qwen3-14B adapter's +5.0 on the nine novels
 under `default` is a null under the product prompt - the adapter and
 `michel2_full` supply the same information, and the adapter's `default`-shape
 training does not carry (§"Attribution adapters", first paragraph).
+
+### Muse Gen 3 scale pilot (2026-09-22)
+
+The first Gen 3 RFT evaluation used eight held-out PDNC novels, 10 windows per
+novel and 631 shared rows. Scale 0.25 improved 92.9 → **96.0** (+23/−3,
+p=8.8e-5); scale 0.5 was exactly flat (+22/−22); scale 1.0 regressed to 89.4
+(+11/−33, p=.0013). Scale 0.25 is therefore the candidate for the full
+40-window replication, not yet a shipping recommendation. A separate clean
+batch-8 rerun of the older Muse Q4 rightsclean-lossfix adapter remained a
+served-contract failure: 617 held-out LoRA rows were unanswered and the 259
+shared answered rows fell 96.1 → 38.2. Keep that adapter experimental.
 
 ## Prompt variants × bases, complete cells (2026-09-18)
 
@@ -440,4 +456,3 @@ dialogue - the same shape DeepSeek showed (Sun Also Rises its low book at
 92.1). Higher than its four-book 88.0: the light novels are the harder
 fixture. Against its own `default` control on the same rows the prompt is
 worth ~18 points on books this project never tuned on.
-

@@ -18,4 +18,6 @@ Use request-level JSON schema and do not use `--skip-chat-parsing` for Muse
 reasoning evaluations.
 
 Before a full adapter evaluation, run the served-contract preflight. It must
-parse one `michel2_full` request at adapter scale 1.0 and base scale 0.0.
+parse one `michel2_full` request at the candidate adapter scale and at base
+scale 0.0. Record the candidate scale in the artifact; do not assume 1.0 when
+a measured scale sweep selected a lower value.
