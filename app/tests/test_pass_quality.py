@@ -4,6 +4,7 @@ from pass_quality import (classify_lexical_quote_regions, analyze_outer_quote_re
                           split_outer_quote_regions, validate_attribution,
                           validate_segment_quality)
 from pass_quality import validate_instruct, index_head_check
+from validation_reporting import format_validation_findings
 import default_prompts
 
 
@@ -107,6 +108,25 @@ class AttributionTests(unittest.TestCase):
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("spoken_not_named", codes)
 
+    def test_attribution_finding_carries_source_and_expected_context(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me exactly."}]
+        report = validate_attribution(
+            frozen, [{"n": 0, "head": "Tell me exactly.", "speaker": "NARRATOR"}])
+        finding = report["findings"][0]
+        self.assertEqual("Tell me exactly.", finding["source_line"])
+        self.assertEqual("a character name, not NARRATOR or an empty value",
+                         finding["expected"])
+        rendered = format_validation_findings(report["findings"])
+        self.assertIn('entry 1', rendered)
+        self.assertIn('source line="Tell me exactly."', rendered)
+        self.assertIn("expected=a character name", rendered)
+
+        renamed = validate_attribution(
+            [{"type": "NARRATOR", "text": "The door opened."}],
+            [{"n": 0, "head": "The door opened.", "speaker": "ERIS"}])
+        self.assertIn('rejected="ERIS"',
+                      format_validation_findings(renamed["findings"]))
+
     def test_attribution_ignores_legacy_head_when_index_is_valid(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
         resp = [{"n": 0, "head": "Something else entirely", "speaker": "ELENA"}]
@@ -173,6 +193,12 @@ class IndexHeadCheckTests(unittest.TestCase):
             [{"n": 0, "head": "Tell me now", "instruct": ["firm"]}])
         self.assertFalse(attribution["passed"])
         self.assertFalse(instruct["passed"])
+
+    def test_instruct_finding_uses_frozen_source_line(self):
+        report = validate_instruct(
+            [{"speaker": "ELENA", "text": "Stay here."}],
+            [{"n": 0, "head": "Stay here.", "instruct": ""}])
+        self.assertEqual("Stay here.", report["findings"][0]["source_line"])
 
 
 class InstructValidatorTests(unittest.TestCase):

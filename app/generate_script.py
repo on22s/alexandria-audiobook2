@@ -12,6 +12,7 @@ from config_settings import load_app_config
 from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
+from validation_reporting import format_validation_findings
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
 from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
@@ -813,9 +814,9 @@ def _build_retry_feedback_message(quality):
                 "text before stopping early. Convert the ENTIRE source chunk "
                 "from beginning to end this time - do not stop partway through "
                 "and do not summarize any part of it." + spans_hint)
-    messages = [finding["message"] for finding in findings if finding.get("message")]
-    if messages:
-        return " ".join(messages)
+    formatted = format_validation_findings(findings)
+    if formatted:
+        return formatted
     return json.dumps(findings, ensure_ascii=False)
 
 
