@@ -439,6 +439,15 @@ def index_head_check(frozen_entries, response_entries):
     return True, "", ordered
 
 
+_VALIDATION_EXPECTED = {
+    "speaker_not_in_source": "an attested character name from the source text",
+    "speaker_is_entry_type": "a character name, not the entry type",
+    "spoken_not_named": "a character name, not NARRATOR or an empty value",
+    "narrator_renamed": "NARRATOR",
+    "missing_instruct": "a non-empty delivery instruction",
+}
+
+
 # Entry-type tokens the model must never return as a speaker name. NARRATOR is
 # absent on purpose: it is both a type and a legitimate speaker.
 ENTRY_TYPE_NAMES = frozenset({"SPOKEN", "NARRATION", "DIALOGUE"})
@@ -521,6 +530,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
                 "findings": [{"code": "alignment_violated", "message": reason}]}
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
+        source_line = frozen.get("text", "")
         raw_speaker = strip_roster_alias_echo(item.get("speaker"))
         speaker = raw_speaker.strip() if isinstance(raw_speaker, str) else ""
         if frozen.get("type") == "SPOKEN":
@@ -543,6 +553,8 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
                 findings.append({"code": "speaker_not_in_source",
                                  "entry_number": i,
                                  "value": speaker,
+                                 "source_line": source_line,
+                                 "expected": _VALIDATION_EXPECTED["speaker_not_in_source"],
                                  "message": "The speaker does not appear as a "
                                             "name in the source text (a name "
                                             "must be written capitalised at "
@@ -553,16 +565,22 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
                 findings.append({"code": "speaker_is_entry_type",
                                  "entry_number": i,
                                  "value": speaker,
+                                 "source_line": source_line,
+                                 "expected": _VALIDATION_EXPECTED["speaker_is_entry_type"],
                                  "message": "The speaker repeats the entry type "
                                             "instead of naming a character."})
                 continue
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,
+                                 "source_line": source_line,
+                                 "expected": _VALIDATION_EXPECTED["spoken_not_named"],
                                  "message": "A spoken line was not assigned a character name."})
         else:  # NARRATOR (or any non-SPOKEN)
             if speaker.upper() != "NARRATOR":
                 findings.append({"code": "narrator_renamed", "entry_number": i,
                                  "value": speaker,
+                                 "source_line": source_line,
+                                 "expected": _VALIDATION_EXPECTED["narrator_renamed"],
                                  "message": "A narrator line must keep the speaker NARRATOR."})
     return {"passed": not findings, "findings": findings}
 
@@ -576,9 +594,11 @@ def validate_instruct(prior_entries, response_entries):
         return {"passed": False,
                 "findings": [{"code": "alignment_violated", "message": reason}]}
     findings = []
-    for i, item in enumerate(ordered, 1):
+    for i, (prior, item) in enumerate(zip(prior_entries, ordered), 1):
         raw_instruct = item.get("instruct")
         if not isinstance(raw_instruct, str) or not raw_instruct.strip():
             findings.append({"code": "missing_instruct", "entry_number": i,
+                             "source_line": prior.get("text", ""),
+                             "expected": _VALIDATION_EXPECTED["missing_instruct"],
                              "message": "Every entry needs a non-empty instruct."})
     return {"passed": not findings, "findings": findings}
