@@ -778,6 +778,7 @@
     "tests.test_config_regressions.ConfigTests.test_config_save_stops_when_damaged_backup_fails",
     "tests.test_config_regressions.ConfigTests.test_damaged_config_backup_names_are_unique",
     "tests.test_config_regressions.ConfigTests.test_failed_config_save_preserves_cache_and_engine",
+    "tests.test_config_regressions.ConfigTests.test_fidelity_gate_controls_default_strict_and_round_trip",
     "tests.test_config_regressions.ConfigTests.test_generation_config_banned_tokens_default_is_not_shared",
     "tests.test_config_regressions.ConfigTests.test_get_config_backfills_partial_top_level_config",
     "tests.test_config_regressions.ConfigTests.test_get_config_recovers_without_rewriting_invalid_json",
@@ -1354,6 +1355,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_docker_mounts_single_persistent_runtime_root",
     "tests.test_frontend_regressions.FrontendTests.test_every_copy_button_goes_through_the_clipboard_fallback",
     "tests.test_frontend_regressions.FrontendTests.test_every_pause_button_is_greyed_by_the_capability_hook",
+    "tests.test_frontend_regressions.FrontendTests.test_fidelity_gate_controls_are_strict_by_default_and_saved",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_config_controls_match_backend_schema",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save",
     "tests.test_frontend_regressions.FrontendTests.test_frontend_wires_preparer_duration_and_lora_cancel",
@@ -1797,6 +1799,12 @@
     "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_prompt_says_never_emit_an_empty_entry",
     "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_the_issue_reply_passes_the_gate_after_the_drop",
     "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_unlocatable_neighbours_keep_the_unit"
+  ],
+  "test_issue_644_fidelity_gate_controls": [
+    "tests.test_issue_644_fidelity_gate_controls.FidelityGateControlTests.test_auto_asks_the_model_and_does_not_rewrite_its_quoted_narrator",
+    "tests.test_issue_644_fidelity_gate_controls.FidelityGateControlTests.test_controls_change_checkpoint_identity_only_when_nondefault",
+    "tests.test_issue_644_fidelity_gate_controls.FidelityGateControlTests.test_quoted_rule_can_be_disabled_without_disabling_other_checks",
+    "tests.test_issue_644_fidelity_gate_controls.FidelityGateControlTests.test_unquoted_rule_can_be_disabled_independently"
   ],
   "test_issues_622_624": [
     "tests.test_issues_622_624.FullNameAttested622.test_an_invented_full_name_is_still_rejected",
@@ -3058,6 +3066,7 @@
     "tests.test_script_recovery.RecoveryTests.test_detail_shows_where_why_and_the_exact_prompt",
     "tests.test_script_recovery.RecoveryTests.test_inject_accepts_a_faithful_segmentation_and_advances_the_checkpoint",
     "tests.test_script_recovery.RecoveryTests.test_inject_refuses_a_segmentation_that_drops_text",
+    "tests.test_script_recovery.RecoveryTests.test_recovery_uses_the_quote_controls_from_the_failed_run",
     "tests.test_script_recovery.RecoveryTests.test_skip_narrates_the_chunk_as_is",
     "tests.test_script_recovery.RecoveryTests.test_wrong_chunk_and_running_generation_are_refused"
   ],

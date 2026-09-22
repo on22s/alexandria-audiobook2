@@ -478,6 +478,18 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("three_pass_segmentation", js)
         self.assertNotIn("three_pass_presegment_quotes", js)
 
+    def test_fidelity_gate_controls_are_strict_by_default_and_saved(self):
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        for control, field in (
+                ("tp-quoted-must-be-spoken", "three_pass_quoted_must_be_spoken"),
+                ("tp-unquoted-must-be-narrator", "three_pass_unquoted_must_be_narrator")):
+            tag = re.search(rf'<input\b[^>]*id="{control}"[^>]*>', html)
+            self.assertIsNotNone(tag)
+            self.assertIn("checked", tag.group(0))
+            self.assertIn(field, js)
+            self.assertIn(f"getElementById('{control}').checked", js)
+
     def test_frontend_config_controls_match_backend_schema(self):
         html = _read_frontend_source()
         input_tags = {

@@ -144,6 +144,10 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         "segmentation": segmentation_override or model_profile.get(
             "segmentation", gen.get("three_pass_segmentation") or "auto"),
+        "quoted_must_be_spoken": gen.get(
+            "three_pass_quoted_must_be_spoken", True) is not False,
+        "unquoted_must_be_narrator": gen.get(
+            "three_pass_unquoted_must_be_narrator", True) is not False,
         "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
         "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 2000)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
@@ -528,6 +532,31 @@ def drop_whitespace_entries(entries, chunk):
     return kept, dropped
 
 
+def apply_segment_gate_controls(system_prompt, params):
+    """Append the run's quote-policy override to the active pass-1 prompt."""
+    if params.quoted_must_be_spoken and params.unquoted_must_be_narrator:
+        return system_prompt
+    rules = [
+        ("Quoted text MUST be SPOKEN."
+         if params.quoted_must_be_spoken else
+         "Quoted text is not required to be SPOKEN; decide from its meaning."),
+        ("Unquoted text MUST be NARRATOR."
+         if params.unquoted_must_be_narrator else
+         "Unquoted text is not required to be NARRATOR; decide from its meaning."),
+    ]
+    return (system_prompt.rstrip()
+            + "\n\nRUN-SPECIFIC FIDELITY GATE CONTROLS (override any conflicting "
+              "quote-classification rule above):\n- " + "\n- ".join(rules))
+
+
+def validate_segment_for_params(source_text, entries, params, quote_analysis=None):
+    """Run pass 1's fidelity gate with the current quote controls."""
+    return validate_segment_quality(
+        source_text, entries, quote_analysis=quote_analysis,
+        quoted_must_be_spoken=params.quoted_must_be_spoken,
+        unquoted_must_be_narrator=params.unquoted_must_be_narrator)
+
+
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
                   label, max_retries, near_miss_sink, validate=None,
                   attempt_observer=None, retry_decider=None):
@@ -536,7 +565,7 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     and trigram-only near-miss capture. Callers build sys_prompt/user_prompt so
     the two paths can't diverge in how they invoke the gate (findings #10, #11)."""
     if validate is None:
-        validate = lambda entries: validate_segment_quality(chunk, entries)
+        validate = lambda entries: validate_segment_for_params(chunk, entries, params)
     # Segmentation only adds small JSON/type overhead around source text. Bound
     # both the first request and retry ceiling so a weak model cannot spend
     # 10k-16k tokens expanding a ~1k-token source chunk.
@@ -558,7 +587,7 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
         quote_split = []
         for number, entry in enumerate(repaired["entries"], 1):
             text = str(entry.get("text") or "").strip()
-            if entry.get("type") != "SPOKEN":
+            if entry.get("type") != "SPOKEN" and params.quoted_must_be_spoken:
                 if any(char in text for char in ('"', '“', '”')):
                     parts, current, quoted = [], [], False
                     for char in text:
@@ -621,6 +650,7 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
         usr_template = params.segment_user_prompt_template
     elif params.user_prompt_template:
         usr_template = params.user_prompt_template
+    sys_prompt = apply_segment_gate_controls(sys_prompt, params)
     user_prompt = usr_template.format(chunk=chunk)
     quote_analysis = (classify_lexical_quote_regions(
         chunk, analyze_outer_quote_regions(chunk))
@@ -640,8 +670,8 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
         client, model_name, chunk, sys_prompt, user_prompt, params, "SEGMENT",
         max_retries, near_miss_sink, attempt_observer=observe,
         retry_decider=decide,
-        validate=lambda candidate: validate_segment_quality(
-            chunk, candidate, quote_analysis=quote_analysis))
+        validate=lambda candidate: validate_segment_for_params(
+            chunk, candidate, params, quote_analysis=quote_analysis))
     if not entries and failure_sink is not None and attempts:
         failure_sink[:] = [set(attempts[-1].get("failure_codes") or [])]
     return entries
@@ -666,25 +696,32 @@ def _resolved_near_miss(near_miss, resolution_sink):
 SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
 
 
-def quote_regions_decision(mode, chunk, analysis):
+def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
+                           unquoted_must_be_narrator=True):
     """-> (entries, resolution) when the chunk's quote marks settle pass 1
     without the model, else (None, None).
 
     "auto": only when the marks split the chunk into more than one region AND
     the segment gate passes on them - the rule every three-pass result was
-    measured with; otherwise the model decides. "quotes" (issue #588): the
+    measured with; otherwise the model decides. If either quote gate control is
+    disabled, auto also asks the model so that the control is not bypassed by
+    deterministic pre-segmentation. "quotes" (issue #588): the
     model is never asked. A chunk auto would accept is accepted the same way;
     any other chunk is what its marks say - the regions if there are any, else
     the whole chunk as one entry typed by whether a quote was open when the
     chunk began - and is recorded as `quote_forced` so the manifest says the
     gate did not vouch for it. "llm": never."""
-    if mode == "llm":
+    if mode == "llm" or (mode == "auto" and not (
+            quoted_must_be_spoken and unquoted_must_be_narrator)):
         return None, None
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
     regions = analysis["regions"]
     if len(regions) > 1:
-        quality = validate_segment_quality(chunk, regions, quote_analysis=analysis)
+        quality = validate_segment_quality(
+            chunk, regions, quote_analysis=analysis,
+            quoted_must_be_spoken=quoted_must_be_spoken,
+            unquoted_must_be_narrator=unquoted_must_be_narrator)
         if quality["passed"]:
             # Outer quotes already answer the only pass-1 question: inside is
             # spoken, outside is narration. Do not ask the model to rewrite
@@ -801,7 +838,9 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     part-calls do not, so inner resolutions don't pollute the record."""
     if params.segmentation != "llm":
         regions, resolution = quote_regions_decision(
-            params.segmentation, chunk, quote_analysis or analyze_outer_quote_regions(chunk))
+            params.segmentation, chunk,
+            quote_analysis or analyze_outer_quote_regions(chunk),
+            params.quoted_must_be_spoken, params.unquoted_must_be_narrator)
         if regions is not None:
             _record_resolution(resolution_sink, resolution)
             return regions
@@ -834,8 +873,8 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     combined_analysis = (classify_lexical_quote_regions(
         chunk, quote_analysis or analyze_outer_quote_regions(chunk))
         if params.segmentation == "lexical" else None)
-    combined_quality = validate_segment_quality(
-        chunk, combined, quote_analysis=combined_analysis)
+    combined_quality = validate_segment_for_params(
+        chunk, combined, params, quote_analysis=combined_analysis)
     if not combined_quality["passed"]:
         codes = {f.get("code") for f in combined_quality["findings"]}
         m = combined_quality["metrics"]
@@ -913,6 +952,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         max_tokens=settings["max_tokens"], context_length=context_length,
         segment_output_ratio=settings["segment_output_ratio"],
         segmentation=settings["segmentation"],
+        quoted_must_be_spoken=settings.get("quoted_must_be_spoken", True),
+        unquoted_must_be_narrator=settings.get("unquoted_must_be_narrator", True),
         segment_system_prompt=settings.get("segment_system_prompt"),
         segment_user_prompt_template=settings.get("segment_user_prompt_template"),
         instruct_system_prompt=settings.get("instruct_system_prompt"),
@@ -929,7 +970,9 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             allow_open_end=index < len(chunks) - 1)
         quote_depth = analysis["final_depth"]
         chunks_without_quote_marks += not any(mark in chunk for mark in QUOTE_MARKS)
-        regions, _ = quote_regions_decision(settings["segmentation"], chunk, analysis)
+        regions, _ = quote_regions_decision(
+            settings["segmentation"], chunk, analysis,
+            params.quoted_must_be_spoken, params.unquoted_must_be_narrator)
         if regions is not None:
             predicted_entries.extend(regions)
         else:
@@ -950,6 +993,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     segment_system, segment_template = load_segment_prompts()
     if params.segment_system_prompt:
         segment_system = params.segment_system_prompt
+    segment_system = apply_segment_gate_controls(segment_system, params)
     if params.segment_user_prompt_template:
         segment_template = params.segment_user_prompt_template
     # Pass 1 re-emits the chunk verbatim, so its output grows with the chunk.
@@ -1090,6 +1134,7 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         sys_prompt = params.segment_system_prompt
     elif params.system_prompt:
         sys_prompt = params.system_prompt
+    sys_prompt = apply_segment_gate_controls(sys_prompt, params)
     user_prompt = _CONTEXT_SEGMENT_USER.format(before=before or "(start of book)",
                                                after=after or "(end of book)",
                                                chunk=chunk)
@@ -1102,8 +1147,8 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         quote_analysis = (classify_lexical_quote_regions(
             chunk, analyze_outer_quote_regions(chunk))
             if params.segmentation == "lexical" else None)
-        report = validate_segment_quality(
-            chunk, entries, quote_analysis=quote_analysis)
+        report = validate_segment_for_params(
+            chunk, entries, params, quote_analysis=quote_analysis)
         if _output_has_context_bleed(entries, chunk, before, after):
             report = dict(report)
             report["passed"] = False
@@ -1175,6 +1220,7 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
         sys_prompt = params.segment_system_prompt
     elif params.system_prompt:
         sys_prompt = params.system_prompt
+    sys_prompt = apply_segment_gate_controls(sys_prompt, params)
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in windows:
@@ -1301,6 +1347,10 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "segment_system_prompt", "segment_user_prompt_template",
             "instruct_system_prompt", "instruct_user_prompt_template",
             "response_schema")})
+        if not getattr(params, "quoted_must_be_spoken", True):
+            settings["quoted_must_be_spoken"] = False
+        if not getattr(params, "unquoted_must_be_narrator", True):
+            settings["unquoted_must_be_narrator"] = False
         # The pass-1 knob used to be the bool `presegment_quotes`; keep that key
         # with the same meaning so every checkpoint written before the
         # three-way mode existed still resumes, and add the mode only in
@@ -1497,7 +1547,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # room for reasoning at all.
     observed_attempts = 0
     progress = RunProgress(planned_calls) if planned_calls else None
-    needs_model = [quote_regions_decision(params.segmentation, chunk, analysis)[0] is None
+    needs_model = [quote_regions_decision(
+        params.segmentation, chunk, analysis,
+        params.quoted_must_be_spoken, params.unquoted_must_be_narrator)[0] is None
                    for chunk, analysis in zip(chunks, quote_analyses)]
     if progress:
         progress.set_total(1, sum(needs_model))
@@ -1550,6 +1602,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             save("segment_failed", failed={
                 "pass": "segment", "chunk": i + 1, "chunks_total": len(chunks),
                 "source": chunks[i],
+                "quoted_must_be_spoken": params.quoted_must_be_spoken,
+                "unquoted_must_be_narrator": params.unquoted_must_be_narrator,
                 "failure_codes": sorted(failures[0]) if failures else [],
                 "attempts": attempts[attempts_before:][-20:]})
             emit_manifest("failed", failed_pass="segment", failed_chunk=i + 1)
@@ -2232,6 +2286,8 @@ def main():
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=generation_settings["segment_output_ratio"],
         segmentation=generation_settings["segmentation"],
+        quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
+        unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
         reasoning_effort=args.reasoning_effort,
         provider_extra_body=llm.get("provider_extra_body"),
         structured_output=llm.get("structured_output", "auto"),

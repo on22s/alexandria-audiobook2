@@ -106,6 +106,18 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual("quotes", config_settings.GenerationConfig(
             three_pass_segmentation="quotes").three_pass_segmentation)
 
+    def test_fidelity_gate_controls_default_strict_and_round_trip(self):
+        defaults = config_settings.GenerationConfig()
+        self.assertTrue(defaults.three_pass_quoted_must_be_spoken)
+        self.assertTrue(defaults.three_pass_unquoted_must_be_narrator)
+        relaxed = config_settings.GenerationConfig(
+            three_pass_quoted_must_be_spoken=False,
+            three_pass_unquoted_must_be_narrator=False)
+        saved = relaxed.model_dump()
+        loaded = config_settings.GenerationConfig(**saved)
+        self.assertFalse(loaded.three_pass_quoted_must_be_spoken)
+        self.assertFalse(loaded.three_pass_unquoted_must_be_narrator)
+
     def test_app_config_loader_ignores_invalid_legacy_values_without_writing(self):
         document = json.dumps({
             "llm_mode": "cloud",

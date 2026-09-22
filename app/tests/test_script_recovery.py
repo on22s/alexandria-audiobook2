@@ -64,6 +64,17 @@ def _write_failed_run(tmp):
     return script_path
 
 
+def _write_relaxed_quote_run(tmp):
+    script_path = _write_failed_run(tmp)
+    checkpoint_path = three_pass_checkpoint_path(script_path)
+    with open(checkpoint_path, encoding="utf-8") as handle:
+        checkpoint = json.load(handle)
+    checkpoint["failed"]["quoted_must_be_spoken"] = False
+    checkpoint["failed"]["unquoted_must_be_narrator"] = True
+    atomic_json_write(checkpoint, checkpoint_path)
+    return script_path
+
+
 class RecoveryTests(unittest.TestCase):
     def _run(self, fn, *args, writer=_write_failed_run):
         with tempfile.TemporaryDirectory() as tmp:
@@ -112,6 +123,19 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(5, len(checkpoint["segmented"]))
         self.assertEqual(["clean", "manual"], checkpoint["resolutions"])
         self.assertIsNone(checkpoint["failed"])
+
+    def test_recovery_uses_the_quote_controls_from_the_failed_run(self):
+        detail, _ = self._run(script_module.generate_script_recovery_detail,
+                              writer=_write_relaxed_quote_run)
+        self.assertIn("Quoted text is not required to be SPOKEN",
+                      detail["prompt"]["system"])
+        merged = script_module.InjectSegmentationRequest(chunk=2, entries=[
+            {"type": "NARRATOR", "text": SOURCE}])
+        result, checkpoint = self._run(
+            script_module.generate_script_inject, merged,
+            writer=_write_relaxed_quote_run)
+        self.assertTrue(result["accepted"])
+        self.assertEqual("NARRATOR", checkpoint["segmented"][-1]["type"])
 
     def test_skip_narrates_the_chunk_as_is(self):
         result, checkpoint = self._run(script_module.generate_script_skip,

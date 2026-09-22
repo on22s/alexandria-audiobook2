@@ -239,7 +239,9 @@ def _region_contains_entry(regions, entry_text):
     return False
 
 
-def _quote_region_findings(source_text, entries, quote_analysis=None):
+def _quote_region_findings(source_text, entries, quote_analysis=None,
+                           quoted_must_be_spoken=True,
+                           unquoted_must_be_narrator=True):
     """Findings, or ONE finding saying this gate does not apply to this book.
 
     NOT A FINDING - TELEMETRY. A narration-only chunk legitimately contains no
@@ -279,6 +281,11 @@ def _quote_region_findings(source_text, entries, quote_analysis=None):
     findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
+            continue
+        entry_type = entry.get("type")
+        enforce_entry = (quoted_must_be_spoken if entry_type == "NARRATOR"
+                         else unquoted_must_be_narrator)
+        if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
         if any(char in text for char in _QUOTE_CHARS):
@@ -330,7 +337,9 @@ def _introduced_character_findings(source_text, output_text, entries):
     return findings
 
 
-def validate_segment_quality(source_text, entries, quote_analysis=None):
+def validate_segment_quality(source_text, entries, quote_analysis=None, *,
+                             quoted_must_be_spoken=True,
+                             unquoted_must_be_narrator=True):
     """Fidelity gate for pass 1 output [{type, text}]. Same recall/trigram math
     as the single-pass gate, but validates the segment shape (type in
     {NARRATOR, SPOKEN}) rather than speaker/instruct."""
@@ -379,7 +388,10 @@ def validate_segment_quality(source_text, entries, quote_analysis=None):
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
     del _skipped[:]
-    findings.extend(_quote_region_findings(source_text, entries, quote_analysis))
+    findings.extend(_quote_region_findings(
+        source_text, entries, quote_analysis,
+        quoted_must_be_spoken=quoted_must_be_spoken,
+        unquoted_must_be_narrator=unquoted_must_be_narrator))
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
     return _report(sc, oc, recall, trigram, ratio, findings,
                    quote_gate=("skipped:" + _skipped[0]) if _skipped else "ran")
