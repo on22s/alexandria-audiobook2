@@ -28,6 +28,7 @@ settings that produced working results, each with its look-alike failure ·
 | **Try the audiobook app** | [Install](#installation), then follow [your first audiobook](#beginners-guide-your-first-audiobook). |
 | **Understand the evaluation results** | Read [results at a glance](#results-at-a-glance), then the [Muse quant comparison](docs/results/muse-quant-baselines.md) and [evaluation recipes](RECIPES.md). |
 | **Find a particular run or its raw data** | Search the [results index](RESULTS_INDEX.md); each entry links to the committed artifact. |
+| **Browse the supporting documentation** | Use the [documentation map](docs/README.md) to find user guides, operations notes, results, and history. |
 | **Understand the project or contribute** | Start with the [project wiki](docs/wiki/Home.md), then [contributing](#contributing) and [goals](GOALS.md). |
 
 The app guide, research results, and development notes serve different purposes;
@@ -117,7 +118,7 @@ line echoed back (21% of nine-novel rows), which the app now reads as the main f
 adapter's +8.7 under the `default` prompt is a null under the product
 prompt. Muse Gen 3 is promising only at scale 0.25 so far; that result is a
 10-window pilot and is not promotion-grade until the 40-window replication.
-`ATTRIBUTION_ADAPTER_SETUP.md` says how to load one.
+[`ATTRIBUTION_ADAPTER_SETUP.md`](docs/guides/ATTRIBUTION_ADAPTER_SETUP.md) says how to load one.
 
 The separate eight-book PDNC pilot for Qwen3.8 IQ2_XXS measured 89.6% base
 vs 91.1% with the rights-clean adapter (+1.5 points; 2,310 rows). It is not
@@ -572,7 +573,7 @@ Text**, **Disable auto-anchor**, **Chunk Size**, **Min Chunk Duration**,
 **Resume from dataset_temp/**, **LLM enrichment** (speaker attribution,
 narration style, emotional tone with an **Enrichment LLM Model Path**),
 **Language**, **Confidence**, **Min SNR**, **Speaker Diarization**
-(**Hugging Face Token**). See [PREPARER_GUIDE.md](PREPARER_GUIDE.md).
+(**Hugging Face Token**). See [PREPARER_GUIDE.md](docs/guides/PREPARER_GUIDE.md).
 
 ### Dataset
 
@@ -597,8 +598,8 @@ duplicate audit), **Train** (a LoRA per deduped voice with **Target loss**,
 **Max epochs**, **LoRA rank**), **Profile** (acoustic + LLM voice
 descriptions, **Profiler model**), **Name** (descriptive slug, rename with a
 dry-run preview); **Inspect**, **Run Pipeline**, **Pause**, **Cancel**,
-diagnostics copy/download. See [lora.md](lora.md) and
-[BATCH_PROCESSOR_GUIDE.md](BATCH_PROCESSOR_GUIDE.md).
+diagnostics copy/download. See [lora.md](docs/guides/lora.md) and
+[BATCH_PROCESSOR_GUIDE.md](docs/guides/BATCH_PROCESSOR_GUIDE.md).
 
 ### Reports
 

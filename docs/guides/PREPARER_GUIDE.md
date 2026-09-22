@@ -701,4 +701,4 @@ The preparer is a CLI tool, not an HTTP service. Wrap it in a Flask/FastAPI serv
 ## See Also
 
 - `BATCH_PROCESSOR_GUIDE.md` — Process multiple audiobooks sequentially with resume across files
-- `README.md` — Project overview
+- `../../README.md` — Project overview

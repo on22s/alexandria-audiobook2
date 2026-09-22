@@ -56,7 +56,7 @@ SOFTWARE.
 ## buddies/alexandria-audiobook (fork of Finrandojin/alexandria-audiobook)
 
 - Source: https://github.com/buddies/alexandria-audiobook — `app/instruct_utils.py`
-  and `VOICE_REFERENCE.md` (Xiao Zhang, 2026-09-16..18)
+  and [`VOICE_REFERENCE.md`](docs/guides/VOICE_REFERENCE.md) (Xiao Zhang, 2026-09-16..18)
 - Licence: MIT (the fork carries upstream's MIT licence file, © 2026 Finrandojin;
   the ported material is the fork author's)
 - Used in: `app/experiments/instruct_lexicon.py` (the vocabulary lists, kept

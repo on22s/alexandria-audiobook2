@@ -7,7 +7,7 @@ from benchmark_core import get_stage_registry
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SUMMARY_PATH = os.path.join(ROOT_DIR, "docs", "benchmarks", "thunder_2026-07-18.json")
-GUIDE_PATH = os.path.join(ROOT_DIR, "THUNDER_COMPUTE.md")
+GUIDE_PATH = os.path.join(ROOT_DIR, "docs", "guides", "THUNDER_COMPUTE.md")
 
 
 class ThunderBenchmarkDocumentationTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class ThunderBenchmarkDocumentationTests(unittest.TestCase):
             self.assertTrue(result["source_prs"] or result.get("source_commits"))
 
     def test_guide_links_canonical_summary_and_preserves_scope_limits(self):
-        self.assertIn("docs/benchmarks/thunder_2026-07-18.json", self.guide)
+        self.assertIn("../benchmarks/thunder_2026-07-18.json", self.guide)
         self.assertIn("ASR phase only", self.summary["results"]["voicelab_preparer"]["measured_scope"])
         self.assertNotIn("Voice Lab — measured end to end", self.guide)
 

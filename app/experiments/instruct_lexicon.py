@@ -5,7 +5,7 @@ Ported from the buddies fork of Finrandojin/alexandria-audiobook
 one measurement made there: on the CustomVoice path an explicit rate
 instruction lengthened takes by +17.9% on average, while a scene note with no
 acoustic target moved nothing consistently. The lists mirror
-VOICE_REFERENCE.md Sections I-III: Section I (timbre / register / identity)
+docs/guides/VOICE_REFERENCE.md Sections I-III: Section I (timbre / register / identity)
 belongs in the constant character style, not in a per-line instruct; II-III
 (emotion, delivery, pacing) are what a per-line instruct is for; actions and
 scene meaning belong nowhere. Kept verbatim so a finding here means the same

@@ -131,7 +131,7 @@ original `reports/benchmarks/<preflight_id>.json` files still around when
 they were needed again today — the other 11 had been cleaned up after their
 numbers were transcribed into this doc, so reconstructing their exact
 fixtures took real effort. Going forward, archive a stage's report to
-[`docs/benchmarks/raw/`](docs/benchmarks/raw/) (git-tracked, see its
+[`../benchmarks/raw/`](../benchmarks/raw/) (git-tracked, see its
 `README.md`) before the scratch copy can be removed, so any stage's numbers
 can be re-verified or rerun later without redoing fixture selection from
 scratch.
@@ -141,7 +141,7 @@ scratch.
 These are fixture-scale calibration results, not promises for every model or book.
 They do answer the placement question for the tested RX 9070 XT/ROCm and A100
 80 GB/CUDA environments. The canonical machine-readable summary is
-[`docs/benchmarks/thunder_2026-07-18.json`](docs/benchmarks/thunder_2026-07-18.json).
+[`../benchmarks/thunder_2026-07-18.json`](../benchmarks/thunder_2026-07-18.json).
 Pending entries remain explicit rather than being inferred from a component.
 
 | Workload | Local | A100 Thunder | Measured decision |

@@ -34,7 +34,7 @@
 #   - Run this in a tmux/screen session so closing your terminal doesn't kill
 #     the wrapper: `tmux new -s prep './run_with_restart.sh <args>'`
 #   - The preparer's source-marker check protects against accidentally
-#     resuming into a different audio file's progress — see PREPARER_GUIDE.md.
+#     resuming into a different audio file's progress — see docs/guides/PREPARER_GUIDE.md.
 
 set -u
 shopt -s -o pipefail

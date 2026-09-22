@@ -1014,7 +1014,7 @@ def _remote_llm_base_url(llm):
     itself - localhost, not the public forwarding URL. Reusing the
     forwarding URL here would route the worker's calls back out through the
     internet a second time, defeating the entire point of running it on
-    Thunder in the first place (see THUNDER_COMPUTE.md's network_rtt_seconds
+    Thunder in the first place (see docs/guides/THUNDER_COMPUTE.md's network_rtt_seconds
     confound)."""
     port = urlparse(llm.get("base_url") or "").port or 1234
     return f"http://localhost:{port}/v1"
@@ -1093,7 +1093,7 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
     target=="local" runs in-process against localhost, same as always.
     target=="thunder" dispatches the whole pending batch to
     llm_benchmark_worker.py over SSH instead of calling the remote LM Studio
-    endpoint once per case from here - see THUNDER_COMPUTE.md's confounds
+    endpoint once per case from here - see docs/guides/THUNDER_COMPUTE.md's confounds
     section on why per-call network round trips were baked into every prior
     Thunder measurement.
     """
