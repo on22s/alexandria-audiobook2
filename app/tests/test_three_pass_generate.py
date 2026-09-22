@@ -198,6 +198,19 @@ class PassHelperTests(unittest.TestCase):
         self.assertTrue(tp.validate_segment_quality(
             source, analysis["regions"])["passed"])
 
+    def test_missing_open_quote_after_exclaimed_is_recovered(self):
+        source = 'She exclaimed Stop!”, then stepped back.'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She exclaimed"},
+             {"type": "SPOKEN", "text": "Stop!"},
+             {"type": "NARRATOR", "text": ", then stepped back."}],
+            analysis["regions"])
+        self.assertEqual("inferred_missing_open_quote",
+                         analysis["repairs"][0]["code"])
+        self.assertTrue(tp.validate_segment_quality(
+            source, analysis["regions"])["passed"])
+
     def test_ambiguous_stray_closing_quote_drops_only_delimiter(self):
         source = 'She considered I see…” and left.'
         analysis = tp.analyze_outer_quote_regions(source)
@@ -384,6 +397,17 @@ class SegmentationModeTests(unittest.TestCase):
         lexical = tp.three_pass_fingerprint(
             "text", "m", 3000, LLMGenParams(segmentation="lexical"))
         self.assertNotEqual(quotes, lexical)
+
+    def test_classifier_revision_changes_only_the_lexical_fingerprint(self):
+        params = LLMGenParams(segmentation="lexical")
+        current = tp.three_pass_fingerprint("text", "m", 3000, params)
+        with patch.object(tp, "LEXICAL_QUOTE_CLASSIFIER_VERSION", 1):
+            previous = tp.three_pass_fingerprint("text", "m", 3000, params)
+            auto = tp.three_pass_fingerprint(
+                "text", "m", 3000, LLMGenParams(segmentation="auto"))
+        self.assertNotEqual(previous, current)
+        self.assertEqual(auto, tp.three_pass_fingerprint(
+            "text", "m", 3000, LLMGenParams(segmentation="auto")))
 
     def test_fingerprint_is_unchanged_for_auto_and_llm_and_new_for_quotes(self):
         auto = tp.three_pass_fingerprint("text", "m", 3000, LLMGenParams(segmentation="auto"))

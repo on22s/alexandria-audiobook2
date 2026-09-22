@@ -694,6 +694,7 @@ def _resolved_near_miss(near_miss, resolution_sink):
 
 
 SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
+LEXICAL_QUOTE_CLASSIFIER_VERSION = 2
 
 
 def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
@@ -1358,6 +1359,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         settings["presegment_quotes"] = getattr(params, "segmentation", "llm") != "llm"
         if getattr(params, "segmentation", None) in ("quotes", "lexical"):
             settings["segmentation"] = getattr(params, "segmentation")
+        if getattr(params, "segmentation", None) == "lexical":
+            settings["lexical_quote_classifier_version"] = LEXICAL_QUOTE_CLASSIFIER_VERSION
         # The attribution schema is installed inside attribute_batch rather
         # than on the caller's params object. Include it in the checkpoint
         # identity so changing the request contract cannot resume old output.
