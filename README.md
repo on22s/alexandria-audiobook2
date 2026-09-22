@@ -60,31 +60,34 @@ novels, RiQuA and CC0 play scripts rendered as prose (no light-novel text,
 nothing you could not redistribute). Public on the Hub:
 [Om22s/alexandria-qwen3-attribution](https://huggingface.co/Om22s/alexandria-qwen3-attribution).
 
-| adapter | rung | reasoning | base → adapter | Emma (held out, 318 rows) |
-|---|---|---|---:|---:|
-| Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | 83.1 → **85.7 (+2.6)** | 91.2 → 92.1 |
-| Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | 87.5 → **88.8 (+1.3)** | 99.4 → 99.7 |
-| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on / off | 89.8 → 89.8 / 87.4 → 88.3 | 99.7 → 99.4 / 99.1 → 99.1 |
-| Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | off | 82.9 → **85.9 (+3.0)** | 97.8 → 96.2 |
-| Qwen3.6-35B-A3B `michel2` | IQ1_M | on | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
-| Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
-| Qwen3.6-35B-A3B `michel2` | IQ3_XXS 13.2 GB | on | 87.5 → 86.6 (−0.9) | 95.6 → 82.7 (roster-line echo; 93.1 read as the app reads it) |
-| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | 90.8 → 88.5 (−2.2) | 96.9 → 95.3 (98.1 echo-stripped) |
-| Qwen3.6-35B-A3B `michel2` | IQ3_XXS, nine PDNC novels (2,655 rows) | low | 91.6 → 71.3 raw, **90.9** echo-stripped (21% of rows echo) | 96.2 → 75.5 (97.2) |
-| Qwen3-14B rights-clean, seed 1 / 2 | Q4_K_M 9.0 GB, `default` prompt | low, budget 1024 | 66.1 → **74.7 / 74.9** | 68.9 → 75.8 / 69.5 |
-| Qwen3-14B rights-clean | Q4_K_M, `michel2_full`, nine PDNC novels (2,655 rows) | low | 84.3 → 84.3 (0) | 89.6 → 95.9, but P&P 88.9 → 77.0 |
+| adapter | base GGUF / size | reasoning | nine PDNC novels (2,655 rows) | four-book fixture | Emma (held out, 318 rows) |
+|---|---|---|---:|---:|---:|
+| Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | queued | 83.1 → **85.7 (+2.6)** | 91.2 → 92.1 |
+| Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | queued | 87.5 → **88.8 (+1.3)** | 99.4 → 99.7 |
+| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on | 94.9 → **95.9 (+1.0)** | 89.8 → 89.8 | 99.7 → 99.4 |
+| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | off | queued | 87.4 → **88.3 (+0.9)** | 99.1 → 99.1 |
+| Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | off | queued | 82.9 → **85.9 (+3.0)** | 97.8 → 96.2 |
+| Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | on | queued | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
+| Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | queued | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
+| Qwen3.6-35B-A3B `michel2` | IQ3_XXS 13.2 GB | on | 91.6 → 71.3 raw / **90.9 app-read** | 87.5 → 86.6 (−0.9) | 95.6 → 82.7 raw / 93.1 app-read |
+| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | queued | 90.8 → 88.5 (−2.2) | 96.9 → 95.3 raw / 98.1 app-read |
+| Qwen3-14B rights-clean, seed 1, `default` | Q4_K_M 9.0 GB | low, budget 1024 | 67.6 → **72.6 (+5.0)** | 66.1 → **74.7 (+8.6)** | 68.9 → 75.8 |
+| Qwen3-14B rights-clean, seed 2, `default` | Q4_K_M 9.0 GB | low, budget 1024 | queued | 66.1 → **74.9 (+8.8)** | 68.9 → 69.5 |
+| Qwen3-14B rights-clean, seed 1, `michel2_full` | Q4_K_M 9.0 GB | low, budget 1024 | 84.3 → 84.3 (+0.1) | — | 89.6 → 95.9; P&P 88.9 → 77.0 |
 
-Four-book rows are 768 paired rows on one server with the adapter scale
+Every nine-novel cell uses the same fixed panel, 40 windows per novel and
+2,655 labelled rows. `queued` means that exact paired measurement is running,
+not that a four-book result was silently substituted. The Sun Also Rises is
+one of the 20 training novels, so the nine-novel column is a consistent stress
+test rather than a purely held-out estimate; Emma remains the clean held-out
+check. Four-book rows are 768 paired rows on one server with the adapter scale
 toggled (RECIPES §"Attribution adapters", 2026-09-20). The adapters were built
 to lift the base models — the prompt did most of that — so their job now is
 **how small a quant can ship**, and the answer so far: the Qwen3.8 adapter
 earns its place at IQ2_XXS and Q3_K_XL, where the gain grows as the quant
 shrinks; the A3B adapter helps only at IQ1_M with reasoning off — on alias-bearing rosters its real output is the roster line echoed back (21% of nine-novel rows), which the app now reads as the main form; the Qwen3-14B
 adapter's +8.7 under the `default` prompt is a null under the product
-prompt. One note of honesty the cards carry too: The Sun Also Rises is one of
-the 20 training novels, so PDNC results are reported over the eight novels
-that are genuinely held out. `ATTRIBUTION_ADAPTER_SETUP.md` says how to load
-one.
+prompt. `ATTRIBUTION_ADAPTER_SETUP.md` says how to load one.
 
 ### Voices — against a human ceiling
 
