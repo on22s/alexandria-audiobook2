@@ -802,7 +802,7 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
     as `thinking_mode` in the run manifest; the request itself would carry it
     anyway through the profile's request body."""
     command = [sys.executable, "-u", os.path.join(BASE_DIR, "three_pass_generate.py"),
-               input_file, "--pass2-on-exhaustion", "fallback"]
+               input_file, "--pass2-on-exhaustion", "fail"]
     if output_path is not None:
         command.extend(["--output", output_path])
     if reasoning_effort:
