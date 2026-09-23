@@ -10,9 +10,11 @@ most often need. Supporting guides and reference material are grouped here.
 | Setup, operating, and feature guides | [`guides/`](guides/) |
 | Thunder measurements and inference-stack notes | [`guides/THUNDER_COMPUTE.md`](guides/THUNDER_COMPUTE.md), [`operations/`](operations/) |
 | Model and adapter evaluation results | [`results/`](results/), [`../RECIPES.md`](../RECIPES.md), [`../RESULTS_INDEX.md`](../RESULTS_INDEX.md) |
+| Voice adapter source provenance | [`../lora_models/provenance.csv`](../lora_models/provenance.csv) |
 | Project overview and serving instructions | [`wiki/`](wiki/Home.md) |
 | Historical handoffs and dated investigations | [`history/`](history/README.md) |
 | Audits, benchmark records, and screenshots | [`audits/`](audits/), [`benchmarks/`](benchmarks/raw/README.md), [`screenshots/`](screenshots/) |
+| Voice-feature benchmark utility | [`tools/experiments/voice_feature_benchmark.py`](../tools/experiments/voice_feature_benchmark.py) |
 
 ## Root documents
 
