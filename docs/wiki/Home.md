@@ -7,6 +7,7 @@ generation and attribution experiments.
 
 - [Setup and serving](Setup-and-Serving.md)
 - [Prompts and adapters](Prompts-and-Adapters.md)
+- [Results](Results.md)
 - [Evaluation recipes](Evaluation-Recipes.md)
 - [Thunder operations](Thunder-Operations.md)
 - [Hugging Face releases](Hugging-Face-Releases.md)
