@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 327,
+    "provisional": 330,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12036,6 +12036,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__a3b-iq2xxs-on-michel2_full-pdnc9-tnr0-20260922.json",
+      "bytes": 8888150,
+      "sha256": "477deda45b7b1ece64075306544e502795ffa6b3d093d265f0bb38bda4ad2f84",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__a3b-iq3xxs-default-local-9070xt-pdnc9lite-low-schema-20260917.json",
       "bytes": 4442820,
       "sha256": "1a39ac86e7a4eb6369d86ff77810730395f6df95944237b22f25df37664b67d6",
@@ -12104,6 +12122,24 @@
       "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__a3b-q4kxl-on-michel2_full-pdnc9-tnr0-20260922.json",
+      "bytes": 8909776,
+      "sha256": "5a4a14c70ba67f14cc17e6772a55a5d078db703b42a148753d9b5a8204585c96",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },
@@ -15398,6 +15434,24 @@
       "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922.json",
+      "bytes": 8882491,
+      "sha256": "5ebfb9bca55be9ef243075d2447868db0f0a02f82273f784fc51aa49d57c0fff",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },

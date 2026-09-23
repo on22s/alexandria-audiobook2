@@ -89,13 +89,13 @@ nothing you could not redistribute). Public on the Hub:
 |---|---|---|---:|---:|---:|
 | Qwen3.8-27B `michel2` | IQ2_XXS 7.3 GB | on | queued | 83.1 → **85.7 (+2.6)** | 91.2 → 92.1 |
 | Qwen3.8-27B `michel2` | Q3_K_XL 13.1 GB | on | queued | 87.5 → **88.8 (+1.3)** | 99.4 → 99.7 |
-| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on | 94.9 → **95.9 (+1.0)** | 89.8 → 89.8 | 99.7 → 99.4 |
+| Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | on | 94.9 → **95.9 (+1.0)**; strict paired p=0.057 | 89.8 → 89.8 | 99.7 → 99.4 |
 | Qwen3.8-27B `michel2` | Q4_K_M 16.5 GB | off | 93.5 → **95.8 (+2.4)**; held-out eight: 94.9 → **97.1** | 87.4 → **88.3 (+0.9)** | 99.1 → 99.1 |
 | Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | off | 89.4 → 85.7 (−3.7); held-out eight: 91.4 → 88.9 | 82.9 → **85.9 (+3.0)** | 97.8 → 96.2 |
 | Qwen3.6-35B-A3B `michel2` | IQ1_M 10.0 GB | on | queued | 87.5 → 85.0 (−2.5) | 96.2 → 98.1 |
-| Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | queued | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
+| Qwen3.6-35B-A3B `michel2` | IQ2_XXS 10.8 GB | on | 91.6 → 88.3 (−3.2) | 88.3 → 87.9 (−0.4) | 95.6 → 95.3 |
 | Qwen3.6-35B-A3B `michel2` | IQ3_XXS 13.2 GB | on | 91.6 → 71.3 raw / **90.9 app-read** | 87.5 → 86.6 (−0.9) | 95.6 → 82.7 raw / 93.1 app-read |
-| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | queued | 90.8 → 88.5 (−2.2) | 96.9 → 95.3 raw / 98.1 app-read |
+| Qwen3.6-35B-A3B `michel2` | Q4_K_XL 22.4 GB | on | 92.1 → 64.6 (−27.5) raw | 90.8 → 88.5 (−2.2) | 96.9 → 95.3 raw / 98.1 app-read |
 | Qwen3-14B rights-clean, seed 1, `default` | Q4_K_M 9.0 GB | low, budget 1024 | 67.6 → **72.6 (+5.0)**; held-out-eight replication 72.2 → **74.9 (+2.7)** | 66.1 → **74.7 (+8.6)** | 68.9 → 75.8 |
 | Qwen3-14B rights-clean, seed 2, `default` | Q4_K_M 9.0 GB | low, budget 1024 | queued | 66.1 → **74.9 (+8.8)** | 68.9 → 69.5 |
 | Qwen3-14B rights-clean, seed 1, `michel2_full` | Q4_K_M 9.0 GB | low, budget 1024 | 84.3 → 84.3 (+0.1) | — | 89.6 → 95.9; P&P 88.9 → 77.0 |
@@ -116,7 +116,12 @@ panel. The A3B IQ1_M gain did not generalise: its nine-novel replication is
 significantly negative. On alias-bearing rosters its real output is the roster
 line echoed back (21% of nine-novel rows), which the app now reads as the main form; the Qwen3-14B
 adapter's +8.7 under the `default` prompt is a null under the product
-prompt. Muse Gen 3 is promising only at scale 0.25 so far; that result is a
+prompt. The new A3B IQ2_XXS and Q4_K_XL nine-novel raw scores also fall with
+the adapter; Q4_K_XL's large drop needs output-level diagnosis before any
+product-level conclusion. The Qwen3.8 Q4_K_M reasoning-on gain is one paired
+run and does not clear the strict shared-row p<0.05 threshold. Raw artifacts
+and paired counts are in [RECIPES.md](RECIPES.md#september-23-nine-novel-paired-follow-up).
+Muse Gen 3 is promising only at scale 0.25 so far; that result is a
 10-window pilot and is not promotion-grade until the 40-window replication.
 [`ATTRIBUTION_ADAPTER_SETUP.md`](docs/guides/ATTRIBUTION_ADAPTER_SETUP.md) says how to load one.
 

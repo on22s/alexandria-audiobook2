@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 327 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 330 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 215
+- `exploratory`: 218
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -128,10 +128,12 @@ All 327 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__a3b-iq2xxs-michel2-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq2xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq2xxs-michel2_shot-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__a3b-iq2xxs-on-michel2_full-pdnc9-tnr0-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq3xxs-default-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq3xxs-michel2-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq3xxs-michel2_full-local-9070xt-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__a3b-iq3xxs-rightsclean-michel2-adapter-michel2_full-tnr2-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__a3b-q4kxl-on-michel2_full-pdnc9-tnr0-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-low-8k-michel2_full-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-michel-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-michel2-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
@@ -261,6 +263,7 @@ All 327 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen38-27b-q4km-michel2_shot-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-iq2-rightsclean-pdnc8-tnr2-20260922.json` | lora_serving_eval | exploratory | 4620 | 0 | 3984 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 800 | 29 | 8 | False | saved summary differs from row recomputation |
 | `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 198 | 0 | 0 | False | saved summary differs from row recomputation |
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 278 | 0 | 0 | False | saved summary differs from row recomputation |
