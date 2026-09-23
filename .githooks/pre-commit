@@ -21,7 +21,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 # deliberately generous - ready.sh and CI both still check, so a miss here
 # costs a moment, while regenerating on every one-line fix costs it always.
 staged=$(git diff --cached --name-only)
-if printf '%s\n' "$staged" | grep -qE '^(ab_test_runtime/(experiments|audit)/|app/tests/test.*\.py$|GOALS\.md$|(audit_experiment_artifacts|audit_legacy_attribution|collect_results)\.py$|app/update_test_inventory\.py$|app/tests/test_inventory\.py$)'; then
+if printf '%s\n' "$staged" | grep -qE '^(ab_test_runtime/(experiments|audit)/|app/tests/test.*\.py$|GOALS\.md$|tools/audit/(audit_experiment_artifacts|audit_legacy_attribution|collect_results)\.py$|app/update_test_inventory\.py$|app/tests/test_inventory\.py$)'; then
   if "$ROOT/tools/regen_derived.sh" --quiet; then
     # shellcheck disable=SC2046
     git add -- $("$ROOT/tools/regen_derived.sh" --paths) 2>/dev/null || true

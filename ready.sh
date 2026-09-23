@@ -43,7 +43,7 @@ echo "== is what CI checks actually current? =="
 # are what CI runs, so they decide.
 stale=0
 for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
-    if ( cd "$REPO" && "$python" "$REPO/$script.py" --check >/dev/null 2>&1 ); then
+    if ( cd "$REPO" && "$python" "$REPO/tools/audit/$script.py" --check >/dev/null 2>&1 ); then
         echo "   $script  current"
     else
         echo "   $script  STALE - regeneration did not settle it" >&2
@@ -80,7 +80,7 @@ if [ -n "$new_artifacts" ]; then
     echo
     echo "   These carry no generating commit yet, so the index goes stale as"
     echo "   soon as you commit. Immediately AFTER committing, run:"
-    echo "       $python collect_results.py && git add RESULTS_INDEX.md results_index.csv"
+    echo "       $python tools/audit/collect_results.py && git add RESULTS_INDEX.md results_index.csv"
     echo "       git commit -m 'Record the commit that produced <artifact>'"
 fi
 

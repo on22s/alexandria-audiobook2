@@ -9,9 +9,10 @@ import os
 import subprocess
 import sys
 
-REPO = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "app"))
-from audit_experiment_artifacts import tracked_state  # noqa: E402
+from tools.audit.audit_experiment_artifacts import tracked_state  # noqa: E402
 from experiments.manifest import ExperimentRecord  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 

@@ -6,7 +6,7 @@ from unittest import mock
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-import audit_legacy_attribution as audit
+from tools.audit import audit_legacy_attribution as audit
 
 
 class LegacyAttributionAuditTests(unittest.TestCase):

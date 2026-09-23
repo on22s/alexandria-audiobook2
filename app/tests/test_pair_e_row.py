@@ -24,9 +24,10 @@ from experiments import pair_e_row
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "app", "experiments", "pair_e_row.py")
-# audit_experiment_artifacts lives at the repo root, not under app/.
+# audit_experiment_artifacts lives under tools/audit, not under app/.
 if REPO not in sys.path:
     sys.path.insert(0, REPO)
+from tools.audit import audit_experiment_artifacts as audit
 
 
 def _row(term, plain=False, respelled=True):
@@ -126,7 +127,6 @@ class SharedCompletenessTest(unittest.TestCase):
     def test_the_audit_records_completeness_for_every_row(self):
         """A null would be a fourth state no reader handles - including the
         rows that bail early on an unreadable file."""
-        import audit_experiment_artifacts as audit
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "broken.json"), "w") as fh:
                 fh.write("{")

@@ -29,7 +29,7 @@ def csv(*rows):
 def _fn():
     """Import the helper without executing collect_results' main body."""
     import ast
-    with open(os.path.join(REPO, "collect_results.py"), encoding="utf-8") as handle:
+    with open(os.path.join(REPO, "tools", "audit", "collect_results.py"), encoding="utf-8") as handle:
         src = handle.read()
     tree = ast.parse(src)
     for node in tree.body:
