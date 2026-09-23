@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 331 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 332 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 219
+- `exploratory`: 220
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -263,6 +263,7 @@ All 331 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen38-27b-q4km-michel2_full-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q4km-michel2_shot-tnr0-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-iq2-rightsclean-pdnc8-tnr2-20260922.json` | lora_serving_eval | exploratory | 4620 | 0 | 3984 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen38-q3kxl-on-michel2_full-pdnc9-tnr2-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | exploratory | 800 | 29 | 8 | False | saved summary differs from row recomputation |

@@ -42,11 +42,16 @@ choosing a base, not for judging adapter quality.
 | Model | Quant | Adapter | Prompt | Settings | Fixture | Rows | Base accuracy | Adapter accuracy | Delta | Strict shared | Verdict / artifact |
 |---|---|---|---|---|---|---:|---:|---:|---:|---|---|
 | Qwen3.8-27B | Q4_K_M | rights-clean | `michel2_full` | temp 0; reasoning off; batch 25; schema | 9 PDNC novels | 2,655 | 93.5% | **95.8%** | **+2.4 pp** | +92/−29, p=8e-9 | Positive; `qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922` |
+| Qwen3.8-27B | UD-Q3_K_XL | rights-clean | `michel2_full` | temp 0; low / 1,024; batch 25; schema | 9 PDNC novels* | 2,655 | 95.2% | **96.0%** | **+0.8 pp** | +61/−45, p=0.145 | Positive point estimate; [raw result](../../ab_test_runtime/experiments/lora_serving_eval__qwen38-q3kxl-on-michel2_full-pdnc9-tnr2-20260922.json) |
 | Qwen3.6-35B-A3B | IQ3_XXS | rights-clean | `michel2_full` | temp 0; low / 1,024; batch 25; schema | 9 PDNC novels | 2,655 | 91.6% | 71.3% | **−20.3 pp** | base 92.3% → adapter 72.8%; +74/−582, p=9.05e-99 | **Negative repeat; do not promote.** [raw artifact](../../ab_test_runtime/experiments/lora_serving_eval__a3b-iq3xxs-on-michel2_full-pdnc9-tnr0-20260923.json) |
 | Qwen3.6-35B-A3B | IQ1_M | rights-clean | `michel2_full` | temp 0; reasoning off; batch 25; schema | 9 PDNC novels | 2,655 | 89.4% | 85.7% | −3.7 pp | +130/−228, p=2.5e-7 | Negative; `a3b-iq1m-off-michel2_full-pdnc9-tnr0-20260922` |
 | Qwen3-14B | Q4_K_M | rights-clean | `default` | temp 0; low / 1,024; batch 25; schema | 9 PDNC novels | 2,655 | 67.6% | **72.6%** | **+5.0 pp** | — | Positive; `qwen3-14b-rightsclean-default-tnr2-pdnc9lite` |
 | Qwen3-14B | Q4_K_M | rights-clean | `michel2_full` | temp 0; low / 1,024; batch 25; schema | 9 PDNC novels | 2,655 | 84.3% | 84.3% | 0.0 pp | — | Null; `qwen3-14b-rightsclean-michel2_full-tnr2-pdnc9lite` |
 | Muse-Glimmer-30B | — | mixed-lossfix | Michel prompt | temp 0; low / 1,024; batch 25; schema | 4-book product fixture | 768 | 84.0% | 76.3% | −7.7 pp | +51/−110, p=3.83e-6 | Negative; do not promote |
+
+\* The Qwen3.8 UD-Q3_K_XL run includes Sun Also Rises, which is marked as
+training-overlap in the artifact metadata; treat the pooled result as a
+paired measurement with that caveat rather than as a clean held-out estimate.
 
 ## API and non-adapter baselines
 
@@ -55,6 +60,25 @@ though they were the same experiment. The OpenRouter Nemotron run used
 `michel2_full`, low reasoning, temperature 0, batch 8, and no structured
 output; see [Evaluation recipes](Evaluation-Recipes.md) for its per-book
 scores and limitations.
+
+### Nemotron 3 Ultra 550B A55B — paid OpenRouter
+
+These are independent per-book API baselines. OpenRouter reported the
+requested model, but provider routing and hardware are not observed. Do not
+pool these percentages into a model-wide score or interpret them as adapter
+gains.
+
+| Book | Rows | Correct | Accuracy | Raw artifact |
+|---|---:|---:|---:|---|
+| Mansfield Park | 734 | 710 | **96.7%** | [raw result](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-mansfieldpark-michel2full-b8-low-20260922.json) |
+| Northanger Abbey | 672 | 656 | **97.6%** | [raw result](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-northangerabbey-michel2full-b8-low-20260922.json) |
+| Persuasion | 309 | 300 | **97.1%** | [raw result](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-persuasion-michel2full-b8-low-20260922.json) |
+| The Sign of the Four | 353 | 301 | **85.3%** | [raw result](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json) |
+| The Sun Also Rises | 1,759 | 1,536 | **87.3%** | [raw result](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-thesunalsorises-michel2full-b8-low-20260922.json) |
+
+Settings: temperature 0, low reasoning, 1,024-token reasoning budget,
+batch size 8, maximum 4,096 output tokens, `michel2_full`, structured output
+off.
 
 ## Provenance
 

@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "171a7187edf45426f22036fdcd1400f023c062261901aad1cab4edfe605d3897",
+  "source_structural_sha256": "fcdd306c6d1f50ba7857eee81d78b5c83ba59b06a815c4b481b58cacca9dbc92",
   "summary": {
-    "exploratory": 219,
+    "exploratory": 220,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -5577,6 +5577,28 @@
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-q3kxl-on-michel2_full-pdnc9-tnr2-20260922.json",
+      "family": "lora_serving_eval",
+      "rows": 5310,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": false,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
       },
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
