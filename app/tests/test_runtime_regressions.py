@@ -785,7 +785,7 @@ class RuntimeTests(unittest.TestCase):
         for fname in ("audit_voice_datasets.py", "batch_train_lora.py", "evaluate_lora.py", "voice_profiler.py",
                       "voice_analysis.py", "name_voices.py"):
             self.assertTrue(
-                os.path.isfile(os.path.join(core_module.ROOT_DIR, fname)),
+                os.path.isfile(os.path.join(core_module.ROOT_DIR, "tools", "voice_lab", fname)),
                 f"{fname} must ship with this repo",
             )
 

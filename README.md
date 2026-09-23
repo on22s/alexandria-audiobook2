@@ -1183,7 +1183,7 @@ alexandria-audiobook2/
 ├── builtin_lora/                    # shipped voice adapters
 ├── docs/                            # architecture diagram, screenshots, audits, history
 ├── alexandria_preparer_rocm_compatible.py, alexandria_batch_processor.py, alexandria_compare.py
-├── batch_train_lora.py, voice_analysis.py, voice_profiler.py, name_voices.py   # Voice Lab stages
+├── tools/voice_lab/                # Voice Lab stage scripts and dataset audit
 ├── gpu_job.sh, gpu_pause.sh         # the local experiment queue (one job per card)
 ├── ready.sh, verify_release.py, resolve_generated.sh
 ├── GOALS.md, RECIPES.md, RESULTS_INDEX.md, HF_MODEL_GUIDE.md

@@ -4,6 +4,18 @@ import hashlib
 import os
 import re
 
+VOICE_LAB_SCRIPTS = frozenset({
+    "audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
+    "evaluate_lora.py", "voice_profiler.py", "name_voices.py",
+})
+
+
+def get_voice_lab_script_path(root_dir: str, filename: str) -> str:
+    """Return the checkout-local path of a shipped Voice Lab stage script."""
+    if filename not in VOICE_LAB_SCRIPTS:
+        raise ValueError(f"Unknown Voice Lab script: {filename}")
+    return os.path.join(os.path.abspath(root_dir), "tools", "voice_lab", filename)
+
 
 def get_profiler_paths(root_dir: str, data_dir: str | None = None) -> dict[str, str]:
     """Return checkout-local defaults for the Voice Lab profiling stage."""

@@ -80,7 +80,7 @@ class LearningRateIsSingleSourced(unittest.TestCase):
         self.assertEqual(float(found.group(1)), DEFAULT_LEARNING_RATE)
 
     def test_batch_train_lora_matches(self):
-        path = os.path.join(REPO, "batch_train_lora.py")
+        path = os.path.join(REPO, "tools", "voice_lab", "batch_train_lora.py")
         if not os.path.exists(path):
             self.fail("batch_train_lora.py is missing; it drives the Voice Lab "
                       "training stage and its default is load-bearing")

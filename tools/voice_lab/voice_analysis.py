@@ -43,7 +43,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
-APP_DIR = Path(__file__).resolve().parent / "app"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+APP_DIR = PROJECT_ROOT / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from device_utils import normalize_device, resolve_device
@@ -54,7 +55,6 @@ from utils import atomic_json_write
 
 warnings.filterwarnings("ignore")
 
-PROJECT_ROOT  = Path(__file__).resolve().parent
 DEFAULT_ZIPS2 = Path(os.environ.get("ALEXANDRIA_ZIPS_DIR", PROJECT_ROOT / "zips2"))
 
 DEDUP_SAMPLES   = 150

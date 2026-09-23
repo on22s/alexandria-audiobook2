@@ -3905,6 +3905,7 @@
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_preflight_reports_missing_model_and_dependency",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_stage_scripts_resolve_within_the_selected_checkout",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_successful_subprocess_with_incomplete_adapter_is_cleaned_up",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_training_failure_removes_new_partial_output_and_dataset"
   ],

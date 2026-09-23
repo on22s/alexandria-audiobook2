@@ -43,7 +43,7 @@ from core import (
 )
 from device_utils import normalize_device
 from utils import atomic_json_write, safe_load_json
-from voicelab_settings import get_profiler_paths
+from voicelab_settings import get_profiler_paths, get_voice_lab_script_path
 from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
 from routers.lora import list_adapters_needing_recovery
@@ -114,7 +114,7 @@ def _build_profiler_command(rocm_python: str, profiler_model: str,
                             epub_dirs: List[str]) -> list[str]:
     """Build the one canonical profile/preflight command."""
     paths = get_profiler_paths(ROOT_DIR, DATA_DIR)
-    command = [rocm_python, "-u", os.path.join(ROOT_DIR, "voice_profiler.py"),
+    command = [rocm_python, "-u", get_voice_lab_script_path(ROOT_DIR, "voice_profiler.py"),
                "--manifest", paths["manifest"],
                "--model", profiler_model or paths["model"],
                "--output_csv", paths["output_csv"]]
@@ -228,7 +228,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
                             ("train", "batch_train_lora.py"),
                             ("evaluate", "evaluate_lora.py"),
                             ("profile", "voice_profiler.py"), ("name", "name_voices.py")):
-        if stage in stages and not os.path.isfile(os.path.join(ROOT_DIR, filename)):
+        if stage in stages and not os.path.isfile(get_voice_lab_script_path(ROOT_DIR, filename)):
             finding(blockers, "stage_script_missing", f"The {stage} stage script is missing from this install.")
     if "profile" in stages and interpreter_ok and not any(
             item["code"] in ("dependencies_missing", "profiler_model_missing") for item in blockers):
@@ -520,10 +520,10 @@ async def voicelab_get_config():
         "config": cfg,
         "checks": {
             "rocm_python": os.path.isfile(cfg["rocm_python"]),
-            "batch_train_lora": os.path.isfile(os.path.join(ROOT_DIR, "batch_train_lora.py")),
-            "voice_profiler": os.path.isfile(os.path.join(ROOT_DIR, "voice_profiler.py")),
-            "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
-            "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
+            "batch_train_lora": os.path.isfile(get_voice_lab_script_path(ROOT_DIR, "batch_train_lora.py")),
+            "voice_profiler": os.path.isfile(get_voice_lab_script_path(ROOT_DIR, "voice_profiler.py")),
+            "voice_analysis": os.path.isfile(get_voice_lab_script_path(ROOT_DIR, "voice_analysis.py")),
+            "name_voices": os.path.isfile(get_voice_lab_script_path(ROOT_DIR, "name_voices.py")),
             "profiler_model": os.path.isfile(effective_profiler_model),
             "profiler_environment": profiler_ready,
             "epub_dirs": all(os.path.isdir(path) for path in cfg["epub_dirs"]),
@@ -637,17 +637,17 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
 
     steps = []
     if "quality" in req.stages:
-        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "audit_voice_datasets.py"),
+        cmd = [rocm, "-u", get_voice_lab_script_path(ROOT_DIR, "audit_voice_datasets.py"),
                "--zips2", zips_dir]
         steps.append(("quality", cmd, ROOT_DIR, rocm_env))
     if "dedup" in req.stages:
-        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_analysis.py"),
+        cmd = [rocm, "-u", get_voice_lab_script_path(ROOT_DIR, "voice_analysis.py"),
                "--phase", "dedup", "--zips2", zips_dir]
         if req.device:
             cmd += ["--device", req.device]
         steps.append(("dedup", cmd, ROOT_DIR, rocm_env))
     if "train" in req.stages:
-        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "batch_train_lora.py"),
+        cmd = [rocm, "-u", get_voice_lab_script_path(ROOT_DIR, "batch_train_lora.py"),
                "--zips_dir", deduped_dir,
                "--models_dir", LORA_MODELS_DIR,
                "--manifest", LORA_MODELS_MANIFEST,
@@ -670,7 +670,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
             cmd += ["--device", req.device]
         steps.append(("train", cmd, ROOT_DIR, rocm_env))
     if "evaluate" in req.stages:
-        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "evaluate_lora.py"),
+        cmd = [rocm, "-u", get_voice_lab_script_path(ROOT_DIR, "evaluate_lora.py"),
                "--manifest", LORA_MODELS_MANIFEST,
                "--models-dir", LORA_MODELS_DIR,
                "--config", CONFIG_PATH]
@@ -682,7 +682,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
         steps.append(("profile", cmd, ROOT_DIR, rocm_env))
     if "name" in req.stages:
         # Pure stdlib — safe to run under the web app's own interpreter/env
-        cmd = [sys.executable, "-u", os.path.join(ROOT_DIR, "name_voices.py"),
+        cmd = [sys.executable, "-u", get_voice_lab_script_path(ROOT_DIR, "name_voices.py"),
                "--manifest", LORA_MODELS_MANIFEST, "--models-dir", LORA_MODELS_DIR]
         if req.name_apply:
             cmd.append("--apply")

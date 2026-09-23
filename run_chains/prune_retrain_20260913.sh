@@ -52,7 +52,7 @@ run_stage prune 2h -- \
 [ -s "$work/models/manifest.json" ] || \
 run_stage train 3h --needs-vram -- \
     "$REPO/gpu_job.sh" "prune_retrain_${ADAPTER}" \
-    "$python" -u "$REPO/batch_train_lora.py" \
+    "$python" -u "$REPO/tools/voice_lab/batch_train_lora.py" \
     --zips_dir "$work/zips" --datasets_dir "$work/datasets" \
     --models_dir "$work/models" --manifest "$work/models/manifest.json" \
     --python "$python" --keep_datasets

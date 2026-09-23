@@ -9,7 +9,7 @@ import soundfile as sf
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SPEC = importlib.util.spec_from_file_location("evaluate_lora", ROOT / "evaluate_lora.py")
+SPEC = importlib.util.spec_from_file_location("evaluate_lora", ROOT / "tools" / "voice_lab" / "evaluate_lora.py")
 evaluation = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(evaluation)
 

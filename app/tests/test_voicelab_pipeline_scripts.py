@@ -19,14 +19,14 @@ from fastapi import BackgroundTasks
 import core
 import archive_utils
 from routers import voicelab
-from voicelab_settings import get_deduped_zip_name, get_profiler_paths
+from voicelab_settings import get_deduped_zip_name, get_profiler_paths, get_voice_lab_script_path
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def load_script(name):
-    spec = importlib.util.spec_from_file_location(f"test_{name}", ROOT / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(f"test_{name}", ROOT / "tools" / "voice_lab" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -37,6 +37,15 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def test_stage_scripts_resolve_within_the_selected_checkout(self):
+        for name in ("audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
+                     "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):
+            path = get_voice_lab_script_path(str(ROOT), name)
+            self.assertEqual(str(ROOT / "tools" / "voice_lab" / name), path)
+            self.assertTrue(os.path.isfile(path))
+        with self.assertRaises(ValueError):
+            get_voice_lab_script_path(str(ROOT), "../unrelated.py")
+
     def test_deduped_zip_names_preserve_same_basename_from_different_narrators(self):
         first = get_deduped_zip_name("Narrator One", "volume_1.zip")
         second = get_deduped_zip_name("Narrator Two", "volume_1.zip")

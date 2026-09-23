@@ -7,11 +7,13 @@ import json
 import os
 import sys
 import time
+from voicelab_settings import get_voice_lab_script_path
 
 
 def execute_payload(payload):
     root_dir = payload["root_dir"]
     sys.path.insert(0, root_dir)
+    sys.path.insert(0, os.path.dirname(get_voice_lab_script_path(root_dir, "voice_profiler.py")))
     from voice_profiler import (analyze_ref_wav, get_ref_text, get_ref_wav,
                                 interpret_features, llm_describe,
                                 parse_book_title, parse_narrator_name)
