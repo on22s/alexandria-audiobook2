@@ -8,7 +8,7 @@ import soundfile as sf
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SPEC = importlib.util.spec_from_file_location("audit_voice_datasets", ROOT / "audit_voice_datasets.py")
+SPEC = importlib.util.spec_from_file_location("audit_voice_datasets", ROOT / "tools" / "voice_lab" / "audit_voice_datasets.py")
 quality = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(quality)
 

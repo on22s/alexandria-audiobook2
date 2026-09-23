@@ -34,7 +34,7 @@ except ImportError as e:
     librosa = None
     DEPENDENCY_ERROR = e
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP_DIR = os.path.join(SCRIPT_DIR, "app")
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)

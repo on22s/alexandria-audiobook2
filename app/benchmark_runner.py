@@ -25,6 +25,7 @@ from lmstudio_settings import get_lmstudio_status, get_remote_lmstudio_status
 from utils import is_path_inside
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
+from voicelab_settings import get_voice_lab_script_path
 import generate_personas
 from find_nicknames import find_nicknames
 
@@ -425,7 +426,7 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
         if not python_executable:
             raise ValueError("local dedup benchmark requires local_python")
         worker_fixture["root_dir"] = root_dir
-        analysis_script = os.path.join(root_dir, "voice_analysis.py")
+        analysis_script = get_voice_lab_script_path(root_dir, "voice_analysis.py")
         worker_script = os.path.join(root_dir, "app", "dedup_benchmark.py")
         command_prefix = []
     else:
@@ -449,7 +450,7 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
             if transfer.returncode:
                 raise RuntimeError(transfer.stderr.strip() or "dedup fixture transfer failed")
         worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
-        analysis_script = os.path.join(remote_root, "voice_analysis.py")
+        analysis_script = get_voice_lab_script_path(remote_root, "voice_analysis.py")
         worker_script = os.path.join(remote_root, "app", "dedup_benchmark.py")
         command_prefix = ["ssh", ssh_alias]
     payload = {"fixture": worker_fixture, "python": python_executable,
@@ -567,7 +568,7 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
     if target == "local":
         python_executable = settings.get("local_python") or sys.executable
-        script = os.path.join(root_dir, "name_voices.py")
+        script = get_voice_lab_script_path(root_dir, "name_voices.py")
         worker = os.path.join(root_dir, "app", "naming_benchmark.py")
         prefix = []
     else:
@@ -575,7 +576,7 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
         python_executable = settings.get("remote_python") or "python3"
         if not remote_root or not ssh_alias:
             raise ValueError("Thunder naming requires remote_root and SSH alias")
-        script = os.path.join(remote_root, "name_voices.py")
+        script = get_voice_lab_script_path(remote_root, "name_voices.py")
         worker = os.path.join(remote_root, "app", "naming_benchmark.py")
         prefix = ["ssh", ssh_alias]
     payload = {"fixture": fixture, "python": python_executable, "script": script}

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-import audit_experiment_artifacts as audit
+from tools.audit import audit_experiment_artifacts as audit
 
 
 class StructuralAuditTests(unittest.TestCase):

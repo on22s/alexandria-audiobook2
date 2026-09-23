@@ -188,8 +188,8 @@ class ManifestGuardTest(unittest.TestCase):
 def stage_index_scripts(tmp):
     """Copy the whole index generator into a miniature repo, not half of it.
 
-    collect_results.py imports indexable_artifacts from
-    audit_experiment_artifacts so that "which artifacts belong in a checked-in
+    tools/audit/collect_results.py imports indexable_artifacts from
+    tools/audit/audit_experiment_artifacts so that "which artifacts belong in a checked-in
     index" has one definition (Rule 15). Staging only collect_results.py made
     these three tests fail on the import - which is the fixture being wrong,
     not the code: the real repository has both files.
@@ -198,9 +198,11 @@ def stage_index_scripts(tmp):
     exercises the fallback where git cannot answer and every artifact on disk
     is indexed.
     """
+    audit_dir = os.path.join(tmp, "tools", "audit")
+    os.makedirs(audit_dir, exist_ok=True)
     for name in ("collect_results.py", "audit_experiment_artifacts.py"):
-        shutil.copy2(os.path.join(os.path.dirname(APP), name),
-                     os.path.join(tmp, name))
+        shutil.copy2(os.path.join(APP, "..", "tools", "audit", name),
+                     os.path.join(audit_dir, name))
     # audit_experiment_artifacts imports experiments.manifest for the ONE
     # definition of "did this run finish" (Rule 15), so the miniature repo
     # needs that package too. It is stdlib-only, so staging it costs nothing;
@@ -220,8 +222,8 @@ class CollectResultsRobustnessTest(unittest.TestCase):
     def test_rows_as_a_count_does_not_crash_the_index(self):
         """segmentation_classifier.json used 'rows' for a count, and iterating
         an int killed the whole index rather than skipping one file."""
-        with open(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                  encoding="utf-8") as handle:
+        with open(os.path.join(APP, "..", "tools", "audit", "collect_results.py"),
+                   encoding="utf-8") as handle:
             source = handle.read()
         self.assertIn("isinstance(rr, list)", source,
                       "collect_results must check the shape of 'rows' before "
@@ -243,7 +245,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                       encoding="utf-8") as handle:
                 json.dump({"status": "complete"}, handle)
             subprocess.run(
-                [sys.executable, "collect_results.py"], cwd=tmp,
+                [sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                 capture_output=True, check=True)
             with open(os.path.join(tmp, "results_index.csv"), "rb") as handle:
                 content = handle.read()
@@ -268,13 +270,13 @@ class CollectResultsRobustnessTest(unittest.TestCase):
             with open(os.path.join(audit, "legacy_attribution_audit.json"),
                       "w", encoding="utf-8") as handle:
                 json.dump({"artifacts": []}, handle)
-            subprocess.run([sys.executable, "collect_results.py"], cwd=tmp,
+            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            capture_output=True, check=True)
             structural = os.path.join(audit, "artifact_structural_audit.json")
             with open(structural, "w", encoding="utf-8") as handle:
                 json.dump({"artifacts": [{"artifact": artifact,
                                            "classification": "supported_structure"}]}, handle)
-            checked = subprocess.run([sys.executable, "collect_results.py", "--check"],
+            checked = subprocess.run([sys.executable, "tools/audit/collect_results.py", "--check"],
                                      cwd=tmp, capture_output=True, text=True)
         self.assertNotEqual(0, checked.returncode)
         self.assertIn("results index is stale", checked.stderr)
@@ -297,10 +299,10 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                 with open(os.path.join(audit, name), "w", encoding="utf-8") as handle:
                     json.dump({"artifacts": []}, handle)
             env = dict(os.environ, TZ="America/Chicago")
-            subprocess.run([sys.executable, "collect_results.py"], cwd=tmp,
+            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            env=env, capture_output=True, check=True)
             env["TZ"] = "UTC"
-            checked = subprocess.run([sys.executable, "collect_results.py", "--check"],
+            checked = subprocess.run([sys.executable, "tools/audit/collect_results.py", "--check"],
                                      cwd=tmp, env=env, capture_output=True, text=True)
         self.assertEqual(0, checked.returncode, checked.stderr)
 
@@ -318,7 +320,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                          "legacy_attribution_audit.json"):
                 with open(os.path.join(audit, name), "w", encoding="utf-8") as handle:
                     json.dump({"artifacts": []}, handle)
-            subprocess.run([sys.executable, "collect_results.py"], cwd=tmp,
+            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            capture_output=True, check=True)
             with open(os.path.join(tmp, "results_index.csv"),
                       encoding="utf-8") as handle:

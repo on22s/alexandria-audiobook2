@@ -31,17 +31,16 @@ import tempfile
 import time
 import zipfile
 
-APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+REPO2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+APP_DIR = os.path.join(REPO2_DIR, "app")
 sys.path.insert(0, APP_DIR)
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-REPO2_DIR    = SCRIPT_DIR
 TRAIN_SCRIPT = os.path.join(REPO2_DIR, "app", "train_lora.py")
-PYTHON       = os.path.join(SCRIPT_DIR, "app", "env", "bin", "python")
+PYTHON       = os.path.join(REPO2_DIR, "app", "env", "bin", "python")
 DATASETS_DIR = os.path.join(REPO2_DIR, "lora_datasets")
 MODELS_DIR   = os.path.join(REPO2_DIR, "lora_models")
 MANIFEST     = os.path.join(MODELS_DIR, "manifest.json")

@@ -77,8 +77,8 @@ def main():
             f"Stage 7 expected 75 usable adapters; found {len(adapters)}")
     ensure_pilot(adapters[0]["adapter"])
     ensure_full(len(adapters))
-    run([PYTHON, "audit_experiment_artifacts.py"])
-    run([PYTHON, "collect_results.py"])
+    run([PYTHON, "tools/audit/audit_experiment_artifacts.py"])
+    run([PYTHON, "tools/audit/collect_results.py"])
     require_index_entries("pitch_profile_matrix_pilot.json",
                           "pitch_profile_matrix.json")
     run([PYTHON, "-m", "unittest", "discover", "-s", "app",

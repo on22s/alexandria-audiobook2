@@ -15,6 +15,7 @@ most often need. Supporting guides and reference material are grouped here.
 | Historical handoffs and dated investigations | [`history/`](history/README.md) |
 | Audits, benchmark records, and screenshots | [`audits/`](audits/), [`benchmarks/`](benchmarks/raw/README.md), [`screenshots/`](screenshots/) |
 | Voice-feature benchmark utility | [`tools/experiments/voice_feature_benchmark.py`](../tools/experiments/voice_feature_benchmark.py) |
+| Voice Lab stage scripts | [`tools/voice_lab/`](../tools/voice_lab/) |
 
 ## Root documents
 

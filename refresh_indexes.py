@@ -32,9 +32,9 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 
 # Dependency order. Producers first, consumer last.
 INDEXES = [
-    ("audit_experiment_artifacts.py", "structural audit"),
-    ("audit_legacy_attribution.py", "legacy attribution audit"),
-    ("collect_results.py", "results index"),
+    ("tools/audit/audit_experiment_artifacts.py", "structural audit"),
+    ("tools/audit/audit_legacy_attribution.py", "legacy attribution audit"),
+    ("tools/audit/collect_results.py", "results index"),
     # Downstream of both audits AND of GOALS.md: it reports what each goal's
     # evidence is worth. It was written today and left out of every refresh
     # path, so it silently aged the moment anything else changed - the exact

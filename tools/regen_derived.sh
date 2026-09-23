@@ -68,7 +68,7 @@ quiet=0
 say() { [ "$quiet" = 1 ] || echo "$@"; }
 
 for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
-    ( cd "$REPO" && "$python" "$REPO/$script.py" >/dev/null 2>&1 ) || {
+    ( cd "$REPO" && "$python" "$REPO/tools/audit/$script.py" >/dev/null 2>&1 ) || {
         echo "regen_derived: $script FAILED" >&2; exit 1; }
     say "   $script"
 done

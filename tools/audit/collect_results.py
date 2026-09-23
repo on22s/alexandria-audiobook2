@@ -12,7 +12,8 @@ be visible as such in the same row, not discoverable by opening the file.
 """
 import argparse, collections, csv, glob, io, json, os, re, sys, time
 
-REPO = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, REPO)
 E = os.path.join(REPO, "ab_test_runtime", "experiments")
 AUDIT = os.path.join(REPO, "ab_test_runtime", "audit")
 parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -110,7 +111,7 @@ def get_origin(name):
 # compared against the committed copy, so if they disagreed about untracked
 # artifacts, one of the two --check gates would fail on every machine that had
 # run anything. They did disagree, and it broke PR #340.
-from audit_experiment_artifacts import indexable_artifacts  # noqa: E402
+from tools.audit.audit_experiment_artifacts import indexable_artifacts  # noqa: E402
 
 files, _untracked = indexable_artifacts(E)
 rows = []

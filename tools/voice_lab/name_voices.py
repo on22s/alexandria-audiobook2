@@ -37,7 +37,7 @@ import sys
 import time
 import tempfile
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_MODELS_DIR = os.path.join(SCRIPT_DIR, "lora_models")
 DEFAULT_MANIFEST = os.path.join(DEFAULT_MODELS_DIR, "manifest.json")
 

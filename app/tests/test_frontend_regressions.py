@@ -274,10 +274,12 @@ class FrontendTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent.parent
         dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
         for required in ("gpu_stats.py", "persona_prompts.txt", "alexandria_alignment.py",
-                         "alexandria_preparer_rocm_compatible.py",
-                         "llm_enricher.py", "audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
-                         "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):
+                         "alexandria_preparer_rocm_compatible.py", "llm_enricher.py",
+                         "COPY tools/voice_lab/ /alexandria/tools/voice_lab/"):
             self.assertIn(required, dockerfile)
+        for name in ("audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
+                     "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):
+            self.assertTrue((root / "tools" / "voice_lab" / name).is_file())
 
     def test_docker_mounts_single_persistent_runtime_root(self):
         root = Path(__file__).resolve().parent.parent.parent

@@ -443,11 +443,13 @@ renders audio. On this GPU, or on any error reading the config, the full lock
 applies.
 
 ### Voice Lab pipeline
-"Voice Lab" (audiobook → named LoRA voice). All four stage scripts live in this
-repo. Stages: preparer (UI tab) → dedup (`voice_analysis.py --phase dedup`, not
-in UI) → LoRA training (`batch_train_lora.py`, UI only does one dataset) →
-profiling (`voice_profiler.py`, not in UI) → naming (`name_voices.py`, pure
-stdlib). See memory `voice_lora_pipeline` for the full script-by-script map.
+"Voice Lab" (audiobook → named LoRA voice). The stage scripts live in
+`tools/voice_lab/`. Stages: preparer (UI tab) → dedup
+(`tools/voice_lab/voice_analysis.py --phase dedup`, not in UI) → LoRA training
+(`tools/voice_lab/batch_train_lora.py`, UI only does one dataset) → profiling
+(`tools/voice_lab/voice_profiler.py`, not in UI) → naming
+(`tools/voice_lab/name_voices.py`, pure stdlib). See memory
+`voice_lora_pipeline` for the full script-by-script map.
 
 The Voice Lab's `rocm_python` defaults to the running interpreter since
 2026-09-11; `app/env` carries the whole stage stack except `llama_cpp`, which

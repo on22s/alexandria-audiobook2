@@ -214,7 +214,7 @@ def main():
         finish_experiment_status(
             STATUS, "human_pending",
             "Collect blinded responses, then run blinded_listening.py --responses with an explicit --expected-listeners value.")
-        run([PYTHON, "collect_results.py"])
+        run([PYTHON, "tools/audit/collect_results.py"])
         run([PYTHON, "-m", "unittest", "discover", "-s", "app", "-p", "test_*.py"])
         print("Stage 6 listening materials complete; human ratings are pending.", flush=True)
     except Exception as exc:

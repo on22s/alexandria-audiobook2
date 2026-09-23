@@ -284,9 +284,9 @@ def main(argv=None):
         # the next one, because the CI step runs them in sequence and stops at
         # the first. They belong here, where they cost two seconds, rather than
         # in a four-minute round trip. Run from the repo root, not app/.
-        for gate, script in (("evidence_index", "audit_experiment_artifacts.py"),
-                             ("legacy_audit", "audit_legacy_attribution.py"),
-                             ("results_index", "collect_results.py")):
+        for gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
+                             ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
+                             ("results_index", "tools/audit/collect_results.py")):
             run_report_gate(
                 report, gate, lambda script=script: run_report_command(
                     "Evidence index (%s)" % script,

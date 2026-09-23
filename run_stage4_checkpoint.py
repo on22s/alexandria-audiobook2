@@ -263,7 +263,7 @@ def main():
     print("Stage 4 category expansion validated strictly (432/432 rows).",
           flush=True)
 
-    run([sys.executable, "collect_results.py"])
+    run([sys.executable, "tools/audit/collect_results.py"])
     require_index_entries("nonprose_replication.json",
                           "nonprose_replication_pilot.json",
                           "nonprose_category_expansion.json",
