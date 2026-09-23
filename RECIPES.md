@@ -471,6 +471,41 @@ These are independent per-book fixture runs, not a matched comparison to a
 local model or to one another; do not pool the percentages into a model-wide
 score. Full row-level traces and run metadata are in the linked artifacts.
 
+## September 23 nine-novel paired follow-up
+
+Three queued reasoning-on `michel2_full` cells completed on the same 2,655-row
+PDNC nine-novel panel. Each used 40 windows/book, batch 25, temperature 0,
+JSON-schema serving and one server with adapter scale toggled between arms.
+All three stored artifacts report validation `ok`, a clean source checkout at
+`4d337725`, and the same probe-harness hash. The Sun Also Rises overlaps
+adapter training, so this panel is not a wholly held-out test.
+
+| model quant | base | adapter | strict shared rows; improved / regressed; paired p | artifact |
+|---|---:|---:|---|---|
+| A3B IQ2_XXS, 10.8 GB | 2,431/2,655 (91.6%) | 2,345/2,655 (88.3%) | 2,640; 82 / 166; 1.04e-7 | [raw result](ab_test_runtime/experiments/lora_serving_eval__a3b-iq2xxs-on-michel2_full-pdnc9-tnr0-20260922.json) |
+| A3B Q4_K_XL, 22.4 GB | 2,445/2,655 (92.1%) | 1,714/2,655 (64.6%) | 2,644; 62 / 782; 1.60e-159 | [raw result](ab_test_runtime/experiments/lora_serving_eval__a3b-q4kxl-on-michel2_full-pdnc9-tnr0-20260922.json) |
+| Qwen3.8 Q4_K_M, 16.5 GB | 2,519/2,655 (94.9%) | 2,545/2,655 (95.9%) | 2,650; 66 / 45; 0.057 | [raw result](ab_test_runtime/experiments/lora_serving_eval__qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922.json) |
+
+These are raw harness scores. Output inspection explains most of the A3B
+Q4_K_XL gap: the adapter copied a roster entry's full `NAME (also: …)` string
+on 784/2,655 rows, all marked wrong by the raw scorer. On 727 of those rows,
+the leading name exactly matches the expected speaker after the same
+punctuation/case normalization used by the scorer. Applying only the existing
+`strip_roster_alias_echo` rule to those stored predictions gives 2,441/2,655
+(91.9%) versus base 2,445/2,655 (92.1%). The 57 other echoed names do not
+exactly match; 157 non-echo adapter rows are also raw-wrong, including 11
+blanks. The IQ2_XXS artifact has 88 echoed predictions, 79 exact-name
+recoveries, and an offline corrected count of 2,424/2,655 (91.3%) versus
+base 2,431/2,655 (91.6%).
+
+The evaluation ran source commit `4d337725`, which returned the full speaker
+string; the later roster-echo fix strips that tail in the app's validation and
+binding path. This is a deterministic *offline rescore of stored predictions*,
+not a rerun of the current app or a full alias-aware product score. It shows
+that the raw Q4_K_XL collapse is chiefly an output-format/scoring mismatch,
+not evidence of a 27-point recognition loss. The Qwen3.8 improvement remains
+descriptive and misses p<0.05 on strict shared rows.
+
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
 Every number above is on the same four light novels (768 rows) that every
