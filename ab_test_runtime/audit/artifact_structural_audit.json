@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 330,
+    "provisional": 331,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12104,6 +12104,24 @@
       "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__a3b-iq3xxs-on-michel2_full-pdnc9-tnr0-20260923.json",
+      "bytes": 8905183,
+      "sha256": "c29724bee1a09b9baf2c5f5b8ca565366c703ff0e9009b7704051ac657e9e3fa",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },
