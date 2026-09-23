@@ -143,8 +143,19 @@ class CheckoutIndependence(unittest.TestCase):
     def test_scope_ignores_untracked_top_level_clutter(self):
         committed = top_level_entries()
         on_disk = {n for n in os.listdir(REPO)}
-        self.assertTrue(committed <= on_disk | {".git"},
-                        "ls-tree named something absent from disk")
+        missing = committed - on_disk - {".git"}
+        diff = _git("diff", "--name-status", "--find-renames", "HEAD", "--")
+        moved = set()
+        for line in diff.stdout.splitlines():
+            fields = line.split("\t")
+            if (len(fields) == 3 and fields[0].startswith("R")
+                    and "/" not in fields[1]
+                    and os.path.exists(os.path.join(REPO, fields[2]))):
+                moved.add(fields[1])
+        self.assertTrue(missing <= moved,
+                        "ls-tree named something absent from disk that was "
+                        "not moved to an existing path: "
+                        + ", ".join(sorted(missing - moved)))
         # The live tree carries untracked runtime dirs; they must not widen scope.
         self.assertNotIn("logs", committed - set(
             _git("ls-tree", "--name-only", "HEAD").stdout.split()),

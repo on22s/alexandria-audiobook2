@@ -13,7 +13,8 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SPEC = importlib.util.spec_from_file_location(
-    "voice_feature_benchmark", ROOT / "voice_feature_benchmark.py")
+    "voice_feature_benchmark",
+    ROOT / "tools" / "experiments" / "voice_feature_benchmark.py")
 benchmark = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(benchmark)
 
