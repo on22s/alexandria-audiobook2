@@ -625,6 +625,56 @@ reads **Q4_K_M 94.6 → Q3_K_XL 93.3 → IQ3_XXS 92.6**, declining monotonically
 quant size, with IQ3_M queued.
 
 
+### Concurrency changed a fifth of the rows while leaving the total intact (2026-09-24)
+
+The evaluation harness is sequential, so the boxes were running one request at a
+time on 48 GB cards. `--workers` was added to overlap windows, and checked
+before use on one book, `michel2_full`, Muse Q3_K_XL, 318 rows, one worker
+against three:
+
+| | w1 | w3 |
+|---|---:|---:|
+| correct | 239/318 | 241/318 |
+| predictions differing | — | **100** |
+| of those, same scored outcome | — | 36 (alias-level or both wrong) |
+| of those, **outcome flipped** | — | **64** (31 right→wrong, 33 wrong→right) |
+
+**The totals are the trap.** 239 against 241 looks like agreement; underneath it
+a fifth of the rows changed their scored outcome and the flips happened to
+cancel. Anything reading accuracy alone would have adopted this. Every adapter
+verdict in this file is a PAIRED comparison (+75/−171 and so on), and paired
+statistics over rows that move at random are meaningless — the feature would
+have quietly corrupted the one statistic the project decides on.
+
+The cause is not the sampler. `make_provider` keeps per-run memory across calls
+(`memory["tail"]`, `["previous"]`, `["summary"]`), and the michel2 family renders
+it into the prompt as "HOW THE PREVIOUS PASSAGE ENDED", writing it after every
+window. Overlapping windows interleave that shared state, so concurrent requests
+are answering different prompts. The flips look exactly like that: runs of
+`MR. KNIGHTLEY` ↔ `MRS. WESTON` alternating through one conversation, which is
+what a wrong "who spoke last" does.
+
+`--workers > 1` is now refused at argument-parse time for every variant except
+`default`, which builds no provider and is provably free of the dependency, and
+for `--roster-mode mentioned`, whose roster is built from the previous window's
+answer. Nothing ever ran with it above 1, so no result in this file is affected.
+
+The throughput problem is real and unsolved: a 48 GB card serving one stream at
+a time, `-c 32768` allocated against a largest-observed call of 7,976 tokens.
+The fix is per-worker provider memory, not a bigger `--parallel`.
+
+**What did work** is a GPU lease. The chains had been waiting for the card with
+`while nvidia-smi --query-compute-apps | grep -q '[0-9]'; do sleep 60; done`,
+which is a poll with a race between "is it free?" and "start mine". On this date
+five chains sat on that loop on tnr-4 and three started together: four
+llama-servers on one card, 42.2 GB of 49.1 GB, every cell at about a third of
+its solo rate — 119 s a window against 39 s. `gpu_lease.sh` holds an exclusive
+`flock` across the whole cell, server included, and the kernel releases it when
+the process exits. One caveat learned the same hour: children inherit the lock
+descriptor, so pausing a cell means killing its process tree, not just the
+wrapper.
+
+
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
 Every number above is on the same four light novels (768 rows) that every
