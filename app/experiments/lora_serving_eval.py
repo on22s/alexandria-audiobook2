@@ -292,6 +292,27 @@ def main():
     ap.add_argument("--cut-arm", choices=("chapter", "control"),
                     help="which index list in --window-cuts to apply")
     args = ap.parse_args()
+
+    # Refuse unsafe concurrency BEFORE a server is contacted or a row scored.
+    #
+    # MEASURED 2026-09-24: three workers against michel2_full changed 100 of 318
+    # predictions on one book. Not floating point -- different PROMPTS.
+    # make_provider keeps per-run memory across calls (memory["tail"],
+    # ["previous"], ["summary"]) and the michel2 family renders it into the
+    # prompt as "HOW THE PREVIOUS PASSAGE ENDED", writing it after every window.
+    # Overlap the windows and that shared state interleaves. Only `default` uses
+    # no provider at all and is provably free of the dependency.
+    if args.workers > 1:
+        if args.prompt_variant != "default":
+            ap.error(
+                f"--workers {args.workers} cannot be used with --prompt-variant "
+                f"{args.prompt_variant}: its provider carries memory from one "
+                "window into the next, so concurrent windows would see different "
+                "prompts (measured: 100 of 318 predictions changed). Only "
+                "--prompt-variant default is safe.")
+        if args.roster_mode == "mentioned":
+            ap.error("--workers > 1 cannot be used with --roster-mode mentioned: "
+                     "each window's roster is built from the previous window's answer")
     if bool(args.window_cuts) != bool(args.cut_arm):
         ap.error("--window-cuts and --cut-arm go together")
     cuts = (json.load(open(args.window_cuts))["books"]
