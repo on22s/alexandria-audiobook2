@@ -78,6 +78,25 @@ best): 97.3% / 97.5% / 94.5% / 92.9% of the cloud number on the four books.
 Two books sit outside the 5% band the goal asks for; the adapters below are
 the work on that.
 
+### Which model for your card
+
+Same measurement as above — nine novels, 2,655 rows, `michel2_full`, no adapter.
+Full ladder and the reasoning: [Which model for your card](docs/wiki/Which-Model-For-Your-Card.md).
+
+| your card | run this | file | accuracy |
+|---|---|---:|---:|
+| 16–24 GB | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** |
+| 12 GB | Muse-Glimmer-30B IQ3_XXS | 10.6 GB | 92.6% |
+| 8–10 GB | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% |
+| 6 GB | not yet measured | — | — |
+
+Three measured surprises: **Q3_K_XL beats Q4_K_M** on Qwen3.8 (95.2 vs 94.9) for
+3 GB less, so don't pay for Q4; a **small quant of a big model beats a big quant
+of a small model** (27B at IQ2_XXS, 6.9 GB, 88.7% vs 14B at Q4_K_M, 9.0 GB,
+84.3%); and **context length, not file size, decides whether a model fits** — the
+same 5.4 GB model needs 5.1 GB at `-c 4096` and 11.3 GB at `-c 32768`, while the
+product prompt's longest window is 5,966 tokens, so `-c 8192` is enough.
+
 ### Adapters — trained on rights-clean data only
 
 LoRA adapters for the attribution task, trained on 20 public-domain PDNC

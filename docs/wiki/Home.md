@@ -8,6 +8,7 @@ generation and attribution experiments.
 - [Setup and serving](Setup-and-Serving.md)
 - [Prompts and adapters](Prompts-and-Adapters.md)
 - [Results](Results.md)
+- [Which model for your card](Which-Model-For-Your-Card.md)
 - [Evaluation recipes](Evaluation-Recipes.md)
 - [Thunder operations](Thunder-Operations.md)
 - [Hugging Face releases](Hugging-Face-Releases.md)
