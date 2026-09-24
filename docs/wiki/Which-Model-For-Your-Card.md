@@ -25,14 +25,14 @@ not. Set it deliberately.
 
 ## The recommendations
 
-| your card | run this | file | measured accuracy |
-|---|---|---:|---:|
-| **24 GB +** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** |
-| **16 GB** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** |
-| **12 GB** | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% |
-| **10 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% |
-| **8 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% |
-| **6 GB** | *not yet measured* — cells queued | — | — |
+| your card | run this | file | base accuracy | load the adapter? |
+|---|---|---:|---:|---|
+| **24 GB +** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** (+0.8) |
+| **16 GB** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** (+0.8) |
+| **12 GB** | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% | **no** — measured −3.6 |
+| **10 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested at this rung* |
+| **8 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested at this rung* |
+| **6 GB** | *not yet measured* — cells queued | — | — | — |
 
 ### Three things that surprised us, all measured
 
@@ -51,6 +51,47 @@ squeeze in the 27B.
 and falls to 88.7% at IQ2_XXS — one step, 6.5 points. Everything above that step
 is nearly flat. If you can reach 12.5 GB, reach it; below that, expect a real
 cost rather than a gentle slope.
+
+## Should you load an adapter?
+
+Usually **no**. Across every paired nine-novel run we have, exactly one family
+gains and the rest lose, often badly. An adapter is not a free improvement — it
+is a bet that has lost more often than it has won here.
+
+| base | quant | prompt | base → adapter | verdict |
+|---|---|---|---:|---|
+| Qwen3.8-27B | Q4_K_M, reasoning off | `michel2_full` | 93.3 → **95.8** (+2.5) | **load it** |
+| Qwen3.8-27B | Q4_K_M, reasoning low | `michel2_full` | 94.9 → **95.9** (+1.0) | **load it** |
+| Qwen3.8-27B | Q3_K_XL | `michel2_full` | 95.2 → **96.0** (+0.8) | **load it** |
+| Qwen3-14B | Q4_K_M | `default` | 67.6 → 72.6 (+5.0) | pointless — see below |
+| Qwen3-14B | Q4_K_M | `michel2_full` | 84.3 → 84.3 (+0.1) | no, null |
+| Qwen3.6-35B-A3B | IQ2_XXS | `michel2_full` | 91.6 → 88.3 (−3.2) | **no** |
+| Muse-Glimmer-30B | IQ3_XXS | `michel2_full` | 92.6 → 89.0 (−3.6) | **no** |
+| Qwen3.6-35B-A3B | IQ1_M | `michel2_full` | 89.3 → 85.3 (−4.0) | **no** |
+| Muse-Glimmer-30B | Q4_K_M | `michel2_full` | 94.6 → 87.4 (−7.2) | **no** |
+| Qwen3.6-35B-A3B | IQ3_XXS | `michel2_full` | 91.6 → **71.3** (−20.3) | **no** |
+| Qwen3.6-35B-A3B | Q4_K_XL | `michel2_full` | 92.1 → **64.6** (−27.5) | **no** |
+
+**Only the Qwen3.8-27B adapter earns its place**, and it earns it at every rung
+we have measured. That is convenient, because Qwen3.8 is also the recommendation
+for most card sizes.
+
+**The Qwen3-14B row is the trap worth understanding.** Under the `default`
+prompt the adapter looks like the best result on this page: +5.0 points. But
+72.6% with the adapter is still far below the **84.3%** the same model reaches
+with `michel2_full` and no adapter at all. The adapter was recovering ground the
+prompt gives away for free. Under `michel2_full` it adds nothing. If a result
+looks like a large adapter win, check what prompt the base arm used.
+
+**Adapters are prompt-specific and quant-specific.** One trained for `michel2`
+served under `default` is a transfer test, not a matched result. A number from a
+different rung does not carry: the same A3B adapter is −20.3 at IQ3_XXS and
+−3.2 at IQ2_XXS.
+
+**Check that it loaded, and check the output.** One Muse adapter in this table
+scored **4.7%** — the run was serving, answering, and almost entirely wrong.
+A paired base/LoRA run on one server with the scale toggled is the only way to
+see that; a LoRA-only run would have looked like a bad model.
 
 ## The complete measured ladder
 

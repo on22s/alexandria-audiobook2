@@ -83,12 +83,16 @@ the work on that.
 Same measurement as above — nine novels, 2,655 rows, `michel2_full`, no adapter.
 Full ladder and the reasoning: [Which model for your card](docs/wiki/Which-Model-For-Your-Card.md).
 
-| your card | run this | file | accuracy |
-|---|---|---:|---:|
-| 16–24 GB | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** |
-| 12 GB | Muse-Glimmer-30B IQ3_XXS | 10.6 GB | 92.6% |
-| 8–10 GB | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% |
-| 6 GB | not yet measured | — | — |
+| your card | run this | file | base | adapter? |
+|---|---|---:|---:|---|
+| 16–24 GB | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| 12 GB | Muse-Glimmer-30B IQ3_XXS | 10.6 GB | 92.6% | **no** (−3.6) |
+| 8–10 GB | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% | untested here |
+| 6 GB | not yet measured | — | — | — |
+
+**Adapters usually lose.** Of every paired nine-novel run, only the Qwen3.8-27B
+adapter gains (+0.8 to +2.5); A3B and Muse adapters cost between 3.2 and 27.5
+points. Load one only at a rung where it is measured to help.
 
 Three measured surprises: **Q3_K_XL beats Q4_K_M** on Qwen3.8 (95.2 vs 94.9) for
 3 GB less, so don't pay for Q4; a **small quant of a big model beats a big quant
