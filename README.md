@@ -1,8 +1,10 @@
-<img width="475" height="467" alt="Alexandria Logo" src="https://github.com/user-attachments/assets/fa2c36d3-a5f3-49ab-9dfe-30933359dfbd" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/fa2c36d3-a5f3-49ab-9dfe-30933359dfbd" alt="Alexandria Logo" width="200">
+</p>
 
 # Alexandria Audiobook2
 
-English | [中文](README_CN.md)
+English | [中文](README_CN.md) · [Listen to a sample](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 A research fork of [Alexandria](https://github.com/Finrandojin/alexandria-audiobook)
 that turns a book into a multi-voice audiobook — and **measures every choice
@@ -11,8 +13,8 @@ gold, how close a synthetic voice gets to a human reading, whether Japanese
 pitch accent survives synthesis. The settings that won are the defaults —
 the `michel2_full` attribution prompt became the shipped default on
 2026-09-19, the day the last base confirmed it — and every alternative stays
-selectable in Setup. The
-numbers, the failures and the recipes are in the repo, not in a blog post.
+selectable in Setup. The numbers, the failures and the recipes are in the
+repo, not in a blog post.
 
 **[GOALS.md](GOALS.md)** — what "good" means, per goal, with the current
 measurement · **[RECIPES.md](RECIPES.md)** — the training and serving
@@ -29,12 +31,10 @@ settings that produced working results, each with its look-alike failure ·
 | **Understand the evaluation results** | Read [results at a glance](#results-at-a-glance), then the [Muse quant comparison](docs/results/muse-quant-baselines.md) and [evaluation recipes](RECIPES.md). |
 | **Find a particular run or its raw data** | Search the [results index](RESULTS_INDEX.md); each entry links to the committed artifact. |
 | **Browse the supporting documentation** | Use the [documentation map](docs/README.md) to find user guides, operations notes, results, and history. |
-| **Understand the project or contribute** | Start with the [project wiki](docs/wiki/Home.md), then [contributing](#contributing) and [goals](GOALS.md). |
+| **Understand the project or contribute** | Start with the [project wiki](https://github.com/on22s/alexandria-audiobook2/wiki), then [contributing](#contributing) and [goals](GOALS.md). |
 
 The app guide, research results, and development notes serve different purposes;
 you do not need to read the research sections to install or use the app.
-
-## Example: [sample.mp3](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 ## Results at a glance
 
@@ -210,8 +210,10 @@ Relative to upstream Alexandria, in the order you meet them:
 
 ## Screenshots
 
-<img src="docs/screenshots/setup.png" width="49%" alt="Setup tab"></img> <img src="docs/screenshots/script.png" width="49%" alt="Script tab"></img>
-<img src="docs/screenshots/voices.png" width="49%" alt="Voices tab"></img> <img src="docs/screenshots/editor.png" width="49%" alt="Editor tab"></img>
+| | |
+|---|---|
+| <img width="100%" src="docs/screenshots/setup.png" alt="Setup tab"> | <img width="100%" src="docs/screenshots/script.png" alt="Script tab"> |
+| <img width="100%" src="docs/screenshots/voices.png" alt="Voices tab"> | <img width="100%" src="docs/screenshots/editor.png" alt="Editor tab"> |
 
 ## Features
 
