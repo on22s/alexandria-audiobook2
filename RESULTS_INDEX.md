@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-24 from `ab_test_runtime/experiments/` — 1748 artifacts, 2533 arms.
+Generated 2026-09-24 from `ab_test_runtime/experiments/` — 1750 artifacts, 2535 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1793,6 +1793,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 318 | 99.7% | exploratory | ok | True | 5943.7s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 318 | 99.1% | exploratory | ok | True | 2788.1s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 318 | 99.4% | exploratory | ok | True | 7247.4s |
+| pdnc_emma | qwen38b-wk | local-lmstudio | lmstudio | 8192 | base | 318 | 75.2% | exploratory | ok | True | 1695.0s |
+| pdnc_emma | qwen38b-wk | local-lmstudio | lmstudio | 8192 | base | 318 | 75.8% | exploratory | ok | True | 455.7s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 6735.5s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 3551.8s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 3521.7s |

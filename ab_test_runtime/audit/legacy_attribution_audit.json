@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "eaced50bddcbbfb15bd7a3ab6d626870e12affad508805c56f5c68db5655605f",
+  "source_structural_sha256": "dded8d7f4a83f145178fe39971dfadb190f95022c0fd0eee84f1f919864c591e",
   "summary": {
-    "exploratory": 223,
+    "exploratory": 225,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -5709,6 +5709,50 @@
         "missing_rows": null,
         "expected_changed_rows": null,
         "correctness_changed_rows": null
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__workerscheck2-w1-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 318,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": true,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__workerscheck2-w3-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 318,
+      "arms": [
+        "base"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": true,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
       },
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },

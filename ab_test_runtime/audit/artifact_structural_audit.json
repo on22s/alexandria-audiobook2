@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 335,
+    "provisional": 337,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -15673,6 +15673,42 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "lora_serving_eval__workerscheck2-w1-20260924.json",
+      "bytes": 429783,
+      "sha256": "5eee9fcb5b6aa5ce3b812f0b41239f297fb56e26b58af67ce9d314a9e3fa6323",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 318,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__workerscheck2-w3-20260924.json",
+      "bytes": 430167,
+      "sha256": "120ed70d2dd8b1b282acae898d5013dca45086f1f9b1de07aae9b3ba83b7e02c",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 318,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "medoid_counterexample.json",
