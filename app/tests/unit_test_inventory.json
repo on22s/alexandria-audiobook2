@@ -3185,6 +3185,10 @@
     "tests.test_third_party_findings.TestValidationNormalisation.test_years_read_as_years"
   ],
   "test_three_pass_generate": [
+    "tests.test_three_pass_generate.BoundedAttributionSchemaTests.test_bounded_schema_pins_item_count_to_the_entries_sent",
+    "tests.test_three_pass_generate.BoundedAttributionSchemaTests.test_item_shape_survives_bounding",
+    "tests.test_three_pass_generate.BoundedAttributionSchemaTests.test_the_module_constant_is_never_mutated",
+    "tests.test_three_pass_generate.BoundedAttributionSchemaTests.test_unknown_entry_count_keeps_the_unbounded_schema",
     "tests.test_three_pass_generate.BoundedContextJoinTests.test_join_bounded_does_not_materialize_whole_book",
     "tests.test_three_pass_generate.BoundedContextJoinTests.test_tail_and_head_join_match_naive_slice",
     "tests.test_three_pass_generate.CheckpointTests.test_collect_all_records_each_singleton_attribution_failure",

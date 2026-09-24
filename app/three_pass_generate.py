@@ -260,6 +260,18 @@ def build_attribute_request(frozen_batch, params, roster,
 # the profile's structured_output is "auto" (issue #522 s9.1). Validation of
 # the CONTENT (index head check, text freeze, roster membership) is unchanged:
 # the schema only guarantees the shape.
+#
+# The array is bounded per call by attribution_response_schema() below. Left
+# unbounded, llama.cpp compiles this to `"[" item ("," item)* "]"`, in which
+# every prefix is valid and NOTHING requires the model to close the array:
+# stopping becomes the model's disposition rather than a constraint. Qwen3.8
+# stops on its own; gemma-4-12b-it-qat did not, and ran to the token ceiling on
+# every window of the 2026-09-24 base cell - 4096 then 6144 tokens, ~8 minutes
+# each, no parseable JSON, while Qwen on the same chain and box returned
+# finish_reason=stop in ~30s. llama.cpp supports minItems/maxItems and compiles
+# them to a bounded repetition, so the count the harness ALREADY requires
+# (index_head_check: exactly one object per input entry, every index once) is
+# now stated to the sampler instead of only checked afterwards.
 ATTRIBUTION_RESPONSE_SCHEMA = {
     "name": "speaker_attribution",
     "schema": {
@@ -272,6 +284,21 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
         },
     },
 }
+
+
+
+def attribution_response_schema(entry_count=None):
+    """ATTRIBUTION_RESPONSE_SCHEMA bounded to exactly `entry_count` objects.
+
+    entry_count=None returns the unbounded schema, which is what callers that
+    do not know the window size (the settings echo) still get.
+    """
+    if not entry_count or entry_count < 1:
+        return ATTRIBUTION_RESPONSE_SCHEMA
+    inner = dict(ATTRIBUTION_RESPONSE_SCHEMA["schema"])
+    inner["minItems"] = entry_count
+    inner["maxItems"] = entry_count
+    return dict(ATTRIBUTION_RESPONSE_SCHEMA, schema=inner)
 
 
 def attribute_batch(client, model_name, frozen_batch, params, roster,
@@ -296,7 +323,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
                                                else params.temperature),
-                          response_schema=ATTRIBUTION_RESPONSE_SCHEMA)
+                          response_schema=attribution_response_schema(len(frozen_batch)))
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an

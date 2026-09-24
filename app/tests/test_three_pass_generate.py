@@ -1135,3 +1135,39 @@ class ReasoningTokensFromTraceTests(unittest.TestCase):
                              attempt_observer=seen.append)
         self.assertEqual(1000, seen[0]["reasoning_tokens"])
 
+
+
+class BoundedAttributionSchemaTests(unittest.TestCase):
+    """The reply schema must bound the array to the window's entry count.
+
+    Unbounded, llama.cpp compiles the schema to `"[" item ("," item)* "]"`:
+    every prefix is valid and nothing obliges the model to close the array, so
+    termination is the model's disposition. gemma-4-12b-it-qat ran to the token
+    ceiling on every window of the 2026-09-24 base cell (4096 then 6144 tokens,
+    no parseable JSON) while Qwen3.8 on the same chain returned stop in ~30s.
+    """
+
+    def test_bounded_schema_pins_item_count_to_the_entries_sent(self):
+        schema = tp.attribution_response_schema(25)["schema"]
+        self.assertEqual(schema["minItems"], 25)
+        self.assertEqual(schema["maxItems"], 25)
+
+    def test_unknown_entry_count_keeps_the_unbounded_schema(self):
+        for value in (None, 0):
+            schema = tp.attribution_response_schema(value)["schema"]
+            self.assertNotIn("minItems", schema)
+            self.assertNotIn("maxItems", schema)
+
+    def test_the_module_constant_is_never_mutated(self):
+        # A helper that edited the shared dict in place would bound every later
+        # call to whatever the first window happened to be.
+        tp.attribution_response_schema(7)
+        tp.attribution_response_schema(25)
+        self.assertNotIn(
+            "minItems", tp.ATTRIBUTION_RESPONSE_SCHEMA["schema"])
+
+    def test_item_shape_survives_bounding(self):
+        schema = tp.attribution_response_schema(3)["schema"]
+        self.assertEqual(schema["type"], "array")
+        self.assertEqual(sorted(schema["items"]["properties"]), ["n", "speaker"])
+        self.assertFalse(schema["items"]["additionalProperties"])

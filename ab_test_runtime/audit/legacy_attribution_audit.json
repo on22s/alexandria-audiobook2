@@ -4284,7 +4284,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 60,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -4386,7 +4386,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 1224,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
