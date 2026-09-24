@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 334 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 335 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 222
+- `exploratory`: 223
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -165,6 +165,7 @@ All 334 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-onebook-owari-workingrecipe-20260916.json` | lora_serving_eval | exploratory | 324 | 0 | 0 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-lossfix-tnr0-product-batch25-q3-jsonschema-reasoninglow-hint-20260914.json` | lora_serving_eval | exploratory | 1536 | 0 | 766 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-tnr0-product-batch25-q3-jsonschema-reasoninglow-baseonly-hint-20260914.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-iq3xxs-gen3-rightsclean-michel2_full-tnr2-pdnc9-20260923.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel-none-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel2-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
