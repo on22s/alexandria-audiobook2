@@ -1,14 +1,14 @@
-<img width="475" height="467" alt="Alexandria Logo" src="https://github.com/user-attachments/assets/fa2c36d3-a5f3-49ab-9dfe-30933359dfbd" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/fa2c36d3-a5f3-49ab-9dfe-30933359dfbd" alt="Alexandria Logo" width="200">
+</p>
 
 # Alexandria Audiobook2
 
-[English](README.md) | 中文
+[English](README.md) | 中文 · [示例音频](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 [Alexandria](https://github.com/Finrandojin/alexandria-audiobook) 的研究分支：把一本书变成多角色配音的有声书，并且**对每一个选择都做测量**——哪个模型、哪种提示词能在标注好的金标数据上正确判断“这句话是谁说的”，合成的声音离真人朗读有多近，日语的音高重音在合成后是否还在。胜出的设置就是默认值——`michel2_full` 归属提示词在 2026-09-19 最后一个基座确认后成为产品默认，其他变体仍可在 Setup 页选择。数字、失败和配方都在仓库里，而不是在博客里。
 
 **[GOALS.md](GOALS.md)** — 每个目标的定义和当前测量值 · **[RECIPES.md](RECIPES.md)** — 产生过有效结果的训练/推理设置，以及每一个“看起来像但其实失败”的对照 · **[RESULTS_INDEX.md](RESULTS_INDEX.md)** — 全部实验产物索引 · **[Hugging Face 上的适配器](https://huggingface.co/Om22s/alexandria-qwen3-attribution)** · **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** — 适配器的发布规范
-
-## 示例音频：[sample.mp3](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 ## 结果速览
 
@@ -81,8 +81,10 @@
 
 ## 截图
 
-<img src="docs/screenshots/setup.png" width="49%" alt="Setup"></img> <img src="docs/screenshots/script.png" width="49%" alt="Script"></img>
-<img src="docs/screenshots/voices.png" width="49%" alt="Voices"></img> <img src="docs/screenshots/editor.png" width="49%" alt="Editor"></img>
+| | |
+|---|---|
+| <img width="100%" src="docs/screenshots/setup.png" alt="Setup"> | <img width="100%" src="docs/screenshots/script.png" alt="Script"> |
+| <img width="100%" src="docs/screenshots/voices.png" alt="Voices"> | <img width="100%" src="docs/screenshots/editor.png" alt="Editor"> |
 
 ## 主要功能
 
