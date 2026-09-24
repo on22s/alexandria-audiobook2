@@ -13,9 +13,25 @@ Adapters are prompt-specific:
   matching variant;
 - changing the prompt turns the run into a transfer test.
 
-The Gen 3 Muse recipe adds rejection-sampled reasoning traces, preserves the
-loss-window fix, mixes direct-answer examples, runs a smoke training step, and
-requires a served-contract preflight before full evaluation.
+Train an adapter on the window shape the product actually serves. This is the
+single largest source of wasted adapter runs in this project: a training set can
+carry the right prompt *variant name* and still present a different task. The
+Gen 3 Muse `michel2_full` set passed its own `michel2_full` preflight while
+building one entry per row, where production sends 25 segmented entries with
+2,000 characters of surround; it was blocked before training, and 61 hours of
+sampling could not be filtered into shape. Check the window, not the label.
+
+The Gen 3 Muse recipe itself — rejection-sampled reasoning traces, loss-window
+fix, mixed direct-answer examples, smoke step, served-contract preflight — is
+**not** the recommended recipe on current evidence. It measured −2.0 on the
+four-book fixture. The only Muse adapter that has won is the earlier
+`task4k-multin` template-fixed run (+4.4), which was multi-entry and
+answer-only, trained before the reasoning channel existed. Prefer the
+multi-entry shape; treat the reasoning channel as an open question rather than
+a fix.
+
+The smoke training step and the served-contract preflight are worth keeping
+from Gen 3 regardless of recipe.
 
 The first held-out eight-novel scale pilot (631 shared rows, 2026-09-22) found
 that Gen 3 is scale-sensitive: 0.25 improved 92.9% to 96.0%, 0.5 was a null,
