@@ -25,14 +25,31 @@ not. Set it deliberately.
 
 ## The recommendations
 
-| your card | run this | file | base accuracy | load the adapter? |
-|---|---|---:|---:|---|
-| **24 GB +** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** (+0.8) |
-| **16 GB** | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** (+0.8) |
-| **12 GB** | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% | **no** — measured −3.6 |
-| **10 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested at this rung* |
-| **8 GB** | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested at this rung* |
-| **6 GB** | *not yet measured* — cells queued | — | — | — |
+| your card | typical cards | run this | file | base | adapter? |
+|---|---|---|---:|---:|---|
+| **32 GB** | RTX 5090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| **24 GB** | RTX 4090, 3090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| **12 GB** | RTX 5070, Intel Arc B580 | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% | **no** (−3.6) |
+| **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested here* |
+| **6 GB** | GTX 1660, RTX 2060, laptop cards | *measuring now* — Muse `Q1_0` (4.5 GB), Qwen3.8 `Q1_L` (5.7 GB) | — | — | — |
+| **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
+
+**16 GB is the tier most people are on** — it covers the RTX 5080 and 5070 Ti and
+AMD's entire RX 9070 line — and it is comfortably the best value on this page.
+Qwen3.8-27B UD-Q3_K_XL is 12.5 GB, so at `-c 8192` it lands near 13 GB with room
+to spare, scores **95.2%**, and takes the adapter to **96.0%**. Nothing above
+16 GB buys a better number; a 5090 runs the same file to the same score.
+
+**12 GB is the awkward one.** Muse IQ3_XXS at 10.6 GB is the best measured fit
+but leaves little headroom — keep `-c 8192` and do not load an adapter, which
+costs 3.6 points here anyway. Qwen3.8 UD-IQ2_XXS (6.9 GB, 88.7%) is the safe
+fallback if it will not fit. A Qwen3.8 **Q2_K_XL** (9.4 GB) cell is running now
+and may turn out to be the right answer for this tier.
+
+**8 GB is better served than you would expect.** Qwen3.8-27B at UD-IQ2_XXS is
+6.9 GB and **88.7%** — a 27B model on an entry-level card, and 4.4 points ahead
+of a 14B at Q4_K_M that would not fit anyway.
 
 ### Three things that surprised us, all measured
 
@@ -51,6 +68,43 @@ squeeze in the 27B.
 and falls to 88.7% at IQ2_XXS — one step, 6.5 points. Everything above that step
 is nearly flat. If you can reach 12.5 GB, reach it; below that, expect a real
 cost rather than a gentle slope.
+
+### 6 GB
+
+This tier matters — plenty of working cards are 6 GB, and it is where the app's
+users actually hit problems first.
+
+Two local candidates are being measured on the nine-novel fixture right now:
+Muse **Q1_0** (4.5 GB) and Qwen3.8 **Q1_L** (5.7 GB). Both fit a 6 GB card at
+`-c 8192`. Neither has a number yet, and a guess here would be worse than a
+blank, so this row stays empty until they land — at which point it gets a real
+recommendation like every other tier.
+
+**Context length matters more at 6 GB than anywhere else.** The product prompt's
+longest window is 5,966 tokens, so `-c 8192` is sufficient — and the measured
+difference between 8192 and a default of 32768 was **about 6 GB of VRAM** on one
+5.4 GB model. On a 6 GB card that is the entire budget. Set it explicitly.
+
+### No usable GPU
+
+Having no GPU does not block you, and this is not a consolation prize — it is
+the highest-scoring option on this page.
+
+- **A hosted model.** Set a remote LLM profile in Setup and point it at any
+  OpenAI-compatible endpoint. Measured on the four-book fixture with
+  `michel2_full`: DeepSeek v4-pro scores **94.9%** with thinking off and
+  **95.4%** with thinking low at an 8k budget, at roughly $0.50–0.75 per run of
+  that fixture. That beats every local option here. A hosted model also leaves
+  your GPU free to render audio while it annotates.
+- **The manual transport**, where *you* are the model. The app writes each
+  request to a file and waits for your reply, so you paste it into any chat
+  model you already have open and paste the answer back. No API key, no VRAM, no
+  cost — slower and hands-on, but it completes whole books. The issues behind
+  #609–#616 were found by driving a book end to end this way.
+
+Those two numbers are four-book, not the nine-novel fixture the table above
+uses, so they are not strictly comparable to the rows there. They are reported
+as what they are.
 
 ## Should you load an adapter?
 

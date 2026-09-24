@@ -83,12 +83,18 @@ the work on that.
 Same measurement as above — nine novels, 2,655 rows, `michel2_full`, no adapter.
 Full ladder and the reasoning: [Which model for your card](docs/wiki/Which-Model-For-Your-Card.md).
 
-| your card | run this | file | base | adapter? |
-|---|---|---:|---:|---|
-| 16–24 GB | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **yes — 96.0%** |
-| 12 GB | Muse-Glimmer-30B IQ3_XXS | 10.6 GB | 92.6% | **no** (−3.6) |
-| 8–10 GB | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% | untested here |
-| 6 GB | not yet measured | — | — | — |
+| your card | typical cards | run this | file | base | adapter? |
+|---|---|---|---:|---:|---|
+| 32 / 24 GB | RTX 5090, 4090, 3090 | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **yes — 96.0%** |
+| 12 GB | RTX 5070, Arc B580 | Muse-Glimmer-30B IQ3_XXS | 10.6 GB | 92.6% | **no** (−3.6) |
+| 8 GB | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% | untested here |
+| 6 GB | GTX 1660, RTX 2060, laptops | measuring now — Muse Q1_0, Qwen3.8 Q1_L | — | — | — |
+| no usable GPU | — | hosted model, or the manual transport | — | **94.9–95.4%** | n/a |
+
+**16 GB is the sweet spot and nothing above it helps** — a 5090 runs the same
+12.5 GB file to the same 95.2%. At 8 GB you can still run a 27B: UD-IQ2_XXS is
+6.9 GB and beats a 14B at Q4_K_M by 4.4 points.
 
 **Adapters usually lose.** Of every paired nine-novel run, only the Qwen3.8-27B
 adapter gains (+0.8 to +2.5); A3B and Muse adapters cost between 3.2 and 27.5
