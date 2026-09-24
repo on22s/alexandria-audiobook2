@@ -27,7 +27,7 @@ cause, and the fix is a higher-precision base (Q6_K or Q8_0), not retraining.
 Reporting a shortfall as "distillation does not work" would be wrong, and the
 bf16 result stands on its own artifact.
 """
-import argparse, collections, json, os, re, sys, time
+import argparse, collections, concurrent.futures, json, os, re, sys, time
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -239,6 +239,16 @@ def main():
     ap.add_argument("--base-only", action="store_true",
                     help="score an untuned server without querying its empty "
                          "/lora-adapters state")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="windows in flight at once. Throughput only: every "
+                         "request is independent and identical to what it "
+                         "would be at 1, so the measurement is unchanged and "
+                         "a one-slot card reproduces it, slower. The SERVER "
+                         "must run --parallel >= this AND -c of (per-slot "
+                         "context x workers): llama.cpp divides its context "
+                         "pool across slots, so raising parallel alone shrinks "
+                         "every slot and truncates prompts silently. Not "
+                         "allowed with --roster-mode mentioned.")
     ap.add_argument("--batch-size", type=int, default=BATCH,
                     help="segmented entries per attribution request")
     ap.add_argument("--window-limit", type=int, default=0,
@@ -357,7 +367,10 @@ def main():
                 print(f"  adapter scale now {got}", flush=True)
             started = time.time()
             carried = []
-            for k, win in enumerate(windows, 1):
+            # One window's work, split so the network call can be done by a
+            # pool while every mutation of `record` stays on this thread and in
+            # window order. With --workers 1 this runs exactly as it always has.
+            def prepare(k, win, carried):
                 send = [i for i in win
                         if get_deterministic_named_entry(seg[i]) is None]
                 if args.roster_mode == "mentioned":
@@ -374,53 +387,58 @@ def main():
                 membership = roster_membership_names(shown_roster, groups)
                 rows = [i for i in send if norm(seg[i].get("text")) in want]
                 if not rows:
-                    continue
+                    return None
                 if all(record.done(
                         arm,
                         f"{book}:{want[norm(seg[i].get('text'))]['id']}")
                        for i in rows):
-                    continue
+                    return None
                 frozen = [{"type": seg[i]["type"], "text": seg[i]["text"]}
                           for i in send]
                 ctx = [{"previous_context": seg[i - 1] if i else None,
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
                 surround = window_surround(seg, win, send, args.surround_chars)
+                return {"k": k, "send": send, "rows": rows, "frozen": frozen,
+                        "ctx": ctx, "surround": surround,
+                        "shown_roster": shown_roster, "membership": membership}
+
+            def call(p):
                 why = f"{arm}|scale={scale}"
                 traces = []
                 observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
                             if args.keep_traces else None)
                 try:
-                    out = attribute_batch(client, args.model, frozen, params,
-                                          shown_roster, neighbor_contexts=ctx,
+                    out = attribute_batch(client, args.model, p["frozen"], params,
+                                          p["shown_roster"], neighbor_contexts=p["ctx"],
                                           source_text=src,
                                           entries_provider=provider,
                                           attempt_observer=observer,
-                                          surround=surround)
+                                          surround=p["surround"])
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.
-                    out = bind_last_attempt(exc.last_entries, len(send))
-                    print(f"  {arm} window {k}: PassExhausted, "
+                    out = bind_last_attempt(exc.last_entries, len(p["send"]))
+                    print(f"  {arm} window {p['k']}: PassExhausted, "
                           f"{'scoring last attempt' if out else 'nothing to bind'}",
                           flush=True)
                     why = f"{arm}|scale={scale}|exhausted_last_attempt"
                 except Exception as exc:
-                    print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
+                    print(f"  {arm} window {p['k']}: {type(exc).__name__}", flush=True)
                     out = None
+                return out, why, traces
+
+            def commit(p, out, why, traces):
                 if out is None:
-                    for i in rows:
+                    for i in p["rows"]:
                         g = want[norm(seg[i].get("text"))]
                         if not record.done(arm, f"{book}:{g['id']}"):
                             record.add(arm, f"{book}:{g['id']}", g["line"],
                                        g["expected_speaker"].upper(), None,
-                                       False, candidates=membership,
+                                       False, candidates=p["membership"],
                                        provenance=f"{arm}|batch_failed")
-                    continue
-                carried = sorted({str((o or {}).get("speaker") or "").upper()
-                                  for o in (out or []) if (o or {}).get("speaker")}
-                                 & set(roster))
-                for off, i in enumerate(send):
+                    return None
+                for off, i in enumerate(p["send"]):
                     key = norm(seg[i].get("text"))
                     if key not in want:
                         continue
@@ -433,12 +451,47 @@ def main():
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown; see distill_eval.
-                               candidates=membership,
+                               candidates=p["membership"],
                                provenance=why,
                                reasoning=(next((t for t in reversed(traces) if t), None)
                                           if args.keep_traces else None))
+                return sorted({str((o or {}).get("speaker") or "").upper()
+                               for o in (out or []) if (o or {}).get("speaker")}
+                              & set(roster))
+
+            def progress(k):
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
+
+            if args.workers > 1:
+                # `carried` feeds the NEXT window's roster, so "mentioned" mode is
+                # inherently sequential and must not be silently parallelised.
+                if args.roster_mode == "mentioned":
+                    raise SystemExit(
+                        "--workers > 1 cannot be used with --roster-mode mentioned: "
+                        "each window's roster depends on the previous window's answer")
+                prepared = [q for q in (prepare(k, win, carried)
+                                        for k, win in enumerate(windows, 1))
+                            if q is not None]
+                with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
+                    # Results are applied in window order, so the artifact does not
+                    # depend on which request finished first.
+                    for q, (out, why, traces) in zip(
+                            prepared, pool.map(call, prepared)):
+                        got = commit(q, out, why, traces)
+                        if got is not None:
+                            carried = got
+                        progress(q["k"])
+            else:
+                for k, win in enumerate(windows, 1):
+                    q = prepare(k, win, carried)
+                    if q is None:
+                        continue
+                    out, why, traces = call(q)
+                    got = commit(q, out, why, traces)
+                    if got is not None:
+                        carried = got
+                    progress(k)
             arm_rows = [r for r in record.rows
                         if r["arm"] == arm and r["id"].startswith(book + ":")]
             hit = sum(1 for r in arm_rows if r["correct"])
