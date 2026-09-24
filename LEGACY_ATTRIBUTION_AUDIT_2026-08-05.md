@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 332 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 334 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 220
+- `exploratory`: 222
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -171,6 +171,8 @@ All 332 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-michel2-none-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel2full-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-michel2full-low-tnr1-cleangold-reworded-20260920.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-michel2shot-low-tnr1-cleangold-replication-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-michel2shot-low-tnr1-cleangold-reworded-20260920.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q3-michel2_full-tnr1-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q4-kquant17-michel2_full-tnr4-pdnc9lite-low-schema-20260921.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q4-kquant17-rightsclean-lossfix-michel2_full-tnr4-pdnc9-rerun-b8-clean-20260922.json` | lora_serving_eval | exploratory | 1988 | None | None | False | recorded commit is unavailable from current history |
