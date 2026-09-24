@@ -738,7 +738,9 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
         # is configured at launch and has no equivalent, so None means "not a
         # question that applies here" rather than "no".
         "optimized": None,
-        "runtime": "llama.cpp",
+        # A server that declares what it is gets reported as that. llama.cpp
+        # sends no such field, so its runs are unchanged.
+        "runtime": props.get("server_runtime") or "llama.cpp",
         "server_alias": alias,
         "build": props.get("build_info"),
         "model_path": props.get("model_path"),
