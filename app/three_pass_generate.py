@@ -298,6 +298,20 @@ def attribution_response_schema(entry_count=None):
     inner = dict(ATTRIBUTION_RESPONSE_SCHEMA["schema"])
     inner["minItems"] = entry_count
     inner["maxItems"] = entry_count
+    # The OTHER unbounded dimension. maxItems stops a model emitting endless
+    # objects; nothing stopped it emitting one endless string. Gemma 4 has a
+    # documented repetition collapse under grammar constraints that repeat
+    # penalties do not touch (google-deepmind/gemma#622), and a JSON grammar
+    # cannot catch it because repeated words are valid string content.
+    # 200 is four times the longest speaker in any gold file (52, a RiQuA span;
+    # 39 in PDNC) and about seven times the longest prediction ever emitted
+    # (29 over 22,112 scored rows), so it cannot truncate a real answer -- while
+    # a collapse runs to thousands of characters.
+    item = dict(inner["items"])
+    props = dict(item["properties"])
+    props["speaker"] = dict(props["speaker"], maxLength=200)
+    item["properties"] = props
+    inner["items"] = item
     return dict(ATTRIBUTION_RESPONSE_SCHEMA, schema=inner)
 
 

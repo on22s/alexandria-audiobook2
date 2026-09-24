@@ -1166,6 +1166,23 @@ class BoundedAttributionSchemaTests(unittest.TestCase):
         self.assertNotIn(
             "minItems", tp.ATTRIBUTION_RESPONSE_SCHEMA["schema"])
 
+    def test_speaker_string_is_bounded_too(self):
+        # maxItems alone leaves a second unbounded dimension: one endless
+        # string is still grammar-valid. Gemma 4's documented collapse under
+        # grammar constraints is exactly that shape.
+        schema = tp.attribution_response_schema(25)["schema"]
+        self.assertEqual(schema["items"]["properties"]["speaker"]["maxLength"], 200)
+
+    def test_bound_cannot_truncate_a_real_speaker(self):
+        # Longest speaker in any gold file is 52 characters; longest prediction
+        # ever emitted across 22,112 scored rows is 29.
+        limit = tp.attribution_response_schema(25)["schema"]["items"]["properties"]["speaker"]["maxLength"]
+        self.assertGreater(limit, 52 * 2)
+
+    def test_unbounded_schema_has_no_string_bound(self):
+        schema = tp.attribution_response_schema(None)["schema"]
+        self.assertNotIn("maxLength", schema["items"]["properties"]["speaker"])
+
     def test_item_shape_survives_bounding(self):
         schema = tp.attribution_response_schema(3)["schema"]
         self.assertEqual(schema["type"], "array")
