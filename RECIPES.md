@@ -127,7 +127,7 @@ still holds ~62 GB of bf16 experts.
 | reasoning on the base model | `reasoning_effort: medium`, **budget 1024** | works but under-read: minor rows 57.2 → 62.9 pooled — **21% of rows (252) spent the whole budget thinking and never answered**; on the rows that answered, 752/961 = 78.3% | `two_stage_attribution__usual_suspects_reasoning_20260914.json`, `reasoning_trace_probe__usual_suspects_20260914.json` (GOALS 1.2) | trace length predicts the failure: deciles 9–10 (traces at the cap) score 3–5%, the rest 76–88%. 4096-budget reruns in progress; `--max-tokens 1024` is the failure that looked like a model limit |
 | Michel et al. prompt shape | `prompt_variant: michel`, product batch 25, max tokens 4096. **Adapters trained on the default shape lose under it** (rights-clean +29/−43 at 427 rows, tnr-4 2026-09-17) - a prompt-variant score with an adapter is only meaningful when the adapter was trained on that variant | **the "reasoning-sensitive" verdict is withdrawn (2026-09-17):** the reasoning-low readings of 25.3% (Qwen) and 34–37% (Muse) were broken runs; replicated on one harness on the A100 the same cells read Qwen 78.0 and Muse 78.6 (next row). Clean reasoning-off Qwen run: 68.6% (527/768), replicated 69.3. The matched Muse + mixed-lossfix run is even lower: base **34.4%** (264/768), LoRA **35.3%** (271/768), 0 blank rows; this is a valid four-book artifact but a negative result, not a promotion score. These low-reasoning results are retained as evidence of a prompt/reasoning interaction, not as a general prompt verdict. | `cloud_pull_20260915/lora_serving_eval__qwen3-14b-base-tnr4-cleangold-prompt-michel-ctxfix-20260914.json`; `cloud_pull_20260916/tnr0/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-tnr0-low-20260915b.json`; prior cloud reruns `qwen3-14b-production-michel-tnr2-20260915.json` and `muse-glimmer-30b-production-michel-tnr0-20260915.json` | use Michel only with reasoning disabled until a matched reasoning-on study is completed; do not attribute the Muse low result to the adapter because both base and LoRA are poor |
 | Michel-low prompt | `prompt_variant: michel_low`: Michel aliases + marked-passage format + prior-window speakers, followed by a five-step compact decision order (cue → address → roster match → plausibility check → emit); no explanations; current-passage evidence overrides continuity | **fails to repair Muse low-reasoning collapse**: reasoning none = 35.8% base / 37.1% LoRA; reasoning low = 36.5% base / 36.7% LoRA. The low arm changes only +5/−0 base and −3/+0 LoRA correct rows versus none; both arms remain far below Muse's shipped prompt result. | `cloud_pull_20260916/tnr4/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-low-tnr4-none-20260915.json`; `cloud_pull_20260916/tnr4/lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-low-tnr4-low-20260915.json` | do not promote Michel or Michel-low for Muse; the rewrite did not recover low-reasoning accuracy, so isolate aliases/passage/incremental components before further prompt work |
-| **Prompt variants, base models, one harness (2026-09-17)** — `default` / `michel` / `michel2` / `michel2_full` / `michel2_shot` (`app/attribution_prompt_variants.py`, selectable in Setup since #581) | same 768 rows, batch 25, JSON schema, temperature 0, base only | **DeepSeek v4-pro, thinking off:** default 91.1 → michel 91.8 → michel2 93.2 → **michel2_full 94.9** → michel2_shot 93.8 (each ~$0.50–0.75). **Qwen3-14B, reasoning low (server budget 1024):** default 65.9/66.1 (two runs) → **michel 78.0** (599/768, 4 blank; grimgar 82.3, index18 77.3, mushoku 79.7, owari 66.7 — every book up, the hard books most). The 2026-09-15 "Qwen michel + low = 25.3" and "Muse michel + low = 34–37" readings were broken runs (see the row above), not the prompt. **Qwen3-14B, reasoning off:** default 63.0 → michel 69.3 (532/768, 21 blank). **Muse-30B, reasoning low:** default 81.5 → michel **78.6** (604/768, 0 blank; grimgar 81.8, index18 73.9, mushoku 79.7, owari 72.8) - the one base Michel does not help; its michel2 / full cells follow. **Qwen3.8-27B Q4_K_M, reasoning low:** default 82.9 → **michel2_full 89.8** (690/768, 0 blank; grimgar 92.2, index18 87.5, mushoku 91.7, owari 84.0). **Qwen3.6-35B-A3B Q4_K_XL, reasoning low, temperature 0.6:** michel2_full **89.6** (688/768, 0 blank; 91.7 / 81.8 / 89.5 / **88.9** - the best owari of any local model); its default-prompt control is queued. **Qwen3.5-9B Q4_K_M on the RX 9070 XT, reasoning low:** michel2_full 71.9 (552/768, 10 blank; 82.6 / 69.3 / 72.9 / 46.9) - a 5.7 GB file at the level of Qwen3-14B's default-prompt base, collapsing only on owari; its default control is running. The complete cells as of 2026-09-18 are in the "Prompt variants × bases" table below; Muse michel2 / full / shot and the michel2_shot rounds for Qwen3-14B, Qwen3.8 and A3B are still in flight | `cloud_pull_20260917/deepseek/lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-{michel,michel2,michel2_full,michel2_shot}-20260917.json`; `cloud_pull_20260917/tnr1/lora_serving_eval__qwen3-14b-michel-low-tnr1-cleangold-replication-20260917.json`; tnr-1 `*-michel-none-*` and `muse-michel-low-*`; tnr-0 `lora_serving_eval__qwen38-27b-q4km-michel2_full-*` and `qwen36-35b-a3b-thinking-michel2_full-*`; local `qwen35-9b-q4km-michel2_full-*` (dev11) | on Qwen3-14B the prompt alone (+12) equals the best adapter (mixed + reasoning, 78.0) with no adapter; on DeepSeek the surrounding text is the biggest single step (+1.7 over michel2) and the worked example adds nothing over it. On every reasoning model but Muse the prompt is worth +7 to +12; on Muse `michel` costs 3. Product default stays `default` until Muse's michel2 / michel2_full cells land (tnr-1, tonight) |
+| **Prompt variants, base models, one harness (2026-09-17)** — `default` / `michel` / `michel2` / `michel2_full` / `michel2_shot` (`app/attribution_prompt_variants.py`, selectable in Setup since #581) | same 768 rows, batch 25, JSON schema, temperature 0, base only | **DeepSeek v4-pro, thinking off:** default 91.1 → michel 91.8 → michel2 93.2 → **michel2_full 94.9** → michel2_shot 93.8 (each ~$0.50–0.75). **Qwen3-14B, reasoning low (server budget 1024):** default 65.9/66.1 (two runs) → **michel 78.0** (599/768, 4 blank; grimgar 82.3, index18 77.3, mushoku 79.7, owari 66.7 — every book up, the hard books most). The 2026-09-15 "Qwen michel + low = 25.3" and "Muse michel + low = 34–37" readings were broken runs (see the row above), not the prompt. **Qwen3-14B, reasoning off:** default 63.0 → michel 69.3 (532/768, 21 blank). **Muse-30B, reasoning low:** default 81.5 → michel **78.6** (604/768, 0 blank; grimgar 81.8, index18 73.9, mushoku 79.7, owari 72.8) - the one base Michel does not help; its michel2 / full cells follow. **Qwen3.8-27B Q4_K_M, reasoning low:** default 82.9 → **michel2_full 89.8** (690/768, 0 blank; grimgar 92.2, index18 87.5, mushoku 91.7, owari 84.0). **Qwen3.6-35B-A3B Q4_K_XL, reasoning low, temperature 0.6:** michel2_full **89.6** (688/768, 0 blank; 91.7 / 81.8 / 89.5 / **88.9** - the best owari of any local model); its default-prompt control is queued. **Qwen3.5-9B Q4_K_M on the RX 9070 XT, reasoning low:** michel2_full 71.9 (552/768, 10 blank; 82.6 / 69.3 / 72.9 / 46.9) - a 5.7 GB file at the level of Qwen3-14B's default-prompt base, collapsing only on owari; its default control landed the same day at **62.6** (481/768). The complete cells as of 2026-09-18 are in the "Prompt variants × bases" table below; Muse michel2 / full / shot and the michel2_shot rounds for Qwen3-14B, Qwen3.8 and A3B are still in flight | `cloud_pull_20260917/deepseek/lora_serving_eval__deepseek-v4-pro-api-cleangold-batch25-thinking-off-{michel,michel2,michel2_full,michel2_shot}-20260917.json`; `cloud_pull_20260917/tnr1/lora_serving_eval__qwen3-14b-michel-low-tnr1-cleangold-replication-20260917.json`; tnr-1 `*-michel-none-*` and `muse-michel-low-*`; tnr-0 `lora_serving_eval__qwen38-27b-q4km-michel2_full-*` and `qwen36-35b-a3b-thinking-michel2_full-*`; local `qwen35-9b-q4km-michel2_full-*` (dev11) | on Qwen3-14B the prompt alone (+12) equals the best adapter (mixed + reasoning, 78.0) with no adapter; on DeepSeek the surrounding text is the biggest single step (+1.7 over michel2) and the worked example adds nothing over it. On every reasoning model but Muse the prompt is worth +7 to +12; on Muse `michel` costs 3. Product default stays `default` until Muse's michel2 / michel2_full cells land (tnr-1, tonight) |
 
 ## Pass 1: dialogue detection (`generation.three_pass_segmentation`, 2026-09-18)
 
@@ -241,12 +241,37 @@ loss curve or the accuracy number. Rule 19, again.
 ### The window25 rebuild (2026-09-24)
 
 The replacement training set is built from PDNC source text, `quotation_info.csv`
-and `character_info.csv` at the contract production actually serves —
-`michel2_full_window25_surround2000`: 25 entries per window, 2,000 characters of
-evidence on each side, the post-#616 system prompt, gold multi-entry completions.
+and `character_info.csv` at `michel2_full_window25_surround2000`: 25 entries per
+window, 2,000 characters of evidence on each side, gold multi-entry completions.
 1,993 windows, and **all nine evaluation books are excluded** (checked against the
 data, not only the manifest: the book pattern returns 125 on a book that is present
 and 0 on each of the nine holdouts).
+
+**Correction (2026-09-24, same day).** The first version of this section, and the
+pull request that added it, said this set was "the contract production actually
+serves". On the window shape and the holdouts that was true. On the PROMPT it was
+not, and the mistake was the same one this file criticises two rows above: the
+manifest said `prompt_contract: michel2_full_window25_surround2000` and that label
+was taken for the thing. The builder wrote its own strings. Measured against the
+served prompt:
+
+| | first window25 build | shipped `michel2_full` |
+|---|---|---|
+| system prompt | 234 chars | **2,071 chars** (`MICHEL2_SYSTEM`) |
+| narration entries | unmarked running text | **`[n] text`** |
+| expected answer | the spoken lines only (~7 objects) | **every entry (25), `NARRATOR` for narration** |
+
+So it was not a shorter preamble, it was a different task — name the speakers of
+the quoted lines, against label all 25 marked entries — and the missing clause is
+exactly the one #616 added because models were dropping narration. `build_window25
+_michel2_full_20260924.py` now **imports** `MICHEL2_SYSTEM`, `MICHEL2_INSTRUCTION`
+and `surround_passage` from `attribution_prompt_variants` instead of carrying
+copies, so the training prompt is rendered by the code that serves it. Verified on
+the output: system 2,071 chars, 25 completion objects with `NARRATOR` on narration,
+`[n]` markers present, and 0 rows for each of the nine evaluation books. Re-measured
+tokens after the rebuild: p50 3,345, max 5,965, so `max_len 8192` still truncates
+nothing. The first adapter (`muse_adapters_20260924_window25`) is kept but is not a
+product adapter: it is matched to a prompt the product does not send.
 
 The trainer did not change: `distill_train_muse_window25_20260924.py` is a byte copy
 of the blocked `distill_train_muse_gen3_20260917.py`, whose `build_examples` already
@@ -257,9 +282,13 @@ these windows measure p50 2,624 and max 5,166 tokens under the Muse tokenizer an
 the trainer's 2048 default would truncate 96.4% of them, taking the completion (the
 label) with it. Smoke step peak VRAM 63,873 MiB of 81,920.
 
-No result yet: the adapter is training on tnr-1 as of 2026-09-24 03:16 CDT. Per the
-rule above, it gets a verdict only after a paired served run with the answered-window
-count stated.
+No result yet. The corrected adapter (`muse-window25b`) trained on tnr-1 and
+converted at 2026-09-24 12:51Z; it is being swept across four Muse quants
+(Q4_K_M, Q3_K_XL, IQ3_M, IQ3_XXS) on tnr-2 and tnr-4. Per the rule above it gets a
+verdict only after those paired runs, with the answered-window count stated. Its
+final training loss was 0.0042, which is not evidence of anything: most of the 25
+targets in a window are `NARRATOR`, so a model can score well on loss by learning
+the shape.
 
 ## Adapter and roster results checked against the artifacts (2026-09-17)
 
@@ -529,6 +558,72 @@ not a rerun of the current app or a full alias-aware product score. It shows
 that the raw Q4_K_XL collapse is chiefly an output-format/scoring mismatch,
 not evidence of a 27-point recognition loss. The Qwen3.8 improvement remains
 descriptive and misses p<0.05 on strict shared rows.
+
+## September 24: an unbounded reply schema, and gen-3's second negative
+
+### The reply schema never required the model to stop
+
+`gemma-4-12b-it-qat-q4_0` returned **264 objects for a 25-entry window**, indices
+running to `n=263`, with the array never closed — 4,096 tokens, then 6,144 on the
+retry, roughly **eight minutes a window**, no parseable JSON, on every window of
+its base cell. Qwen3.8 UD-IQ2_XXS on the same chain, the same box and the same
+flags returned `finish_reason=stop` in about 30 s.
+
+The cause was in `ATTRIBUTION_RESPONSE_SCHEMA`, not the model. It is an array of
+`{n, speaker}` with **no `minItems`/`maxItems`**, which llama.cpp compiles to
+`"[" item ("," item)* "]"`. Every prefix of that is valid and nothing in it
+obliges the model to close the array, so stopping is the model's disposition
+rather than a constraint. The logged replies are strictly valid JSON items the
+whole way, which is how we know the grammar *was* applied and simply had no
+stopping condition — the earlier guess that no schema was reaching the server was
+wrong, and the response log is what corrected it.
+
+`attribution_response_schema(n)` now sets `minItems = maxItems = n`, which
+llama.cpp turns into a bounded repetition. This states to the sampler the rule
+`index_head_check` already enforced afterwards — exactly one object per input
+entry, every index once — so it shapes generation instead of only judging it.
+
+Measured against a live Qwen3.8 IQ2_XXS server, one real 25-entry window:
+
+| schema | finish | completion tokens | parses | items |
+|---|---|---:|---|---:|
+| none | length | 4,096 | no (prose) | — |
+| unbounded (previous) | stop | 1,303 | yes | 25 |
+| bounded 25..25 | stop | 1,303 | yes | 25 |
+
+So the bound is a **no-op for a model that already stops** — identical token
+count, identical items — and binds only the runaway case. That probe could not
+reproduce the Gemma failure because Qwen does not have it; the 264-item reply is
+the evidence for that half.
+
+**Instrument note.** The fix was deployed to all four cloud boxes on 2026-09-24 at
+about 13:35Z by atomic rename, so it takes effect at each box's next cell and
+running evals keep the module they had already loaded. Rows measured before that
+point used the unbounded grammar and rows after it use the bounded one. On every
+model measured so far the difference is nil, but the boundary is recorded rather
+than assumed. The local `dev11` worktree was deliberately left unbounded so the
+six small-model prompt-variant cells match the `default` and `michel2_full` cells
+already in their rows.
+
+### Muse UD-IQ3_XXS, nine novels, gen-3 adapter
+
+| arm | score |
+|---|---|
+| base | 2,459/2,655 = **92.6%** |
+| gen-3 rights-clean adapter | 2,363/2,655 = **89.0%** |
+| delta | **−3.6 points**, paired **+75/−171** over all 2,655 shared rows |
+
+`michel2_full`, reasoning low, batch 25, schema auto, temperature 0, 40
+windows/book; served correctly, both arms from one server with the adapter scale
+toggled. This is the **gen-3** adapter — the one trained on single-entry traces
+carrying the pre-#616 prompt and 800 Sun Also Rises rows — so it is that recipe's
+second measured negative, after −2.0 on the four-book fixture. The contract defect
+recorded above has now cost it twice.
+
+The base arm also fills a rung. The Muse base ladder on the nine-novel fixture now
+reads **Q4_K_M 94.6 → Q3_K_XL 93.3 → IQ3_XXS 92.6**, declining monotonically with
+quant size, with IQ3_M queued.
+
 
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
