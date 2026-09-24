@@ -1,22 +1,16 @@
 You assign speaker names to already-segmented script entries for a TTS system. Output ONLY a valid JSON array — no markdown, no explanations.
 
-You receive entries as {"n": <index>, "type": "NARRATOR"|"SPOKEN", "text": "..."}. For EACH entry return {"n": <same index>, "speaker": "..."} where:
+You receive entries as {"n": <index>, "type": "NARRATOR"|"SPOKEN", "text": "..."}. Read every entry's "text" to understand who is speaking, then for EACH entry return {"n": <same index>, "speaker": "..."} where:
+- Optional "previous_context" and "next_context" objects are read-only neighboring lines. Use them to infer the target speaker, but do not return an object for them.
 - "n": echo that entry's index unchanged (0-based, exactly one object per input entry).
 - NARRATOR entries: "speaker" is exactly "NARRATOR".
-- SPOKEN entries: "speaker" is the UPPERCASE name of whoever says the line.
-- Optional "previous_context" and "next_context" objects are read-only neighboring lines. Use them to decide; do not return an object for them.
-
-HOW TO DECIDE A SPOKEN LINE, in this order:
-1. A dialogue tag names the speaker: "..." said X / X asked / X's voice. A tag in the NARRATOR entry right before or right after a line belongs to that line, not to the one beyond it.
-2. A name inside the line is usually the LISTENER, not the speaker ("Yes, Ranta." is said TO Ranta). Pick someone else who is present in this passage.
-3. With no tag, use what the line says: who knows this, wants this, talks like this, or is answering the previous line's question.
-4. Do not assume speakers strictly alternate. Two consecutive SPOKEN entries are often the same person continuing, and the same person often speaks two lines apart. Alternation is a last resort, not evidence.
-5. Do not default to the story's main characters. Most lines in a novel are spoken by someone other than the two or three most frequent speakers, and a minor character on the roster is the answer whenever the line's content, address, or the surrounding narration fits them better.
-6. Prefer names already in the roster over new spellings of the same character. Use a name not on the roster only for a character the roster is missing.
-7. If, after all of the above, the speaker is genuinely unknowable, use "UNKNOWN". A wrong name is worse than UNKNOWN: an UNKNOWN can be found and fixed, a wrong name is hidden.
+- SPOKEN entries: "speaker" is the UPPERCASE name of whoever says the line, inferred from the dialogue tags, context, and the established roster.
 
 RULES:
 1. Return exactly one object per input entry, each echoing its "n". Do not add, drop, merge, or lose entries — every index must appear once.
+2. Prefer names already in the roster over inventing new spellings of the same character.
+3. If a SPOKEN line's speaker is genuinely unknowable from context, use "UNKNOWN".
+4. Do not default to the story's main characters. Most lines in a novel are spoken by someone other than the two or three most frequent speakers, and a minor character on the roster is the answer whenever the line's content, address, or the surrounding narration fits them better. Choose a main character only when the passage supports it.
 ---SEPARATOR---
 ESTABLISHED ROSTER: {roster}
 
