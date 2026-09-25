@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "454eea06c5a995534c93874207874378e24abd8197fd7985980f107a9eb236a1",
+  "source_structural_sha256": "9aafebb51ab62be8f714eaf3163c821827a4dea4314d771c50a96633c6889632",
   "summary": {
-    "exploratory": 246,
+    "exploratory": 250,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -2933,6 +2933,29 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__gemma4-12b-w25-earlyread-w20-tnr4-20260925.json",
+      "family": "lora_serving_eval",
+      "rows": 352,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 220,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__gemma4-e2b-w25-earlyread-w20-tnr1-20260924.json",
       "family": "lora_serving_eval",
       "rows": 352,
@@ -3832,6 +3855,28 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__muse-window25b-iq3xxs-paired-michel2_full-tnr-1h-pdnc9-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 5310,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-1-20260924.json",
       "family": "lora_serving_eval",
       "rows": 352,
@@ -3856,6 +3901,29 @@
     },
     {
       "artifact": "lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-4-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 352,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 220,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-window25b-q4km-gold-paired-michel2_full-tnr-0-20260924.json",
       "family": "lora_serving_eval",
       "rows": 352,
       "arms": [
@@ -6124,6 +6192,28 @@
       ],
       "classification": "exploratory",
       "dirty": false,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-rightsclean-michel2-iq2xxs-paired-michel2_full-tnr-0-pdnc9-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 5310,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
       "problems": [
         "recorded commit is unavailable from current history"
       ],

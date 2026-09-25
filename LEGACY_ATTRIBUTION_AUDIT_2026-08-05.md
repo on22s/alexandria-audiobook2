@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 358 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 362 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 246
+- `exploratory`: 250
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -144,6 +144,7 @@ All 358 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__deepseek-v4-pro-api-pdnc_emma-batch25-thinking-off-michel2_full-20260917.json` | lora_serving_eval | exploratory | 998 | 0 | 0 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__deepseek-v4-pro-api-pdnc_thesunalsorises-batch25-thinking-off-default-20260917.json` | lora_serving_eval | exploratory | 1759 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__deepseek-v4-pro-api-pdnc_thesunalsorises-batch25-thinking-off-michel2_full-20260917.json` | lora_serving_eval | exploratory | 1759 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__gemma4-12b-w25-earlyread-w20-tnr4-20260925.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e2b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e4b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__local-12h-muse-base-20260916.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
@@ -185,8 +186,10 @@ All 358 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-window25b-iq3m-gold-paired-michel2_full-tnr-4-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-local9070xt-20260925.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-tnr-2-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-window25b-iq3xxs-paired-michel2_full-tnr-1h-pdnc9-20260924.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-4-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-window25b-q4km-gold-paired-michel2_full-tnr-0-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q4km-gold-paired-michel2_full-tnr-4-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q4km-paired-michel2_full-tnr-0-pdnc9-20260924.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__nemotron3-ultra-paid-clean-mansfieldpark-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 734 | 0 | 0 | False | recorded commit is unavailable from current history |
@@ -288,6 +291,7 @@ All 358 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen38-q3kxl-on-michel2_full-pdnc9-tnr2-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922.json` | lora_serving_eval | exploratory | 5310 | None | None | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen38-rightsclean-michel2-iq2xxs-paired-michel2_full-tnr-0-pdnc9-20260924.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__specdecode-ngram-20260924.json` | lora_serving_eval | exploratory | 66 | 0 | 0 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__workerscheck-w1-20260924.json` | lora_serving_eval | exploratory | 318 | 0 | 0 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__workerscheck2-w1-20260924.json` | lora_serving_eval | exploratory | 318 | 0 | 0 | True | recorded commit is unavailable from current history |

@@ -30,8 +30,8 @@ not. Set it deliberately.
 | **32 GB** | RTX 5090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **24 GB** | RTX 4090, 3090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
-| **12 GB** | RTX 5070, Intel Arc B580 | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% | **no** (−3.6) |
-| **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested here* |
+| **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | *untested at this rung* |
+| **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | **+1.0** (89.0 → 90.0, p=0.059) |
 | **6 GB** | GTX 1660, RTX 2060, laptop cards | *measuring now* — Muse `Q1_0` (4.5 GB), Qwen3.8 `Q1_L` (5.7 GB) | — | — | — |
 | **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
 
@@ -41,11 +41,19 @@ Qwen3.8-27B UD-Q3_K_XL is 12.5 GB, so at `-c 8192` it lands near 13 GB with room
 to spare, scores **95.2%**, and takes the adapter to **96.0%**. Nothing above
 16 GB buys a better number; a 5090 runs the same file to the same score.
 
-**12 GB is the awkward one.** Muse IQ3_XXS at 10.6 GB is the best measured fit
-but leaves little headroom — keep `-c 8192` and do not load an adapter, which
-costs 3.6 points here anyway. Qwen3.8 UD-IQ2_XXS (6.9 GB, 88.7%) is the safe
-fallback if it will not fit. A Qwen3.8 **Q2_K_XL** (9.4 GB) cell is running now
-and may turn out to be the right answer for this tier.
+**12 GB got better.** The Qwen3.8 **Q2_K_XL** cell that was running when this
+page was written has landed: **93.7%** at **9.4 GB** — a gigabyte smaller than
+the Muse IQ3_XXS previously recommended here *and* 1.1 points ahead of it. It is
+now the answer for this tier, with real headroom at `-c 8192`.
+
+On adapters at this tier: the earlier advice cited a **−3.6** cost, but that
+figure came from the gen-3 Muse adapter, which was trained on single-entry
+examples and served with a 25-entry contract — its rows measure that mismatch,
+not the recipe (RECIPES §"The A3B adapter was trained on a different task"
+records the same defect). The corrected window25 adapter measured on this
+fixture is **+0.2 (p = 0.838)** at IQ3_XXS and **+0.4 (p = 0.474)** at IQ3_M.
+So the advice stands — *don't bother with an adapter here* — but because it does
+nothing, not because it costs you 3.6 points.
 
 **8 GB is better served than you would expect.** Qwen3.8-27B at UD-IQ2_XXS is
 6.9 GB and **88.7%** — a 27B model on an entry-level card, and 4.4 points ahead
