@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-25 from `ab_test_runtime/experiments/` — 1769 artifacts, 2662 arms.
+Generated 2026-09-25 from `ab_test_runtime/experiments/` — 1771 artifacts, 2678 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -863,9 +863,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 385 | 86.8% | exploratory | ok | True | 16857.1s |
 | grimgar03 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 385 | 73.0% | exploratory | ok | False | 1176.3s |
 | grimgar03 | muse-spec | local-lmstudio | lmstudio | 32768 | base | 66 | 98.5% | exploratory | ok | True | 1274.2s |
+| grimgar03 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | base | 66 | 13.6% | exploratory | ok | True | 48745.6s |
+| grimgar03 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | lora | 66 | 84.8% | exploratory | ok | True | 48745.6s |
 | grimgar03 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | base | 66 | 97.0% | exploratory | ok | True | 7426.9s |
 | grimgar03 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | lora | 66 | 97.0% | exploratory | ok | True | 7426.9s |
+| grimgar03 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 66 | 92.4% | exploratory | ok | False | 6174.6s |
 | grimgar03 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 66 | 87.9% | exploratory | ok | True | 12795.6s |
+| grimgar03 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 66 | 95.5% | exploratory | ok | False | 6174.6s |
 | grimgar03 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 66 | 95.5% | exploratory | ok | True | 12795.6s |
 | grimgar03 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 66 | 97.0% | exploratory | ok | True | 6343.7s |
 | grimgar03 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 66 | 97.0% | exploratory | ok | True | 4336.0s |
@@ -1065,9 +1069,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 88 | 0.0% | exploratory | ok | False | 26074.1s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | exploratory | ok | True | 16857.1s |
 | index18 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 88 | 67.0% | exploratory | ok | False | 1176.3s |
+| index18 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | base | 31 | 6.5% | exploratory | ok | True | 48745.6s |
+| index18 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | lora | 31 | 90.3% | exploratory | ok | True | 48745.6s |
 | index18 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | base | 31 | 77.4% | exploratory | ok | True | 7426.9s |
 | index18 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | lora | 31 | 90.3% | exploratory | ok | True | 7426.9s |
+| index18 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 31 | 83.9% | exploratory | ok | False | 6174.6s |
 | index18 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 31 | 87.1% | exploratory | ok | True | 12795.6s |
+| index18 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 31 | 90.3% | exploratory | ok | False | 6174.6s |
 | index18 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 31 | 90.3% | exploratory | ok | True | 12795.6s |
 | index18 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 31 | 80.6% | exploratory | ok | True | 6343.7s |
 | index18 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 31 | 83.9% | exploratory | ok | True | 4336.0s |
@@ -1341,9 +1349,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 133 | 0.0% | exploratory | ok | False | 26074.1s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 133 | 80.5% | exploratory | ok | True | 16857.1s |
 | mushoku16 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 133 | 51.1% | exploratory | ok | False | 1176.3s |
+| mushoku16 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | base | 40 | 25.0% | exploratory | ok | True | 48745.6s |
+| mushoku16 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | lora | 40 | 75.0% | exploratory | ok | True | 48745.6s |
 | mushoku16 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | base | 40 | 75.0% | exploratory | ok | True | 7426.9s |
 | mushoku16 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | lora | 40 | 82.5% | exploratory | ok | True | 7426.9s |
+| mushoku16 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 40 | 87.5% | exploratory | ok | False | 6174.6s |
 | mushoku16 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 40 | 80.0% | exploratory | ok | True | 12795.6s |
+| mushoku16 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 40 | 87.5% | exploratory | ok | False | 6174.6s |
 | mushoku16 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 40 | 90.0% | exploratory | ok | True | 12795.6s |
 | mushoku16 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 40 | 87.5% | exploratory | ok | True | 6343.7s |
 | mushoku16 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 40 | 82.5% | exploratory | ok | True | 4336.0s |
@@ -1611,9 +1623,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 162 | 70.4% | exploratory | ok | True | 5355.5s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 162 | 70.4% | exploratory | ok | True | 16857.1s |
 | owarimonogatari3 | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | lora | 162 | 40.1% | exploratory | ok | False | 1176.3s |
+| owarimonogatari3 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | base | 39 | 17.9% | exploratory | ok | True | 48745.6s |
+| owarimonogatari3 | muse-w25b-iq2xxs-nani | local-lmstudio | lmstudio | 32768 | lora | 39 | 59.0% | exploratory | ok | True | 48745.6s |
 | owarimonogatari3 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | base | 39 | 82.1% | exploratory | ok | True | 7426.9s |
 | owarimonogatari3 | muse-w25b-iq3m | local-lmstudio | lmstudio | 32768 | lora | 39 | 82.1% | exploratory | ok | True | 7426.9s |
+| owarimonogatari3 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 39 | 87.2% | exploratory | ok | False | 6174.6s |
 | owarimonogatari3 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | base | 39 | 87.2% | exploratory | ok | True | 12795.6s |
+| owarimonogatari3 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 39 | 82.1% | exploratory | ok | False | 6174.6s |
 | owarimonogatari3 | muse-w25b-iq3xxs | local-lmstudio | lmstudio | 32768 | lora | 39 | 82.1% | exploratory | ok | True | 12795.6s |
 | owarimonogatari3 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 39 | 89.7% | exploratory | ok | True | 6343.7s |
 | owarimonogatari3 | muse-w25b-q3kxl | local-lmstudio | lmstudio | 32768 | base | 39 | 84.6% | exploratory | ok | True | 4336.0s |

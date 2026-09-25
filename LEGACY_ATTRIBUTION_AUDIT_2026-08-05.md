@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 356 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 358 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 244
+- `exploratory`: 246
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -181,7 +181,9 @@ All 356 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__muse-q3-michel2_full-tnr1-pdnc9lite-low-schema-20260917.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q4-kquant17-michel2_full-tnr4-pdnc9lite-low-schema-20260921.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-q4-kquant17-rightsclean-lossfix-michel2_full-tnr4-pdnc9-rerun-b8-clean-20260922.json` | lora_serving_eval | exploratory | 1988 | None | None | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-window25b-iq2xxs-nani-gold-paired-michel2_full-tnr-2-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-iq3m-gold-paired-michel2_full-tnr-4-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-local9070xt-20260925.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-tnr-2-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-4-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
