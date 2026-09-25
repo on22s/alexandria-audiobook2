@@ -675,6 +675,78 @@ descriptor, so pausing a cell means killing its process tree, not just the
 wrapper.
 
 
+## September 25: the ladder the adapter was built for
+
+### Muse quant ladder, base vs the window25b adapter, four-book gold
+
+One adapter (`muse-window25b.f16.gguf`) served across four rungs of its own base.
+Every cell is PAIRED on one server with the adapter scale toggled, `michel2_full`,
+reasoning low, batch 25, schema auto, temperature 0, `-c 32768`, `--parallel 1`.
+All five artifacts carry the same fixture, `gold_sha256 79d754e1d55c1f6e9815`.
+
+| rung | on disk | base | + adapter | delta | paired | p |
+|---|---|---|---|---|---|---|
+| Q4_K_M | 15.6 GiB | **90.9** | 88.1 | −2.8 | +5/−10 | 0.302 |
+| Q3_K_XL (two boxes) | 12.4 GiB | 89.5 | 90.6 | +1.1 | +15/−11 | 0.557 |
+| IQ3_M | 11.9 GiB | 85.2 | 89.2 | +4.0 | +12/−5 | 0.143 |
+| IQ3_XXS | 10.4 GiB | 85.8 | 90.3 | +4.5 | +12/−4 | 0.077 |
+| **IQ3_M + IQ3_XXS pooled** | | **85.5** | **89.8** | **+4.3** | **+24/−9** | **0.014** |
+
+**No single rung is significant and none should be quoted as if it were** — 176
+rows cannot resolve four points. Pooling the two IQ3 rungs can, and does:
+24 improved against 9 regressed, p = 0.014.
+
+The shape is the result, not any row. **The base falls 90.9 → 85.5 down the
+ladder while the adapter arm stays flat at 88–91.** The adapter is not adding
+attribution skill; it is buying back what quantisation takes away. That is the
+first end-to-end confirmation of the premise these adapters were trained on, and
+it means the honest claim is "the adapter makes the small quants usable", not
+"the adapter improves Muse" — at Q4_K_M it measured 2.8 points WORSE.
+
+Q3_K_XL ran independently on tnr-1 and tnr-4: base 90.3 / 88.6, adapter 90.9 /
+90.3. **A 1.7-point spread between two boxes on identical configuration is the
+noise floor for this fixture**, and it is the same size as the Q4 and Q3 effects
+— which is the arithmetic reason those two rows are reported as flat rather than
+as a loss and a win.
+
+### IQ2_XXS is below the contract floor, and the accuracy number says so wrongly
+
+Muse IQ2_XXS (7.4 GiB) base, nine-novel fixture, 2,655 rows: **1.1%**.
+
+That figure is not an attribution score. **2,613 of the 2,655 predictions are the
+empty string** — the model cannot hold the JSON contract at 2 bits at all. Only
+42 rows produced any answer. Recorded here so the number is never averaged into
+a quant ladder as though it were a weak result rather than an absent one; the
+usable range for Muse on this task ends at IQ3_XXS.
+
+### #616's prompt reframing, measured
+
+#616 reopened `MICHEL2_SYSTEM` from "You assign speaker names to the spoken lines
+of a novel" to "You label EVERY marked entry … narration entries included". The
+probe branch carries its own copy of the prompt and had never been updated, so
+every `michel2_full` number on it — including the 90.5 in this file — was taken
+with a prompt the product had stopped shipping. Re-measured with the prompt text
+ported and nothing else changed (both literals 2,071 chars, sha256
+`a63e2124546ce050`), four-book gold, 768 rows:
+
+| cell | pre-#616 | post-#616 | delta | paired | p |
+|---|---|---|---|---|---|
+| Qwen3-8B Q4_K_M `michel2_full` | 71.7 | **77.0** | +5.2 | +67/−27 | <0.001 |
+| Qwen3.5-9B Q4_K_M `michel2_full` | 71.9 | **74.9** | +3.0 | +60/−37 | 0.025 |
+| Qwen3.5-9B Q4_K_M `michel2` | 70.8 | 70.4 | −0.4 | +49/−52 | 0.842 |
+
+Significant on `michel2_full` for both bases, null on `michel2`. **The 90.5
+recorded for Muse is therefore a pre-#616 measurement and is likely an
+understatement**; it needs re-running on Muse before it is quoted again.
+
+**The mechanism is NOT established, and the obvious explanation is false.** The
+natural reading — the fix teaches the model to label narration, and
+`michel2_full` is the variant whose window contains narration entries — was
+checked against the rows rather than asserted: the clean-gold fixture contains
+**no narration rows at all**, all 768 are spoken lines, so the entire gain is on
+spoken lines. Why an instruction about narration entries improves spoken-line
+accuracy is open.
+
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 
 Every number above is on the same four light novels (768 rows) that every
