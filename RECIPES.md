@@ -735,9 +735,21 @@ ported and nothing else changed (both literals 2,071 chars, sha256
 | Qwen3.5-9B Q4_K_M `michel2_full` | 71.9 | **74.9** | +3.0 | +60/−37 | 0.025 |
 | Qwen3.5-9B Q4_K_M `michel2` | 70.8 | 70.4 | −0.4 | +49/−52 | 0.842 |
 
-Significant on `michel2_full` for both bases, null on `michel2`. **The 90.5
-recorded for Muse is therefore a pre-#616 measurement and is likely an
-understatement**; it needs re-running on Muse before it is quoted again.
+Significant on `michel2_full` for both bases, null on `michel2`.
+
+**On Muse the same change measured NOTHING**, and that cell already existed:
+`muse-michel2full-low-tnr1-cleangold-replication-20260917` vs
+`…-reworded-20260920` are **695/768 = 90.5% both times**, same box, same binary,
+same fixture, a commit apart carrying only the prompt text. The per-book numbers
+do move and offset — index18 87.5 → 80.7, mushoku16 85.7 → 92.5, owari 93.8 →
+92.0, grimgar 91.4 → 91.4 — so it is a coincidence of cancelling shifts rather
+than a null on every book, but the total is unchanged.
+
+So the reframing's effect is **base-dependent: +5.2 and +3.0 on two ~8B bases,
+0.0 on Muse.** The reading that fits is that #616 fixes a compliance failure the
+weak bases had and the strong one never did — `index_head_check` was rejecting
+dropped `[n]` entries from small models, not from Muse — but that is an
+inference, and the mechanism above is still open.
 
 **The mechanism is NOT established, and the obvious explanation is false.** The
 natural reading — the fix teaches the model to label narration, and
