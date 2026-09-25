@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 356,
+    "provisional": 358,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -13578,6 +13578,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__muse-window25b-iq2xxs-nani-gold-paired-michel2_full-tnr-2-20260924.json",
+      "bytes": 324255,
+      "sha256": "4e0744420ab3c6fc65dde1d4184397a8de73ce5f9b83ae63f8cef2e45dbd7868",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 352,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__muse-window25b-iq3m-gold-paired-michel2_full-tnr-4-20260924.json",
       "bytes": 322651,
       "sha256": "defeb89d629edc738b6f15e76cf255718211b72154349e4ef79c1981ac718f39",
@@ -13592,6 +13610,24 @@
       "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-local9070xt-20260925.json",
+      "bytes": 321318,
+      "sha256": "7250c0c301b61837359e60b6f1a49485b561597dfb76bc071e45125c509156f0",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 352,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "0872ab0690e0cbeee06e1a37a0efea58155a038a",
+      "written": null,
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },

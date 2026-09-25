@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "4d61a7ae2db1ea97c3551522778705a145ce6683f6235c32127c64e099321a72",
+  "source_structural_sha256": "454eea06c5a995534c93874207874378e24abd8197fd7985980f107a9eb236a1",
   "summary": {
-    "exploratory": 244,
+    "exploratory": 246,
     "historical_only": 58,
     "provisional": 11,
     "supported_measurement": 43
@@ -3740,6 +3740,29 @@
       "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
     },
     {
+      "artifact": "lora_serving_eval__muse-window25b-iq2xxs-nani-gold-paired-michel2_full-tnr-2-20260924.json",
+      "family": "lora_serving_eval",
+      "rows": 352,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 220,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
       "artifact": "lora_serving_eval__muse-window25b-iq3m-gold-paired-michel2_full-tnr-4-20260924.json",
       "family": "lora_serving_eval",
       "rows": 352,
@@ -3749,6 +3772,29 @@
       ],
       "classification": "exploratory",
       "dirty": true,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 220,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__muse-window25b-iq3xxs-gold-paired-michel2_full-local9070xt-20260925.json",
+      "family": "lora_serving_eval",
+      "rows": 352,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "exploratory",
+      "dirty": false,
       "problems": [
         "recorded commit is unavailable from current history"
       ],

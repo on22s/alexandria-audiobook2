@@ -779,10 +779,10 @@ Two consequences, both of which stand:
 - **The pooled IQ3 result is NOT affected.** IQ3_M (tnr-4) and IQ3_XXS (tnr-2)
   are both pre-#616 on A6000s, so +4.3 at p=0.014 stands as measured.
 
-A clean measurement — prompt held constant, hardware varied — is running on the
-RX 9070 XT against tnr-2's IQ3_XXS cell, pinned to the same prompt hash
-(`8447565f8afc7294`) and a harness verified byte-identical between the two
-commits. This section will be replaced by that number, not restored.
+**The clean measurement is now in** (§Cross-vendor drift, below): with the
+prompt pinned and only the GPU varying, the base arm moves 2.8 points and the
+adapter arm 0.5. The withdrawn claim's *direction* survives; its magnitude and
+its attribution to kernels alone did not.
 
 What the episode actually shows is that a "replicate" is a claim about the whole
 instrument, and this file had the evidence to refute it in the artifacts' own
@@ -890,6 +890,67 @@ absence, so those rows are unmeasured rather than negative.
 **Check the roster count in the per-book header before reading any PDNC cell.**
 It is printed on every run and it is the cheapest available proof that the
 fixture is the one intended.
+
+### Cross-vendor drift, with the prompt held constant
+
+The replacement for the retracted section. Muse IQ3_XXS gold, base vs
+window25b adapter, run on an A6000 (tnr-2) and an RX 9070 XT (ROCm/RDNA4).
+Everything but the GPU is pinned: model md5 `5f06dde79ad04f3e6744c988f79b404c`,
+adapter md5 `e7000f9e5d7125d87c42b5aea352e472`, `MICHEL2_SYSTEM` sha256
+`8447565f8afc7294` (enforced by a preflight that refuses otherwise), and a
+harness verified byte-identical — tnr-2's `4d337725` is an ancestor of the
+local checkout's `0872ab06` with no commit between them touching
+`lora_serving_eval.py` or `attribution_prompt_variants.py`.
+
+| arm | A6000 | RX 9070 XT | drift |
+|---|---|---|---|
+| base | 85.8 | **88.6** | **2.8 points** |
+| + adapter | 90.3 | **89.8** | **0.5 points** |
+| delta | **+4.5** | **+1.1** | — |
+
+Two readings, and the second is the important one.
+
+**The adapter arm is the more reproducible one**, 0.5 against 2.8. That was also
+the shape of the confounded comparison, so it survives removing the confound —
+but two cells is still two cells and it is not claimed as a property.
+
+**The effect size itself moves from +4.5 to +1.1 on a change of GPU.** This is a
+sharper caution than the ±1.7 it replaces: a single-box rung measurement cannot
+distinguish a four-point effect from a one-point one. Every per-rung delta in
+the ladder above is a single box. The pooled IQ3 result (+4.3, p=0.014) is two
+rungs on two A6000s, so it is not immune either — it is better powered, not
+hardware-independent.
+
+Relevant to scheduling as well: **the RX 9070 XT ran this cell 2.07x FASTER than
+the A6000** (6,175s against 12,793s, per-book base-arm ratios 2.00/1.95/2.17/
+2.38). An earlier ETA in this session assumed the local card was ~2.6x *slower*
+and was simply invented; it was never measured until this pair existed.
+
+### The adapter rescues IQ2_XXS, which is otherwise unusable
+
+Muse IQ2_XXS (7.4 GiB) gold, paired, tnr-2:
+
+| | base | + adapter |
+|---|---|---|
+| pooled | 28/176 = **15.9%** | 137/176 = **77.8%** |
+| rows unanswered | **137 of 176 (78%)** | 7 (4%) |
+| strict, on the 37 rows BOTH arms answered | 73.0% | **89.2%** (+16.2, +6/−0, p=0.031) |
+
+**+61.9 points raw.** The base arm is not weak here, it is absent: it answers
+about a fifth of rows, and its per-book arms take 10,918s and 14,054s against
+the adapter's 485s and 231s because every call burns its full reasoning budget
+and returns no content. §"IQ2_XXS is below the contract floor" records the same
+collapse on the nine-novel base cell (2,613 empty of 2,655).
+
+The strict row matters: restricted to the 37 rows the base did answer, the
+adapter still wins **+16.2 points, +6/−0, p=0.031**. So this is not only a
+recovery of output — where the base produces an answer at all, the adapter's is
+better.
+
+At IQ3 the adapter repairs discrimination; at IQ2 it repairs the contract
+itself. **This moves the usable floor for Muse from 10.4 GiB to 7.4 GiB**, which
+changes the card-size guidance. A cross-vendor replicate is running on the
+9070 XT before that guidance is rewritten.
 
 ### IQ2_XXS is below the contract floor, and the accuracy number says so wrongly
 
