@@ -709,6 +709,75 @@ noise floor for this fixture**, and it is the same size as the Q4 and Q3 effects
 — which is the arithmetic reason those two rows are reported as flat rather than
 as a loss and a win.
 
+### What the adapter is actually doing: repair, not improvement
+
+The flat adapter line above has a mechanism, and two simpler explanations are
+ruled out first.
+
+**It is not the output contract breaking.** At every rung the base's errors are
+overwhelmingly "a valid roster name, wrong person" — 11 of 16 wrong rows at
+Q4_K_M, 20 of 26 at IQ3_M. Empty replies are 0 or 1. JSON, indices and roster
+format all survive to IQ3_XXS. This is what separates IQ3_XXS from IQ2_XXS,
+where the contract really does collapse (2,613 empty of 2,655).
+
+**It is not mode collapse.** Low quant does not retreat onto a few frequent
+names. Distinct speakers predicted are 45–51 against gold's 52, and prediction
+entropy 4.66–4.84 against gold's 4.82, at every rung and in both arms.
+
+So quantisation degrades *discrimination* — which of several plausible
+characters — diffusely, breaking nothing structural.
+
+What the adapter does about that, splitting the 176 rows by what the BASE did at
+high versus low quant (Q4_K_M and IQ3_M, both from tnr-4, so no cross-GPU drift
+in this comparison) and asking what the IQ3_M adapter arm makes of each group:
+
+| row group | n | adapter correct |
+|---|---|---|
+| lost to quantisation (Q4 base right, IQ3 base wrong) | 14 | **10 = 71%** |
+| survived quantisation (base right at both) | 146 | 141 = **97%** |
+| hard (base wrong at BOTH quants) | 12 | 2 = **17%** |
+
+That is the shape of a repair, not an upgrade: it recovers most of what
+quantisation broke, leaves working rows alone, and barely touches problems that
+were never about quantisation.
+
+**Why that yields a flat line and a negative at Q4_K_M.** Two terms compete. The
+collateral cost is roughly constant — the adapter breaks 3–6% of rows the base
+already had right, at every rung. The damage available to recover grows as the
+quant shrinks: 0 rows at Q4_K_M, 5 at Q3_K_XL, 14 at IQ3_M, 11 at IQ3_XXS. At
+Q4_K_M there is nothing to repair, so only the collateral shows, and the cell
+reads −2.8. Further down, recovery overtakes collateral and the total holds near
+90 while the base falls to 85.
+
+**Two limits on this account.** The two-term arithmetic does not fully close:
+observed deltas run 3–6 rows better than recovery-minus-collateral predicts,
+because the adapter also fixes some rows the base missed at *every* quant, which
+the split above assigns to the "hard" group. And the counts are small — 71% is
+10 of 14 rows. The three-group split is a real measurement on this fixture, not
+a figure to quote: the nine-novel confirmation at 2,655 rows (IQ3_M on tnr-4,
+IQ3_XXS on tnr-1) is what would turn it into one.
+
+### Temperature 0 is deterministic on ONE machine, not across two
+
+Q3_K_XL ran on an A6000 (sm86, tnr-4) and an A100 (sm80, tnr-1): same weights,
+same prompt, same fixture, temperature 0.
+
+| arm | rows whose PREDICTION differs | scored outcome flips |
+|---|---|---|
+| base | **14/176 = 8.0%** | 5 = 2.8% |
+| adapter | **6/176 = 3.4%** | 3 = 1.7% |
+
+Different architectures select different kernels and reduction orders, so
+identical inputs do not give identical logits. This sets a reproducibility floor
+of about **±1.7 points on a 176-row total**, and per book up to 5 points on the
+same configuration (mushoku 82.5 vs 87.5, owari 84.6 vs 89.7). It is the
+arithmetic reason the Q4_K_M −2.8 and the two Q3_K_XL cells (+1.7, +0.6) are
+reported as flat rather than as a loss and two wins: they are the size of the
+instrument's own noise.
+
+The secondary reading — that the adapter also makes output more *stable*, 3.4%
+against 8.0% — is one pair of runs and is not claimed.
+
 ### IQ2_XXS is below the contract floor, and the accuracy number says so wrongly
 
 Muse IQ2_XXS (7.4 GiB) base, nine-novel fixture, 2,655 rows: **1.1%**.
