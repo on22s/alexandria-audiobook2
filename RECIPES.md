@@ -757,26 +757,139 @@ the split above assigns to the "hard" group. And the counts are small — 71% is
 a figure to quote: the nine-novel confirmation at 2,655 rows (IQ3_M on tnr-4,
 IQ3_XXS on tnr-1) is what would turn it into one.
 
-### Temperature 0 is deterministic on ONE machine, not across two
+### RETRACTED: the "cross-GPU reproducibility floor" was confounded
 
-Q3_K_XL ran on an A6000 (sm86, tnr-4) and an A100 (sm80, tnr-1): same weights,
-same prompt, same fixture, temperature 0.
+**This section previously reported that temperature 0 is deterministic on one
+machine but not across two, citing 8.0% of base predictions changing between an
+A6000 and an A100 and deriving a ±1.7-point reproducibility floor. That reading
+is wrong and is withdrawn.**
 
-| arm | rows whose PREDICTION differs | scored outcome flips |
-|---|---|---|
-| base | **14/176 = 8.0%** | 5 = 2.8% |
-| adapter | **6/176 = 3.4%** | 3 = 1.7% |
+The two Q3_K_XL cells did not share a prompt. Their own `meta.git` records it:
+tnr-4 ran commit `4d337725`, whose `attribution_prompt_variants.py` opens "You
+assign speaker names to the spoken lines" (pre-#616, 1,825 chars); tnr-1 ran
+`5e905c07` on branch `remeasure-michel2-20260920`, which §Prompt already names as
+"one commit carrying only the prompt text" (post-#616, 2,071 chars). So the pair
+differs in hardware AND prompt, and #616 alone moves 60-67 of 768 rows on the
+small bases — about 8%, the same size as the effect attributed to kernels.
 
-Different architectures select different kernels and reduction orders, so
-identical inputs do not give identical logits. This sets a reproducibility floor
-of about **±1.7 points on a 176-row total**, and per book up to 5 points on the
-same configuration (mushoku 82.5 vs 87.5, owari 84.6 vs 89.7). It is the
-arithmetic reason the Q4_K_M −2.8 and the two Q3_K_XL cells (+1.7, +0.6) are
-reported as flat rather than as a loss and two wins: they are the size of the
-instrument's own noise.
+Two consequences, both of which stand:
 
-The secondary reading — that the adapter also makes output more *stable*, 3.4%
-against 8.0% — is one pair of runs and is not claimed.
+- The ladder row "Q3_K_XL (two boxes), 352 rows" pools two instruments. Read
+  +1.7 (tnr-4) and +0.6 (tnr-1) as separate cells, not as a replicate spread.
+- **The pooled IQ3 result is NOT affected.** IQ3_M (tnr-4) and IQ3_XXS (tnr-2)
+  are both pre-#616 on A6000s, so +4.3 at p=0.014 stands as measured.
+
+A clean measurement — prompt held constant, hardware varied — is running on the
+RX 9070 XT against tnr-2's IQ3_XXS cell, pinned to the same prompt hash
+(`8447565f8afc7294`) and a harness verified byte-identical between the two
+commits. This section will be replaced by that number, not restored.
+
+What the episode actually shows is that a "replicate" is a claim about the whole
+instrument, and this file had the evidence to refute it in the artifacts' own
+git provenance the whole time.
+
+### #616 is variant-specific: it moves `michel2_full` and nothing else
+
+The three cells published with the ladder could not separate "helps
+`michel2_full`" from "helps everything". Both small bases have now been run
+across all three variants #616 touched, same card, same fixture, 768 rows:
+
+| base | variant | pre-#616 | post-#616 | delta | paired | p |
+|---|---|---|---|---|---|---|
+| Qwen3.5-9B | `michel2` | 70.8 | 70.4 | −0.4 | +49/−52 | 0.842 |
+| Qwen3.5-9B | **`michel2_full`** | 71.9 | **74.9** | **+3.0** | +60/−37 | **0.025** |
+| Qwen3.5-9B | `michel2_shot` | 69.4 | 70.6 | +1.2 | +52/−43 | 0.412 |
+| Qwen3-8B | `michel2` | 75.3 | 73.0 | −2.2 | +49/−66 | 0.135 |
+| Qwen3-8B | **`michel2_full`** | 71.7 | **77.0** | **+5.2** | +67/−27 | **<0.001** |
+| Qwen3-8B | `michel2_shot` | 71.5 | 73.0 | +1.6 | +66/−54 | 0.315 |
+
+Significant on `michel2_full` for both bases and null everywhere else — the
+non-full variants disagree in sign across bases and none approaches
+significance.
+
+`michel2_full` is the only variant that sends a surround: `surround_passage()`
+renders the window with narration entries marked `[n]` plus 2,000 characters of
+context. `michel2` and `michel2_shot` send `passage_text()`, which carries no
+narration entries. So the reframing lands where there are narration entries to
+get wrong and nowhere else.
+
+**The mechanism is still not established.** The clean-gold fixture scores no
+narration rows at all — all 768 are spoken — so the gain is measured entirely on
+spoken lines even in the variant that carries narration. Index alignment is the
+plausible route (a dropped `[n]` shifts the array and misaligns the spoken
+answers after it) and it is testable against the stored replies, but it has not
+been tested. Combined with Muse's 0.0, the effect is both variant-specific and
+base-dependent.
+
+### Nine novels confirm the adapter's cost at Q4_K_M
+
+| arm | score |
+|---|---|
+| base | 2511/2655 = **94.6%** |
+| + window25b adapter | 2485/2655 = **93.6%** |
+| strict paired | **−1.0 points, +59/−85 of 2,650, p = 0.037** |
+
+Four-book gold put Q4_K_M at −2.8 but could not call it (p=0.30, 176 rows). At
+2,650 shared rows it is significant. The adapter costs about a point at the top
+of the ladder, which is what "repair, not improvement" predicts: there is no
+quantisation damage to recover there, so only the collateral shows. Five rows in
+each arm went unanswered and are excluded from the strict comparison.
+
+### The A3B adapter was trained on a different task, so its rows say UNMEASURED
+
+Every A3B gold-LN row reads flat to negative — Q4_K_XL −2.2, IQ3_XXS −0.9,
+IQ2_XXS −0.4, IQ1_M −2.5 — and none of it is a verdict on the recipe.
+
+`qwen36a3b_rightsclean_michel2_20260917/train__rightsclean_michel2.jsonl` has
+**10,154 rows and every single one carries a one-element completion**
+`[{"n": 0, "speaker": ...}]`, with a user prompt of median 838 characters. It is
+served with `michel2_full`, which asks for 25 entries off a ~2,720-token prompt.
+Its recipe also sets `max_length: 2048` against training prompts whose median is
+7,470 characters, so the examples were truncated as well.
+
+This is the same contract mismatch that blocked Muse gen-3, and the A3B adapter
+(20260917) predates the window25 rebuild (20260924) that fixed it. It is also
+the likeliest source of the roster-line echo recorded in §Prompt — 546 of 2,655
+adapter rows on the nine-novel fixture emitting `EMMA (also: …)` instead of
+`EMMA`: a model trained only on one-element arrays never learned rule 6's
+main-form convention across a 25-entry reply.
+
+The fix needs no new data. `build_window25_michel2_full_20260924.py` is
+base-agnostic — it renders windows from the source books with no tokenizer or
+model reference — so A3B retrains on the same 1,993 windows that produced the
+working Muse adapter. Queued on the A100; `a3b_window25_michel2_full_20260925.sh`
+refuses if any training example has a single entry, and re-measures token
+lengths under A3B's own tokenizer rather than trusting the 8192 validated on
+Muse's.
+
+Related: the Gemma window25 adapters were trained correctly (same dataset, lr
+2e-4, r16/a16, max_len 8192) and their early reads are served correctly, with
+`--jinja --chat-template-kwargs '{"enable_thinking":false}'` confirmed in the
+server logs: **E2B 7.4 → 58.5 (+51.1)** and **E4B 33.5 → 67.6 (+34.1)**, both
+p<0.001 at 20 windows. E2B's base is 137/176 rows empty *with* the thinking fix
+applied, so that is genuine incapacity at the 25-entry contract rather than a
+serving defect. The 12B adapter is trained but **unevaluated**: the only 12B
+GGUF on hand is the QAT release, a different checkpoint from the `-it` base the
+adapter was trained on, and serving a LoRA across that gap would produce a
+plausible number that means nothing.
+
+### A stale fixture set scored eight of nine books against an empty roster
+
+The first nine-novel IQ3_XXS attempt on tnr-1 was tracking −4.9 points and was
+very nearly reported as the nine-novel result contradicting the gold ladder.
+Its per-book log gives it away: `roster 0` for every book except
+`thesunalsorises`, against tnr-4's 16/74/35/22 for the same books.
+
+Eight of tnr-1's nine PDNC fixtures were stale copies predating `4d337725`
+("the seven other held-out PDNC fixtures carry the corpus cast as roster"). The
+one correct file was the one copied in that morning to fix a *different* fault —
+a missing fixture — which is how the rest escaped checking. `michel2_full` is
+built around a ROSTER, and the two arms are not handicapped equally by its
+absence, so those rows are unmeasured rather than negative.
+
+**Check the roster count in the per-book header before reading any PDNC cell.**
+It is printed on every run and it is the cheapest available proof that the
+fixture is the one intended.
 
 ### IQ2_XXS is below the contract floor, and the accuracy number says so wrongly
 
