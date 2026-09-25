@@ -691,6 +691,7 @@ All five artifacts carry the same fixture, `gold_sha256 79d754e1d55c1f6e9815`.
 | IQ3_M | 11.9 GiB | 85.2 | 89.2 | +4.0 | +12/−5 | 0.143 |
 | IQ3_XXS | 10.4 GiB | 85.8 | 90.3 | +4.5 | +12/−4 | 0.077 |
 | **IQ3_M + IQ3_XXS pooled** | | **85.5** | **89.8** | **+4.3** | **+24/−9** | **0.014** |
+| *the same two rungs on nine novels* | | *92.4* | *92.6* | ***+0.3*** | *+212/−197* | ***0.489*** |
 
 **No single rung is significant and none should be quoted as if it were** — 176
 rows cannot resolve four points. Pooling the two IQ3 rungs can, and does:
@@ -951,6 +952,71 @@ At IQ3 the adapter repairs discrimination; at IQ2 it repairs the contract
 itself. **This moves the usable floor for Muse from 10.4 GiB to 7.4 GiB**, which
 changes the card-size guidance. A cross-vendor replicate is running on the
 9070 XT before that guidance is rewritten.
+
+### The pooled IQ3 gain does not replicate on the nine-novel fixture
+
+The four-book result above is **+4.3 at p = 0.014 on 352 rows**. Both rungs have
+now been run on the nine-novel PDNC fixture at 40 windows a book:
+
+| fixture / rung | n | base | adapter | delta | paired | p |
+|---|---|---|---|---|---|---|
+| gold IQ3_M (tnr-4) | 176 | 85.2 | 89.2 | +4.0 | +12/−5 | 0.143 |
+| gold IQ3_XXS (tnr-2) | 176 | 85.8 | 90.3 | +4.5 | +12/−4 | 0.077 |
+| **pooled gold** | 352 | 85.5 | 89.8 | **+4.3** | +24/−9 | **0.014** |
+| nine-novel IQ3_M (tnr-4) | 2,655 | 91.7 | 92.1 | +0.4 | +103/−92 | 0.474 |
+| nine-novel IQ3_XXS (tnr-1) | 2,655 | 93.0 | 93.2 | +0.2 | +109/−105 | 0.838 |
+| **pooled nine-novel** | **5,310** | 92.4 | 92.6 | **+0.3** | +212/−197 | **0.489** |
+
+**Fifteen times the rows and the effect is gone** — 212 improved against 197
+regressed is a coin flip. The p = 0.014 cell is now the weaker measurement and
+should not be quoted as the headline.
+
+This is not a contradiction of the ladder, it is the same mechanism seen from
+the other end. The gold base sits at 85.5 and the nine-novel base at 92.4. The
+adapter's gain tracks how far the base is below the fixture's own ceiling, so
+where the base is already at the ceiling there is nothing to repair and only the
+3.4% collateral shows. It is the same reason Q4_K_M reads −1.0 (p = 0.037).
+
+**The supportable claim is now narrower.** The adapter is unambiguously valuable
+where the base is *degraded* — IQ2_XXS +61.9, Gemma E2B +51.1, Gemma E4B +34.1 —
+and is indistinguishable from nothing where the base is healthy, which includes
+the whole nine-novel fixture at IQ3.
+
+### A fourth family, and the same shape
+
+| Gemma window25 adapter | base | adapter | delta |
+|---|---|---|---|
+| E2B | **7.4** | 58.5 | **+51.1** |
+| E4B | **33.5** | 67.6 | **+34.1** |
+| **12B** | **86.9** | 85.2 | **−1.7** |
+
+All three trained on the same 1,993 windows with the same recipe, all served
+with the thinking fix confirmed in the server logs. The 12B base holds the
+25-entry contract where E2B and E4B do not, so it has nothing to recover and the
+adapter costs it a point and a half. Four independent model families — Muse,
+Qwen3.8, A3B (once retrained) and Gemma — now show the same dose-response.
+
+The 12B was served on `ggml-org/gemma-4-12B-it-GGUF` (`general.name =
+gemma-4-12B-it`), **not** the QAT release sitting on the same box: QAT is a
+separate training run, and a LoRA applied across that gap produces a plausible
+number that means nothing.
+
+### Temperature 0 is exactly deterministic within one architecture
+
+Muse Q4_K_M gold ran on two different A6000 instances (`dlgr5prk` and
+`d2ijtkhu`), same commit `4d337725`, same build:
+
+**0 of 352 predictions differ. Not one character.**
+
+That completes the reproducibility picture and makes the cross-vendor numbers
+stronger rather than weaker — every point of drift measured between *different*
+architectures is attributable to the hardware, not to sampling:
+
+| comparison | base-arm drift |
+|---|---|
+| same architecture, same build | **0.0%, bit-identical** |
+| cross-vendor (A6000 ↔ RX 9070 XT) | 2.8 points |
+| cross-architecture (A6000 ↔ A100) | 8.0% of predictions (also prompt-confounded, §RETRACTED) |
 
 ### IQ2_XXS is below the contract floor, and the accuracy number says so wrongly
 

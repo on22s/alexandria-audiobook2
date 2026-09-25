@@ -3,9 +3,17 @@
 Every accuracy figure here is the **same measurement**: nine public-domain
 novels, 2,655 speaker-labelled rows, the `michel2_full` prompt, batch 25,
 request-level JSON schema, temperature 0, reasoning effort low, no adapter.
-Nothing is extrapolated between rows, and nothing from a different fixture is
-mixed in. Where a number does not exist yet the row says so rather than
-guessing.
+Nothing is extrapolated between rows. Where a number does not exist yet the row
+says so rather than guessing.
+
+**One exception, marked where it appears:** the 6 GB row quotes the four-book
+fixture, because **no 6 GB model has yet been measured on the nine-novel panel
+with this instrument**. The one nine-novel figure that exists for a small model
+(Qwen3-8B, 33.7%) was taken at `batch 1` with the `default` prompt — two
+variables away from every other row here, and `default` alone costs this base
+16 points. It is not comparable and is not quoted. Mixing fixtures silently is
+how a +4.3 became a +0.3 elsewhere in this project, so that row is labelled
+rather than blended in. The matching nine-novel cell is queued.
 
 ## Read this first: context length decides whether a model fits
 
@@ -30,9 +38,9 @@ not. Set it deliberately.
 | **32 GB** | RTX 5090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **24 GB** | RTX 4090, 3090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
-| **12 GB** | RTX 5070, Intel Arc B580 | Muse-Glimmer-30B **IQ3_XXS** | 10.6 GB | 92.6% | **no** (−3.6) |
-| **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | *untested here* |
-| **6 GB** | GTX 1660, RTX 2060, laptop cards | *measuring now* — Muse `Q1_0` (4.5 GB), Qwen3.8 `Q1_L` (5.7 GB) | — | — | — |
+| **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | *untested at this rung* |
+| **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | **+1.0** (89.0 → 90.0, p=0.059) |
+| **6 GB** | GTX 1660, RTX 2060, laptop cards | Qwen3-8B **Q4_K_M** | 4.7 GB | **77.0%** *(four-book, see note)* | *untested* |
 | **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
 
 **16 GB is the tier most people are on** — it covers the RTX 5080 and 5070 Ti and
@@ -41,15 +49,33 @@ Qwen3.8-27B UD-Q3_K_XL is 12.5 GB, so at `-c 8192` it lands near 13 GB with room
 to spare, scores **95.2%**, and takes the adapter to **96.0%**. Nothing above
 16 GB buys a better number; a 5090 runs the same file to the same score.
 
-**12 GB is the awkward one.** Muse IQ3_XXS at 10.6 GB is the best measured fit
-but leaves little headroom — keep `-c 8192` and do not load an adapter, which
-costs 3.6 points here anyway. Qwen3.8 UD-IQ2_XXS (6.9 GB, 88.7%) is the safe
-fallback if it will not fit. A Qwen3.8 **Q2_K_XL** (9.4 GB) cell is running now
-and may turn out to be the right answer for this tier.
+**12 GB got better.** The Qwen3.8 **Q2_K_XL** cell that was running when this
+page was written has landed: **93.7%** at **9.4 GB** — a gigabyte smaller than
+the Muse IQ3_XXS previously recommended here *and* 1.1 points ahead of it. It is
+now the answer for this tier, with real headroom at `-c 8192`.
+
+On adapters at this tier: the earlier advice cited a **−3.6** cost, but that
+figure came from the gen-3 Muse adapter, which was trained on single-entry
+examples and served with a 25-entry contract — its rows measure that mismatch,
+not the recipe (RECIPES §"The A3B adapter was trained on a different task"
+records the same defect). The corrected window25 adapter measured on this
+fixture is **+0.2 (p = 0.838)** at IQ3_XXS and **+0.4 (p = 0.474)** at IQ3_M.
+So the advice stands — *don't bother with an adapter here* — but because it does
+nothing, not because it costs you 3.6 points.
 
 **8 GB is better served than you would expect.** Qwen3.8-27B at UD-IQ2_XXS is
 6.9 GB and **88.7%** — a 27B model on an entry-level card, and 4.4 points ahead
 of a 14B at Q4_K_M that would not fit anyway.
+
+**6 GB: pick a small model that works, not a shrunken large one.** Qwen3-8B
+Q4_K_M is 4.7 GB and scores **77.0%** on the four-book fixture — the best of the
+small models, and it fits with headroom at `-c 8192`. Shrinking a big model
+instead does not work: Qwen3.8 `Q1_L` is **larger** at 5.7 GB and scores
+**30.1%** on nine novels. Muse `Q1_0` (4.5 GB) is being measured now.
+
+What is *not* yet known is how Qwen3-8B does on the harder nine-novel panel at
+this instrument — that cell is queued. Until it lands, treat 77.0% as a
+four-book number and do not assume it transfers.
 
 ### Three things that surprised us, all measured
 

@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 358,
+    "provisional": 363,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12486,6 +12486,24 @@
       "reason": "metadata present without commit identity"
     },
     {
+      "artifact": "lora_serving_eval__gemma4-12b-w25-earlyread-w20-tnr4-20260925.json",
+      "bytes": 319077,
+      "sha256": "eb5b0437f093583d049f06ba90ec9e48ac803eb0cca0d70c7398f6ed739864ba",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 352,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__gemma4-author-balanced-r16-schema-checked-20260911.json",
       "bytes": 658419,
       "sha256": "3f0f280bf9a8bd89ab2089237d214105ee91da4af14afadde64348919119ee19",
@@ -13650,6 +13668,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__muse-window25b-iq3xxs-paired-michel2_full-tnr-1h-pdnc9-20260924.json",
+      "bytes": 8880107,
+      "sha256": "8256af9369008fa2da49235f8e3a56f7d07022652510cebfd32f466cdf9a1356",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "5e905c071f5c1c4e46954e4ced2669829be1e255",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-1-20260924.json",
       "bytes": 318848,
       "sha256": "70719b0b8ebdefa89fac25e765ed4b169007119fc85f257890d0e0a1907623d3",
@@ -13671,6 +13707,24 @@
       "artifact": "lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-4-20260924.json",
       "bytes": 318752,
       "sha256": "2976bcfd10fb3cfce17d06cc17e664f527f3ed1060e67391b53868322ad46cd2",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 352,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__muse-window25b-q4km-gold-paired-michel2_full-tnr-0-20260924.json",
+      "bytes": 318716,
+      "sha256": "3979991555ea710db7434aec0615e52abb429f98ac349ab6da34f3adca48473b",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -15405,6 +15459,24 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__qwen38-27b-q1l-base-michel2_full-tnr0-pdnc9-20260924.json",
+      "bytes": 4438007,
+      "sha256": "898892cf4cdafa7501ed954031d4452bc4f3adf2690fa2892c617444354e2c36",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 2655,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "lora_serving_eval__qwen38-27b-q3-k-xl-rightsclean-michel2-adapter-tnr4-cleangold-michel2_full-reasoningon-schema-20260917.json",
       "bytes": 1362363,
       "sha256": "b4fa6bd43d47cefde4a8f7cad3956045e174b4a099c4693cb8a662782b403bb8",
@@ -15946,6 +16018,24 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-rightsclean-michel2-iq2xxs-paired-michel2_full-tnr-0-pdnc9-20260924.json",
+      "bytes": 8881350,
+      "sha256": "5521352a780459ebd94030614c6c61b9b093b1da51ddeff48c9a62651d26e525",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "lora_serving_eval__qwen38-roster-factorial-a6000-20260901.json",
