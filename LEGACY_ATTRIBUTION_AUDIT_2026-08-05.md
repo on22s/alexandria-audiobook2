@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 362 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 363 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 250
+- `exploratory`: 251
 - `historical_only`: 58
 - `provisional`: 11
 - `supported_measurement`: 43
@@ -276,6 +276,7 @@ All 362 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen38-27b-iq2-xxs-rightsclean-michel2-adapter-tnr4-cleangold-michel2_full-reasoningon-schema-20260917.json` | lora_serving_eval | exploratory | 1536 | 0 | 766 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-iq2-xxs-rightsclean-michel2-adapter-tnr4-pdnc2lite-michel2_full-reasoningon-schema-20260917.json` | lora_serving_eval | exploratory | 1326 | 0 | 690 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-iq2xxs-michel2_full-tnr2-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen38-27b-q1l-base-michel2_full-tnr0-pdnc9-20260924.json` | lora_serving_eval | exploratory | 2655 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q3-k-xl-rightsclean-michel2-adapter-tnr4-cleangold-michel2_full-reasoningon-schema-20260917.json` | lora_serving_eval | exploratory | 1536 | 0 | 766 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q3-k-xl-rightsclean-michel2-adapter-tnr4-pdnc2lite-michel2_full-reasoningon-schema-20260917.json` | lora_serving_eval | exploratory | 1326 | 0 | 690 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen38-27b-q3kxl-michel2_full-tnr2-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |

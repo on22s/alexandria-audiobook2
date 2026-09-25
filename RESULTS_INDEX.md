@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-25 from `ab_test_runtime/experiments/` — 1775 artifacts, 2730 arms.
+Generated 2026-09-25 from `ab_test_runtime/experiments/` — 1776 artifacts, 2739 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1906,6 +1906,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_emma | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 318 | 82.7% | exploratory | ok | True | 3755.0s |
 | pdnc_emma | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 318 | 95.3% | exploratory | ok | True | 3705.3s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 318 | 91.2% | exploratory | ok | True | 6000.6s |
+| pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 318 | 26.4% | exploratory | ok | True | 44060.3s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 318 | 99.4% | exploratory | ok | True | 5943.7s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 318 | 99.1% | exploratory | ok | True | 2788.1s |
 | pdnc_emma | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 318 | 99.7% | exploratory | ok | True | 7247.4s |
@@ -1970,6 +1971,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_mansfieldpark | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 271 | 89.3% | exploratory | ok | True | 23199.7s |
 | pdnc_mansfieldpark | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 271 | 88.9% | exploratory | ok | True | 15210.3s |
 | pdnc_mansfieldpark | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 271 | 62.7% | exploratory | ok | True | 15210.3s |
+| pdnc_mansfieldpark | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 271 | 31.0% | exploratory | ok | True | 44060.3s |
 | pdnc_mansfieldpark | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 734 | 36.2% | exploratory | ok | True | 100765.6s |
 | pdnc_mansfieldpark | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 271 | 81.9% | exploratory | ok | True | 27420.0s |
 | pdnc_mansfieldpark | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 271 | 88.2% | exploratory | ok | True | 27420.0s |
@@ -2025,6 +2027,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_northangerabbey | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 409 | 97.3% | exploratory | ok | True | 23199.7s |
 | pdnc_northangerabbey | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 409 | 90.7% | exploratory | ok | True | 15210.3s |
 | pdnc_northangerabbey | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 409 | 25.9% | exploratory | ok | True | 15210.3s |
+| pdnc_northangerabbey | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 409 | 33.0% | exploratory | ok | True | 44060.3s |
 | pdnc_northangerabbey | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 672 | 46.6% | exploratory | ok | True | 100765.6s |
 | pdnc_northangerabbey | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 409 | 91.4% | exploratory | ok | True | 27420.0s |
 | pdnc_northangerabbey | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 409 | 90.7% | exploratory | ok | True | 27420.0s |
@@ -2080,6 +2083,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_persuasion | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 219 | 94.5% | exploratory | ok | True | 23199.7s |
 | pdnc_persuasion | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 219 | 95.9% | exploratory | ok | True | 15210.3s |
 | pdnc_persuasion | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 219 | 71.7% | exploratory | ok | True | 15210.3s |
+| pdnc_persuasion | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 219 | 47.9% | exploratory | ok | True | 44060.3s |
 | pdnc_persuasion | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 309 | 44.3% | exploratory | ok | True | 100765.6s |
 | pdnc_persuasion | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 219 | 89.5% | exploratory | ok | True | 27420.0s |
 | pdnc_persuasion | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 219 | 91.3% | exploratory | ok | True | 27420.0s |
@@ -2134,6 +2138,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_prideandprejudice | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 296 | 93.2% | exploratory | ok | True | 23199.7s |
 | pdnc_prideandprejudice | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 296 | 92.6% | exploratory | ok | True | 15210.3s |
 | pdnc_prideandprejudice | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 296 | 87.8% | exploratory | ok | True | 15210.3s |
+| pdnc_prideandprejudice | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 296 | 24.3% | exploratory | ok | True | 44060.3s |
 | pdnc_prideandprejudice | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 836 | 40.4% | exploratory | ok | True | 100765.6s |
 | pdnc_prideandprejudice | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 296 | 88.9% | exploratory | ok | True | 27420.0s |
 | pdnc_prideandprejudice | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 296 | 88.9% | exploratory | ok | True | 27420.0s |
@@ -2188,6 +2193,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_senseandsensibility | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 223 | 96.0% | exploratory | ok | True | 23199.7s |
 | pdnc_senseandsensibility | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 223 | 96.0% | exploratory | ok | True | 15210.3s |
 | pdnc_senseandsensibility | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 223 | 73.5% | exploratory | ok | True | 15210.3s |
+| pdnc_senseandsensibility | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 223 | 48.9% | exploratory | ok | True | 44060.3s |
 | pdnc_senseandsensibility | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 609 | 42.9% | exploratory | ok | True | 100765.6s |
 | pdnc_senseandsensibility | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 223 | 93.3% | exploratory | ok | True | 27420.0s |
 | pdnc_senseandsensibility | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 223 | 93.7% | exploratory | ok | True | 27420.0s |
@@ -2242,6 +2248,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_theawakening | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 290 | 93.4% | exploratory | ok | True | 23199.7s |
 | pdnc_theawakening | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 290 | 95.5% | exploratory | ok | True | 15210.3s |
 | pdnc_theawakening | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 290 | 93.1% | exploratory | ok | True | 15210.3s |
+| pdnc_theawakening | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 290 | 41.7% | exploratory | ok | True | 44060.3s |
 | pdnc_theawakening | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 415 | 47.2% | exploratory | ok | True | 100765.6s |
 | pdnc_theawakening | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 290 | 91.7% | exploratory | ok | True | 27420.0s |
 | pdnc_theawakening | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 290 | 92.8% | exploratory | ok | True | 27420.0s |
@@ -2297,6 +2304,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_thesignofthefour | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 16384 | base | 284 | 82.0% | exploratory | ok | True | 23199.7s |
 | pdnc_thesignofthefour | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | base | 284 | 84.5% | exploratory | ok | True | 15210.3s |
 | pdnc_thesignofthefour | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 284 | 82.4% | exploratory | ok | True | 15210.3s |
+| pdnc_thesignofthefour | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 284 | 0.0% | exploratory | ok | True | 44060.3s |
 | pdnc_thesignofthefour | qwen35-9b-small6 | local-lmstudio | lmstudio | 4096 | base | 353 | 44.8% | exploratory | ok | True | 100765.6s |
 | pdnc_thesignofthefour | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | base | 284 | 91.9% | exploratory | ok | True | 27420.0s |
 | pdnc_thesignofthefour | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 284 | 92.6% | exploratory | ok | True | 27420.0s |
@@ -2355,6 +2363,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_thesunalsorises | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 345 | 72.8% | exploratory | ok | True | 3755.0s |
 | pdnc_thesunalsorises | qwen3.6-35b-a3b | local-lmstudio | lmstudio | 32768 | lora | 345 | 81.4% | exploratory | ok | True | 3705.3s |
 | pdnc_thesunalsorises | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 345 | 82.3% | exploratory | ok | True | 6000.6s |
+| pdnc_thesunalsorises | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 345 | 26.1% | exploratory | ok | True | 44060.3s |
 | pdnc_thesunalsorises | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 345 | 87.5% | exploratory | ok | True | 5943.7s |
 | pdnc_thesunalsorises | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 345 | 83.8% | exploratory | ok | True | 2788.1s |
 | pdnc_thesunalsorises | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 345 | 93.3% | exploratory | ok | True | 7247.4s |
