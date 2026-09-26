@@ -43,6 +43,8 @@ def _sha256_file(path):
             return hashlib.sha256(fh.read()).hexdigest()[:16]
     except OSError as exc:
         return f"<unreadable: {exc.strerror}>"
+
+
 sys.path.insert(0, APP)
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord, strict_shared_summary
@@ -50,6 +52,10 @@ from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
 from generate_script import LLMGenParams
+# This module lives at app/attribution_prompt_variants.py in this tree; the
+# probe checkouts keep a copy under app/experiments/. Importing by bare name
+# matches how every other test and caller here reaches it.
+from attribution_prompt_variants import make_provider
 from three_pass_generate import (PassExhausted, attribute_batch, build_roster,
                                  get_deterministic_named_entry)
 
@@ -87,6 +93,26 @@ def bind_last_attempt(entries, size):
 
 def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
+
+
+def mentioned_roster(roster, groups, texts, carried=(), cap=30):
+    """-> the roster names attested (by name or alias) in `texts`, plus
+    `carried` (the previous window's attributed speakers), in roster order,
+    capped. XinchaoGou/alexandria-audiobook's related_context() builds its
+    roster this way for serial novels - string match on the chunk, not
+    embeddings, plus the previous chapter's cast - and it is a cheap attack on
+    the usual-suspect prior: a lead who is not on the page is not offered."""
+    hay = norm(" ".join(t or "" for t in texts))
+    forms = {}
+    for name in roster:
+        key = norm(name)
+        forms[name] = {key} | {a for g in groups if key in g for a in g}
+    kept = [name for name in roster
+            if any(f and f in hay for f in forms[name])]
+    for name in carried:
+        if name in roster and name not in kept:
+            kept.append(name)
+    return kept[:cap]
 
 
 def set_adapter_scale(base_url, scale):
@@ -127,27 +153,56 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
-    # Every gold fixture carries its cast in "roster". Only some also carry a
-    # duplicate of it under "roster_additions", and until 2026-09-26 this line
-    # read ONLY the duplicate -- so a fixture without one yielded an empty
-    # roster, the model was shown no candidates, and the arm still reported a
-    # normal-looking accuracy. That is the state of the committed nine-novel
-    # fixtures: checked on all 8 that main carries, "roster" and
-    # "roster_additions.names" hold the identical names, so the boxes were
-    # running on uncommitted files that merely added the duplicate. A fresh
-    # clone could not reproduce any nine-novel result.
-    #
-    # Preferring "roster_additions" when present keeps every existing arm
-    # byte-identical; the fallback only turns an empty roster into the right
-    # one.
+    # Same fallback as PR #670 on main. Every gold fixture carries its cast in
+    # "roster"; only some also duplicate it under "roster_additions", and this
+    # line used to read ONLY the duplicate -- so this machine's regenerated
+    # nine-novel fixtures resolved to an EMPTY roster and would have scored
+    # every row against no candidates while reporting a plausible accuracy.
+    # Preferring the duplicate when present keeps existing arms byte-identical.
     extra = ((gold.get("roster_additions") or {}).get("names")
              or gold.get("roster") or [])
     roster = sorted(set(roster) | {n.upper() for n in extra})
+    if gold.get("roster_additions", {}).get("attest_in_source"):
+        # PDNC fixtures name characters the way the corpus does ("A WAITER",
+        # "THE COUNT"), which the text only ever writes in lower case, so the
+        # production speaker-attestation gate (pass_quality.is_attested_name)
+        # rejects a correct answer and burns every retry. The corpus cast list
+        # is the roster the model is shown and the gold defines correctness,
+        # so the gate is switched off for these books: a wrong name simply
+        # scores wrong. Recorded in the artifact's environment notes.
+        src = None
     occ = collections.Counter(norm(e.get("text")) for e in seg)
     want = {norm(g["line"]): g for g in gold["entries"]
             if occ[norm(g["line"])] == 1
             and g["expected_speaker"].upper() not in SPECIAL}
     return gold, src, seg, roster, want
+
+
+def window_surround(seg, win, send, chars):
+    """The window as the model could see it whole: every entry of the window
+    in order, sent entries carrying their frozen index `n` (unsent narration
+    carries None), plus up to `chars` characters of segmented text before and
+    after the window. The harness otherwise shows a line only its +-1
+    neighbours; Michel et al. attribute inside 4,096-token chunks of the
+    complete text and every context-size ablation found (2025-26) says the
+    surrounding text is where the accuracy is."""
+    pos = {i: n for n, i in enumerate(send)}
+    entries = [{"type": seg[i]["type"], "text": seg[i]["text"], "n": pos.get(i)} for i in win]
+
+    def gather(indices, take_from_end):
+        out, total = [], 0
+        for i in indices:
+            t = seg[i].get("text") or ""
+            if seg[i].get("type") == "SPOKEN":
+                t = f"\u201c{t}\u201d"   # the segmenter strips quote marks; put them back as evidence
+            if total + len(t) > chars:
+                break
+            out.append(t)
+            total += len(t) + 1
+        return " ".join(reversed(out) if take_from_end else out)
+    before = gather(range(win[0] - 1, -1, -1), True) if win and win[0] else ""
+    after = gather(range(win[-1] + 1, len(seg)), False) if win else ""
+    return {"entries": entries, "before": before, "after": after}
 
 
 def make_windows(n, batch, cuts=()):
@@ -208,12 +263,35 @@ def main():
                          "/lora-adapters state")
     ap.add_argument("--batch-size", type=int, default=BATCH,
                     help="segmented entries per attribution request")
+    ap.add_argument("--window-limit", type=int, default=0,
+                    help="score at most this many evenly spaced windows per book (0 = all)")
+    ap.add_argument("--surround-chars", type=int, default=2000,
+                    help="characters of segmented text before and after the window "
+                         "handed to prompt variants that show the whole passage")
     ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS,
                     help="completion budget per request before escalation "
                          "(default: the product's own)")
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
+    ap.add_argument("--prompt-variant", default="default",
+                    help="attribution_prompt_variants.VARIANTS: how the question is asked; "
+                         "the output contract and gates are unchanged")
+    ap.add_argument("--temperature", type=float, default=0.0,
+                    help="attribution sampling temperature; 0 is the product's (deterministic). "
+                         "Qwen3.5/3.6 thinking mode documents greedy decoding as degrading "
+                         "and looping, so those arms pass the model card's value")
+    ap.add_argument("--keep-traces", action="store_true",
+                    help="store each window's reasoning trace (message.reasoning_content) "
+                         "on its rows, to compare how base and adapter reason")
+    ap.add_argument("--api-key-env", default=None,
+                    help="environment variable holding the API key for a hosted endpoint")
+    ap.add_argument("--provider-extra-body", default=None,
+                    help='JSON merged into every request body, e.g. \'{"thinking":{"type":"disabled"}}\'')
+    ap.add_argument("--roster-mode", default="full", choices=("full", "mentioned"),
+                    help="full: the established roster on every window (the product); "
+                         "mentioned: only names attested in this or the previous window's "
+                         "text, plus the previous window's attributed speakers, cap 30")
     ap.add_argument("--structured-output", default="auto", choices=("auto", "off"),
                     help="request-level JSON schema on attribution calls "
                          "(the product default is auto)")
@@ -246,11 +324,19 @@ def main():
     if args.batch_size < 1:
         ap.error("--batch-size must be at least 1")
 
-    client = OpenAI(base_url=args.base_url, api_key="local")
+    # A hosted API needs a key and, for DeepSeek, the thinking switch in the
+    # request body; a local llama-server needs neither. ConfiguredOpenAI is
+    # the product's own wrapper, so the extra body merges exactly as it does
+    # for a profile's provider_extra_body.
+    api_key = os.environ.get(args.api_key_env, "local") if args.api_key_env else "local"
+    client = OpenAI(base_url=args.base_url, api_key=api_key)
+    if args.provider_extra_body:
+        from llm_provider import ConfiguredOpenAI
+        client = ConfiguredOpenAI(client, json.loads(args.provider_extra_body))
     if args.max_tokens < 1:
         ap.error("--max-tokens must be at least 1")
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
-                          temperature=0.0, attribute_temperature=0.0,
+                          temperature=args.temperature, attribute_temperature=args.temperature,
                           top_p=0.8,
                           reasoning_effort=args.reasoning_effort,
                           structured_output=args.structured_output)
@@ -261,6 +347,12 @@ def main():
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
+    decoding["prompt_variant"] = args.prompt_variant
+    decoding["window_limit"] = args.window_limit
+    decoding["roster_mode"] = args.roster_mode
+    decoding["temperature"] = args.temperature
+    decoding["keep_traces"] = args.keep_traces
+    decoding["provider_extra_body"] = args.provider_extra_body
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -276,6 +368,8 @@ def main():
         gold, src, seg, roster, want = load_book(
             book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
+        provider = (None if args.prompt_variant == "default" else
+                    make_provider(args.prompt_variant, [[n.upper() for n in g] for g in groups]))
         # What `in_candidates` is tested against: the names these roster
         # lines stand for, per ExperimentRecord.add's contract. The roster
         # itself is still what the model is SHOWN.
@@ -284,6 +378,12 @@ def main():
                                cuts.get(book, {}).get(args.cut_arm, ()))
         windows = [w for w in windows
                    if any(norm(seg[i].get("text")) in want for i in w)]
+        if args.window_limit and len(windows) > args.window_limit:
+            # breadth over depth: the same number of windows from every book,
+            # evenly spaced through it, so a nine-novel fixture costs what a
+            # four-novel one does and no single long book dominates
+            step = len(windows) / args.window_limit
+            windows = [windows[int(k * step)] for k in range(args.window_limit)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "
               f"{len(windows)} windows", flush=True)
         # An empty roster is never a legitimate measurement: the model is shown
@@ -333,6 +433,7 @@ def main():
             # actually violated.
             projected_at = max(4, len(windows) // 10)
             warned_projection = False
+            carried = []
             for k, win in enumerate(windows, 1):
                 if k == projected_at and not warned_projection:
                     warned_projection = True
@@ -358,6 +459,18 @@ def main():
                             f"--max-hours.")
                 send = [i for i in win
                         if get_deterministic_named_entry(seg[i]) is None]
+                if args.roster_mode == "mentioned":
+                    prev = windows[k - 2] if k >= 2 else []
+                    shown_roster = mentioned_roster(
+                        roster, groups,
+                        [seg[i].get("text") for i in list(prev) + list(win)], carried)
+                else:
+                    shown_roster = roster
+                # What the model was SHOWN is what in_candidates must mean
+                # (scoring.roster_membership_names): a restricted roster that
+                # dropped the gold speaker is recorded as such, not hidden
+                # behind the full roster's membership.
+                membership = roster_membership_names(shown_roster, groups)
                 rows = [i for i in send if norm(seg[i].get("text")) in want]
                 if not rows:
                     continue
@@ -371,11 +484,18 @@ def main():
                 ctx = [{"previous_context": seg[i - 1] if i else None,
                         "next_context": seg[i + 1] if i + 1 < len(seg) else None}
                        for i in send]
+                surround = window_surround(seg, win, send, args.surround_chars)
                 why = f"{arm}|scale={scale}"
+                traces = []
+                observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
+                            if args.keep_traces else None)
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
-                                          roster, neighbor_contexts=ctx,
-                                          source_text=src)
+                                          shown_roster, neighbor_contexts=ctx,
+                                          source_text=src,
+                                          entries_provider=provider,
+                                          attempt_observer=observer,
+                                          surround=surround)
                 except PassExhausted as exc:
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.
@@ -396,6 +516,9 @@ def main():
                                        False, candidates=membership,
                                        provenance=f"{arm}|batch_failed")
                     continue
+                carried = sorted({str((o or {}).get("speaker") or "").upper()
+                                  for o in (out or []) if (o or {}).get("speaker")}
+                                 & set(roster))
                 for off, i in enumerate(send):
                     key = norm(seg[i].get("text"))
                     if key not in want:
@@ -410,7 +533,9 @@ def main():
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown; see distill_eval.
                                candidates=membership,
-                               provenance=why)
+                               provenance=why,
+                               reasoning=(next((t for t in reversed(traces) if t), None)
+                                          if args.keep_traces else None))
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
             arm_rows = [r for r in record.rows
