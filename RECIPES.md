@@ -1001,6 +1001,128 @@ gemma-4-12B-it`), **not** the QAT release sitting on the same box: QAT is a
 separate training run, and a LoRA applied across that gap produces a plausible
 number that means nothing.
 
+### The adapter does two separable things, and only one of them is broken
+
+The dose-response above is not a property of the adapter. It is two constants
+doing arithmetic, and separating them says where training effort should go.
+
+Across **15 paired serving cells** spanning base accuracy 15.9% to 94.6% — four
+model families, five quant rungs, three GPU architectures, both fixtures — score
+each arm not by net accuracy but by what it does to the two populations the base
+hands it:
+
+- **repair** — of the rows the base got WRONG, what fraction does the adapter fix?
+- **collateral** — of the rows the base got RIGHT, what fraction does it break?
+
+| | mean | sd | correlation with base accuracy |
+|---|---:|---:|---:|
+| **repair** (% of the base's errors fixed) | **44.8%** | 12.0 | **−0.670** |
+| **collateral** (% of the base's correct rows broken) | **3.9%** | 1.1 | **+0.067** |
+
+**Collateral does not track base health at all.** It is a flat tax of about 3.9%
+charged whether the base is at 16% or 95%, whether the adapter is repairing two
+rows or a hundred and ten. Repair is doing its job — it scales with how much
+there is to fix. So:
+
+```
+net = 0.448 × (100 − base) − 0.039 × base        crossover at base = 92.0%
+```
+
+| base | predicted | observed |
+|---:|---:|---:|
+| 94.6 | −1.27 | −0.98 |
+| 93.0 | −0.49 | +0.15 |
+| 91.7 | +0.15 | +0.41 |
+| 87.5 | +2.19 | +1.14 |
+| 85.2 | +3.31 | +3.98 |
+
+**This is why every training change so far has come back flat.** More data, more
+epochs, harder examples, roster weighting — all of them target repair, which is
+already at 45% against a ceiling set by genuine ambiguity. Collateral has never
+been targeted and its floor is provably zero:
+
+| change | crossover | net at base 93 |
+|---|---:|---:|
+| today | 92.0% | −0.49 |
+| repair 45% → 65% *(a 45% relative gain; hard)* | 94.3% | +0.92 |
+| collateral 3.9% → 2.0% | **95.7%** | **+1.28** |
+
+Per *relative* unit the two have equal leverage on the crossover (1.0×, not the
+7× first claimed here before the arithmetic was done). The asymmetry is
+**headroom**, not leverage.
+
+#### Collateral is systematic, so it is trainable
+
+It is not random damage. Taking the three nine-novel Muse cells, the rows broken
+in one cell are **12–17× enriched** among the rows broken in another, against
+the rate expected if each cell broke rows independently — and that holds across
+different quant rungs, different GPU architectures *and* different pass-2 prompt
+revisions. **65 rows break in ≥2 of the 3 cells; 15 break in all three.**
+
+#### The mechanism is a one-turn lag in alternating dialogue
+
+Of the 105 collateral rows in the IQ3_XXS nine-novel cell, **41.9% are the
+speaker of an ADJACENT gold line**, against a ~3.5% chance baseline at the
+median roster size of 57. It is asymmetric — **34.3% the previous line's
+speaker, 7.6% the next** — so the adapter *lags*: it attributes a line to
+whoever spoke before it. JAKE BARNES ↔ BRETT ASHLEY, THE WIFE ↔ THE HUSBAND.
+
+Not a contract failure, not an off-roster hallucination, not the roster-line
+echo of §Prompt. The right name is in the roster and the base picks it; the
+adapter moves it one turn.
+
+It partly propagates: collateral runs have mean length **1.544** against a
+within-book shuffled null of 1.069 (95th percentile 1.117), including two runs
+of 9 consecutive rows that look like a whole window flipping parity. But **52 of
+68 runs are singletons**, so boundary anchoring alone would address a minority
+of it — which is why the first countermeasure queued is a loss-side one rather
+than a change to the window renderer.
+
+**It is not a data bug.** Checked before blaming the renderer: **0 of the 1,993
+training windows have misaligned indices**, and `n` runs 0..24 matching the
+prompt marks exactly. Cross-entropy simply cannot see this failure — it is
+already told the right answer on the ~93% the base gets right, and the adapter
+drifts on them anyway, because the gradient that repairs the other 7% perturbs
+them too. Nothing in the loss costs anything for moving a correct answer.
+
+#### The per-cell numbers
+
+| cell | n | base | repaired | collateral | repair % of errors | collateral % of correct | net |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `muse-window25b-iq2xxs-nani-gold-tnr-2-20260924` | 176 | 15.9 | 110 | 1 | **74.3%** | **3.6%** | +61.93 |
+| `muse-window25b-iq3m-mentionedroster-tnr-4r-pdnc9-20260` | 2655 | 62.6 | 534 | 75 | **53.7%** | **4.5%** | +17.29 |
+| `muse-window25b-iq3m-gold-tnr-4-20260924` | 176 | 85.2 | 12 | 5 | **46.2%** | **3.3%** | +3.98 |
+| `muse-window25b-iq3xxs-gold-tnr-2-20260924` | 176 | 85.8 | 12 | 4 | **48.0%** | **2.6%** | +4.55 |
+| `muse-window25b-q2kxl-gold-tnr-0q-20260924` | 176 | 87.5 | 6 | 4 | **27.3%** | **2.6%** | +1.14 |
+| `muse-window25b-q3kxl-gold-tnr-4-20260924` | 176 | 88.6 | 9 | 6 | **45.0%** | **3.8%** | +1.70 |
+| `muse-window25b-iq3xxs-gold-local9070xt-20260925` | 176 | 88.6 | 7 | 5 | **35.0%** | **3.2%** | +1.14 |
+| `qwen38-rightsclean-michel2-iq2xxs-tnr-0-pdnc9-20260924` | 2655 | 89.0 | 125 | 99 | **43.0%** | **4.2%** | +0.98 |
+| `muse-window25b-q3kxl-gold-tnr-1-20260924` | 176 | 90.3 | 6 | 5 | **35.3%** | **3.1%** | +0.57 |
+| `muse-window25b-q4km-gold-tnr-4-20260924` | 176 | 90.9 | 5 | 10 | **31.2%** | **6.2%** | -2.84 |
+| `muse-window25b-q4km-gold-tnr-0-20260924` | 176 | 90.9 | 5 | 10 | **31.2%** | **6.2%** | -2.84 |
+| `muse-window25b-iq3m-tnr-4-pdnc9-20260924` | 2655 | 91.7 | 103 | 92 | **46.6%** | **3.8%** | +0.41 |
+| `muse-window25b-iq3xxs-tnr-1h-pdnc9-20260924` | 2655 | 93.0 | 109 | 105 | **58.9%** | **4.3%** | +0.15 |
+| `qwen38-rightsclean-michel2-q2kxl-tnr-0q-pdnc9-20260924` | 2655 | 93.7 | 94 | 88 | **56.0%** | **3.5%** | +0.23 |
+| `muse-window25b-q4km-tnr-0-pdnc9-20260924` | 2655 | 94.6 | 59 | 85 | **41.0%** | **3.4%** | -0.98 |
+
+Read the two Q4_K_M gold rows as one measurement: they are the same cell on two
+A6000 instances and are bit-identical, per §"Temperature 0 is exactly
+deterministic within one architecture".
+
+**Score every future adapter arm this way.** Net accuracy is the difference of
+two similar rates and hides both of them: at IQ3_XXS it reads +0.2 while the
+adapter is repairing 109 rows and destroying 105. On the nine-novel fixture a
+27% relative collateral cut (105 → 77) reaches p<0.05; net accuracy needs +1.1
+points, which even a 40% collateral cut does not deliver.
+
+On the four-book gold fixture, at its observed discordant rate, nothing smaller
+than **+4.5 points** is resolvable at all (n=176, ~10 discordant pairs, 8 net
+rows needed). That retrospectively explains the retraction in §"The pooled IQ3
+gain does not replicate": the celebrated pooled gold **+4.3 at p = 0.014** sat
+essentially AT that fixture's detection floor. It did not fail to replicate — a
+fixture that can only resolve large effects will only ever report large effects,
+so it was never able to measure something small.
+
 ### Temperature 0 is exactly deterministic within one architecture
 
 Muse Q4_K_M gold ran on two different A6000 instances (`dlgr5prk` and
