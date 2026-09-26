@@ -1113,6 +1113,21 @@
     "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_an_arm_that_does_not_predict_is_left_alone",
     "tests.test_empty_predictions_are_rejected.EmptyPredictions.test_one_real_prediction_is_enough_to_pass"
   ],
+  "test_empty_roster_guard": [
+    "tests.test_empty_roster_guard.EmptyRosterGuardTest.test_min_roster_defaults_to_refusing_an_empty_roster",
+    "tests.test_empty_roster_guard.EmptyRosterGuardTest.test_sha256_helper_survives_a_missing_file",
+    "tests.test_empty_roster_guard.EmptyRosterGuardTest.test_the_refusal_is_fatal_not_a_warning",
+    "tests.test_empty_roster_guard.EmptyRosterGuardTest.test_the_refusal_names_the_fixture_and_its_hash",
+    "tests.test_empty_roster_guard.ProjectionGuardTest.test_futility_signal_does_not_separate_good_from_futile",
+    "tests.test_empty_roster_guard.ProjectionGuardTest.test_projection_happens_early_not_at_the_end",
+    "tests.test_empty_roster_guard.ProjectionGuardTest.test_projection_reports_by_default_and_never_stops",
+    "tests.test_empty_roster_guard.ProjectionGuardTest.test_stopping_says_it_is_resumable",
+    "tests.test_empty_roster_guard.RosterFallbackTest.test_every_committed_nine_novel_fixture_yields_a_roster",
+    "tests.test_empty_roster_guard.RosterFallbackTest.test_falls_back_only_when_additions_are_absent_or_empty",
+    "tests.test_empty_roster_guard.RosterFallbackTest.test_load_book_uses_the_fallback",
+    "tests.test_empty_roster_guard.RosterFallbackTest.test_no_roster_anywhere_still_yields_empty_for_the_guard_to_catch",
+    "tests.test_empty_roster_guard.RosterFallbackTest.test_roster_additions_still_wins_when_present"
+  ],
   "test_ensure_llama_server_default": [
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
