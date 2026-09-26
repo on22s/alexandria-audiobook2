@@ -38,7 +38,7 @@ not. Set it deliberately.
 | **32 GB** | RTX 5090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **24 GB** | RTX 4090, 3090 | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
-| **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | *untested at this rung* |
+| **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | **+0.2** (93.7 → 93.9, p=0.711) |
 | **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | **+1.0** (89.0 → 90.0, p=0.059) |
 | **6 GB** | GTX 1660, RTX 2060, laptop cards | Qwen3-8B **Q4_K_M** | 4.7 GB | **77.0%** *(four-book, see note)* | *untested* |
 | **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
@@ -59,9 +59,12 @@ figure came from the gen-3 Muse adapter, which was trained on single-entry
 examples and served with a 25-entry contract — its rows measure that mismatch,
 not the recipe (RECIPES §"The A3B adapter was trained on a different task"
 records the same defect). The corrected window25 adapter measured on this
-fixture is **+0.2 (p = 0.838)** at IQ3_XXS and **+0.4 (p = 0.474)** at IQ3_M.
-So the advice stands — *don't bother with an adapter here* — but because it does
-nothing, not because it costs you 3.6 points.
+fixture is **+0.2 (p = 0.838)** at IQ3_XXS, **+0.4 (p = 0.474)** at IQ3_M, and
+**+0.2 (p = 0.711)** at the Q2_K_XL now recommended here — six rows out of 2,655,
+94 improved against 88 regressed. Dropping *The Sun Also Rises*, which is in the
+adapter's own training set, turns that into **−0.6 (p = 0.268)** across the eight
+genuinely held-out novels. So the advice stands — *don't bother with an adapter
+here* — but because it does nothing, not because it costs you 3.6 points.
 
 **8 GB is better served than you would expect.** Qwen3.8-27B at UD-IQ2_XXS is
 6.9 GB and **88.7%** — a 27B model on an entry-level card, and 4.4 points ahead
@@ -100,11 +103,12 @@ cost rather than a gentle slope.
 This tier matters — plenty of working cards are 6 GB, and it is where the app's
 users actually hit problems first.
 
-Two local candidates are being measured on the nine-novel fixture right now:
-Muse **Q1_0** (4.5 GB) and Qwen3.8 **Q1_L** (5.7 GB). Both fit a 6 GB card at
-`-c 8192`. Neither has a number yet, and a guess here would be worse than a
-blank, so this row stays empty until they land — at which point it gets a real
-recommendation like every other tier.
+Two local candidates were measured on the nine-novel fixture to see whether a
+shrunken large model beats a small one here. Qwen3.8 **Q1_L** (5.7 GB) has
+landed at **30.1%** — it is both *larger* than the Qwen3-8B Q4_K_M recommended
+above and less than half as accurate, so squeezing the 27B down to 1 bit is not
+the move at this tier. Muse **Q1_0** (4.5 GB) is still running. Both fit a 6 GB
+card at `-c 8192`; fitting was never the problem.
 
 **Context length matters more at 6 GB than anywhere else.** The product prompt's
 longest window is 5,966 tokens, so `-c 8192` is sufficient — and the measured
@@ -208,9 +212,15 @@ A concrete illustration of getting this wrong: a nine-novel panel run with the
 
 ## Not yet measured
 
-- **6 GB cards.** Muse `Q1_0` (4.5 GB) and Qwen3.8 `Q1_L` (5.7 GB) are queued.
-  Until those land there is no honest recommendation for this tier.
-- **Muse below IQ3_XXS.** `IQ2_XXS` (7.4 GB) is queued.
+- **6 GB cards.** Qwen3.8 `Q1_L` (5.7 GB) has landed and is not the answer:
+  **30.1%** on nine novels, larger than the Q4_K_M 8B that beats it. Muse
+  `Q1_0` (4.5 GB) is still being measured. The tier's recommendation remains
+  Qwen3-8B Q4_K_M.
+- **Muse below IQ3_XXS.** `IQ2_XXS` (7.4 GB) has landed and is below the JSON
+  contract floor: **1.1%** on nine novels, with 2,613 of 2,655 predictions the
+  empty string. It is not a weak score, it is an absent one — do not run it
+  base-only. The adapter rescues it to 77.8% on gold (+61.9), which is the one
+  rung where an adapter is load-bearing rather than optional.
 - **Adapters.** Every row above is base-only. Adapters are measured separately
   and are only worth loading at the rungs where they are measured to help; see
   [Prompts and adapters](Prompts-and-Adapters).
