@@ -1191,6 +1191,28 @@ Two lessons, both recorded rather than fixed here:
   architecture". It can only show whether the Pride and Prejudice failure was
   transient.
 
+#### Training the adapter in 4-bit does not cut collateral (2026-09-26)
+
+`muse-qlora4bit-window25` — the window25b recipe with `--load_in_4bit`, nothing
+else changed — served at IQ3_XXS on the nine novels, tnr-1 A100, #619/#623
+prompt. Its base arm matches the bf16 window25b cell on the same box on **all
+2,655 rows**, so the two adapters are compared on identical ground:
+
+| adapter @ IQ3_XXS, tnr-1 | net | repaired | collateral (% of correct) | blank |
+|---|---:|---:|---:|---:|
+| bf16 window25b | +0.15 (p=0.84) | 109 (58.9%) | 105 (4.25%) | 5 |
+| qlora4bit | +0.26 (p=0.65) | 93 (50.3%) | **86 (3.48%)** | 0 |
+
+Collateral fell 18% (105 → 86) but not significantly: on the 2,470 rows both
+bases got right, 50 broke only under qlora4bit and 69 only under bf16, p=0.099 —
+short of the ~27% cut this fixture needs. Repair fell by about as much, so net
+did not move. Read it as the adapter moving answers less overall, not moving
+them more carefully. Only 36 of the two adapters' broken rows are shared, so
+two retrains of one recipe already differ by about this much — which is the
+bar the KL-to-base adapter has to clear.
+
+Artifact: `cloud_pull_20260926/lora_serving_eval__muse-qlora4bit-window25-iq3xxs-paired-michel2_full-tnr-1-pdnc9-20260926.json`.
+
 
 **Score every future adapter arm this way.** Net accuracy is the difference of
 two similar rates and hides both of them: at IQ3_XXS it reads +0.2 while the
