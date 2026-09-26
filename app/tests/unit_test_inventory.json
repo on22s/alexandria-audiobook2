@@ -2258,6 +2258,14 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_runs_of_marks_collapse",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
   ],
+  "test_one_serving_harness": [
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_defaults_preserve_pre_merge_behaviour",
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_every_flag_the_experiments_use_is_present",
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_help_actually_runs",
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_keep_traces_is_opt_in",
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_prompt_variants_import_resolves_in_this_tree",
+    "tests.test_one_serving_harness.OneServingHarnessTest.test_the_670_guards_survived_the_merge"
+  ],
   "test_pair_e_row": [
     "tests.test_pair_e_row.CompletenessTest.test_an_explicit_partial_status_is_believed",
     "tests.test_pair_e_row.CompletenessTest.test_counts_decide_when_the_status_field_is_absent",
