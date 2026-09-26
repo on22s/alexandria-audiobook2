@@ -3745,6 +3745,16 @@
     "tests.test_ui_review_fixes.FrontendGuards.test_dataset_delete_checks_the_response",
     "tests.test_ui_review_fixes.FrontendGuards.test_every_localstorage_access_is_wrapped"
   ],
+  "test_unanswered_records_its_cause": [
+    "tests.test_unanswered_records_its_cause.MainUsesTheTagOnEveryFailurePath.test_both_except_branches_set_the_tag",
+    "tests.test_unanswered_records_its_cause.MainUsesTheTagOnEveryFailurePath.test_no_bare_batch_failed_provenance_remains",
+    "tests.test_unanswered_records_its_cause.MainUsesTheTagOnEveryFailurePath.test_per_book_line_reports_the_causes",
+    "tests.test_unanswered_records_its_cause.MainUsesTheTagOnEveryFailurePath.test_the_tag_is_reset_every_window",
+    "tests.test_unanswered_records_its_cause.TheTagSeparatesModelFromTransportFailure.test_contract_failure_is_tagged_as_such",
+    "tests.test_unanswered_records_its_cause.TheTagSeparatesModelFromTransportFailure.test_tag_still_contains_batch_failed",
+    "tests.test_unanswered_records_its_cause.TheTagSeparatesModelFromTransportFailure.test_the_two_kinds_never_share_a_tag",
+    "tests.test_unanswered_records_its_cause.TheTagSeparatesModelFromTransportFailure.test_transport_failure_is_tagged_as_such"
+  ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_lowercase_phrase_is_not_a_name_however_it_is_hyphenated",

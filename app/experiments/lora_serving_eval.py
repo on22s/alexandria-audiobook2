@@ -91,6 +91,23 @@ def bind_last_attempt(entries, size):
     return out if bound else None
 
 
+def get_batch_failed_provenance(arm, exc):
+    """Provenance for the rows of a window that came back with nothing to score.
+
+    Both ways a window ends unanswered used to write the same `batch_failed`,
+    and they mean opposite things. `PassExhausted` with nothing bindable is the
+    MODEL failing the contract -- a real failure a user hits, which an adapter
+    can genuinely fix (Muse IQ2_XXS gold: 133 base rows, and every failed
+    window in its run log is PassExhausted). Anything else is the
+    REQUEST failing -- a dead server, a refused connection -- which measures
+    nothing about the model. On 2026-09-26 178 base rows of the Q3_K_XL
+    nine-novel cell were the second kind and scored as a +6.06 adapter win; an
+    earlier complete run of that cell had the same book at 93.2%, 0 unanswered.
+    The artifact could not tell the two apart; this records which it was, in
+    the `batch_failed=<ExceptionType>` form context_width_production.py uses."""
+    return f"{arm}|batch_failed={type(exc).__name__}"
+
+
 def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
@@ -489,6 +506,9 @@ def main():
                 traces = []
                 observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
                             if args.keep_traces else None)
+                # Reset per window: a stale value would label this window with
+                # the previous one's failure.
+                failed = f"{arm}|batch_failed=NoOutput"
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
                                           shown_roster, neighbor_contexts=ctx,
@@ -504,9 +524,11 @@ def main():
                           f"{'scoring last attempt' if out else 'nothing to bind'}",
                           flush=True)
                     why = f"{arm}|scale={scale}|exhausted_last_attempt"
+                    failed = get_batch_failed_provenance(arm, exc)
                 except Exception as exc:
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
                     out = None
+                    failed = get_batch_failed_provenance(arm, exc)
                 if out is None:
                     for i in rows:
                         g = want[norm(seg[i].get("text"))]
@@ -514,7 +536,7 @@ def main():
                             record.add(arm, f"{book}:{g['id']}", g["line"],
                                        g["expected_speaker"].upper(), None,
                                        False, candidates=membership,
-                                       provenance=f"{arm}|batch_failed")
+                                       provenance=failed)
                     continue
                 carried = sorted({str((o or {}).get("speaker") or "").upper()
                                   for o in (out or []) if (o or {}).get("speaker")}
@@ -545,9 +567,16 @@ def main():
             answers[arm].update({r["id"]: r["correct"] for r in arm_rows})
             lo, hi = clopper_pearson(hit, max(len(arm_rows), 1))
             unanswered = sum(1 for r in arm_rows if not r["predicted"])
+            causes = collections.Counter(
+                (r.get("candidate_provenance") or "").partition("batch_failed=")[2]
+                for r in arm_rows
+                if "batch_failed=" in (r.get("candidate_provenance") or ""))
+            cause_note = (" (" + ", ".join(f"{c} {n}" for c, n in causes.most_common())
+                          + ")") if causes else ""
             print(f"  {arm:5} {hit}/{len(arm_rows)} = "
                   f"{hit/max(len(arm_rows),1)*100:5.1f}%  [{lo:.1f}-{hi:.1f}]  "
-                  f"unanswered {unanswered}  {time.time()-started:.0f}s",
+                  f"unanswered {unanswered}{cause_note}  "
+                  f"{time.time()-started:.0f}s",
                   flush=True)
 
     print("\n  per book")
