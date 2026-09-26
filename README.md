@@ -89,7 +89,7 @@ Full ladder and the reasoning: [Which model for your card](docs/wiki/Which-Model
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | 12 GB | RTX 5070, Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | untested at this rung |
 | 8 GB | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% | **+1.0** (p=0.059) |
-| 6 GB | GTX 1660, RTX 2060, laptops | Qwen3-8B Q4_K_M | 4.7 GB | **77.0%** *(four-book)* | measuring |
+| 6 GB | GTX 1660, RTX 2060, laptops | Qwen3-8B Q4_K_M | 4.7 GB | **77.0%** *(four-book)* | **yes — +5.3** *(four-book, p=0.0006)* |
 | no usable GPU | — | hosted model, or the manual transport | — | **94.9–95.4%** | n/a |
 
 **16 GB is the sweet spot and nothing above it helps** — a 5090 runs the same

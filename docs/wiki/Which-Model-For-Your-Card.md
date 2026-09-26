@@ -40,7 +40,7 @@ not. Set it deliberately.
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **yes — 96.0%** |
 | **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | **+0.2** (93.7 → 93.9, p=0.711) |
 | **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | **+1.0** (89.0 → 90.0, p=0.059) |
-| **6 GB** | GTX 1660, RTX 2060, laptop cards | Qwen3-8B **Q4_K_M** | 4.7 GB | **77.0%** *(four-book, see note)* | *untested* |
+| **6 GB** | GTX 1660, RTX 2060, laptop cards | Qwen3-8B **Q4_K_M** | 4.7 GB | **77.0%** *(four-book, see note)* | **yes — +5.3** (77.0 → 82.3, p=0.0006, four-book) |
 | **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
 
 **16 GB is the tier most people are on** — it covers the RTX 5080 and 5070 Ti and
@@ -85,11 +85,17 @@ of a 14B at Q4_K_M that would not fit anyway.
 Q4_K_M is 4.7 GB and scores **77.0%** on the four-book fixture — the best of the
 small models, and it fits with headroom at `-c 8192`. Shrinking a big model
 instead does not work: Qwen3.8 `Q1_L` is **larger** at 5.7 GB and scores
-**30.1%** on nine novels. Muse `Q1_0` (4.5 GB) is being measured now.
+**30.1%** on nine novels, and Muse `Q1_0` (4.5 GB) could not finish a cell.
+
+**Load the adapter at this tier.** The Qwen3-8B window25 adapter takes it from
+**77.0% to 82.3% (+5.3, p=0.0006)** on the same four-book rows — it fixes 90 of
+the base's 177 errors and breaks 49 of its 591 correct rows. The breakage rate
+(8.3%) is the highest measured for any adapter, so the gain is real but not
+free; see RECIPES §"The adapter does two separable things".
 
 What is *not* yet known is how Qwen3-8B does on the harder nine-novel panel at
-this instrument — that cell is queued. Until it lands, treat 77.0% as a
-four-book number and do not assume it transfers.
+this instrument — that cell (base and adapter, paired) is running now. Until it
+lands, treat both numbers as four-book and do not assume they transfer.
 
 ### Three things that surprised us, all measured
 
@@ -118,8 +124,10 @@ Two local candidates were measured on the nine-novel fixture to see whether a
 shrunken large model beats a small one here. Qwen3.8 **Q1_L** (5.7 GB) has
 landed at **30.1%** — it is both *larger* than the Qwen3-8B Q4_K_M recommended
 above and less than half as accurate, so squeezing the 27B down to 1 bit is not
-the move at this tier. Muse **Q1_0** (4.5 GB) is still running. Both fit a 6 GB
-card at `-c 8192`; fitting was never the problem.
+the move at this tier. Muse **Q1_0** (4.5 GB) produced no result: three attempts, about 37
+card-hours on two boxes, and it never held the 25-entry JSON contract long
+enough to finish a cell. Both fit a 6 GB card at `-c 8192`; fitting was never
+the problem.
 
 **Context length matters more at 6 GB than anywhere else.** The product prompt's
 longest window is 5,966 tokens, so `-c 8192` is sufficient — and the measured

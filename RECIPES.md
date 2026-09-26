@@ -988,13 +988,29 @@ the whole nine-novel fixture at IQ3.
 |---|---|---|---|
 | E2B | **7.4** | 58.5 | **+51.1** |
 | E4B | **33.5** | 67.6 | **+34.1** |
-| **12B** | **86.9** | 85.2 | **−1.7** |
+| 12B, four-book gold | 86.9 | 85.2 | −1.7 *(3 fixed, 6 broken; p=0.51)* |
+| **12B, nine novels** | **85.6** | **87.7** | **+2.11** *(175 fixed, 119 broken; p=0.0013)* |
 
 All three trained on the same 1,993 windows with the same recipe, all served
 with the thinking fix confirmed in the server logs. The 12B base holds the
-25-entry contract where E2B and E4B do not, so it has nothing to recover and the
-adapter costs it a point and a half. Four independent model families — Muse,
-Qwen3.8, A3B (once retrained) and Gemma — now show the same dose-response.
+25-entry contract where E2B and E4B do not, so it has far less to recover.
+
+**Corrected 2026-09-26: the 12B adapter is not a cost.** The four-book −1.7
+first recorded here is nine discordant rows out of 176 — a sign test gives
+p=0.51, and §"The per-cell numbers" shows that fixture cannot resolve anything
+under about ±4.5 points. It was never evidence of harm. On the nine-novel
+fixture (2,655 rows, Q8_0 of `gemma-4-12B-it`, non-QAT, same prompt) the same
+adapter is **+2.11, p=0.0013**, repairing 45.8% of the base's errors and
+breaking 5.2% of its correct rows — ordinary on both terms of the decomposition
+below. The two cells differ in more than fixture: the four-book one ran with
+reasoning `none` and window limit 20, the nine-novel one with reasoning `low`
+and window limit 40, so which of those moved the sign is not separated. Four
+independent model families — Muse, Qwen3.8, A3B (once retrained) and Gemma —
+show the same dose-response.
+
+Artifacts: `cloud_pull_20260925/lora_serving_eval__gemma4-12b-w25-earlyread-w20-tnr4-20260925.json`
+(four-book), `cloud_pull_20260926/lora_serving_eval__gemma4-12b-w25-q8_0-paired-michel2_full-tnr-4g-pdnc9-20260925.json`
+(nine novels).
 
 The 12B was served on `ggml-org/gemma-4-12B-it-GGUF` (`general.name =
 gemma-4-12B-it`), **not** the QAT release sitting on the same box: QAT is a
@@ -1108,6 +1124,43 @@ them too. Nothing in the loss costs anything for moving a correct answer.
 Read the two Q4_K_M gold rows as one measurement: they are the same cell on two
 A6000 instances and are bit-identical, per §"Temperature 0 is exactly
 deterministic within one architecture".
+
+#### Refit over 19 cells (2026-09-26): the flat tax holds, its spread is wider
+
+Four cells landed after the fit above and were added to it rather than left
+beside it:
+
+| cell | n | base | repaired | collateral | repair % of errors | collateral % of correct | net |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `qwen3-8b-q4km-window25-post616-local9070xt-20260925` | 768 | 77.0 | 90 | 49 | **50.8%** | **8.3%** | +5.34 |
+| `gemma4-12b-w25-q8_0-tnr-4g-pdnc9-20260925` | 2655 | 85.6 | 175 | 119 | **45.8%** | **5.2%** | +2.11 |
+| `muse-window25b-q3kxl-tnr-0-pdnc9-20260924` | 2655 | 87.7 | 236 | 75 | **72.4%** | **3.2%** | +6.06 |
+| `muse-window25b-iq3xxs-tnr-2-post616-pdnc9-20260926` | 2655 | 93.1 | 90 | 89 | **49.5%** | **3.6%** | +0.04 |
+
+| | 15 cells (above) | 19 cells |
+|---|---:|---:|
+| repair mean (sd) | 44.8% (12.0) | 46.9% (12.4) |
+| repair r(base) | −0.670 | −0.544 |
+| collateral mean (sd) | 3.9% (1.1) | **4.2% (1.4)** |
+| collateral r(base) | +0.067 | **−0.027** |
+| crossover | 92.0% | 91.9% |
+
+(sd is the population sd, as in the first fit; recomputed from every paired
+`lora_serving_eval__*paired*.json` under `ab_test_runtime/`, which is exactly
+these 19.)
+
+**Collateral still does not track base health** — the correlation moved from
++0.07 to −0.03 across four out-of-sample cells. What changed is the tail: the
+Qwen3-8B cell's 8.3% is four sd above the first fit's mean, and outliers now sit
+at both ends of the base range (8.3% at base 77.0, 6.2% at base 90.9), which is
+what no correlation looks like. Use sd 1.4, not 1.1, when asking whether a
+collateral figure is unusual.
+
+**The Q3_K_XL nine-novel cell is not yet a finding.** Its 72.4% repair is the
+highest of any healthy-base cell and puts it +4.0 points over the fit's
+prediction (+6.06 observed against +2.09). One cell carries that. It is being
+re-run on a second A6000 with the same prompt and on an A6000 with the
+#619/#623 prompt (2026-09-26); read it together with those before quoting it.
 
 **Score every future adapter arm this way.** Net accuracy is the difference of
 two similar rates and hides both of them: at IQ3_XXS it reads +0.2 while the
