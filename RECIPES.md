@@ -1137,20 +1137,20 @@ beside it:
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `qwen3-8b-q4km-window25-post616-local9070xt-20260925` | 768 | 77.0 | 90 | 49 | **50.8%** | **8.3%** | +5.34 |
 | `gemma4-12b-w25-q8_0-tnr-4g-pdnc9-20260925` | 2655 | 85.6 | 175 | 119 | **45.8%** | **5.2%** | +2.11 |
-| `muse-window25b-q3kxl-tnr-0-pdnc9-20260924` | 2655 | 87.7 | 236 | 75 | **72.4%** | **3.2%** | +6.06 |
+| `muse-window25b-q3kxl-tnr-0-pdnc9-20260924` † | 2477 | 94.0 | 68 | 75 | **45.9%** | **3.2%** | −0.28 |
 | `muse-window25b-iq3xxs-tnr-2-post616-pdnc9-20260926` | 2655 | 93.1 | 90 | 89 | **49.5%** | **3.6%** | +0.04 |
 
 | | 15 cells (above) | 19 cells |
 |---|---:|---:|
-| repair mean (sd) | 44.8% (12.0) | 46.9% (12.4) |
-| repair r(base) | −0.670 | −0.544 |
+| repair mean (sd) | 44.8% (12.0) | 45.5% (10.8) |
+| repair r(base) | −0.670 | −0.646 |
 | collateral mean (sd) | 3.9% (1.1) | **4.2% (1.4)** |
-| collateral r(base) | +0.067 | **−0.027** |
-| crossover | 92.0% | 91.9% |
+| collateral r(base) | +0.067 | **−0.039** |
+| crossover | 92.0% | 91.6% |
 
 (sd is the population sd, as in the first fit; recomputed from every paired
 `lora_serving_eval__*paired*.json` under `ab_test_runtime/`, which is exactly
-these 19.)
+these 19. † scored without 178 unanswered base rows — see below.)
 
 **Collateral still does not track base health** — the correlation moved from
 +0.07 to −0.03 across four out-of-sample cells. What changed is the tail: the
@@ -1159,11 +1159,33 @@ at both ends of the base range (8.3% at base 77.0, 6.2% at base 90.9), which is
 what no correlation looks like. Use sd 1.4, not 1.1, when asking whether a
 collateral figure is unusual.
 
-**The Q3_K_XL nine-novel cell is not yet a finding.** Its 72.4% repair is the
-highest of any healthy-base cell and puts it +4.0 points over the fit's
-prediction (+6.06 observed against +2.09). One cell carries that. It is being
-re-run on a second A6000 with the same prompt and on an A6000 with the
-#619/#623 prompt (2026-09-26); read it together with those before quoting it.
+**The Q3_K_XL nine-novel "+6.06" was an unanswered base arm, not a repair
+rate.** As first reported it read base 87.7 → 93.8, +6.06, p=1.5e-20, repair
+72.4% — the highest of any healthy-base cell and +4 points over the fit. Per
+book, the whole effect is Pride and Prejudice: base 36.5% with **178 of 296 rows
+unanswered**, against 0 unanswered on every other book. The run log
+(`tnr-0:~/muse_q3kxl_pdnc9_resume_tnr0_20260926.log`) shows that arm logging
+**3 completions in 102 s** for 40 windows, where every other timed arm of that run took 560–1,651 s
+— the requests stopped completing, not the model stopped answering. The adapter
+arm then answered those rows and each one scored as a "repair". Without them the
+cell is **base 94.0 → 93.7, −0.28, p=0.62, repair 45.9%, collateral 3.2%** —
+ordinary, and on the fit (predicted −0.99). The decomposition's linearity was
+never broken.
+
+Two lessons, both recorded rather than fixed here:
+
+- **An empty prediction is two different things the artifact cannot tell
+  apart.** Here it was a transport failure; in the IQ2_XXS gold cell the same
+  empty rows are the model's real contract collapse, which a user does hit and
+  which the adapter genuinely rescues. Dropping every row either arm left blank
+  would erase that rescue (+61.9 → +16.2). Only the run log separates them, so
+  unanswered windows need their cause recorded in the artifact.
+- **A same-architecture re-run is not a replication at temperature 0.** The tnr-4
+  "replication" of this cell matched tnr-0 on every one of its first 1,562 paired
+  rows, base and adapter, per §"Temperature 0 is exactly deterministic within one
+  architecture". It can only show whether the Pride and Prejudice failure was
+  transient.
+
 
 **Score every future adapter arm this way.** Net accuracy is the difference of
 two similar rates and hides both of them: at IQ3_XXS it reads +0.2 while the
