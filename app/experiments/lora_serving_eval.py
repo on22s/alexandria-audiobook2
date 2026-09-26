@@ -33,6 +33,16 @@ import urllib.request
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = REPO + "/app/"
+
+
+def _sha256_file(path):
+    """Short sha256 of a file, or a reason it could not be read."""
+    try:
+        import hashlib
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()[:16]
+    except OSError as exc:
+        return f"<unreadable: {exc.strerror}>"
 sys.path.insert(0, APP)
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord, strict_shared_summary
@@ -117,8 +127,22 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
-    roster = sorted(set(roster) | {n.upper() for n in
-                                   gold.get("roster_additions", {}).get("names", [])})
+    # Every gold fixture carries its cast in "roster". Only some also carry a
+    # duplicate of it under "roster_additions", and until 2026-09-26 this line
+    # read ONLY the duplicate -- so a fixture without one yielded an empty
+    # roster, the model was shown no candidates, and the arm still reported a
+    # normal-looking accuracy. That is the state of the committed nine-novel
+    # fixtures: checked on all 8 that main carries, "roster" and
+    # "roster_additions.names" hold the identical names, so the boxes were
+    # running on uncommitted files that merely added the duplicate. A fresh
+    # clone could not reproduce any nine-novel result.
+    #
+    # Preferring "roster_additions" when present keeps every existing arm
+    # byte-identical; the fallback only turns an empty roster into the right
+    # one.
+    extra = ((gold.get("roster_additions") or {}).get("names")
+             or gold.get("roster") or [])
+    roster = sorted(set(roster) | {n.upper() for n in extra})
     occ = collections.Counter(norm(e.get("text")) for e in seg)
     want = {norm(g["line"]): g for g in gold["entries"]
             if occ[norm(g["line"])] == 1
@@ -201,6 +225,19 @@ def main():
                     "indices where a window is forced to start")
     ap.add_argument("--cut-arm", choices=("chapter", "control"),
                     help="which index list in --window-cuts to apply")
+    ap.add_argument("--min-roster", type=int, default=1,
+                    help="refuse a book whose roster has fewer than this many "
+                         "names (default 1: refuse an EMPTY roster). An empty "
+                         "roster means the model is shown no candidates at "
+                         "all, so every row is scored against nothing while "
+                         "the arm still reports a plausible accuracy. Pass 0 "
+                         "only when a no-roster arm is deliberately the point.")
+    ap.add_argument("--max-hours", type=float, default=0.0,
+                    help="stop cleanly if the measured per-window rate "
+                         "projects a total longer than this many hours. 0 "
+                         "(default) reports the projection and never stops. "
+                         "The checkpoint is written as the run goes, so a stop "
+                         "here is resumable.")
     args = ap.parse_args()
     if bool(args.window_cuts) != bool(args.cut_arm):
         ap.error("--window-cuts and --cut-arm go together")
@@ -249,12 +286,76 @@ def main():
                    if any(norm(seg[i].get("text")) in want for i in w)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "
               f"{len(windows)} windows", flush=True)
+        # An empty roster is never a legitimate measurement: the model is shown
+        # no candidate names, so every prediction scores against nothing and the
+        # arm still reports a plausible-looking accuracy.
+        #
+        # Measured 2026-09-26: a fixture sync replaced 8 of the 9 nine-novel
+        # gold files on one box. The roster comes from the gold's
+        # roster_additions, so it went to 0 on every book, and the cell wrote
+        # 975 rows and a checkpoint before anyone looked. The same fault cost
+        # ~6h on a different box the day before. BOTH TIMES the roster count was
+        # printed in this very header and nothing acted on it, which is the
+        # whole argument for making it fatal rather than louder.
+        if len(roster) < args.min_roster:
+            fixture = APP + f"fixtures/attribution_gold_{book}.json"
+            raise SystemExit(
+                f"REFUSING {book}: roster has {len(roster)} names, need at "
+                f"least {args.min_roster}.\n"
+                f"  The roster is built from the gold fixture's "
+                f"roster_additions, so this usually means a wrong or "
+                f"regenerated fixture is on this machine:\n"
+                f"    {fixture}\n"
+                f"    sha256 {_sha256_file(fixture)}\n"
+                f"  Compare that against the hash in an artifact you trust "
+                f"(meta.gold_files) before re-running.\n"
+                f"  Pass --min-roster 0 only if a no-roster arm is the point.")
         for arm, scale in get_eval_arms(args.base_only):
             if scale is not None:
                 got = set_adapter_scale(args.base_url, scale)
                 print(f"  adapter scale now {got}", flush=True)
             started = time.time()
+            # PROJECT THE FINISH, EARLY AND OUT LOUD.
+            #
+            # Three Muse Q1_0 cells consumed ~37 hours across two boxes in
+            # September 2026 and produced no artifact at all, because at 5-12
+            # minutes per window they could never finish the books they were
+            # given. Nothing was wrong with any of them in a way the existing
+            # guards could see: the server was healthy, rows bound, the
+            # checkpoint advanced, exit codes were clean. They were simply
+            # impossible, and nobody could tell until a day had gone.
+            #
+            # A count of failed or exhausted windows does NOT separate these
+            # from a valuable run -- checked against the Muse IQ2_XXS cell that
+            # returned +56.8, which logged MORE exhausted windows and FEWER
+            # successful bindings than the futile Q1_0 one. Wall-clock
+            # projection does separate them, because it is the thing they
+            # actually violated.
+            projected_at = max(4, len(windows) // 10)
+            warned_projection = False
             for k, win in enumerate(windows, 1):
+                if k == projected_at and not warned_projection:
+                    warned_projection = True
+                    per = (time.time() - started) / max(1, k - 1)
+                    arm_names = [a for a, _ in get_eval_arms(args.base_only)]
+                    arms_left = len(arm_names) - arm_names.index(arm)
+                    books_left = len(args.books) - args.books.index(book)
+                    eta_h = per * len(windows) * arms_left * books_left / 3600
+                    print(f"  [rate] {per:.1f}s/window after {k - 1}; this cell "
+                          f"projects ~{eta_h:.1f}h for the {books_left} "
+                          f"book(s) and {arms_left} arm(s) remaining",
+                          flush=True)
+                    if args.max_hours and eta_h > args.max_hours:
+                        raise SystemExit(
+                            f"STOPPING: projected ~{eta_h:.1f}h exceeds "
+                            f"--max-hours {args.max_hours}.\n"
+                            f"  {per:.1f}s per window over the first "
+                            f"{k - 1} of {len(windows)}.\n"
+                            f"  Rows measured so far are in the checkpoint, so "
+                            f"this is resumable -- re-run the same tag once the "
+                            f"cell is cheaper (a smaller --window-limit, fewer "
+                            f"books) or accept the cost with a larger "
+                            f"--max-hours.")
                 send = [i for i in win
                         if get_deterministic_named_entry(seg[i]) is None]
                 rows = [i for i in send if norm(seg[i].get("text")) in want]
