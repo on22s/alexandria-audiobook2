@@ -1003,8 +1003,11 @@ fixture (2,655 rows, Q8_0 of `gemma-4-12B-it`, non-QAT, same prompt) the same
 adapter is **+2.11, p=0.0013**, repairing 45.8% of the base's errors and
 breaking 5.2% of its correct rows — ordinary on both terms of the decomposition
 below. The two cells differ in more than fixture: the four-book one ran with
-reasoning `none` and window limit 20, the nine-novel one with reasoning `low`
-and window limit 40, so which of those moved the sign is not separated. Four
+reasoning `none`, the nine-novel one with reasoning `low` (`--reasoning on`,
+budget 1024). Their window limits (20 vs 40) are each fixture's standard
+instrument, not a difference. So fixture and reasoning effort are confounded;
+a four-book re-run at reasoning `low` on the same older-prompt A6000 setup is
+queued on tnr-0 (2026-09-26) to separate them. Four
 independent model families — Muse, Qwen3.8, A3B (once retrained) and Gemma —
 show the same dose-response.
 
