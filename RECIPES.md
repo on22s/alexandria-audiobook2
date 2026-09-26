@@ -1163,13 +1163,18 @@ collateral figure is unusual.
 rate.** As first reported it read base 87.7 → 93.8, +6.06, p=1.5e-20, repair
 72.4% — the highest of any healthy-base cell and +4 points over the fit. Per
 book, the whole effect is Pride and Prejudice: base 36.5% with **178 of 296 rows
-unanswered**, against 0 unanswered on every other book. The run log
-(`tnr-0:~/muse_q3kxl_pdnc9_resume_tnr0_20260926.log`) shows that arm logging
-**3 completions in 102 s** for 40 windows, where every other timed arm of that run took 560–1,651 s
-— the requests stopped completing, not the model stopped answering. The adapter
-arm then answered those rows and each one scored as a "repair". Without them the
-cell is **base 94.0 → 93.7, −0.28, p=0.62, repair 45.9%, collateral 3.2%** —
-ordinary, and on the fit (predicted −0.99). The decomposition's linearity was
+unanswered**, against 0 unanswered on every other book. All 178 are
+`base|batch_failed` rows that came in from the checkpoint: the cell was resumed
+several times, and the final segment (`tnr-0:~/muse_q3kxl_pdnc9_resume_tnr0_20260926.log`)
+ran only the 3 windows still missing, in 102 s. An earlier complete run of the
+same cell on the same box (`adapter_sweep_muse-window25b_tnr-0.log`, which later
+died on `Connection refused`) scored Pride and Prejudice's base at **276/296 =
+93.2%, 0 unanswered** — so the 36.5% is lost windows, not the model. The adapter
+arm answered them and each one scored as a "repair". Without them the cell is
+**base 94.0 → 93.7, −0.28, p=0.62, repair 45.9%, collateral 3.2%** — ordinary,
+and on the fit (predicted −0.99). Because its checkpoint was stitched across
+attempts with different fixture states, treat even the corrected row as one
+cell's reading, not a replication target. The decomposition's linearity was
 never broken.
 
 Two lessons, both recorded rather than fixed here:
