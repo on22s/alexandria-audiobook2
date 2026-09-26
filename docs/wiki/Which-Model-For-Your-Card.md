@@ -66,6 +66,17 @@ adapter's own training set, turns that into **−0.6 (p = 0.268)** across the ei
 genuinely held-out novels. So the advice stands — *don't bother with an adapter
 here* — but because it does nothing, not because it costs you 3.6 points.
 
+One caveat on those three figures, because this project has been bitten by it
+before. They were not all measured with the same pass-2 prompt: the IQ3_XXS cell
+ran on the A100, which carries the post-#616 `michel2_full` text (2,071 chars),
+while the IQ3_M and Q2_K_XL cells ran on A6000s still carrying the pre-#616 text
+(1,825 chars). Across this fleet prompt and GPU architecture are perfectly
+confounded, which is exactly why the earlier cross-GPU claim was retracted, so
+read the three as three separate small nulls that happen to agree rather than as
+one trend measured on one instrument. The recommendation does not turn on it —
+every arm says the same thing — but the rungs are not strictly comparable and
+this page should not imply they are.
+
 **8 GB is better served than you would expect.** Qwen3.8-27B at UD-IQ2_XXS is
 6.9 GB and **88.7%** — a 27B model on an entry-level card, and 4.4 points ahead
 of a 14B at Q4_K_M that would not fit anyway.
