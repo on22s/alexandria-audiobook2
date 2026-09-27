@@ -56,12 +56,17 @@ is**, not how good the adapter is:
 
 | base score on the fixture | what the adapter does |
 |---|---|
-| **below ~35%** (contract collapsing) | **+34 to +62 points** — it restores the ability to answer at all |
+| **below ~35%** (contract collapsing) | **+57 to +62 points** — it restores the ability to answer at all |
 | 85–90% | +1 to +4, rarely significant |
 | **above ~90%** | **negative** — it costs 1–3 points |
 
-Examples at each end: Muse IQ2_XXS **15.9 → 77.8** and Gemma E2B **7.4 → 58.5**
-against Muse Q4_K_M **90.9 → 88.1** and Gemma 12B **86.9 → 85.2**.
+Examples at each end: Muse IQ2_XXS **15.9 → 77.8** (A6000) and **22.2 → 79.0** (RX 9070 XT)
+against Muse Q4_K_M **90.9 → 88.1**.
+
+*Corrected 2026-09-27:* the Gemma E2B example once given here (7.4 → 58.5) came from a
+base file missing its chat template, so it measured a packaging fault rather than Gemma;
+and Gemma 12B's four-book 86.9 → 85.2 was 3 rows fixed against 6 broken (p=0.51), noise
+— on nine novels the same adapter is +2.1 (p=0.001).
 
 The mechanism, measured at row level on 2,655 rows: the adapter recovers about
 **half** of what quantisation breaks, preserves **97%** of what was already

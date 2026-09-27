@@ -97,8 +97,10 @@ Full ladder and the reasoning: [Which model for your card](docs/wiki/Which-Model
 6.9 GB and beats a 14B at Q4_K_M by 4.4 points.
 
 **An adapter's value depends on how degraded the base is** (2026-09-25, four
-model families). Below ~35% base it is worth +34 to +62 points — it restores the
-ability to answer at all. Between 85 and 90% it is worth +1 to +4, rarely
+model families). Below ~35% base it is worth +57 to +62 points (Muse IQ2_XXS, on two
+vendors' GPUs) — it restores the ability to answer at all. *(Corrected 2026-09-27: the
+Gemma E2B/E4B "+34 / +51" once quoted here came from base files missing their chat
+template; see RECIPES §"A fourth family".)* Between 85 and 90% it is worth +1 to +4, rarely
 significant. **Above ~90% it costs you 1–3 points.** So: load one where the base
 is visibly failing — blank replies, malformed JSON, wrong entry counts — not to
 chase a few points on a base that already works.

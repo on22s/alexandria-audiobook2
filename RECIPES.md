@@ -869,7 +869,9 @@ Related: the Gemma window25 adapters were trained correctly (same dataset, lr
 server logs: **E2B 7.4 → 58.5 (+51.1)** and **E4B 33.5 → 67.6 (+34.1)**, both
 p<0.001 at 20 windows. E2B's base is 137/176 rows empty *with* the thinking fix
 applied, so that is genuine incapacity at the 25-entry contract rather than a
-serving defect. The 12B adapter is trained but **unevaluated**: the only 12B
+serving defect. **Withdrawn 2026-09-27: it was a serving defect.** The E2B/E4B
+q8_0 GGUFs these cells served were converted locally without a
+`tokenizer.chat_template`; see §"A fourth family". The 12B adapter is trained but **unevaluated**: the only 12B
 GGUF on hand is the QAT release, a different checkpoint from the `-it` base the
 adapter was trained on, and serving a LoRA across that gap would produce a
 plausible number that means nothing.
@@ -978,7 +980,8 @@ where the base is already at the ceiling there is nothing to repair and only the
 3.4% collateral shows. It is the same reason Q4_K_M reads −1.0 (p = 0.037).
 
 **The supportable claim is now narrower.** The adapter is unambiguously valuable
-where the base is *degraded* — IQ2_XXS +61.9, Gemma E2B +51.1, Gemma E4B +34.1 —
+where the base is *degraded* — IQ2_XXS +61.9 (the Gemma E2B +51.1 / E4B +34.1 first
+listed here were a base-file packaging fault; see §"A fourth family") —
 and is indistinguishable from nothing where the base is healthy, which includes
 the whole nine-novel fixture at IQ3.
 
@@ -986,14 +989,32 @@ the whole nine-novel fixture at IQ3.
 
 | Gemma window25 adapter | base | adapter | delta |
 |---|---|---|---|
-| E2B | **7.4** | 58.5 | **+51.1** |
-| E4B | **33.5** | 67.6 | **+34.1** |
+| ~~E2B~~ | ~~7.4~~ | ~~58.5~~ | ~~+51.1~~ *(withdrawn: base file had no chat template)* |
+| ~~E4B~~ | ~~33.5~~ | ~~67.6~~ | ~~+34.1~~ *(withdrawn: same)* |
 | 12B, four-book gold | 86.9 | 85.2 | −1.7 *(3 fixed, 6 broken; p=0.51)* |
 | **12B, nine novels** | **85.6** | **87.7** | **+2.11** *(175 fixed, 119 broken; p=0.0013)* |
 
 All three trained on the same 1,993 windows with the same recipe, all served
 with the thinking fix confirmed in the server logs. The 12B base holds the
 25-entry contract where E2B and E4B do not, so it has far less to recover.
+
+**Withdrawn 2026-09-27: the E2B and E4B rows measured a broken base file, not
+Gemma.** Their q8_0 GGUFs (`tnr-1:~/models/gemma4-E{2,4}B-q8_0.gguf`, sha256
+`42ff715d…` / `b6b33f03…`) match no Hub copy and carry **no
+`tokenizer.chat_template`**; ggml-org's official Q8_0 carries Gemma's 18,567-character
+template and is otherwise identical (same tensor count and tokenizer). With `--jinja`
+and no embedded template llama-server falls back to a generic format Gemma was not
+trained on, which is why the base mostly failed the contract — the same files gave
+21–25% on the nine-novel fixture. With a correctly packaged base (unsloth Q4_K_M,
+template present) the nine-novel bases read **~42% (E2B) and ~58% (E4B)** and the
+adapter's gain falls to **~+10 and ~+2** (interim, 2026-09-27, cells still running). So
+most of the "rescue" was the adapter compensating for a malformed file. The 12B's
+Q8_0 is ggml-org's official file (template present), so its rows stand. A base-only
+A/B of the broken vs official Q8_0 on one machine is queued
+(`logs/gemma_q8_filecheck_20260927.log`).
+
+**Check any GGUF for an embedded chat template before trusting a base or adapter
+number from it.**
 
 **Corrected 2026-09-26: the 12B adapter is not a cost.** The four-book −1.7
 first recorded here is nine discordant rows out of 176 — a sign test gives
