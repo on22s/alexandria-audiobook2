@@ -246,6 +246,12 @@
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_kanji_and_kana_spellings_of_one_word_score_as_equal",
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_the_real_botchan_pair_scores_far_better_on_readings"
   ],
+  "test_attestation_gate_fallback": [
+    "tests.test_attestation_gate_fallback.AttestationGateFallback.test_an_explicit_block_still_decides",
+    "tests.test_attestation_gate_fallback.AttestationGateFallback.test_every_committed_pdnc_fixture_turns_the_gate_off",
+    "tests.test_attestation_gate_fallback.AttestationGateFallback.test_non_pdnc_fixtures_keep_the_gate",
+    "tests.test_attestation_gate_fallback.AttestationGateFallback.test_the_old_rule_fails_them"
+  ],
   "test_attribute_prompt_minor_speaker_rule": [
     "tests.test_attribute_prompt_minor_speaker_rule.MinorSpeakerRule.test_rule_four_is_in_the_system_prompt_and_not_the_user_prompt"
   ],

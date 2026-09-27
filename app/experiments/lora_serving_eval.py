@@ -161,6 +161,24 @@ def get_book_paths(book, input_dir=None, checkpoint_dir=None):
     return source_path, checkpoint_path
 
 
+def is_attestation_gate_off(gold):
+    """Whether this fixture's names are the corpus's own, so the production
+    speaker-attestation gate must not judge them.
+
+    The flag lives in `roster_additions.attest_in_source`, a block only SOME
+    copies of a fixture carry -- the same drift #670 fixed for the roster.
+    main's committed PDNC fixtures have no `roster_additions`, so a run from a
+    clean checkout left the gate ON: on 2026-09-27 the 28-book goal-1.3 run
+    rejected correct PDNC names ("NANNY", "MAMA") and burned their retries,
+    while every nine-novel cell on the boxes, whose copies carry the block,
+    ran with it OFF. Every PDNC fixture records `source: "PDNC"`, so that is
+    the fallback when the block is absent; an explicit block still decides."""
+    additions = gold.get("roster_additions")
+    if additions:
+        return bool(additions.get("attest_in_source"))
+    return gold.get("source") == "PDNC"
+
+
 def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
     source_path, checkpoint_path = get_book_paths(
@@ -179,7 +197,7 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     extra = ((gold.get("roster_additions") or {}).get("names")
              or gold.get("roster") or [])
     roster = sorted(set(roster) | {n.upper() for n in extra})
-    if gold.get("roster_additions", {}).get("attest_in_source"):
+    if is_attestation_gate_off(gold):
         # PDNC fixtures name characters the way the corpus does ("A WAITER",
         # "THE COUNT"), which the text only ever writes in lower case, so the
         # production speaker-attestation gate (pass_quality.is_attested_name)
