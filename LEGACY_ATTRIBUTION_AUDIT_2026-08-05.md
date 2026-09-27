@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 364 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 365 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 252
-- `historical_only`: 58
+- `historical_only`: 59
 - `provisional`: 11
 - `supported_measurement`: 43
 
@@ -148,6 +148,7 @@ All 364 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__gemma4-e2b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e4b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
 | `lora_serving_eval__local-12h-muse-base-20260916.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-4book-base-20260907.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
