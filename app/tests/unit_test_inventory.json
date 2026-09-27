@@ -2641,6 +2641,11 @@
     "tests.test_recipes.RecipesFileTest.test_the_parser_reads_status_not_prose",
     "tests.test_recipes.RecipesFileTest.test_the_runaway_rate_is_not_listed_as_working"
   ],
+  "test_record_add_accepts_every_caller": [
+    "tests.test_record_add_accepts_every_caller.RecordAddAcceptsEveryCaller.test_every_keyword_a_caller_passes_exists_on_add",
+    "tests.test_record_add_accepts_every_caller.RecordAddAcceptsEveryCaller.test_reasoning_is_stored_on_the_row",
+    "tests.test_record_add_accepts_every_caller.RecordAddAcceptsEveryCaller.test_the_serving_harness_passes_reasoning"
+  ],
   "test_record_stamps_every_gold": [
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_changed_second_gold_changes_the_record",
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_single_path_still_produces_the_singular_fields",
