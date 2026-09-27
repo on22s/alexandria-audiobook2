@@ -6519,7 +6519,7 @@ If only three things get worked on:
    done on 2026-09-04: scored on unseen volumes of the same narrator, the clean
    retrains beat the shipped adapters (+0.029, +0.027; three identical-weight
    controls read exactly 0). **Recounted 2026-09-27 from each shipped adapter's
-   `training_meta.json`:** 58 trained on the 180-clip split; **9 on all 200
+   training metadata:** 58 trained on the 180-clip split; **9 on all 200
    clips**; and **8 on every clip of a smaller dataset** (24–188 clips, one of
    just **2**: `warm_baritone_40s_m_gothic`), whose val handling is unchecked.
    The live figure is therefore 9 certain plus up to 8, not the 12 audited

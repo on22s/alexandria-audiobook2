@@ -1,6 +1,6 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 17,
+ "goals_scored": 16,
  "goals_citing_no_artifact": [
   "2.5",
   "4.2",
@@ -16,7 +16,8 @@
   "5.6",
   "6.1",
   "6.2",
-  "6.3"
+  "6.3",
+  "6.4"
  ],
  "rows": [
   {
@@ -97,13 +98,12 @@
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json",
-    "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json",
     "tsukihi_alias_rescore.json"
    ],
    "weakest_evidence": "exploratory",
    "classifications": {
     "exploratory": 6,
-    "provisional": 9,
+    "provisional": 10,
     "supported_structure": 1
    },
    "dirty_artifacts": 3,
@@ -138,6 +138,12 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "4d337725"
+    },
+    {
+     "name": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "c35ef342"
     },
     {
      "name": "lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json",
@@ -981,20 +987,6 @@
      "commit": ""
     }
    ]
-  },
-  {
-   "goal": "6.4",
-   "title": "No skipped tests",
-   "cited": 1,
-   "not_in_audit": [],
-   "not_experiment_artifacts": [
-    "training_meta.json"
-   ],
-   "weakest_evidence": null,
-   "classifications": {},
-   "dirty_artifacts": 0,
-   "no_commit": 0,
-   "artifacts": []
   }
  ],
  "provenance": {
