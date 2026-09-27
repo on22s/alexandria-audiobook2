@@ -1006,12 +1006,20 @@ template and is otherwise identical (same tensor count and tokenizer). With `--j
 and no embedded template llama-server falls back to a generic format Gemma was not
 trained on, which is why the base mostly failed the contract — the same files gave
 21–25% on the nine-novel fixture. With a correctly packaged base (unsloth Q4_K_M,
-template present) the nine-novel bases read **~42% (E2B) and ~58% (E4B)** and the
-adapter's gain falls to **~+10 and ~+2** (interim, 2026-09-27, cells still running). So
-most of the "rescue" was the adapter compensating for a malformed file. The 12B's
+template present, verified in the file) the nine-novel picture is different:
+
+| Q4_K_M, nine novels | base | adapter | fixed / broken | p |
+|---|---:|---:|---:|---:|
+| E2B (final, 2,655 rows) | **43.7** | 53.6 (**+9.9**) | +460 / −198 | 6e−25 |
+| E4B (interim, 2026-09-27) | ~58 | ~+2 | — | n.s. so far |
+
+Artifact: `lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json`.
+So most of the "rescue" was the adapter compensating for a malformed file; on a
+correctly packaged E2B it is a real +9.9, but it also breaks **17%** of the rows the
+base already had right — four times the ~4% seen on the larger bases. The 12B's
 Q8_0 is ggml-org's official file (template present), so its rows stand. A base-only
-A/B of the broken vs official Q8_0 on one machine is queued
-(`logs/gemma_q8_filecheck_20260927.log`).
+GPU A/B of the broken vs official Q8_0 was started and deliberately stopped: the file
+metadata above already settles the cause, and the run would only have sized it.
 
 **Check any GGUF for an embedded chat template before trusting a base or adapter
 number from it.**

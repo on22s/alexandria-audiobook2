@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 998,
     "exploratory": 415,
-    "provisional": 363,
+    "provisional": 364,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12624,6 +12624,24 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "5e905c071f5c1c4e46954e4ced2669829be1e255",
+      "written": null,
+      "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json",
+      "bytes": 8897332,
+      "sha256": "1e4b0679779ac357905dffc7c4841ceb7fe55cabf9e9725f679c746abecc8f80",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 5310,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
       "written": null,
       "dirty": true,
       "classification": "provisional",
