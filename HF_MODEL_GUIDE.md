@@ -170,3 +170,37 @@ A negative row still goes on the card, with "served correctly" stated first
 (adapter loaded, scale toggled, rows answered) — a card that only carries the
 wins is the kind of card the Hub page warns about — but it never decides the
 release on its own if a shipping-quant row is positive.
+
+## Freeing private storage: weights purged, lessons kept (2026-09-27)
+
+The Hub bills every LFS object ever pushed; deleting a file in a commit frees nothing.
+`tools/hf_purge_batch.py <spec.json>` is the only sanctioned way to reclaim space. It
+refuses before its first write if a purge object is still referenced by another path in
+the repo (`list_lfs_files` names objects by their *first* push path) or sits at HEAD of
+any other Om22s repo, commits a `LESSONS.md` per folder and reads it back, then purges
+exactly the targets. `app/tests/test_hf_purge_guards.py` pins each refusal.
+
+A folder is purged only when its lesson can state the result (artifact names) and how to
+redo it. Folders with no recorded result stay.
+
+| batch | what | freed | archive commits |
+|---|---|---:|---|
+| step 1 | Muse tplfix + lossfix, window25 prompt-mismatch | 2.94 GB | `alexandria-adapters-archive` history, 2026-09-27 |
+| A | Gemma `adapters_gold_20260911` duplicates + mixed-multin | 1.47 GB | 〃 |
+| B | Gemma 2026-09-09..12 (author-rank, mixed, QAT-base, product-eval) | 6.69 GB | `5d064ce3` lessons, `17e850c9` delete |
+| C | Aug–Sep attribution adapters: Qwen3-14B/3.5/3.8, rank and LR ladders, seed controls, reasoning replication (72 folders) | 14.77 GB | `e6f12c98` lessons, `eb8f0b37` delete |
+
+Archive went 56.13 → 30.64 GB. Redo inputs live in the same repo under `redo_inputs/`:
+per-box trainers, data, and `recipe_bundle_tier3_20260927.tar.gz` (every script, training
+log and manifest on each box, 228 MB).
+
+Two things a lesson's "how to redo" does not yet say, found by testing one (2026-09-27):
+- **The training prompt is not in the bundle.** The trainers import
+  `app/default_prompts.py`, whose attribute prompt changed on 2026-09-14 (#565). Adapters
+  trained before then used the file at `b02d5950` (every box's copy hashes to it); today's
+  file builds different examples.
+- **Package versions were not recorded.** The August runs used transformers 5.0/5.1 (the
+  logs warn that `warmup_ratio` goes in 5.2); the boxes now carry 5.14.1.
+
+Kept on purpose: anything published elsewhere (the guard found three), folders with no
+recorded result, and anything backing a live adapter.

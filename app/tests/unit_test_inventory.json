@@ -1722,6 +1722,17 @@
     "tests.test_helper_review_fixes.HelperReviewTests.test_writes_reject_invalid_parameters_without_changing_artifact",
     "tests.test_helper_review_fixes.HelperReviewTests.test_zero_chunk_size_is_rejected_and_valid_size_preserves_text"
   ],
+  "test_hf_purge_guards": [
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_a_wrong_expected_size_is_reported",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_another_authors_copy_does_not_block",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_purges_exactly_the_target_and_keeps_the_lesson",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_a_non_weight_path",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_a_public_repo",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_a_purge_path_that_is_not_at_head",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_to_delete_when_a_lesson_does_not_read_back",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_when_another_path_in_the_repo_holds_the_same_object",
+    "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_when_the_object_is_published_in_another_repo"
+  ],
   "test_hifitts_fetch": [
     "tests.test_hifitts_fetch.ParseFileTest.test_a_slug_with_a_dash_is_refused",
     "tests.test_hifitts_fetch.ParseFileTest.test_an_unrecognised_name_is_refused_not_guessed",
