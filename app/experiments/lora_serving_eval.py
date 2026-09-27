@@ -233,8 +233,18 @@ def make_windows(n, batch, cuts=()):
     return out
 
 
-def get_eval_arms(base_only=False):
-    """Return serving arms; a base-only server has no adapter endpoint state."""
+def get_eval_arms(base_only=False, lora_only=False):
+    """Return serving arms; a base-only server has no adapter endpoint state.
+
+    lora_only runs just the adapter at scale 1. It exists for bases whose own
+    arm is already measured and ruinously slow to repeat: Muse IQ2_XXS's base
+    holds the JSON contract on 42 of 2,655 nine-novel rows (1.1%) and burns
+    every retry doing it, ~600 s a window, so a paired nine-novel cell would
+    spend ~60 h re-measuring a known collapse to score the adapter beside it."""
+    if base_only and lora_only:
+        raise ValueError("base_only and lora_only are mutually exclusive")
+    if lora_only:
+        return (("lora", 1.0),)
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
 
 
@@ -245,9 +255,10 @@ MAX_TOKENS = 4096
 
 
 def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none",
-                      max_tokens=MAX_TOKENS, structured_output="auto"):
+                      max_tokens=MAX_TOKENS, structured_output="auto",
+                      lora_only=False):
     """Describe only settings this evaluator controls or directly observes."""
-    arms = get_eval_arms(base_only)
+    arms = get_eval_arms(base_only, lora_only)
     decoding = {"temperature": 0.0, "batch": batch, "max_tokens": max_tokens,
                 "reasoning_effort": reasoning_effort,
                 # The product's own default since 2026-09-14 (#522 s9.1); the
@@ -259,6 +270,13 @@ def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none",
             "Base-only serving evaluation; no adapter was loaded or toggled. "
             "The evaluator does not observe base quantisation or adapter "
             "precision and makes no claim about either.")
+    elif lora_only:
+        notes = (
+            "Adapter-only serving evaluation: the adapter at scale 1, no base "
+            "arm, so nothing here is paired. Compare against a separately "
+            "measured base only with the conditions of both stated. The "
+            "evaluator does not observe base quantisation or adapter precision "
+            "and makes no claim about either.")
     else:
         notes = (
             "Paired serving evaluation. Arms share one server and differ only "
@@ -275,6 +293,10 @@ def main():
     ap.add_argument("--model", default="qwen/qwen3-14b")
     ap.add_argument("--base_url", default="http://127.0.0.1:8090/v1")
     ap.add_argument("--tag", default="local-rocm-lora")
+    ap.add_argument("--lora-only", action="store_true",
+                    help="score only the adapter arm (scale 1); for a base whose "
+                         "own arm is already measured and too slow to repeat. "
+                         "The artifact says it is unpaired")
     ap.add_argument("--base-only", action="store_true",
                     help="score an untuned server without querying its empty "
                          "/lora-adapters state")
@@ -334,6 +356,8 @@ def main():
                          "The checkpoint is written as the run goes, so a stop "
                          "here is resumable.")
     args = ap.parse_args()
+    if args.base_only and args.lora_only:
+        ap.error("--base-only and --lora-only are mutually exclusive")
     if bool(args.window_cuts) != bool(args.cut_arm):
         ap.error("--window-cuts and --cut-arm go together")
     cuts = (json.load(open(args.window_cuts))["books"]
@@ -360,7 +384,7 @@ def main():
     _env = os.environ.get("EXPERIMENT_ENV")
     decoding, notes = get_eval_metadata(
         args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens,
-        args.structured_output)
+        args.structured_output, lora_only=args.lora_only)
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
@@ -427,7 +451,7 @@ def main():
                 f"  Compare that against the hash in an artifact you trust "
                 f"(meta.gold_files) before re-running.\n"
                 f"  Pass --min-roster 0 only if a no-roster arm is the point.")
-        for arm, scale in get_eval_arms(args.base_only):
+        for arm, scale in get_eval_arms(args.base_only, args.lora_only):
             if scale is not None:
                 got = set_adapter_scale(args.base_url, scale)
                 print(f"  adapter scale now {got}", flush=True)
@@ -455,7 +479,7 @@ def main():
                 if k == projected_at and not warned_projection:
                     warned_projection = True
                     per = (time.time() - started) / max(1, k - 1)
-                    arm_names = [a for a, _ in get_eval_arms(args.base_only)]
+                    arm_names = [a for a, _ in get_eval_arms(args.base_only, args.lora_only)]
                     arms_left = len(arm_names) - arm_names.index(arm)
                     books_left = len(args.books) - args.books.index(book)
                     eta_h = per * len(windows) * arms_left * books_left / 3600
@@ -580,7 +604,14 @@ def main():
                   flush=True)
 
     print("\n  per book")
-    for book, arms in per_book.items():
+    if args.lora_only:
+        for book, arms in per_book.items():
+            l = arms.get("lora", (0, 0))
+            print(f"    {book:18} lora {l[0]/max(l[1],1)*100:5.1f}%  (unpaired)")
+        tl = sum(v["lora"][0] for v in per_book.values())
+        nl = sum(v["lora"][1] for v in per_book.values())
+        print(f"\n  pooled  lora {tl}/{nl} = {tl/max(nl,1)*100:.1f}%  (adapter only; no base arm)")
+    for book, arms in ({} if args.lora_only else per_book).items():
         b = arms.get("base", (0, 0))
         line = f"    {book:18} base {b[0]/max(b[1],1)*100:5.1f}%"
         if not args.base_only:
@@ -588,10 +619,11 @@ def main():
             line += (f"  lora {l[0]/max(l[1],1)*100:5.1f}%  "
                      f"{(l[0]/max(l[1],1)-b[0]/max(b[1],1))*100:+6.1f}")
         print(line)
-    tb = sum(v["base"][0] for v in per_book.values())
-    nb = sum(v["base"][1] for v in per_book.values())
-    print(f"\n  pooled  base {tb}/{nb} = {tb/max(nb,1)*100:.1f}%")
-    if not args.base_only:
+    tb = sum(v.get("base", (0, 0))[0] for v in per_book.values())
+    nb = sum(v.get("base", (0, 0))[1] for v in per_book.values())
+    if not args.lora_only:
+        print(f"\n  pooled  base {tb}/{nb} = {tb/max(nb,1)*100:.1f}%")
+    if not args.base_only and not args.lora_only:
         p, x, y, n = paired(answers["base"], answers["lora"])
         tl = sum(v["lora"][0] for v in per_book.values())
         nl = sum(v["lora"][1] for v in per_book.values())
@@ -613,7 +645,7 @@ def main():
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json"),
         contract={"expected_arms": tuple(a for a, _ in
-                                           get_eval_arms(args.base_only))})
+                                           get_eval_arms(args.base_only, args.lora_only))})
     print("wrote", out)
 
 

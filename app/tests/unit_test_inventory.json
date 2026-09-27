@@ -2111,6 +2111,14 @@
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_merged_talker_still_exposes_config_for_the_vram_estimator",
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_served_talker_is_the_merged_module_not_the_peft_wrapper"
   ],
+  "test_lora_only_arm": [
+    "tests.test_lora_only_arm.LoraOnlyArm.test_both_modes_at_once_is_refused",
+    "tests.test_lora_only_arm.LoraOnlyArm.test_default_and_base_only_are_unchanged",
+    "tests.test_lora_only_arm.LoraOnlyArm.test_metadata_records_one_arm_and_says_it_is_unpaired",
+    "tests.test_lora_only_arm.LoraOnlyArm.test_runs_only_the_adapter_at_scale_one",
+    "tests.test_lora_only_arm.LoraOnlyArm.test_the_cli_refuses_both_flags",
+    "tests.test_lora_only_arm.LoraOnlyArm.test_the_serving_audit_does_not_flag_it_as_a_false_paired_claim"
+  ],
   "test_lora_review_integration": [
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_serves_distinct_blind_samples_over_http",
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",
