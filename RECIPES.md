@@ -986,6 +986,29 @@ listed here were a base-file packaging fault; see §"A fourth family") —
 and is indistinguishable from nothing where the base is healthy, which includes
 the whole nine-novel fixture at IQ3.
 
+### Muse IQ2_XXS: the base itself drops the contract (2026-09-27)
+
+The Muse IQ2_XXS base cells returned HTTP 500s from llama-server ("output that does not
+match the expected peg-native format"), and the adapter-only cells were stopped on the
+theory that the 500s *were* the collapse. A three-arm diagnostic on identical windows
+(Sun Also Rises, 4 windows, paired base + window25b, tnr-2, new prompt) says otherwise:
+
+| serving | peg-native 500s | base | adapter | base unanswered |
+|---|---:|---:|---:|---:|
+| A: flags the cells used | 4 | 2/36 | 26/36 | 27 |
+| B: A + `--reasoning-format deepseek`, `reasoning_strength` low (the reasoning-on row above) | 4 | 2/36 | 26/36 | 27 |
+| C: the documented Muse row: `--reasoning off --skip-chat-parsing`, `reasoning_strength` none | **0** | 2/36 | 27/36 | **26** |
+
+B changed nothing (the server was confirmed to start with the flags). C removes every
+500, and the base still leaves 26 of 36 rows unanswered: its replies contain no JSON at
+all. So at IQ2_XXS the **base cannot hold the output contract**, whatever the parser,
+and the adapter restores it (0 unanswered in all three arms). The 500s were parser noise
+on top of a real base failure, and the stopped adapter-only cells were measuring
+something real. Scope: 36 rows on one book that is in the adapter's training set, so
+the adapter arm's accuracy is not a held-out number; the base collapse is the finding.
+
+Artifacts: `lora_serving_eval__muse-iq2xxs-flagdiag-{A,B,C}-tnr-2-20260927.json`.
+
 ### A fourth family, and the same shape
 
 | Gemma window25 adapter | base | adapter | delta |
@@ -1012,9 +1035,42 @@ template present, verified in the file) the nine-novel picture is different:
 | Q4_K_M, nine novels | base | adapter | fixed / broken | p |
 |---|---:|---:|---:|---:|
 | E2B (final, 2,655 rows) | **43.7** | 53.6 (**+9.9**) | +460 / −198 | 6e−25 |
-| E4B (interim, 2026-09-27) | ~58 | ~+2 | — | n.s. so far |
+| E4B (final, 2,655 rows) | **67.5** | 66.6 (−0.9) | +214 / −238 | 0.28 |
 
-Artifact: `lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json`.
+Artifacts: `lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json`,
+`lora_serving_eval__gemma4-e4b-w25-q4km-paired-michel2_full-tnr-4-pdnc9-20260927.json`.
+E4B on the eight held-out novels (The Sun Also Rises is training data): 70.7 → 68.5,
+**−2.2** (+155/−206, p=0.008), repairing 24.8% of the base's errors and breaking 13.3%
+of its correct rows.
+
+**Every Gemma row in this section was served off its training prompt (found
+2026-09-27).** The window25 training windows carry `MICHEL2_SYSTEM` `a63e2124546ce050`
+(2,071 characters) in every row's `system`; tnr-0 and tnr-4, where all the Gemma cells
+ran, serve the older `8447565f8afc7294` (1,825). Both arms share the prompt, so each
+pairing is fair, but none of them sees the adapter at the input it was trained on —
+including the 12B's +2.11 and E2B's +9.9. The 13–17% collateral on E2B and E4B, three
+to four times the larger bases', may be partly that mismatch; that is untested. Until
+a matched-prompt cell reads, treat E4B's −2.2 as **unmeasured at the trained prompt**,
+not as harm. The same applies to the Muse KL IQ3_M cells on tnr-4 (seed 1 and 2). A
+matched-prompt E4B re-run is queued on tnr-4 (tag `gemma4-e4b-w25-newprompt`).
+
+One existing pair isolates the prompt: **Muse window25b at Q3_K_XL**, nine novels, both on
+A6000s. Off-prompt (tnr-4, `muse-window25b-q3kxl-paired-michel2_full-tnr-4-pdnc9-20260926.json`):
+base 93.9, −0.1, repair 47.5%, collateral **3.2%**. Trained prompt (tnr-2,
+`muse-window25b-q3kxl-paired-michel2_full-tnr-2-pdnc9-20260926.json`): base 94.5, −0.7,
+repair 42.9%, collateral **3.3%**. For Muse the mismatch does not raise collateral. Across
+every window25 cell, collateral tracks base strength instead: 3–4% on every base above 85,
+10.2% on Qwen3-8B (base 75.5) **on its trained prompt**, 13–21% on the Gemma E2B/E4B
+bases (21–68). That points at weak bases, not the prompt, for Gemma's collateral — an
+inference from one pair and a cross-family pattern, which the queued E4B re-run tests.
+
+The mismatch runs the other way for the 2026-09-17 **michel2** adapters: Qwen3.8-27B and
+Qwen3.6-35B-A3B rights-clean michel2 trained on the *older* `8447565f` text (10,154 of 10,154
+training rows), so their cells on tnr-1, local, and tnr-2 after 2026-09-26 were the off-prompt
+ones. And the Qwen3-14B `rightsclean` pair is not a clean seed replication: seed 1 trained on
+the attribute prompt at `30d09501` (`e5fd22ad`), seed 2's chain replaced the prompt file with
+main's on 2026-09-17 (`f39ea0eb`, #565). Released adapters now carry their training prompt in
+their names (HF_MODEL_GUIDE §"Adapter names carry their training prompt").
 So most of the "rescue" was the adapter compensating for a malformed file; on a
 correctly packaged E2B it is a real +9.9, but it also breaks **17%** of the rows the
 base already had right — four times the ~4% seen on the larger bases. The 12B's

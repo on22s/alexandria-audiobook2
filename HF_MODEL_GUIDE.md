@@ -11,8 +11,8 @@ Public repos as of that date:
 | repo | what | state |
 |---|---|---|
 | `Om22s/alexandria-qwen3-attribution` | the collection: six attribution adapters under `adapters/<name>/` | current, `v1.0.0` |
-| `Om22s/alexandria-qwen3-14b-rightsclean-speaker-attribution` | one adapter, byte-identical to `adapters/qwen3-14b-rightsclean` | superseded (`new_version` → collection) |
-| `Om22s/alexandria-qwen3-14b-speaker-attribution` | the earlier experimental r8 adapter | superseded (`new_version` → collection) |
+| `Om22s/alexandria-qwen3-14b-rightsclean-speaker-attribution-attrv1` | one adapter, byte-identical to `adapters/qwen3-14b-rightsclean-attrv1` | superseded (`new_version` → collection) |
+| `Om22s/alexandria-qwen3-14b-speaker-attribution-attrv1` | the earlier experimental r8 adapter | superseded (`new_version` → collection) |
 
 Everything under `Om22s/alexandria-attribution-adapters` and the
 `*-evaluation-archive` / `*-arms` repos is **private and stays private**: the
@@ -141,9 +141,9 @@ list and `model-index`, then tag `v1.1.0`:
 
 | adapter | waiting on | where it runs |
 |---|---|---|
-| `qwen3.6-35b-a3b-rightsclean-michel2` | quant ladder (IQ1_M off/on, IQ2_XXS, IQ3_XXS, Q4_K_XL), four-book + Emma; nine-book on IQ3_XXS | tnr-0 `a3b_adapter_ladder_tnr0_20260917c.sh`; tnr-2 `pdnc9_tnr2_20260919b.sh` |
-| `qwen3.8-27b-rightsclean-michel2` | Q4_K_M reasoning on, Q3_K_XL, IQ2_XXS; Emma; nine-book on Q4_K_M | tnr-4 `qwen38_adapter_tnr4_20260917d.sh` → `qwen38_pdnc2_tnr4_20260918.sh` → `pdnc9_tnr4_20260919c.sh` |
-| `qwen3-14b-rightsclean` (+ seed 2) | nine-book paired, default and michel2_full | tnr-2 `pdnc9_tnr2_20260919b.sh` |
+| `qwen3.6-35b-a3b-rightsclean-michel2v1` | quant ladder (IQ1_M off/on, IQ2_XXS, IQ3_XXS, Q4_K_XL), four-book + Emma; nine-book on IQ3_XXS | tnr-0 `a3b_adapter_ladder_tnr0_20260917c.sh`; tnr-2 `pdnc9_tnr2_20260919b.sh` |
+| `qwen3.8-27b-rightsclean-michel2v1` | Q4_K_M reasoning on, Q3_K_XL, IQ2_XXS; Emma; nine-book on Q4_K_M | tnr-4 `qwen38_adapter_tnr4_20260917d.sh` → `qwen38_pdnc2_tnr4_20260918.sh` → `pdnc9_tnr4_20260919c.sh` |
+| `qwen3-14b-rightsclean-attrv1` (+ `-seed2-attrv2`) | nine-book paired, default and michel2_full | tnr-2 `pdnc9_tnr2_20260919b.sh` |
 | Muse-Glimmer-30B rights-clean, gen 3 (**not uploaded**) | training now: rejection-sampled traces then the loss-fixed trainer; upload only if it serves in the JSON contract and scores paired against the base. The only rights-clean Muse adapter so far (`rightsclean-lossfix`) failed the contract (4.6%, 555 of 606 unanswered) and is not release material. Base is Apache-2.0, so licence is not the obstacle. | tnr-1 `muse_gen3_rightsclean_tnr1_20260917b.sh` |
 
 Nine-book aggregates go on the cards as **eight held-out novels**, with The
@@ -170,6 +170,27 @@ A negative row still goes on the card, with "served correctly" stated first
 (adapter loaded, scale toggled, rows answered) — a card that only carries the
 wins is the kind of card the Hub page warns about — but it never decides the
 release on its own if a shipping-quant row is positive.
+
+## Adapter names carry their training prompt (2026-09-27)
+
+Every released adapter is named **model-training-prompt**: the existing name plus the prompt it
+was trained on (`michel2` in a name becomes `michel2v1`/`michel2v2`; otherwise the label is appended).
+An adapter measured under a different prompt is a different measurement, and this was invisible
+before: the window25/KL adapters were served off-prompt on tnr-0/tnr-4, the 2026-09-17 michel2
+adapters off-prompt everywhere else, and the Qwen3-14B `rightsclean` seed pair trained on two prompts.
+
+| label | text | sha256 |
+|---|---|---|
+| `attrv1` | `app/default_prompts_attribute.txt` at `b02d5950` | file `e5fd22ad…` |
+| `attrv2` | the same file at `5ec2ae07` (#565) | file `f39ea0eb…` |
+| `michel2v1` | `MICHEL2_SYSTEM` before #619/#623, 1,825 chars | system text `8447565f…` |
+| `michel2v2` | `MICHEL2_SYSTEM` after #619/#623, 2,071 chars | system text `a63e2124…` |
+
+Label only from a record: the training data's `system` field, or the manifest's clean git commit, or
+the chain that set `PYTHONPATH`. Where none exists the adapter stays unlabelled (the Qwen3.8 and Gemma
+evaluation archives). Collection `v1.5.0`; the two single-adapter repos were renamed (old URLs redirect);
+the private archive keeps its box-mirror paths and maps them in `ADAPTER_NAMES.md`. Artifact tags are
+evidence and keep the names they were recorded under.
 
 ## Freeing private storage: weights purged, lessons kept (2026-09-27)
 

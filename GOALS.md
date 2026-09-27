@@ -752,6 +752,28 @@ books the adapter evaluations hold out score 78.5% against 76.9% for the other
 nineteen — they are not a favourable subset, which makes every nine-novel adapter
 number below more general than it looked.
 
+**On Qwen3.8-27B the gap is inside the target — 2026-09-27: −2.2, MET for that
+model, still OPEN for Qwen3-8B.** The same instrument (28 novels, `michel2_full`,
+reasoning low, 12 windows per book, `pdnc_hard28` segmentation, attestation gate off,
+base only) on Qwen3.8-27B UD-Q3_K_XL, local 9070 XT:
+
+| group | books | rows | Qwen3-8B | Qwen3.8-27B |
+|---|---|---|---|---|
+| the three quoted in 1.1 | 3 | 302 | 83.8% | **95.7%** (289/302) |
+| the other 25 | 25 | 2,215 | 76.6% | **93.5%** (2,070/2,215) |
+| gap | | | −7.2 (z = 2.8) | **−2.2** (z = 1.5) |
+
+Overall 93.7%, no unanswered rows; per book 76% (Hard Times) to 100% (The Man Who Was
+Thursday). Artifact:
+`lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen38-27b-q3kxl-seg0926-attestoff-local9070xt-20260927.json`.
+**"The three quoted in 1.1" are Pride and Prejudice, The Awakening and The Sign of the
+Four** — named here because nothing else did: a rescore that guessed them from the
+`goal13_development_*` file names produced a *positive* gap for Qwen3-8B, and only this
+set reproduces the recorded 253/302. What the two models show is that the gap depends
+on the model; two points cannot say whether it is the books or the model's strength.
+One run, one quant, 12 windows per book. A3B IQ2_XXS and Qwen3.5-9B on the same
+instrument are running (2026-09-27 night).
+
 **Trained adapters on never-trained books — the confirmation the Priority list
 asks for (2026-09-26/27).** The `window25` adapters were trained on the 19 PDNC
 novels *outside* the nine-book evaluation set, so all nine are held out for them
