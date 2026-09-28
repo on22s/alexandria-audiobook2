@@ -2985,7 +2985,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 255 | 52.2% | historical_only | ok | True | 1267.8s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 255 | 43.1% | historical_only | ok | True | 1365.8s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 255 | 53.7% | exploratory | ok | False | 14191.7s |
-| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | supported_measurement | ok | False | 212.6s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | historical_only | ok | False | 212.6s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 640 | 55.6% | historical_only | ok | False | 3306.2s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 8192 | single | 640 | 55.8% | historical_only | ok | False | 9216.7s |

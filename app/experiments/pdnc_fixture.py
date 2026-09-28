@@ -55,6 +55,31 @@ def is_pseudo_speaker(name):
     return name.strip().startswith("_")
 
 
+# PDNC ALSO LISTS NAMES THAT NEVER SPEAK, and a correct short answer can land on
+# one. TheSignOfTheFour's Wooden-Legged Man (100 quotations, alias Jonathan
+# Small) has a separate entry "Small" with zero quotations; a model answering
+# SMALL for his confession named the right man and was scored as naming another
+# character. On the nine-novel panel that one entry flipped 10 of 57 paired
+# adapter verdicts (2026-09-28): it hid an adapter answering MORDECAI SMITH
+# where the base said SMALL, and credited adapters that had learned to echo
+# PDNC's main name "WOODEN-LEGGED MAN" rather than to attribute better.
+#
+# Hand-reviewed pairs only. An automatic rule ("a silent name that is part of
+# the gold name") also accepts SMALL for "A Small, Dark, Brisk Man", who is a
+# different person, and MISS ELLIOT for Anne, whom the novel never calls that.
+# Rejected on review and deliberately absent: Persuasion MISS ELLIOT, Mansfield
+# Park BERTRAM (five speaking Bertrams), AgeOfInnocence CATHERINE (undecided).
+# build() refuses a pair whose short name has any quotation, so a corpus update
+# that gives one a line cannot turn this into a wrong merge silently.
+REVIEWED_SILENT_ALIASES = {
+    "TheSignOfTheFour": {"Wooden-Legged Man": "Small"},
+    "PrideAndPrejudice": {"Mr. Denney": "Denny"},
+    "HardTimes": {"Josiah Bounderby": "Bounderby",
+                  "Mr. James Harthouse": "Harthouse"},
+    "AHandfulOfDust": {"Reggie St Cloud": "Reggie"},
+}
+
+
 def load_novel(folder, name):
     legacy = os.path.join(folder, f"{name}_quotes.csv")
     if os.path.exists(legacy):
@@ -89,6 +114,14 @@ def build(folder, name, context_chars=400):
         except Exception:
             alt = set()
         group = {main.upper()} | {str(a).upper() for a in alt if str(a).strip()}
+        silent = REVIEWED_SILENT_ALIASES.get(name, {}).get(main)
+        if silent:
+            spoken = sum(1 for q in quotes
+                         if (q.get("speaker") or "").strip() == silent)
+            if spoken:
+                raise ValueError(f"{name}: {silent!r} has {spoken} quotations; "
+                                 f"it is a speaker, not an alias of {main!r}")
+            group.add(silent.upper())
         if len(group) > 1:
             aliases.append(sorted(group))
 

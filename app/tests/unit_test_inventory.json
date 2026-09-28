@@ -2418,6 +2418,16 @@
     "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_the_five_heldout_books_are_present_and_answerable",
     "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_the_predicate_accepts_every_marker_the_corpus_actually_uses"
   ],
+  "test_pdnc_silent_aliases": [
+    "tests.test_pdnc_silent_aliases.BuilderTest.test_a_short_name_that_speaks_is_refused",
+    "tests.test_pdnc_silent_aliases.BuilderTest.test_a_silent_short_name_joins_the_speakers_group",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_denny_and_reggie",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_rejected_pairs_stay_rejected",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_small_is_not_the_small_dark_brisk_man",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_small_is_the_wooden_legged_man",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_the_old_groups_fail_the_case",
+    "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_the_wide_context_fixtures_carry_the_same_groups"
+  ],
   "test_pitch_profile_matrix": [
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_load_adapters_accepts_complete_manifest_entries",
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_locked_fixture_matches_six_distinct_source_passages",

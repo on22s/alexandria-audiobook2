@@ -5,9 +5,9 @@ All 370 legacy-metadata artifacts are listed exactly once. Classification descri
 ## Counts
 
 - `exploratory`: 252
-- `historical_only`: 64
+- `historical_only`: 65
 - `provisional`: 11
-- `supported_measurement`: 43
+- `supported_measurement`: 42
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -148,12 +148,12 @@ All 370 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__gemma4-e2b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e2b-w25-q4km-paired-michel2_full-tnr-0-pdnc9-20260927.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__gemma4-e4b-w25-earlyread-w20-tnr1-20260924.json` | lora_serving_eval | exploratory | 352 | 0 | 220 | True | recorded commit is unavailable from current history |
-| `lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json` | lora_serving_eval | historical_only | 2517 | 2 | 2345 | False |  |
 | `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
-| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen35-9b-q4km-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
-| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq1m-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
-| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq2xxs-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
-| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen38-27b-q3kxl-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 0 | 2345 | False |  |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen35-9b-q4km-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 2 | 2345 | False |  |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq1m-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 2 | 2345 | False |  |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq2xxs-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 2 | 2345 | False |  |
+| `lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen38-27b-q3kxl-seg0926-attestoff-local9070xt-20260927.json` | lora_serving_eval | historical_only | 2517 | 2 | 2345 | False |  |
 | `lora_serving_eval__local-12h-muse-base-20260916.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-4book-base-20260907.json` | lora_serving_eval | historical_only | 768 | 0 | 383 | False |  |
 | `lora_serving_eval__local-balanced-q4-20260825.json` | lora_serving_eval | exploratory | 1360 | 0 | 590 | False | saved summary differs from row recomputation |
@@ -202,7 +202,7 @@ All 370 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__nemotron3-ultra-paid-clean-mansfieldpark-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 734 | 0 | 0 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__nemotron3-ultra-paid-clean-northangerabbey-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 672 | 0 | 0 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__nemotron3-ultra-paid-clean-persuasion-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 309 | 0 | 0 | False | recorded commit is unavailable from current history |
-| `lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 353 | 0 | 0 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 353 | 40 | 0 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__nemotron3-ultra-paid-clean-thesunalsorises-michel2full-b8-low-20260922.json` | lora_serving_eval | exploratory | 1759 | None | None | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history; saved summary differs from row recomputation |
@@ -349,25 +349,25 @@ All 370 legacy-metadata artifacts are listed exactly once. Classification descri
 | `tag_priority__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 278 | 0 | 0 | True | saved summary differs from row recomputation |
 | `tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | exploratory | 324 | 1 | 0 | False | saved summary differs from row recomputation |
 | `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified; saved summary differs from row recomputation |
-| `two_stage_attribution__all_rows_hint_20260914.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | True |  |
-| `two_stage_attribution__explicit_control.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
-| `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
-| `two_stage_attribution__explicit_inner_narration.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
-| `two_stage_attribution__explicit_shuffled_roster.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
-| `two_stage_attribution__explicit_speaker_not_addressee.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
+| `two_stage_attribution__all_rows_hint_20260914.json` | two_stage_attribution | historical_only | 2494 | 1 | 1224 | True |  |
+| `two_stage_attribution__explicit_control.json` | two_stage_attribution | historical_only | 1823 | 2 | 1414 | False |  |
+| `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 2 | 1414 | False |  |
+| `two_stage_attribution__explicit_inner_narration.json` | two_stage_attribution | historical_only | 1823 | 2 | 1414 | False |  |
+| `two_stage_attribution__explicit_shuffled_roster.json` | two_stage_attribution | historical_only | 1823 | 2 | 1414 | False |  |
+| `two_stage_attribution__explicit_speaker_not_addressee.json` | two_stage_attribution | historical_only | 1823 | 1 | 1414 | False |  |
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
-| `two_stage_attribution__usual_suspects_control_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
-| `two_stage_attribution__usual_suspects_dropped_20260913.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
-| `two_stage_attribution__usual_suspects_hint_20260914.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | True |  |
-| `two_stage_attribution__usual_suspects_muse_reasoninglow_mt4096_20260914.json` | two_stage_attribution | historical_only | 1213 | 0 | 488 | False |  |
+| `two_stage_attribution__usual_suspects_control_20260913.json` | two_stage_attribution | historical_only | 1213 | 1 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_dropped_20260913.json` | two_stage_attribution | historical_only | 1213 | 1 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_hint_20260914.json` | two_stage_attribution | historical_only | 1213 | 1 | 488 | True |  |
+| `two_stage_attribution__usual_suspects_muse_reasoninglow_mt4096_20260914.json` | two_stage_attribution | historical_only | 1213 | 1 | 488 | False |  |
 | `two_stage_attribution__usual_suspects_reasoning_20260914.json` | two_stage_attribution | exploratory | 1213 | 0 | 488 | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
-| `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
+| `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | historical_only | 200 | 9 | 0 | False |  |
 | `two_stage_attribution_restricted.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_riqua.json` | two_stage_attribution | supported_measurement | 1287 | None | None | False |  |
 | `two_stage_attribution_w16000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
-| `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
-| `two_stage_attribution_w3200_eight.json` | two_stage_attribution | historical_only | 7643 | 0 | 6373 | False |  |
+| `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 1 | 1224 | False |  |
+| `two_stage_attribution_w3200_eight.json` | two_stage_attribution | historical_only | 7643 | 1 | 6373 | False |  |
 | `two_stage_attribution_w8000.json` | two_stage_attribution | exploratory | 600 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021.json` | two_stage_attribution | exploratory | 380 | None | None | False | recorded commit is unavailable from current history |
 | `two_stage_attribution_wp2021_train.json` | two_stage_attribution | exploratory | 200 | None | None | False | recorded commit is unavailable from current history |
