@@ -10,7 +10,8 @@ Public repos as of that date:
 
 | repo | what | state |
 |---|---|---|
-| `Om22s/alexandria-qwen3-attribution` | the collection: six attribution adapters under `adapters/<name>/` | current, `v1.0.0` |
+| `Om22s/alexandria-qwen3-attribution` | the collection: attribution adapters under `adapters/<name>/` | current, `v1.6.3` (2026-09-28) |
+| `Om22s/alexandria-muse-glimmer-attribution` | the Muse-Glimmer-30B window25b adapter (`michel2v2`) | current, `v1.0.1` (2026-09-28) |
 | `Om22s/alexandria-qwen3-14b-rightsclean-speaker-attribution-attrv1` | one adapter, byte-identical to `adapters/qwen3-14b-rightsclean-attrv1` | superseded (`new_version` → collection) |
 | `Om22s/alexandria-qwen3-14b-speaker-attribution-attrv1` | the earlier experimental r8 adapter | superseded (`new_version` → collection) |
 

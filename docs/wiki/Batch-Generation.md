@@ -64,7 +64,7 @@ peak at about 7.3, 9.6 and 11.8 GB).
 | setting | what it does |
 |---|---|
 | TTS Mode | `local` is needed for batched rendering |
-| Parallel Workers | the batch size for local rendering; Auto-Configure sets 1–4 depending on GPU memory |
+| Parallel Workers | the batch size for local rendering; Auto-Configure sets 1–4 depending on GPU memory. More is faster while it fits: on the RX 9070 XT 1 / 4 / 16 workers rendered at 1.2 / 2.2 / 3.9× real time (2026-09-28) |
 | Max Items/Batch | a cap on lines per batch |
 | Compile Codec | 3–4× faster decoding after a one-time 30–60 s warm-up |
 | Sub-batching | on — reduces padding waste |

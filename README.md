@@ -679,7 +679,9 @@ families:
 - Below about 35% base accuracy, an adapter is worth **+57 to +62 points** — it restores
   the model's ability to answer at all (Muse IQ2_XXS, on two vendors' GPUs).
 - Between 85% and 90%, it is worth **+1 to +4**, often not significant.
-- **Above about 90%, it can cost 1–3 points.**
+- **Above about 90%, it moves by a point or two either way — measure it on its own prompt.**
+  The A3B window25 adapter costs 2.1 at Q4_K_XL; the Muse window25b adapter gains 1.1 at Q4_K_M
+  on its training prompt (the −1.1 once quoted came from serving it on older prompt text).
 
 So load one where the base is visibly failing (blank replies, malformed JSON, wrong
 numbers of entries), not to chase a few points on a model that already works.
@@ -761,9 +763,17 @@ stated otherwise:
 | Qwen3-14B Q4_K_M in llama.cpp, fully on the card | about 32 tokens/s |
 | full unit-test suite (CPU) | about 20 s |
 
-**Batch settings:** Parallel Workers 4–8 on a 16 GB card, Sub-batching on, and Compile
-Codec on for long books (30–60 s warm-up, then 3–4× faster decoding). The
-**Auto-Configure** button picks these for your card.
+**Batch settings:** raise Parallel Workers as far as memory allows, Sub-batching on, and
+Compile Codec on for long books (30–60 s warm-up, then 3–4× faster decoding). Measured on the
+RX 9070 XT (48 lines, CustomVoice, production batch path, codec not compiled), speed was still
+rising at 16:
+
+| Parallel Workers | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| × real time | 1.20 | 1.56 | 2.24 | 2.78 | 3.93 |
+| peak VRAM (torch) | 4.6 GB | 5.1 GB | 5.9 GB | 5.7 GB | 6.8 GB |
+
+The **Auto-Configure** button sets these from your card's memory.
 
 **ROCm notes:**
 

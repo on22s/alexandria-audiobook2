@@ -189,6 +189,7 @@ point, not a second speaker. Not yet listened to (6.5).
 | product harness completion budget | `lora_serving_eval.py --max-tokens` = the product's `LLMGenParams.max_tokens` (4096) | works | #549. The harness pinned 2000 — half the product's — and Muse overflowed 70% of windows |
 | temperature-0 retry guard | keyed on (prompt, budget), not prompt alone | works | #549: keyed on the prompt, it cancelled every budget escalation, so a truncated window at temp 0 could never recover |
 | Muse-Glimmer on llama-server | `--reasoning off --skip-chat-parsing --chat-template-kwargs '{"reasoning_strength":"none"}'` + request-level JSON schema, llama.cpp **`b6b003d2c`** (built 2026-09-13; CTest 59/60, the one failure a missing LFS vocab fixture) | works: full batch-25 run, LoRA arm 768/768 answered, zero PEG-native 500s | `muse_task4k_tnr0_product_20260913/server.log` (0 "output does not match"), the Muse row above | on the 2026-08-23 build the same flags passed a 12-entry smoke and then failed every LoRA request in a full run — the build is part of the recipe. The base arm still emits raw non-JSON on ~12% of windows; that is Muse, not serving |
+| ↳ **caveat found 2026-09-28** | the row above renders `Reasoning strength: none.` — Muse's template prints any non-empty value, and the server kwarg overrides the request's effort | **not the trained strength** (adapters train at `low`); results served this way describe that condition | `ab_test_runtime/analysis/muse_reasoning_strength_audit_20260928.md` |
 | Muse-Glimmer on llama-server | `--reasoning off` alone | **leaks reasoning** | same logs, the earlier runs |
 | Muse-Glimmer adapter + reasoning on | `--reasoning on --reasoning-format deepseek --chat-template-kwargs '{"reasoning_strength":"low"}' --lora <any 2026-09-11 tplfix adapter>` (no `--skip-chat-parsing`, which reasoning separation cannot use) | **failed all 20/20 multi-entry windows in the 2026-09-14 diagnostic**; resolved by the loss-window fix - the 2026-09-14 `task4k-multin-lossfix` adapter served 768/768 windows with reasoning low and 0 parser failures (row in the 2026-09-17 section) | tnr-0 `diag_muse_server.log` (`--verbose`): `full peg-native output triggering error: <|start|>assistant=user<|message|>[{"n": 0, …}]<|eot|>`; tnr-1 `muse_parser_20line_smoke_tnr1_20260916c/adapter_parser.response.json` is the successful small-output counterexample | The failure is **configuration- and workload-sensitive**. The adapter/header diagnosis remains the leading explanation for the old multi-entry run, but the new build's small smoke means parser support is not categorically absent. Compare the same adapter, prompt, and batch size across builds before calling it a trainer-only bug. `--skip-chat-parsing` bypasses the parser but then reasoning cannot be split from content. Reported upstream on ggml-org/llama.cpp#27025 (closed; different trigger) |
 | Muse-Glimmer trainer loss window | `distill_train_muse_multin_templatefix_20260911.py` compute_loss: `keep = (labels != -100).sum().max()`, then `shifted[:, -keep:]` with `logits_to_keep=keep` | **off by one: the first answer token is never supervised** (batch 1, so exactly one token per example). Tokenised check on tnr-1: answer `[' to','=user','<|message|>','[{"',…,'<|eot|>']`, old window supervises from `'=user'` on. Same bug dropped the leading `[` in the pre-templatefix adapters (the memory's "missing leading `[`") — the first answer token then | the reproduction is the 12-line snippet in the 2026-09-14 session (tokenizer only, no GPU); fixed copy `distill_train_muse_multin_lossfix_20260914.py` keeps every position from the earliest supervised one (`keep = L − first_supervised_index`) and slices `outputs.logits[:, -keep:]` | every `*-tplfix` Muse adapter (task4k-multin, longcontext, hardcases, author-balanced, mixed, both seed-2s) has this defect; they still score +4.4 with `--skip-chat-parsing` because the header is never parsed there. Do not copy the 09-11 trainer's loss into another trainer; the Qwen/Gemma trainers use the HF `labels=` path and are not affected — verify by the same tokenised check before assuming |
@@ -1453,6 +1454,104 @@ checked against the rows rather than asserted: the clean-gold fixture contains
 **no narration rows at all**, all 768 are spoken lines, so the entire gain is on
 spoken lines. Why an instruction about narration entries improves spoken-line
 accuracy is open.
+
+
+## September 28: prompt text, reasoning strength, and the cast list
+
+**Served on its training prompt, the Muse window25b cost at Q4_K_M is a gain.** Same box,
+file and adapter; only `MICHEL2_SYSTEM` differs:
+
+| Muse window25b, KQuant Q4_K_M, nine novels | base → adapter | fixed / broken | p |
+|---|---|---:|---:|
+| older text `8447` (09-24) | 94.7 → 93.6 (−1.1) | +58 / −86 | 0.024 |
+| its training text `a63e` (09-27) | 94.2 → **95.2 (+1.1)** | +77 / −49 | 0.016 |
+
+**The KL adapter, on its training prompt: no reliable gain above IQ2.** Seed 1 at IQ3_M read
+**+1.7** (91.5 → 93.2, +123/−77, p=0.0014), but at IQ3_XXS the two seeds on two GPUs disagree:
+
+| KL at IQ3_XXS, nine novels | A6000 | A100 |
+|---|---|---|
+| seed 1 | −1.5 (p=0.003) | −1.3 (+85/−120, p=0.017) |
+| seed 2 | −0.2 (+80/−85, p=0.76) | +1.5 (+103/−63, p=0.002) |
+
+Seed 1 hurts on both cards; seed 2's +1.5 did not survive the move to the A6000. Base arms are
+identical run to run on one card (93.07 twice on the A100) and 0.5 apart between cards. At Q4_K_M
+both seeds are flat (seed 1 −0.3, p=0.61; seed 2 +0.6, p=0.19).
+
+**At IQ2_XXS, adapter only,** KL answers almost every line: **83.4%** with 0.2% unanswered, against
+window25b's 71.8% with 13.7%, both served at `reasoning_strength` "none". **Served at `low` (the
+trained strength) both are worse**, with replies capped at 4,096 tokens (`--hard-max-tokens`, #690)
+because at `low` IQ2 runs on to the length limit: window25b 71.8 → **65.8** (+91/−251,
+p=2e-18; 525 unanswered), KL 83.4 → **82.4** (+22/−48, p=0.003). At IQ2, serve at "none".
+
+**Which reasoning strength a Muse run actually rendered.** Adapters train at `low`. Measured with
+llama-server `/apply-template` on three builds (identical):
+
+| server `--chat-template-kwargs` | request `reasoning_effort` | rendered |
+|---|---|---|
+| none set | low | low |
+| none set | none, or omitted | **high** |
+| `{"reasoning_strength":"none"}` | any, including low | **none** |
+| `{"reasoning_strength":"low"}` | any | low |
+
+Every nine-novel adapter sweep of 09-22..28 rendered `low`. The 09-13 tplfix product evaluations
+(the +4.4 to +8.5 quoted in the Muse-Glimmer HF discussion #63) rendered `none`; several 09-12/13
+runs rendered `high`. Scope and evidence: `ab_test_runtime/analysis/muse_reasoning_strength_audit_20260928.md`.
+
+**A shorter cast list hurts on both models measured.** Offering only the characters mentioned in
+the window plus the previous window's speakers, capped at 30 (`--roster-mode mentioned`):
+
+| nine novels | full list | mentioned, cap 30 | on lines where the speaker was offered |
+|---|---:|---:|---|
+| Muse window25b IQ3_M (base) | 92.3 | **63.6** | 93.5 vs 95.9 with the full list |
+| DeepSeek v4-pro, thinking off | 98.0 | **86.0** | 98.7 vs 99.0 |
+
+The short list leaves the real speaker out on about half the lines. For DeepSeek that is the whole
+loss; Muse also does worse when the speaker is offered.
+
+**Published:** the window25b adapter as `Om22s/alexandria-muse-glimmer-attribution` v1.0.1, the
+card carrying only on-prompt cells and each row's serving condition.
+
+**The Qwen3-8B window25 adapter gains more the smaller the quant, until the base collapses**
+(seed 1, nine novels, rescored with the reviewed aliases; a second seed is being measured):
+
+| Qwen3-8B base | base → adapter | fixed / broken | p |
+|---|---|---:|---:|
+| Q8_0 | 77.2 → 83.9 (+6.7) | +378 / −201 | 2e-13 |
+| Q4_K_M | 76.6 → 82.8 (+6.2) | Hub card v1.6.2 | |
+| UD-Q3_K_XL | +9.0 | Hub card v1.6.2 | |
+| UD-Q2_K_XL | 62.3 → **74.5 (+12.2)** | +597 / −274 | 2e-28 |
+| UD-IQ2_XXS | 30.3 → 38.6 (+8.2) | +548 / −329 | 1e-13 |
+
+IQ2_XXS was served correctly (template embedded, 98% answered) and is unusable either way.
+
+**Gemma 4 12B window25 at Q4_K_M, on vs off its training prompt:** +2.1 (84.2 → 86.3, +184/−129,
+p=0.002) on it, +2.6 (84.4 → 87.0, +174/−104) on the older text. Its training prompt did not
+enlarge the gain, and unanswered lines rose from 19 to 51 (of 2,655).
+
+**DeepSeek v4-pro: thinking `low` beat thinking off on every set measured.**
+
+| set | off | low | fixed / broken | p |
+|---|---:|---:|---:|---:|
+| nine novels | 98.0 | 98.6 | +29 / −13 | 0.02 |
+| goal 4.2's nine books, 40 windows | 96.5 | 97.8 | +48 / −10 | 5e-7 |
+| WP2021 (Chinese), 380 lines | 93.9 | 98.7 | +20 / −2 | 1e-4 |
+
+Low costs about six times as much per line in output tokens.
+
+**Goal 4.2, the Qwen3.8 half** (UD-Q3_K_XL, same 2,893 lines): 92.0% against DeepSeek's 96.5
+(off) and 97.8 (low); five of the nine books are within 5 points of DeepSeek off (Hard Times,
+Northanger Abbey, Persuasion, The Sign of the Four, Where Angels Fear to Tread), four are 6–8
+behind (A Passage to India, A Room with a View, Howards End, Winnie-the-Pooh).
+
+**Qwen3.6-35B-A3B on all 28 PDNC novels is flat from IQ1_M to IQ3_XXS:** 89.2 / 87.9 / 89.1
+(IQ1_M / IQ2_XXS / IQ3_XXS); IQ3_XXS vs IQ1_M +131/−133, p=0.95.
+
+**Voice LoRA at lr 2e-6 does not stop** (LJSpeech, the 1e-6 eval recipe otherwise): seed 1235
+fails the stop check (median 3.2× the expected length, worst 30×) and seed 1234 passes on the
+median while two of its five lines run 16× and 18×. The shipped 1e-6 adapter, same session:
+worst 1.2×. The 1e-6 row stands. `verify_adapter_stops` judges the median, which passed an
+adapter that runs away on 40% of its lines.
 
 ## Independence check on novels this project never tuned on (2026-09-17/18)
 

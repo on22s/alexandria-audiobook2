@@ -61,10 +61,11 @@ how good the adapter is:
 |---|---|
 | **below about 35%** (the output format is collapsing) | **+57 to +62 points** — it restores the ability to answer at all |
 | 85–90% | +1 to +4, often not significant |
-| **above about 90%** | **can cost 1–3 points** |
+| **above about 90%** | **±1–2 points** — the A3B window25 adapter costs 2.1 at Q4_K_XL; Muse window25b gains 1.1 at Q4_K_M on its own prompt |
 
 Examples from each end: Muse IQ2_XXS **15.9 → 77.8** (A6000) and **22.2 → 79.0** (RX 9070 XT);
-Muse Q4_K_M **90.9 → 88.1**.
+Muse Q4_K_M **90.9 → 88.1** (four-book, served on older prompt text; on its training prompt the
+nine-novel Q4_K_M cell is 94.2 → 95.2).
 
 *Corrected 2026-09-27 and 2026-09-28:*
 
@@ -79,8 +80,16 @@ what quantisation breaks, keeps **97%** of what was already right, and breaks ab
 those correct lines at every quant. Where there is nothing to recover, only the breakage shows.
 
 **Practical rule:** if your base model already scores above about 90% on this task, an adapter
-will probably cost you. Load one where the base is visibly failing — blank replies, malformed
-JSON, the wrong number of lines — not to chase a few points on a model that already works.
+moves it by a point or two at most, in either direction — measure it on its training prompt before
+relying on it. Load one where the base is visibly failing — blank replies, malformed JSON, the
+wrong number of lines — not to chase a few points on a model that already works.
+
+**Serve Muse adapters at the reasoning strength they trained at (`low`) — except at IQ2_XXS,**
+where `low` measured worse for both adapters (window25b 71.8 → 65.8, KL 83.4 → 82.4) because the
+2-bit model runs on to the length limit; serve IQ2 at "none". The server's
+`--chat-template-kwargs` overrides the request, and `{"reasoning_strength":"none"}` is printed
+literally as an untrained value; RECIPES §"September 28: prompt text, reasoning strength, and the
+cast list" has the full table.
 
 ## The test set changes the answer
 
@@ -126,8 +135,12 @@ predictions differed).
   The short list left out the real speaker far more often (it was offered on 37% of lines,
   against 74%; that flag undercounts in both runs, so only the comparison means anything), and
   even on the 993 lines where it was offered, the base scored 93.5% against 95.9% with the
-  full list. The adapter's +17.6 is mostly repair of damage the short list caused. One base and
-  one cell, but the full cast list stays.
+  full list. The adapter's +17.6 is mostly repair of damage the short list caused.
+
+  **Replicated on DeepSeek v4-pro** (thinking off, same nine novels): 98.0% with the full list,
+  86.0% with the short one. On the lines where the short list still offered the speaker it scored
+  98.7% against 99.0%, so for a strong model the whole loss is the missing speaker. The full cast
+  list stays.
 
 Recipes, artifacts and per-book splits: [RECIPES.md](../../RECIPES.md). Current results:
 [Results](Results.md).
