@@ -186,6 +186,10 @@ adapters off-prompt everywhere else, and the Qwen3-14B `rightsclean` seed pair t
 | `michel2v1` | `MICHEL2_SYSTEM` before #619/#623, 1,825 chars | system text `8447565f…` |
 | `michel2v2` | `MICHEL2_SYSTEM` after #619/#623, 2,071 chars | system text `a63e2124…` |
 
+Collection `v1.6.0` (2026-09-28) adds `qwen3.6-35b-a3b-rightsclean-window25-michel2v2`: on the nine
+held-out novels +2.7 (IQ1_M), +1.3 (IQ2_XXS, p=0.03), +1.6 (IQ3_XXS), −0.8 (Q4_K_XL, p=0.12) —
+the release criterion (positive at IQ2, flat at Q4) met, every rung on its training prompt.
+
 Label only from a record: the training data's `system` field, or the manifest's clean git commit, or
 the chain that set `PYTHONPATH`. Where none exists the adapter stays unlabelled (the Qwen3.8 and Gemma
 evaluation archives). Collection `v1.5.0`; the two single-adapter repos were renamed (old URLs redirect);
