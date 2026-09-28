@@ -63,7 +63,7 @@ A3B runs as fast as the 8B models while scoring about 11 points higher, and **ab
 faster than Qwen3.8** for about 6 points less. Pick it when throughput matters (a whole
 library, re-running books, a card shared with other work) and the 16 GB recommendation
 when accuracy does. Its window25 adapter (`qwen3.6-35b-a3b-rightsclean-window25-michel2v2`)
-adds +2.7 at IQ1_M and +1.6 at IQ3_XXS on nine held-out novels. These are one card and one
+adds +1.5 at IQ1_M on nine held-out novels and is flat to negative above it (rescored 2026-09-28, see RECIPES). These are one card and one
 run each; Qwen3.8's smaller files (IQ2_XXS, Q2_K_XL) were not timed on this instrument, and a
 dense 27B will not reach MoE speed at any quant — but that last point is expected, not measured.
 
@@ -191,9 +191,9 @@ its adapter was trained on, so their losses are real, not a prompt mismatch.
 
 | base | adapter trained on | quant | prompt variant | served its training prompt? | base → adapter | verdict |
 |---|---|---|---|---|---:|---|
-| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning off | `michel2_full` | yes | 93.3 → **95.8** (+2.5) | **load it** |
-| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning low | `michel2_full` | yes | 94.9 → **95.9** (+1.0) | **load it** |
-| Qwen3.8-27B | `michel2v1` | Q3_K_XL | `michel2_full` | yes | 95.2 → **96.0** (+0.8) | **load it** |
+| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning off | `michel2_full` | yes | 94.4 → **95.9** (+1.5, p=9e−5) | **load it** |
+| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning low | `michel2_full` | yes | 95.8 → 96.4 (+0.6, p=0.17) | flat |
+| Qwen3.8-27B | `michel2v1` | Q3_K_XL | `michel2_full` | yes | 95.3 → 96.1 (+0.8, p=0.06) | marginal |
 | Qwen3-14B | `attrv1` | Q4_K_M | `default` | unverified (attribute-prompt version on that tree not recorded) | 67.6 → 72.6 (+5.0) | pointless — see below |
 | Qwen3-14B | `attrv1` | Q4_K_M | `michel2_full` | no — transfer | 84.3 → 84.3 (+0.1) | no, null |
 | Qwen3.6-35B-A3B | `michel2v1` | IQ2_XXS | `michel2_full` | yes | 91.6 → 88.3 (−3.2) | **no** |
@@ -203,17 +203,19 @@ its adapter was trained on, so their losses are real, not a prompt mismatch.
 | Qwen3.6-35B-A3B | `michel2v1` | IQ3_XXS | `michel2_full` | yes | 91.6 → **71.3** (−20.3) | **no** |
 | Qwen3.6-35B-A3B | `michel2v1` | Q4_K_XL | `michel2_full` | yes | 92.1 → **64.6** (−27.5) | **no** |
 | Qwen3-8B | `michel2v2` (window25) | Q4_K_M | `michel2_full` | yes | 75.5 → **82.8** (+7.3) | **load it** |
-| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ1_M | `michel2_full` | yes | 89.3 → **92.1** (+2.7) | **load it** |
-| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ3_XXS | `michel2_full` | yes | 91.3 → **92.8** (+1.6) | **load it** |
-| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ2_XXS | `michel2_full` | yes | 90.2 → 91.6 (+1.3, p=0.03) | small gain |
-| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-Q4_K_XL | `michel2_full` | yes | 91.9 → 91.0 (−0.8, p=0.12) | flat |
+| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ1_M | `michel2_full` | yes | 90.7 → **92.1** (+1.5, p=0.01) | **load it** |
+| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ3_XXS | `michel2_full` | yes | 92.5 → 92.8 (+0.4, p=0.50) | flat |
+| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-IQ2_XXS | `michel2_full` | yes | 90.9 → 91.6 (+0.7, p=0.28) | flat |
+| Qwen3.6-35B-A3B | `michel2v2` (window25) | UD-Q4_K_XL | `michel2_full` | yes | 93.2 → 91.1 (**−2.1**, p=0.0002) | **no** |
 | Muse-Glimmer-30B | `michel2v2` (KL, seeds 1 / 2) | UD-Q3_K_XL | `michel2_full` | yes | 94.5 → 95.1 / 95.3 (+0.7 / +0.8) | marginal |
-| Muse-Glimmer-30B | `michel2v2` (KL, seeds 1 / 2) | IQ3_M | `michel2_full` | **no** (old text) | 91.7 → 93.3 / 93.2 (+1.6 / +1.5) | on-prompt rerun queued |
+| Muse-Glimmer-30B | `michel2v2` (KL, seeds 1 / 2) | IQ3_M | `michel2_full` | **no** (old text) | 92.3 → 93.3 / 93.2 (+1.0 / +0.9, p=0.08) | on-prompt rerun queued |
 
-**Among the older adapters only Qwen3.8's earns its place**, and it earns it at every
-rung we have measured. **Among the window25 adapters, Qwen3-8B's and A3B's do** — Qwen3-8B's
-most of all (+7.3) on the card tier where the base is weakest, A3B's at every quant below
-Q4_K_XL. The Muse KL adapter is marginal. That is convenient, because Qwen3.8 is also the recommendation
+**Among the older adapters only Qwen3.8's earns its place**, and after the 2026-09-28
+rescore only clearly with reasoning off (+1.5); with reasoning low it is flat. **Among the
+window25 adapters, Qwen3-8B's does** — most of all (+7.3) on the card tier where the base is
+weakest. A3B's helps only at IQ1_M and **costs 2.1 points at Q4_K_XL**; the Muse KL adapter
+is marginal. (Rescored rows count PDNC's silent short names such as SMALL for the Wooden-Legged
+Man; RECIPES §"Rescored 2026-09-28" has the ten verdicts that moved.) That is convenient, because Qwen3.8 is also the recommendation
 for most card sizes.
 
 **The Qwen3-14B row is the trap worth understanding.** Under the `default`

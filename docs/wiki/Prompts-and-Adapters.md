@@ -66,7 +66,7 @@ against Muse Q4_K_M **90.9 → 88.1**.
 *Corrected 2026-09-27:* the Gemma E2B example once given here (7.4 → 58.5) came from a
 base file missing its chat template, so it measured a packaging fault rather than Gemma;
 and Gemma 12B's four-book 86.9 → 85.2 was 3 rows fixed against 6 broken (p=0.51), noise
-— on nine novels the same adapter is +2.1 (p=0.001).
+— on nine novels the same adapter is +1.1 (p=0.09) once PDNC's silent short names are scored (+2.1 before, 2026-09-28).
 
 The mechanism, measured at row level on 2,655 rows: the adapter recovers about
 **half** of what quantisation breaks, preserves **97%** of what was already

@@ -178,8 +178,8 @@ novels *outside* the nine-book evaluation set, so all nine are held out for them
 | adapter | rung | base → adapter | p |
 |---|---|---|---|
 | Qwen3-8B window25 | Q4_K_M | 75.5 → **82.8** (+7.3) | 2e−15 |
-| A3B window25 | IQ1_M | 89.3 → **92.1** (+2.8) | 6e−6 |
-| A3B window25 | IQ3_XXS | 91.3 → **92.8** (+1.6) | 0.004 |
+| A3B window25 | IQ1_M | 90.7 → **92.1** (+1.5) | 0.013 |
+| A3B window25 | IQ3_XXS | 92.5 → 92.8 (+0.4) | 0.50 |
 | Muse window25b | Q3_K_XL | 93.9 → 93.8 (−0.1) | 0.94 |
 
 and the older 20-novel Qwen3.8 adapter gains +0.6 to +2.4 on its eight held-out

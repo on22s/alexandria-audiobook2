@@ -1029,12 +1029,48 @@ rights-clean michel2 adapters, which did train on it.
 
 - **The KL recipe replicates across seeds** at both rungs: +0.8 vs +0.7 at Q3_K_XL, +1.5 vs
   +1.6 at IQ3_M, collateral 2–4% throughout. Small and real at IQ3_M, marginal at Q3_K_XL.
-- **A3B window25 is flat at Q4_K_XL** (base 91.9): the gain falls across the ladder, IQ1_M
-  +2.8, IQ3_XXS +1.6, Q4_K_XL −0.8 — the repair-not-improvement shape, on its training prompt.
+- ~~**A3B window25 is flat at Q4_K_XL**~~ **Rescored 2026-09-28 (next section): −2.1, p=0.00015**,
+  and IQ3_XXS/IQ2_XXS fall to null; only IQ1_M (+1.5) stays positive. The rows above are the
+  stored scoring.
 - **Gemma 12B at Q4_K_M: +3.1 off-prompt**, above the +2.11 its Q8_0 cell read. The on-prompt
   twin (same file and adapter, tnr-2) is running; the pair isolates the prompt for Gemma.
 
 Artifacts in `ab_test_runtime/cloud_pull_20260928/`.
+
+## Rescored 2026-09-28: PDNC's silent short names
+
+PDNC lists some names that never speak beside the character who does. The Sign of the
+Four's Wooden-Legged Man speaks 100 lines and carries the alias Jonathan Small; PDNC also
+lists **"Small" with zero quotations**, so a model answering SMALL for his confession named
+the right man and was scored as naming another character. Five such pairs were reviewed by
+hand and accepted (`pdnc_fixture.REVIEWED_SILENT_ALIASES`: SMALL, DENNY, BOUNDERBY, HARTHOUSE,
+REGGIE); MISS ELLIOT for Anne and BERTRAM for Edmund/Tom were rejected, CATHERINE for Mrs.
+Manson Mingott left undecided. An automatic rule was tried first and rejected: it also accepts
+SMALL for "A Small, Dark, Brisk Man", who is Williams.
+
+Rescoring every stored artifact (`rescore_fixture_aliases.py`, 367 artifacts, CPU only;
+`ab_test_runtime/analysis/rescore_fixture_aliases_20260928.json`) moved exactly the five
+reviewed pairs and no other row — 1,465 SMALL, 87 DENNY, 29 BOUNDERBY, 10 REGGIE, 5 HARTHOUSE,
+all upward. **Ten of 57 paired verdicts change**, all nine-novel (or eight-novel) panel:
+
+| cell | stored | rescored | what the adapter does on those lines |
+|---|---|---|---|
+| A3B window25 UD-Q4_K_XL (published, v1.6.0) | −0.8 (p=0.12) | **−2.1** (+78/−134, p=0.00015) | answers MORDECAI SMITH where the base said SMALL |
+| A3B window25 UD-IQ3_XXS | **+1.6** (p=0.004) | +0.4 (p=0.50) | echoes PDNC's main name WOODEN-LEGGED MAN |
+| A3B window25 UD-IQ2_XXS | +1.3 (p=0.03) | +0.7 (p=0.28) | MORDECAI SMITH (23 of 34) |
+| Gemma 12B window25 Q8_0 | **+2.1** (p=0.001) | +1.1 (p=0.09) | echoes WOODEN-LEGGED MAN |
+| Muse KL seed 1, IQ3_M | +1.6 (p=0.006) | +1.0 (p=0.08) | base said SMALL / A SMALL DARK BRISK MAN, adapter JONATHAN SMALL |
+| Muse KL seed 2, IQ3_M | +1.5 (p=0.003) | +0.9 (p=0.08) | MCMURDO (32 of 34) |
+| Qwen3.8 `michel2v1` Q4_K_M, reasoning low (two copies of one cell) | +1.0 (p=0.02) | +0.6 (p=0.17) | echoes WOODEN-LEGGED MAN |
+| Qwen3.8 `michel2v1` Q3_K_XL | +0.8 (p=0.047) | +0.8 (p=0.057) | — (at the threshold) |
+| Qwen3-14B `attrv1`, eight-novel replication | +2.3 (p=0.03) | +1.9 (p=0.07) | — |
+
+Two mechanisms, both invisible under the stored scoring: adapters that are **wrong** on
+lines the base got right looked tied, because both were marked wrong; and adapters that
+learned PDNC's labelling habit (answering the main name) were credited with an attribution
+gain. Unchanged: every large result — Qwen3-8B window25 (+9.0 at Q3_K_XL, +6.2 at Q4_K_M),
+Gemma E2B (+10.3), Gemma 12B Q4_K_M (+2.6, p=3e−5), A3B IQ1_M (+1.5, p=0.013), Qwen3.8 Q4_K_M
+reasoning off (+1.5, p=9e−5), Qwen3-14B `attrv1` (+4.8).
 
 ### A fourth family, and the same shape
 
