@@ -246,6 +246,8 @@ def build_roster(entries, source_text=None):
         speaker = (entry.get("speaker") or "").strip().upper()
         if not speaker or speaker in ("NARRATOR", "UNKNOWN") or speaker in roster:
             continue
+        if entry.get("attribution_unchecked"):
+            continue
         if not is_attested_name(speaker, source_text,
                                 MIN_ROSTER_ATTESTATIONS):
             continue
@@ -268,7 +270,8 @@ def attested_new_speakers(entries, roster_seen, source_text):
     for entry in entries:
         speaker = (entry.get("speaker") or "").strip().upper()
         if (not speaker or speaker in ("NARRATOR", "UNKNOWN")
-                or speaker in roster_seen or speaker in new):
+                or speaker in roster_seen or speaker in new
+                or entry.get("attribution_unchecked")):
             continue
         if not is_attested_name(speaker, source_text, MIN_ROSTER_ATTESTATIONS):
             continue
@@ -359,6 +362,45 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 }
 
 
+# Checks whose refusal of a single line is not evidence the answer is wrong.
+# Audited 2026-09-28 against PDNC on the stage-0 books: of the clear cases,
+# speaker_not_in_source refused the PDNC speaker every time (Silas Durgan, named
+# once; Louisa Gradgrind) and spoken_not_named was wrong 9 of 32, each a quoted
+# phrase pass 1 took for speech ("the Hands," / "Scarlet Coat") where the model
+# correctly answered that nobody speaks. narrator_renamed was right 29 of 29 and
+# is deliberately NOT here.
+KEEPABLE_ATTRIBUTION_FAILURES = frozenset({"speaker_not_in_source", "spoken_not_named"})
+
+
+def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster):
+    """What on_exhaustion='keep' returns for a batch that ran out of retries.
+
+    One entry whose last answer failed ONLY keepable checks keeps that answer;
+    anything else (unparsed, misaligned, an unkeepable check) gets the fallback
+    labels. Either way each entry is flagged `attribution_unchecked` with the
+    failure codes, so the output says what was not verified, and the roster
+    gates skip flagged entries, so a kept name cannot spread to later batches.
+    """
+    codes = sorted({finding.get("code") or "unknown"
+                    for finding in (last_report or {}).get("findings", [])}) or ["unparsed"]
+    ok, _, ordered = (index_head_check(frozen_batch, last_entries)
+                      if last_entries else (False, None, None))
+    if len(frozen_batch) == 1 and ok and set(codes) <= KEEPABLE_ATTRIBUTION_FAILURES:
+        speaker = strip_roster_alias_echo(ordered[0].get("speaker"))
+        speaker = speaker.strip() if isinstance(speaker, str) and speaker.strip() else "UNKNOWN"
+        print(f"  Attribution exhausted; kept the model's last answer {speaker!r} "
+              f"unchecked ({', '.join(codes)})")
+        return [{**{k: v for k, v in frozen_batch[0].items() if k != "type"},
+                 "speaker": speaker, "attribution_unchecked": codes}]
+    print(f"  Attribution exhausted; labelled {len(frozen_batch)} entr"
+          f"{'y' if len(frozen_batch) == 1 else 'ies'} with the fallback ({', '.join(codes)})")
+    seeded = [{**{k: v for k, v in e.items() if k != "type"},
+               "speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN"}
+              for e in frozen_batch]
+    return [{**entry, "attribution_unchecked": codes} for entry in
+            stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]]
+
+
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
@@ -366,7 +408,9 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
-    unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities."""
+    unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities; 'keep'
+    raises for a multi-entry batch (so the caller subdivides) and, at one
+    entry, returns keep_exhausted_answer instead of aborting the book."""
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
     validated = {}
@@ -374,6 +418,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     def validate(entries):
         validated["last"] = entries
         report = validate_attribution(frozen_batch, entries, source_text)
+        validated["last_report"] = report
         if report["passed"]:
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
         return report
@@ -418,7 +463,10 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 for f, item in zip(frozen_batch, ordered)]
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
-    if on_exhaustion == "fail":
+    if on_exhaustion == "keep" and len(frozen_batch) == 1:
+        return keep_exhausted_answer(frozen_batch, validated.get("last"),
+                                     validated.get("last_report"), roster)
+    if on_exhaustion in ("fail", "keep"):
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch",
                             last_entries=validated.get("last"))
     seeded = [{**{k: v for k, v in e.items() if k != "type"},
@@ -1318,7 +1366,12 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
-        "endpoint": endpoint, "on_exhaustion": on_exhaustion,
+        # 'keep' shares 'fail''s identity: everything a 'fail' run checkpointed
+        # passed every check, so it resumes under 'keep' unchanged (the app moved
+        # from one to the other; a new identity would restart users' books), and
+        # anything 'keep' adds is flagged attribution_unchecked in the output.
+        "endpoint": endpoint,
+        "on_exhaustion": "fail" if on_exhaustion == "keep" else on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
@@ -1776,7 +1829,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
                            "status": ("incomplete" if any(
                                f["pass"] == "attribute" for f in diagnostic_failures)
-                               else "complete")}
+                               else "complete"),
+                           "unchecked_entries": sum(
+                               1 for entry in named
+                               if entry and entry.get("attribution_unchecked"))}
     # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
     # slip through there either (finding #5).
     annotated.extend([None] * (len(named) - len(annotated)))
@@ -2168,10 +2224,12 @@ def main():
                              "llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
-    parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
+    parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback", "keep"],
                         default="fail",
                         help="testing default 'fail' surfaces pass-2 failures; "
-                             "'fallback' degrades gracefully (production).")
+                             "'fallback' degrades gracefully; 'keep' (the app's) "
+                             "keeps a single line's last answer when only a "
+                             "keepable check refused it, flagged unchecked.")
     parser.add_argument("--preflight", action="store_true",
                         help="Run first/middle/dialogue-heavy samples only.")
     parser.add_argument("--attribution-votes", type=int, default=1,

@@ -3613,6 +3613,16 @@
     "tests.test_three_pass_generate.SegmentationModeTests.test_quotes_mode_marks_a_continued_quote_as_spoken",
     "tests.test_three_pass_generate.SegmentationModeTests.test_quotes_mode_narrates_an_unquoted_chunk_without_a_call"
   ],
+  "test_three_pass_keep_exhausted": [
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_keep_resumes_a_fail_checkpoint",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_kept_names_stay_off_both_roster_gates",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_multi_entry_batch_still_raises_so_the_caller_subdivides",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_once_named_speaker_is_refused_then_kept_flagged",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_quoted_nickname_keeps_the_answer_that_nobody_speaks",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_renamed_narration_is_not_kept",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_unparseable_answer_gets_the_fallback_label",
+    "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_whole_book_completes_and_the_manifest_counts_the_kept_line"
+  ],
   "test_three_pass_telemetry": [
     "tests.test_three_pass_telemetry.BuildFailureRecordTest.test_record_carries_causal_fields",
     "tests.test_three_pass_telemetry.BuildFailureRecordTest.test_record_tolerates_missing_attempt_data",
