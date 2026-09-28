@@ -41,21 +41,26 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     zips = [z for d in a.zips for z in glob.glob(os.path.join(d, "*.zip"))]
+    index = {}                     # zip -> (train, val, metadata text), read once
+    for z in zips:
+        zf = zipfile.ZipFile(z); nl = zf.namelist()
+        index[z] = (sum(1 for x in nl if x.startswith("train/") and x.endswith(".wav")),
+                    sum(1 for x in nl if x.startswith("val/") and x.endswith(".wav")),
+                    " ".join(zf.read(x).decode("utf-8", "ignore") for x in nl if x.endswith("metadata.jsonl")))
     rows = []
     for meta in sorted(glob.glob(os.path.join(a.adapters, "*", "training_meta.json"))):
         d = json.load(open(meta))
         name = os.path.basename(os.path.dirname(meta)); n = d.get("num_samples")
         base = os.path.basename(os.path.dirname(d.get("ref_sample_audio", "")))
         ref = (d.get("ref_sample_text") or "").replace("...", "").strip()[:30]
-        found = []
-        for z in zips:
-            if not norm(os.path.basename(z)).startswith(norm(base)):
-                continue
-            zf = zipfile.ZipFile(z); nl = zf.namelist()
-            tr = sum(1 for x in nl if x.startswith("train/") and x.endswith(".wav"))
-            va = sum(1 for x in nl if x.startswith("val/") and x.endswith(".wav"))
-            txt = " ".join(zf.read(x).decode("utf-8", "ignore") for x in nl if x.endswith("metadata.jsonl"))
-            found.append({"zip": os.path.basename(z), "train": tr, "val": va, "ref_text_in_zip": bool(ref) and ref in txt})
+        # by dataset name first; when the reference was re-cut elsewhere (a retrain folder),
+        # the name says nothing, so fall back to the zips whose metadata holds the reference text
+        named = [z for z in zips if norm(os.path.basename(z)).startswith(norm(base))]
+        how = "dataset name"
+        if not any(ref and ref in index[z][2] for z in named):
+            named = [z for z in zips if ref and ref in index[z][2]]; how = "reference text"
+        found = [{"zip": os.path.basename(z), "train": index[z][0], "val": index[z][1],
+                  "ref_text_in_zip": bool(ref) and ref in index[z][2], "matched_by": how} for z in named]
         verdicts = sorted({classify(n, f["train"], f["val"]) for f in found if f["ref_text_in_zip"]})
         rows.append({"adapter": name, "num_samples": n, "dataset": base, "zips": found,
                      "verdict": verdicts[0] if len(verdicts) == 1 else ("unmatched" if not verdicts else "zips disagree: " + ", ".join(verdicts))})
