@@ -1,9 +1,9 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "afb4e191af676769d45b32b6c6674ef4a79d81562229536c105607d0cb830e93",
+  "source_structural_sha256": "b6b48f1ea5ac17887816d255e902f16d714e8287974e2901be154b091676c539",
   "summary": {
     "exploratory": 252,
-    "historical_only": 63,
+    "historical_only": 64,
     "provisional": 11,
     "supported_measurement": 43
   },
@@ -3017,6 +3017,26 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 220,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json",
+      "family": "lora_serving_eval",
+      "rows": 2517,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 2345,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

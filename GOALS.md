@@ -145,7 +145,7 @@ set reproduces the recorded 253/302. What the two models show is that the gap de
 on the model; two points cannot say whether it is the books or the model's strength.
 One run, one quant, 12 windows per book.
 
-**Five bases on the same instrument (2026-09-28): the gap tracks model strength.**
+**Six bases on the same instrument (2026-09-28): the gap is a model-strength effect, and it reverses at the top.**
 
 | base | overall | three quoted in 1.1 | other 25 | gap |
 |---|---:|---:|---:|---:|
@@ -154,14 +154,21 @@ One run, one quant, 12 windows per book.
 | Qwen3.6-35B-A3B UD-IQ2_XXS | 87.5% | 90.4% | 87.1% | **−3.3** (z = 1.6) |
 | Qwen3.6-35B-A3B UD-IQ1_M | 88.8% | 93.4% | 88.2% | −5.2 (z = 2.7) |
 | Qwen3.8-27B UD-Q3_K_XL | 93.7% | 95.7% | 93.5% | **−2.2** (z = 1.5) |
+| DeepSeek v4-pro (API, thinking off) | **97.3%** | 95.7% | **97.5%** | **+1.8** (z = −1.8) |
 
-Measured: the gap correlates with overall accuracy at r = 0.93 across the five, and the
-three development books score higher on **every** base. Inference, from five points: the
-books are genuinely easier, and weaker models widen the difference; the target is met by
-the strong bases (Qwen3.8, A3B IQ2_XXS) and missed by the 8–9B ones. Qwen3.5-9B left 63 rows
-unanswered (counted wrong). A3B UD-IQ3_XXS was refused by the GPU guard on the night (its own
-server held the card) and is re-queued. Artifacts:
-`lora_serving_eval__goal13-pdnc28-base-michel2_full-{qwen35-9b-q4km,qwen36-35b-a3b-iq2xxs,qwen36-35b-a3b-iq1m}-seg0926-attestoff-local9070xt-20260927.json`.
+Measured: the gap correlates with overall accuracy at **r = 0.94 across the six**, and at the
+top it **reverses** — DeepSeek scores the other 25 books slightly *higher* than the three
+quoted in 1.1. Inference: the three are not intrinsically easier; they look easier only to
+weaker models (plausibly because the prompt was developed on them), so 1.3's gap is a
+model-strength effect and a strong enough model generalises without it. On this reading the
+target is met by every base at or above ~87% (A3B IQ2_XXS, Qwen3.8, DeepSeek) and missed by
+the 8–9B ones; whether 1.3 is closed depends on which model it is about — an owner decision.
+DeepSeek ran with thinking **off** (on the four-book set off vs low measured 94.9 vs 95.4, at a
+tenth of the time); every local base ran reasoning low. Qwen3.5-9B left 63 rows unanswered
+(counted wrong). A3B UD-IQ3_XXS was refused by the GPU guard on the night (its own server held
+the card) and is re-queued. The DeepSeek run cost $0.71. Artifacts:
+`lora_serving_eval__goal13-pdnc28-base-michel2_full-{qwen35-9b-q4km,qwen36-35b-a3b-iq2xxs,qwen36-35b-a3b-iq1m}-seg0926-attestoff-local9070xt-20260927.json`,
+`lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json`.
 
 **Trained adapters on never-trained books — the confirmation the Priority list
 asks for (2026-09-26/27).** The `window25` adapters were trained on the 19 PDNC
@@ -2654,6 +2661,14 @@ stay open at 94.5% / 92.9%, and what the adapters bought is a lower floor:
 Qwen3.8 IQ2_XXS (7.3 GB) with its adapter reaches 85.7, the number the base
 needs 13.1 GB for. RECIPES §"The same ladder with the michel2-shape
 rights-clean adapters"; evidence as in 1.3's entry of the same date.
+
+**On all 28 PDNC novels, 2026-09-28 — 19 of 28 within 5%.** Against DeepSeek v4-pro on
+the goal-1.3 instrument (the same 336 windows for both), the best local base, Qwen3.8-27B
+UD-Q3_K_XL, holds local/cloud ≥ 0.95 on **19 of 28** books; A3B IQ1_M on 11. The misses
+concentrate on the same books for both: Hard Times (76 vs 94), Where Angels Fear to Tread
+(85 vs 98), Winnie-the-Pooh (85 vs 96), A Room with a View (88 vs 99). Base models, no
+adapter; 12 windows a book, so a single book's figure is a sample, not a verdict. Still
+OPEN; the work is now nine named books rather than two.
 
 **Target — hold local within 5% of cloud on every book.**
 

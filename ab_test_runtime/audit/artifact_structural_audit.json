@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 1001,
     "exploratory": 415,
-    "provisional": 369,
+    "provisional": 370,
     "artifacts_that_generated_nothing": 15
   },
   "artifacts": [
@@ -12754,6 +12754,24 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json",
+      "bytes": 4823491,
+      "sha256": "94b21b6dd68d278e437d1551fe823f4c1c7fd7e8ae13d3077476b555fd61a07a",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 2517,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "6a05ce14cad3a8a6d18f6a6521d21c4397917fdc",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json",

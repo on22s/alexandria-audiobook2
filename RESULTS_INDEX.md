@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-28 from `ab_test_runtime/experiments/` — 1785 artifacts, 2897 arms.
+Generated 2026-09-28 from `ab_test_runtime/experiments/` — 1786 artifacts, 2925 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1843,31 +1843,37 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen38-27b-q4km | local-CUDA | CUDA | 32768 | lora | 162 | 56.8% | exploratory | ok | False | 7080.7s |
 | pdnc_ahandfulofdust | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 172 | 83.1% | historical_only | ok | False | 6635.6s |
 | pdnc_ahandfulofdust | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 172 | 72.1% | historical_only | ok | False | 6787.4s |
+| pdnc_ahandfulofdust | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 172 | 97.7% | historical_only | ok | False | 1396.4s |
 | pdnc_ahandfulofdust | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 172 | 69.2% | historical_only | ok | False | 6259.3s |
 | pdnc_ahandfulofdust | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 172 | 59.3% | historical_only | ok | False | 7830.3s |
 | pdnc_ahandfulofdust | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 172 | 93.6% | historical_only | ok | False | 16473.7s |
 | pdnc_alicesadventuresinwonderland | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 62 | 95.2% | historical_only | ok | False | 6635.6s |
 | pdnc_alicesadventuresinwonderland | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 62 | 83.9% | historical_only | ok | False | 6787.4s |
+| pdnc_alicesadventuresinwonderland | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 62 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_alicesadventuresinwonderland | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 62 | 91.9% | historical_only | ok | False | 6259.3s |
 | pdnc_alicesadventuresinwonderland | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 62 | 93.5% | historical_only | ok | False | 7830.3s |
 | pdnc_alicesadventuresinwonderland | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 62 | 100.0% | historical_only | ok | False | 16473.7s |
 | pdnc_anneofgreengables | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 57 | 98.2% | historical_only | ok | False | 6635.6s |
 | pdnc_anneofgreengables | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 57 | 100.0% | historical_only | ok | False | 6787.4s |
+| pdnc_anneofgreengables | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 57 | 98.2% | historical_only | ok | False | 1396.4s |
 | pdnc_anneofgreengables | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 57 | 96.5% | historical_only | ok | False | 6259.3s |
 | pdnc_anneofgreengables | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 57 | 89.5% | historical_only | ok | False | 7830.3s |
 | pdnc_anneofgreengables | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 57 | 98.2% | historical_only | ok | False | 16473.7s |
 | pdnc_apassagetoindia | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 137 | 82.5% | historical_only | ok | False | 6635.6s |
 | pdnc_apassagetoindia | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 137 | 78.8% | historical_only | ok | False | 6787.4s |
+| pdnc_apassagetoindia | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 137 | 97.8% | historical_only | ok | False | 1396.4s |
 | pdnc_apassagetoindia | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 137 | 56.2% | historical_only | ok | False | 6259.3s |
 | pdnc_apassagetoindia | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 137 | 73.7% | historical_only | ok | False | 7830.3s |
 | pdnc_apassagetoindia | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 137 | 91.2% | historical_only | ok | False | 16473.7s |
 | pdnc_aroomwithaview | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 106 | 81.1% | historical_only | ok | False | 6635.6s |
 | pdnc_aroomwithaview | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 106 | 84.9% | historical_only | ok | False | 6787.4s |
+| pdnc_aroomwithaview | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 106 | 99.1% | historical_only | ok | False | 1396.4s |
 | pdnc_aroomwithaview | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 106 | 70.8% | historical_only | ok | False | 6259.3s |
 | pdnc_aroomwithaview | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 106 | 84.0% | historical_only | ok | False | 7830.3s |
 | pdnc_aroomwithaview | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 106 | 87.7% | historical_only | ok | False | 16473.7s |
 | pdnc_daisymiller | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 81 | 88.9% | historical_only | ok | False | 6635.6s |
 | pdnc_daisymiller | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 81 | 95.1% | historical_only | ok | False | 6787.4s |
+| pdnc_daisymiller | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 81 | 98.8% | historical_only | ok | False | 1396.4s |
 | pdnc_daisymiller | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 81 | 86.4% | historical_only | ok | False | 6259.3s |
 | pdnc_daisymiller | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 81 | 87.7% | historical_only | ok | False | 7830.3s |
 | pdnc_daisymiller | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 81 | 98.8% | historical_only | ok | False | 16473.7s |
@@ -1875,6 +1881,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_emma | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 113 | 92.0% | historical_only | ok | False | 6787.4s |
 | pdnc_emma | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 998 | 96.9% | exploratory | ok | True | 308.1s |
 | pdnc_emma | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 998 | 99.4% | exploratory | ok | True | 326.5s |
+| pdnc_emma | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 113 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_emma | followup | local-lmstudio | lmstudio | 32768 | base | 99 | 98.0% | exploratory | ok | False | 6735.5s |
 | pdnc_emma | followup | local-lmstudio | lmstudio | 32768 | base | 99 | 98.0% | exploratory | ok | False | 3551.8s |
 | pdnc_emma | followup | local-lmstudio | lmstudio | 32768 | base | 99 | 98.0% | exploratory | ok | False | 3521.7s |
@@ -1958,16 +1965,19 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_emma | qwen38b-wk | local-lmstudio | lmstudio | 8192 | base | 318 | 75.8% | exploratory | ok | True | 455.7s |
 | pdnc_hardtimes | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 71 | 76.1% | historical_only | ok | False | 6635.6s |
 | pdnc_hardtimes | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 71 | 69.0% | historical_only | ok | False | 6787.4s |
+| pdnc_hardtimes | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 71 | 94.4% | historical_only | ok | False | 1396.4s |
 | pdnc_hardtimes | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 71 | 77.5% | historical_only | ok | False | 6259.3s |
 | pdnc_hardtimes | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 71 | 71.8% | historical_only | ok | False | 7830.3s |
 | pdnc_hardtimes | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 71 | 76.1% | historical_only | ok | False | 16473.7s |
 | pdnc_howardsend | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 107 | 79.4% | historical_only | ok | False | 6635.6s |
 | pdnc_howardsend | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 107 | 81.3% | historical_only | ok | False | 6787.4s |
+| pdnc_howardsend | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 107 | 95.3% | historical_only | ok | False | 1396.4s |
 | pdnc_howardsend | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 107 | 66.4% | historical_only | ok | False | 6259.3s |
 | pdnc_howardsend | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 107 | 78.5% | historical_only | ok | False | 7830.3s |
 | pdnc_howardsend | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 107 | 88.8% | historical_only | ok | False | 16473.7s |
 | pdnc_mansfieldpark | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 71 | 88.7% | historical_only | ok | False | 6635.6s |
 | pdnc_mansfieldpark | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 71 | 87.3% | historical_only | ok | False | 6787.4s |
+| pdnc_mansfieldpark | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 71 | 98.6% | historical_only | ok | False | 1396.4s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 6735.5s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 3551.8s |
 | pdnc_mansfieldpark | followup | local-lmstudio | lmstudio | 32768 | base | 70 | 98.6% | exploratory | ok | False | 3521.7s |
@@ -2031,11 +2041,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_mansfieldpark | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 271 | 88.2% | exploratory | ok | True | 27420.0s |
 | pdnc_nightandday | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 84 | 95.2% | historical_only | ok | False | 6635.6s |
 | pdnc_nightandday | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 84 | 91.7% | historical_only | ok | False | 6787.4s |
+| pdnc_nightandday | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 84 | 98.8% | historical_only | ok | False | 1396.4s |
 | pdnc_nightandday | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 84 | 82.1% | historical_only | ok | False | 6259.3s |
 | pdnc_nightandday | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 84 | 86.9% | historical_only | ok | False | 7830.3s |
 | pdnc_nightandday | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 84 | 96.4% | historical_only | ok | False | 16473.7s |
 | pdnc_northangerabbey | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 106 | 94.3% | historical_only | ok | False | 6635.6s |
 | pdnc_northangerabbey | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 106 | 95.3% | historical_only | ok | False | 6787.4s |
+| pdnc_northangerabbey | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 106 | 99.1% | historical_only | ok | False | 1396.4s |
 | pdnc_northangerabbey | followup | local-lmstudio | lmstudio | 32768 | base | 94 | 97.9% | exploratory | ok | False | 6735.5s |
 | pdnc_northangerabbey | followup | local-lmstudio | lmstudio | 32768 | base | 94 | 97.9% | exploratory | ok | False | 3551.8s |
 | pdnc_northangerabbey | followup | local-lmstudio | lmstudio | 32768 | base | 94 | 97.9% | exploratory | ok | False | 3521.7s |
@@ -2099,11 +2111,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_northangerabbey | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 409 | 90.7% | exploratory | ok | True | 27420.0s |
 | pdnc_olivertwist | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 33 | 81.8% | historical_only | ok | False | 6635.6s |
 | pdnc_olivertwist | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 33 | 81.8% | historical_only | ok | False | 6787.4s |
+| pdnc_olivertwist | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 33 | 90.9% | historical_only | ok | False | 1396.4s |
 | pdnc_olivertwist | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 33 | 75.8% | historical_only | ok | False | 6259.3s |
 | pdnc_olivertwist | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 33 | 87.9% | historical_only | ok | False | 7830.3s |
 | pdnc_olivertwist | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 33 | 93.9% | historical_only | ok | False | 16473.7s |
 | pdnc_persuasion | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 53 | 96.2% | historical_only | ok | False | 6635.6s |
 | pdnc_persuasion | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 53 | 94.3% | historical_only | ok | False | 6787.4s |
+| pdnc_persuasion | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 53 | 98.1% | historical_only | ok | False | 1396.4s |
 | pdnc_persuasion | followup | local-lmstudio | lmstudio | 32768 | base | 59 | 98.3% | exploratory | ok | False | 6735.5s |
 | pdnc_persuasion | followup | local-lmstudio | lmstudio | 32768 | base | 59 | 98.3% | exploratory | ok | False | 3551.8s |
 | pdnc_persuasion | followup | local-lmstudio | lmstudio | 32768 | base | 59 | 98.3% | exploratory | ok | False | 3521.7s |
@@ -2167,6 +2181,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_persuasion | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 219 | 91.3% | exploratory | ok | True | 27420.0s |
 | pdnc_prideandprejudice | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 115 | 96.5% | historical_only | ok | False | 6635.6s |
 | pdnc_prideandprejudice | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 115 | 94.8% | historical_only | ok | False | 6787.4s |
+| pdnc_prideandprejudice | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 115 | 98.3% | historical_only | ok | False | 1396.4s |
 | pdnc_prideandprejudice | followup | local-lmstudio | lmstudio | 32768 | base | 85 | 83.5% | exploratory | ok | False | 6735.5s |
 | pdnc_prideandprejudice | followup | local-lmstudio | lmstudio | 32768 | base | 85 | 83.5% | exploratory | ok | False | 3551.8s |
 | pdnc_prideandprejudice | followup | local-lmstudio | lmstudio | 32768 | base | 85 | 83.5% | exploratory | ok | False | 3521.7s |
@@ -2229,6 +2244,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_prideandprejudice | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 296 | 88.9% | exploratory | ok | True | 27420.0s |
 | pdnc_senseandsensibility | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 69 | 95.7% | historical_only | ok | False | 6635.6s |
 | pdnc_senseandsensibility | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 69 | 95.7% | historical_only | ok | False | 6787.4s |
+| pdnc_senseandsensibility | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 69 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_senseandsensibility | followup | local-lmstudio | lmstudio | 32768 | base | 72 | 95.8% | exploratory | ok | False | 6735.5s |
 | pdnc_senseandsensibility | followup | local-lmstudio | lmstudio | 32768 | base | 72 | 95.8% | exploratory | ok | False | 3551.8s |
 | pdnc_senseandsensibility | followup | local-lmstudio | lmstudio | 32768 | base | 72 | 95.8% | exploratory | ok | False | 3521.7s |
@@ -2291,11 +2307,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_senseandsensibility | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 223 | 93.7% | exploratory | ok | True | 27420.0s |
 | pdnc_theageofinnocence | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 92 | 88.0% | historical_only | ok | False | 6635.6s |
 | pdnc_theageofinnocence | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 92 | 84.8% | historical_only | ok | False | 6787.4s |
+| pdnc_theageofinnocence | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 92 | 96.7% | historical_only | ok | False | 1396.4s |
 | pdnc_theageofinnocence | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 92 | 95.7% | historical_only | ok | False | 6259.3s |
 | pdnc_theageofinnocence | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 92 | 70.7% | historical_only | ok | False | 7830.3s |
 | pdnc_theageofinnocence | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 92 | 95.7% | historical_only | ok | False | 16473.7s |
 | pdnc_theawakening | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 102 | 98.0% | historical_only | ok | False | 6635.6s |
 | pdnc_theawakening | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 102 | 90.2% | historical_only | ok | False | 6787.4s |
+| pdnc_theawakening | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 102 | 97.1% | historical_only | ok | False | 1396.4s |
 | pdnc_theawakening | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 94.7% | exploratory | ok | False | 6735.5s |
 | pdnc_theawakening | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 94.7% | exploratory | ok | False | 3551.8s |
 | pdnc_theawakening | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 94.7% | exploratory | ok | False | 3521.7s |
@@ -2358,31 +2376,37 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_theawakening | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 290 | 92.8% | exploratory | ok | True | 27420.0s |
 | pdnc_thegambler | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 70 | 97.1% | historical_only | ok | False | 6635.6s |
 | pdnc_thegambler | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 70 | 98.6% | historical_only | ok | False | 6787.4s |
+| pdnc_thegambler | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 70 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_thegambler | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 70 | 80.0% | historical_only | ok | False | 6259.3s |
 | pdnc_thegambler | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 70 | 90.0% | historical_only | ok | False | 7830.3s |
 | pdnc_thegambler | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 70 | 100.0% | historical_only | ok | False | 16473.7s |
 | pdnc_theinvisibleman | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 64 | 92.2% | historical_only | ok | False | 6635.6s |
 | pdnc_theinvisibleman | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 64 | 98.4% | historical_only | ok | False | 6787.4s |
+| pdnc_theinvisibleman | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 64 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_theinvisibleman | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 64 | 93.8% | historical_only | ok | False | 6259.3s |
 | pdnc_theinvisibleman | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 64 | 79.7% | historical_only | ok | False | 7830.3s |
 | pdnc_theinvisibleman | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 64 | 100.0% | historical_only | ok | False | 16473.7s |
 | pdnc_themanwhowasthursday | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 38 | 89.5% | historical_only | ok | False | 6635.6s |
 | pdnc_themanwhowasthursday | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 38 | 97.4% | historical_only | ok | False | 6787.4s |
+| pdnc_themanwhowasthursday | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 38 | 100.0% | historical_only | ok | False | 1396.4s |
 | pdnc_themanwhowasthursday | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 38 | 76.3% | historical_only | ok | False | 6259.3s |
 | pdnc_themanwhowasthursday | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 38 | 86.8% | historical_only | ok | False | 7830.3s |
 | pdnc_themanwhowasthursday | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 38 | 100.0% | historical_only | ok | False | 16473.7s |
 | pdnc_themysteriousaffairatstyles | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 103 | 89.3% | historical_only | ok | False | 6635.6s |
 | pdnc_themysteriousaffairatstyles | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 103 | 80.6% | historical_only | ok | False | 6787.4s |
+| pdnc_themysteriousaffairatstyles | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 103 | 96.1% | historical_only | ok | False | 1396.4s |
 | pdnc_themysteriousaffairatstyles | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 103 | 79.6% | historical_only | ok | False | 6259.3s |
 | pdnc_themysteriousaffairatstyles | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 103 | 79.6% | historical_only | ok | False | 7830.3s |
 | pdnc_themysteriousaffairatstyles | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 103 | 97.1% | historical_only | ok | False | 16473.7s |
 | pdnc_thepictureofdoriangray | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 126 | 96.8% | historical_only | ok | False | 6635.6s |
 | pdnc_thepictureofdoriangray | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 126 | 99.2% | historical_only | ok | False | 6787.4s |
+| pdnc_thepictureofdoriangray | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 126 | 97.6% | historical_only | ok | False | 1396.4s |
 | pdnc_thepictureofdoriangray | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 126 | 81.0% | historical_only | ok | False | 6259.3s |
 | pdnc_thepictureofdoriangray | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 126 | 69.8% | historical_only | ok | False | 7830.3s |
 | pdnc_thepictureofdoriangray | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 126 | 98.4% | historical_only | ok | False | 16473.7s |
 | pdnc_thesignofthefour | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 85 | 83.5% | historical_only | ok | False | 6635.6s |
 | pdnc_thesignofthefour | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 85 | 84.7% | historical_only | ok | False | 6787.4s |
+| pdnc_thesignofthefour | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 85 | 90.6% | historical_only | ok | False | 1396.4s |
 | pdnc_thesignofthefour | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 76.3% | exploratory | ok | False | 6735.5s |
 | pdnc_thesignofthefour | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 76.3% | exploratory | ok | False | 3551.8s |
 | pdnc_thesignofthefour | followup | local-lmstudio | lmstudio | 32768 | base | 76 | 76.3% | exploratory | ok | False | 3521.7s |
@@ -2446,6 +2470,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_thesignofthefour | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 284 | 92.6% | exploratory | ok | True | 27420.0s |
 | pdnc_thesportofthegods | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 96 | 87.5% | historical_only | ok | False | 6635.6s |
 | pdnc_thesportofthegods | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 96 | 94.8% | historical_only | ok | False | 6787.4s |
+| pdnc_thesportofthegods | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 96 | 96.9% | historical_only | ok | False | 1396.4s |
 | pdnc_thesportofthegods | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 96 | 86.5% | historical_only | ok | False | 6259.3s |
 | pdnc_thesportofthegods | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 96 | 81.2% | historical_only | ok | False | 7830.3s |
 | pdnc_thesportofthegods | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 96 | 94.8% | historical_only | ok | False | 16473.7s |
@@ -2453,6 +2478,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_thesunalsorises | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 108 | 73.1% | historical_only | ok | False | 6787.4s |
 | pdnc_thesunalsorises | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 1759 | 87.0% | exploratory | ok | True | 540.8s |
 | pdnc_thesunalsorises | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 1759 | 92.1% | exploratory | ok | True | 488.4s |
+| pdnc_thesunalsorises | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 108 | 89.8% | historical_only | ok | False | 1396.4s |
 | pdnc_thesunalsorises | gemma4-e2b-w25-q4km | local-lmstudio | lmstudio | 32768 | base | 345 | 29.9% | exploratory | ok | True | 10719.3s |
 | pdnc_thesunalsorises | gemma4-e2b-w25-q4km | local-lmstudio | lmstudio | 32768 | lora | 345 | 42.0% | exploratory | ok | True | 10719.3s |
 | pdnc_thesunalsorises | muse-glimmer-30b | local-lmstudio | lmstudio | 32768 | base | 345 | 8.4% | exploratory | ok | True | 25722.8s |
@@ -2524,11 +2550,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | pdnc_thesunalsorises | qwen38-rightsclean-michel2 | local-lmstudio | lmstudio | 32768 | lora | 345 | 81.7% | exploratory | ok | True | 27420.0s |
 | pdnc_whereangelsfeartotread | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 118 | 89.8% | historical_only | ok | False | 6635.6s |
 | pdnc_whereangelsfeartotread | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 118 | 92.4% | historical_only | ok | False | 6787.4s |
+| pdnc_whereangelsfeartotread | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 118 | 98.3% | historical_only | ok | False | 1396.4s |
 | pdnc_whereangelsfeartotread | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 118 | 77.1% | historical_only | ok | False | 6259.3s |
 | pdnc_whereangelsfeartotread | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 118 | 79.7% | historical_only | ok | False | 7830.3s |
 | pdnc_whereangelsfeartotread | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 118 | 84.7% | historical_only | ok | False | 16473.7s |
 | pdnc_winniethepooh | a3b-iq1m | local-lmstudio | lmstudio | 12288 | base | 78 | 75.6% | historical_only | ok | False | 6635.6s |
 | pdnc_winniethepooh | a3b-iq2xxs | local-lmstudio | lmstudio | 12288 | base | 78 | 82.1% | historical_only | ok | False | 6787.4s |
+| pdnc_winniethepooh | deepseek-v4-pro | local-lmstudio | lmstudio | 131072 | base | 78 | 96.2% | historical_only | ok | False | 1396.4s |
 | pdnc_winniethepooh | qwen3-8b | local-lmstudio | lmstudio | 32768 | base | 78 | 51.3% | historical_only | ok | False | 6259.3s |
 | pdnc_winniethepooh | qwen35-9b-q4km | local-lmstudio | lmstudio | 12288 | base | 78 | 67.9% | historical_only | ok | False | 7830.3s |
 | pdnc_winniethepooh | qwen38-q3kxl | local-lmstudio | lmstudio | 12288 | base | 78 | 84.6% | historical_only | ok | False | 16473.7s |

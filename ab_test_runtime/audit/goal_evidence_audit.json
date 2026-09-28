@@ -23,7 +23,7 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 20,
+   "cited": 21,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json",
@@ -32,7 +32,7 @@
    "weakest_evidence": "exploratory",
    "classifications": {
     "exploratory": 6,
-    "provisional": 11,
+    "provisional": 12,
     "supported_structure": 1
    },
    "dirty_artifacts": 3,
@@ -67,6 +67,12 @@
      "classification": "provisional",
      "dirty": true,
      "commit": "4d337725"
+    },
+    {
+     "name": "lora_serving_eval__goal13-pdnc28-base-michel2_full-deepseek-v4-pro-thinking-off-seg0926-attestoff-api-20260928.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "6a05ce14"
     },
     {
      "name": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json",
