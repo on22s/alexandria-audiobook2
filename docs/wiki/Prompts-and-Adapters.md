@@ -113,9 +113,21 @@ predictions differed).
 - **Holding the adapter close to the base (KL penalty) — in progress.** Two seeds agree at IQ3_M
   and Q3_K_XL, but disagree at IQ3_XXS (seed 1 −1.5 on an A6000, seed 2 +1.5 on an A100). A
   run of seed 2 on the A6000, to separate seed from GPU, is queued.
-- **Roster length.** The adapter's gain ran +2.4 with 26–40 candidate names and −4.1 with 71 or
-  more, and the training data under-represents the 56–70 band by 4.7×. A test capping the
-  offered cast list at 30 was started; its result is not yet written up in RECIPES.
+- **Roster length — tested, and a shorter cast list hurts.** The adapter's gain had run +2.4
+  with 26–40 candidate names and −4.1 with 71 or more, so one cell offered only the characters
+  mentioned in the window plus the previous window's speakers, capped at 30
+  (`--roster-mode mentioned`; Muse window25b, IQ3_M, nine novels):
+
+  | cast list | median names offered | base | with adapter |
+  |---|---:|---:|---:|
+  | full | 57 | 92.3% | 92.1% |
+  | mentioned only, cap 30 | 12 | **63.6%** | 81.1% |
+
+  The short list left out the real speaker far more often (it was offered on 37% of lines,
+  against 74%; that flag undercounts in both runs, so only the comparison means anything), and
+  even on the 993 lines where it was offered, the base scored 93.5% against 95.9% with the
+  full list. The adapter's +17.6 is mostly repair of damage the short list caused. One base and
+  one cell, but the full cast list stays.
 
 Recipes, artifacts and per-book splits: [RECIPES.md](../../RECIPES.md). Current results:
 [Results](Results.md).
