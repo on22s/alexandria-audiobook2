@@ -1,377 +1,344 @@
-# API Reference
+# API reference
 
-Alexandria exposes a REST API at `http://127.0.0.1:<port>` for programmatic access. The port is assigned automatically by Pinokio.
+Everything the web interface does is an HTTP call, so the app can be scripted. This page shows
+the common tasks with examples. The **complete list of all 181 routes**, generated from the
+code, is in the README's [API reference](../../README.md#api-reference); the interactive docs are
+at `/docs` and the OpenAPI schema at `/openapi.json` on a running app.
 
-## Configuration
+## Basics
+
+- **Address:** `http://127.0.0.1:<port>`. Pinokio chooses the port; Docker uses 4200. The
+  examples below use `http://127.0.0.1:4200`.
+- **Authentication:** off by default. If you set `ALEXANDRIA_AUTH_PASSWORD`, every request
+  needs HTTP Basic credentials — see the README's
+  [Authentication](../../README.md#authentication-optional) section.
+- **Background tasks:** long jobs start in the background. Poll
+  `GET /api/status/<task>` until `running` is false, or `GET /api/status/eta` for the progress and
+  time left of whatever is running.
+
+Task names you can poll:
+
+| task | started by |
+|---|---|
+| `script` | generating a script |
+| `review` / `batch_review` | reviewing one script / several |
+| `nicknames` | finding nicknames |
+| `persona` | generating personas |
+| `voices` | suggesting LoRA voices |
+| `audio` | rendering audio |
+| `audacity_export` / `chapter_export` | exports |
+| `drift_check` | Check Voices |
+| `lora_training` / `lora_test` | training / testing a voice adapter |
+| `voice_design` | Voice Designer previews |
+| `dataset_builder` | Dataset Builder batch generation |
+| `preparer` / `batch_preparer` | the Preparer |
+| `voicelab` | the Voice Lab pipeline |
+| `benchmark` | the benchmark harness |
+
+## Settings
 
 ```bash
-# Get current config
+# read the current settings (API keys are redacted)
 curl http://127.0.0.1:4200/api/config
 
-# Get file-based default prompts (hot-reloads from default_prompts.txt)
+# the default prompt texts
 curl http://127.0.0.1:4200/api/default_prompts
 
-# Save config
+# save settings (send the full settings object you read above, with your changes)
 curl -X POST http://127.0.0.1:4200/api/config \
   -H "Content-Type: application/json" \
-  -d '{
-    "llm": {"base_url": "http://localhost:1234/v1", "api_key": "local", "model_name": "qwen2.5-14b"},
-    "tts": {
-      "mode": "local",
-      "device": "auto",
-      "language": "English",
-      "parallel_workers": 25,
-      "batch_seed": 12345,
-      "compile_codec": true,
-      "sub_batch_enabled": true,
-      "sub_batch_min_size": 4,
-      "sub_batch_ratio": 5,
-      "sub_batch_max_chars": 3000
-    }
-  }'
+  -d @config.json
 ```
 
-## Script Generation
+## Script generation
 
 ```bash
-# Upload text file
+# upload a book; it becomes the active book
 curl -X POST http://127.0.0.1:4200/api/upload -F "file=@mybook.txt"
 
-# Generate script (starts background task)
-curl -X POST http://127.0.0.1:4200/api/generate_script
+# generate a script from the active book (all fields optional)
+curl -X POST http://127.0.0.1:4200/api/generate_script \
+  -H "Content-Type: application/json" \
+  -d '{"first_person_narrator": null, "strip_front_matter": true, "start_over": false}'
 
-# Check generation status
-curl http://127.0.0.1:4200/api/status/script_generation
+# follow its progress
+curl http://127.0.0.1:4200/api/status/script
+curl http://127.0.0.1:4200/api/status/eta
 
-# Review script (second LLM pass for error correction)
+# review the script (a second model pass that fixes common mistakes)
 curl -X POST http://127.0.0.1:4200/api/review_script
-
-# Check review status
 curl http://127.0.0.1:4200/api/status/review
 
-# Get annotated script with post-processing
+# the current script
 curl http://127.0.0.1:4200/api/annotated_script
 ```
 
-## Voice Management
+`generate_script` always works on the active book — the last one uploaded, or one chosen with
+`POST /api/uploads/select`. It does not take a file name.
+
+## Voices
 
 ```bash
-# Parse voices from script
-curl -X POST http://127.0.0.1:4200/api/parse_voices
-
-# Get voices and current config
+# the speakers and their current voice settings
 curl http://127.0.0.1:4200/api/voices
 
-# Save voice config
+# save voice settings
 curl -X POST http://127.0.0.1:4200/api/save_voice_config \
   -H "Content-Type: application/json" \
   -d '{
     "NARRATOR": {"type": "custom", "voice": "Ryan", "character_style": "calm, measured narration"},
-    "ELENA": {"type": "clone", "ref_audio": "designed_voices/previews/preview_123.wav", "ref_text": "Hello there."},
-    "MARCUS": {"type": "lora", "adapter_id": "dark_voice_123", "adapter_path": "lora_models/dark_voice_123", "character_style": "menacing undertone"},
-    "SOLDIER": {"type": "design", "description": "Young strong soldier"}
+    "ELENA":    {"type": "clone", "ref_audio": "designed_voices/previews/preview_123.wav", "ref_text": "Hello there."},
+    "MARCUS":   {"type": "lora", "adapter_id": "dark_voice_123", "adapter_path": "lora_models/dark_voice_123", "character_style": "menacing undertone"},
+    "SOLDIER":  {"type": "design", "description": "Young strong soldier"}
   }'
 ```
 
-### Voice Config Fields
+### Voice settings fields
 
-| Field | Used By | Description |
-|-------|---------|-------------|
-| `type` | All | `"custom"`, `"clone"`, `"lora"`, or `"design"` |
-| `voice` | Custom | Built-in voice name (Aiden, Dylan, Eric, etc.) |
-| `character_style` | Custom, LoRA | Persistent style appended to every instruct |
-| `seed` | All | Random seed (`"-1"` for random) |
-| `ref_audio` | Clone | Path to reference audio file |
-| `ref_text` | Clone | Transcript of reference audio |
-| `adapter_id` | LoRA | Adapter identifier |
-| `adapter_path` | LoRA | Path to adapter directory |
-| `description` | Design | Base voice description |
-| `alias_of` | Any | Map this speaker to another speaker's voice config |
+| field | used by | meaning |
+|---|---|---|
+| `type` | all | `custom`, `builtin_lora`, `clone`, `lora`, `design` or `ensemble` |
+| `voice` | custom | the built-in voice name (Aiden, Dylan, Eric, …) |
+| `character_style` | custom, lora | the identity anchor sent with every line |
+| `style_timeline` | custom, lora | change points: `{"from_index": N, "character_style": "..."}` |
+| `seed` | all | random seed; `"-1"` for random |
+| `ref_audio`, `ref_text` | clone | the reference audio and its exact transcript |
+| `adapter_id`, `adapter_path` | lora | the adapter |
+| `description` | design | the base voice description |
+| `members` | ensemble | the speakers who speak together |
+| `alias_of` | any | use another speaker's voice |
 
-## Chunk Management
-
-```bash
-# Get all chunks
-curl http://127.0.0.1:4200/api/chunks
-
-# Update a chunk
-curl -X POST http://127.0.0.1:4200/api/chunks/5 \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Updated dialogue", "instruct": "Excited, bright energy."}'
-
-# Generate audio for a single chunk
-curl -X POST http://127.0.0.1:4200/api/chunks/5/generate
-
-# Standard batch render (parallel individual calls)
-curl -X POST http://127.0.0.1:4200/api/generate_batch \
-  -H "Content-Type: application/json" \
-  -d '{"indices": [0, 1, 2, 3, 4]}'
-
-# Fast batch render (batched TTS calls)
-curl -X POST http://127.0.0.1:4200/api/generate_batch_fast \
-  -H "Content-Type: application/json" \
-  -d '{"indices": [0, 1, 2, 3, 4]}'
-
-# Merge all chunks into final audiobook
-curl -X POST http://127.0.0.1:4200/api/merge
-```
-
-## Saved Scripts
-
-```bash
-# List saved scripts
-curl http://127.0.0.1:4200/api/scripts
-
-# Save current script
-curl -X POST http://127.0.0.1:4200/api/scripts/save \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my-novel"}'
-
-# Load a saved script
-curl -X POST http://127.0.0.1:4200/api/scripts/load \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my-novel"}'
-```
-
-## Persona Generation
-
-```bash
-# Generate personas (LLM analyzes script + VoiceDesign creates voices)
-curl -X POST http://127.0.0.1:4200/api/generate_personas
-
-# Advanced mode with custom batch size
-curl -X POST http://127.0.0.1:4200/api/generate_personas \
-  -H "Content-Type: application/json" \
-  -d '{"advanced": true, "batch_size": 40}'
-
-# Check persona generation status
-curl http://127.0.0.1:4200/api/status/persona
-
-# Cancel persona generation
-curl -X POST http://127.0.0.1:4200/api/cancel_persona
-```
-
-### Voice Config with Aliases
-
-Aliases are set via the `alias_of` field in voice config:
+An alias:
 
 ```bash
 curl -X POST http://127.0.0.1:4200/api/save_voice_config \
   -H "Content-Type: application/json" \
   -d '{
-    "ELENA": {"type": "clone", "ref_audio": "designed_voices/previews/preview_123.wav", "ref_text": "Hello there."},
+    "ELENA":       {"type": "clone", "ref_audio": "designed_voices/previews/preview_123.wav", "ref_text": "Hello there."},
     "YOUNG ELENA": {"type": "clone", "alias_of": "ELENA"}
   }'
 ```
 
-During generation, "YOUNG ELENA" resolves to "ELENA" and uses her voice config.
+When audio is rendered, "YOUNG ELENA" uses ELENA's voice.
+
+## Personas
+
+```bash
+# generate personas for characters that have no voice yet
+curl -X POST http://127.0.0.1:4200/api/generate_personas \
+  -H "Content-Type: application/json" \
+  -d '{"new_only": true}'
+
+# large casts: process speakers in batches
+curl -X POST http://127.0.0.1:4200/api/generate_personas \
+  -H "Content-Type: application/json" \
+  -d '{"advanced": true, "batch_size": 40}'
+
+curl http://127.0.0.1:4200/api/status/persona
+curl -X POST http://127.0.0.1:4200/api/cancel_persona
+```
+
+## Chunks and rendering
+
+```bash
+# all chunks
+curl http://127.0.0.1:4200/api/chunks
+
+# edit a chunk (any of text, instruct, speaker, pause_after)
+curl -X POST http://127.0.0.1:4200/api/chunks/5 \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Updated dialogue", "instruct": "Excited, bright energy."}'
+
+# render one chunk
+curl -X POST http://127.0.0.1:4200/api/chunks/5/generate
+
+# render several: batched (the fast path used with local TTS)
+curl -X POST http://127.0.0.1:4200/api/generate_batch_fast \
+  -H "Content-Type: application/json" \
+  -d '{"indices": [0, 1, 2, 3, 4]}'
+
+# render several: one request per line, in parallel
+curl -X POST http://127.0.0.1:4200/api/generate_batch \
+  -H "Content-Type: application/json" \
+  -d '{"indices": [0, 1, 2, 3, 4]}'
+
+curl http://127.0.0.1:4200/api/status/audio
+
+# merge into the finished audiobook
+curl -X POST http://127.0.0.1:4200/api/merge
+```
+
+## Saved scripts
+
+```bash
+curl http://127.0.0.1:4200/api/scripts
+
+curl -X POST http://127.0.0.1:4200/api/scripts/save \
+  -H "Content-Type: application/json" -d '{"name": "my-novel"}'
+
+curl -X POST http://127.0.0.1:4200/api/scripts/load \
+  -H "Content-Type: application/json" -d '{"name": "my-novel"}'
+```
 
 ## Voice Designer
 
 ```bash
-# Preview a voice from text description
+# preview a voice from a description
 curl -X POST http://127.0.0.1:4200/api/voice_design/preview \
   -H "Content-Type: application/json" \
   -d '{"description": "A warm, deep male voice with a calm and steady tone", "sample_text": "Hello, how are you?"}'
 
-# Save a designed voice
+# save a preview as a designed voice
 curl -X POST http://127.0.0.1:4200/api/voice_design/save \
   -H "Content-Type: application/json" \
   -d '{"name": "warm_narrator", "description": "A warm, deep male voice", "sample_text": "Hello.", "preview_file": "designed_voices/previews/preview_123.wav"}'
 
-# List saved designed voices
 curl http://127.0.0.1:4200/api/voice_design/list
-
-# Delete a designed voice
-curl -X DELETE http://127.0.0.1:4200/api/voice_design/delete/<voice_id>
+curl -X DELETE http://127.0.0.1:4200/api/voice_design/<voice_id>
 ```
 
-## LoRA Training
+## Voice (LoRA) training
 
 ```bash
-# Upload a training dataset (ZIP with WAV + metadata.jsonl)
-curl -X POST http://127.0.0.1:4200/api/lora/upload_dataset \
-  -F "file=@dataset.zip" -F "name=my_voice"
+# upload a dataset: a ZIP of WAV files plus metadata.jsonl
+curl -X POST http://127.0.0.1:4200/api/lora/upload_dataset -F "file=@dataset.zip"
 
-# Generate a dataset from Voice Designer
-curl -X POST http://127.0.0.1:4200/api/lora/generate_dataset \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "gruff_soldier",
-    "description": "A gruff middle-aged male soldier",
-    "samples": [
-      {"emotion": "", "text": "The patrol route is secure."},
-      {"emotion": "Barking orders", "text": "Move out! Lock down that perimeter!"},
-      {"emotion": "Quiet, tense", "text": "Keep your voice down. Movement in the treeline."}
-    ]
-  }'
-
-# List datasets
 curl http://127.0.0.1:4200/api/lora/datasets
-
-# Delete a dataset
 curl -X DELETE http://127.0.0.1:4200/api/lora/datasets/<dataset_id>
 
-# Start training
+# train (the values shown are the defaults; see the Training guide before changing lr)
 curl -X POST http://127.0.0.1:4200/api/lora/train \
   -H "Content-Type: application/json" \
   -d '{
     "name": "soldier_voice",
     "dataset_id": "gruff_soldier",
-    "epochs": 25,
-    "lr": "5e-6",
+    "epochs": 5,
+    "lr": 1e-6,
     "lora_r": 32,
-    "lora_alpha": 64,
+    "lora_alpha": 128,
     "batch_size": 1,
-    "gradient_accumulation_steps": 8
+    "gradient_accumulation_steps": 8,
+    "language": "english"
   }'
 
-# Check training status
 curl http://127.0.0.1:4200/api/status/lora_training
-
-# List trained adapters
 curl http://127.0.0.1:4200/api/lora/models
 
-# Test a trained adapter
+# test a trained adapter
 curl -X POST http://127.0.0.1:4200/api/lora/test \
   -H "Content-Type: application/json" \
   -d '{"adapter_id": "soldier_voice_1234567890", "text": "Moving to position.", "instruct": "Tense, whispering."}'
 
-# Delete an adapter
 curl -X DELETE http://127.0.0.1:4200/api/lora/models/<adapter_id>
 ```
+
+Do not raise `lr` to 5e-6: voices trained at that rate never stop talking. See the
+[Training guide](Training-Guide.md).
 
 ## Dataset Builder
 
 ```bash
-# List all dataset builder projects
 curl http://127.0.0.1:4200/api/dataset_builder/list
 
-# Create a new project
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/create \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my_voice_dataset"}'
+  -H "Content-Type: application/json" -d '{"name": "my_voice_dataset"}'
 
-# Update project metadata (description and global seed)
+# the description and global seed
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/update_meta \
   -H "Content-Type: application/json" \
   -d '{"name": "my_voice_dataset", "description": "A warm male narrator", "global_seed": "42"}'
 
-# Update sample rows
+# the sample rows
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/update_rows \
   -H "Content-Type: application/json" \
   -d '{"name": "my_voice_dataset", "rows": [{"text": "Hello world.", "emotion": "cheerful"}]}'
 
-# Generate a single sample preview
+# render one sample
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_sample \
   -H "Content-Type: application/json" \
-  -d '{"name": "my_voice_dataset", "description": "A warm male voice", "sample_index": 0, "samples": [{"text": "Hello.", "emotion": "cheerful"}]}'
+  -d '{"dataset_name": "my_voice_dataset", "sample_index": 0, "description": "A warm male voice, cheerful", "text": "Hello world.", "seed": -1}'
 
-# Batch generate all samples
+# render several samples in the background
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_batch \
   -H "Content-Type: application/json" \
   -d '{"name": "my_voice_dataset", "description": "A warm male voice", "samples": [{"text": "Hello.", "emotion": "cheerful"}]}'
 
-# Check batch generation status
 curl http://127.0.0.1:4200/api/dataset_builder/status/my_voice_dataset
+curl -X POST http://127.0.0.1:4200/api/dataset_builder/cancel
 
-# Cancel a running batch generation
-curl -X POST http://127.0.0.1:4200/api/dataset_builder/cancel \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my_voice_dataset"}'
-
-# Save project as a training dataset
+# save as a training dataset; ref_index picks the reference sample
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/save \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my_voice_dataset", "ref_sample_index": 0}'
+  -H "Content-Type: application/json" -d '{"name": "my_voice_dataset", "ref_index": 0}'
 
-# Delete a project
 curl -X DELETE http://127.0.0.1:4200/api/dataset_builder/my_voice_dataset
 ```
 
-## Audio Download
+## Downloads and export
 
 ```bash
-# Download merged audiobook
+# the merged audiobook
 curl http://127.0.0.1:4200/api/audiobook --output audiobook.mp3
 
-# Start Audacity export
+# Audacity: start the export, wait, then download the zip
 curl -X POST http://127.0.0.1:4200/api/export_audacity
-
-# Check export status
 curl http://127.0.0.1:4200/api/status/audacity_export
-
-# Download Audacity zip
 curl http://127.0.0.1:4200/api/export_audacity --output audacity_export.zip
 ```
 
-## Python Example
+## A whole book, from Python
 
 ```python
-import requests
-import time
+import requests, time
 
 BASE = "http://127.0.0.1:4200"
 
-def wait_for_task(task_name):
-    while True:
-        status = requests.get(f"{BASE}/api/status/{task_name}").json()
-        if not status.get("running", False):
-            return status
-        time.sleep(2)
+def wait_for(task):
+    while requests.get(f"{BASE}/api/status/{task}").json().get("running"):
+        time.sleep(5)
 
-# Upload and generate script
 with open("mybook.txt", "rb") as f:
     requests.post(f"{BASE}/api/upload", files={"file": f})
-requests.post(f"{BASE}/api/generate_script")
-wait_for_task("script_generation")
+requests.post(f"{BASE}/api/generate_script", json={})
+wait_for("script")
 
-# Configure voices
 requests.post(f"{BASE}/api/save_voice_config", json={
     "NARRATOR": {"type": "custom", "voice": "Ryan", "character_style": "calm narrator"},
-    "HERO": {"type": "lora", "adapter_id": "hero_voice_123", "adapter_path": "lora_models/hero_voice_123"}
+    "HERO": {"type": "lora", "adapter_id": "hero_voice_123", "adapter_path": "lora_models/hero_voice_123"},
 })
 
-# Fast batch render all chunks
 chunks = requests.get(f"{BASE}/api/chunks").json()
-indices = [c["id"] for c in chunks]
-requests.post(f"{BASE}/api/generate_batch_fast", json={"indices": indices})
-wait_for_task("batch_generation")
+requests.post(f"{BASE}/api/generate_batch_fast", json={"indices": [c["id"] for c in chunks]})
+wait_for("audio")
 
-# Merge and download
 requests.post(f"{BASE}/api/merge")
+wait_for("audio")
 with open("audiobook.mp3", "wb") as f:
     f.write(requests.get(f"{BASE}/api/audiobook").content)
 ```
 
-## JavaScript Example
+## The same, from JavaScript
 
 ```javascript
 const BASE = "http://127.0.0.1:4200";
 
-async function waitForTask(taskName) {
-  while (true) {
-    const res = await fetch(`${BASE}/api/status/${taskName}`);
-    const data = await res.json();
-    if (!data.running) return data;
-    await new Promise(r => setTimeout(r, 2000));
+async function waitFor(task) {
+  while ((await (await fetch(`${BASE}/api/status/${task}`)).json()).running) {
+    await new Promise(r => setTimeout(r, 5000));
   }
 }
 
-// Upload and generate
-const formData = new FormData();
-formData.append("file", fileInput.files[0]);
-await fetch(`${BASE}/api/upload`, { method: "POST", body: formData });
-await fetch(`${BASE}/api/generate_script`, { method: "POST" });
-await waitForTask("script_generation");
+const form = new FormData();
+form.append("file", fileInput.files[0]);
+await fetch(`${BASE}/api/upload`, { method: "POST", body: form });
+await fetch(`${BASE}/api/generate_script`, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+});
+await waitFor("script");
 
-// Configure and render
 await fetch(`${BASE}/api/save_voice_config`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    NARRATOR: { type: "custom", voice: "Ryan", character_style: "calm" }
-  })
+  body: JSON.stringify({ NARRATOR: { type: "custom", voice: "Ryan", character_style: "calm" } })
 });
 
 const chunks = await (await fetch(`${BASE}/api/chunks`)).json();
@@ -380,7 +347,7 @@ await fetch(`${BASE}/api/generate_batch_fast`, {
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ indices: chunks.map(c => c.id) })
 });
-await waitForTask("batch_generation");
+await waitFor("audio");
 
 await fetch(`${BASE}/api/merge`, { method: "POST" });
 ```

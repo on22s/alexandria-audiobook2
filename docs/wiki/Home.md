@@ -1,19 +1,68 @@
-# Alexandria Audiobook Wiki
+# Alexandria Audiobook2 Wiki
 
-Alexandria Audiobook is a FastAPI application for multi-voice audiobook
-generation and attribution experiments.
+Alexandria Audiobook2 turns a book into an audiobook with a different voice for every
+character. A language model works out who says each line and how it should sound; a
+text-to-speech model (Qwen3-TTS) reads it; and you get an MP3 or a chaptered M4B.
 
-## Start here
+This fork measures every choice it makes. The research pages below say what was measured
+and how; the user-guide pages say how to use the app.
 
-- [Setup and serving](Setup-and-Serving.md)
-- [Prompts and adapters](Prompts-and-Adapters.md)
-- [Results](Results.md)
-- [Which model for your card](Which-Model-For-Your-Card.md)
-- [Evaluation recipes](Evaluation-Recipes.md)
-- [Thunder operations](Thunder-Operations.md)
-- [Hugging Face releases](Hugging-Face-Releases.md)
+## Using the app
 
-## Core rule
+- [Setup and serving](Setup-and-Serving.md) — connecting a language model, and serving
+  settings that were measured to work.
+- [Script generation](Script-Generation.md) — the three passes that turn text into a script,
+  the review pass, and prompts.
+- [Voice types](Voice-Types.md) — CustomVoice, Clone, LoRA and Voice Design, and when to use
+  each.
+- [Voice reference](Voice-Reference.md) — a vocabulary for voice descriptions and delivery
+  instructions, with test results.
+- [Batch generation](Batch-Generation.md) — how rendering is batched, and how to tune it.
+- [Editor & export](Editor-&-Export.md) — editing lines, render modes, merging and export.
+- [Troubleshooting](Troubleshooting.md) — common problems and fixes.
 
-An adapter must be evaluated with the prompt shape it was trained on. A result
-under a different prompt is a transfer test, not a matched adapter result.
+## Building voices
+
+- [Dataset builder](Dataset-Builder.md) — build a voice-training dataset with a preview of
+  every sample.
+- [Training guide](Training-Guide.md) — train a LoRA voice, with settings that worked.
+
+## Reference
+
+- [API reference](API-Reference.md) — HTTP examples in curl, Python and JavaScript.
+
+## Research
+
+- [Which model for your card](Which-Model-For-Your-Card.md) — the best language model for
+  each amount of GPU memory, with speeds.
+- [Results](Results.md) — model, quant, prompt and adapter results in one place.
+- [Prompts and adapters](Prompts-and-Adapters.md) — the rules adapters must follow, and when
+  an adapter helps.
+- [Evaluation recipes](Evaluation-Recipes.md) — how an adapter evaluation is run.
+- [Thunder operations](Thunder-Operations.md) — running jobs on remote GPUs.
+- [Hugging Face releases](Hugging-Face-Releases.md) — what a public release must include.
+
+## The one rule for adapters
+
+An adapter must be evaluated with the prompt it was trained on. A result under a different
+prompt is a transfer test, not a result for that adapter.
+
+## Checking an installation
+
+The repository includes a live API test script:
+
+```bash
+cd app
+python tests/test_api.py              # quick tests — no TTS or LLM needed
+python tests/test_api.py --full       # also tests generation — needs TTS and an LLM running
+python tests/test_api.py --url URL    # a different server (default http://127.0.0.1:4200)
+```
+
+- **Quick mode** checks settings round-trips, upload, the script library, voice settings,
+  chunks, status polling, voice design, LoRA listings, the dataset builder and error handling,
+  without loading any model.
+- **Full mode** adds script generation, audio generation, batch rendering, voice design
+  previews and LoRA testing.
+
+If quick mode passes but generation fails, the problem is loading the TTS model or reaching
+the language model, not the app itself.

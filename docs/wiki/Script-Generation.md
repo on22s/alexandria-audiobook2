@@ -1,17 +1,34 @@
-# Script Generation
+# Script generation
 
-Alexandria uses an LLM to convert raw book text into a structured script with speakers, dialogue, and TTS voice directions.
+A language model turns the book's text into a script: a list of lines, each with a speaker and
+a delivery instruction for the voice.
 
-## Pipeline
+## The pipeline
 
-1. **Upload** a book file (.txt, .md, or .epub) in the Script tab — EPUB files are automatically converted to plain text on upload
-2. **Generate Script** — The LLM processes the text in chunks, producing a JSON array
-3. **(Optional) Review Script** — A second LLM pass fixes common annotation errors
-4. **Parse Voices** — Extract unique speakers for voice configuration
+1. **Upload** a book (`.txt`, `.md` or `.epub`) in the Script tab. EPUB files are converted
+   to plain text on upload.
+2. **Generate Annotated Script** runs three passes over the text:
+   1. **Split** — divide the text into narration and spoken lines. Setup → **Step 1:
+      dialogue detection** chooses how:
+      - **Auto** (recommended) — use the quote marks when they clearly split a chunk and
+        pass a check; otherwise ask the model. Every published result used this.
+      - **Quote marks only** — never ask the model.
+      - **Quote-aware** — like quote marks, but quoted terms inside narration stay
+        narration.
+      - **Model only** — always ask the model.
+   2. **Attribute** — give every spoken line a speaker from the book's cast list, using the
+      surrounding text.
+   3. **Instruct** — write a delivery instruction for every line.
+3. **Review** (optional) — a second model pass that fixes common mistakes (see below).
+4. **Voices** — every speaker in the script gets a voice card in the Voices tab.
 
-## Script Format
+Each pass is checkpointed. A run can be paused, resumed after a crash or power cut, saved as
+a snapshot of the finished part, or started over without losing your settings. The activity
+line under the Generate button shows the current step, unit, attempt and time left.
 
-The generated script is a JSON array:
+## Script format
+
+The script is a JSON array:
 
 ```json
 [
@@ -21,127 +38,164 @@ The generated script is a JSON array:
 ]
 ```
 
-### Fields
+- **`speaker`** — `NARRATOR`, or a character's name in capitals from the cast list.
+- **`text`** — exactly what is spoken. Attribution tags ("she said") belong to the narration,
+  and quote marks are dropped: the speaker field records that a line is speech.
+- **`instruct`** — a short voice direction of one or two sentences (about 8–15 words)
+  describing emotion, delivery and vocal quality.
 
-- **speaker** — Character name (uppercase) or `NARRATOR`
-- **text** — The spoken dialogue or narration
-- **instruct** — 1-2 sentence TTS voice direction (~8-15 words). Describes emotional tone, delivery style, and vocal quality.
+## Writing good instructions
 
-### Instruct Writing
+The `instruct` field is sent to the speech engine as voice direction. Layer up to three things:
 
-The `instruct` field is sent directly to the TTS engine as voice direction. Layer up to three vocal dimensions:
+1. **Emotional tone** — what the character feels: furious, fearful, triumphant, hollow,
+   desperate, amused.
+2. **Delivery** — how they say it: whispered, low drawl, clipped and curt, measured, rising
+   intensity.
+3. **Vocal quality** — what the voice does: voice cracking, gravelly, tight, raw, breathy,
+   strained.
 
-1. **Emotional tone** (what they feel) — furious, fearful, triumphant, hollow, desperate, amused
-2. **Delivery** (how they say it) — whispered, low drawl, clipped and curt, measured, rising intensity
-3. **Vocal quality** (what the voice does) — voice cracking, gravelly, tight, raw, breathy, strained
+Not every line needs all three. A low-stakes line can be simple ("Casual, offhand remark.");
+save the rich, layered instructions for emotional peaks.
 
-Not every line needs all three. Low-stakes lines can be simple ("Casual, offhand remark."). Save rich layered instructs for emotional peaks.
+**Good examples**
 
-**Good instructs:**
 - `"Cold fury, barely contained, voice tight."`
 - `"Bright eager excitement, words tumbling out."`
 - `"Menacing confidence, low smug drawl with a dark chuckle."`
 - `"Devastated, voice cracking, struggling to hold composure."`
 - `"Sharp whispered warning, urgent and hushed."`
 
-**Narrator instructs:** Default to `"Neutral, even narration."` At scene-level tone shifts, a single tonal modifier is allowed: `"Tense, clipped narration."`, `"Quiet, somber narration."`, `"Wry, light narration."` Hold the same tone across consecutive narrator entries within a scene.
+**The narrator** defaults to `"Neutral, even narration."`. At a change of mood in the scene, one
+modifier is allowed — `"Tense, clipped narration."`, `"Quiet, somber narration."`, `"Wry,
+light narration."` — and the same tone holds across the narrator's lines within that scene.
 
-**Avoid:**
-- Physical actions ("trembling", "leaning forward") — describe the voice, not the body
-- Synonym stacking ("sneering contempt, dripping with disdain") — both mean the same thing
-- Weak qualifiers ("slightly", "a bit") — they dilute the direction
-- Bare speed words ("fast", "slow") — convey pacing through energy instead ("urgent intensity", "heavy, weighted delivery")
+**Avoid**
 
-**Voice descriptors that work:** voice cracking, hollow, seething, flat, low, cold, numb, drained, gravelly, tight, raw, breathy, hushed, booming, clipped, strained
+- Physical actions ("trembling", "leaning forward") — describe the voice, not the body.
+- Two words that mean the same thing ("sneering contempt, dripping with disdain").
+- Weak qualifiers ("slightly", "a bit") — they dilute the direction.
+- Bare speed words ("fast", "slow") — show pace through energy instead ("urgent intensity",
+  "heavy, weighted delivery").
+- Words that describe the voice itself ("deep", "raspy"). They fight the chosen voice; the
+  voice's identity anchor removes them.
 
-### Non-verbal Sounds
+**Voice descriptors that work:** voice cracking, hollow, seething, flat, low, cold, numb,
+drained, gravelly, tight, raw, breathy, hushed, booming, clipped, strained. The
+[Voice reference](Voice-Reference.md) has a much longer vocabulary.
 
-Vocalizations are written as real pronounceable text — no bracket tags or special tokens:
-- Gasps: "Ah!", "Oh!" with instruct "Fearful, sharp gasp."
-- Sighs: "Haah...", "Hff..."
-- Laughter: "Haha!", "Ahaha..."
-- Crying: "Hic... sniff..."
-- Exclamations: "Mmm...", "Hmm...", "Ugh..."
+### Non-verbal sounds
 
-## LLM Configuration
+Sounds are written as real, pronounceable text — never as bracketed tags or special tokens:
 
-### Setup Tab Settings
+- gasps: "Ah!", "Oh!" with an instruction such as "Fearful, sharp gasp.";
+- sighs: "Haah...", "Hff...";
+- laughter: "Haha!", "Ahaha...";
+- crying: "Hic... sniff...";
+- exclamations: "Mmm...", "Hmm...", "Ugh...".
 
-- **Base URL** — LLM server endpoint (e.g., `http://localhost:1234/v1` for LM Studio)
-- **API Key** — Your API key (use `local` for local servers)
-- **Model Name** — The model to use
+Nothing unspeakable — bare tags, pictographic kana — reaches the speech engine.
 
-### Sampling Parameters
+## Language-model settings
 
-| Parameter | Default | Notes |
-|-----------|---------|-------|
-| Temperature | 0.6 | Lower = more deterministic |
-| Top P | 0.8 | Nucleus sampling |
-| Top K | 20 | Top-K sampling |
-| Min P | 0 | Minimum probability |
-| Presence Penalty | 0.0 | Penalize repeated tokens |
-| Banned Tokens | *(empty)* | Comma-separated list (e.g., `<think>` for thinking models) |
+Set these in the Setup tab:
 
-### Smart Chunking
+- **Base URL**, **API Key** (`local` for a local server, or `env:NAME` to read an environment
+  variable) and **Model Name**.
+- **Reasoning effort** — use *low* for reasoning models. Do not ban `<think>`: reasoning low
+  measured better than reasoning off on every model that reasons.
 
-The LLM processes text in chunks (default 3000 chars) to handle books of any length. Between chunks:
-- The character roster is passed forward for name consistency
-- The last 3 script entries provide style continuity
-- The chunk size is configurable in Setup > Prompt Settings
+### Sampling defaults
 
-## Script Review
+| setting | default | notes |
+|---|---|---|
+| Temperature | 0.6 | general setting |
+| Step 1 / 2 / 3 temperatures | 0.1 each | the three passes use their own temperatures |
+| Top P | 0.8 | |
+| Top K | 0 (off) | |
+| Min P | 0 | |
+| Presence penalty | 0 | |
+| Banned tokens | empty | comma-separated; leave `<think>` out |
 
-After generation, click **Review Script** for a second LLM pass that fixes common errors:
+The published accuracy numbers were measured at temperature 0, where a repeat run gives the
+same answer on every line.
 
-1. **Attribution tags in dialogue** — Strips "said he", "she replied" etc. from spoken text
-2. **Misattributed narration** — Splits narration mixed into character entries as NARRATOR
-3. **Dialogue in narrator entries** — Extracts character dialogue embedded in narration
-4. **Over-split narrator entries** — Merges short consecutive narrator entries covering the same scene
-5. **Invalid instructs** — Corrects physical actions to vocal equivalents; preserves valid rich instructs
+### How the text is divided
 
-**Contextual Review** — An alternative review mode that processes entries in overlapping windows, providing surrounding context to the LLM for better accuracy on speaker attribution and tone consistency. Uses a sliding window (default size 4) with overlap to maintain continuity across batches.
+- **Step 1** sends about 3,000 characters per request (Setup → **Step 1: text per request**).
+- **Step 2** sends 25 lines per request, plus about 2,000 characters of surrounding text
+  around them. That surrounding block is what the `michel2_full` prompt adds, and it is the
+  biggest single improvement measured. Setting it to 0 reproduces the scores from before
+  2026-09-19.
+- The cast list is carried from request to request so names stay consistent.
+- If a request fails, **context rescue** retries it with wider windows (2,000, 4,000 and 6,000
+  characters, two retries each).
 
-Review prompts are customizable in `review_prompts.txt`.
+## Reviewing a script
 
-## Prompt Customization
+After generation, **Review Script** runs a second model pass that fixes:
 
-LLM prompts are stored in plain-text files at the project root:
+1. **Attribution tags inside dialogue** — removes "said he", "she replied" and similar.
+2. **Narration given to a character** — splits it out as NARRATOR.
+3. **Dialogue hidden in narration** — extracts it as the character's line.
+4. **Narration split too finely** — merges short consecutive narrator lines from the same
+   scene.
+5. **Invalid instructions** — turns physical actions into vocal equivalents, and keeps valid
+   rich instructions.
 
-- **`default_prompts.txt`** — Script generation prompts
-- **`review_prompts.txt`** — Script review prompts
+**Contextual Review** processes the script in overlapping windows (4 lines either side by
+default), so the model sees the surrounding lines. It is more accurate for speaker and tone
+consistency.
 
-Each file contains a system prompt and user prompt separated by `---SEPARATOR---`.
+**Batch review** can review a whole series of saved scripts at once, optionally finding
+nicknames first and running two passes (forward, then backward).
 
-**How to customize:**
-- **Per-session:** Edit in the Setup tab's Prompt Customization section
-- **Permanent:** Edit the text files directly — changes hot-reload on next request
-- **Reset:** Click "Reset to Defaults" in Setup to reload from files
+Related tools: **Find Nicknames** discovers alternative names for characters, and **Edit
+aliases** lets you correct them, so "Betty" and "BEATRICE" share one voice.
 
-### Non-English Books
+## Prompts
 
-The default prompts are written for English text. For other languages, edit prompts to match that language's conventions:
-- French guillemets (<<>>)
-- Japanese brackets
-- Language-appropriate attribution patterns
-- Set the TTS **Language** dropdown to match
+Each pass reads its own prompt file in `app/`:
 
-## Recommended LLM Models
+- `default_prompts_segment.txt` (step 1), `default_prompts_attribute.txt` (step 2),
+  `default_prompts_instruct.txt` (step 3);
+- `review_prompts.txt` for the review pass.
 
-Non-thinking models work best for script generation:
+Each file holds a system message, a `---SEPARATOR---` line, then a user message with
+`{roster}` and `{batch}` placeholders.
 
-| Model | Notes |
-|-------|-------|
-| **Qwen3-next** (80B-A3B) | Excellent JSON output and instruct directions |
-| **Gemma3** (27B) | Strong JSON output |
-| **Qwen2.5** (any size) | Reliable JSON output |
-| **Llama 3.1/3.2** | Good character distinction |
-| **Mistral/Mixtral** | Fast and reliable |
+To change them:
 
-**Thinking models** (DeepSeek-R1, GLM4-air, etc.) can interfere with JSON output. Add `<think>` to **Banned Tokens** to disable thinking mode.
+- **In Setup** — choose the attribution prompt variant (`michel2_full` is the default and the
+  measured best), edit the text, and **Save as preset**. Presets survive restarts.
+- **What the model will see** shows the exact messages step 2 would send.
+- **Reset to Defaults** reloads the files without a restart.
 
-## Saved Scripts
+Changing the prompt changes the measurement: a published score belongs to its prompt
+variant. See [Prompts and adapters](Prompts-and-Adapters.md).
 
-Scripts can be saved and loaded from the Editor tab:
-- **Save** preserves the annotated script, voice configuration, and all chunk data
-- **Load** restores everything, allowing you to resume editing or regenerate specific chunks
-- Scripts are stored in the `scripts/` directory
+### Books in other languages
+
+The default prompts are written for English. For other languages, adapt them to that
+language's conventions — French guillemets (« »), Japanese brackets (「」), the usual ways of
+attributing speech — and set the TTS **Language** to match.
+
+## Which model to use
+
+The measured recommendations — by GPU memory, with scores — are in
+[Which model for your card](Which-Model-For-Your-Card.md) and in the README's
+[Recommended LLM models](../../README.md#recommended-llm-models). In short:
+
+- **Qwen3.8-27B** at UD-Q3_K_XL is the most accurate local model that fits a 16 GB card.
+- **Qwen3.6-35B-A3B** is the fast choice: about as fast as an 8B model, about 11 points more
+  accurate.
+- **DeepSeek v4-pro** (hosted) is the most accurate model measured.
+
+## Saved scripts
+
+Scripts are saved and loaded from the Script tab's **Saved Scripts** section:
+
+- **Save** keeps the script and its voice settings in `scripts/`.
+- **Load** restores them, so you can keep editing or regenerate specific lines.
+- **Repair** previews fix speakers or content in a saved script, and keep a backup of the
+  original.

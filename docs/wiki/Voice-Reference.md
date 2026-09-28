@@ -1,14 +1,27 @@
-# Voice Reference
+# Voice reference
 
-A comprehensive vocal direction lexicon compiled from professional acting glossaries and voice-over direction databases, combined with empirical findings from Qwen3-TTS VoiceDesign testing.
+Words for describing voices, and what the Qwen3-TTS VoiceDesign model actually does with them.
+
+- **Part 1** is a vocabulary gathered from acting glossaries and voice-over direction guides.
+- **Part 2** is what testing showed about how VoiceDesign interprets voice descriptions.
+
+**The short version:**
+
+- Put words about the **voice itself** (register, texture, timbre) in a voice's
+  **description** — used by Voice Design, the Designer tab and the Dataset Builder.
+- Put words about **emotion, delivery and pace** in the line's **instruction** (`instruct`).
+- Do not mix the two in a description: that makes voices unstable (see the
+  [bright tenor test](#bright-tenor-investigation)).
+
+The [working rules](#working-rules-for-voice-descriptions) at the end sum it up.
 
 ---
 
-# Part 1: Director's Vocal Lexicon
+## Part 1: the director's vocabulary
 
-Hundreds of industry-standard terms for fine-tuning vocal performance, organized by function.
+Hundreds of standard terms for shaping a vocal performance, grouped by what they control.
 
-## I. Texture, Timbre & Quality (The "Instrument")
+### I. Texture, timbre and quality (the "instrument")
 
 The physical sound or "grain" of the voice. **Use these in `description` for VoiceDesign.**
 
@@ -21,7 +34,7 @@ The physical sound or "grain" of the voice. **Use these in `description` for Voi
 | **Nasal/Sharp** | Nasal, Twangy, Whiny, Pinched, Brass, Strident, Cutting, Piercing, Biting, Sharp, Acidic, Astringent, Clamorous, Ear-splitting, Harsh, Jarring, Penetrating, Stingy |
 | **Vocal Defects** | Fry (Vocal Fry), Sibilant (whistling 'S'), Plosive (popping 'P'), Tremulous (shaking), Wobbling, Quavering, Warbling, Slurred, Mumbled, Incoherent, Thick |
 
-## II. Emotion, Attitude & Tone (The "Subtext")
+### II. Emotion, attitude and tone (the "subtext")
 
 Adjectives to dial in psychological state. **Use these in `instruct`, not `description`.**
 
@@ -36,7 +49,7 @@ Adjectives to dial in psychological state. **Use these in `instruct`, not `descr
 | **Intellectual/Superior** | Analytical, Arrogant, Authoritative, Condescending, Critical, Cynical, Didactic, Dignified, Dry, Educated, Erudite, Haughty, Informative, Inquisitive, Instructional, Knowledgeable, Lofty, Logical, Patronizing, Pedantic, Philosophical, Pompous, Practical, Pragmatic, Precise, Pretentious, Professional, Rational, Sagacious, Sarcastic, Sardonic, Satirical, Scholarly, Skeptical, Smart, Snobbish, Sophisticated, Supercilious, Superior, Thoughtful, Wise, Wry |
 | **Playful/Quirky** | Bantering, Cheeky, Childish, Clownish, Droll, Eccentric, Facetious, Fanciful, Flippant, Flirty, Foolish, Goofy, Humorous, Impish, Ironic, Irreverent, Jocular, Kooky, Mischievous, Mocking, Offbeat, Playful, Prankish, Quirky, Rascally, Ridiculous, Sassy, Saucy, Silly, Snarky, Teasing, Tongue-in-cheek, Whimsical, Witty, Zany |
 
-## III. Delivery, Pacing & Rhythm (The "Mechanics")
+### III. Delivery, pacing and rhythm (the "mechanics")
 
 Speed, flow, and clarity controls. **Use these in `instruct`, not `description`.**
 
@@ -53,7 +66,7 @@ Speed, flow, and clarity controls. **Use these in `instruct`, not `description`.
 | **Deadpan** | Zero inflection, flat pitch, dry comedy, poker-faced delivery |
 | **Cadenced** | Highly rhythmic, almost poetic or Shakespearean, metered |
 
-## IV. Industry Specs & Archetypes (The "Role")
+### IV. Industry specs and archetypes (the "role")
 
 Shorthand used in casting breakdowns and commercial scripts.
 
@@ -73,7 +86,7 @@ Shorthand used in casting breakdowns and commercial scripts.
 | **Soft Sell** | Intimate, whispery, luxury, expensive, comforting, seductive |
 | **Characters** | Villain, Hero, Sidekick, Creature, Monster, Robot, Alien, Witch, Old Crone, Sage |
 
-## V. Technical Session Commands (The "Workflow")
+### V. Recording-session commands (the "workflow")
 
 Instructions for the recording process.
 
@@ -106,11 +119,11 @@ Instructions for the recording process.
 | **Wild Line** | A line recorded separately from script flow (shouts, laughs, grunts) |
 | **Walla** | Background crowd noise/murmuring performed by a group |
 
-## VI. Extended Dimensions Reference
+### VI. Extended reference
 
-150+ additional professional terms across five key areas.
+More than 150 further terms in five areas.
 
-### Dimensions (Physicality & Atmosphere)
+#### Physicality and atmosphere
 
 | Dimension | Terms |
 |-----------|-------|
@@ -120,7 +133,7 @@ Instructions for the recording process.
 | **Brightness/Weight** | Airy, Breathy, Feathery, Thin, Reedy, Tinny, Piercing, Shrill, Piping, Wispy, Fluting, Chirpy, Squeaky, Metallic, Brittle |
 | **Temperature** | Warm, Sunny, Nurturing, Genial, Toast-like, Cool, Detached, Clinical, Crisp, Distant, Icy, Steel |
 
-### Emotions (Psychological Intent)
+#### Emotions (psychological intent)
 
 | Category | Terms |
 |----------|-------|
@@ -131,7 +144,7 @@ Instructions for the recording process.
 | **Authority/Power** | Commanding, Imperious, Dictatorial, Regal, Stately, Assertive, Dogmatic, Unyielding, Matter-of-fact, Dignified, Pompous, Supercilious, Sagacious |
 | **Irony/Wit** | Sarcastic, Ironic, Wry, Cynical, Sardonic, Satirical, Facetious, Flippant, Sassy, Saucy, Cheeky, Bantering, Droll |
 
-### Pitch & Musicality (The Melody)
+#### Pitch and musicality (the melody)
 
 | Aspect | Terms |
 |--------|-------|
@@ -139,7 +152,7 @@ Instructions for the recording process.
 | **Movement** | Uptalk (rising pitch, uncertainty), Down-talk (dropping pitch, finality/authority), Singsong (nursery-rhyme rise and fall), Flat/Monotone (zero variation), Modulated (controlled varied pitch) |
 | **Register** | Vocal Fry (creaky), Nasal, Twangy, Resonance, Vibrato, Tremolo |
 
-### Delivery & Mechanics (Pacing & Clarity)
+#### Delivery and mechanics (pacing and clarity)
 
 | Aspect | Terms |
 |--------|-------|
@@ -148,7 +161,7 @@ Instructions for the recording process.
 | **Emphasis** | Billboard (punching a key word), Throwaway (de-emphasizing), Punchy (high-energy consonants) |
 | **Rhythm** | Cadenced, Syncopated, Naturalistic, Flowing, Breathless, Erratic |
 
-### Specs & Archetypes (Character Models)
+#### Specs and archetypes (character models)
 
 | Category | Archetypes |
 |----------|-----------|
@@ -156,11 +169,11 @@ Instructions for the recording process.
 | **Narrative** | The Trusted Advisor, The Sage/Professor, The Villain/Antagonist, The Sidekick, The Reluctant Hero |
 | **Technical/Industry** | "Announcery" (classic radio), "Voice of God" (deep/booming/omniscient), "Corporate/Industrial" (polished/professional), "Sotto Voce" (stage whisper), "Walla" (background crowd noise) |
 
-## VII. Vocal Classifications
+### VII. Vocal classifications
 
-Standard register terminology used in the "Lead with register" rule (#1 in Working Rules below). These classifications define the pitch range and tonal character of a voice.
+The standard register names used by the first working rule below ("lead with register"). Each defines a pitch range and tonal character.
 
-### Standard Vocal Classifications
+#### Standard classifications
 
 | Voice Type | Gender | Range (Approx.) | Description |
 |-----------|--------|-----------------|-------------|
@@ -172,7 +185,7 @@ Standard register terminology used in the "Lead with register" rule (#1 in Worki
 | **Baritone** | Male | A2 -- A4 | The most common male voice type, sitting between tenor and bass with a warm, versatile tone. |
 | **Bass** | Male | E2 -- E4 | The lowest male voice, providing a deep, heavy foundation for vocal ensembles. |
 
-### Specialized & Additional Classifications
+#### Specialised and additional classifications
 
 | Voice Type | Description |
 |-----------|-------------|
@@ -183,22 +196,22 @@ Standard register terminology used in the "Lead with register" rule (#1 in Worki
 
 ---
 
-# Part 2: Qwen3-TTS VoiceDesign Experimental Findings
+## Part 2: what VoiceDesign does with these words
 
-Empirical results from testing how the VoiceDesign model interprets voice description prompts. Maps the professional lexicon above to actual model behavior.
+Tests of how the VoiceDesign model interprets voice descriptions, mapping the vocabulary above onto what the model actually does.
 
-## Methodology
+### How it was tested
 
 - All tests use the same 4 neutral sentences across all voices
 - `instruct` field left empty to isolate voice description effects
 - `seed: -1` (random) to test natural consistency
 - Evaluated on: voice consistency across lines, adherence to description, quality
 
-## Round 1: Strategy Comparison
+### Round 1: five ways of describing a voice
 
 Tested 5 fundamentally different description approaches (M/F each, 40 samples total).
 
-### Strategies Tested
+#### The strategies
 
 | Strategy | Approach | Example |
 |----------|----------|---------|
@@ -208,7 +221,7 @@ Tested 5 fundamentally different description approaches (M/F each, 40 samples to
 | **Emotion** | Emotional qualities only | "A calm, reassuring male voice that sounds confident, trustworthy, and steady" |
 | **Context** | Scene/situation | "A male narrator reading a fantasy novel aloud in a quiet bookshop" |
 
-### Results
+#### Results
 
 | Strategy | Consistency | Key Observation |
 |----------|------------|-----------------|
@@ -218,21 +231,21 @@ Tested 5 fundamentally different description approaches (M/F each, 40 samples to
 | **Emotion** | Low | Too abstract. No physical anchor for what "calm" or "warm" sounds like. |
 | **Context** | None | Different voice every line. Model treats description as scene direction, not voice identity. |
 
-### Round 1 Conclusion
+#### Conclusion
 
 **Anatomy-first descriptions win.** The model needs concrete acoustic targets (pitch, register, timbre, texture) to produce consistent voices. Abstract qualities (emotion, persona, context) give too much interpretive freedom.
 
-## Round 2: Anatomy-First Hybrid
+### Round 2: anatomy first
 
 All descriptions reformulated: register + timbre + tonal adjectives. No delivery/performance words (those belong in `instruct`).
 
-### Formula
+#### The formula
 
 > **[register] + [timbre/texture descriptors] + [tonal character adjectives]**
 >
 > Never include: delivery verbs (speaking, reading), pacing words, scene/context
 
-### Results
+#### Results
 
 | Voice | Description | Consistency | Quality | Notes |
 |-------|------------|------------|---------|-------|
@@ -243,7 +256,7 @@ All descriptions reformulated: register + timbre + tonal adjectives. No delivery
 | **COMMANDING_BASS** | "male bass, dark authoritative rumble, heavy low-end, firm tone" | High | High | Cowboy/western gruff quality. A keeper. |
 | **CRISP_SOPRANO** | "female soprano, precise crystalline tone, balanced brightness, confident projection" | Very High | High | More tonal range but still consistent. Studio-quality feel. |
 
-### Consistency Drivers (from Section I terms)
+#### Which words make a voice consistent
 
 **High consistency** — terms the model locks onto reliably:
 - Smoothness/evenness: `silky`, `even`, `soft`, `rounded` (from Smooth/Rich)
@@ -257,11 +270,11 @@ All descriptions reformulated: register + timbre + tonal adjectives. No delivery
 
 **Observation:** Female voices trend more consistent than male across all descriptions.
 
-## Bright Tenor Investigation
+### Bright tenor investigation
 
 Isolated the cause of BRIGHT_TENOR instability through systematic ablation (8 variants, 32 samples).
 
-### Test Matrix
+#### The variants
 
 | Variant | Description | What Changed |
 |---------|------------|-------------|
@@ -274,7 +287,7 @@ Isolated the cause of BRIGHT_TENOR instability through systematic ablation (8 va
 | **HIGH_HARMONICS** | "male tenor, strong upper harmonics, clear forward projection, light nasal resonance" | Technical acoustic equivalent |
 | **STABILIZED** | "male tenor, steady clean tone, light nasal resonance, even delivery" | Applied consistency formula |
 
-### Results
+#### Results
 
 | Variant | Consistency | Character | Finding |
 |---------|------------|-----------|---------|
@@ -287,13 +300,13 @@ Isolated the cause of BRIGHT_TENOR instability through systematic ablation (8 va
 | **HIGH_HARMONICS** | Medium | Raised voice, near-shouting, very clear | Useful niche: alertness/wake-up effect |
 | **STABILIZED** | High | Narrator-like, low emotion | Consistency formula works but flattens expression |
 
-### Key Finding: Interaction Effect
+#### Key finding: two stable words can be unstable together
 
 **"Bright" and "youthful energy" are each stable alone but interact destructively.** The combination gives the model contradictory signals — tonal brightness (acoustic) + behavioral energy (performance) — and it flails between interpretations on every generation.
 
 This is likely a general principle: **mixing acoustic descriptors (Section I) with behavioral/energy descriptors (Section III) in the voice description creates ambiguity.** Keep voice descriptions purely in Section I territory; use `instruct` for Section II-IV qualities.
 
-### Term-Specific Mappings
+#### How specific words are interpreted
 
 | Term | Section | Model Interpretation | Usefulness |
 |------|---------|---------------------|------------|
@@ -307,7 +320,7 @@ This is likely a general principle: **mixing acoustic descriptors (Section I) wi
 | `crystalline`, `precise` | I. Smooth/Rich | Consistent with expressive range | Best balance |
 | `hollow` (in instruct) | I. Resonance | Whisper/sigh hybrid, breathy emptiness | Avoid in instruct — model reads it as acoustic, not emotional. Use "defeated" instead. |
 
-## Working Rules for Voice Description Prompts
+### Working rules for voice descriptions
 
 1. **Lead with register** (bass, baritone, tenor, alto, mezzo-soprano, soprano)
 2. **Add 2-3 texture/timbre terms** from Section I only

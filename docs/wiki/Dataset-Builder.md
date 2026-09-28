@@ -1,65 +1,78 @@
-# Dataset Builder
+# Dataset builder
 
-The Dataset Builder tab provides an interactive workflow for creating LoRA training datasets with per-sample audio preview.
+The Dataset tab builds a LoRA training dataset one sample at a time, letting you listen to each
+sample before you commit.
 
-## When to Use
+## When to use it
 
-Use the Dataset Builder when you want fine-grained control over each training sample before committing to a dataset. It's ideal for:
+- You want to adjust voice descriptions and emotions until every sample sounds right.
+- You want to build a dataset over several sessions.
+- You want to hear how different emotion-and-text combinations change the voice.
 
-- Iterating on voice descriptions and emotions until each sample sounds right
-- Building datasets incrementally over multiple sessions
-- Previewing how different emotion+text combinations affect the generated voice
-
-For quick dataset creation without per-sample preview, use the **Generate Dataset** form in the Training tab instead.
+It is also what the Training tab's **Build New Dataset** button opens.
 
 ## Workflow
 
-### 1. Create a Project
+### 1. Create a project
 
-Click **New Project** and enter a name. This creates a workspace in `dataset_builder/` that persists across sessions.
+Click **New Dataset** and enter a name. This creates a workspace in `dataset_builder/` that is
+kept between sessions.
 
-### 2. Configure Voice
+### 2. Describe the voice
 
-- **Voice Description** — The base voice identity description (e.g., "A warm, deep male narrator with a calm baritone")
-- **Global Seed** — Optional seed for reproducible generation (leave empty for random)
+- **Root Voice Description** — the voice's identity, for example "A warm, deep male narrator
+  with a calm baritone". The [Voice reference](Voice-Reference.md) explains which words work.
+- **Global Seed** — optional, for reproducible generation; leave it empty for random.
 
-### 3. Define Samples
+### 3. Add samples
 
-Add rows to the sample table. Each row has:
+Click **Add Row** for each sample. Each row has:
 
-| Field | Description |
-|-------|-------------|
-| **Text** | The spoken content for this sample |
-| **Emotion** | Emotion/style direction appended to the voice description (e.g., "cheerful", "tense whisper", "barking orders"). This is a VoiceDesign generation prompt — it controls how the synthetic audio is produced, not a training label. If you're preparing real audio for ZIP upload instead, see [[Training Guide#Method 2: Upload Real Audio (ZIP)]]. |
+| field | meaning |
+|---|---|
+| **Text** | what is spoken in this sample |
+| **Emotion** | a style direction added to the voice description ("cheerful", "tense whisper", "barking orders") |
 
-Tips for good training data:
-- Include a range of emotions (neutral, happy, angry, sad, tense, commanding)
-- Mix short exclamations ("Oh!", "Right.") with longer passages
-- Include at least one long neutral passage for the reference sample
-- See [[Training Guide]] for detailed dataset guidance
+The emotion is only a prompt for **generating** the audio with VoiceDesign; it is not stored as
+a training label. (If you are preparing real recordings instead, see the
+[Training guide](Training-Guide.md#option-2-upload-real-audio-zip).)
 
-### 4. Generate and Preview
+Tips:
 
-- **Generate single** — Click the generate button on any row to preview that sample
-- **Generate All** — Batch-generate all samples at once
-- **Cancel** — Stop a running batch without losing completed samples
+- Cover a range of emotions: neutral, happy, angry, sad, tense, commanding.
+- Mix short exclamations ("Oh!", "Right.") with longer passages.
+- Include at least one long neutral passage to use as the reference sample.
+- The [Training guide](Training-Guide.md) has more on what makes a good dataset.
 
-Listen to each sample and regenerate any that don't sound right. Adjust the emotion text or voice description as needed.
+### 4. Generate and listen
 
-### 5. Save as Dataset
+- **Generate** on a row — render just that sample.
+- **Generate Pending** — render every sample that has no audio yet.
+- **Regen All** — re-render every sample.
+- **Cancel** — stop a running batch; finished samples are kept.
 
-When satisfied with all samples:
+Listen to each sample and regenerate any that don't sound right, adjusting the emotion or the
+voice description as needed.
 
-1. Select a **Reference Sample** — This becomes `ref.wav` for speaker embedding during training. Choose a clear, representative line (typically a long neutral passage).
-2. Click **Save as Dataset** — The project is exported to `lora_datasets/` and appears in the Training tab.
+### 5. Save as a dataset
 
-## Project Persistence
+When every sample sounds right:
 
-- Projects are saved to `dataset_builder/{name}/` on the server
-- The UI state (rows, description, seed) is stored in the project's `state.json`
-- You can close the browser and return later — the project loads from the server
-- Projects persist independently of training datasets: saving a dataset copies the data, it doesn't consume the project
+1. Choose the **reference sample**. It becomes `ref.wav`, the speaker embedding used in
+   training — pick a clear, representative line, usually a long neutral passage.
+2. Click **Save as Training Dataset**. The project is copied to `lora_datasets/` and appears in
+   the Training tab.
+
+You can also **Import / Export JSON** to move a project's rows between machines.
+
+## Where projects are kept
+
+- Each project lives in `dataset_builder/{name}/` on the server.
+- The rows, description and seed are saved in the project's `state.json`, so you can close
+  the browser and come back later.
+- Saving a dataset **copies** the data; the project stays, and you can keep working on it.
 
 ## API
 
-See [[API Reference#Dataset Builder]] for programmatic access to all Dataset Builder endpoints.
+The [API reference](API-Reference.md#dataset-builder) shows how to drive the Dataset Builder
+over HTTP.

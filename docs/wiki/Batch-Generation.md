@@ -1,110 +1,113 @@
-# Batch Generation
+# Batch generation
 
-Alexandria's batch generation system groups chunks by voice type and processes them efficiently using the Qwen3-TTS native batch API.
+How the app renders many lines at once, and how to tune it.
 
-## Render Modes
+## Which path your render takes
 
-### Standard (Render Pending)
-Sends individual TTS calls in parallel using the configured worker count. Each chunk is generated independently.
+| TTS mode (Setup) | what **Render Pending** / **Regenerate All** do |
+|---|---|
+| `local` (the built-in engine) | **batched** rendering: many lines per call to Qwen3-TTS, grouped by voice type |
+| `external` (a Gradio server or server pool) | one call per line, sent in parallel |
 
-- Per-speaker seeds for reproducible output
-- Works with all voice types
-- Throughput: GPU dependent, ~0.85 on 7900XTX
+Batched rendering is the fast path: about 3–6× real time on a mid-range card. It uses one
+batch seed (set in Setup, or empty for random). The per-line path uses per-speaker seeds and
+works with every voice type, but is slower.
 
-### Batch (Fast)
-Sends multiple lines to the TTS engine in a single batched call. Chunks are grouped by voice type and processed with type-specific batching strategies.
+## The order voice types are rendered
 
-- 3-6x better throughput compared to single 
-- Sub-batching by text length to minimize padding waste
-- Single batch seed (set in Setup, or empty for random)
+1. **Custom voices** — batched natively (fastest).
+2. **Clone voices** — batched per speaker.
+3. **LoRA voices** — batched per adapter.
+4. **Voice Design** — one line at a time, because each line may have a different description.
 
-## Processing Order
+The types with the most lines usually go first, so most of the book finishes early.
 
-Batch generation processes voice types in this order:
+## How each type is batched
 
-1. **Custom voices** — Batched natively (fastest)
-2. **Clone voices** — Batched by speaker
-3. **LoRA voices** — Batched by adapter
-4. **Voice Design** — Sequential (each line has a unique voice)
-
-This ordering ensures the most efficient types (with the most chunks) process first.
-
-## How Batching Works
-
-### Custom Voices
-All custom voice chunks are collected, grouped by speaker, sorted by text length, and split into sub-batches. Each sub-batch is sent as a single call to `generate()` with a list of texts.
-
-### Clone Voices
-Chunks are grouped by **speaker name** (each speaker has different reference audio). Within each speaker group, texts are sorted by length and sub-batched. The voice clone prompt is built once per speaker and cached.
-
-### LoRA Voices
-Chunks are grouped by **adapter path** (each adapter requires different model weights). Within each adapter group, texts are sorted by length and sub-batched. Per-chunk instruct+character_style is built into `instruct_ids` lists.
-
-### Voice Design
-Each line may have a different voice description, so batching isn't practical. Design chunks process one at a time after all batched types complete.
+- **Custom** — all Custom lines are collected, grouped by speaker, sorted by length, and split
+  into sub-batches. Each sub-batch is one call with a list of texts.
+- **Clone** — lines are grouped by **speaker**, since each speaker has its own reference audio.
+  The voice prompt is built once per speaker and cached.
+- **LoRA** — lines are grouped by **adapter**, since each adapter has its own weights. Each
+  line's instruction and character style travel with it.
+- **Voice Design** — rendered one by one after all batched types finish.
 
 ## Sub-batching
 
-Sub-batching splits a batch into smaller groups of similarly-sized texts to reduce wasted GPU compute on padding. The Qwen3-TTS autoregressive decoder generates to the length of the longest text in a batch — shorter texts waste compute on padding tokens.
+The speech model keeps generating until the longest text in a batch is done, so shorter texts
+in the same batch waste GPU time on padding. Sub-batching groups texts of similar length to
+cut that waste.
 
-**How it works:**
-1. Sort all chunks by text length (shortest first)
-2. Walk through sorted chunks, accumulating a group
-3. Split when: `longest_text > ratio * shortest_text AND group_size >= min_size`
-4. Each resulting sub-batch processes as a separate call
+How it works:
 
-**Settings (Setup tab):**
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Sub-batching | Enabled | Toggle sub-batch splitting |
-| Min Sub-batch Size | 4 | Don't split groups smaller than this |
-| Length Ratio | 5 | Max longest/shortest ratio before splitting |
+1. Sort the lines by text length, shortest first.
+2. Walk through them, collecting a group.
+3. Start a new group when the longest text is more than *ratio* × the shortest **and** the
+   group already has at least *min size* lines.
+4. Each group becomes its own call.
 
-**Example:** With ratio=5, a batch containing texts of 10, 15, 20, 50, 55, 200 characters would split into groups like [10, 15, 20] and [50, 55] and [200], because 200 > 5 * 10.
+| setting (Setup) | default | meaning |
+|---|---|---|
+| Sub-batching | on | split batches by length |
+| Min Sub-batch Size | 4 | never split a group smaller than this |
+| Length Ratio | 5 | the largest allowed longest-to-shortest ratio |
 
-## Performance Tuning
+**Example:** with ratio 5, texts of 10, 15, 20, 50, 55 and 200 characters split into [10, 15,
+20], [50, 55] and [200], because 200 is more than 5 × 10.
 
-### Recommended Settings
+## Tuning
 
-| Setting | Value | Notes |
-|---------|-------|-------|
-| TTS Mode | `local` | Built-in engine required for batching |
-| Compile Codec | `true` | 3-4x faster decoding after one-time warmup (~30-60s) |
-| Parallel Workers | 20-60 | Batch size — higher = more throughput, more VRAM |
-| Render Mode | Batch (Fast) | Activates batched TTS calls |
-| Sub-batching | Enabled | Reduces padding waste |
+**Click Auto-Configure first.** It reads your GPU memory and sets the batch settings from
+measurements on an RX 9070 XT (the model itself takes about 4.2 GB; 4-, 8- and 16-line batches
+peak at about 7.3, 9.6 and 11.8 GB).
 
-### Benchmarks
+| setting | what it does |
+|---|---|
+| TTS Mode | `local` is needed for batched rendering |
+| Parallel Workers | the batch size for local rendering; Auto-Configure sets 1–4 depending on GPU memory |
+| Max Items/Batch | a cap on lines per batch |
+| Compile Codec | 3–4× faster decoding after a one-time 30–60 s warm-up |
+| Sub-batching | on — reduces padding waste |
 
-Tested on AMD RX 7900 XTX (24 GB VRAM, ROCm 6.3):
+Upstream Alexandria measured larger worker counts (20–60) on a 24 GB RX 7900 XTX. Those
+numbers were not re-measured in this fork; start from Auto-Configure and raise the value only
+if memory allows.
 
-| Configuration | Throughput |
-|--------------|------------|
-| Standard mode (sequential) | ~1x real-time |
-| Batch mode, no codec compile | ~2x real-time |
-| Batch mode + compile_codec | **3-6x real-time** |
-| LoRA batch (sequential before) | ~0.5 RTF |
-| LoRA batch (batched) | **~5.5 RTF** |
+### Upstream benchmarks (RX 7900 XTX, 24 GB, ROCm 6.3)
 
-A 273-chunk audiobook (~54 minutes of audio) generates in approximately 16 minutes with batch mode and codec compilation.
+| configuration | speed |
+|---|---|
+| one line at a time | about 1× real time |
+| batched, no codec compile | about 2× real time |
+| batched with codec compile | **3–6× real time** |
+| LoRA, one line at a time | about 0.5× real time |
+| LoRA, batched | **about 5.5× real time** |
 
-### VRAM Management
+A 273-line audiobook (about 54 minutes of audio) rendered in about 16 minutes with batching and
+codec compilation.
 
-- `gc.collect()` + `torch.cuda.empty_cache()` runs between sub-batches to prevent VRAM fragmentation
-- If you encounter OOM errors, reduce **Parallel Workers**
-- Mixed voice types in the same batch are processed separately — the total VRAM usage equals the peak of any single voice type group, not the sum
+## GPU memory
 
-### Codec Compilation
+- Between sub-batches the app runs `gc.collect()` and `torch.cuda.empty_cache()` to prevent
+  memory fragmentation.
+- Before a batch starts, a memory-headroom check refuses a batch that would not fit.
+- Voice types are rendered separately, so peak memory is that of the largest single group,
+  not the sum.
+- If you run out of memory, lower **Parallel Workers** and **Max Items/Batch**.
+- A language model on the same card takes memory from the TTS. If yours is hosted elsewhere,
+  untick **Runs on this machine's GPU** in Setup.
 
-When **Compile Codec** is enabled, `torch.compile` optimizes the codec decoder on first use. This adds ~30-60 seconds of warmup but provides 3-4x faster decoding for all subsequent generations in the session.
+## Codec compilation
 
-The compilation persists for the session — it doesn't re-compile on each batch, only on first use after app start.
+With **Compile Codec** on, `torch.compile` optimises the codec decoder the first time it is
+used. That adds 30–60 seconds once, then decoding is 3–4× faster for the rest of the session.
+It does not recompile for each batch — only after the app restarts.
 
-## ROCm (AMD GPU) Notes
+## AMD (ROCm) notes
 
-Alexandria automatically applies ROCm-specific optimizations:
-- **MIOpen fast-find mode** — Prevents workspace allocation failures
-- **Triton AMD flash attention** — Enables native flash attention for the whisper encoder
-- **triton_key compatibility shim** — Fixes `torch.compile` on pytorch-triton-rocm
+The app applies ROCm-specific fixes automatically; you do not need to configure anything:
 
-These are applied transparently and require no configuration.
+- **MIOpen fast-find mode** — prevents workspace allocation failures.
+- **Triton AMD flash attention** — enables flash attention for the Whisper encoder.
+- **A `triton_key` compatibility shim** — fixes `torch.compile` on pytorch-triton-rocm.
+- **APUs** (660M/680M/780M class) run the TTS in fp32, because bf16 is broken there.

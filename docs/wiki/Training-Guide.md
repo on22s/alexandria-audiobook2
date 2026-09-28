@@ -1,51 +1,62 @@
-# Training Guide
+# Training guide
 
-Train LoRA adapters on the Qwen3-TTS Base model to create custom voice identities. Trained voices respond to instruct directions for emotion and delivery while maintaining a consistent voice character.
+Train a LoRA adapter on the Qwen3-TTS Base model to create your own voice. A trained voice keeps
+a consistent identity and still follows delivery instructions for emotion.
 
-## Quick Reference
+> **Start from the measured recipe below, not from older tables.** A learning rate of **5e-6
+> makes voices run away**: in 2 of 2 tests the voice never stopped talking, while 3 of 3 at
+> 1e-6 stopped correctly. The training loss does not show this — only the generated audio
+> does. Evidence: [RECIPES.md](../../RECIPES.md) §"Voice adapters".
 
-| Dataset Size | Epochs | Learning Rate | LoRA r | LoRA Alpha | Grad Accum | Target Loss |
-|-------------|--------|---------------|--------|------------|------------|-------------|
-| ~30 samples | 10-15 | 5e-6 | 32 | 128 | 4 | 4.1-4.2 |
-| ~60 samples | 5-10 | 1e-6 | 32 | 128 | 4 | 4.1-4.2 |
-| ~120 samples | 3 | 2e-6 | 64 | 128 | 4 | 4.1-4.2 |
+## The recipe that works
 
-**Target loss: 4.1-4.2** — this is the sweet spot for voice identity + instruct following + clean audio. Loss 4.1 is the floor; below this, garbling becomes increasingly likely. Note that identical settings can produce slightly different losses between runs, so aim for 4.15-4.2 for a reliable margin.
+| use | settings | evidence |
+|---|---|---|
+| a library voice (one narrator) | 6 epochs, learning rate **1e-6**, rank 64, alpha 128, 180–200 clips | 67 shipped voices were trained this way and pass the stop check |
+| an evaluation voice | 6 epochs, learning rate **1e-6**, rank 32, alpha 128, 200 clips, seed 1234 | the adapters behind the published English voice results |
 
-## Key Principles
-
-- **More data = fewer epochs.** Each epoch teaches more with a larger dataset, so fewer passes are needed before overfitting.
-- **Total exposure matters.** Samples x epochs should land around 250-400 total forward passes. Going above 600 risks overfitting.
-- **Loss below 4.1 = garble risk.** Run-to-run variance means the same config can land on either side of 4.1. Below 3.5, output is consistently garbled or fails to reach EOS.
-- **Loss above 4.5 = undertrained.** Clear audio but weak voice identity and faint instruct following.
+The Training tab's defaults are close to this: 5 epochs, learning rate 1e-6, batch size 1,
+rank 32, alpha 128, gradient accumulation 8.
 
 ## Overview
 
-Several built-in LoRA presets are included out of the box and appear alongside your trained adapters — no training required to start using LoRA voices.
+The Training tab ships with built-in LoRA voices, so you can use LoRA voices without training
+anything. To make your own:
 
-The training pipeline for custom voices:
-1. **Create a dataset** — Voice samples (WAV) with transcripts
-2. **Configure training** — Set hyperparameters
-3. **Train** — Runs as a subprocess (GPU exclusive, main app unloads models)
-4. **Test** — Preview the trained voice
-5. **Assign** — Use the adapter in the Voices tab
+1. **Create a dataset** — voice samples (WAV) with transcripts.
+2. **Configure training** — set the parameters.
+3. **Train** — runs as a separate process. It needs the GPU to itself, so the app unloads its
+   TTS models first.
+4. **Test** — listen to the trained voice.
+5. **Assign** — use the adapter in the Voices tab.
 
-## Creating Datasets
+## Creating a dataset
 
-### Method 1: Voice Designer (Synthetic Data)
+There are two ways, plus the Voice Lab for whole libraries.
 
-Generate training samples directly from a text description. Best for creating voices that don't exist in real recordings.
+### Option 1: Dataset Builder (synthetic voices)
 
-1. Go to the **Training** tab
-2. Fill in the **Generate Dataset** form:
-   - **Dataset Name** — Identifier (e.g., `gruff_soldier`)
-   - **Root Voice Description** — Base voice identity (e.g., "A gruff middle-aged male soldier with a commanding baritone")
-   - **Samples** — Emotion + text pairs
+Generate the samples from a text description with the VoiceDesign model, previewing each one.
+Best for voices that do not exist as real recordings. Click **Build New Dataset** in the
+Training tab, or open the Dataset tab. See [Dataset builder](Dataset-Builder.md).
 
-3. Add rows with varied emotions for expressive training:
+A good synthetic dataset:
 
-| Emotion | Example Text |
-|---------|-------------|
+- has **6–25 samples**;
+- has **real emotional variety** — neutral-only data produces flat voices that resist emotion
+  instructions;
+- keeps one **root description** for the voice's identity, and uses each row's emotion for
+  delivery (the two are combined into the VoiceDesign prompt);
+- includes **short utterances** ("Oh!", "Hmm.", "Right.") so the voice learns to stop on short
+  lines;
+- ends with a **long, calm, neutral passage**, which makes an ideal reference sample;
+- uses a **fixed seed for the reference sample**, so the speaker embedding stays stable when you
+  regenerate.
+
+Example rows for a soldier's voice:
+
+| emotion | text |
+|---|---|
 | *(empty — neutral)* | The patrol route has been secured and all positions are accounted for. |
 | Barking orders sharply | Move out! I want that perimeter locked down in sixty seconds! |
 | Quiet, tense warning | Keep your voice down. There's movement in the treeline, fifty meters out. |
@@ -53,229 +64,240 @@ Generate training samples directly from a text description. Best for creating vo
 | Bitter, restrained anger | They sent us in without support. Command knew exactly what they were doing. |
 | Gentle, reassuring | Easy now, son. You did good out there. We're going to get you home. |
 
-When saving the dataset, use the **Reference Sample** dropdown to select which sample becomes `ref.wav` for speaker embedding during training. Choose a clear, representative line.
+### Option 2: upload real audio (ZIP)
 
-**Tips for synthetic datasets:**
-- 6-25 samples is a good range
-- Emotional variety is critical — neutral-only data produces flat voices that resist instruct prompting
-- The root description defines the voice identity; emotions in each row control delivery style
-- The combined prompt (root + emotion) is sent to the VoiceDesign model to generate each sample
-- Include short utterances ("Oh!", "Hmm.", "Right.") — helps the model learn EOS behavior on short inputs
-- End with a neutral passage — a long, calm, descriptive paragraph makes an ideal reference sample
-- Use consistent seed for the reference sample to keep the speaker embedding stable across regenerations
+Upload a ZIP like this:
 
-### Method 2: Upload Real Audio (ZIP)
-
-Upload a ZIP file containing:
 ```
 dataset.zip
 ├── sample_001.wav
 ├── sample_002.wav
 ├── ...
-├── ref.wav            # Reference audio for speaker embedding
-└── metadata.jsonl     # One JSON object per line
+├── ref.wav            # the reference audio for the speaker embedding
+└── metadata.jsonl     # one JSON object per line
 ```
 
-**metadata.jsonl format:**
+`metadata.jsonl`:
+
 ```json
 {"audio_filepath": "sample_001.wav", "text": "The transcript of this sample.", "ref_audio": "ref.wav"}
 {"audio_filepath": "sample_002.wav", "text": "Another transcript.", "ref_audio": "ref.wav"}
 ```
 
-**Audio requirements:**
-- WAV format, 24kHz mono recommended (other sample rates are resampled automatically)
-- Clean audio without background noise
-- One speaker per dataset (single-speaker fine-tuning only)
+**Audio requirements**
 
-**Reference audio:**
-- Use the same `ref_audio` for all samples (strongly recommended by Qwen3-TTS docs)
-- This provides the speaker embedding — a consistent reference improves voice stability
-- If no `ref_audio` field is provided, the system falls back to `ref.wav` in the dataset directory, then to the first training sample
+- WAV, ideally 24 kHz mono (other sample rates are resampled automatically).
+- Clean audio with no background noise.
+- **One speaker per dataset.**
+- Clips longer than 30 seconds are skipped.
 
-**No emotion field needed:** Unlike the Voice Designer and Dataset Builder workflows (Methods 1 & 3), the ZIP upload metadata.jsonl has no `emotion` field. Those methods use emotion text to direct the VoiceDesign model during *synthesis* — it's a generation prompt, not training metadata. With real audio, the emotion is already captured in the recordings themselves.
+**Reference audio**
 
-However, **emotional variety in your recordings still matters.** If all your samples are neutral narration, the trained LoRA will sound flat and resist instruct-based emotion directions at inference time. Record samples across a range of deliveries (neutral, excited, angry, tense, gentle, etc.) — the model learns emotional range from the audio, not from text labels. See [[Training Guide#Emotional Range]] for guidance.
+- Use the same `ref_audio` for every sample; Qwen3-TTS's own documentation strongly
+  recommends it.
+- It provides the speaker embedding, so a consistent reference makes the voice more stable.
+- If a line has no `ref_audio`, the trainer uses `ref.wav` in the dataset folder, then the
+  first training sample.
 
-### Method 3: Dataset Builder (Interactive)
+**No emotion field.** Real recordings already carry their emotion, so `metadata.jsonl` has no
+`emotion` field — in the Dataset Builder the emotion is only a prompt for *generating* audio.
+Your recordings still need **emotional variety**, because the voice learns its range from the
+audio itself (see [Emotional range](#emotional-range)).
 
-The **Dataset Builder** tab provides an interactive workflow for creating training datasets with per-sample preview:
+### Option 3: Voice Lab (a whole library)
 
-1. **Create a project** — Give it a name, voice description, and optional global seed
-2. **Define samples** — Add rows with text and emotion/style for each sample
-3. **Preview audio** — Generate and listen to individual samples, or batch-generate all at once
-4. **Iterate** — Regenerate samples you're not happy with, adjust emotions, add or remove rows
-5. **Save as dataset** — Export the finished project as a training-ready dataset
+The Voice Lab tab turns audiobooks into named LoRA voices in bulk: the Preparer aligns an
+audiobook with its text, then deduplication, batch training, profiling and naming follow. See
+the README's [Web interface](../../README.md#web-interface) section.
 
-The Dataset Builder uses the VoiceDesign model (same as Method 1) but gives you fine-grained control over each sample before committing to a dataset. See [[Dataset Builder]] for details.
-
-### Dataset Structure
+### What a dataset looks like on disk
 
 ```
 lora_datasets/{name}/
 ├── metadata.jsonl      # {audio_filepath, text} per line
-├── ref.wav             # Reference audio for speaker embedding
-├── ref_text.txt        # Transcript of ref.wav (must match exactly)
-└── sample_000.wav ...  # Training audio files
+├── ref.wav             # reference audio for the speaker embedding
+├── ref_text.txt        # the exact transcript of ref.wav
+└── sample_000.wav ...  # the training audio
 ```
 
-### Dataset Form Persistence
+## Training settings
 
-The dataset generator form (name, description, sample rows) is saved to localStorage automatically. You can close the browser and return later without losing your work. If localStorage is cleared, entering the dataset name will restore the state from the server.
+| setting | Training-tab default | effect |
+|---|---|---|
+| **Epochs** | 5 | full passes over the dataset; more locks the voice in harder but risks overfitting |
+| **Learning rate** | 1e-6 | how far the weights move per step; **do not use 5e-6** (see the warning above) |
+| **LoRA rank** | 32 | the adapter's capacity (see below) |
+| **LoRA alpha** | 128 | a scaling factor; the effective strength is alpha ÷ rank (128/32 = 4×, 128/64 = 2×) |
+| **Batch size** | 1 | samples per step; keep it at 1 |
+| **Gradient accumulation** | 8 | simulates a larger batch without more memory |
+| **Language** | English | the codec's language token — **must match the dataset's language** |
 
-## Training Configuration
+### Choosing the rank
 
-| Parameter | Default | Recommended | Effect |
-|-----------|---------|-------------|--------|
-| **Epochs** | 50 | See Quick Reference | Full passes over the dataset. More epochs = stronger voice lock but risk of overfitting |
-| **Learning Rate** | 5e-6 | See Quick Reference | Higher trains faster but risks instability. Lower is safer for longer training |
-| **LoRA Rank** | 32 | 32 (≤60 samples), 64 (120+) | Adapter capacity. Higher = more trainable parameters (see below) |
-| **LoRA Alpha** | 64 | 128 | Scaling factor. Effective strength = alpha / rank. 128/32 = 4x or 128/64 = 2x |
-| **Batch Size** | 1 | 1 | Samples per step. 1 is typical for 24GB cards |
-| **Gradient Accumulation** | 8 | 4 | Simulates larger batches without more VRAM |
-| **Language** | English | Match training data | Codec prefix token language. Must match your dataset's language |
-| **Max Audio Length** | 30s | 30s | Clips longer than this are skipped |
+| rank | adapter size | best for |
+|---|---|---|
+| **32** | about 56 MB | up to about 60 samples: learns the voice without memorising noise |
+| **64** | about 111 MB | 120+ samples; the shipped library voices (180–200 clips) use 64 |
 
-### What the Parameters Do
+On about 60 samples, upstream's best adapters all used rank 32; rank 64 on the same data made
+bigger files that sounded worse, because the extra capacity memorised training artifacts.
+**Rule of thumb:** rank 32 unless you have 100+ samples. If the loss looks good but the voice
+sounds wrong, lower the rank before changing anything else.
 
-| Setting | Effect |
-|---------|--------|
-| **Epochs** | Number of full passes through the dataset. More = tighter fit. |
-| **Learning Rate** | How much weights adjust per step. Higher = faster learning but riskier. |
-| **LoRA Rank (r)** | Capacity of the adapter (number of trainable dimensions). See Rank Selection below. |
-| **LoRA Alpha** | Scaling factor. Alpha/r ratio controls effective adapter weight. 128/64 = 2x is the tested default. |
-| **Grad Accumulation** | Simulates larger batch sizes. 4 is stable for most cases. |
-| **Batch Size** | Samples per step. Keep at 1 (VRAM limited). |
+## Reading the training loss
 
-### Rank Selection
+These loss bands come from upstream Alexandria's tests on small datasets. Use them as a rough
+guide only — **a good loss does not prove a good voice.** The runaway at 5e-6 is invisible in
+the loss; only listening, or the stop check, catches it.
 
-LoRA rank (`r`) controls how many trainable dimensions each adapter layer has. Higher rank means more capacity to deviate from the base model — but also more parameters to overfit.
+| loss | audio | follows instructions | verdict |
+|---|---|---|---|
+| 4.4 and above | clear | faintly | undertrained |
+| 4.1–4.2 | clear, expressive | well | the sweet spot |
+| 3.9–4.1 | expressive, may garble | strongly | on the edge — runs vary |
+| 3.4–3.8 | garbled but understandable | strongly | overfitting |
+| 3.0–3.3 | garbled, or never stops | — | overfit, unusable |
 
-| Rank | Adapter Size | Best For | Notes |
-|------|-------------|----------|-------|
-| **r=32** | ~56 MB | ≤60 samples | Better voice quality in practice. The adapter learns voice identity without overfitting to training noise. |
-| **r=64** | ~111 MB | 120+ samples | Only worthwhile with large datasets that can fill the extra capacity. On small datasets, tends to produce marginal results. |
+- **More data needs fewer epochs**: each epoch teaches more.
+- **Total exposure** (samples × epochs) of about 250–400 worked upstream; above 600 risked
+  overfitting.
+- Identical settings can land on either side of 4.1 from run to run.
 
-In testing, all the best-performing adapters on ~60-sample datasets used `r=32`, while `r=64` on the same data produced larger files with worse voice quality. The extra capacity lets the adapter memorize training artifacts rather than generalizing the voice identity.
+## Training
 
-**Rule of thumb:** Use `r=32` unless your dataset has 100+ samples. If you're getting good loss numbers but the voice sounds off, try reducing rank before adjusting other parameters.
+1. Click **Start Training** in the Training tab.
+2. The app unloads its TTS models to free the GPU.
+3. Training runs as a separate process with a live log: epoch, loss, learning rate and time
+   left.
+4. The best checkpoint (lowest loss) is kept.
+5. The TTS models reload on the next render.
 
-## Overfitting Guide
+A small dataset trains in minutes. For reference, retraining one library voice (200 clips)
+takes about 5.4 minutes on an RX 9070 XT.
 
-| Loss | Audio Quality | Instruct Following | Verdict |
-|------|--------------|-------------------|---------|
-| 4.4+ | Clear, no garble | Slight/faint | Undertrained |
-| 4.1-4.2 | Clear, expressive | Good | Sweet spot |
-| 3.9-4.1 | Expressive but garble risk | Strong | Knife's edge — run-to-run variance may garble |
-| 3.4-3.8 | Garbly but legible | Strong | Starting to overfit |
-| 3.0-3.3 | Garbled / no EOS | N/A | Overfit, unusable |
+### How training works
 
-## Training Process
+The trainer follows the official Qwen3-TTS fine-tuning method:
 
-1. Click **Start Training** in the Training tab
-2. The main app unloads all TTS models to free VRAM
-3. Training runs as a subprocess with live log output
-4. Progress shows: epoch, loss, learning rate, and estimated time
-5. The best checkpoint (lowest loss) is saved automatically
-6. After training, TTS models reload on next generation
+- **Sub-loss weighting:** the code-predictor loss is weighted 0.3×, as in the official
+  `sft_12hz.py`.
+- **Speaker embedding:** taken from one consistent reference clip, not from each sample.
+- **No instructions during training:** the voice is learned from audio and text only;
+  instructions are used when generating.
+- **LoRA targets:** the talker's attention layers (`q_proj`, `k_proj`, `v_proj`, `o_proj`),
+  through PEFT.
 
-**Training time:** Depends on dataset size and epochs. A 10-sample dataset with 25 epochs typically takes 5-15 minutes on a 24GB GPU.
+## Testing and promoting a voice
 
-## Training Alignment
+1. The adapter appears under **Trained Models** in the Training tab.
+2. Click **Generate** to test it with your own text and instruction.
+3. The comparison and **blind review** views let you listen against the current voice without
+   knowing which is which. Promoting keeps the old version, with a receipt, so it can be rolled
+   back.
+4. If you are happy with it, assign the adapter to a character in the Voices tab.
 
-The training script follows the official Qwen3-TTS fine-tuning approach:
+The **stop check** (identity gate) runs before promotion and catches a voice that never stops
+talking.
 
-- **Sub-loss weighting:** 0.3x weight on the sub-talker (code predictor) loss, matching the official `sft_12hz.py`
-- **Speaker embedding:** Extracted from a single consistent reference audio via mel spectrogram, not per-sample
-- **No instruct conditioning during training:** The model learns voice identity from audio + text only. Instruct is used at inference time, not training time.
-- **LoRA targets:** Talker attention layers (q_proj, k_proj, v_proj, o_proj) via PEFT
+## Tips for better voices
 
-## Testing a Trained Voice
+### Emotional range
 
-After training completes:
-1. The adapter appears in the **Trained Models** section of the Training tab
-2. Click **Test** to generate a sample with custom text and instruct
-3. If satisfied, go to the **Voices** tab and assign the adapter to a character
+The most important factor for an expressive voice is **emotional variety in the training
+data**. Include:
 
-## Tips for Better Voices
+- neutral narration;
+- happy or excited;
+- angry or frustrated;
+- sad or somber;
+- whispered or tense;
+- shouting or commanding.
 
-### Emotional Range
-The single most important factor for expressive LoRA voices is **emotional variety in training data**. Include samples across a range of emotions:
-- Neutral narration
-- Happy/excited
-- Angry/frustrated
-- Sad/somber
-- Whispering/tense
-- Shouting/commanding
+Neutral-only data makes a voice that sounds flat and resists emotional instructions.
 
-Training with only neutral samples produces voices that sound flat and resist emotional instruct directions.
+### The reference sample's instruction
 
-### Reference Audio Instruct
-When generating LoRA training data, avoid giving the reference audio sample the same instruct you'll use during generation (e.g. "Neutral, even narration."). In testing, LoRA voices trained this way tend to rush and increase in loudness on sentences longer than the reference clip — the adapter bakes in the short-clip pacing. Generating the reference sample with **no instruct** (empty instruct field) produces more natural pacing at inference time, leaving the instruct free to control delivery without fighting learned patterns.
+When generating training data, do **not** give the reference sample the instruction you will
+use later (for example "Neutral, even narration."). Voices trained that way tended to rush and
+grow louder on sentences longer than the reference clip. Generating the reference with an
+**empty instruction** gave more natural pacing.
 
-### Sample Duration Mix
-Training on only short single-sentence clips (4-8s) causes tonal shifts at sentence boundaries during inference — the adapter never learns how to transition between sentences. Include a range of durations:
+### Mix the clip lengths
 
-| Duration | Content | Purpose | Count |
-|----------|---------|---------|-------|
-| **1-3s** | Short exclamations ("Oh!", "Right.", "No!") | EOS behavior on short inputs | 3-5 |
-| **4-8s** | Single sentences, varied emotions | Core voice identity and emotional range | Bulk of dataset |
-| **15-20s** | 2-3 sentence passages | Sentence transitions, pacing, tonal flow | 5-8 |
-| **20-30s** | 4-5 sentence sustained narration | Long-form delivery, paragraph flow | 2-3 |
+Training only on short single-sentence clips (4–8 s) causes changes of tone between sentences,
+because the voice never learns how to move from one sentence to the next. Include a range:
 
-The multi-sentence samples are critical. Without them, the model only knows "start cold, say one thing, stop" and has no learned behavior for how the voice handles commas, periods, and tonal shifts mid-passage.
+| length | content | teaches | how many |
+|---|---|---|---|
+| 1–3 s | short exclamations ("Oh!", "Right.", "No!") | stopping on short lines | 3–5 |
+| 4–8 s | single sentences, varied emotions | the core voice and its range | most of the dataset |
+| 15–20 s | 2–3 sentences | transitions, pacing, flow | 5–8 |
+| 20–30 s | 4–5 sentences of narration | long-form delivery | 2–3 |
 
-### Dataset Size
-- **Minimum:** 6 samples with varied emotions
-- **Good:** 15-20 samples covering a range of emotions and speaking styles
-- **Diminishing returns:** Beyond 25-30 samples, additional data helps less
-- **15-30 minutes** of total audio is the target for a premium voice profile
+### How much data
 
-### Real Audio vs Synthetic
-- **Synthetic (Voice Designer):** More control over emotion labels, consistent quality, faster to create. Good for designed characters.
-- **Real recordings:** More natural, captures subtle vocal characteristics. Better if you have clean single-speaker recordings.
-- Both approaches produce usable LoRA voices. Synthetic data with emotional variety tends to produce more expressive results than neutral real recordings.
+- **Minimum:** 6 samples with varied emotions.
+- **Good:** 15–20 samples covering a range of emotions and styles.
+- **Library quality:** the shipped voices use 180–200 clips.
+- Upstream found diminishing returns beyond 25–30 synthetic samples, and suggested 15–30
+  minutes of audio for a premium voice.
 
-## Multilingual Training
+### Real or synthetic?
 
-LoRA adapters trained on single-language data carry that language's accent and pronunciation. An adapter trained on English samples will render German text with English pronunciation — the base model occasionally provides enough guidance for acceptable results, but it's inconsistent.
+- **Synthetic (Dataset Builder):** more control over emotion, consistent quality, quick to
+  make. Good for invented characters.
+- **Real recordings:** more natural, capturing subtle qualities of a real voice. Best when you
+  have clean single-speaker recordings.
+- Both work. Synthetic data with emotional variety tends to be more expressive than neutral
+  real recordings.
 
-**Train a separate LoRA per language for each speaker.** This produces clean pronunciation without fighting the adapter's learned phonology.
+## Other languages
 
-When training non-English adapters, set the **Language** dropdown in the Training tab to match your training data's language (English, Chinese, Korean, Japanese, French, German, Italian, Portuguese, Russian, Spanish). This sets the codec prefix token used during training — a mismatch between training language and training data can cause the adapter to lose speaker identity at inference time.
+An adapter trained on one language carries that language's accent. An English-trained adapter
+reads German text with English pronunciation — sometimes acceptable, often not.
+
+**Train a separate adapter per language for each speaker**, and set the Training tab's
+**Language** to the dataset's language (English, Chinese, Korean, Japanese, French, German,
+Italian, Portuguese, Russian or Spanish). A mismatch can make the adapter lose the speaker's
+identity.
 
 ## Troubleshooting
 
-| Problem | Cause | Fix |
-|---------|-------|-----|
-| Loss stays high (>10) | Invalid audio or mismatched transcripts | Check WAV files aren't corrupted; verify metadata.jsonl transcripts |
-| Garbled audio on new text | Overfitting (loss too low) | Reduce epochs or learning rate |
-| Generation hangs / no EOS | Severe overfitting | Retrain with fewer epochs |
-| Clear but no voice identity | Undertrained (loss too high) | Increase epochs or learning rate |
-| Voice sounds robotic or monotone | Training data lacks emotional variety | Regenerate dataset with more emotion+text pairs; try lower LoRA rank (8-16) |
-| Voice doesn't match training samples | Undertrained or low rank | More epochs, increase LoRA rank, ensure consistent ref_audio |
-| Fast/rushed speech | Ref audio instruct baked in short-clip pacing | Regenerate ref sample with empty instruct; see "Reference Audio Instruct" tip |
-| Short texts hang at max_new_tokens | Model never learned short-utterance EOS | Add short vocalizations to training data |
-| Initial audio glitch | Clone prompt alignment artifact | Minor — usually not present in full audiobook generation |
-| ref.wav mismatch | ref_text.txt doesn't match ref.wav content | Ensure ref_text.txt contains the exact transcript of ref.wav |
-| Non-English voice sounds wrong | Training language mismatch | Set Language dropdown to match training data language |
+| problem | likely cause | fix |
+|---|---|---|
+| loss stays above 10 | invalid audio or wrong transcripts | check the WAV files and the transcripts in `metadata.jsonl` |
+| voice never stops talking | learning rate too high, or overfitting | retrain at 1e-6; use fewer epochs |
+| garbled audio on new text | overfitting (loss too low) | fewer epochs |
+| clear audio but no identity | undertrained (loss too high) | more epochs |
+| flat, monotone voice | no emotional variety in the data | add varied emotion and text pairs; try a lower rank (8–16) |
+| doesn't sound like the samples | undertrained, or rank too low | more epochs, a higher rank, one consistent `ref_audio` |
+| rushed speech | the reference sample was made with an instruction | regenerate it with an empty instruction |
+| short lines run to `max_new_tokens` | the voice never learned to stop on short lines | add short vocalisations to the data |
+| a small glitch at the start | clone-prompt alignment | minor; usually absent in a full audiobook |
+| reference mismatch | `ref_text.txt` does not match `ref.wav` | make the transcript exact |
+| wrong accent in another language | language setting mismatch | set **Language** to match the data |
 
-## Tested Configurations
+Do **not** raise the learning rate to fix a high loss — check the data first.
 
-Real training runs on Alexandria with results:
+## Upstream's tested configurations
 
-| Adapter | Samples | Epochs | LR | Alpha | Loss | Result |
-|---------|---------|--------|----|-------|------|--------|
-| female-lora-01 | 33 | 3 | 1e-5 | 128 | 3.93 | Working, slightly fast pacing |
-| female-lora-02 | 121 | 15 | 3e-6 | 128 | 3.03 | Overfit, garbled |
-| female-lora-03 | 121 | 5 | 5e-6 | 128 | 3.10 | Overfit, no EOS |
-| female-lora-04 | 121 | 2 | 5e-6 | 128 | 3.86 | Understandable, garbles + weird tones |
-| female-lora-05 | 121 | 1 | 5e-6 | 128 | 4.43 | Clear, weak instruct |
-| female-lora-06 | 121 | 3 | 2e-6 | 64 | 3.46 | Garbly but legible |
-| **female-lora-07** | **121** | **3** | **2e-6** | **128** | **4.11** | **Best — clear audio, good instruct** |
-| male-lora-01 | 61 | 5 | 1e-6 | 128 | 4.44 | Clear but flat, minimal instruct following |
-| male-lora-02 | 61 | 7 | 1e-6 | 128 | 4.31 | Emotive, responsive to instruct |
-| **male-lora-03** | **61** | **10** | **1e-6** | **128** | **4.11** | **Best — expressive, rich, good instruct** |
-| male-lora-04 | 61 | 10 | 1e-6 | 128 | 4.12 | Same config as 03, few garbled lines (run-to-run variance) |
-| male-lora-05 | 61 | 9 | 1e-6 | 128 | 4.17 | Clean, expressive, safe margin |
-| male-lora-06 | 61 | 12 | 1e-6 | 128 | 3.99 | Very expressive but 50% garbled |
-| male-lora-07 | 61 | 14 | 1e-6 | 128 | 3.89 | Legible but overfit |
+These runs were made by upstream Alexandria on small synthetic datasets. They are kept for
+their loss-versus-quality observations. **Rows at 5e-6 and above predate the runaway finding**
+and are not recommended.
+
+| adapter | samples | epochs | learning rate | alpha | loss | result |
+|---|---|---|---|---|---|---|
+| female-lora-01 | 33 | 3 | 1e-5 | 128 | 3.93 | working, slightly fast pacing |
+| female-lora-02 | 121 | 15 | 3e-6 | 128 | 3.03 | overfit, garbled |
+| female-lora-03 | 121 | 5 | 5e-6 | 128 | 3.10 | overfit, never stops |
+| female-lora-04 | 121 | 2 | 5e-6 | 128 | 3.86 | understandable, garbles, odd tones |
+| female-lora-05 | 121 | 1 | 5e-6 | 128 | 4.43 | clear, weak instruction following |
+| female-lora-06 | 121 | 3 | 2e-6 | 64 | 3.46 | garbled but understandable |
+| **female-lora-07** | **121** | **3** | **2e-6** | **128** | **4.11** | **best — clear audio, follows instructions** |
+| male-lora-01 | 61 | 5 | 1e-6 | 128 | 4.44 | clear but flat, barely follows instructions |
+| male-lora-02 | 61 | 7 | 1e-6 | 128 | 4.31 | emotive, responsive |
+| **male-lora-03** | **61** | **10** | **1e-6** | **128** | **4.11** | **best — expressive, rich, follows instructions** |
+| male-lora-04 | 61 | 10 | 1e-6 | 128 | 4.12 | same settings as 03; a few garbled lines (run-to-run variation) |
+| male-lora-05 | 61 | 9 | 1e-6 | 128 | 4.17 | clean, expressive, a safe margin |
+| male-lora-06 | 61 | 12 | 1e-6 | 128 | 3.99 | very expressive but half the lines garbled |
+| male-lora-07 | 61 | 14 | 1e-6 | 128 | 3.89 | understandable but overfit |

@@ -1,33 +1,61 @@
 # Evaluation recipes
 
-Use the in-repository evaluator with one server and paired adapter scales:
+How an adapter evaluation is run. The measured settings and their evidence are in
+[RECIPES.md](../../RECIPES.md).
 
-- base arm: adapter scale 0.0;
-- LoRA arm: the adapter's declared candidate scale (1.0 unless a recorded
-  scale sweep selected another value);
+## The paired setup
+
+Use the evaluator in the repository, with **one server** and two adapter scales:
+
+- **base arm:** adapter scale 0.0;
+- **adapter arm:** the adapter's declared scale — 1.0, unless a recorded scale sweep chose
+  another value.
+
+Both arms use:
+
 - temperature 0;
 - batch size 25;
-- request-level JSON schema;
-- the same prompt variant for both arms.
+- a JSON schema on each request;
+- the same prompt variant.
 
-Report accuracy, unanswered rows, parser failures, per-book scores, adapter
-hash, base hash, prompt variant, and runtime details.
+## What to report
 
-Do not promote an adapter from a batch-1 smoke test. A valid promotion result
-needs the product-window evaluation and a clean served-contract preflight.
-If a pilot selects a non-default scale, replicate that exact scale over the
-full panel and report every tested scale; do not silently relabel a scale-1
-failure as an adapter success.
+- accuracy, and the number of unanswered lines and parser failures;
+- the score for each book;
+- the adapter hash and the base-model hash;
+- the prompt variant;
+- runtime details (server build, GPU, context length).
+
+## When an adapter may be promoted
+
+- **Never from a batch-size-1 smoke test.** Promotion needs the product-window evaluation and
+  a clean served-contract preflight (see [Setup and serving](Setup-and-Serving.md)).
+- **If a pilot chooses a scale other than 1.0**, repeat that exact scale over the full test set
+  and report every scale that was tried. Never relabel a scale-1 failure as a success.
+- **Quote the test set every time.** The same adapter can gain on one test set and not on
+  another (see [Prompts and adapters](Prompts-and-Adapters.md)).
+- **Check the scorer as well as the model.** The 2026-09-28 rescore changed ten verdicts
+  because correct short names were being scored wrong.
 
 ## Paid API baselines
 
-Keep API base-only results separate from adapter evaluations. The September
-22 Nemotron 3 Ultra 550B A55B OpenRouter runs used `michel2_full`, low
-reasoning, temperature 0, batch 8, and no structured output. Per-book scores
-were Mansfield Park 96.7%, Northanger Abbey 97.6%, Persuasion 97.1%, The Sign
-of the Four 85.3%, and The Sun Also Rises 87.3%. Do not pool these independent
-fixtures into one model score or infer adapter effects. OpenRouter reported
-the requested model; routing preferred Baseten then Venice with fallbacks,
-and the provider hardware was not observed. The repository's
-[`RECIPES.md`](../../RECIPES.md#september-22-follow-up-low-quant-adapter-and-nemotron-api-baselines)
-has denominators and the artifacts.
+Keep hosted-API results, which are base-only, separate from adapter evaluations.
+
+The Nemotron 3 Ultra 550B A55B runs of 2026-09-22 went through OpenRouter with
+`michel2_full`, low reasoning, temperature 0, batch size 8, and no structured output. Per-book
+scores:
+
+| book | accuracy |
+|---|---:|
+| Mansfield Park | 96.7% |
+| Northanger Abbey | 97.6% |
+| Persuasion | 97.1% |
+| The Sign of the Four | 85.3% (96.6% after the 2026-09-28 rescore) |
+| The Sun Also Rises | 87.3% |
+
+- These are independent books: do not pool them into one model score, and do not read them
+  as adapter effects.
+- OpenRouter reported the requested model. Routing preferred Baseten, then Venice, with
+  fallbacks; the provider's hardware was not observed.
+- Denominators and artifacts:
+  [RECIPES.md](../../RECIPES.md#september-22-follow-up-low-quant-adapter-and-nemotron-api-baselines).
