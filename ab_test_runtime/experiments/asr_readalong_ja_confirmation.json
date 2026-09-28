@@ -1,0 +1,68 @@
+{
+ "instrument": {
+  "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+  "row_offset": 0,
+  "limit": 50,
+  "clips": 50,
+  "gap_s": 0.5,
+  "baseline": "asr_silero_whisper_ja_confirmation.json: median 0.272 s, 58.0% within 0.3 s"
+ },
+ "arms": {
+  "und": {
+   "raw": {
+    "scored": 50,
+    "predicted_segments": 50,
+    "expected_segments": 50,
+    "median_error_s": 0.552,
+    "p90_error_s": 0.785,
+    "worst_error_s": 0.987,
+    "within_tolerance_pct": 20.0,
+    "tolerance_s": 0.3
+   },
+   "sentences_found": 50,
+   "expected": 50,
+   "signed_error_median_s": -0.54,
+   "signed_error_p10_p90_s": [
+    -0.757,
+    -0.141
+   ],
+   "bias_corrected_CALIBRATION_same_clips": {
+    "scored": 50,
+    "predicted_segments": 50,
+    "expected_segments": 50,
+    "median_error_s": 0.157,
+    "p90_error_s": 0.422,
+    "worst_error_s": 1.325,
+    "within_tolerance_pct": 78.0,
+    "tolerance_s": 0.3
+   },
+   "seconds": 7.3,
+   "audio_seconds": 278.9
+  }
+ },
+ "provenance": {
+  "script": "asr_readalong_ja.py",
+  "written": "2026-09-28T03:38:46",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "4615b4460d82825affacd7090391d4d2fea489e2",
+   "branch": "goals-1-1-met-5-4-readalong",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "3d3bb9cf8635b0f7c58ffe15d648eb201cd063d8244843edb9d23bcf83bed67a"
+  },
+  "args": {
+   "repo": ".",
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+   "limit": 50,
+   "row_offset": 0,
+   "lang": [
+    "und"
+   ],
+   "readalongs": "readalongs",
+   "out": "ab_test_runtime/experiments/asr_readalong_ja_confirmation.json"
+  },
+  "readalongs": "readalongs, version 1.2.2"
+ }
+}

@@ -454,13 +454,11 @@
    "goal": "5.4",
    "title": "Transcription and clip boundaries in the preparer",
    "cited": 9,
-   "not_in_audit": [
-    "asr_readalong_ja_confirmation.json"
-   ],
+   "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 6,
+    "supported_structure": 7,
     "exploratory": 2
    },
    "dirty_artifacts": 1,
@@ -483,6 +481,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "c509cd2e"
+    },
+    {
+     "name": "asr_readalong_ja_confirmation.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "4615b446"
     },
     {
      "name": "asr_silero_vad_ja_holdout.json",
