@@ -980,10 +980,9 @@ fetch("http://localhost:4200/api/config", {headers: {Authorization: "Basic " + b
 
 ```bash
 BASE=http://localhost:4200
-# 1. upload a book and start the three passes
+# 1. upload a book (it becomes the active book) and start the three passes
 curl -s -X POST $BASE/api/upload -F "file=@book.txt"
-curl -s -X POST $BASE/api/generate_script -H 'Content-Type: application/json' \
-  -d '{"filename": "book.txt"}'
+curl -s -X POST $BASE/api/generate_script -H 'Content-Type: application/json' -d '{}'
 # 2. follow its progress
 curl -s $BASE/api/status/eta            # {"task": "script", "elapsed_seconds": ..., "eta_seconds": ..., "fraction": ...}
 curl -s $BASE/api/status/script | python -m json.tool | tail -20
@@ -1001,7 +1000,7 @@ curl -s -o audiobook.mp3 $BASE/api/audiobook
 import requests, time
 B = "http://localhost:4200"
 requests.post(f"{B}/api/upload", files={"file": open("book.txt", "rb")})
-requests.post(f"{B}/api/generate_script", json={"filename": "book.txt"})
+requests.post(f"{B}/api/generate_script", json={})
 while requests.get(f"{B}/api/status/script").json().get("running"):
     print(requests.get(f"{B}/api/status/eta").json().get("eta_seconds")); time.sleep(30)
 requests.post(f"{B}/api/generate_personas", json={"new_only": True})
@@ -1010,12 +1009,15 @@ requests.post(f"{B}/api/generate_batch")
 
 ```javascript
 const B = "http://localhost:4200";
-await fetch(`${B}/api/generate_script`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({filename: "book.txt"})});
+await fetch(`${B}/api/generate_script`, {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
 const eta = await (await fetch(`${B}/api/status/eta`)).json();
 ```
 
+`generate_script` always works on the active book — the last one uploaded, or one chosen with
+`POST /api/uploads/select`; it takes no file name.
+
 Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequest`
-(`filename`, `start_over`, `first_person_narrator`, …), `GeneratePersonasRequest`
+(`first_person_narrator`, `strip_front_matter`, `start_over`), `GeneratePersonasRequest`
 (`new_only`, …), `LibrarySaveRequest`, and so on. The OpenAPI schema is at
 `GET /openapi.json`, and interactive docs are at `/docs`.
 
