@@ -72,634 +72,6 @@ itself is unknown, the goal says so rather than inventing a number.
 The core task. Everything downstream inherits its errors: a misattributed line
 gets the wrong voice, and no amount of TTS quality repairs it.
 
-### 1.1 Accuracy on the four annotated books
-
-> **What this is.** The app reads a novel and decides, line by line, which
-> character is speaking. This measures how often it gets that right.
->
-> **Why it matters.** This is the decision the whole app rests on. If a line is
-> credited to the wrong character, it gets read in the wrong character's voice.
-> A listener hears the villain speaking in the heroine's voice and the scene
-> falls apart — and no amount of beautiful narration fixes it, because the
-> mistake happened before a single word was spoken aloud.
->
-> **Why 75% is reachable.** The app can run on a small model on your own
-> machine, or a very large one rented in the cloud. The big cloud model is
-> better — but only by about two points. Two of the four books already clear
-> 75% locally. We are asking the local model to do what it nearly does already,
-> not to make a leap.
-
-**Metric** — percent of gold-labelled lines assigned the correct speaker.
-**Probe** — `app/experiments/` arms, aggregated in `results_index.csv`.
-**Current** — best local arm per book, 616 scored arm rows:
-
-| book | best local (qwen3-14b) | best cloud (llama-3.3-70b) | gap |
-|---|---|---|---|
-| grimgar03 | 84.4% | 86.8% | 2.4 |
-| index18 | 81.5% | 82.6% | 1.1 |
-| mushoku16 | 72.9% | 74.8% | 1.9 |
-| owarimonogatari3 | 69.1% | 69.8% | 0.7 |
-
-**Target met by the shipped Muse arm, 2026-09-15.** A four-book Muse-Glimmer-30B
-base run with reasoning-low, the product window, and JSON-schema output scored
-**623/768 (81.1%)**, with no unanswered rows. Per-book results were Grimgar03
-332/385 (86.2%), Index18 63/88 (71.6%), Mushoku16 106/133 (79.7%), and
-Owarimonogatari3 122/162 (75.3%). This is a measured four-book result under a
-single harness and closes the 75% accuracy target for 1.1; the older Qwen table
-above remains for historical comparison.
-
-**The prompt family and two new bases, 2026-09-17/18.** With the
-`michel2_full` prompt (`app/attribution_prompt_variants.py`; a system prompt
-with a minor-speaker rule, the window as a marked passage with the previous
-window's speakers, and 2,000 characters of surrounding text before and after)
-and reasoning low, the same 768 rows under one harness read: Qwen3.8-27B
-UD-Q4_K_M **89.8** (`michel2` **90.9**, the best local number on record;
-grimgar03 94.3, index18 88.6, mushoku16 88.7, owarimonogatari3 85.8),
-Qwen3.6-35B-A3B UD-Q4_K_XL **89.6**, its 13.2 GB IQ3_XXS quant **88.0** and
-its 10.0 GB IQ1_M **85.0**, Qwen3-14B **82.0** (from 66 under the shipped
-prompt), Muse-Glimmer-30B unchanged at 81.5 (its michel2 cells are queued);
-DeepSeek v4-pro, the cloud ceiling, **94.9** thinking off and **95.4**
-thinking low. Every one of these clears 75% on every book except the two
-5 GB models (Qwen3.5-9B 71.9, Qwen3-8B 71.7, both under 50% on
-owarimonogatari3). Artifacts
-`lora_serving_eval__{qwen38-27b-q4km,qwen36-35b-a3b-*,qwen3-14b-*,deepseek-v4-pro-api-cleangold-*}-*-20260917.json`;
-the full grid is RECIPES "Prompt variants × bases". These are base models
-with no adapter; the shipped default is still Muse + the shipped prompt
-because Muse is the one base on which the family has not yet been measured
-(see 1.3 for the held-out check on the same prompt).
-
-**New held-out LoRA evidence, 2026-08-24.** The
-`adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
-scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the
-base model in the same run (`lora_serving_eval__new-author_heldout_balanced-grimgar03.json`).
-Grimgar03 was not part of its twenty-novel PDNC training set. This clears the
-75% target for this one book under this new arm, but it does not close 1.1:
-the adapter has not yet been measured on index18, mushoku16 or
-owarimonogatari3 under the same harness. The hard-subset score is not directly
-comparable to a whole-book PDNC score.
-
-#### The wide context arrived, and it is worth 12.7 points — 2026-08-21
-
-`two_stage_attribution_w3200.json`, 2,494 PDNC rows, the window widened from
-400 to 3,200 characters as [[Rule 1.3]]'s context audit indicated:
-
-| quote type | n | accuracy |
-|---|---|---|
-| Anaphoric | 723 | **71.2%** |
-| Explicit | 543 | 64.5% |
-| Implicit | 1228 | 62.9% |
-| **overall** | **2494** | **65.6%** |
-
-Against the 52.9% this document records for Explicit at the old window, that is
-**+11.6 points on Explicit** and 65.6% overall. The ordering is strange in a way
-worth following: **Anaphoric now outscores Explicit**, though Explicit names the
-speaker beside the line and should be the easy case.
-
-> This paragraph used to add "still far from the 99.3% the field reports on
-> Explicit". That comparison is withdrawn. The 99.3% is measured with GOLD
-> character mentions and the gold character list, which resolves for free what
-> our arm must infer, and the authors call the setting unrealistic themselves.
-> `external_comparability.json` records every external number this project
-> cites with the protocol behind it; of seven, one transfers — Elson's .99,
-> which we reproduced ourselves at **.9899** on the same pattern in our own
-> data. The clearest warning is a single paper reporting zero-shot GPT-3.5 at
-> **10.9%** on one corpus and **70.1%** on another, sixty points apart from
-> protocol alone.
-
-**The remaining error is mostly selection.** The gold speaker is in the
-candidate roster for **100%** of rows, and the model answers something else on
-857 of them.
-
-> "Nothing is missing from the prompt" was too strong, and is corrected here.
-> For quotations split by narration — `"Bah!" said Scrooge, "Humbug!"`, 31.3%
-> of PDNC — the attribution sat between the parts and reached neither context,
-> so among Explicit rows the annotator's own referring expression was absent
-> from everything the model saw **69.1%** of the time against 1.6% for
-> single-part quotes, costing 11.0 points. Fixed in #385; the fixtures now
-> carry `inner_narration` and the prompt can show it. What remains after that
-> is selection: single-part Explicit rows have the evidence 98.4% of the time
-> and still score .717.
-
-#### Context stops paying after 3,200 characters — 2026-09-06
-
-The window that bought +11.6 points on Explicit does not keep buying. Two more
-widenings, each scored against w3200 **on the identical quotations** rather
-than on its own row count:
-
-| window | n (paired) | accuracy | change | moved | McNemar |
-|---|---|---|---|---|---|
-| w3200 | 600 | 64.8% | — | — | — |
-| w8000 | 600 | 60.5% | **-4.3 pts** | +41 / -67 | p = 0.016 |
-| w16000 | 600 | 56.8% | **-8.0 pts** | +56 / -104 | p = 0.0002 |
-
-Both losses are significant and the damage scales with the window, so this is
-not noise around a plateau: **more context actively hurts.** Whatever the model
-gains from a wider window it more than loses to the distraction of it.
-
-The pairing is the whole result and was nearly missed. The sweep ran under the
-default `--limit 200` per fixture, so the raw files hold 600 rows against
-w3200's 2,494; comparing the summary percentages would have compared different
-quotations at different windows and measured mostly which subset each arm drew.
-The join is on quotation id after stripping the window from the fixture name,
-which is the only reason these are 600 paired differences rather than two
-independent samples.
-
-This closes the "widen it further" branch of [[Rule 1.3]]'s context audit and
-agrees with the earlier per-book finding that widening w1->w4 was
-book-dependent rather than a fix (**-5.0 on mushoku16**). Supply is not the
-binding constraint; [[attribution_selection_not_recall]] says the roster
-already holds the right name 85% of the time and the model picks it 29.9%.
-
-#### Every published PDNC number is measured with the alias oracle — 2026-09-06
-
-The literature search that produced the LLaMa3 entry named ONE difference that
-was not an oracle, and it has now been tested and refuted:
-
-> *"the difference that is NOT an oracle is context width - they use 4096
-> tokens (~16k characters) where our widest tested window is 3,200"*
-
-That was the actionable half of the 0.906 comparison. The sweep above widened
-the window exactly as indicated and **lost** 4.3 points at w8000 and 8.0 at
-w16000. The lead is closed, and reading further wins into "just widen it like
-the paper did" is closed with it.
-
-It is closed twice over, because the current state of the art reports the same
-thing from the other direction: `Fast and Accurate Quotation Attribution in
-Literary Texts` (arXiv 2608.02359) measures 500 -> 2000 tokens as worth **+1.8
-points overall** (92.7% -> 94.5%). Two independent measurements now say context
-width is not where attribution accuracy is won.
-
-**THE COMPARISON WAS THE WRONG WAY UP.** That paper states plainly that systems
-on this benchmark access "the gold-labelled character list both at training and
-evaluation time", and calls the setting "slightly unrealistic". So 0.906 and
-0.945 alike are measured with the roster handed over — and 1.2 measured that
-the roster is precisely the half we fail at, holding the right name 85% of the
-time while the model picks it 29.9%.
-
-The one PDNC number published END TO END, where the system builds its own
-character list, is **BookNLP-OG at 0.40** (arXiv 2307.03734, Table 3).
-
-| system | PDNC accuracy | builds its own roster |
-|---|---|---|
-| BookNLP-OG | 0.40 | **yes** |
-| **ours, w3200** | **0.656** | **yes** |
-| BookNLP+ (coref mentions matched to the gold list) | 0.78 | no |
-| Llama-3 8b, gold alias map in the prompt | 0.906 | no |
-| ModernBERT joint scoring, gold list at train and test | 0.945 | no |
-
-**We are not 25 points behind the state of the art; we are 25 points above the
-only comparable published result.** Every figure this document has treated as a
-target is measured on a different task. `external_comparability.json` now
-records which is which, and the honest sentence is that no published number
-exists for the setting this project actually runs, apart from BookNLP-OG's.
-
-**What survives as an actionable lead.** One method effect in that paper is not
-about the oracle: **coreference-derived candidate mentions beat alias-only
-candidates by +12 points on NON-EXPLICIT quotes**, and the 0.40 -> 0.78 jump
-between BookNLP-OG and BookNLP+ is the same intervention measured end to end
-against filtered. That is a candidate-SET change, not a context or prompt
-change, and it points at exactly what
-[[attribution_selection_not_recall]] measured here: supply is not the problem,
-selection is. It is the first externally-supported lead this goal has had that
-is not already known to fail.
-
-#### Restricting the candidate set: 74 names to 8, for 7.3 points of recall — 2026-09-06
-
-The surviving lead from that comparison is a candidate-SET change, so the first
-question is what narrowing COSTS. A speaker who falls out of the set cannot be
-recovered by better selection, and that ceiling is measurable offline without
-spending a single LLM call:
-
-| rule | median candidates | recall |
-|---|---|---|
-| full roster (what runs today) | 74 | 100.0% |
-| named anywhere in the book | 61 | 100.0% |
-| **named in this quote's own context** | **8** | **92.7%** |
-
-A **9x** reduction in the choice space for **7.3 points** of recall. The roster
-carries 74 characters where only 27 ever speak, so most of what is being
-offered is people who are never the answer.
-
-**The threshold is registered before the run.** Today's arm reads 0.656 over
-these 2,494 rows with all 74 candidates offered. The restricted run only wins
-if it picks correctly on more than **70.7%** of the rows it retains — that is
-0.656 divided by the 92.7% recall, and it is what the comparison must beat to
-mean anything.
-
-**This does not predict that selection improves.** Recall is a ceiling, not a
-forecast: a smaller list with the answer still in it is a necessary condition
-for the intervention to work and not a sufficient one. What makes it worth
-running is that [[attribution_selection_not_recall]] already measured the
-failure as selection rather than supply — the roster holds the right name and
-the model does not pick it — and this is the only lever the literature credits
-that we have not tried.
-
-**A first version of this measurement reported 7.3 points as 84.5**, because it
-keyed alias groups on `group[0]`, which `roster_lines`' own docstring warns is
-NOT the canonical name — so `expected_speaker` never matched and the rule
-looked unusable. It was reported as a dead end before it was checked against
-the resolution the pipeline actually uses. [[Rule 21]] again, and the cheapest
-possible instance of it: the correct number was one function call away.
-
-**Evidence** — `candidate_restriction.json`.
-
-#### An unanswered row is not a wrong one, and it was hiding the rank effect — 2026-09-06
-
-The rank ladder was read from raw accuracy, which scores a row the model left
-blank as a row it got wrong. Between 26 and 52 of 383 rows per run are blank,
-and separating the two changes both the size and the stability of the effect:
-
-| rank | seed | Δ raw | blanks | Δ conditional |
-|---|---|---|---|---|
-| r8 | 20260904 | +2.1 | 26 | +1.2 |
-| r8 | 20260905 | +1.3 | 30 | +1.0 |
-| r8 | 20260906 | −0.5 | 30 | −1.0 |
-| r16 | 20260904 | +1.3 | 43 | +3.0 |
-| r16 | 20260905 | +4.2 | 29 | +3.9 |
-| r16 | 20260906 | +2.1 | 36 | +2.8 |
-| r32 | 20260904 | +4.2 | 52 | **+7.9** |
-
-**The seed sensitivity was mostly compliance noise.** r16 reads +1.3 / +4.2 /
-+2.1 raw — a three-point swing that looked like instability and prompted a
-third seed. Conditionally it reads **+3.0 / +3.9 / +2.8**, a third of the
-spread, from the same three runs. A dose-response also appears that the raw
-numbers do not show: r8 about 0, r16 about +3, r32 about +8.
-
-**And the r32-vs-r16 comparison changes verdict.** On the shared seed:
-
-    raw, blanks scored wrong        +26/-15   +2.87 pts   p = 0.117
-    rows both models answered       +24/-10   +4.29 pts   p = 0.024
-
-**The obvious confound was tested and does not hold.** If r32 were declining
-the hard rows, conditioning would flatter it — but the base model scores
-**50.0%** on the 14 rows r32 left blank against **48.6%** across all 383, so
-they are of average difficulty. r16 scored 35.7% on them, so r32 is skipping
-rows r16 mostly got wrong anyway.
-
-So rank 32 is better at attribution AND worse at answering, and pooling the two
-into one number cost the comparison its significance. **r32 remains a single
-seed**; the ordering is suggestive, not settled. The 52 blanks (13.6%) are a
-decoding or prompt-format defect with its own fix, and are the same class of
-thing the artifact guard now refuses to record as a score.
-
-**Evidence** — `distill_eval__rank-seed-control-{r8,r16,r32}-seed*.json`.
-
-**Evidence** — `external_comparability.json`; arXiv 2608.02359, 2307.03734,
-2406.11380.
-
-**Evidence** — `two_stage_attribution_w8000.json`,
-`two_stage_attribution_w16000.json`, both paired against
-`two_stage_attribution_w3200.json`.
-
-
-#### A refinement layer was tried on that gap. All three constraints lose.
-
-DiLA (KDD '26) proposes LLM-proposes-then-constraint-repairs, and the shape
-fits: every error above is a pick the roster already contained.
-`constraint_refine.py` tests three constraints, each applied **alone** and
-paired against the model's own output on identical rows — a pass with
-interacting rules that improved the total would not say which rule earned it.
-
-| constraint | changed | accuracy | fixed / broke | McNemar |
-|---|---|---|---|---|
-| baseline (the model) | — | **65.6%** | — | — |
-| roster repair | 9 | 65.8% | 4 / 0 | 0.125 |
-| alternation | 815 | 54.3% | 190 / 472 | 1.3e-28 |
-| adjacency, last 120 chars | 863 | 49.9% | 85 / 478 | 2.2e-67 |
-| adjacency, last 400 chars | 1734 | 34.1% | 167 / 953 | 4.1e-134 |
-| adjacency, full 3200 | 2258 | **17.8%** | 135 / 1327 | 2.0e-246 |
-
-**The most useful number here is 49.9%.** That is the best hand-rolled
-proximity baseline — take the roster character named nearest before the quote —
-and the model beats it by **15.7 points**. Whatever the model is doing, it is
-not nearest-mention matching, and the 34.4% selection gap will not be closed by
-positional rules. This is evidence *for* the arm, arrived at while trying to
-improve it.
-
-**Alternation fails for a measurable reason**: the model gives consecutive
-quotes the same speaker 1,010 times and is right on **53.9%** of them. These
-novels have long single-speaker runs, so the rule overwrites a majority-correct
-decision.
-
-**Roster repair is free but unproven.** Only 19 predictions fall outside the
-roster at all — all misspellings, `MR. DARYY` for `MR. DARCY` — and repairing
-them to the nearest roster member fixed 4 and broke 0. Never harmful, worth
-0.2 points, and at n=9 changes not significant. Worth wiring in as hygiene, not
-as a result.
-
-**What this does not close.** Hand-specified constraints lose; it says nothing
-about learned or soft ones, which is what DiLA actually builds. The finding is
-narrower and firmer: the selection gap is not positional.
-
-**The first version of the adjacency rule fired 15 times in 2,494 rows** — it
-required exactly one roster name in `prev_context`, which is 3,200 characters
-and typically holds four or five. Reporting "no separation" on 15 rows would
-have been a statement about the rule's rarity dressed as a result.
-
-#### HALF THE LIGHT-NOVEL GOLD WAS MISSING FROM ALMOST EVERY RUN — 2026-09-06
-
-The four annotated Japanese light novels hold 793 gold rows and **`grimgar03`
-is 396 of them**. It appears in **4 of 85** artifacts:
-
-| book | gold rows | artifacts it appears in |
-|---|---:|---:|
-| `grimgar03` | **396** | **4** |
-| `owarimonogatari3` | 162 | 63 |
-| `mushoku16` | 136 | 62 |
-| `index18` | 99 | 74 |
-
-Every one of the 54 three-book artifacts omits the same book. Only three cover
-all four, and all three are from 2026-08-23.
-
-**So the per-book tables, the adapter rankings and the "Qwen3.8 adapters are a
-null" verdict were computed on half the corpus** — and on the harder half.
-`grimgar03`'s base arm reads **89.1%** against 68-75% for the other three, so
-adding it raises any pooled figure for reasons that have nothing to do with
-method, and a table mixing three-book and four-book artifacts is comparing two
-corpora rather than two methods.
-
-A three-book artifact is not invalid; it measured what it measured. The defect
-is reading it as a light-novel result, which is a claim about the corpus rather
-than about the file.
-
-**The equal-coverage fix has taken.** All three in-flight cloud runs pass
-`--books grimgar03 index18 mushoku16 owarimonogatari3`, so results from here
-are on the full set. They will not be comparable to the 54 historical ones.
-
-**What this makes a backlog item, and what it does not.** Re-running all ~50
-adapters is not worth it - most were exploratory arms nobody will act on. What
-should be re-run at four books is the handful current conclusions rest on: the
-`nf4_speaker_longcontext_tophalf` family and whichever rank settles out of the
-seed comparison. Until then, **this goal's per-book target is measured against
-three books**, and two of four clearing 75% is a statement about those three.
-
-**Evidence** — `light_novel_coverage.json`, which reports coverage and
-deliberately no accuracy: a table pairing the two corpora is the error the
-audit exists to surface.
-
-**Target — every book ≥ 75% on the local model.** Two of four already clear it;
-owarimonogatari3 needs +5.9 and mushoku16 +2.1.
-
-#### index18's row is measured on a CORRUPT source and is not comparable
-
-Found 2026-08-19. The `index18` text every arm in that row read holds **6,662
-U+FFFD replacement characters** (1.4% of the file, against a 0.5% gate) and
-**zero quote marks of any kind** — the encoding damage removed them. The book
-was being attributed with the single strongest dialogue cue absent from the
-page.
-
-Re-extracted from the user's own EPUB it comes back with **0 replacement
-characters and 1,375 spoken spans**, and on that clean text it attributes
-*better than any other book in the corpus*: 11.1% of dialogue left with the
-narrator, 97.1% token recall.
-
-So 81.5% is not index18's accuracy. It is the accuracy of a method reading a
-damaged copy, and the direction of the error is known (the clean text is
-easier) but its size is not. **32 artifacts** rest on the corrupt file. Until
-they are replayed, treat this row as withdrawn rather than as evidence either
-way, and do not average it into a cross-book claim.
-
-**Why not higher.** Setting it at 90% would be asking for something nothing has
-reached on any book by any method.
-
-**The honest caveat.** Median across all 616 arms is 46–67% depending on the
-book. The best arm is not the shipped arm, and the spread between books (69.1
-to 84.4 on the same method) is larger than the spread between most methods.
-Book identity dominates — some novels are simply harder than others, and a
-result from one book does not transfer to the next.
-
-#### These numbers are measured on the HARD SUBSET, and understate real accuracy
-
-The light-novel gold says how it was drawn: *"Sampled uniformly from spoken,
-**non-deterministic**, textually unique segments."* Lines the deterministic
-namer already resolves — the ordinary `"…," said Haruhiro` case — were
-**excluded before sampling**. Every light-novel accuracy in this document is
-therefore conditional on *the line being hard enough that the cheap path
-failed*, not on a representative page of the book.
-
-The PDNC evaluation does not filter that way: it takes `entries[:limit]`
-straight off the fixture. Which is why the same base model, on human-annotated
-gold, scores far higher there:
-
-| set | gold labelled by | sampling | base model |
-|---|---|---|---|
-| PDNC Pride and Prejudice | humans (published corpus) | first N, unfiltered | **80.5%** |
-| PDNC The Awakening | humans | first N, unfiltered | **86.0%** |
-| PDNC The Sign of the Four | humans | first N, unfiltered | **80.5%** |
-| four light novels | two frontier models | hard subset only | 46–67% median |
-
-**Do not read that gap as genre difficulty, and do not read it as the
-LLM-judged gold being wrong.** It is mostly the sampling. Comparing a
-hard-subset score against a whole-population score and concluding anything
-about the books, the judges, or the language is the exact error this table
-exists to prevent.
-
-Two consequences worth keeping straight:
-
-- **Real-world accuracy on a whole book is higher than goal 1.1's numbers**,
-  because most lines never reach the LLM at all. What 1.1 measures is the part
-  that does.
-- The one comparison that *is* clean: BookNLP, the field-standard tool, scores
-  **54.2%** on PDNC Pride and Prejudice (n=1226) under this harness. That is a
-  ruler from outside this project, on human gold.
-- **The three PDNC books in the table above are the top third of the corpus**
-  (ranks #2, #8 and #9 of 28 — see 1.3). Across the 25 novels nothing here has
-  ever looked at, the same base model scores **71.0%**, not 80.5–86.0%. Quote
-  those three as evidence of what PDNC can look like, never as PDNC's typical
-  difficulty.
-
-**Before any cross-set comparison, harmonise the sampling.** Running every
-method on every book — which is worth doing — will produce nonsense if a hard
-subset is scored against a full set.
-
----
-
-#### The four-book adapter campaign, one harness, three models — 2026-09-11/12
-
-The 2026-08-24 entry above ends with the adapter "not yet measured on index18,
-mushoku16 or owarimonogatari3 under the same harness". It now has been, along
-with every other adapter a current conclusion rests on. Between 2026-09-09
-and 2026-09-12 four rented GPUs ran **29 paired evaluations** on the full
-four-book gold (768 rows, equal coverage, the 2026-09-06 fix), all under one
-instrument: `lora_serving_eval_schema_checked_batch1_20260910.py` — llama.cpp
-`build-20260823b`, Q4_K_M base + f16 LoRA, batch 1, temperature 0, a JSON-schema
-grammar on the response, the base and LoRA arms sharing one server and
-differing only by adapter scale. Artifacts are the
-`lora_serving_eval__*-schema-checked-20260911.json` files in
-`ab_test_runtime/experiments/`; each carries the four gold sha256s it was scored
-against. The two `*-gold-verified-20260910` Gemma files are the earlier
-gold-verified harness (its base arm reads 48.3 / 50.7 rather than 45.4 on the
-same books) and are listed separately for that reason.
-
-**Per-book accuracy, LoRA arm, hard subset** (base arm in the first row of each
-model; every adapter below it shares that base run):
-
-| model / adapter | pooled | grimgar03 | index18 | mushoku16 | owari3 |
-|---|---:|---:|---:|---:|---:|
-| **Qwen3-14B** base | 44.3 | 53.8 | 53.4 | 37.6 | 22.2 |
-| mixed (Aug-3 LN+PDNC, 2 ep) seed 1 / seed 2 | 58.3 / **59.2** | 74.0 / 73.5 | 59.1 / 62.5 | 48.9 / 54.1 | 28.4 / 27.8 |
-| longcontext | 55.1 | 68.1 | 61.4 | 49.6 | 25.3 |
-| PDNC-only r16 / r32 | 53.8 / 53.4 | 68.3 / 68.8 | 54.5 / 58.0 | 48.9 / 42.1 | 22.8 / 23.5 |
-| hardcases | 50.9 | 63.1 | 55.7 | 43.6 | 25.3 |
-| **Gemma4-12B (QAT)** base | 45.4 | 54.0 | 53.4 | 39.1 | 25.9 |
-| author-balanced r8 seed 1 / seed 2 | 56.6 / 53.3 | 67.3 / 63.6 | 60.2 / 56.8 | 52.6 / 47.4 | 32.7 / 31.5 |
-| author-balanced r16 | 55.7 | 68.6 | 59.1 | 46.6 | 30.9 |
-| author-balanced r32 lr1e-4 seed 1 / seed 2 | 54.0 / 55.1 | 62.9 / 64.7 | 60.2 / 58.0 | 53.4 / 50.4 | 30.2 / 34.6 |
-| author+task4k 50:50 blend r8 | 57.0 | 69.9 | 54.5 | 54.1 | 30.2 |
-| task4k single-entry, Sep-10 recipe | 55.9 | 68.1 | 58.0 | 54.9 | 26.5 |
-| task4k single-entry, Sep-9 recipe | 50.8 | 59.7 | 52.3 | 50.4 | 29.0 |
-| mixed-r16 (single task4k + 3 sets) seed 1 / seed 2 | 52.0 / 55.6 | 62.6 / 67.5 | 58.0 / 58.0 | 43.6 / 49.6 | 30.2 / 30.9 |
-| longcontext / hardcases | 47.0 / 49.6 | 51.9 / 56.6 | 53.4 / 55.7 | 45.9 / 45.1 | 32.7 / 33.3 |
-| *gold-verified harness:* real-multin / QAT-multin | 57.6 / 57.6 | 67.0 / 67.3 | 58.0 / 58.0 | 56.4 / 52.6 | 35.8 / 38.3 |
-| **Muse-Glimmer-30B (UD-Q3_K_XL)** base, reasoning high / low | 55.6 / 54.2 | 58.7 / 58.4 | 59.1 / 56.8 | 54.1 / 49.6 | 47.5 / 46.3 |
-| longcontext (Sep-9 trainer) | **62.2** | 70.6 | **67.0** | **56.4** | **44.4** |
-| task4k multi-entry, template-fixed | 61.6 | 73.0 | 67.0 | 51.1 | 40.1 |
-| mixed, template-fixed | 59.9 | 69.1 | 62.5 | 51.9 | 43.2 |
-| hardcases, template-fixed | 53.9 | 65.5 | 62.5 | 44.4 | 29.6 |
-| longcontext, template-fixed (258 LoRA rows unanswered) | 42.3 | 55.3 | 38.6 | 30.1 | 23.5 |
-
-Sign test on shared rows: every paired gain of 5.3 points or more has
-p ≤ 2.5e-4; Gemma hardcases (+4.2) is p = 2.7e-3, Gemma longcontext (+1.6)
-p = 0.30, and Muse hardcases (−0.3, +76/−78) is a null. The strict view — shared answered
-rows only, `app/experiments/strict_shared_report.py` — moves no pooled figure
-by more than 0.3 points except Muse longcontext-tplfix, where dropping its 258
-unanswered rows turns −11.8 into +64/−23 on the 510 that remain: the adapter
-answers well when it answers, and fails to answer a third of the time.
-
-**What the numbers say, kept apart from what they measure:**
-
-- **No book reaches 75% on this harness.** The best per-book figures are
-  grimgar03 74.0 (Qwen mixed), index18 67.0 (Muse), mushoku16 56.4 (Muse
-  longcontext, Gemma real-multin), owarimonogatari3 44.4 (Muse longcontext).
-  The "two of four already clear it" line in this goal's target rests on the
-  three-book roster-batched arms from before 2026-09-06. On this instrument
-  the base models read **53.8–58.7** on grimgar03; in `results_index.csv` the
-  earlier grimgar03 base arms read 64.4–68.8 (n=385, the 2026-08-23 gold) and
-  one local run 79.7. (The 2026-09-06 coverage note above says grimgar03's
-  base arm "reads 89.1%"; no artifact in the index carries that number for a
-  base arm — the only 89.1 in this document is the PDNC adapter in 1.3, and
-  the note appears to have picked it up by mistake. Treat that sentence as
-  unsupported.) The gold changed too — 385 scoreable rows then, 396 now — so
-  the 10–15 point drop is some mix of harness and gold, and nobody has yet
-  run the *shipped* attribution path on the current four-book gold to say
-  which instrument is closer to what a listener gets. Until that is done, the
-  target line is a claim about the old instrument, and this table is a claim
-  about the new one. Neither should be quoted as the other.
-- **Seed spread is 1–4 points, and it is not the same for every model.** Two
-  seeds of the same recipe: Qwen mixed 58.3 / 59.2 (0.9 apart), Gemma
-  author-r8 56.6 / 53.3 (3.3), Gemma mixed-r16 52.0 / 55.6 (3.6), Gemma
-  author-r32 54.0 / 55.1 (1.1). A single-seed difference under ~3.5 points
-  between two Gemma adapters is inside seed noise, which puts Gemma's
-  task4k / hardcases / longcontext / author ordering within noise of one
-  another. Qwen's two seeds are tight enough that its adapters can be ranked.
-- **Recipe beat data-shape on Gemma.** task4k trained on the Sep-9 recipe
-  scores 50.8; the identical single-entry file on the Sep-10 recipe (max_len
-  4096, no warmup) scores 55.9. Multi-entry rows (real-multin, 57.6 on the
-  gold-verified harness) are 1.7 above single-entry — inside seed spread — so
-  "multi-entry helps" is not separable from "the recipe changed" on this data.
-- **Muse has the highest absolute accuracy and the smallest adapter lift.**
-  Its base arm is 10 points above the other two untuned (55.6 vs 44.3 / 45.4);
-  its best adapter adds +6.6, Qwen's adds +15.0. Which model "is best"
-  depends on whether the question is the shipped pipeline (Muse, 62.2) or
-  what the adapter contributes (Qwen). It is also a 30B model served at Q3 on
-  a 16 GB card at 26.8 tok/s locally, where Qwen3-14B Q4 runs at ~32.
-- **The "mixed" adapters were three different datasets.** Qwen's is the
-  2026-08-03 light-novel + PDNC set (29 files, 2 epochs, 2048 ctx); Gemma's is
-  single-entry task4k + longcontext + hardcases + author-balanced; Muse's is
-  multi-entry task4k + the same three. A same-data, same-recipe run of all
-  three (19,180 rows, 1 epoch, r16, 4096 ctx, one trainer script) was queued
-  2026-09-12 and is not in this table.
-
-**Three Muse artifacts are in the directory and cannot be scored**, each with
-an ARM_INVALID sidecar beside it saying why (the same convention as the
-2026-09-01 contract-arm invalidation). Sep-9 task4k and Sep-9 hardcases
-returned `{"n": 0, ...}]` — no leading `[` — on all 768 LoRA rows: the
-pre-fix Muse trainer labelled the answer without the template's
-` to=user<|message|>` header, and the schema grammar does *not* force the
-bracket (an earlier note in memory said it did; measured 2026-09-12, it does
-not). Sep-9 longcontext escaped this and is the 62.2 above. Template-fixed
-author-balanced drew an HTTP 500 "output does not match the expected
-peg-native format" from llama-server on every LoRA request — llama.cpp's Muse
-parser, not the adapter's answers. All three keep a valid base arm.
-
-**One instrument defect, fixed for the next campaign, not this one.** The two
-base-arm rows unanswered in every Gemma and Qwen run (`grimgar03-00194`,
-`owarimonogatari3-02689`) were a window where one spoken line came back
-`NARRATOR`, the validator rejected the whole response, and the harness
-recorded every gold row in the window as failed — including the lines the
-model got right. PR #535 scores such a window row by row and leaves only the
-rejected line unanswered. It changes the harness fingerprint, so it was held
-back until this table was complete rather than mixing two instruments in it.
-
-#### The shipped path on the same gold: the gap between instruments is the window — 2026-09-12
-
-The entry above ends with "nobody has yet run the *shipped* attribution path
-on the current four-book gold to say which instrument is closer to what a
-listener gets." It has now been run, locally, on the RX 9070 XT, and the
-question of what separates the two instruments has an answer.
-
-Three runs, one server, one adapter, the same four gold files (same sha256s as
-the campaign table): `/usr/bin/llama-server` serving the same
-`Qwen3-14B-Q4_K_M.gguf` bytes as the cloud evals, `adapter_mixed.gguf` (the
-Qwen "mixed" seed-1 adapter, 58.3 pooled in the table above), temperature 0,
-reasoning budget 0, the base and LoRA arms toggling the adapter on one server.
-The harness is the in-repo `lora_serving_eval.py`, which drives the app's own
-attribution code — **no JSON-schema grammar** — and its `--batch-size` is the
-number of segmented entries per request, i.e. the window the model sees.
-Batch 25 is the shipped configuration. Batch 1 is the cloud harness's window
-with the grammar removed, so the two runs together separate the window from
-the grammar. Artifacts:
-`lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json`
-and `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json`.
-
-| harness | window | grammar | base | mixed adapter | paired lift |
-|---|---:|---|---:|---:|---:|
-| in-repo, **shipped path** | 25 entries | none | **60.9** | **68.8** | +7.8 (+126/−66, p = 1.8e-5) |
-| in-repo | 1 entry | none | 45.7 | 59.5 | +13.8 (+132/−26, p = 2.8e-18) |
-| cloud, schema-checked (table above) | 1 entry | JSON schema | 44.3 | 58.3 | +14.0 |
-
-Per book, shipped path (base / adapter): grimgar03 72.7 / **82.6**, index18
-65.9 / 65.9, mushoku16 54.9 / 69.2, owarimonogatari3 35.2 / 37.0. At batch 1
-the same server reads grimgar03 53.8 / 74.5, index18 53.4 / 58.0, mushoku16
-42.1 / 51.9, owarimonogatari3 25.3 / 30.9. Against the cloud run that is
-identical on grimgar03's base arm (53.8 both) and within 1.1 points on
-index18, while mushoku16 and owarimonogatari3 read 2.5–4.5 points higher
-locally on both arms — the two books where the grammar, the llama.cpp build
-or the harness differ enough to show.
-
-**What the numbers say, kept apart from what they measure:**
-
-- **The 16-point gap between the campaign table and the shipped product is
-  window context, not the grammar.** Measured: shrinking the window from 25
-  entries to 1 costs the base arm 15.2 points and the adapter 9.3; the
-  grammar on top of that costs 1.2–1.4 more, inside what a different
-  llama.cpp build and harness could account for. Every figure in the campaign
-  table is a claim about a model shown one line with prev/next context, which
-  the product never does. The table's *ordering* of adapters is unaffected
-  by this — every adapter there was scored on the same window — but its
-  absolute figures should not be quoted as what a listener gets.
-- **The adapter's lift shrinks when it has context.** +13.8 at batch 1,
-  +7.8 at batch 25. An inference, offered as one: part of what the adapter
-  learned is to compensate for a missing window, so the single-line harness
-  makes every adapter look larger than it is in the product. It is still a
-  real lift on the shipped path, and on the shipped path grimgar03 with the
-  adapter is the first book to clear 75 on the current gold. That is one of
-  four; the target line's "two of four" still rests on the old gold.
-- **The shipped window has its own failure mode.** At batch 25 the harness
-  hit `max_tokens=2000` truncations on mushoku16 and owarimonogatari3 and
-  left 24 base / 27 LoRA rows unanswered across the four books, against
-  9 / 6 at batch 1; the strict shared-row view (727 rows) reads 63.3 / 71.5,
-  the same +8.2. Owarimonogatari3 took 1,593 s for its base arm at batch 25
-  — the whole batch-1 run of all four books took 13 minutes, the batch-25 run
-  99. Long windows on a hard book cost retries as well as accuracy.
-- **This does not change which model to ship.** One model, one adapter,
-  one seed on the shipped path; nothing here ranks Qwen against Gemma or
-  Muse at batch 25. It says only that the campaign harness under-reads the
-  product by roughly 15 points on the base arm and 9 on the adapter, and
-  that the correction is the window, so a batch-25 rerun of the campaign's
-  top adapters is the comparison that would settle the ranking for the
-  product rather than for the harness.
-
 ### 1.3 Generalisation beyond the four books
 
 > **What this is.** Checking the app works on novels it has never encountered,
@@ -4058,6 +3430,19 @@ Goals about the instruments themselves. These earned their place by failing.
 > believed and acted on. Each goal here exists because a measurement was
 > trusted that should not have been.
 
+**ReadAlong forced alignment tried on this instrument, 2026-09-28 — does not close it.** The
+preparer has the book text, so known-text alignment was the untried route: ReadAlong Studio
+(SoundSwallower + G2P, readalongs 1.2.2) on the same 50 clips, same concatenation and scorer
+(`asr_backends.build_alignment_probe` / `score_alignment`). It has no Japanese G2P (`jpn` is
+refused), so it ran on the universal fallback `und`. It finds **50 of 50** sentences — exact
+segmentation, where the whisper route predicts 93 segments for 50 clips — but places each start
+**0.54 s early** (signed median −0.540 s: it gives the 0.5 s gap to the next sentence), so the
+raw median is **552 ms**, worse than the 272 ms baseline, with 20% within 300 ms. Removing that
+constant bias — a calibration fitted on these same clips, so a flattering upper bound — leaves
+**157 ms**, still just above 150. Alignment stays OPEN. Artifact:
+`asr_readalong_ja_confirmation.json`; probe `app/experiments/asr_readalong_ja.py` (needs
+`readalongs` in its own environment, not `app/env`).
+
 ### 6.6 A check that cannot fail is not evidence
 
 > **What this is.** Before a check is believed, it has to be shown failing on
@@ -4667,6 +4052,643 @@ ratings artifact.
 *Measured at or beyond target, each keeping a test so it stays there. Nothing here needs work; it needs not to regress.*
 
 ## 1. Speaker attribution — who says which line
+
+### 1.1 Accuracy on the four annotated books
+
+> **What this is.** The app reads a novel and decides, line by line, which
+> character is speaking. This measures how often it gets that right.
+>
+> **Why it matters.** This is the decision the whole app rests on. If a line is
+> credited to the wrong character, it gets read in the wrong character's voice.
+> A listener hears the villain speaking in the heroine's voice and the scene
+> falls apart — and no amount of beautiful narration fixes it, because the
+> mistake happened before a single word was spoken aloud.
+>
+> **Why 75% is reachable.** The app can run on a small model on your own
+> machine, or a very large one rented in the cloud. The big cloud model is
+> better — but only by about two points. Two of the four books already clear
+> 75% locally. We are asking the local model to do what it nearly does already,
+> not to make a leap.
+
+**MET 2026-09-28, on the record already here.** The target is 75% locally on each of the four
+books. The `michel2_full` result recorded below — Qwen3.8-27B UD-Q4_K_M, reasoning low, one
+harness, 768 rows — clears it on every book: grimgar03 94.3, index18 88.6, mushoku16 88.7,
+owarimonogatari3 85.8 (89.8 overall; `michel2` 90.9). The 2026-09-15 Muse result that first
+closed the four-book mean missed index18 (71.6). The section's remaining question — ranking
+the campaign adapters at the product window rather than batch 1 — is answered in RECIPES'
+product-window rows (Qwen3-14B mixed +7.8, Muse tplfix +4.4, the Gemma pair) and is a
+ranking question, not this target. Moved to Part II.
+
+**Metric** — percent of gold-labelled lines assigned the correct speaker.
+**Probe** — `app/experiments/` arms, aggregated in `results_index.csv`.
+**Current** — best local arm per book, 616 scored arm rows:
+
+| book | best local (qwen3-14b) | best cloud (llama-3.3-70b) | gap |
+|---|---|---|---|
+| grimgar03 | 84.4% | 86.8% | 2.4 |
+| index18 | 81.5% | 82.6% | 1.1 |
+| mushoku16 | 72.9% | 74.8% | 1.9 |
+| owarimonogatari3 | 69.1% | 69.8% | 0.7 |
+
+**Target met by the shipped Muse arm, 2026-09-15.** A four-book Muse-Glimmer-30B
+base run with reasoning-low, the product window, and JSON-schema output scored
+**623/768 (81.1%)**, with no unanswered rows. Per-book results were Grimgar03
+332/385 (86.2%), Index18 63/88 (71.6%), Mushoku16 106/133 (79.7%), and
+Owarimonogatari3 122/162 (75.3%). This is a measured four-book result under a
+single harness and closes the 75% accuracy target for 1.1; the older Qwen table
+above remains for historical comparison.
+
+**The prompt family and two new bases, 2026-09-17/18.** With the
+`michel2_full` prompt (`app/attribution_prompt_variants.py`; a system prompt
+with a minor-speaker rule, the window as a marked passage with the previous
+window's speakers, and 2,000 characters of surrounding text before and after)
+and reasoning low, the same 768 rows under one harness read: Qwen3.8-27B
+UD-Q4_K_M **89.8** (`michel2` **90.9**, the best local number on record;
+grimgar03 94.3, index18 88.6, mushoku16 88.7, owarimonogatari3 85.8),
+Qwen3.6-35B-A3B UD-Q4_K_XL **89.6**, its 13.2 GB IQ3_XXS quant **88.0** and
+its 10.0 GB IQ1_M **85.0**, Qwen3-14B **82.0** (from 66 under the shipped
+prompt), Muse-Glimmer-30B unchanged at 81.5 (its michel2 cells are queued);
+DeepSeek v4-pro, the cloud ceiling, **94.9** thinking off and **95.4**
+thinking low. Every one of these clears 75% on every book except the two
+5 GB models (Qwen3.5-9B 71.9, Qwen3-8B 71.7, both under 50% on
+owarimonogatari3). Artifacts
+`lora_serving_eval__{qwen38-27b-q4km,qwen36-35b-a3b-*,qwen3-14b-*,deepseek-v4-pro-api-cleangold-*}-*-20260917.json`;
+the full grid is RECIPES "Prompt variants × bases". These are base models
+with no adapter; the shipped default is still Muse + the shipped prompt
+because Muse is the one base on which the family has not yet been measured
+(see 1.3 for the held-out check on the same prompt).
+
+**New held-out LoRA evidence, 2026-08-24.** The
+`adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
+scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the
+base model in the same run (`lora_serving_eval__new-author_heldout_balanced-grimgar03.json`).
+Grimgar03 was not part of its twenty-novel PDNC training set. This clears the
+75% target for this one book under this new arm, but it does not close 1.1:
+the adapter has not yet been measured on index18, mushoku16 or
+owarimonogatari3 under the same harness. The hard-subset score is not directly
+comparable to a whole-book PDNC score.
+
+#### The wide context arrived, and it is worth 12.7 points — 2026-08-21
+
+`two_stage_attribution_w3200.json`, 2,494 PDNC rows, the window widened from
+400 to 3,200 characters as [[Rule 1.3]]'s context audit indicated:
+
+| quote type | n | accuracy |
+|---|---|---|
+| Anaphoric | 723 | **71.2%** |
+| Explicit | 543 | 64.5% |
+| Implicit | 1228 | 62.9% |
+| **overall** | **2494** | **65.6%** |
+
+Against the 52.9% this document records for Explicit at the old window, that is
+**+11.6 points on Explicit** and 65.6% overall. The ordering is strange in a way
+worth following: **Anaphoric now outscores Explicit**, though Explicit names the
+speaker beside the line and should be the easy case.
+
+> This paragraph used to add "still far from the 99.3% the field reports on
+> Explicit". That comparison is withdrawn. The 99.3% is measured with GOLD
+> character mentions and the gold character list, which resolves for free what
+> our arm must infer, and the authors call the setting unrealistic themselves.
+> `external_comparability.json` records every external number this project
+> cites with the protocol behind it; of seven, one transfers — Elson's .99,
+> which we reproduced ourselves at **.9899** on the same pattern in our own
+> data. The clearest warning is a single paper reporting zero-shot GPT-3.5 at
+> **10.9%** on one corpus and **70.1%** on another, sixty points apart from
+> protocol alone.
+
+**The remaining error is mostly selection.** The gold speaker is in the
+candidate roster for **100%** of rows, and the model answers something else on
+857 of them.
+
+> "Nothing is missing from the prompt" was too strong, and is corrected here.
+> For quotations split by narration — `"Bah!" said Scrooge, "Humbug!"`, 31.3%
+> of PDNC — the attribution sat between the parts and reached neither context,
+> so among Explicit rows the annotator's own referring expression was absent
+> from everything the model saw **69.1%** of the time against 1.6% for
+> single-part quotes, costing 11.0 points. Fixed in #385; the fixtures now
+> carry `inner_narration` and the prompt can show it. What remains after that
+> is selection: single-part Explicit rows have the evidence 98.4% of the time
+> and still score .717.
+
+#### Context stops paying after 3,200 characters — 2026-09-06
+
+The window that bought +11.6 points on Explicit does not keep buying. Two more
+widenings, each scored against w3200 **on the identical quotations** rather
+than on its own row count:
+
+| window | n (paired) | accuracy | change | moved | McNemar |
+|---|---|---|---|---|---|
+| w3200 | 600 | 64.8% | — | — | — |
+| w8000 | 600 | 60.5% | **-4.3 pts** | +41 / -67 | p = 0.016 |
+| w16000 | 600 | 56.8% | **-8.0 pts** | +56 / -104 | p = 0.0002 |
+
+Both losses are significant and the damage scales with the window, so this is
+not noise around a plateau: **more context actively hurts.** Whatever the model
+gains from a wider window it more than loses to the distraction of it.
+
+The pairing is the whole result and was nearly missed. The sweep ran under the
+default `--limit 200` per fixture, so the raw files hold 600 rows against
+w3200's 2,494; comparing the summary percentages would have compared different
+quotations at different windows and measured mostly which subset each arm drew.
+The join is on quotation id after stripping the window from the fixture name,
+which is the only reason these are 600 paired differences rather than two
+independent samples.
+
+This closes the "widen it further" branch of [[Rule 1.3]]'s context audit and
+agrees with the earlier per-book finding that widening w1->w4 was
+book-dependent rather than a fix (**-5.0 on mushoku16**). Supply is not the
+binding constraint; [[attribution_selection_not_recall]] says the roster
+already holds the right name 85% of the time and the model picks it 29.9%.
+
+#### Every published PDNC number is measured with the alias oracle — 2026-09-06
+
+The literature search that produced the LLaMa3 entry named ONE difference that
+was not an oracle, and it has now been tested and refuted:
+
+> *"the difference that is NOT an oracle is context width - they use 4096
+> tokens (~16k characters) where our widest tested window is 3,200"*
+
+That was the actionable half of the 0.906 comparison. The sweep above widened
+the window exactly as indicated and **lost** 4.3 points at w8000 and 8.0 at
+w16000. The lead is closed, and reading further wins into "just widen it like
+the paper did" is closed with it.
+
+It is closed twice over, because the current state of the art reports the same
+thing from the other direction: `Fast and Accurate Quotation Attribution in
+Literary Texts` (arXiv 2608.02359) measures 500 -> 2000 tokens as worth **+1.8
+points overall** (92.7% -> 94.5%). Two independent measurements now say context
+width is not where attribution accuracy is won.
+
+**THE COMPARISON WAS THE WRONG WAY UP.** That paper states plainly that systems
+on this benchmark access "the gold-labelled character list both at training and
+evaluation time", and calls the setting "slightly unrealistic". So 0.906 and
+0.945 alike are measured with the roster handed over — and 1.2 measured that
+the roster is precisely the half we fail at, holding the right name 85% of the
+time while the model picks it 29.9%.
+
+The one PDNC number published END TO END, where the system builds its own
+character list, is **BookNLP-OG at 0.40** (arXiv 2307.03734, Table 3).
+
+| system | PDNC accuracy | builds its own roster |
+|---|---|---|
+| BookNLP-OG | 0.40 | **yes** |
+| **ours, w3200** | **0.656** | **yes** |
+| BookNLP+ (coref mentions matched to the gold list) | 0.78 | no |
+| Llama-3 8b, gold alias map in the prompt | 0.906 | no |
+| ModernBERT joint scoring, gold list at train and test | 0.945 | no |
+
+**We are not 25 points behind the state of the art; we are 25 points above the
+only comparable published result.** Every figure this document has treated as a
+target is measured on a different task. `external_comparability.json` now
+records which is which, and the honest sentence is that no published number
+exists for the setting this project actually runs, apart from BookNLP-OG's.
+
+**What survives as an actionable lead.** One method effect in that paper is not
+about the oracle: **coreference-derived candidate mentions beat alias-only
+candidates by +12 points on NON-EXPLICIT quotes**, and the 0.40 -> 0.78 jump
+between BookNLP-OG and BookNLP+ is the same intervention measured end to end
+against filtered. That is a candidate-SET change, not a context or prompt
+change, and it points at exactly what
+[[attribution_selection_not_recall]] measured here: supply is not the problem,
+selection is. It is the first externally-supported lead this goal has had that
+is not already known to fail.
+
+#### Restricting the candidate set: 74 names to 8, for 7.3 points of recall — 2026-09-06
+
+The surviving lead from that comparison is a candidate-SET change, so the first
+question is what narrowing COSTS. A speaker who falls out of the set cannot be
+recovered by better selection, and that ceiling is measurable offline without
+spending a single LLM call:
+
+| rule | median candidates | recall |
+|---|---|---|
+| full roster (what runs today) | 74 | 100.0% |
+| named anywhere in the book | 61 | 100.0% |
+| **named in this quote's own context** | **8** | **92.7%** |
+
+A **9x** reduction in the choice space for **7.3 points** of recall. The roster
+carries 74 characters where only 27 ever speak, so most of what is being
+offered is people who are never the answer.
+
+**The threshold is registered before the run.** Today's arm reads 0.656 over
+these 2,494 rows with all 74 candidates offered. The restricted run only wins
+if it picks correctly on more than **70.7%** of the rows it retains — that is
+0.656 divided by the 92.7% recall, and it is what the comparison must beat to
+mean anything.
+
+**This does not predict that selection improves.** Recall is a ceiling, not a
+forecast: a smaller list with the answer still in it is a necessary condition
+for the intervention to work and not a sufficient one. What makes it worth
+running is that [[attribution_selection_not_recall]] already measured the
+failure as selection rather than supply — the roster holds the right name and
+the model does not pick it — and this is the only lever the literature credits
+that we have not tried.
+
+**A first version of this measurement reported 7.3 points as 84.5**, because it
+keyed alias groups on `group[0]`, which `roster_lines`' own docstring warns is
+NOT the canonical name — so `expected_speaker` never matched and the rule
+looked unusable. It was reported as a dead end before it was checked against
+the resolution the pipeline actually uses. [[Rule 21]] again, and the cheapest
+possible instance of it: the correct number was one function call away.
+
+**Evidence** — `candidate_restriction.json`.
+
+#### An unanswered row is not a wrong one, and it was hiding the rank effect — 2026-09-06
+
+The rank ladder was read from raw accuracy, which scores a row the model left
+blank as a row it got wrong. Between 26 and 52 of 383 rows per run are blank,
+and separating the two changes both the size and the stability of the effect:
+
+| rank | seed | Δ raw | blanks | Δ conditional |
+|---|---|---|---|---|
+| r8 | 20260904 | +2.1 | 26 | +1.2 |
+| r8 | 20260905 | +1.3 | 30 | +1.0 |
+| r8 | 20260906 | −0.5 | 30 | −1.0 |
+| r16 | 20260904 | +1.3 | 43 | +3.0 |
+| r16 | 20260905 | +4.2 | 29 | +3.9 |
+| r16 | 20260906 | +2.1 | 36 | +2.8 |
+| r32 | 20260904 | +4.2 | 52 | **+7.9** |
+
+**The seed sensitivity was mostly compliance noise.** r16 reads +1.3 / +4.2 /
++2.1 raw — a three-point swing that looked like instability and prompted a
+third seed. Conditionally it reads **+3.0 / +3.9 / +2.8**, a third of the
+spread, from the same three runs. A dose-response also appears that the raw
+numbers do not show: r8 about 0, r16 about +3, r32 about +8.
+
+**And the r32-vs-r16 comparison changes verdict.** On the shared seed:
+
+    raw, blanks scored wrong        +26/-15   +2.87 pts   p = 0.117
+    rows both models answered       +24/-10   +4.29 pts   p = 0.024
+
+**The obvious confound was tested and does not hold.** If r32 were declining
+the hard rows, conditioning would flatter it — but the base model scores
+**50.0%** on the 14 rows r32 left blank against **48.6%** across all 383, so
+they are of average difficulty. r16 scored 35.7% on them, so r32 is skipping
+rows r16 mostly got wrong anyway.
+
+So rank 32 is better at attribution AND worse at answering, and pooling the two
+into one number cost the comparison its significance. **r32 remains a single
+seed**; the ordering is suggestive, not settled. The 52 blanks (13.6%) are a
+decoding or prompt-format defect with its own fix, and are the same class of
+thing the artifact guard now refuses to record as a score.
+
+**Evidence** — `distill_eval__rank-seed-control-{r8,r16,r32}-seed*.json`.
+
+**Evidence** — `external_comparability.json`; arXiv 2608.02359, 2307.03734,
+2406.11380.
+
+**Evidence** — `two_stage_attribution_w8000.json`,
+`two_stage_attribution_w16000.json`, both paired against
+`two_stage_attribution_w3200.json`.
+
+
+#### A refinement layer was tried on that gap. All three constraints lose.
+
+DiLA (KDD '26) proposes LLM-proposes-then-constraint-repairs, and the shape
+fits: every error above is a pick the roster already contained.
+`constraint_refine.py` tests three constraints, each applied **alone** and
+paired against the model's own output on identical rows — a pass with
+interacting rules that improved the total would not say which rule earned it.
+
+| constraint | changed | accuracy | fixed / broke | McNemar |
+|---|---|---|---|---|
+| baseline (the model) | — | **65.6%** | — | — |
+| roster repair | 9 | 65.8% | 4 / 0 | 0.125 |
+| alternation | 815 | 54.3% | 190 / 472 | 1.3e-28 |
+| adjacency, last 120 chars | 863 | 49.9% | 85 / 478 | 2.2e-67 |
+| adjacency, last 400 chars | 1734 | 34.1% | 167 / 953 | 4.1e-134 |
+| adjacency, full 3200 | 2258 | **17.8%** | 135 / 1327 | 2.0e-246 |
+
+**The most useful number here is 49.9%.** That is the best hand-rolled
+proximity baseline — take the roster character named nearest before the quote —
+and the model beats it by **15.7 points**. Whatever the model is doing, it is
+not nearest-mention matching, and the 34.4% selection gap will not be closed by
+positional rules. This is evidence *for* the arm, arrived at while trying to
+improve it.
+
+**Alternation fails for a measurable reason**: the model gives consecutive
+quotes the same speaker 1,010 times and is right on **53.9%** of them. These
+novels have long single-speaker runs, so the rule overwrites a majority-correct
+decision.
+
+**Roster repair is free but unproven.** Only 19 predictions fall outside the
+roster at all — all misspellings, `MR. DARYY` for `MR. DARCY` — and repairing
+them to the nearest roster member fixed 4 and broke 0. Never harmful, worth
+0.2 points, and at n=9 changes not significant. Worth wiring in as hygiene, not
+as a result.
+
+**What this does not close.** Hand-specified constraints lose; it says nothing
+about learned or soft ones, which is what DiLA actually builds. The finding is
+narrower and firmer: the selection gap is not positional.
+
+**The first version of the adjacency rule fired 15 times in 2,494 rows** — it
+required exactly one roster name in `prev_context`, which is 3,200 characters
+and typically holds four or five. Reporting "no separation" on 15 rows would
+have been a statement about the rule's rarity dressed as a result.
+
+#### HALF THE LIGHT-NOVEL GOLD WAS MISSING FROM ALMOST EVERY RUN — 2026-09-06
+
+The four annotated Japanese light novels hold 793 gold rows and **`grimgar03`
+is 396 of them**. It appears in **4 of 85** artifacts:
+
+| book | gold rows | artifacts it appears in |
+|---|---:|---:|
+| `grimgar03` | **396** | **4** |
+| `owarimonogatari3` | 162 | 63 |
+| `mushoku16` | 136 | 62 |
+| `index18` | 99 | 74 |
+
+Every one of the 54 three-book artifacts omits the same book. Only three cover
+all four, and all three are from 2026-08-23.
+
+**So the per-book tables, the adapter rankings and the "Qwen3.8 adapters are a
+null" verdict were computed on half the corpus** — and on the harder half.
+`grimgar03`'s base arm reads **89.1%** against 68-75% for the other three, so
+adding it raises any pooled figure for reasons that have nothing to do with
+method, and a table mixing three-book and four-book artifacts is comparing two
+corpora rather than two methods.
+
+A three-book artifact is not invalid; it measured what it measured. The defect
+is reading it as a light-novel result, which is a claim about the corpus rather
+than about the file.
+
+**The equal-coverage fix has taken.** All three in-flight cloud runs pass
+`--books grimgar03 index18 mushoku16 owarimonogatari3`, so results from here
+are on the full set. They will not be comparable to the 54 historical ones.
+
+**What this makes a backlog item, and what it does not.** Re-running all ~50
+adapters is not worth it - most were exploratory arms nobody will act on. What
+should be re-run at four books is the handful current conclusions rest on: the
+`nf4_speaker_longcontext_tophalf` family and whichever rank settles out of the
+seed comparison. Until then, **this goal's per-book target is measured against
+three books**, and two of four clearing 75% is a statement about those three.
+
+**Evidence** — `light_novel_coverage.json`, which reports coverage and
+deliberately no accuracy: a table pairing the two corpora is the error the
+audit exists to surface.
+
+**Target — every book ≥ 75% on the local model.** Two of four already clear it;
+owarimonogatari3 needs +5.9 and mushoku16 +2.1.
+
+#### index18's row is measured on a CORRUPT source and is not comparable
+
+Found 2026-08-19. The `index18` text every arm in that row read holds **6,662
+U+FFFD replacement characters** (1.4% of the file, against a 0.5% gate) and
+**zero quote marks of any kind** — the encoding damage removed them. The book
+was being attributed with the single strongest dialogue cue absent from the
+page.
+
+Re-extracted from the user's own EPUB it comes back with **0 replacement
+characters and 1,375 spoken spans**, and on that clean text it attributes
+*better than any other book in the corpus*: 11.1% of dialogue left with the
+narrator, 97.1% token recall.
+
+So 81.5% is not index18's accuracy. It is the accuracy of a method reading a
+damaged copy, and the direction of the error is known (the clean text is
+easier) but its size is not. **32 artifacts** rest on the corrupt file. Until
+they are replayed, treat this row as withdrawn rather than as evidence either
+way, and do not average it into a cross-book claim.
+
+**Why not higher.** Setting it at 90% would be asking for something nothing has
+reached on any book by any method.
+
+**The honest caveat.** Median across all 616 arms is 46–67% depending on the
+book. The best arm is not the shipped arm, and the spread between books (69.1
+to 84.4 on the same method) is larger than the spread between most methods.
+Book identity dominates — some novels are simply harder than others, and a
+result from one book does not transfer to the next.
+
+#### These numbers are measured on the HARD SUBSET, and understate real accuracy
+
+The light-novel gold says how it was drawn: *"Sampled uniformly from spoken,
+**non-deterministic**, textually unique segments."* Lines the deterministic
+namer already resolves — the ordinary `"…," said Haruhiro` case — were
+**excluded before sampling**. Every light-novel accuracy in this document is
+therefore conditional on *the line being hard enough that the cheap path
+failed*, not on a representative page of the book.
+
+The PDNC evaluation does not filter that way: it takes `entries[:limit]`
+straight off the fixture. Which is why the same base model, on human-annotated
+gold, scores far higher there:
+
+| set | gold labelled by | sampling | base model |
+|---|---|---|---|
+| PDNC Pride and Prejudice | humans (published corpus) | first N, unfiltered | **80.5%** |
+| PDNC The Awakening | humans | first N, unfiltered | **86.0%** |
+| PDNC The Sign of the Four | humans | first N, unfiltered | **80.5%** |
+| four light novels | two frontier models | hard subset only | 46–67% median |
+
+**Do not read that gap as genre difficulty, and do not read it as the
+LLM-judged gold being wrong.** It is mostly the sampling. Comparing a
+hard-subset score against a whole-population score and concluding anything
+about the books, the judges, or the language is the exact error this table
+exists to prevent.
+
+Two consequences worth keeping straight:
+
+- **Real-world accuracy on a whole book is higher than goal 1.1's numbers**,
+  because most lines never reach the LLM at all. What 1.1 measures is the part
+  that does.
+- The one comparison that *is* clean: BookNLP, the field-standard tool, scores
+  **54.2%** on PDNC Pride and Prejudice (n=1226) under this harness. That is a
+  ruler from outside this project, on human gold.
+- **The three PDNC books in the table above are the top third of the corpus**
+  (ranks #2, #8 and #9 of 28 — see 1.3). Across the 25 novels nothing here has
+  ever looked at, the same base model scores **71.0%**, not 80.5–86.0%. Quote
+  those three as evidence of what PDNC can look like, never as PDNC's typical
+  difficulty.
+
+**Before any cross-set comparison, harmonise the sampling.** Running every
+method on every book — which is worth doing — will produce nonsense if a hard
+subset is scored against a full set.
+
+---
+
+#### The four-book adapter campaign, one harness, three models — 2026-09-11/12
+
+The 2026-08-24 entry above ends with the adapter "not yet measured on index18,
+mushoku16 or owarimonogatari3 under the same harness". It now has been, along
+with every other adapter a current conclusion rests on. Between 2026-09-09
+and 2026-09-12 four rented GPUs ran **29 paired evaluations** on the full
+four-book gold (768 rows, equal coverage, the 2026-09-06 fix), all under one
+instrument: `lora_serving_eval_schema_checked_batch1_20260910.py` — llama.cpp
+`build-20260823b`, Q4_K_M base + f16 LoRA, batch 1, temperature 0, a JSON-schema
+grammar on the response, the base and LoRA arms sharing one server and
+differing only by adapter scale. Artifacts are the
+`lora_serving_eval__*-schema-checked-20260911.json` files in
+`ab_test_runtime/experiments/`; each carries the four gold sha256s it was scored
+against. The two `*-gold-verified-20260910` Gemma files are the earlier
+gold-verified harness (its base arm reads 48.3 / 50.7 rather than 45.4 on the
+same books) and are listed separately for that reason.
+
+**Per-book accuracy, LoRA arm, hard subset** (base arm in the first row of each
+model; every adapter below it shares that base run):
+
+| model / adapter | pooled | grimgar03 | index18 | mushoku16 | owari3 |
+|---|---:|---:|---:|---:|---:|
+| **Qwen3-14B** base | 44.3 | 53.8 | 53.4 | 37.6 | 22.2 |
+| mixed (Aug-3 LN+PDNC, 2 ep) seed 1 / seed 2 | 58.3 / **59.2** | 74.0 / 73.5 | 59.1 / 62.5 | 48.9 / 54.1 | 28.4 / 27.8 |
+| longcontext | 55.1 | 68.1 | 61.4 | 49.6 | 25.3 |
+| PDNC-only r16 / r32 | 53.8 / 53.4 | 68.3 / 68.8 | 54.5 / 58.0 | 48.9 / 42.1 | 22.8 / 23.5 |
+| hardcases | 50.9 | 63.1 | 55.7 | 43.6 | 25.3 |
+| **Gemma4-12B (QAT)** base | 45.4 | 54.0 | 53.4 | 39.1 | 25.9 |
+| author-balanced r8 seed 1 / seed 2 | 56.6 / 53.3 | 67.3 / 63.6 | 60.2 / 56.8 | 52.6 / 47.4 | 32.7 / 31.5 |
+| author-balanced r16 | 55.7 | 68.6 | 59.1 | 46.6 | 30.9 |
+| author-balanced r32 lr1e-4 seed 1 / seed 2 | 54.0 / 55.1 | 62.9 / 64.7 | 60.2 / 58.0 | 53.4 / 50.4 | 30.2 / 34.6 |
+| author+task4k 50:50 blend r8 | 57.0 | 69.9 | 54.5 | 54.1 | 30.2 |
+| task4k single-entry, Sep-10 recipe | 55.9 | 68.1 | 58.0 | 54.9 | 26.5 |
+| task4k single-entry, Sep-9 recipe | 50.8 | 59.7 | 52.3 | 50.4 | 29.0 |
+| mixed-r16 (single task4k + 3 sets) seed 1 / seed 2 | 52.0 / 55.6 | 62.6 / 67.5 | 58.0 / 58.0 | 43.6 / 49.6 | 30.2 / 30.9 |
+| longcontext / hardcases | 47.0 / 49.6 | 51.9 / 56.6 | 53.4 / 55.7 | 45.9 / 45.1 | 32.7 / 33.3 |
+| *gold-verified harness:* real-multin / QAT-multin | 57.6 / 57.6 | 67.0 / 67.3 | 58.0 / 58.0 | 56.4 / 52.6 | 35.8 / 38.3 |
+| **Muse-Glimmer-30B (UD-Q3_K_XL)** base, reasoning high / low | 55.6 / 54.2 | 58.7 / 58.4 | 59.1 / 56.8 | 54.1 / 49.6 | 47.5 / 46.3 |
+| longcontext (Sep-9 trainer) | **62.2** | 70.6 | **67.0** | **56.4** | **44.4** |
+| task4k multi-entry, template-fixed | 61.6 | 73.0 | 67.0 | 51.1 | 40.1 |
+| mixed, template-fixed | 59.9 | 69.1 | 62.5 | 51.9 | 43.2 |
+| hardcases, template-fixed | 53.9 | 65.5 | 62.5 | 44.4 | 29.6 |
+| longcontext, template-fixed (258 LoRA rows unanswered) | 42.3 | 55.3 | 38.6 | 30.1 | 23.5 |
+
+Sign test on shared rows: every paired gain of 5.3 points or more has
+p ≤ 2.5e-4; Gemma hardcases (+4.2) is p = 2.7e-3, Gemma longcontext (+1.6)
+p = 0.30, and Muse hardcases (−0.3, +76/−78) is a null. The strict view — shared answered
+rows only, `app/experiments/strict_shared_report.py` — moves no pooled figure
+by more than 0.3 points except Muse longcontext-tplfix, where dropping its 258
+unanswered rows turns −11.8 into +64/−23 on the 510 that remain: the adapter
+answers well when it answers, and fails to answer a third of the time.
+
+**What the numbers say, kept apart from what they measure:**
+
+- **No book reaches 75% on this harness.** The best per-book figures are
+  grimgar03 74.0 (Qwen mixed), index18 67.0 (Muse), mushoku16 56.4 (Muse
+  longcontext, Gemma real-multin), owarimonogatari3 44.4 (Muse longcontext).
+  The "two of four already clear it" line in this goal's target rests on the
+  three-book roster-batched arms from before 2026-09-06. On this instrument
+  the base models read **53.8–58.7** on grimgar03; in `results_index.csv` the
+  earlier grimgar03 base arms read 64.4–68.8 (n=385, the 2026-08-23 gold) and
+  one local run 79.7. (The 2026-09-06 coverage note above says grimgar03's
+  base arm "reads 89.1%"; no artifact in the index carries that number for a
+  base arm — the only 89.1 in this document is the PDNC adapter in 1.3, and
+  the note appears to have picked it up by mistake. Treat that sentence as
+  unsupported.) The gold changed too — 385 scoreable rows then, 396 now — so
+  the 10–15 point drop is some mix of harness and gold, and nobody has yet
+  run the *shipped* attribution path on the current four-book gold to say
+  which instrument is closer to what a listener gets. Until that is done, the
+  target line is a claim about the old instrument, and this table is a claim
+  about the new one. Neither should be quoted as the other.
+- **Seed spread is 1–4 points, and it is not the same for every model.** Two
+  seeds of the same recipe: Qwen mixed 58.3 / 59.2 (0.9 apart), Gemma
+  author-r8 56.6 / 53.3 (3.3), Gemma mixed-r16 52.0 / 55.6 (3.6), Gemma
+  author-r32 54.0 / 55.1 (1.1). A single-seed difference under ~3.5 points
+  between two Gemma adapters is inside seed noise, which puts Gemma's
+  task4k / hardcases / longcontext / author ordering within noise of one
+  another. Qwen's two seeds are tight enough that its adapters can be ranked.
+- **Recipe beat data-shape on Gemma.** task4k trained on the Sep-9 recipe
+  scores 50.8; the identical single-entry file on the Sep-10 recipe (max_len
+  4096, no warmup) scores 55.9. Multi-entry rows (real-multin, 57.6 on the
+  gold-verified harness) are 1.7 above single-entry — inside seed spread — so
+  "multi-entry helps" is not separable from "the recipe changed" on this data.
+- **Muse has the highest absolute accuracy and the smallest adapter lift.**
+  Its base arm is 10 points above the other two untuned (55.6 vs 44.3 / 45.4);
+  its best adapter adds +6.6, Qwen's adds +15.0. Which model "is best"
+  depends on whether the question is the shipped pipeline (Muse, 62.2) or
+  what the adapter contributes (Qwen). It is also a 30B model served at Q3 on
+  a 16 GB card at 26.8 tok/s locally, where Qwen3-14B Q4 runs at ~32.
+- **The "mixed" adapters were three different datasets.** Qwen's is the
+  2026-08-03 light-novel + PDNC set (29 files, 2 epochs, 2048 ctx); Gemma's is
+  single-entry task4k + longcontext + hardcases + author-balanced; Muse's is
+  multi-entry task4k + the same three. A same-data, same-recipe run of all
+  three (19,180 rows, 1 epoch, r16, 4096 ctx, one trainer script) was queued
+  2026-09-12 and is not in this table.
+
+**Three Muse artifacts are in the directory and cannot be scored**, each with
+an ARM_INVALID sidecar beside it saying why (the same convention as the
+2026-09-01 contract-arm invalidation). Sep-9 task4k and Sep-9 hardcases
+returned `{"n": 0, ...}]` — no leading `[` — on all 768 LoRA rows: the
+pre-fix Muse trainer labelled the answer without the template's
+` to=user<|message|>` header, and the schema grammar does *not* force the
+bracket (an earlier note in memory said it did; measured 2026-09-12, it does
+not). Sep-9 longcontext escaped this and is the 62.2 above. Template-fixed
+author-balanced drew an HTTP 500 "output does not match the expected
+peg-native format" from llama-server on every LoRA request — llama.cpp's Muse
+parser, not the adapter's answers. All three keep a valid base arm.
+
+**One instrument defect, fixed for the next campaign, not this one.** The two
+base-arm rows unanswered in every Gemma and Qwen run (`grimgar03-00194`,
+`owarimonogatari3-02689`) were a window where one spoken line came back
+`NARRATOR`, the validator rejected the whole response, and the harness
+recorded every gold row in the window as failed — including the lines the
+model got right. PR #535 scores such a window row by row and leaves only the
+rejected line unanswered. It changes the harness fingerprint, so it was held
+back until this table was complete rather than mixing two instruments in it.
+
+#### The shipped path on the same gold: the gap between instruments is the window — 2026-09-12
+
+The entry above ends with "nobody has yet run the *shipped* attribution path
+on the current four-book gold to say which instrument is closer to what a
+listener gets." It has now been run, locally, on the RX 9070 XT, and the
+question of what separates the two instruments has an answer.
+
+Three runs, one server, one adapter, the same four gold files (same sha256s as
+the campaign table): `/usr/bin/llama-server` serving the same
+`Qwen3-14B-Q4_K_M.gguf` bytes as the cloud evals, `adapter_mixed.gguf` (the
+Qwen "mixed" seed-1 adapter, 58.3 pooled in the table above), temperature 0,
+reasoning budget 0, the base and LoRA arms toggling the adapter on one server.
+The harness is the in-repo `lora_serving_eval.py`, which drives the app's own
+attribution code — **no JSON-schema grammar** — and its `--batch-size` is the
+number of segmented entries per request, i.e. the window the model sees.
+Batch 25 is the shipped configuration. Batch 1 is the cloud harness's window
+with the grammar removed, so the two runs together separate the window from
+the grammar. Artifacts:
+`lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch25-20260912.json`
+and `lora_serving_eval__qwen3-14b-mixed-local-9070xt-inrepo-batch1-20260912.json`.
+
+| harness | window | grammar | base | mixed adapter | paired lift |
+|---|---:|---|---:|---:|---:|
+| in-repo, **shipped path** | 25 entries | none | **60.9** | **68.8** | +7.8 (+126/−66, p = 1.8e-5) |
+| in-repo | 1 entry | none | 45.7 | 59.5 | +13.8 (+132/−26, p = 2.8e-18) |
+| cloud, schema-checked (table above) | 1 entry | JSON schema | 44.3 | 58.3 | +14.0 |
+
+Per book, shipped path (base / adapter): grimgar03 72.7 / **82.6**, index18
+65.9 / 65.9, mushoku16 54.9 / 69.2, owarimonogatari3 35.2 / 37.0. At batch 1
+the same server reads grimgar03 53.8 / 74.5, index18 53.4 / 58.0, mushoku16
+42.1 / 51.9, owarimonogatari3 25.3 / 30.9. Against the cloud run that is
+identical on grimgar03's base arm (53.8 both) and within 1.1 points on
+index18, while mushoku16 and owarimonogatari3 read 2.5–4.5 points higher
+locally on both arms — the two books where the grammar, the llama.cpp build
+or the harness differ enough to show.
+
+**What the numbers say, kept apart from what they measure:**
+
+- **The 16-point gap between the campaign table and the shipped product is
+  window context, not the grammar.** Measured: shrinking the window from 25
+  entries to 1 costs the base arm 15.2 points and the adapter 9.3; the
+  grammar on top of that costs 1.2–1.4 more, inside what a different
+  llama.cpp build and harness could account for. Every figure in the campaign
+  table is a claim about a model shown one line with prev/next context, which
+  the product never does. The table's *ordering* of adapters is unaffected
+  by this — every adapter there was scored on the same window — but its
+  absolute figures should not be quoted as what a listener gets.
+- **The adapter's lift shrinks when it has context.** +13.8 at batch 1,
+  +7.8 at batch 25. An inference, offered as one: part of what the adapter
+  learned is to compensate for a missing window, so the single-line harness
+  makes every adapter look larger than it is in the product. It is still a
+  real lift on the shipped path, and on the shipped path grimgar03 with the
+  adapter is the first book to clear 75 on the current gold. That is one of
+  four; the target line's "two of four" still rests on the old gold.
+- **The shipped window has its own failure mode.** At batch 25 the harness
+  hit `max_tokens=2000` truncations on mushoku16 and owarimonogatari3 and
+  left 24 base / 27 LoRA rows unanswered across the four books, against
+  9 / 6 at batch 1; the strict shared-row view (727 rows) reads 63.3 / 71.5,
+  the same +8.2. Owarimonogatari3 took 1,593 s for its base arm at batch 25
+  — the whole batch-1 run of all four books took 13 minutes, the batch-25 run
+  99. Long windows on a hard book cost retries as well as accuracy.
+- **This does not change which model to ship.** One model, one adapter,
+  one seed on the shipped path; nothing here ranks Qwen against Gemma or
+  Muse at batch 25. It says only that the campaign harness under-reads the
+  product by roughly 15 points on the base arm and 9 on the adapter, and
+  that the correction is the window, so a batch-25 rerun of the campaign's
+  top adapters is the comparison that would settle the ranking for the
+  product rather than for the harness.
 
 ### 1.2 Close the selection gap
 
