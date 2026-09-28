@@ -43,6 +43,30 @@ not. Set it deliberately.
 | **6 GB** | GTX 1660, RTX 2060, laptop cards | Qwen3-8B **Q4_K_M** | 4.7 GB | **77.0%** *(four-book, see note)* | **yes — +5.3** (77.0 → 82.3, p=0.0006, four-book) |
 | **no usable GPU** | — | a hosted model, or the manual transport | — | **94.9–95.4%** (DeepSeek v4-pro) | n/a |
 
+## If speed matters more than the last few points: Qwen3.6-35B-A3B
+
+The table picks the most accurate file for each card. It does not pick for speed, and the
+speed gap is large. A3B is a mixture-of-experts model (35B weights, about 3B active per
+token), so it runs at small-model speed with near-large-model accuracy. Measured
+2026-09-27 on one RX 9070 XT, same instrument for every row (28 PDNC novels, 12 windows
+each, `michel2_full`, reasoning low, base only), end-to-end time per 25-entry window:
+
+| base | file | accuracy | time per window | whole 28-book run |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Q4_K_M | 5.0 GB | 77.4% | 18.6 s | 1.7 h |
+| Qwen3.5-9B Q4_K_M | 5.7 GB | 77.4% | 23.3 s | 2.2 h |
+| **Qwen3.6-35B-A3B UD-IQ1_M** | 10.0 GB | **88.8%** | **19.7 s** | **1.8 h** |
+| **Qwen3.6-35B-A3B UD-IQ2_XXS** | 10.8 GB | **87.5%** | **20.2 s** | **1.9 h** |
+| Qwen3.8-27B UD-Q3_K_XL | 13.1 GB | 93.7% | 49.0 s | 4.6 h |
+
+A3B runs as fast as the 8B models while scoring about 11 points higher, and **about 2.4×
+faster than Qwen3.8** for about 6 points less. Pick it when throughput matters (a whole
+library, re-running books, a card shared with other work) and the 16 GB recommendation
+when accuracy does. Its window25 adapter (`qwen3.6-35b-a3b-rightsclean-window25-michel2v2`)
+adds +2.7 at IQ1_M and +1.6 at IQ3_XXS on nine held-out novels. These are one card and one
+run each; Qwen3.8's smaller files (IQ2_XXS, Q2_K_XL) were not timed on this instrument, and a
+dense 27B will not reach MoE speed at any quant — but that last point is expected, not measured.
+
 **16 GB is the tier most people are on** — it covers the RTX 5080 and 5070 Ti and
 AMD's entire RX 9070 line — and it is comfortably the best value on this page.
 Qwen3.8-27B UD-Q3_K_XL is 12.5 GB, so at `-c 8192` it lands near 13 GB with room
