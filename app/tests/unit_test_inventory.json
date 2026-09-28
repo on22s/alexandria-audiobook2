@@ -1221,6 +1221,21 @@
     "tests.test_experiment_conventions.ProvenanceArityTests.test_every_provenance_call_passes_an_argument",
     "tests.test_experiment_conventions.ProvenanceArityTests.test_the_check_catches_a_planted_call"
   ],
+  "test_experiment_guards_tranche7": [
+    "tests.test_experiment_guards_tranche7.AdapterScaleToggleTests.test_honest_server_accepted_by_every_copy",
+    "tests.test_experiment_guards_tranche7.AdapterScaleToggleTests.test_readback_without_a_scale_is_refused_by_every_copy",
+    "tests.test_experiment_guards_tranche7.AdapterScaleToggleTests.test_server_that_ignores_the_toggle_is_refused_by_every_copy",
+    "tests.test_experiment_guards_tranche7.GeneratedWavValidityTests.test_truncated_wav_is_invalid",
+    "tests.test_experiment_guards_tranche7.HoldoutSplitTests.test_no_book_is_on_both_sides",
+    "tests.test_experiment_guards_tranche7.HoldoutSplitTests.test_unknown_book_id_is_refused",
+    "tests.test_experiment_guards_tranche7.ListeningSourceTests.test_dotdot_escape_is_refused",
+    "tests.test_experiment_guards_tranche7.ListeningSourceTests.test_missing_file_is_refused",
+    "tests.test_experiment_guards_tranche7.ListeningSourceTests.test_path_outside_the_repository_is_refused",
+    "tests.test_experiment_guards_tranche7.ListeningSourceTests.test_real_wav_inside_the_repository_is_accepted",
+    "tests.test_experiment_guards_tranche7.PredictionIndexTests.test_distinct_ids_are_indexed",
+    "tests.test_experiment_guards_tranche7.PredictionIndexTests.test_duplicate_id_is_refused",
+    "tests.test_experiment_guards_tranche7.PredictionIndexTests.test_missing_id_is_refused"
+  ],
   "test_experiment_infra": [
     "tests.test_experiment_infra.AnalysisScriptTest.test_every_experiment_module_parses",
     "tests.test_experiment_infra.AnalysisScriptTest.test_offline_analyses_declare_their_caveats",
