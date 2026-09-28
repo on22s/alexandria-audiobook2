@@ -771,8 +771,25 @@ Four** — named here because nothing else did: a rescore that guessed them from
 `goal13_development_*` file names produced a *positive* gap for Qwen3-8B, and only this
 set reproduces the recorded 253/302. What the two models show is that the gap depends
 on the model; two points cannot say whether it is the books or the model's strength.
-One run, one quant, 12 windows per book. A3B IQ2_XXS and Qwen3.5-9B on the same
-instrument are running (2026-09-27 night).
+One run, one quant, 12 windows per book.
+
+**Five bases on the same instrument (2026-09-28): the gap tracks model strength.**
+
+| base | overall | three quoted in 1.1 | other 25 | gap |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Q4_K_M | 77.4% | 83.8% | 76.6% | −7.2 (z = 2.8) |
+| Qwen3.5-9B Q4_K_M | 77.4% | 85.1% | 76.4% | −8.7 (z = 3.4) |
+| Qwen3.6-35B-A3B UD-IQ2_XXS | 87.5% | 90.4% | 87.1% | **−3.3** (z = 1.6) |
+| Qwen3.6-35B-A3B UD-IQ1_M | 88.8% | 93.4% | 88.2% | −5.2 (z = 2.7) |
+| Qwen3.8-27B UD-Q3_K_XL | 93.7% | 95.7% | 93.5% | **−2.2** (z = 1.5) |
+
+Measured: the gap correlates with overall accuracy at r = 0.93 across the five, and the
+three development books score higher on **every** base. Inference, from five points: the
+books are genuinely easier, and weaker models widen the difference; the target is met by
+the strong bases (Qwen3.8, A3B IQ2_XXS) and missed by the 8–9B ones. Qwen3.5-9B left 63 rows
+unanswered (counted wrong). A3B UD-IQ3_XXS was refused by the GPU guard on the night (its own
+server held the card) and is re-queued. Artifacts:
+`lora_serving_eval__goal13-pdnc28-base-michel2_full-{qwen35-9b-q4km,qwen36-35b-a3b-iq2xxs,qwen36-35b-a3b-iq1m}-seg0926-attestoff-local9070xt-20260927.json`.
 
 **Trained adapters on never-trained books — the confirmation the Priority list
 asks for (2026-09-26/27).** The `window25` adapters were trained on the 19 PDNC

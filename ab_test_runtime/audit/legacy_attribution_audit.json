@@ -1,9 +1,9 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "e8a8c9595d57e37fcd9ef2db25c565bfe5a37461bdf14d5b05952c5858a92ec0",
+  "source_structural_sha256": "4c689f94ce9eb42a4cf7522c560d2327b29cb33dd1048ff9baf64443a2bc506a",
   "summary": {
     "exploratory": 252,
-    "historical_only": 60,
+    "historical_only": 63,
     "provisional": 11,
     "supported_measurement": 43
   },
@@ -3025,6 +3025,66 @@
     },
     {
       "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen3-8b-seg0926-attestoff-local9070xt-20260927.json",
+      "family": "lora_serving_eval",
+      "rows": 2517,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 2345,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen35-9b-q4km-seg0926-attestoff-local9070xt-20260927.json",
+      "family": "lora_serving_eval",
+      "rows": 2517,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 2345,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq1m-seg0926-attestoff-local9070xt-20260927.json",
+      "family": "lora_serving_eval",
+      "rows": 2517,
+      "arms": [
+        "base"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 2345,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__goal13-pdnc28-base-michel2_full-qwen36-35b-a3b-iq2xxs-seg0926-attestoff-local9070xt-20260927.json",
       "family": "lora_serving_eval",
       "rows": 2517,
       "arms": [

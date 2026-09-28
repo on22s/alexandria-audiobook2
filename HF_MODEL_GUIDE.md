@@ -223,5 +223,10 @@ Two things a lesson's "how to redo" does not yet say, found by testing one (2026
 - **Package versions were not recorded.** The August runs used transformers 5.0/5.1 (the
   logs warn that `warmup_ratio` goes in 5.2); the boxes now carry 5.14.1.
 
+**Tested 2026-09-28:** a 60-step retrain of `qwen35_9b_bf16_author_heldout_balanced` from its
+lesson, the bundle and the `b02d5950` prompt tracks the original loss within 0.0018 on average;
+with today's prompt it departs 2.6× further (0.0047). Not exact — gradient norms differ in both
+arms, most likely package drift. Full table: `redo_inputs/README.md` in the archive.
+
 Kept on purpose: anything published elsewhere (the guard found three), folders with no
 recorded result, and anything backing a live adapter.
