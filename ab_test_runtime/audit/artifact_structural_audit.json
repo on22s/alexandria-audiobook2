@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 999,
+    "supported_structure": 1000,
     "exploratory": 415,
     "provisional": 369,
     "artifacts_that_generated_nothing": 15
@@ -30993,6 +30993,24 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-07T04:27:25",
       "commit": "19d5533a961245e5184dae9c2118a979ee29c5b7",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "voice_val_contamination_audit_20260928.json",
+      "bytes": 47356,
+      "sha256": "471dfcc3d2a6f42c702ec9d8981fa0d0164464682a9f9fa47c95f4669ca2e240",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 75,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-09-28T04:27:34",
+      "commit": "97a9d2319be3b55a532f88310c1c5d7456471ab1",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
