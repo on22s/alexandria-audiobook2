@@ -49,20 +49,25 @@ prompt is a transfer test, not a result for that adapter.
 
 ## Checking an installation
 
-The repository includes a live API test script:
+The repository includes a live API test suite. The safe way to run it starts a throwaway copy of
+the app with its own empty data folder, so your books and voices are never touched:
 
 ```bash
 cd app
-python tests/test_api.py              # quick tests — no TTS or LLM needed
-python tests/test_api.py --full       # also tests generation — needs TTS and an LLM running
-python tests/test_api.py --url URL    # a different server (default http://127.0.0.1:4200)
+python run_isolated_api_tests.py          # quick tests — no TTS or LLM needed
+python run_isolated_api_tests.py --full   # also tests generation — needs a GPU and an LLM
 ```
 
-- **Quick mode** checks settings round-trips, upload, the script library, voice settings,
-  chunks, status polling, voice design, LoRA listings, the dataset builder and error handling,
-  without loading any model.
-- **Full mode** adds script generation, audio generation, batch rendering, voice design
-  previews and LoRA testing.
+To test an app that is already running, use `python -m tests.test_api --url http://127.0.0.1:<port>`
+from the `app` folder — but note that it creates and deletes uploads, scripts and voice settings
+in that app's data. (Running `python tests/test_api.py` directly fails with
+`ModuleNotFoundError: utils`; it must be run with `-m` from `app`.)
+
+- **Quick mode** (82 checks; 70 run, 12 need a GPU and an LLM) covers settings round-trips,
+  upload, the script library, voice settings, chunks, status polling, voice design, LoRA
+  listings, the dataset builder and error handling, without loading any model.
+- **Full mode** adds script generation, audio generation, batch rendering, voice design previews
+  and LoRA testing.
 
 If quick mode passes but generation fails, the problem is loading the TTS model or reaching
 the language model, not the app itself.

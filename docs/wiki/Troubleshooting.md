@@ -221,9 +221,11 @@ and retries with backoff. If errors continue:
 
 ```bash
 cd app
-python tests/test_api.py          # quick — every endpoint, no TTS or LLM needed
-python tests/test_api.py --full   # also generation — needs TTS and an LLM running
+python run_isolated_api_tests.py          # quick — every endpoint, on a throwaway copy of the app
+python run_isolated_api_tests.py --full   # also generation — needs a GPU and an LLM
 ```
 
-If quick mode passes but generation fails, the problem is loading the TTS model or reaching the
-language model, not the app itself.
+It starts its own copy of the app with an empty data folder, so your books and voices are not
+touched. If quick mode passes but generation fails, the problem is loading the TTS model or
+reaching the language model, not the app itself. See [Home](Home.md#checking-an-installation)
+for testing an app that is already running.
