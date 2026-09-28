@@ -2765,6 +2765,19 @@ correct.
 **Metric** — accuracy of `three_pass_generate.py` against the shipped single
 pass, paired on line id.
 **Probe** — `app/experiments/three_pass_vs_single.py`.
+
+**Correction, 2026-09-28: three-pass IS the product, and the "delete" verdict below is withdrawn.**
+The app generates scripts with `three_pass_generate.py`: `app/routers/script.py` launches it for
+single-book and batch runs alike, and #581 ("Three-pass everywhere", 2026-09-17) made that explicit,
+removed the legacy single-pass "Chunk Size" control from the Setup tab (the old `generate_script.py`
+CLI still reads it), and gave the three passes their own settings. Development has continued on it
+since (#593, #636, #645, #646). The 2026-08-22 "DECIDED: DELETE — do not wire it in" (#404) was
+never carried out, and this section went on describing three-pass as "an alternative that nothing
+currently uses" after that stopped being true. What remains open is only the measurement: no
+clean comparison of **today's** three-pass pipeline against the legacy single pass exists — the
+tables below compare August versions of both. Whether that comparison is still worth running,
+now that single-pass survives only as a CLI, is the open question.
+
 #### DECIDED: DELETE — do not wire it in. 2026-08-22
 
 Five books, five losses, on both light novels in translation and English
