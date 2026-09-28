@@ -1063,6 +1063,13 @@ all upward. **Ten of 57 paired verdicts change**, all nine-novel (or eight-novel
 | Muse KL seed 2, IQ3_M | +1.5 (p=0.003) | +0.9 (p=0.08) | MCMURDO (32 of 34) |
 | Qwen3.8 `michel2v1` Q4_K_M, reasoning low (two copies of one cell) | +1.0 (p=0.02) | +0.6 (p=0.17) | echoes WOODEN-LEGGED MAN |
 | Qwen3.8 `michel2v1` Q3_K_XL | +0.8 (p=0.047) | +0.8 (p=0.057) | — (at the threshold) |
+
+The two Qwen3.8 rows are nine-novel figures, and The Sun Also Rises is one of that adapter's
+training books. **On its held-out eight it stays positive**: reasoning off +2.4 → +1.2
+(p=6e−4), reasoning low +1.6 → +1.1 (p=0.003), Q3_K_XL +1.0 → +1.0 (p=0.004), IQ2_XXS +1.2 →
++1.3 (p=0.045). For the window25 A3B adapter, which holds out all nine, the eight-novel
+figures move the same way: IQ1_M +3.5 → +2.0, IQ3_XXS +2.2 → +0.9 (p=0.10), Q4_K_XL +0.6 →
+−0.9 (p=0.09).
 | Qwen3-14B `attrv1`, eight-novel replication | +2.3 (p=0.03) | +1.9 (p=0.07) | — |
 
 Two mechanisms, both invisible under the stored scoring: adapters that are **wrong** on

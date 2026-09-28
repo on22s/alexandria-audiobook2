@@ -191,9 +191,9 @@ its adapter was trained on, so their losses are real, not a prompt mismatch.
 
 | base | adapter trained on | quant | prompt variant | served its training prompt? | base → adapter | verdict |
 |---|---|---|---|---|---:|---|
-| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning off | `michel2_full` | yes | 94.4 → **95.9** (+1.5, p=9e−5) | **load it** |
-| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning low | `michel2_full` | yes | 95.8 → 96.4 (+0.6, p=0.17) | flat |
-| Qwen3.8-27B | `michel2v1` | Q3_K_XL | `michel2_full` | yes | 95.3 → 96.1 (+0.8, p=0.06) | marginal |
+| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning off | `michel2_full` | yes | 94.4 → **95.9** (+1.5, p=9e−5); held-out eight +1.2 (p=6e−4) | **load it** |
+| Qwen3.8-27B | `michel2v1` | Q4_K_M, reasoning low | `michel2_full` | yes | 95.8 → 96.4 (+0.6, p=0.17); held-out eight **+1.1** (p=0.003) | **load it** |
+| Qwen3.8-27B | `michel2v1` | Q3_K_XL | `michel2_full` | yes | 95.3 → 96.1 (+0.8, p=0.06); held-out eight **+1.0** (p=0.004) | **load it** |
 | Qwen3-14B | `attrv1` | Q4_K_M | `default` | unverified (attribute-prompt version on that tree not recorded) | 67.6 → 72.6 (+5.0) | pointless — see below |
 | Qwen3-14B | `attrv1` | Q4_K_M | `michel2_full` | no — transfer | 84.3 → 84.3 (+0.1) | no, null |
 | Qwen3.6-35B-A3B | `michel2v1` | IQ2_XXS | `michel2_full` | yes | 91.6 → 88.3 (−3.2) | **no** |
@@ -210,8 +210,9 @@ its adapter was trained on, so their losses are real, not a prompt mismatch.
 | Muse-Glimmer-30B | `michel2v2` (KL, seeds 1 / 2) | UD-Q3_K_XL | `michel2_full` | yes | 94.5 → 95.1 / 95.3 (+0.7 / +0.8) | marginal |
 | Muse-Glimmer-30B | `michel2v2` (KL, seeds 1 / 2) | IQ3_M | `michel2_full` | **no** (old text) | 92.3 → 93.3 / 93.2 (+1.0 / +0.9, p=0.08) | on-prompt rerun queued |
 
-**Among the older adapters only Qwen3.8's earns its place**, and after the 2026-09-28
-rescore only clearly with reasoning off (+1.5); with reasoning low it is flat. **Among the
+**Among the older adapters only Qwen3.8's earns its place**, at every rung we have measured:
+after the 2026-09-28 rescore it is +1.0 to +1.2 on the eight novels it never trained on (The Sun
+Also Rises is one of its training books, so its nine-novel column reads low). **Among the
 window25 adapters, Qwen3-8B's does** — most of all (+7.3) on the card tier where the base is
 weakest. A3B's helps only at IQ1_M and **costs 2.1 points at Q4_K_XL**; the Muse KL adapter
 is marginal. (Rescored rows count PDNC's silent short names such as SMALL for the Wooden-Legged
