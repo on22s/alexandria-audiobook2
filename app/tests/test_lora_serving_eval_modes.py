@@ -39,6 +39,26 @@ class LoraServingEvalModeTests(unittest.TestCase):
         self.assertEqual(LLMGenParams().max_tokens, decoding["max_tokens"])
         self.assertGreaterEqual(decoding["max_tokens"], 4096)
 
+    def test_hard_max_tokens_equal_to_budget_stops_escalation(self):
+        """A runaway at IQ2 escalated 4096 -> 6144 -> 9216 at ~4 min a try
+        (tnr-4, 2026-09-28). With the ceiling at the budget it must stay put,
+        while the product default still escalates."""
+        from generate_script import LLMGenParams, get_next_retry_max_tokens
+        self.assertEqual(4096, get_next_retry_max_tokens(4096, "incomplete_output", 4096))
+        self.assertGreater(get_next_retry_max_tokens(
+            4096, "incomplete_output", LLMGenParams().hard_max_tokens), 4096)
+
+    def test_hard_max_tokens_below_budget_is_refused(self):
+        import os, subprocess, sys
+        app = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        run = subprocess.run(
+            [sys.executable, os.path.join(app, "experiments", "lora_serving_eval.py"),
+             "--max-tokens", "4096", "--hard-max-tokens", "2048",
+             "--base_url", "http://127.0.0.1:9/v1"],
+            cwd=app, capture_output=True, text=True, timeout=60)
+        self.assertEqual(2, run.returncode, run.stderr[-500:])
+        self.assertIn("--hard-max-tokens must be at least --max-tokens", run.stderr)
+
     def test_paired_metadata_matches_the_two_executed_arms(self):
         decoding, notes = get_eval_metadata()
         self.assertEqual(["base", "lora"], decoding["arms"])

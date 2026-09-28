@@ -328,6 +328,10 @@ def main():
     ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS,
                     help="completion budget per request before escalation "
                          "(default: the product's own)")
+    ap.add_argument("--hard-max-tokens", type=int, default=None,
+                    help="ceiling for that escalation; set it equal to --max-tokens "
+                         "so a runaway reply fails at the first budget instead of "
+                         "retrying at 6144/9216/... (default: the product's own)")
     ap.add_argument("--reasoning-effort", default="none",
                     choices=("none", "minimal", "low", "medium", "high",
                              "xhigh", "max"))
@@ -394,11 +398,14 @@ def main():
         client = ConfiguredOpenAI(client, json.loads(args.provider_extra_body))
     if args.max_tokens < 1:
         ap.error("--max-tokens must be at least 1")
+    if args.hard_max_tokens is not None and args.hard_max_tokens < args.max_tokens:
+        ap.error("--hard-max-tokens must be at least --max-tokens")
+    cap = {} if args.hard_max_tokens is None else {"hard_max_tokens": args.hard_max_tokens}
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
                           temperature=args.temperature, attribute_temperature=args.temperature,
                           top_p=0.8,
                           reasoning_effort=args.reasoning_effort,
-                          structured_output=args.structured_output)
+                          structured_output=args.structured_output, **cap)
     _env = os.environ.get("EXPERIMENT_ENV")
     decoding, notes = get_eval_metadata(
         args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens,
@@ -406,6 +413,7 @@ def main():
     if cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
+    decoding["hard_max_tokens"] = params.hard_max_tokens
     decoding["prompt_variant"] = args.prompt_variant
     decoding["window_limit"] = args.window_limit
     decoding["roster_mode"] = args.roster_mode
