@@ -3890,6 +3890,11 @@
     "tests.test_verbalization.PictographicKanaTest.test_latin_is_never_pictographic",
     "tests.test_verbalization.PictographicKanaTest.test_lone_kana_is_pictographic"
   ],
+  "test_voice_alias_saved": [
+    "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_clearing_the_alias_in_the_tab_clears_it_in_the_file",
+    "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_renderer_resolves_the_saved_alias",
+    "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_saved_file_keeps_the_alias"
+  ],
   "test_voice_clustering": [
     "tests.test_voice_clustering.VoiceClusteringTests.test_clustering_is_invariant_to_input_order",
     "tests.test_voice_clustering.VoiceClusteringTests.test_complete_link_prevents_similarity_chain_overmerge",

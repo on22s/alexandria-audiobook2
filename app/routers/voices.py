@@ -70,6 +70,10 @@ class VoiceConfigItem(BaseModel):
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
     members: Optional[List[str]] = None  # speaker names to voice at once (ensemble type)
+    # "Alias of" in the Voices tab: speak with this other speaker's voice
+    # (ProjectManager._resolve_alias). Undeclared, the field was dropped by
+    # model_dump() on every save, so no alias set in the UI ever took effect.
+    alias_of: Optional[str] = None
     # Character approved by the user for this book (#522 17.1); a UI flag,
     # nothing downstream reads it.
     ready: bool = False
