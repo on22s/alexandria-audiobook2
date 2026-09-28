@@ -5711,7 +5711,7 @@ an exclusion rather than simply MET.
 pass, paired on line id.
 **Probe** — `app/experiments/three_pass_vs_single.py`.
 
-**CLOSED 2026-09-28 — decided by the owner: three-pass is the product, no further comparison.**
+**MET 2026-09-28 — decided by the owner: three-pass is the product, no further comparison.**
 The target was "one clean comparison, then wire it in or delete it". It was wired in (below), it
 works, and the owner has ruled the single-pass comparison unnecessary: single-pass survives only as
 a CLI. Moved to Part II. The history below is kept as the record of how the decision was reached.
