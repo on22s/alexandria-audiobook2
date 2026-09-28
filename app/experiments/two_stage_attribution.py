@@ -71,14 +71,23 @@ speaks, answer UNKNOWN: a wrong name is worse than an honest UNKNOWN, because \
 nobody can find it later."""
 
 
-def build_client(base_url, api_key="local"):
+def build_client(base_url, api_key="local", hosted=False, extra_body=None):
     # Not beside a running job: this talks to the same server a queued
     # generation uses, and calling it by hand during one is the collision the
-    # queue exists to prevent.
-    require_free_gpu("two_stage_attribution")
+    # queue exists to prevent. A hosted API never touches this machine's card,
+    # so the guard would only refuse a run that cannot collide with anything.
+    if not hosted:
+        require_free_gpu("two_stage_attribution")
     from openai import OpenAI
-    return OpenAI(base_url=base_url, api_key=api_key,
-                  timeout=llm_timeout_seconds())
+    client = OpenAI(base_url=base_url, api_key=api_key,
+                    timeout=llm_timeout_seconds())
+    if extra_body:
+        # The product's own wrapper, as lora_serving_eval uses it, so a
+        # provider body (DeepSeek's thinking switch) merges exactly as a
+        # profile's provider_extra_body does.
+        from llm_provider import ConfiguredOpenAI
+        client = ConfiguredOpenAI(client, extra_body)
+    return client
 
 
 def roster_names(lines):
@@ -441,6 +450,12 @@ def main():
                          "prove two rows saw the same prompt and useless for "
                          "asking WHY a row failed.")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--api-key-env", default=None,
+                    help="environment variable holding the API key for a hosted endpoint; "
+                         "set, the local GPU guard is skipped and EXPERIMENT_ENV describes the model")
+    ap.add_argument("--provider-extra-body", default=None,
+                    help="JSON merged into every request body (e.g. DeepSeek's "
+                         "'{\"thinking\":{\"type\":\"disabled\"}}')")
     args = ap.parse_args()
 
     out = args.out or os.path.join(
@@ -451,14 +466,25 @@ def main():
     # not which weights it holds - and llama.cpp ignores the model field in the
     # request, so a leftover server (or a LoRA left at a persisted scale) would
     # be measured and reported as this one.
-    from experiments.pdnc_narrator_prior import get_llama_server_environment
-    environment = get_llama_server_environment(args.base_url, args.model)
+    hosted = bool(args.api_key_env)
+    _env = os.environ.get("EXPERIMENT_ENV")
+    if _env:
+        environment = json.loads(_env)
+    elif hosted:
+        ap.error("a hosted endpoint needs EXPERIMENT_ENV to say what model answered")
+    else:
+        from experiments.pdnc_narrator_prior import get_llama_server_environment
+        environment = get_llama_server_environment(args.base_url, args.model)
 
-    client = build_client(args.base_url)
+    client = build_client(args.base_url,
+                          api_key=os.environ.get(args.api_key_env, "local") if hosted else "local",
+                          hosted=hosted,
+                          extra_body=json.loads(args.provider_extra_body) if args.provider_extra_body else None)
     decoding = {"temperature": 0.0, "max_tokens": args.max_tokens,
                 "reasoning_effort": args.reasoning, "limit": args.limit,
                 "seed": args.seed, "sampling": "random",
-                "context": "as stored in the fixture (400 chars each side)"}
+                "context": "as stored in the fixture (400 chars each side)",
+                "provider_extra_body": args.provider_extra_body}
     record = ExperimentRecord(
         "two_stage_attribution", REPO, args.model, args.base_url,
         args.fixtures[0], decoding,

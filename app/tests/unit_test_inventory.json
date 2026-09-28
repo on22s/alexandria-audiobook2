@@ -3741,6 +3741,11 @@
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_plain_english_is_not_flagged",
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_romaji_japanese_is_kept_because_english_asr_can_read_it"
   ],
+  "test_two_stage_hosted_client": [
+    "tests.test_two_stage_hosted_client.HostedClientTests.test_a_hosted_endpoint_skips_the_guard_and_uses_the_key",
+    "tests.test_two_stage_hosted_client.HostedClientTests.test_a_local_endpoint_still_takes_the_gpu_guard",
+    "tests.test_two_stage_hosted_client.HostedClientTests.test_the_provider_body_is_merged_into_each_request"
+  ],
   "test_two_stage_narrators_order": [
     "tests.test_two_stage_narrators_order.NarratorOrderingTests.test_narrators_is_assigned_before_every_read",
     "tests.test_two_stage_narrators_order.NarratorOrderingTests.test_no_local_in_main_is_read_before_assignment"
