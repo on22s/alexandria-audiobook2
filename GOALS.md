@@ -1212,6 +1212,21 @@ points at an input we choose rather than at the method.
 > correct — the trainer just doesn't use it.
 
 **Metric** — adapters whose training set includes their validation split.
+**Audited from the datasets themselves, 2026-09-28**
+(`voice_val_contamination_audit_20260928.json`, `app/experiments/voice_val_audit.py`):
+each shipped adapter's dataset zip found by name or by its stored reference text, and its
+`num_samples` compared with the zip's train/ and val/ counts. Of 75: **50 clean**
+(trained on train/ only), **15 trained on their own val clips** — the 8 known 200-clip
+adapters plus **7 of the 8 smaller datasets whose val handling was unchecked**
+(24 = 22+2, 88 = 80+8, 81 = 73+8, 116 = 105+11, 130 = 117+13, 170 = 153+17, 188 = 170+18),
+**1 with no val split at all** (`warm_baritone_40s_m_gothic`: 2 clips), and 9 whose dataset
+is not on disk (8 at 180, consistent with the split but unverified; 1 at 200). The
+never-run `contamination_20260919.sh` (all 28 jobs refused 2026-09-20, dirty tree) is
+re-queued as `goal27_retrain_20260928.sh`: unseen-volume pairs for the 4 clean retrains that
+passed their gate, tight rebuilds for 4 that failed it, and train-split retrains plus
+unseen pairs for the 7 small datasets. Promotion waits for the owner, through
+`promote_adapters.py --gate-campaign unseen`. `velvety_mezzo_30s_f_gothic` and the 2-clip
+voice need new source data.
 **Current** — every dataset zip splits **180 train / 20 val with zero
 overlap**, and the trainer now uses the split, but the live manifest still
 contains **12 of 75 shipped adapters trained on all 200 clips**, down from 21.
@@ -3075,6 +3090,20 @@ constant bias — a calibration fitted on these same clips, so a flattering uppe
 `asr_readalong_ja_confirmation.json`; probe `app/experiments/asr_readalong_ja.py` (needs
 `readalongs` in its own environment, not `app/env`).
 
+**Most of the 272 ms is the clips' own lead-in, not the aligner, 2026-09-28.** The
+instrument scores each boundary against a clip's FILE start, and these 50 real audiobook
+clips carry quiet before their first word: median **0.30 s** by Silero, **0.50 s** by an
+energy onset (20 dB over each clip's own floor, held 50 ms) that shares nothing with any
+detector scored. Silero VAD's boundaries alone reproduce the 272 ms baseline exactly —
+the baseline's boundaries *are* speech onsets. Against the energy-defined speech start
+Silero reads **214 ms, 100% within 0.3 s**; ReadAlong snapped to Silero onsets lands on
+the same place. The two onset definitions disagree by ~0.2 s, more than the 150 ms target
+itself, so on this instrument the target cannot be judged until "start" has one
+definition — a truth problem, not an aligner one. The dataset-cut clips' 39 ms fits this:
+our own cutter trims to speech. To settle it: hand-mark the 50 onsets (about 20 minutes of
+listening), or adopt one onset rule for truth and scoring alike. Artifact:
+`asr_japanese_leadin.json`; probe `app/experiments/asr_japanese_leadin.py`.
+
 ### 6.6 A check that cannot fail is not evidence
 
 > **What this is.** Before a check is believed, it has to be shown failing on
@@ -3085,13 +3114,31 @@ constant bias — a calibration fitted on these same clips, so a flattering uppe
 
 **Metric** — checks whose rejecting case is exercised, over checks relied on.
 
-**Current — OPEN, six tranches in.** Tranches 1–5 audited guards found by
+**Current — OPEN, seven tranches in** (the seventh, 2026-09-28, is below). Tranches 1–5 audited guards found by
 their cost; the sixth (2026-09-19) enumerated the 44 guard-shaped functions in
 the app and covered the 17 that had no rejecting test. Still owed: the same
 enumeration over `app/experiments/` (the measurement scripts' own refusals)
 and the shell chains' wait predicates — a `.ready` marker written with
 `touch` and waited on with `test -s` held a GPU idle for four hours the same
 day, and no test can see a chain.
+
+**SEVENTH AUDIT TRANCHE, 2026-09-28 — the `app/experiments/` enumeration, first pass.**
+126 guard-shaped functions in `app/experiments/`; a text search flagged 43 with no
+rejecting test, and triage by reading them left the ones that protect evidence. Covered
+now (`app/tests/test_experiment_guards_tranche7.py`, 13 tests), each with a case it must
+refuse and one it must accept, and each shown RED with its guard removed:
+- **the adapter-scale toggle, in all five copies** (`lora_serving_eval.set_adapter_scale`,
+  and `set_scale` in `pdnc_eval`, `lora_scale_sweep`, `chinese_attribution`,
+  `scale_vs_register`), against a stand-in server that honours the toggle, ignores it, or
+  omits the scale — the check that stops a "base" arm being the adapter at scale 1;
+- `ljspeech_prepare.split_by_book` — no book on both sides; an unknown book id refused;
+- `attribution_hybrid.index_rows` — duplicate and missing ids refused;
+- `blinded_listening._resolve_source` — a path outside the repository refused;
+- `library_voice_fidelity_resume_20260831.is_valid_audio` — a truncated WAV is invalid.
+Five copies of one guard is itself a Rule 15 finding, recorded, not refactored here.
+Still owed: `distill_train.compute_loss`'s "no supervised answer tokens" (defined inside
+the trainer, not testable alone), the remaining helpers that only re-raise a subprocess
+failure, and the shell chains' wait predicates.
 
 **FIRST AUDIT TRANCHE, 2026-09-04.** Seven more checks could pass without
 looking: the goal-evidence freshness gate explicitly returned PASS without a
@@ -6600,10 +6647,9 @@ If only three things get worked on:
    controls read exactly 0). **Recounted 2026-09-27 from each shipped adapter's
    training metadata:** 58 trained on the 180-clip split; **9 on all 200
    clips**; and **8 on every clip of a smaller dataset** (24–188 clips, one of
-   just **2**: `warm_baritone_40s_m_gothic`), whose val handling is unchecked.
-   The live figure is therefore 9 certain plus up to 8, not the 12 audited
-   2026-08-16 — the next step is an inventory of those eight datasets, not
-   arithmetic.
+   just **2**: `warm_baritone_40s_m_gothic`). **Inventoried 2026-09-28:** 7 of those 8
+   trained on their own val clips and the eighth has no val split, so the live figure is
+   **15 contaminated plus 1 unsplit** (see 2.7); the retrains are queued.
 
 **Selection (1.2) was #1 on this list until 2026-08-08 and is now MET** — the
 29.9% it was built on came from a model that does not ship. Re-measuring goals

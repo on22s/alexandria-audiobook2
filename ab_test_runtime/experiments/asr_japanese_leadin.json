@@ -1,0 +1,263 @@
+{
+ "instrument": {
+  "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+  "row_offset": 0,
+  "clips": 50,
+  "gap_s": 0.5
+ },
+ "leadin_silero": {
+  "median_s": 0.3,
+  "p10_s": 0.0,
+  "p90_s": 0.4,
+  "max_s": 0.5,
+  "n": 50
+ },
+ "leadin_energy": {
+  "median_s": 0.5,
+  "p10_s": 0.23,
+  "p90_s": 0.63,
+  "max_s": 0.75,
+  "n": 50
+ },
+ "silero_vs_clip_start": {
+  "scored": 50,
+  "predicted_segments": 93,
+  "expected_segments": 50,
+  "median_error_s": 0.272,
+  "p90_error_s": 0.419,
+  "worst_error_s": 0.516,
+  "within_tolerance_pct": 58.0,
+  "tolerance_s": 0.3
+ },
+ "silero_vs_energy_speech_onset": {
+  "scored": 50,
+  "predicted_segments": 93,
+  "expected_segments": 50,
+  "median_error_s": 0.214,
+  "p90_error_s": 0.267,
+  "worst_error_s": 0.291,
+  "within_tolerance_pct": 100.0,
+  "tolerance_s": 0.3
+ },
+ "per_clip_leadin": {
+  "botchan-by-soseki-natsume-2-00001": {
+   "silero": 0.4,
+   "energy": 0.58
+  },
+  "gan-by-ogai-mori-00002": {
+   "silero": 0.0,
+   "energy": 0.23
+  },
+  "kouyahijiri-by-kyoka-izumi-00001": {
+   "silero": 0.4,
+   "energy": 0.5
+  },
+  "kusamakura-by-soseki-natsume-00002": {
+   "silero": 0.3,
+   "energy": 0.5
+  },
+  "botchan-by-soseki-natsume-2-00304": {
+   "silero": 0.0,
+   "energy": 0.13
+  },
+  "gan-by-ogai-mori-00123": {
+   "silero": 0.0,
+   "energy": 0.26
+  },
+  "kouyahijiri-by-kyoka-izumi-00058": {
+   "silero": 0.4,
+   "energy": 0.53
+  },
+  "kusamakura-by-soseki-natsume-00294": {
+   "silero": 0.5,
+   "energy": 0.68
+  },
+  "botchan-by-soseki-natsume-2-00525": {
+   "silero": 0.4,
+   "energy": 0.63
+  },
+  "gan-by-ogai-mori-00205": {
+   "silero": 0.4,
+   "energy": 0.58
+  },
+  "kouyahijiri-by-kyoka-izumi-00124": {
+   "silero": 0.0,
+   "energy": 0.25
+  },
+  "kusamakura-by-soseki-natsume-00514": {
+   "silero": 0.4,
+   "energy": 0.61
+  },
+  "botchan-by-soseki-natsume-2-00741": {
+   "silero": 0.4,
+   "energy": 0.63
+  },
+  "gan-by-ogai-mori-00233": {
+   "silero": 0.0,
+   "energy": 0.25
+  },
+  "kouyahijiri-by-kyoka-izumi-00179": {
+   "silero": 0.3,
+   "energy": 0.53
+  },
+  "kusamakura-by-soseki-natsume-00865": {
+   "silero": 0.2,
+   "energy": 0.38
+  },
+  "botchan-by-soseki-natsume-2-01025": {
+   "silero": 0.2,
+   "energy": 0.4
+  },
+  "gan-by-ogai-mori-00359": {
+   "silero": 0.1,
+   "energy": 0.29
+  },
+  "kouyahijiri-by-kyoka-izumi-00232": {
+   "silero": 0.3,
+   "energy": 0.5
+  },
+  "kusamakura-by-soseki-natsume-01133": {
+   "silero": 0.3,
+   "energy": 0.52
+  },
+  "botchan-by-soseki-natsume-2-01318": {
+   "silero": 0.0,
+   "energy": 0.26
+  },
+  "gan-by-ogai-mori-00448": {
+   "silero": 0.4,
+   "energy": 0.59
+  },
+  "kouyahijiri-by-kyoka-izumi-00287": {
+   "silero": 0.2,
+   "energy": 0.42
+  },
+  "kusamakura-by-soseki-natsume-01376": {
+   "silero": 0.2,
+   "energy": 0.42
+  },
+  "botchan-by-soseki-natsume-2-01725": {
+   "silero": 0.2,
+   "energy": 0.34
+  },
+  "gan-by-ogai-mori-00552": {
+   "silero": 0.0,
+   "energy": 0.14
+  },
+  "kouyahijiri-by-kyoka-izumi-00340": {
+   "silero": 0.4,
+   "energy": 0.62
+  },
+  "kusamakura-by-soseki-natsume-01681": {
+   "silero": 0.2,
+   "energy": 0.43
+  },
+  "botchan-by-soseki-natsume-2-01996": {
+   "silero": 0.4,
+   "energy": 0.58
+  },
+  "gan-by-ogai-mori-00660": {
+   "silero": 0.0,
+   "energy": 0.18
+  },
+  "kouyahijiri-by-kyoka-izumi-00392": {
+   "silero": 0.5,
+   "energy": 0.63
+  },
+  "kusamakura-by-soseki-natsume-01882": {
+   "silero": 0.1,
+   "energy": 0.27
+  },
+  "botchan-by-soseki-natsume-2-02229": {
+   "silero": 0.5,
+   "energy": 0.75
+  },
+  "gan-by-ogai-mori-00793": {
+   "silero": 0.4,
+   "energy": 0.64
+  },
+  "kouyahijiri-by-kyoka-izumi-00445": {
+   "silero": 0.3,
+   "energy": 0.57
+  },
+  "kusamakura-by-soseki-natsume-02126": {
+   "silero": 0.2,
+   "energy": 0.4
+  },
+  "botchan-by-soseki-natsume-2-02549": {
+   "silero": 0.5,
+   "energy": 0.66
+  },
+  "gan-by-ogai-mori-00899": {
+   "silero": 0.3,
+   "energy": 0.46
+  },
+  "kouyahijiri-by-kyoka-izumi-00497": {
+   "silero": 0.4,
+   "energy": 0.65
+  },
+  "kusamakura-by-soseki-natsume-02311": {
+   "silero": 0.3,
+   "energy": 0.43
+  },
+  "botchan-by-soseki-natsume-2-02831": {
+   "silero": 0.4,
+   "energy": 0.62
+  },
+  "gan-by-ogai-mori-00964": {
+   "silero": 0.3,
+   "energy": 0.47
+  },
+  "kouyahijiri-by-kyoka-izumi-00546": {
+   "silero": 0.4,
+   "energy": 0.51
+  },
+  "kusamakura-by-soseki-natsume-02558": {
+   "silero": 0.3,
+   "energy": 0.53
+  },
+  "gan-by-ogai-mori-01136": {
+   "silero": 0.0,
+   "energy": 0.14
+  },
+  "kouyahijiri-by-kyoka-izumi-00601": {
+   "silero": 0.3,
+   "energy": 0.49
+  },
+  "kusamakura-by-soseki-natsume-02793": {
+   "silero": 0.0,
+   "energy": 0.14
+  },
+  "gan-by-ogai-mori-01242": {
+   "silero": 0.4,
+   "energy": 0.56
+  },
+  "kouyahijiri-by-kyoka-izumi-00648": {
+   "silero": 0.3,
+   "energy": 0.51
+  },
+  "kusamakura-by-soseki-natsume-03134": {
+   "silero": 0.3,
+   "energy": 0.51
+  }
+ },
+ "provenance": {
+  "script": "asr_japanese_leadin.py",
+  "written": "2026-09-28T05:09:25",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1c8771bab370ce97f3fe3f69aae5905788942fcb",
+   "branch": "goals-1-1-met-5-4-readalong",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "c613e0554130b58424893e8c86b462a78d2f17f1fd8c72c8bc78258f33e56cbe"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+   "limit": 50,
+   "row_offset": 0,
+   "out": "ab_test_runtime/experiments/asr_japanese_leadin.json"
+  }
+ }
+}

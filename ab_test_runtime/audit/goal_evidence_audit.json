@@ -218,14 +218,14 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 13,
+   "cited": 14,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "manifest.json"
    ],
    "weakest_evidence": "supported_structure",
    "classifications": {
-    "supported_structure": 12
+    "supported_structure": 13
    },
    "dirty_artifacts": 8,
    "no_commit": 0,
@@ -301,6 +301,12 @@
      "classification": "supported_structure",
      "dirty": true,
      "commit": "2741538d"
+    },
+    {
+     "name": "voice_val_contamination_audit_20260928.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "97a9d231"
     }
    ]
   },
@@ -418,12 +424,12 @@
   {
    "goal": "5.4",
    "title": "Transcription and clip boundaries in the preparer",
-   "cited": 9,
+   "cited": 10,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 7,
+    "supported_structure": 8,
     "exploratory": 2
    },
    "dirty_artifacts": 1,
@@ -446,6 +452,12 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "c509cd2e"
+    },
+    {
+     "name": "asr_japanese_leadin.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "1c8771ba"
     },
     {
      "name": "asr_readalong_ja_confirmation.json",
