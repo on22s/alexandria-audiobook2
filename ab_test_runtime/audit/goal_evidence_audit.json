@@ -416,41 +416,6 @@
    ]
   },
   {
-   "goal": "5.3",
-   "title": "Three-pass vs single-pass generation",
-   "cited": 4,
-   "not_in_audit": [],
-   "not_experiment_artifacts": [
-    "config.json"
-   ],
-   "weakest_evidence": "supported_structure",
-   "classifications": {
-    "supported_structure": 3
-   },
-   "dirty_artifacts": 1,
-   "no_commit": 0,
-   "artifacts": [
-    {
-     "name": "script_text_fidelity.json",
-     "classification": "supported_structure",
-     "dirty": true,
-     "commit": "38ce596a"
-    },
-    {
-     "name": "three_pass_vs_single_mapped.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "a7e0a996"
-    },
-    {
-     "name": "three_pass_vs_single_pdnc.json",
-     "classification": "supported_structure",
-     "dirty": false,
-     "commit": "74d1f6b0"
-    }
-   ]
-  },
-  {
    "goal": "5.4",
    "title": "Transcription and clip boundaries in the preparer",
    "cited": 9,
@@ -889,6 +854,41 @@
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
+    }
+   ]
+  },
+  {
+   "goal": "5.3",
+   "title": "Three-pass vs single-pass generation",
+   "cited": 4,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [
+    "config.json"
+   ],
+   "weakest_evidence": "supported_structure",
+   "classifications": {
+    "supported_structure": 3
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 0,
+   "artifacts": [
+    {
+     "name": "script_text_fidelity.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "38ce596a"
+    },
+    {
+     "name": "three_pass_vs_single_mapped.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "a7e0a996"
+    },
+    {
+     "name": "three_pass_vs_single_pdnc.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "74d1f6b0"
     }
    ]
   },
