@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -23,6 +24,13 @@ target = (
     "The rain had stopped before dawn, leaving the narrow streets bright and silver. "
     "At the end of the lane, a single lamp still burned beside the old library door."
 )
+
+if os.environ.get("ALEXANDRIA_GPU_LOCK_HELD") != "1":
+    os.execv(
+        str(Path(__file__).resolve().parent.parent / "gpu_job.sh"),
+        ["gpu_job.sh", "cloud_tts_qwen_compare_20260824", sys.executable,
+         str(Path(__file__).resolve())],
+    )
 
 torch.manual_seed(20260824)
 started = time.time()

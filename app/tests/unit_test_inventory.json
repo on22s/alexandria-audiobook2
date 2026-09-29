@@ -759,6 +759,9 @@
     "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_real_validator_produces_a_trigram_only_near_miss",
     "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_split_recombination_accepted_as_near_miss"
   ],
+  "test_cloud_tts_gpu_lock": [
+    "tests.test_cloud_tts_gpu_lock.CloudTtsGpuLockTests.test_model_load_waits_for_queue"
+  ],
   "test_compare_attribution_arms": [
     "tests.test_compare_attribution_arms.FindDisagreementsTest.test_differing_speaker_is_reported",
     "tests.test_compare_attribution_arms.FindDisagreementsTest.test_empty_arm_yields_no_disagreements",
@@ -912,6 +915,9 @@
     "tests.test_descriptor_candidates.DetectorTest.test_bare_occupational_nouns_count",
     "tests.test_descriptor_candidates.DetectorTest.test_blank_input_is_not_a_descriptor",
     "tests.test_descriptor_candidates.DetectorTest.test_real_names_do_not"
+  ],
+  "test_designed_voice_alias_js": [
+    "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_lookup_failure_preserves_alias_and_fresh_result_populates_options"
   ],
   "test_deterministic_classification": [
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_config_can_still_override",
@@ -1458,6 +1464,7 @@
     "tests.test_generate_personas.NormalizationTest.test_non_string_input_is_empty",
     "tests.test_generate_personas.NormalizationTest.test_persona_context_size_bounds_both_sample_and_narrator_lines",
     "tests.test_generate_personas.NormalizationTest.test_persona_route_passes_context_lines_to_the_script",
+    "tests.test_generate_personas.NormalizationTest.test_preview_manifest_preserves_concurrent_ui_entry",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_case_variant_roster_is_not_treated_as_ambiguous",
     "tests.test_generate_personas.RealRosterShapeTest.test_a_roster_loaded_from_a_config_shaped_dict",
     "tests.test_generate_personas.RealRosterShapeTest.test_one_couple_anywhere_in_a_large_roster_is_enough",
@@ -2229,6 +2236,9 @@
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_is_refused_with_501_where_the_signals_do_not_exist"
   ],
+  "test_muse_gpu_lock": [
+    "tests.test_muse_gpu_lock.MuseGpuLockTests.test_server_start_queues_first"
+  ],
   "test_name_variant_triage": [
     "tests.test_name_variant_triage.ClassifyTest.test_a_drawn_out_name_is_a_deliberate_stretch",
     "tests.test_name_variant_triage.ClassifyTest.test_a_name_the_cast_list_does_not_know_is_flagged_honestly",
@@ -2753,6 +2763,9 @@
     "tests.test_reference_spread.SpearmanTest.test_it_ranks_rather_than_fits",
     "tests.test_reference_spread.SpearmanTest.test_too_few_arms_is_undefined"
   ],
+  "test_regate_gpu_lock": [
+    "tests.test_regate_gpu_lock.RegateGpuLockTests.test_identity_gate_runs_through_gpu_job"
+  ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "tests.test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
@@ -3101,6 +3114,17 @@
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_page_defines_quality_scale_and_requires_complete_sets",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_manifest_does_not_expose_arm_arguments",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_page_does_not_name_concealed_arms"
+  ],
+  "test_saved_book_exports": [
+    "tests.test_saved_book_exports.SavedBookExportTests.test_each_busy_writer_refuses_load_without_discarding_exports",
+    "tests.test_saved_book_exports.SavedBookExportTests.test_export_reservation_waits_until_book_switch_finishes",
+    "tests.test_saved_book_exports.SavedBookExportTests.test_invalidation_failure_aborts_before_active_script_mutation",
+    "tests.test_saved_book_exports.SavedBookExportTests.test_load_removes_all_previous_book_downloads",
+    "tests.test_saved_book_exports.SavedBookExportTests.test_load_without_exports_succeeds",
+    "tests.test_saved_book_exports.SavedBookExportTests.test_missing_book_preserves_exports"
+  ],
+  "test_saved_book_load_checkpoint": [
+    "tests.test_saved_book_load_checkpoint.SavedBookLoadCheckpointTests.test_load_clears_active_generation_and_recovery_sidecars"
   ],
   "test_scene_narrowing": [
     "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",
@@ -3847,6 +3871,8 @@
   ],
   "test_ui_review_fixes": [
     "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_editing_replaces_the_entry_instead_of_appending",
+    "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_failed_delete_preserves_manifest_and_audio",
+    "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_failed_update_preserves_audio_and_success_keeps_assigned_path",
     "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_unknown_id_is_refused_not_silently_appended",
     "tests.test_ui_review_fixes.FrontendGuards.test_dataset_delete_checks_the_response",
     "tests.test_ui_review_fixes.FrontendGuards.test_every_localstorage_access_is_wrapped"
@@ -4039,6 +4065,7 @@
   "test_voicelab_pipeline_scripts": [
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_manifest_keeps_entry_written_during_training",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_rejects_colliding_normalized_dataset_ids",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_returns_failure_after_processing_all_archives",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_zip_validation_rejects_unsafe_and_oversized_archives",

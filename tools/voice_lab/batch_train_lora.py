@@ -36,6 +36,7 @@ APP_DIR = os.path.join(REPO2_DIR, "app")
 sys.path.insert(0, APP_DIR)
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
+from utils import file_lock
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -382,8 +383,10 @@ def main() -> int:
             continue
 
         # Register in manifest
-        manifest.append(result)
-        save_manifest(args.manifest, manifest)
+        with file_lock(args.manifest):
+            manifest = load_manifest(args.manifest)
+            manifest.append(result)
+            save_manifest(args.manifest, manifest)
         done += 1
 
         elapsed_all = time.time() - start_all

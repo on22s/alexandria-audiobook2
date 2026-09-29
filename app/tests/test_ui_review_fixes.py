@@ -17,6 +17,44 @@ STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 
 
 class DesignedVoiceUpdate(unittest.TestCase):
+    def test_failed_update_preserves_audio_and_success_keeps_assigned_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, manifest = self._save(tmp)
+            filename = manifest[0]["filename"]
+            audio_path = os.path.join(tmp, filename)
+            preview_path = os.path.join(tmp, "previews", "p.wav")
+            with open(preview_path, "wb") as fh:
+                fh.write(b"new audio")
+            req = vd.VoiceDesignSaveRequest(
+                name="Alto", description="changed", sample_text="s",
+                preview_file="p.wav", voice_id=first["voice_id"])
+            with patch.object(vd, "DESIGNED_VOICES_DIR", tmp), \
+                 patch.object(vd, "DESIGNED_VOICES_MANIFEST", os.path.join(tmp, "manifest.json")):
+                with patch.object(vd, "_save_manifest", side_effect=OSError("disk full")):
+                    with self.assertRaises(OSError):
+                        asyncio.run(vd.voice_design_save(req))
+                with open(audio_path, "rb") as fh:
+                    self.assertEqual(b"RIFF", fh.read())
+                asyncio.run(vd.voice_design_save(req))
+            with open(os.path.join(tmp, "manifest.json")) as fh:
+                updated = json.load(fh)
+            self.assertEqual(filename, updated[0]["filename"])
+            with open(audio_path, "rb") as fh:
+                self.assertEqual(b"new audio", fh.read())
+
+    def test_failed_delete_preserves_manifest_and_audio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, manifest = self._save(tmp)
+            path = os.path.join(tmp, manifest[0]["filename"])
+            with patch.object(vd, "DESIGNED_VOICES_DIR", tmp), \
+                 patch.object(vd, "DESIGNED_VOICES_MANIFEST", os.path.join(tmp, "manifest.json")), \
+                 patch.object(vd, "_save_manifest", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    asyncio.run(vd.voice_design_delete(first["voice_id"]))
+            self.assertTrue(os.path.exists(path))
+            with open(os.path.join(tmp, "manifest.json")) as fh:
+                self.assertEqual(first["voice_id"], json.load(fh)[0]["id"])
+
     def _save(self, tmp, **over):
         previews = os.path.join(tmp, "previews")
         os.makedirs(previews, exist_ok=True)

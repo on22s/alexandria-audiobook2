@@ -16,8 +16,14 @@ eleven pairs like EMILIA/Emilia and NOT-SATELLA/Not-Satella that are one
 character each and rely on being merged.
 """
 import os
+import json
 import sys
+import tempfile
+import threading
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,6 +34,42 @@ from generate_personas import (_resolve_to_canonical, _token_jaccard,
 
 
 class NormalizationTest(unittest.TestCase):
+
+    def test_preview_manifest_preserves_concurrent_ui_entry(self):
+        import generate_personas as personas
+        from utils import atomic_json_write, file_lock
+
+        with tempfile.TemporaryDirectory() as root:
+            wav = Path(root, "source.wav")
+            wav.write_bytes(b"preview")
+            manifest_path = Path(root, "designed_voices", "manifest.json")
+            writer_done = threading.Event()
+            writers = []
+
+            def write_ui_entry():
+                with file_lock(str(manifest_path)):
+                    current = json.loads(manifest_path.read_text()) if manifest_path.exists() else []
+                    current.append({"id": "ui", "name": "UI voice"})
+                    atomic_json_write(current, str(manifest_path))
+                writer_done.set()
+
+            def interleave(data, path):
+                if str(path) == str(manifest_path):
+                    writer = threading.Thread(target=write_ui_entry)
+                    writer.start()
+                    writers.append(writer)
+                    writer_done.wait(1)
+                atomic_json_write(data, path)
+
+            engine = SimpleNamespace(generate_voice_design=lambda **kwargs: (str(wav), None))
+            with patch.object(personas, "_atomic_json_write", side_effect=interleave):
+                self.assertTrue(personas._save_generated_preview(
+                    root, engine, {}, "Alice", "description", "sample"))
+            for writer in writers:
+                writer.join(2)
+                self.assertFalse(writer.is_alive())
+            self.assertEqual({"Alice", "UI voice"},
+                             {entry["name"] for entry in json.loads(manifest_path.read_text())})
 
     def test_persona_route_passes_context_lines_to_the_script(self):
         import asyncio

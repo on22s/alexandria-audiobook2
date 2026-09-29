@@ -46,7 +46,7 @@ while IFS=$'\t' read -r name adapter data; do
         cp "$old" "$BACKUP/"
     fi
     echo "=== $name $(date -u +%FT%TZ) ==="
-    "$PY" -u app/experiments/verify_adapter_identity.py \
+    ./gpu_job.sh "regate_reference_text: $name" "$PY" -u app/experiments/verify_adapter_identity.py \
         --adapter "$adapter" --dataset "$data" --lines 6 \
         --out "$old" > "$LOG/$name.log" 2>&1
     rc=$?

@@ -21,6 +21,9 @@ BIN="${LLAMA_BIN:-/usr/bin/llama-server}"
 PORT=8097
 [ -s "$MODEL" ] || { stage_note "REFUSING: no Muse GGUF at $MODEL"; exit 1; }
 [ -x "$BIN" ] || { stage_note "REFUSING: no llama-server at $BIN"; exit 1; }
+if [ "${ALEXANDRIA_GPU_LOCK_HELD:-}" != 1 ]; then
+    exec "$REPO/gpu_job.sh" muse_local_reasoninglow_20260914 "$0"
+fi
 pkill -x llama-server 2>/dev/null; sleep 3
 "$BIN" -m "$MODEL" --alias muse-glimmer-30b --host 127.0.0.1 --port $PORT -ngl 99 -c 16384 --parallel 1 \
     --flash-attn on --cache-type-k q8_0 --cache-type-v q8_0 \
@@ -34,8 +37,6 @@ export EXPERIMENT_ENV="{\"available\":true,\"loaded\":true,\"gpu\":\"AMD Radeon 
 for book in grimgar03 index18 mushoku16 owarimonogatari3; do
     TAG="muse-glimmer-30b-base-local-9070xt-product-batch25-q3-jsonschema-reasoninglow-${book}-20260914"
     run_stage "muse_local_$book" 6h -- \
-        env REQUIRE_VRAM_GB=0 \
-        "$REPO/gpu_job.sh" "muse_local_$book" \
         "$python" -u "$REPO/app/experiments/lora_serving_eval.py" \
         --model muse-glimmer-30b --base_url "http://127.0.0.1:$PORT/v1" --books "$book" \
         --batch-size 25 --base-only --max-tokens 4096 --reasoning-effort low --structured-output auto \

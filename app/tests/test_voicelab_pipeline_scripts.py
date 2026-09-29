@@ -37,6 +37,29 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def test_batch_manifest_keeps_entry_written_during_training(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zips = Path(tmp, "zips")
+            zips.mkdir()
+            Path(zips, "new.zip").write_bytes(b"unused")
+            models = Path(tmp, "models")
+            manifest = models / "manifest.json"
+            argv = ["batch_train_lora.py", "--zips_dir", str(zips),
+                    "--datasets_dir", str(Path(tmp, "datasets")),
+                    "--models_dir", str(models), "--manifest", str(manifest)]
+
+            def train_with_intervening_write(*args):
+                batch_train.save_manifest(str(manifest), [{"id": "other", "dataset_id": "other"}])
+                return {"id": "new", "dataset_id": "new"}
+
+            with patch.object(sys, "argv", argv), \
+                 patch.object(batch_train, "train_one", side_effect=train_with_intervening_write), \
+                 redirect_stdout(io.StringIO()):
+                self.assertEqual(0, batch_train.main())
+
+            self.assertEqual({"other", "new"},
+                             {entry["id"] for entry in batch_train.load_manifest(str(manifest))})
+
     def test_stage_scripts_resolve_within_the_selected_checkout(self):
         for name in ("audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
                      "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):

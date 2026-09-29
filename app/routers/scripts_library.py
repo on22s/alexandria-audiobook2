@@ -8,19 +8,26 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from core import (
+    AUDIOBOOK_PATH,
     CHUNKS_PATH,
+    DATA_DIR,
+    M4B_PATH,
     SCRIPT_PATH,
     SCRIPTS_DIR,
     UPLOADS_DIR,
     VOICE_CONFIG_PATH,
     _get_saved_book_id,
+    _gpu_lock,
     _require_safe_filename,
     _save_active_book_id,
     _saved_book_meta_path,
     get_active_book_id,
     process_state,
 )
+from project import CHAPTER_EXPORT_DIR
 from review_script import _checkpoint_path, clear_checkpoint
+from generate_script import get_generation_checkpoint_path, get_generation_quality_path
+from three_pass_generate import three_pass_checkpoint_path, three_pass_manifest_path
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
@@ -98,39 +105,63 @@ class ScriptLoadRequest(BaseModel):
 @router.post("/api/scripts/load")
 async def load_script(request: ScriptLoadRequest):
     """Load a saved script, replacing the current annotated_script.json and chunks."""
-    # Block while ANY task that writes annotated_script.json / voice_config.json
-    # is running — not just audio. A script/review/persona/nicknames run finishes
-    # by writing those files and would silently overwrite the book we load here.
-    busy = [k for k in ("audio", "script", "review", "persona", "nicknames")
-            if process_state.get(k, {}).get("running")]
-    if busy:
-        raise HTTPException(status_code=409,
-            detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
-
     safe_name = _require_safe_filename(request.name, "Invalid script name.")
 
     src = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     if not os.path.exists(src):
         raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
 
-    shutil.copy2(src, SCRIPT_PATH)
-    _save_active_book_id(_get_saved_book_id(safe_name), src)
+    # Serialize this load with claim_gpu_task() so an export cannot reserve its
+    # task after the busy check and begin using the old book while we switch.
+    with _gpu_lock:
+        # Block while ANY task that writes annotated_script.json / voice_config.json
+        # or exported audio is running — not just audio. A script/review/persona/
+        # nicknames run finishes by writing those files and would silently overwrite
+        # the book we load here; exports read the current chunks and write shared paths.
+        busy = [k for k in ("audio", "script", "review", "persona", "nicknames",
+                            "audacity_export", "m4b_export", "chapter_export")
+                if process_state.get(k, {}).get("running")]
+        if busy:
+            raise HTTPException(status_code=409,
+                detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
 
-    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
-    if os.path.exists(companion):
-        shutil.copy2(companion, VOICE_CONFIG_PATH)
-    elif os.path.exists(VOICE_CONFIG_PATH):
-        os.remove(VOICE_CONFIG_PATH)
+        # Exports are not book-specific. Remove them before changing the active
+        # script; any OSError aborts the load before active-book mutation starts.
+        for export_path in (AUDIOBOOK_PATH, M4B_PATH,
+                            os.path.join(DATA_DIR, "audacity_export.zip")):
+            if os.path.exists(export_path):
+                os.remove(export_path)
+        chapter_exports = os.path.join(DATA_DIR, CHAPTER_EXPORT_DIR)
+        if os.path.exists(chapter_exports):
+            shutil.rmtree(chapter_exports)
 
-    # Delete chunks so they regenerate from the loaded script
-    if os.path.exists(CHUNKS_PATH):
-        os.remove(CHUNKS_PATH)
+        shutil.copy2(src, SCRIPT_PATH)
+        _save_active_book_id(_get_saved_book_id(safe_name), src)
 
-    # Clear any review checkpoint left over from the PREVIOUS active book. The
-    # checkpoint is keyed to SCRIPT_PATH, not to a book identity (load_checkpoint
-    # validates only batch_size/context_window), so a resume after this load would
-    # otherwise splice the old book's corrected entries into the one just loaded.
-    clear_checkpoint(SCRIPT_PATH)
+        companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
+        if os.path.exists(companion):
+            shutil.copy2(companion, VOICE_CONFIG_PATH)
+        elif os.path.exists(VOICE_CONFIG_PATH):
+            os.remove(VOICE_CONFIG_PATH)
+
+        # Delete chunks so they regenerate from the loaded script
+        if os.path.exists(CHUNKS_PATH):
+            os.remove(CHUNKS_PATH)
+
+        # Clear any review checkpoint left over from the PREVIOUS active book. The
+        # checkpoint is keyed to SCRIPT_PATH, not to a book identity (load_checkpoint
+        # validates only batch_size/context_window), so a resume after this load would
+        # otherwise splice the old book's corrected entries into the one just loaded.
+        clear_checkpoint(SCRIPT_PATH)
+
+        for path in (three_pass_checkpoint_path(SCRIPT_PATH),
+                     three_pass_manifest_path(SCRIPT_PATH),
+                     get_generation_checkpoint_path(SCRIPT_PATH),
+                     get_generation_quality_path(SCRIPT_PATH)):
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
 
     logger.info(f"Script '{request.name}' loaded")
     return {"status": "loaded", "name": request.name}

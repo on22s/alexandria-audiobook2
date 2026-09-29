@@ -11,7 +11,7 @@ from llm_provider import make_run_client
 from generate_script import LLMGenParams, call_llm_for_object
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import validate_persona_payload
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -544,43 +544,44 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
 
         try:
             manifest_path = os.path.join(dest_dir, 'manifest.json')
-            manifest = []
-            if os.path.exists(manifest_path):
-                try:
-                    with open(manifest_path, 'r', encoding='utf-8') as mf:
-                        manifest = json.load(mf)
-                except Exception as e:
-                    print(f"Warning: corrupted manifest.json at {manifest_path}, resetting to empty: {e}")
-                    manifest = []
+            with file_lock(manifest_path):
+                manifest = []
+                if os.path.exists(manifest_path):
+                    try:
+                        with open(manifest_path, 'r', encoding='utf-8') as mf:
+                            manifest = json.load(mf)
+                    except Exception as e:
+                        print(f"Warning: corrupted manifest.json at {manifest_path}, resetting to empty: {e}")
+                        manifest = []
 
-            stale_entries = [entry for entry in manifest if entry.get("name") == speaker]
-            manifest = [entry for entry in manifest if entry.get("name") != speaker]
-            for stale in stale_entries:
-                stale_filename = stale.get("filename") or ""
-                if stale_filename:
-                    stale_path = os.path.join(dest_dir, stale_filename)
-                    if os.path.exists(stale_path) and os.path.abspath(stale_path) != os.path.abspath(dest_path):
-                        try:
-                            os.remove(stale_path)
-                        except OSError:
-                            pass
-                stale_meta = stale.get("id")
-                if stale_meta:
-                    stale_meta_path = os.path.join(dest_dir, f"{stale_meta}_meta.json")
-                    if os.path.exists(stale_meta_path):
-                        try:
-                            os.remove(stale_meta_path)
-                        except OSError:
-                            pass
+                stale_entries = [entry for entry in manifest if entry.get("name") == speaker]
+                manifest = [entry for entry in manifest if entry.get("name") != speaker]
+                for stale in stale_entries:
+                    stale_filename = stale.get("filename") or ""
+                    if stale_filename:
+                        stale_path = os.path.join(dest_dir, stale_filename)
+                        if os.path.exists(stale_path) and os.path.abspath(stale_path) != os.path.abspath(dest_path):
+                            try:
+                                os.remove(stale_path)
+                            except OSError:
+                                pass
+                    stale_meta = stale.get("id")
+                    if stale_meta:
+                        stale_meta_path = os.path.join(dest_dir, f"{stale_meta}_meta.json")
+                        if os.path.exists(stale_meta_path):
+                            try:
+                                os.remove(stale_meta_path)
+                            except OSError:
+                                pass
 
-            manifest.append({
-                "id": voice_id,
-                "name": speaker,
-                "description": description,
-                "sample_text": ref_text,
-                "filename": os.path.basename(dest_path)
-            })
-            _atomic_json_write(manifest, manifest_path)
+                manifest.append({
+                    "id": voice_id,
+                    "name": speaker,
+                    "description": description,
+                    "sample_text": ref_text,
+                    "filename": os.path.basename(dest_path)
+                })
+                _atomic_json_write(manifest, manifest_path)
         except Exception as e:
             print(f"Warning: could not update manifest for {speaker}: {e}")
 

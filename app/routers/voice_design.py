@@ -105,15 +105,28 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
             voice_id = get_unique_id(safe_name)
             dest_filename = f"{voice_id}.wav"
         dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
-        shutil.copy2(preview_path, dest_path)
+        staging_path = os.path.join(DESIGNED_VOICES_DIR,
+                                    f".{dest_filename}.{get_unique_id('stage')}.tmp")
         entry = {"id": voice_id, "name": request.name,
                  "description": request.description, "sample_text": request.sample_text,
                  "filename": dest_filename}
-        if existing is not None:
-            existing.update(entry)
-        else:
-            manifest.append(entry)
-        _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+        try:
+            shutil.copy2(preview_path, staging_path)
+            if existing is not None:
+                existing.update(entry)
+                _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+                os.replace(staging_path, dest_path)
+            else:
+                os.replace(staging_path, dest_path)
+                manifest.append(entry)
+                try:
+                    _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+                except Exception:
+                    os.remove(dest_path)
+                    raise
+        finally:
+            if os.path.exists(staging_path):
+                os.remove(staging_path)
 
     logger.info(f"Designed voice {'updated' if existing else 'saved'}: '{request.name}' as {dest_filename}")
     return {"status": "updated" if existing else "saved", "voice_id": voice_id}
@@ -132,10 +145,10 @@ async def voice_design_delete(voice_id: str):
         if not entry:
             raise HTTPException(status_code=404, detail="Voice not found")
         wav_path = os.path.join(DESIGNED_VOICES_DIR, entry["filename"])
-        if os.path.exists(wav_path):
-            os.remove(wav_path)
         _save_manifest(DESIGNED_VOICES_MANIFEST,
                        [v for v in manifest if v["id"] != voice_id])
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
     logger.info(f"Designed voice deleted: {voice_id}")
     return {"status": "deleted", "voice_id": voice_id}

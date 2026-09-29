@@ -240,8 +240,9 @@
                 loadDesignedVoices();
                 // If we're editing a generated persona, propagate alias choice to voice card and trigger save
                 const source = document.getElementById('design-source-name').value;
-                const selectedAlias = document.getElementById('design-alias-select').value;
-                if (source) {
+                const aliasSelect = document.getElementById('design-alias-select');
+                const selectedAlias = aliasSelect.value;
+                if (source && (selectedAlias || aliasSelect.dataset.aliasLookupFailed !== 'true')) {
                     const card = document.querySelector(`.voice-card[data-voice="${source}"]`);
                     if (card) {
                         const aliasSel = card.querySelector('.alias-select');
@@ -293,6 +294,8 @@
                 // Populate alias dropdown
                 const aliasSelect = document.getElementById('design-alias-select');
                 aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                aliasSelect.dataset.aliasLookupFailed = 'false';
+                aliasSelect.onchange = () => { aliasSelect.dataset.aliasLookupFailed = 'false'; };
                 const names = (window._voicesNames || []).filter(n => n !== voice.name);
                 names.forEach(n => {
                     const opt = document.createElement('option');
@@ -304,14 +307,27 @@
                 // Try to read existing alias from voices config
                 try {
                     const voices = await API.get('/api/voices');
+                    aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                    voices.filter(v => v.name !== voice.name).forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.name;
+                        opt.text = v.name;
+                        aliasSelect.appendChild(opt);
+                    });
                     const entry = voices.find(v => v.name === voice.name);
                     if (entry && entry.config && entry.config.alias_of) {
+                        if (!Array.from(aliasSelect.options).some(option => option.value === entry.config.alias_of)) {
+                            const opt = document.createElement('option');
+                            opt.value = entry.config.alias_of;
+                            opt.text = entry.config.alias_of;
+                            aliasSelect.appendChild(opt);
+                        }
                         aliasSelect.value = entry.config.alias_of;
                     } else {
                         aliasSelect.value = '';
                     }
                 } catch (e) {
-                    aliasSelect.value = '';
+                    aliasSelect.dataset.aliasLookupFailed = 'true';
                 }
 
                 // Update preview audio and current preview file
