@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -53,10 +54,13 @@ DEFAULT_ZIPS = os.path.join(os.environ.get("ALEXANDRIA_ZIPS_DIR",
 
 def sanitize(name: str) -> str:
     """Convert a filename into a safe dataset/adapter id."""
-    name = os.path.splitext(os.path.basename(name))[0]
-    name = name.lower()
+    raw_name = os.path.splitext(os.path.basename(name))[0]
+    name = raw_name.lower()
     name = re.sub(r"[^a-z0-9_]", "_", name)
     name = re.sub(r"_+", "_", name).strip("_")
+    if not name:
+        digest = hashlib.sha256(raw_name.lower().encode("utf-8")).hexdigest()[:12]
+        name = f"dataset_{digest}"
     return name
 
 

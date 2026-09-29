@@ -250,13 +250,17 @@ def _load_repair_inputs(name, source_filename):
         with open(script_path, "rb") as script_file:
             script_bytes = script_file.read()
         entries = safe_load_json(script_path, None)
-        with open(source_path, "r", encoding="utf-8") as source_file:
-            source_text = source_file.read()
+        with open(source_path, "rb") as source_file:
+            source_bytes = source_file.read()
+        source_text = source_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=422, detail="Source file is not valid UTF-8.") from exc
     if not isinstance(entries, list):
         raise HTTPException(status_code=422, detail="Saved script must contain a JSON array.")
-    return script_path, hashlib.sha256(script_bytes).hexdigest(), build_deterministic_repair(entries, source_text)
+    combined_sha256 = hashlib.sha256(
+        hashlib.sha256(script_bytes).digest() + hashlib.sha256(source_bytes).digest()
+    ).hexdigest()
+    return script_path, combined_sha256, build_deterministic_repair(entries, source_text)
 
 
 @router.post("/api/scripts/{name}/repair/deterministic/preview")

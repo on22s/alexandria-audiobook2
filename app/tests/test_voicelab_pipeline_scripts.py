@@ -37,6 +37,32 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def test_batch_empty_normalization_has_stable_distinct_child_ids(self):
+        ids = [batch_train.sanitize(name) for name in ("---.zip", "声.zip")]
+        self.assertTrue(all(ids))
+        self.assertNotEqual(ids[0], ids[1])
+        self.assertEqual(ids[0], batch_train.sanitize("---.zip"))
+        self.assertEqual("valid_voice", batch_train.sanitize("Valid Voice.zip"))
+
+    def test_batch_bad_zip_cannot_clean_the_datasets_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zips = Path(tmp, "zips")
+            datasets = Path(tmp, "datasets")
+            zips.mkdir()
+            datasets.mkdir()
+            sentinel = datasets / "existing_dataset.txt"
+            sentinel.write_text("keep")
+            (zips / "---.zip").write_bytes(b"not a ZIP")
+            argv = ["batch_train_lora.py", "--zips_dir", str(zips),
+                    "--datasets_dir", str(datasets), "--models_dir", str(Path(tmp, "models")),
+                    "--manifest", str(Path(tmp, "models", "manifest.json"))]
+            with patch.object(sys, "argv", argv), redirect_stdout(io.StringIO()):
+                rc = batch_train.main()
+            self.assertEqual(1, rc)
+            self.assertTrue(sentinel.exists(), "failed extraction removed the datasets root")
+            self.assertEqual("keep", sentinel.read_text())
+            self.assertEqual([sentinel], list(datasets.iterdir()))
+
     def test_batch_manifest_keeps_entry_written_during_training(self):
         with tempfile.TemporaryDirectory() as tmp:
             zips = Path(tmp, "zips")

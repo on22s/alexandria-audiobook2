@@ -458,8 +458,15 @@ def run_analyze(model, device, deduped_root, output_dir):
         all_embs      = cache_data.get("embeddings", {})
         all_prosody   = cache_data.get("prosody", {})
         all_wav_names = cache_data.get("wav_names", {})
+        if all_embs is all_prosody is all_wav_names:
+            print("WARNING: analyze cache has the known shared-dictionary corruption; rebuilding")
+            all_embs = {}
+            all_prosody = {}
+            all_wav_names = {}
     else:
-        all_embs = all_prosody = all_wav_names = {}
+        all_embs = {}
+        all_prosody = {}
+        all_wav_names = {}
 
     # Extract missing groups
     for group_name, zip_paths in zip_groups.items():

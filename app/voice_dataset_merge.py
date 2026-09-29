@@ -12,7 +12,7 @@ import numpy as np
 import soundfile as sf
 
 
-MERGE_VERSION = 1
+MERGE_VERSION = 2
 
 
 def get_file_fingerprint(path: Path) -> dict:
@@ -29,10 +29,11 @@ def get_file_fingerprint(path: Path) -> dict:
 
 def get_pcm_hash(wav_bytes: bytes) -> str:
     try:
-        audio, _sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
+        audio, sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
     except (RuntimeError, OSError, ValueError) as exc:
         raise ValueError("dataset contains unsupported or malformed audio") from exc
-    return hashlib.sha256(np.asarray(audio, dtype="<f4").tobytes()).hexdigest()
+    identity = f"{sample_rate}:".encode("ascii") + np.asarray(audio, dtype="<f4").tobytes()
+    return hashlib.sha256(identity).hexdigest()
 
 
 def get_source_records(paths: list[Path]) -> list[dict]:

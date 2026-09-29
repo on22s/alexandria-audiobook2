@@ -2458,6 +2458,9 @@
     "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_the_old_groups_fail_the_case",
     "tests.test_pdnc_silent_aliases.CommittedFixturesTest.test_the_wide_context_fixtures_carry_the_same_groups"
   ],
+  "test_persona_object_pipeline": [
+    "tests.test_persona_object_pipeline.PersonaObjectPipelineTests.test_object_response_is_validated_and_logged"
+  ],
   "test_pitch_profile_matrix": [
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_load_adapters_accepts_complete_manifest_entries",
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_locked_fixture_matches_six_distinct_source_passages",
@@ -2789,6 +2792,11 @@
   ],
   "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
+  ],
+  "test_repair_preview_token": [
+    "tests.test_repair_preview_token.RepairPreviewTokenTests.test_invalid_utf8_source_is_rejected_without_script_mutation",
+    "tests.test_repair_preview_token.RepairPreviewTokenTests.test_script_change_also_refuses_old_preview",
+    "tests.test_repair_preview_token.RepairPreviewTokenTests.test_source_change_refuses_old_preview_without_backup_or_write"
   ],
   "test_repair_source_llm": [
     "tests.test_repair_source_llm.RepairSourceLLMTests.test_cli_passes_the_active_profile_to_the_shared_client_factory"
@@ -3978,6 +3986,11 @@
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_renderer_resolves_the_saved_alias",
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_saved_file_keeps_the_alias"
   ],
+  "test_voice_analysis_cache": [
+    "tests.test_voice_analysis_cache.VoiceAnalysisCacheTests.test_fresh_run_writes_distinct_real_checkpoint_contents",
+    "tests.test_voice_analysis_cache.VoiceAnalysisCacheTests.test_poisoned_shared_dictionary_checkpoint_is_rebuilt",
+    "tests.test_voice_analysis_cache.VoiceAnalysisCacheTests.test_valid_independent_checkpoint_is_reused"
+  ],
   "test_voice_clustering": [
     "tests.test_voice_clustering.VoiceClusteringTests.test_clustering_is_invariant_to_input_order",
     "tests.test_voice_clustering.VoiceClusteringTests.test_complete_link_prevents_similarity_chain_overmerge",
@@ -3987,8 +4000,10 @@
   ],
   "test_voice_dataset_merge": [
     "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_failed_merge_preserves_existing_destination",
+    "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_identical_samples_at_different_rates_remain_distinct_clips",
     "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_invalid_metadata_is_reported_as_validation_error",
-    "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_merge_preserves_unique_clips_provenance_and_removes_pcm_duplicates"
+    "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_merge_preserves_unique_clips_provenance_and_removes_pcm_duplicates",
+    "tests.test_voice_dataset_merge.VoiceDatasetMergeTests.test_old_merge_cache_is_rebuilt_with_distinct_sample_rates"
   ],
   "test_voice_dataset_quality": [
     "tests.test_voice_dataset_quality.VoiceDatasetQualityTests.test_metrics_and_warnings_detect_real_failure_modes",
@@ -4064,7 +4079,9 @@
   ],
   "test_voicelab_pipeline_scripts": [
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_bad_zip_cannot_clean_the_datasets_root",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_empty_normalization_has_stable_distinct_child_ids",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_manifest_keeps_entry_written_during_training",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_rejects_colliding_normalized_dataset_ids",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_returns_failure_after_processing_all_archives",
