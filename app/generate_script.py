@@ -1316,7 +1316,8 @@ def call_llm_for_object(client, model_name, sys_prompt, user_prompt, params,
         return {"passed": True, "findings": []}
 
     return call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params, label=label,
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="persona_responses.log", label=label,
         max_retries=max_retries, validate_entries=validate,
         attempt_observer=attempt_observer, codec=codec)
 
