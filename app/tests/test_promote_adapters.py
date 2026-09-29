@@ -260,6 +260,25 @@ class GateCampaignTests(unittest.TestCase):
                       "directory is not a permitted source, so promotion "
                       "would refuse everything it gated")
 
+    def test_the_goal27_small_retrain_directory_is_a_permitted_source(self):
+        """Same dead end as rank 2, one retrain later: on 2026-09-28 three
+        voices gated under goal27_small_20260928 beat their shipped scores
+        (0.560->0.605, 0.581->0.631, 0.558->0.611) and were refused as "no
+        retrained adapter on disk"."""
+        self.assertIn(promote_adapters.GOAL27_SMALL_SOURCE,
+                      promote_adapters.retrain_sources())
+
+    def test_a_gated_adapter_under_goal27_small_resolves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = os.path.join(tmp, "goal27_small_20260928", "v", "adapter")
+            os.makedirs(adapter)
+            with patch.object(promote_adapters, "GOAL27_SMALL_SOURCE",
+                              os.path.dirname(os.path.dirname(adapter))), \
+                 patch.object(promote_adapters, "gate_result",
+                              return_value={"adapter": adapter}):
+                self.assertEqual(os.path.realpath(adapter),
+                                 promote_adapters.get_adapter_source("v"))
+
     def test_the_source_list_follows_patched_constants(self):
         """It was a module-level tuple, which snapshots the roots at import.
 

@@ -33,6 +33,10 @@ REFERENCE_RANK1_SOURCE = os.path.join(
     REPO, "ab_test_runtime", "reference_rank1_all21")
 REFERENCE_RANK2_SOURCE = os.path.join(
     REPO, "ab_test_runtime", "reference_rank2_failed")
+# the goal 2.7 small-set retrain of 2026-09-28: gated on unseen clips, and three
+# of its voices beat shipped but were refused as "no retrained adapter on disk"
+GOAL27_SMALL_SOURCE = os.path.join(
+    REPO, "ab_test_runtime", "goal27_small_20260928")
 BACKUPS = os.path.join(REPO, "ab_test_runtime", "promotion_backups")
 
 # ONE TABLE, so a campaign cannot be half-added. The prefix used to live in an
@@ -68,7 +72,7 @@ def retrain_sources():
     this a SECOND place the source list lives.
     """
     return (SOURCE, DECONTAMINATE_SOURCE,
-            REFERENCE_RANK1_SOURCE, REFERENCE_RANK2_SOURCE)
+            REFERENCE_RANK1_SOURCE, REFERENCE_RANK2_SOURCE, GOAL27_SMALL_SOURCE)
 
 
 MIN_ECAPA = 0.45
