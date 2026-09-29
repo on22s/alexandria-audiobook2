@@ -1,0 +1,83 @@
+{
+  "source": "tts_batch_quality_tnr0_20260929.log.gz",
+  "warmup_excluded": true,
+  "render": [
+    {
+      "workers_cap": 1,
+      "timed_call_count": 32,
+      "timed_sub_batch_sizes": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "timed_peak_allocated_gb": 4.93,
+      "saved_last_sub_batch_allocated_gb": 4.31,
+      "sampled_peak_device_used_gb": 5.88,
+      "wall_seconds": 2094.5,
+      "audio_seconds": 504.6
+    },
+    {
+      "workers_cap": 4,
+      "timed_call_count": 8,
+      "timed_sub_batch_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "timed_peak_allocated_gb": 7.41,
+      "saved_last_sub_batch_allocated_gb": 7.15,
+      "sampled_peak_device_used_gb": 12.39,
+      "wall_seconds": 1085.9,
+      "audio_seconds": 526.9
+    },
+    {
+      "workers_cap": 16,
+      "timed_call_count": 2,
+      "timed_sub_batch_sizes": [
+        13,
+        3,
+        13,
+        3
+      ],
+      "timed_peak_allocated_gb": 13.83,
+      "saved_last_sub_batch_allocated_gb": 6.41,
+      "sampled_peak_device_used_gb": 23.7,
+      "wall_seconds": 620.1,
+      "audio_seconds": 541.7
+    }
+  ]
+}

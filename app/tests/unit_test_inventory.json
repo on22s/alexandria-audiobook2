@@ -3754,6 +3754,9 @@
     "tests.test_tts_audio_validation.TestValidationRejectsBadAudio.test_an_empty_file_is_rejected",
     "tests.test_tts_audio_validation.TestValidationRejectsBadAudio.test_real_audio_passes"
   ],
+  "test_tts_batch_quality_metrics": [
+    "tests.test_tts_batch_quality_metrics.TtsBatchQualityMetricsTests.test_earlier_allocation_peak_survives_later_generation_reset"
+  ],
   "test_tts_benchmark": [
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_clone_case_separates_prompt_and_generation",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_custom_voice_case_reports_mean_utilization",

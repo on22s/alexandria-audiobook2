@@ -1,0 +1,72 @@
+[
+  {
+    "path": "/home/ubuntu/aa2_probe/ab_test_runtime/experiments/lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json",
+    "bytes": 8891161,
+    "sha256": "bab9ff305b9e8e31878e1220ac1c3bd470cc1323d205985aa771bf1dd98d4c83"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/experiments/lora_serving_eval.py",
+    "bytes": 32481,
+    "sha256": "c567ee47d343fa620375f0f9c0b0eef2f6d12c26cbd2a7ae97b68d32cd8c9e74"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/experiments/scoring.py",
+    "bytes": 6140,
+    "sha256": "3df2933e04184cd69d35af43c926c434e9581e1458aeb9cb81ab791e2b0e144a"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_emma.json",
+    "bytes": 2012091,
+    "sha256": "ea9956d4209c1f8a91fc7756e081223a9807e86fc6ff4f91ce2c73a743dbadfd"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_mansfieldpark.json",
+    "bytes": 1467932,
+    "sha256": "8b390a01b369a9fd5adfaa19e892d676cd040e2f9d467133f3d4f89061912cd1"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_northangerabbey.json",
+    "bytes": 1013758,
+    "sha256": "6a0f6e82343dd4bfbb510e3c9e3088a08fe154c58f3b16d7cf65823ee69c2581"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_persuasion.json",
+    "bytes": 637725,
+    "sha256": "e43b2a9860531a032430b77d759bb934c2eebb1faf7f92ee83c299c91588fe36"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_prideandprejudice.json",
+    "bytes": 1564859,
+    "sha256": "d78f68a4b16e49df0ca090e534f3dcd83a358d085f51228c154893d027f40857"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_senseandsensibility.json",
+    "bytes": 1389044,
+    "sha256": "5373e0c2c042db1b21d0fed332b8193034c81c7a47bd0d6818af0b938417a078"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_theawakening.json",
+    "bytes": 659905,
+    "sha256": "b00b1f60d9a76bbaec7018f928023eaf0047850aedaf949dd4bbd2f7d3f6494d"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_thesignofthefour.json",
+    "bytes": 799307,
+    "sha256": "086186e09a15c82d1d710008ae91f80e67b3e28f7e44285fa73d89973e569952"
+  },
+  {
+    "path": "/home/ubuntu/aa2_probe/app/fixtures/attribution_gold_pdnc_thesunalsorises.json",
+    "bytes": 2873441,
+    "sha256": "4b04e8e5cea3dee1754a65f3603a9c0b2ac2d03ee93eb97fbb00efdd3dac2f45"
+  },
+  {
+    "path": "/home/ubuntu/qwen3_8b_seed3_tnr2_20260929.log",
+    "bytes": 152582,
+    "sha256": "63e70842c5e89d70cabc2a9cc4eea5faaec073d98359580eb15b34efd6ec8eed"
+  },
+  {
+    "path": "/home/ubuntu/qwen3_8b_seed3_tnr2_20260929.sh",
+    "bytes": 1221,
+    "sha256": "fb400f42e21e2899065bcf630d71f869c58c607b7a34229680af2d0e823274e8"
+  }
+]

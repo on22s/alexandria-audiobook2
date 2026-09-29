@@ -57,13 +57,10 @@ def main():
             while not stop.is_set():
                 free, tot = torch.cuda.mem_get_info(); peak["used"] = max(peak["used"], tot - free); time.sleep(0.2)
         t = threading.Thread(target=sample, daemon=True); t.start()
-        t0 = time.time(); audio = 0.0; failed = 0; allocated_peak_gb = 0.0
+        t0 = time.time(); audio = 0.0; failed = 0
         for i in range(0, len(chunks), w):
             res = engine.run_benchmark_batch(chunks[i:i + w], voice, d, batch_seed=42)
             failed += len(res["failed"])
-            # Generation resets Torch counters for each sub-batch; its result
-            # retains the maximum across those resets, unlike the final counter.
-            allocated_peak_gb = max(allocated_peak_gb, res["peak_vram_gb"])
         wall = time.time() - t0; stop.set(); t.join()
         wavs[w] = {}
         for idx in range(len(chunks)):
@@ -72,8 +69,8 @@ def main():
                 wavs[w][idx] = p; audio += sf.info(p).duration
         rows.append({"workers": w, "clips": len(wavs[w]), "failed": failed, "audio_s": round(audio, 1),
                      "wall_s": round(wall, 1), "x_real_time": round(audio / wall, 2) if wall else None,
-                     "torch_max_allocated_gb": round(allocated_peak_gb, 2),
-                     "torch_last_sub_batch_peak_reserved_gb": round(torch.cuda.max_memory_reserved() / 1e9, 2),
+                     "torch_max_allocated_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
+                     "torch_max_reserved_gb": round(torch.cuda.max_memory_reserved() / 1e9, 2),
                      "device_peak_used_gb": round(peak["used"] / 1e9, 2), "device_total_gb": round(total / 1e9, 1)})
         print(rows[-1], flush=True)
     del engine; torch.cuda.empty_cache()
