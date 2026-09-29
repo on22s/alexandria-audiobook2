@@ -89,6 +89,12 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 > unseen books were scored, the drop was **4.4 points** — real, but modest. The
 > work is running a clean test, not building a new ability.
 
+**Where this stands, as of 2026-09-28 (a summary of the dated updates below):** the target (a held-out
+gap within 5 points) is met on three of the six bases measured on the 28-novel instrument: Qwen3.8-27B
+UD-Q3_K_XL (-2.2), Qwen3.6-35B-A3B UD-IQ2_XXS (-3.3) and DeepSeek v4-pro (+1.8); it is missed on Qwen3-8B
+Q4_K_M (-7.2), Qwen3.5-9B Q4_K_M (-8.7) and Qwen3.6-35B-A3B UD-IQ1_M (-5.2), so the goal stays open for those. The first "Current" block below is
+the 2026-08-08 base-arm measurement (-12.6, a different model and prompt), kept for history.
+
 **Metric** — accuracy on held-out books never used in development.
 **Probe** — PDNC gold sets (`attribution_gold_pdnc_*.json`, 1270 / 640 / 584
 rows) plus `attribution_gold_random.json`.
@@ -1235,9 +1241,23 @@ unseen pairs for the 7 small datasets. Promotion waits for the owner, through
 `promote_adapters.py --gate-campaign unseen`. `velvety_mezzo_30s_f_gothic` and the 2-clip
 voice need new source data.
 **Current** — every dataset zip splits **180 train / 20 val with zero
-overlap**, and the trainer now uses the split, but the live manifest still
-contains **12 of 75 shipped adapters trained on all 200 clips**, down from 21.
-**OPEN**, last audited 2026-08-16 from each adapter's own training metadata.
+overlap**, and the trainer now uses the split. **Re-audited 2026-09-29** over all 75
+shipped adapters with `tools/audit/audit_adapter_training_split.py --verify-hash`, which
+reads each adapter's own training metadata (its `checkpoint_sha256` matches the weights on
+disk for all 75): **61 trained on 180 clips, 6 on all 200, 8 on other counts** (188, 153,
+117, 105, 88, 73, 24, 2). Read against the 2026-09-28 inventory above, which matched the
+smaller datasets to their zips' train and val counts: the 2026-09-29 unseen-gate promotion
+(#695) put four of those eight at exactly their datasets' **train-split** counts, so they
+are clean retrains: 153 (170 = 153+17), 117 (130 = 117+13), 105 (116 = 105+11) and 73
+(81 = 73+8). The other three still sit at their datasets' full counts, train plus val
+(188 = 170+18, 88 = 80+8, 24 = 22+2), so they remain trained on their own val clips, and
+the 2-clip voice still has no val split. **OPEN: 9 trained on their own val clips (the 6 on
+all 200 and those 3) and 1 with no val split**, down from 15 plus 1 on 2026-09-28. The 6:
+`husky_baritone_20s_m_supernatural`, `husky_baritone_40s_m_2`, `silky_alto_40s_f_literary_1`, `silky_baritone_45s_m`, `velvety_mezzo_30s_f_gothic`, `warm_alto_50s_f_gothic`. The 3: `silky_alto_40s_f_literary_2` (188),
+`silky_mezzo_30s_f` (88) and `breathy_baritone_30s_m_fantasy` (24). **The manifest overstates
+the 200-clip count:** its `sample_count` says 15 at 200, but for 9 of them
+(`husky_soprano_20s_f` and eight others) the adapter's own metadata, hash-matched to its
+weights, says 180, so count from the adapters' own metadata, not the manifest.
 
 **Evidence** — the identity gate re-ran on **2026-08-18 over all 67 adapters**
 that carry a dataset path, scoring each against its own held-out val clips:
@@ -6664,7 +6684,9 @@ If only three things get worked on:
    clips**; and **8 on every clip of a smaller dataset** (24–188 clips, one of
    just **2**: `warm_baritone_40s_m_gothic`). **Inventoried 2026-09-28:** 7 of those 8
    trained on their own val clips and the eighth has no val split, so the live figure is
-   **15 contaminated plus 1 unsplit** (see 2.7); the retrains are queued.
+   **15 contaminated plus 1 unsplit** (see 2.7); the retrains are queued. **Re-audited 2026-09-29, after the unseen-gate
+  promotion:** 9 contaminated (6 on all 200 clips and 3 small datasets still on their full
+  counts) plus 1 unsplit; the retrains for those remain queued.
 
 **Selection (1.2) was #1 on this list until 2026-08-08 and is now MET** — the
 29.9% it was built on came from a model that does not ship. Re-measuring goals

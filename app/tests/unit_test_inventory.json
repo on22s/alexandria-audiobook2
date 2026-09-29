@@ -331,6 +331,17 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audit_adapter_training_split": [
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_a_stale_manifest_does_not_override_the_adapters_own_record",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_an_unusual_count_is_reported_with_its_number_not_called_clean",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_cli_fails_loudly_when_an_adapter_cannot_be_classified",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_directories_outside_the_manifest_are_ignored",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_malformed_or_wrongly_typed_metadata_is_listed_not_guessed",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_missing_metadata_is_never_counted_as_train_only",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_output_is_sorted_so_reruns_diff_cleanly",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_tampered_weights_are_caught_when_the_hash_is_verified",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_the_two_sample_counts_are_told_apart"
+  ],
   "test_audit_candidate_membership": [
     "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_false_values_are_populated_measurements",
     "tests.test_audit_candidate_membership.CandidateMembershipAuditTest.test_mixed_rows_are_not_reported_as_fully_instrumented",
