@@ -2508,6 +2508,7 @@
                 doneCheck: status => !status.running,
                 onTick: status => {
                     const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
+                    renderManualRequest(status, 'persona');
                     statusSpan.innerText = status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
                     if (cancelButton) {
                         cancelButton.style.display = status.running ? '' : 'none';
@@ -2518,6 +2519,7 @@
                     }
                 },
                 onDone: async (status) => {
+                    renderManualRequest({ running: false }, 'persona');
                     const failed = (status.logs || []).some(log => /\b(error|failed|failure)\b/i.test(log));
                     const recoveryPanel = document.getElementById('persona-recovery-panel');
                     const recoveryStatus = document.getElementById('persona-recovery-status');
@@ -2927,6 +2929,7 @@
                     advanced: false,
                     context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
                 });
+                pollPersonaStatus();
                 showToast(`Persona regeneration started for ${speaker}.`, 'success');
             } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
         };
@@ -2940,6 +2943,7 @@
                     speaker, age_group: ageGroup.trim(), advanced: false,
                     context_lines: Number(document.getElementById('persona-context-lines')?.value || 8),
                 });
+                pollPersonaStatus();
                 showToast(`Generating ${ageGroup.trim()} version for ${speaker}.`, 'success');
             } catch (e) { showToast('Age version generation failed: ' + e.message, 'error'); }
         };
@@ -4895,18 +4899,28 @@
         // request. /api/status/<task> says which one (id + where the run is);
         // the full prompt is fetched only when the id changes.
         let _manualShown = null;
-        async function renderManualRequest(status) {
+        let _manualTask = null;
+        let _manualRequested = null;
+        async function renderManualRequest(status, taskName) {
             const panel = document.getElementById('manual-llm-panel');
             if (!panel) { return; }
             const req = status.running ? status.manual_request : null;
             if (!req) {
-                if (_manualShown !== null) { _manualShown = null; panel.hidden = true; }
+                if (_manualTask !== taskName) { return; }
+                _manualTask = null;
+                _manualRequested = null;
+                _manualShown = null;
+                window._manualPending = null;
+                panel.hidden = true;
                 return;
             }
+            _manualTask = taskName;
+            _manualRequested = req.id;
             if (_manualShown === req.id) { return; }
             let full;
             try { full = (await API.get('/api/manual_llm/pending')).pending; } catch (e) { return; }
-            if (!full || full.id !== req.id) { return; }
+            if (!full || full.id !== req.id || _manualRequested !== req.id ||
+                _manualTask !== taskName || _manualShown === req.id) { return; }
             _manualShown = req.id;
             window._manualPending = full;
             document.getElementById('manual-llm-title').textContent = `request ${full.sequence}`;
@@ -4958,11 +4972,11 @@
                     syncPauseButton(taskName, status);
                     if (taskName === 'script') { syncSnapshotButton(status); }
                     renderActivity(activityEl, status, track);
-                    if (activityId) { renderManualRequest(status); }
+                    if (activityId) { renderManualRequest(status, taskName); }
                 },
                 onDone: status => {
                     if (activityEl) { activityEl.hidden = true; }
-                    if (activityId) { renderManualRequest({ running: false }); }
+                    if (activityId) { renderManualRequest({ running: false }, taskName); }
                     notifyJobDone(taskName);
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {

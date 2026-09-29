@@ -673,7 +673,7 @@
         // attach the first running one in priority order.
         async function reattachRunningPollers() {
             // Fetch all task statuses in parallel; each falls back to false on error.
-            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'voicelab'];
+            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'persona', 'voicelab'];
             const flags = await Promise.all(names.map(t =>
                 API.get(`/api/status/${t}`).then(r => r.running).catch(() => false)
             ));
@@ -722,7 +722,7 @@
             } else if (running.script) {
                 disable('btn-gen-script');
                 show('btn-cancel-script'); show('btn-pause-script');
-                pollLogs('script', 'script-logs', () => {
+                pollScriptLogs('script', () => {
                     if (!scriptBatchPoller) {
                         const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
                     }
@@ -736,16 +736,18 @@
             } else if (running.review) {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                pollLogs('review', 'script-logs', _onReviewDone);
+                pollScriptLogs('review', _onReviewDone);
             } else if (running.nicknames) {
                 disable('btn-find-nicknames');
                 show('btn-pause-nick'); show('btn-cancel-nick');
-                pollLogs('nicknames', 'script-logs', async () => {
+                pollScriptLogs('nicknames', async () => {
                     const btn = document.getElementById('btn-find-nicknames');
                     if (btn) { btn.disabled = false; }
                     show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
                     await loadCharacterAliases(true);
                 });
+            } else if (running.persona) {
+                pollPersonaStatus();
             } else if (running.voicelab) {
                 _vlSetRunning(true);
                 refreshVoicelabHealth();

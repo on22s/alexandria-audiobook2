@@ -2190,6 +2190,10 @@
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
     "tests.test_manual_llm.ManualThreePassTests.test_a_three_pass_run_completes_with_a_person_answering_every_request"
   ],
+  "test_manual_persona_ui": [
+    "tests.test_manual_persona_ui.ManualPersonaUITests.test_persona_actions_renderer_and_reload",
+    "tests.test_manual_persona_ui.ManualPersonaUITests.test_shared_panel_is_outside_hidden_tab_bodies"
+  ],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
