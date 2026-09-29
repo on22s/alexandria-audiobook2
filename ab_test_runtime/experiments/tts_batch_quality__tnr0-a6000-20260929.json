@@ -1,0 +1,752 @@
+{
+ "render": [
+  {
+   "workers": 1,
+   "clips": 32,
+   "failed": 0,
+   "audio_s": 504.6,
+   "wall_s": 2094.5,
+   "x_real_time": 0.24,
+   "torch_max_allocated_gb": 4.31,
+   "torch_max_reserved_gb": 4.37,
+   "device_peak_used_gb": 5.88,
+   "device_total_gb": 50.9
+  },
+  {
+   "workers": 4,
+   "clips": 32,
+   "failed": 0,
+   "audio_s": 526.9,
+   "wall_s": 1085.9,
+   "x_real_time": 0.49,
+   "torch_max_allocated_gb": 7.15,
+   "torch_max_reserved_gb": 9.55,
+   "device_peak_used_gb": 12.39,
+   "device_total_gb": 50.9
+  },
+  {
+   "workers": 16,
+   "clips": 32,
+   "failed": 0,
+   "audio_s": 541.7,
+   "wall_s": 620.1,
+   "x_real_time": 0.87,
+   "torch_max_allocated_gb": 6.41,
+   "torch_max_reserved_gb": 8.19,
+   "device_peak_used_gb": 23.7,
+   "device_total_gb": 50.9
+  }
+ ],
+ "quality": [
+  {
+   "workers": 1,
+   "mean_wer": 0.828,
+   "lines_wer_over_0.2": 12
+  },
+  {
+   "workers": 4,
+   "mean_wer": 0.207,
+   "lines_wer_over_0.2": 15,
+   "ecapa_vs_w1_median": 0.776,
+   "ecapa_vs_w1_min": 0.427,
+   "duration_ratio_vs_w1_median": 0.97,
+   "duration_ratio_vs_w1_worst": 1.979
+  },
+  {
+   "workers": 16,
+   "mean_wer": 0.336,
+   "lines_wer_over_0.2": 13,
+   "ecapa_vs_w1_median": 0.801,
+   "ecapa_vs_w1_min": 0.566,
+   "duration_ratio_vs_w1_median": 1.095,
+   "duration_ratio_vs_w1_worst": 2.143
+  }
+ ],
+ "per_clip": [
+  {
+   "workers": 1,
+   "line": 0,
+   "wer": 0.05,
+   "seconds": 12.08,
+   "hyp": " Whispered remained nothing, dog the manor somewhere over the dusty brown quick over darkness, nothing out ancient quick"
+  },
+  {
+   "workers": 1,
+   "line": 1,
+   "wer": 0.238,
+   "seconds": 29.6,
+   "hyp": " drew nothing. The whispered, he said house, dusty the whispered, he darknessed the overlight, the room, room ancient, h"
+  },
+  {
+   "workers": 1,
+   "line": 2,
+   "wer": 0.588,
+   "seconds": 13.92,
+   "hyp": " whispered a jungle morning said morning room darkness crumbling nothing men are across fox nothing brown across filter"
+  },
+  {
+   "workers": 1,
+   "line": 3,
+   "wer": 0.222,
+   "seconds": 4.24,
+   "hyp": " Within across darkness, the called filtered the Aasi."
+  },
+  {
+   "workers": 1,
+   "line": 4,
+   "wer": 0.222,
+   "seconds": 3.84,
+   "hyp": " Tapes somewhere, he the dusty, the filtered morning nothing."
+  },
+  {
+   "workers": 1,
+   "line": 5,
+   "wer": 0.241,
+   "seconds": 13.12,
+   "hyp": " I got over Fox lazy sheet of said manner dusty ancient jumped light light ancient a from he deep the manner lazy manner"
+  },
+  {
+   "workers": 1,
+   "line": 6,
+   "wer": 0.485,
+   "seconds": 31.44,
+   "hyp": " The deveging in the out-the-bell vout-dut, and two-to-quick tuck-its-a-morning fell, Remained Fox remained with the neo"
+  },
+  {
+   "workers": 1,
+   "line": 7,
+   "wer": 12.417,
+   "seconds": 6.4,
+   "hyp": " Okon-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong-dong"
+  },
+  {
+   "workers": 1,
+   "line": 8,
+   "wer": 0.205,
+   "seconds": 23.68,
+   "hyp": " Within voice, remained voiced through into the grandiving Dusty room. Dusty through a fox manner. The fox filtered the "
+  },
+  {
+   "workers": 1,
+   "line": 9,
+   "wer": 0.154,
+   "seconds": 7.28,
+   "hyp": " Boy's darkness filtered, Fox said, light the light, he, a silence dusty how."
+  },
+  {
+   "workers": 1,
+   "line": 10,
+   "wer": 0.119,
+   "seconds": 22.72,
+   "hyp": " Quumbling called she into silence. Darkness fox is somewhere. Fox across. Fox voice out. From said fox out over quietly"
+  },
+  {
+   "workers": 1,
+   "line": 11,
+   "wer": 0.071,
+   "seconds": 14.48,
+   "hyp": " Crumbling across remained he filtered, dog crumbling the fell. Across jumped the A-Halls within the jumped, somewhere d"
+  },
+  {
+   "workers": 1,
+   "line": 12,
+   "wer": 0.0,
+   "seconds": 7.36,
+   "hyp": " Somewhere fell halls, the from the crumbling deep fell crumbling the dog. He lazy the deep she."
+  },
+  {
+   "workers": 1,
+   "line": 13,
+   "wer": 0.333,
+   "seconds": 6.72,
+   "hyp": " Darkness. The darkness manner of Yout called he focks over of Dusty Whispered Broad."
+  },
+  {
+   "workers": 1,
+   "line": 14,
+   "wer": 0.062,
+   "seconds": 13.84,
+   "hyp": " Dog of, he said, curtains, deep, dusty, deep, the lazy, jumped house, she's somewhere brown morning."
+  },
+  {
+   "workers": 1,
+   "line": 15,
+   "wer": 0.08,
+   "seconds": 12.48,
+   "hyp": " Dusty Dog Brown fell morning. Brown room darkness manner remained crumbling the room. Deep through halls she remained. "
+  },
+  {
+   "workers": 1,
+   "line": 16,
+   "wer": 0.107,
+   "seconds": 20.32,
+   "hyp": " whispered, said a house. The light brown voice, nothing into a room, fell. Nothing, nothing quick, crumbling into, told"
+  },
+  {
+   "workers": 1,
+   "line": 17,
+   "wer": 0.02,
+   "seconds": 35.92,
+   "hyp": " Lazy he quietly, the he brown, the ancient dusty room across, dusty, ancient out, lazy light within, into he brown dust"
+  },
+  {
+   "workers": 1,
+   "line": 18,
+   "wer": 0.231,
+   "seconds": 15.04,
+   "hyp": " All's within, fell filtered deep, the fell's silence darkness. Dusty the ancient, the pressure could curtains, curtains"
+  },
+  {
+   "workers": 1,
+   "line": 19,
+   "wer": 0.083,
+   "seconds": 21.12,
+   "hyp": " The over-remain manor fell nothing into. She quick-brown remained voice halls jumped a-through of within. Into house li"
+  },
+  {
+   "workers": 1,
+   "line": 20,
+   "wer": 0.132,
+   "seconds": 25.6,
+   "hyp": " Dusty deep curtains, said voice curtains. He remained of whispered cord of remained whispered curtains. Jumped silence,"
+  },
+  {
+   "workers": 1,
+   "line": 21,
+   "wer": 0.2,
+   "seconds": 7.52,
+   "hyp": " Through light, the house quick within light voice, the room felt light through somewhere, some way."
+  },
+  {
+   "workers": 1,
+   "line": 22,
+   "wer": 0.071,
+   "seconds": 13.04,
+   "hyp": " called nothing whispered dusty. Called quick light, the crumbling manor filtered said, a dog hauls somewhere quick filt"
+  },
+  {
+   "workers": 1,
+   "line": 23,
+   "wer": 0.091,
+   "seconds": 5.92,
+   "hyp": " Across darkness a across the light whispered through he over boy"
+  },
+  {
+   "workers": 1,
+   "line": 24,
+   "wer": 5.615,
+   "seconds": 15.76,
+   "hyp": " Boxroom. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm. Mm-hmm"
+  },
+  {
+   "workers": 1,
+   "line": 25,
+   "wer": 0.091,
+   "seconds": 6.16,
+   "hyp": " crumbling lazy within darkness a house hanging morning said ancient ancient"
+  },
+  {
+   "workers": 1,
+   "line": 26,
+   "wer": 0.077,
+   "seconds": 12.16,
+   "hyp": " said fell the the quick fell within manor light filtered into jump the house of Remained the house fell manor ancient l"
+  },
+  {
+   "workers": 1,
+   "line": 27,
+   "wer": 3.683,
+   "seconds": 29.52,
+   "hyp": " Jumped out the IE, through called the dusty morning of the wish dusty quietly, from the whispered halls somewhere. Voic"
+  },
+  {
+   "workers": 1,
+   "line": 28,
+   "wer": 0.105,
+   "seconds": 33.12,
+   "hyp": " Quick over silence. Nothing filtered. House remained. Felt crumbling the morning voice deep from room dusty deep. The r"
+  },
+  {
+   "workers": 1,
+   "line": 29,
+   "wer": 0.167,
+   "seconds": 13.44,
+   "hyp": " Into silence, nothing mourning quietly fell the somehow dog whispered brown fox deep silence. House dog have called the"
+  },
+  {
+   "workers": 1,
+   "line": 30,
+   "wer": 0.158,
+   "seconds": 22.72,
+   "hyp": " Oxy voice. Lazy. Jumped filtered. Call jumped within of manner. Fox. Sizz within fell over remained lazy deep through a"
+  },
+  {
+   "workers": 1,
+   "line": 31,
+   "wer": 0.182,
+   "seconds": 4.08,
+   "hyp": " Silence House, a jump manner, nothing he of the crumbling, I..."
+  },
+  {
+   "workers": 4,
+   "line": 0,
+   "wer": 0.05,
+   "seconds": 11.68,
+   "hyp": " Whispered, remained nothing dog, the manor somewhere, over the dusty brown, quick over darkness, nothing out ancient qu"
+  },
+  {
+   "workers": 4,
+   "line": 1,
+   "wer": 0.143,
+   "seconds": 32.64,
+   "hyp": " Through nothing curtains the whispered the said house. Dusty the whispered she darkness the the overlight the room mome"
+  },
+  {
+   "workers": 4,
+   "line": 2,
+   "wer": 0.118,
+   "seconds": 24.24,
+   "hyp": " Whispered of morning. Said morning room. Darkness crumbling. Whispered house. Manner the jumps ancient of said. Somewhe"
+  },
+  {
+   "workers": 4,
+   "line": 3,
+   "wer": 0.222,
+   "seconds": 4.24,
+   "hyp": " Within, across darkness, the called filtered da she."
+  },
+  {
+   "workers": 4,
+   "line": 4,
+   "wer": 0.111,
+   "seconds": 7.6,
+   "hyp": " Deep somewhere, he, the dusty, the filtered morning, nothing."
+  },
+  {
+   "workers": 4,
+   "line": 5,
+   "wer": 0.345,
+   "seconds": 8.96,
+   "hyp": " Now called over Fox lazy she have said mannered dusty ancient jumped light light ancient old from deep the mannered laz"
+  },
+  {
+   "workers": 4,
+   "line": 6,
+   "wer": 0.074,
+   "seconds": 59.2,
+   "hyp": " the he out quietly out the fell of ancient into she morning said somewhere from the ancient across called quick lazy mo"
+  },
+  {
+   "workers": 4,
+   "line": 7,
+   "wer": 0.667,
+   "seconds": 4.32,
+   "hyp": " Docs nothing doomed. Being the Southern with face, called dark..."
+  },
+  {
+   "workers": 4,
+   "line": 8,
+   "wer": 0.136,
+   "seconds": 32.56,
+   "hyp": " with in voice remained voice through into the crumbling dusty room dusty through a fox manner that the the fox filtered"
+  },
+  {
+   "workers": 4,
+   "line": 9,
+   "wer": 0.385,
+   "seconds": 6.16,
+   "hyp": " Boy, starkness filtered, Fox said, light the light, how silence dusty how."
+  },
+  {
+   "workers": 4,
+   "line": 10,
+   "wer": 0.31,
+   "seconds": 26.88,
+   "hyp": " crumbling called she into silence, darkness, fox the somewhere, fox across, fox, he's kept, the voice out from said fox"
+  },
+  {
+   "workers": 4,
+   "line": 11,
+   "wer": 0.25,
+   "seconds": 11.52,
+   "hyp": " Crumbling across Romaine, he filtered Doug crumbling the Felogas jumped. The A-Hauls within the jumped. Somewhere darkn"
+  },
+  {
+   "workers": 4,
+   "line": 12,
+   "wer": 0.235,
+   "seconds": 8.72,
+   "hyp": " Somewhere Fel hauls the crumbling. From the crumbling deep Fel. Crumbling the dog. He lazy the deep she."
+  },
+  {
+   "workers": 4,
+   "line": 13,
+   "wer": 0.267,
+   "seconds": 9.2,
+   "hyp": " Darkness, the darkness manner of, he howcalled, he fox over of dusty whispered bra."
+  },
+  {
+   "workers": 4,
+   "line": 14,
+   "wer": 0.188,
+   "seconds": 6.8,
+   "hyp": " Dog Vorty said, current's deep, dusty, deep, the lazy jumped house, she somewhere brown morning."
+  },
+  {
+   "workers": 4,
+   "line": 15,
+   "wer": 0.2,
+   "seconds": 9.92,
+   "hyp": " Dusty dog brown fell, morning brown room. Darkness manna remain crumbling the room deep through halls. She remains said"
+  },
+  {
+   "workers": 4,
+   "line": 16,
+   "wer": 0.071,
+   "seconds": 19.28,
+   "hyp": " whispered said house the light brown voice nothing into a room fell nothing nothing quick crumpling into filtered the w"
+  },
+  {
+   "workers": 4,
+   "line": 17,
+   "wer": 0.16,
+   "seconds": 23.92,
+   "hyp": " Lazy quietly, he browned the ancient dusty room across dusty ancient now. Lazy light, within to a brown, dusty the from"
+  },
+  {
+   "workers": 4,
+   "line": 18,
+   "wer": 0.269,
+   "seconds": 12.32,
+   "hyp": " All's within fell-filtered deep, the fell's silence darkness, dusty, the ancient Tawkerton, a curtain's manner darkness"
+  },
+  {
+   "workers": 4,
+   "line": 19,
+   "wer": 0.312,
+   "seconds": 24.08,
+   "hyp": " The over-remained manner fell nothing in too chic quick. Four, within, into houselight, called filtered, remained. She,"
+  },
+  {
+   "workers": 4,
+   "line": 20,
+   "wer": 0.237,
+   "seconds": 15.28,
+   "hyp": " Dusty Deed Curran said voice currants, he remained of whispered from call, the remained whispered currants, jumped sile"
+  },
+  {
+   "workers": 4,
+   "line": 21,
+   "wer": 0.067,
+   "seconds": 6.64,
+   "hyp": " Through light, the house quick, within light voice, the room fell light through somewhere, somewhere."
+  },
+  {
+   "workers": 4,
+   "line": 22,
+   "wer": 0.107,
+   "seconds": 19.28,
+   "hyp": " Called nothing, whisper dusty, called. Quick light, the crumbling manner filtered. Said a dog hauls somewhere quick, fi"
+  },
+  {
+   "workers": 4,
+   "line": 23,
+   "wer": 0.273,
+   "seconds": 5.44,
+   "hyp": " Across darkness, across the light, whisper through He over void."
+  },
+  {
+   "workers": 4,
+   "line": 24,
+   "wer": 0.077,
+   "seconds": 6.8,
+   "hyp": " Fox room nothing. The jumped the brown quick remained into quick halls. She's..."
+  },
+  {
+   "workers": 4,
+   "line": 25,
+   "wer": 0.182,
+   "seconds": 6.0,
+   "hyp": " Crumbling lazy within darkness, a house is a morning said, ancient ancient."
+  },
+  {
+   "workers": 4,
+   "line": 26,
+   "wer": 0.346,
+   "seconds": 11.28,
+   "hyp": " Said Fel, the quick Fel within manor light filtered into jump the house of a remained-at-house Fel. Manor ancient lazy "
+  },
+  {
+   "workers": 4,
+   "line": 27,
+   "wer": 0.111,
+   "seconds": 41.92,
+   "hyp": " Jumped out the through called the dusty morning of she dusty quietly from the whispered halls somewhere Voice a dusty t"
+  },
+  {
+   "workers": 4,
+   "line": 28,
+   "wer": 0.263,
+   "seconds": 25.04,
+   "hyp": " Quick over. What house remained? The house remained fell crumbling the morning. Voice deep from a room. Dusty deep. The"
+  },
+  {
+   "workers": 4,
+   "line": 29,
+   "wer": 0.083,
+   "seconds": 14.96,
+   "hyp": " into silence nothing morning quietly fell the somewhere dog whispered brown fox deep silence house dog of called the wi"
+  },
+  {
+   "workers": 4,
+   "line": 30,
+   "wer": 0.281,
+   "seconds": 25.44,
+   "hyp": " Foxy voice lazy, jumped filtered, called, jumped within, of man or fox she's, said deep through ancient. Nothing from l"
+  },
+  {
+   "workers": 4,
+   "line": 31,
+   "wer": 0.091,
+   "seconds": 4.56,
+   "hyp": " Silence House, a jumped manor. Nothing he of the crumbling eye."
+  },
+  {
+   "workers": 16,
+   "line": 0,
+   "wer": 0.05,
+   "seconds": 13.84,
+   "hyp": " Whispered, remained nothing. Dog, the manor somewhere, over the dusty brown. Quick over darkness, nothing out ancient q"
+  },
+  {
+   "workers": 16,
+   "line": 1,
+   "wer": 0.238,
+   "seconds": 26.88,
+   "hyp": " Through nothing, the whispered said, the said house dusty the whispered. Shhh, darkness, the, the overlight, through, a"
+  },
+  {
+   "workers": 16,
+   "line": 2,
+   "wer": 0.088,
+   "seconds": 20.16,
+   "hyp": " Whispered of morning said morning room, darkness crumbling. Whispered house. Manner the jumped ancient of said somewher"
+  },
+  {
+   "workers": 16,
+   "line": 3,
+   "wer": 0.444,
+   "seconds": 3.44,
+   "hyp": " Within a cross-darkness, the cult filtered the A-shee."
+  },
+  {
+   "workers": 16,
+   "line": 4,
+   "wer": 0.111,
+   "seconds": 4.64,
+   "hyp": " Deep somewhere, he the dusty-the-filtered morning, nothing."
+  },
+  {
+   "workers": 16,
+   "line": 5,
+   "wer": 0.31,
+   "seconds": 12.32,
+   "hyp": " Outcalled over Fox, Lazy, she has said Manner Dusty, ancient, jumped, light, light, ancient. A from E. Deep, the Manner"
+  },
+  {
+   "workers": 16,
+   "line": 6,
+   "wer": 0.044,
+   "seconds": 41.84,
+   "hyp": " The he out quietly out the a fell of out ancient into she morning said somewhere from the ancient across called quick l"
+  },
+  {
+   "workers": 16,
+   "line": 7,
+   "wer": 0.417,
+   "seconds": 6.16,
+   "hyp": " Mudded dumped the bounds though, the jumped out remained whispered, crumbling, called dark."
+  },
+  {
+   "workers": 16,
+   "line": 8,
+   "wer": 0.25,
+   "seconds": 23.92,
+   "hyp": " Within, voice remained, voiced through into the crumbling dusty room. Dusty through a fox manner, the fox filtered the "
+  },
+  {
+   "workers": 16,
+   "line": 9,
+   "wer": 0.231,
+   "seconds": 8.08,
+   "hyp": " Voice darkness filtered, Fox said, light, the light, the silence dusty how."
+  },
+  {
+   "workers": 16,
+   "line": 10,
+   "wer": 0.143,
+   "seconds": 36.88,
+   "hyp": " crumbling, called she in a silence. Darkness? Fox the somewhere? Fox across? Fox the voice out. From said Fox out, over"
+  },
+  {
+   "workers": 16,
+   "line": 11,
+   "wer": 0.286,
+   "seconds": 12.16,
+   "hyp": " Crumbling across remained he filtered dog crumbling the fellow across jumped the at-alls within the jump somewhere Dark"
+  },
+  {
+   "workers": 16,
+   "line": 12,
+   "wer": 0.118,
+   "seconds": 8.16,
+   "hyp": " Somewhere fell the stores, the crumbling deep fell crumbling the dog. He lazy the deep she."
+  },
+  {
+   "workers": 16,
+   "line": 13,
+   "wer": 0.467,
+   "seconds": 8.72,
+   "hyp": " Darkness? The darkness-manner of deep-sote, too. He box over a dusty-whispered bra."
+  },
+  {
+   "workers": 16,
+   "line": 14,
+   "wer": 0.0,
+   "seconds": 6.4,
+   "hyp": " Dog of, he said curtains deep, dusty deep, the lazy jumped house she somewhere brown morning."
+  },
+  {
+   "workers": 16,
+   "line": 15,
+   "wer": 4.68,
+   "seconds": 14.24,
+   "hyp": " Heh heh heh, dusty dog brown fell, morning brown room darkness, manor remained crumbling, the room deep through halls, "
+  },
+  {
+   "workers": 16,
+   "line": 16,
+   "wer": 0.143,
+   "seconds": 14.72,
+   "hyp": " whispered said house the light brown voice nothing into a room fell nothing wicks crumbling into diffiltered the whispe"
+  },
+  {
+   "workers": 16,
+   "line": 17,
+   "wer": 0.06,
+   "seconds": 33.76,
+   "hyp": " Lazy he quietedly, the he brown the ancient, dusty room across, dusty ancient, out lazy light within, into he brown dus"
+  },
+  {
+   "workers": 16,
+   "line": 18,
+   "wer": 0.192,
+   "seconds": 17.68,
+   "hyp": " Halls within, fell filtered deep. The fell silence, darkness, dusty the ancient Ighanta curtains. Man darkness, out voi"
+  },
+  {
+   "workers": 16,
+   "line": 19,
+   "wer": 0.188,
+   "seconds": 21.52,
+   "hyp": " The over-remained manner fell nothing in two. Quick brown remained voice halls jumped through wide into house. Light ca"
+  },
+  {
+   "workers": 16,
+   "line": 20,
+   "wer": 0.237,
+   "seconds": 31.68,
+   "hyp": " Dusty Deep Curtain's, said voice. Curtain's he remained of whispered from, called of remained, whispered Curtain's jump"
+  },
+  {
+   "workers": 16,
+   "line": 21,
+   "wer": 0.133,
+   "seconds": 6.88,
+   "hyp": " Through that the house quick, within light voice, the room fell light through, somewhere, somewhere."
+  },
+  {
+   "workers": 16,
+   "line": 22,
+   "wer": 0.071,
+   "seconds": 13.52,
+   "hyp": " Called nothing, whisper dusty called quick light, the crumbling manor filtered said, a dog hauls somewhere quick, filte"
+  },
+  {
+   "workers": 16,
+   "line": 23,
+   "wer": 0.182,
+   "seconds": 8.24,
+   "hyp": " across darkness, across the light, whispered, through He over voice."
+  },
+  {
+   "workers": 16,
+   "line": 24,
+   "wer": 0.154,
+   "seconds": 5.12,
+   "hyp": " Fox room nothing. The jump to the brown quick remained into quick halls. She..."
+  },
+  {
+   "workers": 16,
+   "line": 25,
+   "wer": 0.182,
+   "seconds": 13.2,
+   "hyp": " Crumbling lazy within darkness, a house, him, morning, said, hmm, ancient, ancient,"
+  },
+  {
+   "workers": 16,
+   "line": 26,
+   "wer": 0.5,
+   "seconds": 12.56,
+   "hyp": " CZ within Bactis fell within my windlight filtered into Dardant the house of remained the house fell manor, now paced w"
+  },
+  {
+   "workers": 16,
+   "line": 27,
+   "wer": 0.095,
+   "seconds": 34.72,
+   "hyp": " Jumped out through the dusty morning of a she dusty quietly from the whispered halls somewhere, voice, a dusty the whis"
+  },
+  {
+   "workers": 16,
+   "line": 28,
+   "wer": 0.0,
+   "seconds": 32.96,
+   "hyp": " Quick over silence. Nothing filtered. House remained fell, crumbling the morning voice deep from room dusty deep. The r"
+  },
+  {
+   "workers": 16,
+   "line": 29,
+   "wer": 0.208,
+   "seconds": 17.84,
+   "hyp": " In the silence, nothing morning quietly fell to somewhere. Dog whispered brown fox. Deep silence, house dog, of called "
+  },
+  {
+   "workers": 16,
+   "line": 30,
+   "wer": 0.351,
+   "seconds": 24.56,
+   "hyp": " Fox. He voiced Lazy Jumped, filtered called you Jumped Within. That man, maw, binna focaching, was Tysmar into cray. No"
+  },
+  {
+   "workers": 16,
+   "line": 31,
+   "wer": 0.182,
+   "seconds": 4.88,
+   "hyp": " Silence House a jumped manor, nothing ye of the crumbling eye."
+  }
+ ],
+ "gpu": "NVIDIA RTX A6000",
+ "settings": {
+  "voice": "CustomVoice Ryan",
+  "lines": 32,
+  "seed": 42,
+  "asr": "openai/whisper-base.en"
+ },
+ "provenance": {
+  "script": "/home/ubuntu/tts_batch_quality_20260929.py",
+  "script_sha256": "ed6b5ab5c81e5cc67b18fc85bf871bcc340eae9947d7702f73301bb2420976a3",
+  "repo_commit": "4d337725511b7c8ba3104b08af39cbe7b403e157",
+  "written": "2026-09-29T18:30:29"
+ }
+}

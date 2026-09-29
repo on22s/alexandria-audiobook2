@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-29 from `ab_test_runtime/experiments/` — 1787 artifacts, 2925 arms.
+Generated 2026-09-29 from `ab_test_runtime/experiments/` — 1789 artifacts, 2925 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -4349,6 +4349,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `trivial_baselines.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `tts_batch_quality__tnr0-a6000-20260929.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `tts_batch_quality_control__tnr0-a6000-20260929.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `tts_boundary_audit.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `tts_output_validation_adapter_seed20260925.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `tts_output_validation_control_seed20260925.json` | SKIPPED: 'rows' is not a list of scored arms |

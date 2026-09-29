@@ -80,6 +80,7 @@ LEGACY_UNPROVENANCED = {
     "trim_silence_build.py",
     "trivial_baselines.py",
     "tts_boundary_audit.py",
+    "tts_batch_quality_20260929.py",
     "tts_output_validation.py",
     "tuned_disagreement.py",
     "voice_adapter_health.py",

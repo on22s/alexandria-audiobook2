@@ -3933,6 +3933,8 @@ tone_spread_sensitivity.json,supported_structure,provenance,yes,,,2.7,,,,,,,,,,,
 training_composition.json,exploratory,git+naming,no,training_composition.py,e544836e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 training_determinism.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 trivial_baselines.json,exploratory,git+naming,no,trivial_baselines.py,f4a83982,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+tts_batch_quality__tnr0-a6000-20260929.json,exploratory,none,no,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+tts_batch_quality_control__tnr0-a6000-20260929.json,exploratory,git+naming,no,tts_batch_quality_control.py,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 tts_boundary_audit.json,exploratory,git+naming,no,tts_boundary_audit.py,cefa5060,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 tts_output_validation_adapter_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,aa43ce09,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 tts_output_validation_control_seed20260925.json,exploratory,git+naming,no,tts_output_validation.py,aa43ce09,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
