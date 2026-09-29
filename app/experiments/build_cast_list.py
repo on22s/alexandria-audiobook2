@@ -72,16 +72,18 @@ def main():
     content = r.choices[0].message.content
     cast = parse_cast(content)
     usage = getattr(r, "usage", None)
-    out = {"cast": cast, "provenance": {
-        "model": llm.get("model_name"), "base_url": llm.get("base_url"),
-        "provider_extra_body": llm.get("provider_extra_body"),
-        "prompt_sha256": hashlib.sha256(PROMPT.encode()).hexdigest(),
-        "source": os.path.abspath(a.source),
-        "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
-        "finish_reason": r.choices[0].finish_reason,
-        "usage": {"prompt_tokens": getattr(usage, "prompt_tokens", None),
-                  "completion_tokens": getattr(usage, "completion_tokens", None)},
-        "elapsed_s": round(time.time() - t0, 1), "written": time.strftime("%Y-%m-%dT%H:%M:%S")}}
+    from experiments.provenance import provenance
+    out = {"cast": cast, "provenance": provenance(
+        __file__, a,
+        model=llm.get("model_name"), base_url=llm.get("base_url"),
+        provider_extra_body=llm.get("provider_extra_body"),
+        prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest(),
+        source=os.path.abspath(a.source),
+        source_sha256=hashlib.sha256(text.encode()).hexdigest(),
+        finish_reason=r.choices[0].finish_reason,
+        usage={"prompt_tokens": getattr(usage, "prompt_tokens", None),
+               "completion_tokens": getattr(usage, "completion_tokens", None)},
+        elapsed_s=round(time.time() - t0, 1))}
     tmp = a.out + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1, ensure_ascii=False)
