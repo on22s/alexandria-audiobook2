@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import three_pass_generate as tp
 from generate_script import LLMGenParams
 from pass_quality import validate_attribution
-from experiments.build_cast_list import parse_cast
+from experiments.build_cast_list import parse_cast, request_cast
 from tests.test_three_pass_keep_exhausted import DURGAN_LINE, DURGAN_SOURCE, _client_always
 
 # "the stranger" only ever mid-sentence and lowercase, as in the novel; long enough
@@ -136,3 +136,53 @@ class CastTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _reply(content, finish):
+    return SimpleNamespace(choices=[SimpleNamespace(finish_reason=finish,
+                                                    message=SimpleNamespace(content=content))])
+
+
+class _ScriptedClient:
+    """Returns the queued replies in order and counts the calls."""
+    def __init__(self, replies):
+        self.replies, self.calls = list(replies), 0
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls += 1
+        return self.replies.pop(0)
+
+
+# The shape of the real failure: five names cycled until max_tokens cut a string in half.
+_LOOP = ('[' + ',\n'.join('{"name": "MISS BARRY", "aliases": []}' for _ in range(40))
+         + ',\n{"name": "MISS BAR')
+_GOOD = '[{"name": "ANNE SHIRLEY", "aliases": ["ANNE"]}]'
+
+
+class RequestCastTests(unittest.TestCase):
+    def test_truncated_reply_is_discarded_and_the_retry_is_used(self):
+        client = _ScriptedClient([_reply(_LOOP, "length"), _reply(_GOOD, "stop")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            cast, _, attempts = request_cast(client, "m", "text", 8000)
+        self.assertEqual(([{"name": "ANNE SHIRLEY", "aliases": ["ANNE"]}], 2, 2),
+                         (cast, attempts, client.calls))
+
+    def test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error(self):
+        client = _ScriptedClient([_reply(_LOOP, "length")] * 3)
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "finish_reason=length"):
+                request_cast(client, "m", "text", 8000, max_attempts=3)
+        self.assertEqual(3, client.calls)
+
+    def test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying(self):
+        client = _ScriptedClient([_reply("not json", "stop"), _reply(_GOOD, "stop")])
+        with self.assertRaises(ValueError):
+            request_cast(client, "m", "text", 8000)
+        self.assertEqual(1, client.calls)
+
+    def test_the_old_path_could_not_tell_a_loop_from_an_answer(self):
+        # Guards the fixture: without the finish_reason check the looped text fails only as an
+        # opaque JSON error, which is the failure this change replaces.
+        with self.assertRaises(ValueError):
+            parse_cast(_LOOP)

@@ -3511,7 +3511,11 @@
     "tests.test_three_pass_cast.CastTests.test_malformed_cast_file_raises",
     "tests.test_three_pass_cast.CastTests.test_once_named_cast_member_is_accepted_without_exhausting",
     "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases",
-    "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
+    "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing",
+    "tests.test_three_pass_cast.RequestCastTests.test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying",
+    "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error",
+    "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer",
+    "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"
   ],
   "test_three_pass_generate": [
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_attribute_request_is_unchanged_without_surround_and_wrapped_with_it",

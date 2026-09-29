@@ -44,6 +44,30 @@ def parse_cast(content):
             for x in data]
 
 
+MAX_ATTEMPTS = 3
+
+
+def request_cast(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS):
+    """(cast, response, attempts) from one call, retried when the reply ran to the token cap.
+
+    A reply that stops at max_tokens is a runaway (Anne of Green Gables, 2026-09-29: 40 names
+    cycled 6.5 times until the cap cut a string in half; the same call at temperature 0 later
+    answered with 70 characters in 2,295 tokens), so raising the cap does not help and the
+    reply is never parsed or repaired. One policy on every attempt: length -> discard and ask
+    again; any other finish reason is parsed and a bad parse raises at once. Raises after
+    max_attempts truncated replies, saying so.
+    """
+    for attempt in range(1, max_attempts + 1):
+        r = client.chat.completions.create(model=model, temperature=0, max_tokens=max_tokens,
+                                           messages=[{"role": "user", "content": PROMPT + text}])
+        if r.choices[0].finish_reason != "length":
+            return parse_cast(r.choices[0].message.content), r, attempt
+        print(f"attempt {attempt}/{max_attempts}: reply hit max_tokens={max_tokens}; discarded",
+              file=sys.stderr)
+    raise RuntimeError(f"cast list truncated at max_tokens={max_tokens} on all {max_attempts} "
+                       "attempts (finish_reason=length); not parsing a cut-off reply")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("source")
@@ -66,11 +90,7 @@ def main():
     llm = get_active_llm_config(config)
     client = make_run_client(config, llm, llm_timeout_seconds())
     t0 = time.time()
-    r = client.chat.completions.create(model=llm.get("model_name"), temperature=0,
-                                       max_tokens=a.max_tokens,
-                                       messages=[{"role": "user", "content": PROMPT + text}])
-    content = r.choices[0].message.content
-    cast = parse_cast(content)
+    cast, r, attempts = request_cast(client, llm.get("model_name"), text, a.max_tokens)
     usage = getattr(r, "usage", None)
     from experiments.provenance import provenance
     out = {"cast": cast, "provenance": provenance(
@@ -80,7 +100,7 @@ def main():
         prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest(),
         source=os.path.abspath(a.source),
         source_sha256=hashlib.sha256(text.encode()).hexdigest(),
-        finish_reason=r.choices[0].finish_reason,
+        finish_reason=r.choices[0].finish_reason, attempts=attempts,
         usage={"prompt_tokens": getattr(usage, "prompt_tokens", None),
                "completion_tokens": getattr(usage, "completion_tokens", None)},
         elapsed_s=round(time.time() - t0, 1))}
