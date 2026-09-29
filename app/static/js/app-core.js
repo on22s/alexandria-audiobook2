@@ -2632,7 +2632,7 @@
                                         </div>
                                         <div class="col-md-6">
                                             <input type="text" class="form-control character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
-                                            ${renderStyleTimeline(v.name, config)}
+                                            ${renderStyleTimeline(voice.name, config)}
                                         </div>
                                     </div>
                                 </div>

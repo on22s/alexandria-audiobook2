@@ -461,7 +461,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('onclick="voiceChangesHere(${chunk.id})"', js)
         self.assertIn("API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`", js)
         self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`)", js)
-        self.assertIn("renderStyleTimeline(v.name, config)", js)
+        self.assertIn("renderStyleTimeline(voice.name, config)", js)
         # collectVoiceConfig rebuilds entries from the form; the timeline must pass through
         collector = js[js.index("function collectVoiceConfig()"):js.index("return config;", js.index("function collectVoiceConfig()"))]
         self.assertIn("'style_timeline'", collector)
@@ -575,3 +575,45 @@ class FrontendTests(unittest.TestCase):
             "Bearer " + base64.b64encode(b"alexandria:secret").decode(),
             "alexandria", "secret"))
         self.assertFalse(utils.check_basic_auth("", "alexandria", "secret"))
+
+
+class VoiceCardScopeTests(unittest.TestCase):
+    """createVoiceCard(voice, index) is one big template literal, so a name that is not bound
+    there throws ReferenceError only when the function RUNS. `renderStyleTimeline(v.name, ...)`
+    did exactly that from 2026-09-18 (#602/#603): `v` is bound only inside the `.map(v => ...)`
+    arrows, not in the function itself, so every card threw, loadVoices() rejected, the Voices tab
+    stayed empty and Load Script reported "v is not defined" (issue #692).
+
+    These read the source, like the tests above: the suite has no JS runtime."""
+
+    @staticmethod
+    def _voice_card_body():
+        lines = (_STATIC_DIR / "js" / "app-core.js").read_text(encoding="utf-8").split("\n")
+        start = next(i for i, l in enumerate(lines) if "function createVoiceCard(voice, index) {" in l)
+        end = next(i for i in range(start + 1, len(lines)) if lines[i] == "        }")
+        return start + 1, lines[start:end + 1]
+
+    def test_style_timeline_is_given_this_cards_own_voice_name(self):
+        _, body = self._voice_card_body()
+        text = "\n".join(body)
+        self.assertIn("renderStyleTimeline(voice.name, config)", text)
+        self.assertNotIn("renderStyleTimeline(v.name", text)
+
+    def test_no_line_of_the_card_template_uses_v_without_binding_it(self):
+        # `v` is a parameter of an arrow function, never of createVoiceCard itself, so a line that
+        # uses it must also bind it (`v =>`) or it is a free variable that throws when the card renders.
+        first, body = self._voice_card_body()
+        free = re.compile(r"(?<![\w.$'\"`])v(?![\w$'\"`:])")
+        bound = re.compile(r"\bv\s*=>|\(\s*v\s*[,)]")
+        offenders = [(first + i, l.strip()[:100]) for i, l in enumerate(body)
+                     if free.search(l) and not bound.search(l)]
+        self.assertEqual([], offenders, "createVoiceCard uses `v` where nothing binds it")
+
+    def test_the_binding_check_would_catch_the_original_line(self):
+        # The instrument must reject the known-bad line and accept a properly bound one (Rule 21).
+        free = re.compile(r"(?<![\w.$'\"`])v(?![\w$'\"`:])")
+        bound = re.compile(r"\bv\s*=>|\(\s*v\s*[,)]")
+        bad = "${renderStyleTimeline(v.name, config)}"
+        ok = "${AVAILABLE_VOICES.map(v => `<option value=\"${v}\">${v}</option>`).join('')}"
+        self.assertTrue(free.search(bad) and not bound.search(bad))
+        self.assertTrue(free.search(ok) and bound.search(ok))

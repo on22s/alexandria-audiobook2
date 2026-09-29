@@ -1417,7 +1417,10 @@
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start",
-    "tests.test_frontend_regressions.FrontendTests.test_voices_scope_control_drives_personas_and_suggestions"
+    "tests.test_frontend_regressions.FrontendTests.test_voices_scope_control_drives_personas_and_suggestions",
+    "tests.test_frontend_regressions.VoiceCardScopeTests.test_no_line_of_the_card_template_uses_v_without_binding_it",
+    "tests.test_frontend_regressions.VoiceCardScopeTests.test_style_timeline_is_given_this_cards_own_voice_name",
+    "tests.test_frontend_regressions.VoiceCardScopeTests.test_the_binding_check_would_catch_the_original_line"
   ],
   "test_full_sequence_scoring": [],
   "test_gate_provenance": [
