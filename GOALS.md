@@ -5610,6 +5610,21 @@ by less than the adapter differs from itself line to line. What closes the
 goal is `generation_realtime_rate.py` over a real multi-voice run on the
 merged path, not six lines.
 
+**Re-measured from real renders since the merge, 2026-09-29: the target reads as met on
+single-adapter renders; the multi-voice run is still to do.** `generation_realtime_rate.py` over the three TTS logs written after the merge
+shipped whose generations are all LoRA-path, on the RX 9070 XT (each log names the card): the
+2026-09-12 merged library-fidelity run (n = 479), the 2026-09-28 goal-2.7 retrain evaluation
+(n = 597) and the 2026-09-28 run after goal 4.2 (n = 122). **Median 0.83x / 0.83x / 0.82x, worst
+0.88x / 0.98x / 0.90x**, against the target of 0.90x and 1.50x, and against the 1.23x median and
+1.38x worst measured unmerged over 4,251 clips above. Artifact:
+`ab_test_runtime/experiments/generation_realtime_rate__postmerge-20260929.json`. **What this does
+not show:** these are single-adapter fidelity and retrain evaluations, not the real multi-voice
+run the entry above says closes the goal, so it does not stand in for that run; and
+the logs record only the `TTS [local lora]` tag, not whether the talker was merged, so that the
+merged path served the 2026-09-28 runs is inferred from the merge being shipped behaviour since
+2026-09-12. A fourth log (the hifitts_9017 generate log, 2026-09-13) mixes clone and LoRA
+generations, which the script does not separate, so it is left out.
+
 ---
 
 ### Tested and not adopted — a compact wire format for generation (2026-09-02)

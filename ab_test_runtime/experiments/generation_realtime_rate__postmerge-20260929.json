@@ -1,0 +1,50 @@
+{
+ "note": "Goal 4.1's metric is generation/audio, LOWER is better. The TTS log prints audio/generation; these are inverses and reading one as the other flips the verdict.",
+ "target_median": 0.9,
+ "target_worst": 1.5,
+ "arms": [
+  {
+   "log": "library_fidelity_merged_20260912_n20_a25.log",
+   "clips": 479,
+   "median_generation_over_audio": 0.8276,
+   "worst": 0.8846,
+   "best": 0.8143,
+   "meets_median_target": true,
+   "meets_worst_target": true
+  },
+  {
+   "log": "goal27_retrain_20260928.log",
+   "clips": 597,
+   "median_generation_over_audio": 0.8267,
+   "worst": 0.9818,
+   "best": 0.8036,
+   "meets_median_target": true,
+   "meets_worst_target": true
+  },
+  {
+   "log": "after_goal42_20260928.log",
+   "clips": 122,
+   "median_generation_over_audio": 0.8164,
+   "worst": 0.902,
+   "best": 0.1492,
+   "meets_median_target": true,
+   "meets_worst_target": true
+  }
+ ],
+ "provenance": {
+  "script": "generation_realtime_rate.py",
+  "written": "2026-09-29T12:43:27",
+  "host": "mitch-linux",
+  "git": {
+   "error": "No module named 'experiments'"
+  },
+  "args": {
+   "logs": [
+    "ab_test_runtime/logs/library_fidelity_merged_20260912_n20_a25.log",
+    "ab_test_runtime/logs/goal27_retrain_20260928.log",
+    "ab_test_runtime/logs/after_goal42_20260928.log"
+   ],
+   "out": "generation_realtime_rate__postmerge-20260929.json"
+  }
+ }
+}

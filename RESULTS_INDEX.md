@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-29 from `ab_test_runtime/experiments/` — 1786 artifacts, 2925 arms.
+Generated 2026-09-29 from `ab_test_runtime/experiments/` — 1787 artifacts, 2925 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -3421,6 +3421,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `generated_audio_quality.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `generation_realtime_rate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `generation_realtime_rate__postmerge-20260929.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `generation_realtime_rate_merged_20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `guarded__breathy_alto_50s_f_fantasy__half.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `guarded__breathy_alto_50s_f_fantasy__rebuilt.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
