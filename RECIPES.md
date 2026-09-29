@@ -1513,15 +1513,25 @@ loss; Muse also does worse when the speaker is offered.
 card carrying only on-prompt cells and each row's serving condition.
 
 **The Qwen3-8B window25 adapter gains more the smaller the quant, until the base collapses**
-(seed 1, nine novels, rescored with the reviewed aliases; a second seed is being measured):
+(nine novels, rescored with the reviewed aliases; UD-Q2_K_XL has two training seeds, the other rungs one):
 
 | Qwen3-8B base | base → adapter | fixed / broken | p |
 |---|---|---:|---:|
 | Q8_0 | 77.2 → 83.9 (+6.7) | +378 / −201 | 2e-13 |
 | Q4_K_M | 76.6 → 82.8 (+6.2) | Hub card v1.6.2 | |
 | UD-Q3_K_XL | +9.0 | Hub card v1.6.2 | |
-| UD-Q2_K_XL | 62.3 → **74.5 (+12.2)** | +597 / −274 | 2e-28 |
+| Q3_K_M | 72.3 → **83.4 (+11.0)** | +476 / −183 | 6e-31 |
+| UD-IQ3_XXS | 66.7 → **79.9 (+13.2)** | +539 / −189 | 8e-40 |
+| Q2_K | 62.5 → **73.0 (+10.5)** | +575 / −296 | 2e-21 |
+| UD-Q2_K_XL, seed 1 | 62.3 → **74.5 (+12.2)** | +597 / −274 | 2e-28 |
+| UD-Q2_K_XL, seed 2 (A100) | 65.0 → **77.0 (+11.9)** | +530 / −213 | 5e-32 |
+| UD-IQ2_M | 60.0 → **75.9 (+15.9)** | +644 / −223 | 4e-48 |
 | UD-IQ2_XXS | 30.3 → 38.6 (+8.2) | +548 / −329 | 1e-13 |
+
+The cells ran on different boxes and harness revisions. The second UD-Q2_K_XL seed's base arm scores 65.0 against
+seed 1's 62.3, and a base arm has no adapter, so that gap is serving, not the seed. Q2_K, UD-IQ3_XXS and UD-IQ2_M
+ran with a 16384-token retry cap the other cells did not have, and the result files record neither the
+llama.cpp build nor a hash of the prompt text. The Hub card (v1.6.6) carries the same caveats.
 
 IQ2_XXS was served correctly (template embedded, 98% answered) and is unusable either way.
 

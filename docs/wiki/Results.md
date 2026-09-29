@@ -34,8 +34,15 @@ Adapter names follow the training-prompt labels in
 
 | model | quant | adapter | reasoning | lines | base | adapter | change | fixed / broken, p | artifact |
 |---|---|---|---|---:|---:|---:|---:|---|---|
+| Qwen3-8B | Q8_0 | window25 `michel2v2` | low | 2,655 | 77.2% | 83.9% | **+6.7** | +378/−201, p=2e-13 | `qwen3-8b-window25-michel2v2-q8_0-paired-michel2_full-tnr-0-pdnc9-20260928` |
 | Qwen3-8B | Q4_K_M | window25 `michel2v2` | low | 2,655 | 76.6% | 82.8% | **+6.2** | +372/−207, p=7e-12 | `qwen3-8b-q4km-window25-paired-michel2_full-post616-pdnc9-local9070xt-20260926` |
 | Qwen3-8B | UD-Q3_K_XL | window25 `michel2v2` | low | 2,655 | 71.8% | 80.8% | **+9.0** | +456/−218, p=3e-20 | `qwen3-8b-ud-q3kxl-window25-michel2v2-paired-michel2_full-pdnc9-local9070xt-20260928` |
+| Qwen3-8B | Q3_K_M | window25 `michel2v2` | low | 2,655 | 72.3% | 83.4% | **+11.0** | +476/−183, p=6e-31 | `qwen3-8b-window25-michel2v2-q3km-paired-michel2_full-tnr-0-pdnc9-20260928` |
+| Qwen3-8B | UD-IQ3_XXS | window25 `michel2v2` | low | 2,655 | 66.7% | 79.9% | **+13.2** | +539/−189, p=8e-40 | `qwen3-8b-window25-michel2v2-ud-iq3xxs-paired-michel2_full-tnr-4-pdnc9-20260928` |
+| Qwen3-8B | Q2_K | window25 `michel2v2` | low | 2,655 | 62.5% | 73.0% | **+10.5** | +575/−296, p=2e-21 | `qwen3-8b-window25-michel2v2-q2k-paired-michel2_full-tnr-2-pdnc9-20260928` |
+| Qwen3-8B | UD-Q2_K_XL (seed 1) | window25 `michel2v2` | low | 2,655 | 62.3% | 74.5% | **+12.2** | +597/−274, p=2e-28 | `qwen3-8b-window25-michel2v2-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928` |
+| Qwen3-8B | UD-Q2_K_XL (seed 2, A100) | window25 `michel2v2` | low | 2,655 | 65.0% | 77.0% | **+11.9** | +530/−213, p=5e-32 | `qwen3-8b-window25-michel2v2-seed2-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928` |
+| Qwen3-8B | UD-IQ2_M | window25 `michel2v2` | low | 2,655 | 60.0% | 75.9% | **+15.9** | +644/−223, p=4e-48 | `qwen3-8b-window25-michel2v2-ud-iq2m-paired-michel2_full-tnr-2-pdnc9-20260928` |
 | Qwen3.8-27B | Q4_K_M | `michel2v1` | off | 2,655 | 94.4% | 95.9% | **+1.5** | +68/−29, p=9e-5 | `qwen38-q4km-off-michel2_full-pdnc9-tnr4-20260922` |
 | Qwen3.8-27B | Q4_K_M | `michel2v1` | low | 2,655 | 95.8% | 96.4% | **+0.6** | +59/−44, p=0.17 | `qwen38-q4km-on-michel2_full-pdnc9-tnr4-20260922` |
 | Qwen3.8-27B | UD-Q3_K_XL | `michel2v1` | low | 2,655 | 95.3% | 96.1% | **+0.8** | +66/−45, p=0.057 | `qwen38-q3kxl-on-michel2_full-pdnc9-tnr2-20260922` |
