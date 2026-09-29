@@ -581,10 +581,14 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     return False
 
 
-def validate_attribution(frozen_entries, response_entries, source_text=None):
+def validate_attribution(frozen_entries, response_entries, source_text=None,
+                         known_names=None):
     """Pass 2 gate. Verifies the index+head alignment, then requires every SPOKEN
     span to have a non-empty speaker other than NARRATOR, and every NARRATOR span
-    to stay NARRATOR."""
+    to stay NARRATOR. `known_names` (a supplied cast, upper-case) skips only the
+    speaker_not_in_source check: a cast list may name a character the text never
+    capitalises ("THE STRANGER") or names once ("SILAS DURGAN")."""
+    known_names = known_names or frozenset()
     ok, reason, ordered = index_head_check(frozen_entries, response_entries)
     if not ok:
         return {"passed": False,
@@ -604,6 +608,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None):
             # assigns for genuinely unresolved speakers.
             if (source_text and speaker
                     and speaker.upper() not in ("UNKNOWN", "NARRATOR")
+                    and speaker.upper() not in known_names
                     and not is_attested_name(speaker, source_text)):
                 # The roster gate filters what goes IN; nothing filtered what
                 # came OUT. The model invented FUTURE_ME - the protagonist's

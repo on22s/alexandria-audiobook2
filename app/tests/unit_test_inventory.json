@@ -3501,6 +3501,16 @@
     "tests.test_third_party_findings.TestValidationNormalisation.test_year_matches_a_correct_rendition",
     "tests.test_third_party_findings.TestValidationNormalisation.test_years_read_as_years"
   ],
+  "test_three_pass_cast": [
+    "tests.test_three_pass_cast.CastTests.test_alias_answer_comes_out_as_the_cast_name",
+    "tests.test_three_pass_cast.CastTests.test_cast_names_pass_the_name_check_and_invented_ones_still_do_not",
+    "tests.test_three_pass_cast.CastTests.test_fingerprint_moves_only_when_a_cast_is_given",
+    "tests.test_three_pass_cast.CastTests.test_load_cast_uppercases_maps_aliases_and_accepts_the_tool_shape",
+    "tests.test_three_pass_cast.CastTests.test_malformed_cast_file_raises",
+    "tests.test_three_pass_cast.CastTests.test_once_named_cast_member_is_accepted_without_exhausting",
+    "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases",
+    "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
+  ],
   "test_three_pass_generate": [
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_attribute_request_is_unchanged_without_surround_and_wrapped_with_it",
     "tests.test_three_pass_generate.AttributionContextKnobTests.test_fingerprint_keeps_its_identity_at_the_defaults",

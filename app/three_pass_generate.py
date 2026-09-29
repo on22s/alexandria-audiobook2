@@ -279,6 +279,44 @@ def attested_new_speakers(entries, roster_seen, source_text):
     return new
 
 
+def load_cast(path):
+    """A supplied cast list: [{"name": str, "aliases": [str, ...]}, ...], bare or
+    under "cast" as build_cast_list.py writes it.
+
+    Returns {"names", "alias_groups", "alias_to_name", "known_names", "sha256"},
+    all upper-case. The names go on the pass-2 roster ahead of the attested
+    ones, bypassing MIN_ROSTER_ATTESTATIONS, because a person or a separate pass
+    (experiments/build_cast_list.py) supplied them: the capitalisation gate can
+    never admit "the stranger", which is how The Invisible Man's protagonist
+    lost 99 lines to UNKNOWN in stage 0 (2026-09-28). A malformed file raises.
+    """
+    raw = open(path, "rb").read()
+    data = json.loads(raw.decode("utf-8"))
+    if isinstance(data, dict):          # build_cast_list.py output: {"cast": [...], "provenance"}
+        data = data.get("cast")
+    if not isinstance(data, list) or not data:
+        raise ValueError(f"cast file {path} must be a non-empty JSON list")
+    names, groups, alias_to_name = [], [], {}
+    for item in data:
+        if (not isinstance(item, dict) or not isinstance(item.get("name"), str)
+                or not item["name"].strip()
+                or not isinstance(item.get("aliases", []), list)
+                or not all(isinstance(a, str) for a in item.get("aliases", []))):
+            raise ValueError(f"cast file {path}: bad entry {item!r}")
+        name = item["name"].strip().upper()
+        if name in names:
+            continue
+        aliases = [a.strip().upper() for a in item.get("aliases", [])
+                   if a.strip() and a.strip().upper() != name]
+        names.append(name)
+        groups.append([name] + aliases)
+        for alias in aliases:
+            alias_to_name.setdefault(alias, name)
+    return {"names": names, "alias_groups": groups, "alias_to_name": alias_to_name,
+            "known_names": frozenset(names) | frozenset(alias_to_name),
+            "sha256": hashlib.sha256(raw).hexdigest()}
+
+
 def default_instruct(entry):
     speaker = (entry.get("speaker") or "").strip().upper()
     return NARRATOR_DEFAULT_INSTRUCT if speaker == "NARRATOR" else CHARACTER_DEFAULT_INSTRUCT
@@ -404,7 +442,8 @@ def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster):
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
-                    exhaustion_sink=None, entries_provider=None, surround=None):
+                    exhaustion_sink=None, entries_provider=None, surround=None,
+                    cast=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -417,7 +456,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
 
     def validate(entries):
         validated["last"] = entries
-        report = validate_attribution(frozen_batch, entries, source_text)
+        report = validate_attribution(frozen_batch, entries, source_text,
+                                      known_names=(cast or {}).get("known_names"))
         validated["last_report"] = report
         if report["passed"]:
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
@@ -458,9 +498,15 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated attribution response lost its index binding")
-        return [{**{k: v for k, v in f.items() if k != "type"},
-                 "speaker": strip_roster_alias_echo(item.get("speaker"))}
-                for f, item in zip(frozen_batch, ordered)]
+        alias_to_name = (cast or {}).get("alias_to_name") or {}
+        out = []
+        for f, item in zip(frozen_batch, ordered):
+            speaker = strip_roster_alias_echo(item.get("speaker"))
+            if isinstance(speaker, str):
+                # one voice per character: a cast alias ("GRIFFIN") becomes its name
+                speaker = alias_to_name.get(speaker.strip().upper(), speaker)
+            out.append({**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker})
+        return out
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
     if on_exhaustion == "keep" and len(frozen_batch) == 1:
@@ -1362,7 +1408,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            context_rescue_retries=None, endpoint=None,
                            collect_all_failures=False, attribute_batch_size=BATCH_SIZE,
                            attribute_context_chars=0, attribute_prompt_variant="default",
-                           attribute_prompt_texts=None):
+                           attribute_prompt_texts=None, cast_sha256=None):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -1386,6 +1432,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
            if attribute_prompt_variant not in (None, "default") else {}),
         # a preset with its own text is a different prompt; a builtin is not
         **({"attribute_prompt_texts": attribute_prompt_texts} if attribute_prompt_texts else {}),
+        # a supplied cast changes pass 2's roster and its name check
+        **({"cast_sha256": cast_sha256} if cast_sha256 else {}),
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -1457,7 +1505,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    vote_temperature=0.3, first_person_narrator=None,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
-                   planned_calls=None):
+                   planned_calls=None, cast=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -1481,6 +1529,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             # the narrator prior was folded into params by main(); keep it
             texts["system"] = params.attribute_system_prompt
         entries_provider = make_provider(attribute_prompt_variant or "default",
+                                         alias_groups=(cast or {}).get("alias_groups"),
                                          texts=texts or None)
     narrator = normalize_narrator_name(first_person_narrator)
     chunk_records = split_into_chunk_records(source_text, max_size=chunk_size)
@@ -1499,7 +1548,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         attribute_batch_size=attribute_batch_size,
         attribute_context_chars=attribute_context_chars,
         attribute_prompt_variant=attribute_prompt_variant,
-        attribute_prompt_texts=attribute_prompt_texts)
+        attribute_prompt_texts=attribute_prompt_texts,
+        cast_sha256=(cast or {}).get("sha256"))
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
@@ -1560,6 +1610,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "model_name": model_name,
                             "first_person_narrator": narrator or None,
                             "thinking_mode": thinking_mode or "default",
+                            "cast": ({"sha256": cast["sha256"], "names": len(cast["names"])}
+                                     if cast else None),
                             "unicode": dict(unicode_report or {}),
                             "failure_reasons": dict(Counter(
                                 f.get("reason") or "unknown"
@@ -1700,6 +1752,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     def get_attribution_roster():
         current = build_roster(
             (entry for entry in named if isinstance(entry, dict)), source_text)
+        if cast:
+            current = list(cast["names"]) + [n for n in current if n not in cast["names"]]
         if narrator and narrator not in current:
             current.insert(0, narrator)
         return current
@@ -1755,7 +1809,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
                         source_text=source_text, surround=surround,
-                        entries_provider=entries_provider)
+                        entries_provider=entries_provider, cast=cast)
                 except PassExhausted:
                     if len(current) == 1:
                         if collect_all_failures:
@@ -2224,6 +2278,9 @@ def main():
                              "llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
+    parser.add_argument("--cast-file", default=None,
+                        help="JSON cast list [{name, aliases}] put on the pass-2 roster "
+                             "ahead of attested names (experiments/build_cast_list.py).")
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback", "keep"],
                         default="fail",
                         help="testing default 'fail' surfaces pass-2 failures; "
@@ -2293,6 +2350,14 @@ def main():
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
+    cast = None
+    if args.cast_file:
+        try:
+            cast = load_cast(args.cast_file)
+        except (OSError, ValueError) as exc:
+            parser.error(f"--cast-file: {exc}")
+        print(f"Cast list: {len(cast['names'])} characters from {args.cast_file} "
+              f"(sha256 {cast['sha256'][:12]})")
     try:
         generation_settings = resolve_three_pass_generation_settings(
             config, args.chunk_size, segmentation_override=args.segmentation)
@@ -2414,7 +2479,7 @@ def main():
                     context_windows=context_windows,
                     context_rescue_retries=context_rescue_retries,
                     endpoint=base_url,
-                    first_person_narrator=narrator)
+                    first_person_narrator=narrator, cast=cast)
                 atomic_json_write(sample_entries, sample_out)
                 summary["samples"].append({"label": label, "chunk_index": index,
                                            "status": "complete",
@@ -2443,7 +2508,8 @@ def main():
                                  attribute_batch_size=attribute_batch_size,
                                  attribute_context_chars=attribute_context_chars,
                                  attribute_prompt_variant=attribute_prompt_variant,
-                                 attribute_prompt_texts=attribute_prompt_texts)
+                                 attribute_prompt_texts=attribute_prompt_texts,
+                                 cast=cast)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
