@@ -19,14 +19,36 @@ defect is only visible in GENERATED OUTPUT, so the only honest test is to
 generate a few lines and measure them.
 
 CHEAP ON PURPOSE. A handful of lines against their human durations answers it
-in a couple of minutes. A runaway adapter is not subtle - it is an order of
-magnitude out, not a few percent - so this needs no statistics, only a look.
+in a couple of minutes. A runaway LINE is not subtle - an order of magnitude
+out, not a few percent - so this needs no statistics, only a look.
+
+JUDGED ON THE WORST LINE, NOT THE MEDIAN (2026-09-28). A runaway adapter does
+not have to run away on every line: an LJSpeech adapter at lr 2e-6 ran 16x and
+18x on two of its five lines and 0.9-1.1x on the other three, so its median was
+1.1x and the median rule passed it. A listener hits those lines. The median is
+still reported.
 """
 import argparse
 import json
 import os
 import statistics
 import sys
+
+
+def judge_stop_ratios(ratios, max_ratio):
+    """(passed, verdict) for generated/human duration ratios: every line must be
+    within max_ratio. Pure, so the rule is tested without generating audio."""
+    median, worst = statistics.median(ratios), max(ratios)
+    over = sum(1 for r in ratios if r > max_ratio)
+    if not over:
+        return True, (f"PASS - the adapter stops. Worst line {worst:.1f}x the human "
+                      f"duration, median {median:.1f}x.")
+    return False, (f"FAIL - the adapter does not stop on {over} of {len(ratios)} lines "
+                   f"(worst {worst:.1f}x, median {median:.1f}x the human duration); "
+                   f"the 2026-08-06 runaway adapters were 12x and hit a 22x ceiling. "
+                   f"Do not spend a generation run on this. Check --lr: the library "
+                   f"trains at 1e-6 and train_lora.py defaults to 5e-6; 2e-6 also "
+                   f"runs away (2026-09-28).")
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -91,18 +113,9 @@ def main():
 
     median = statistics.median(ratios)
     worst = max(ratios)
-    ok = median <= args.max_ratio
+    ok, verdict = judge_stop_ratios(ratios, args.max_ratio)
     print(f"\n  median {median:.1f}x, worst {worst:.1f}x, "
-          f"threshold {args.max_ratio:.1f}x")
-    if ok:
-        verdict = (f"PASS - the adapter stops. Median {median:.1f}x the human "
-                   f"duration.")
-    else:
-        verdict = (f"FAIL - the adapter does not stop. Median {median:.1f}x the "
-                   f"human duration; the 2026-08-06 runaway adapters were 12x "
-                   f"and hit a 22x ceiling. Do not spend a generation run on "
-                   f"this. Check --lr: the library trains at 1e-6 and "
-                   f"train_lora.py defaults to 5e-6.")
+          f"threshold {args.max_ratio:.1f}x (every line)")
     print(f"\n  {verdict}")
 
     doc = {"adapter": os.path.relpath(args.adapter, REPO),

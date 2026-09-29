@@ -3919,6 +3919,12 @@
     "tests.test_verbalization.PictographicKanaTest.test_latin_is_never_pictographic",
     "tests.test_verbalization.PictographicKanaTest.test_lone_kana_is_pictographic"
   ],
+  "test_verify_adapter_stops": [
+    "tests.test_verify_adapter_stops.StopGateTests.test_a_line_exactly_at_the_threshold_passes",
+    "tests.test_verify_adapter_stops.StopGateTests.test_full_runaway_fails_and_working_adapter_passes",
+    "tests.test_verify_adapter_stops.StopGateTests.test_partial_runaway_fails",
+    "tests.test_verify_adapter_stops.StopGateTests.test_the_old_median_rule_passed_it"
+  ],
   "test_voice_alias_saved": [
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_clearing_the_alias_in_the_tab_clears_it_in_the_file",
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_renderer_resolves_the_saved_alias",
