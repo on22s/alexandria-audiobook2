@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 1001,
-    "exploratory": 426,
+    "exploratory": 427,
     "provisional": 381,
     "artifacts_that_generated_nothing": 15
   },
@@ -26152,6 +26152,21 @@
       "dirty": null,
       "classification": "exploratory",
       "reason": "embedded provenance is incomplete"
+    },
+    {
+      "artifact": "thunder_cpu_followups_verification__20260930.json",
+      "bytes": 24152,
+      "sha256": "890ae5188b2fe4af757a07ad4c591aca4dea48655c0f9aa78f35a66f86fb3c4a",
+      "completeness": "complete",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "thunder_fullchapter_speed_verification__20260930.json",
