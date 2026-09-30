@@ -157,3 +157,11 @@ local `info/exclude` rule hides its temporary untracked runtime probe. The
 isolated checkout resolves that environment conflict without removing the
 local privacy exclusions. The original failed attempt is not represented as
 a successful gate.
+
+## Full-chapter worker-count confirmation
+
+A matched 16-worker rerun completed all 768 clips in 100.10 minutes versus
+133.80 at four workers, 25.18% less generation wall time. Mean clip WER is
+11.56% versus 11.68%; paired uncertainty includes zero. This confirms a speed
+gain on the chapter, with no listening-quality or production-settings change.
+See [the detailed confirmation](thunder-fullchapter-speed-2026-09-30.md).
