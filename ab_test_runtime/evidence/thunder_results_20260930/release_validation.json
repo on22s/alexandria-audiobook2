@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "mode": "quick",
+  "status": "passed",
+  "gates": [
+    {
+      "name": "compile_python",
+      "status": "passed",
+      "duration_seconds": 0.646
+    },
+    {
+      "name": "test_inventory",
+      "status": "passed",
+      "duration_seconds": 3.414
+    },
+    {
+      "name": "unit_tests",
+      "status": "passed",
+      "duration_seconds": 106.65
+    },
+    {
+      "name": "evidence_index",
+      "status": "passed",
+      "duration_seconds": 3.479
+    },
+    {
+      "name": "legacy_audit",
+      "status": "passed",
+      "duration_seconds": 7.574
+    },
+    {
+      "name": "results_index",
+      "status": "passed",
+      "duration_seconds": 32.309
+    },
+    {
+      "name": "api_contract",
+      "status": "passed",
+      "duration_seconds": 0.68
+    },
+    {
+      "name": "api_tests",
+      "status": "passed",
+      "result": {
+        "counts": {
+          "passed": 70,
+          "failed": 0,
+          "skipped": 12,
+          "total": 82
+        },
+        "skips": [
+          {
+            "name": "voice_design_preview",
+            "reason": "requires --full"
+          },
+          {
+            "name": "voice_design_save_and_delete",
+            "reason": "requires --full"
+          },
+          {
+            "name": "lora_preview",
+            "reason": "requires --full"
+          },
+          {
+            "name": "gpu_lock_mutual_exclusion",
+            "reason": "requires --full"
+          },
+          {
+            "name": "generate_script",
+            "reason": "requires --full"
+          },
+          {
+            "name": "review_script",
+            "reason": "requires --full"
+          },
+          {
+            "name": "generate_chunk",
+            "reason": "requires --full"
+          },
+          {
+            "name": "generate_batch",
+            "reason": "requires --full"
+          },
+          {
+            "name": "generate_batch_fast",
+            "reason": "requires --full"
+          },
+          {
+            "name": "export_audacity",
+            "reason": "requires --full"
+          },
+          {
+            "name": "lora_test_model",
+            "reason": "requires --full"
+          },
+          {
+            "name": "dataset_builder_generate_sample",
+            "reason": "requires --full"
+          }
+        ]
+      },
+      "duration_seconds": 4.335
+    }
+  ],
+  "duration_seconds": 159.087,
+  "validation_context": "Isolated checkout with identical candidate source, artifacts, and generated indexes. Original shared-worktree unit run failed one untracked-probe test because its local info/exclude ignores the entire runtime directory; privacy exclusions were preserved.",
+  "unit_tests_count": 3451,
+  "unit_tests_skipped": 0
+}

@@ -1,0 +1,5 @@
+{
+  "capture": "verify_audio_initial.py.gz",
+  "uncompressed_sha256": "50686937cad1d59513fc110ab45588b5f76179bb6aa22830cdf47a40110d7811",
+  "status": "Stopped on punctuation-only reference; waveform verification passed, ASR incomplete. Portable verifier records explicit exclusions and resumes cached hypotheses."
+}

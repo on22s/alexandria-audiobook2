@@ -1,0 +1,484 @@
+{
+  "status": "complete",
+  "summary": {
+    "silky_alto_40s_f_literary_2_clean": {
+      "n": 20,
+      "median_ecapa": 0.7196440100669861,
+      "minimum_ecapa": 0.5729035139083862,
+      "mean_ecapa": 0.706494003534317,
+      "identity_threshold": 0.45,
+      "passes_identity_median": true,
+      "clips_below_threshold": 0
+    },
+    "silky_alto_40s_f_literary_2_shipped": {
+      "n": 20,
+      "median_ecapa": 0.7231628596782684,
+      "minimum_ecapa": 0.6168698668479919,
+      "mean_ecapa": 0.7147936671972275,
+      "identity_threshold": 0.45,
+      "passes_identity_median": true,
+      "clips_below_threshold": 0
+    },
+    "silky_mezzo_30s_f_clean": {
+      "n": 20,
+      "median_ecapa": 0.6872580349445343,
+      "minimum_ecapa": 0.5651044845581055,
+      "mean_ecapa": 0.6888282060623169,
+      "identity_threshold": 0.45,
+      "passes_identity_median": true,
+      "clips_below_threshold": 0
+    },
+    "silky_mezzo_30s_f_shipped": {
+      "n": 20,
+      "median_ecapa": 0.6722765266895294,
+      "minimum_ecapa": 0.5108592510223389,
+      "mean_ecapa": 0.6653295993804932,
+      "identity_threshold": 0.45,
+      "passes_identity_median": true,
+      "clips_below_threshold": 0
+    }
+  },
+  "paired": {
+    "silky_mezzo_30s_f": {
+      "n": 20,
+      "median_paired_cosine_delta_clean_minus_shipped": 0.018973588943481445,
+      "mean_paired_cosine_delta_clean_minus_shipped": 0.02349860668182373,
+      "clean_higher_count": 13
+    },
+    "silky_alto_40s_f_literary_2": {
+      "n": 20,
+      "median_paired_cosine_delta_clean_minus_shipped": -0.019451647996902466,
+      "mean_paired_cosine_delta_clean_minus_shipped": -0.008299663662910461,
+      "clean_higher_count": 8
+    }
+  },
+  "controls": {
+    "self": [
+      1.0,
+      0.9999998807907104
+    ],
+    "same_speaker_different_clip_medians": [
+      0.8027129769325256,
+      0.6832016408443451
+    ],
+    "different_speaker_median": 0.33748583495616913,
+    "different_speaker_max": 0.5471628308296204,
+    "different_speaker_pairs_below_threshold": 18,
+    "different_speaker_n": 20,
+    "threshold": 0.45
+  },
+  "scores": [
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 0,
+      "cosine": 0.69560706615448
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 1,
+      "cosine": 0.6311358213424683
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 2,
+      "cosine": 0.6394384503364563
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 3,
+      "cosine": 0.5544431209564209
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 4,
+      "cosine": 0.673378050327301
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 5,
+      "cosine": 0.682506799697876
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 6,
+      "cosine": 0.7369839549064636
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 7,
+      "cosine": 0.695886492729187
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 8,
+      "cosine": 0.6711750030517578
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 9,
+      "cosine": 0.7281965017318726
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 10,
+      "cosine": 0.570212185382843
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 11,
+      "cosine": 0.7673120498657227
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 12,
+      "cosine": 0.791408121585846
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 13,
+      "cosine": 0.6239504814147949
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 14,
+      "cosine": 0.7475789785385132
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 15,
+      "cosine": 0.6587214469909668
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 16,
+      "cosine": 0.676240861415863
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 17,
+      "cosine": 0.5867414474487305
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 18,
+      "cosine": 0.5108592510223389
+    },
+    {
+      "label": "silky_mezzo_30s_f_shipped",
+      "ordinal": 19,
+      "cosine": 0.6648159027099609
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 0,
+      "cosine": 0.623889684677124
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 1,
+      "cosine": 0.6921625733375549
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 2,
+      "cosine": 0.6795920133590698
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 3,
+      "cosine": 0.5857399702072144
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 4,
+      "cosine": 0.6068524122238159
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 5,
+      "cosine": 0.7115033864974976
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 6,
+      "cosine": 0.7528704404830933
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 7,
+      "cosine": 0.6823534965515137
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 8,
+      "cosine": 0.7425312995910645
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 9,
+      "cosine": 0.6703642010688782
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 10,
+      "cosine": 0.5651044845581055
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 11,
+      "cosine": 0.7523870468139648
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 12,
+      "cosine": 0.7501165866851807
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 13,
+      "cosine": 0.7833210229873657
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 14,
+      "cosine": 0.8008036017417908
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 15,
+      "cosine": 0.6733865141868591
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 16,
+      "cosine": 0.6983015537261963
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 17,
+      "cosine": 0.7100533246994019
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 18,
+      "cosine": 0.6224155426025391
+    },
+    {
+      "label": "silky_mezzo_30s_f_clean",
+      "ordinal": 19,
+      "cosine": 0.6728149652481079
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 0,
+      "cosine": 0.7247713804244995
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 1,
+      "cosine": 0.6282119750976562
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 2,
+      "cosine": 0.7615873217582703
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 3,
+      "cosine": 0.8010832071304321
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 4,
+      "cosine": 0.7215543389320374
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 5,
+      "cosine": 0.6470648646354675
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 6,
+      "cosine": 0.7084729075431824
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 7,
+      "cosine": 0.7876954674720764
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 8,
+      "cosine": 0.698248028755188
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 9,
+      "cosine": 0.7936340570449829
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 10,
+      "cosine": 0.7655726671218872
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 11,
+      "cosine": 0.6201631426811218
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 12,
+      "cosine": 0.6516047120094299
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 13,
+      "cosine": 0.6192357540130615
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 14,
+      "cosine": 0.7736135721206665
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 15,
+      "cosine": 0.7567303776741028
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 16,
+      "cosine": 0.7503396272659302
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 17,
+      "cosine": 0.6168698668479919
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 18,
+      "cosine": 0.7929666042327881
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_shipped",
+      "ordinal": 19,
+      "cosine": 0.6764534711837769
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 0,
+      "cosine": 0.7338590621948242
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 1,
+      "cosine": 0.7389792203903198
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 2,
+      "cosine": 0.740647554397583
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 3,
+      "cosine": 0.7554181814193726
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 4,
+      "cosine": 0.8368880748748779
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 5,
+      "cosine": 0.7353538274765015
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 6,
+      "cosine": 0.705428957939148
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 7,
+      "cosine": 0.7523311376571655
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 8,
+      "cosine": 0.5729035139083862
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 9,
+      "cosine": 0.7673861980438232
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 10,
+      "cosine": 0.7009254097938538
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 11,
+      "cosine": 0.6021996140480042
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 12,
+      "cosine": 0.6599422693252563
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 13,
+      "cosine": 0.6411547660827637
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 14,
+      "cosine": 0.7849135398864746
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 15,
+      "cosine": 0.6900217533111572
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 16,
+      "cosine": 0.703702449798584
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 17,
+      "cosine": 0.5817764401435852
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 18,
+      "cosine": 0.7403393387794495
+    },
+    {
+      "label": "silky_alto_40s_f_literary_2_clean",
+      "ordinal": 19,
+      "cosine": 0.68570876121521
+    }
+  ],
+  "render_result_sha256": "1a8cf962ff0c0f31a76f3f6e1958c3174b374b67364564f86b7326b32423e96f",
+  "scorer_sha256": "40b88523b70b59490d09ba65bb97af218e7fb089be275fd0a309e430acb8094d",
+  "verification_script_sha256": "2322d6b8a96a40bdf5b3fd0e1909ad39b4e50a463aeded6c76fd7d86907655c9",
+  "model_hashes": {
+    "classifier.ckpt": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+    "embedding_model.ckpt": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+    "hyperparams.yaml": "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+    "label_encoder.ckpt": "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+    "mean_var_norm_emb.ckpt": "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33"
+  },
+  "max_absolute_delta_vs_remote_scores": 3.5762786865234375e-07,
+  "note": "Two speakers, 20 shared held-out human clips per speaker, four rendering arms. The .45 threshold is an existing screening policy, not calibrated universal speaker accuracy. No listening assessment, training, weight promotion, or 80 independent speakers."
+}

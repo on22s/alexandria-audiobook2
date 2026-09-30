@@ -1,0 +1,329 @@
+{
+  "status": "complete",
+  "summary": {
+    "chapter": {
+      "n": 768,
+      "workers": 4,
+      "wall_s": 8027.703666771762,
+      "audio_s": 4390.48,
+      "generation_over_audio": 1.828434172749167,
+      "audio_over_generation": 0.546916052491207,
+      "max_peak_abs": 0.94921875,
+      "clips_with_samples_at_clip_threshold": 0,
+      "max_clip_fraction": 0.0,
+      "sample_rate": 24000,
+      "channels": 1,
+      "batches": [
+        {
+          "label": "chapter5-0",
+          "n": 32,
+          "wall_s": 351.22797980252653,
+          "audio_s": 168.31999999999996,
+          "generation_over_audio": 2.0866681309560753
+        },
+        {
+          "label": "chapter5-32",
+          "n": 32,
+          "wall_s": 338.5025451006368,
+          "audio_s": 186.48000000000002,
+          "generation_over_audio": 1.815221713323878
+        },
+        {
+          "label": "chapter5-64",
+          "n": 32,
+          "wall_s": 388.02145215589553,
+          "audio_s": 205.43999999999997,
+          "generation_over_audio": 1.8887337040298655
+        },
+        {
+          "label": "chapter5-96",
+          "n": 32,
+          "wall_s": 392.3973939707503,
+          "audio_s": 204.96000000000006,
+          "generation_over_audio": 1.9145071915044407
+        },
+        {
+          "label": "chapter5-128",
+          "n": 32,
+          "wall_s": 325.4507770622149,
+          "audio_s": 209.12,
+          "generation_over_audio": 1.5562871894711883
+        },
+        {
+          "label": "chapter5-160",
+          "n": 32,
+          "wall_s": 301.8987455442548,
+          "audio_s": 187.12,
+          "generation_over_audio": 1.6133964597277404
+        },
+        {
+          "label": "chapter5-192",
+          "n": 32,
+          "wall_s": 323.42985507752746,
+          "audio_s": 192.40000000000003,
+          "generation_over_audio": 1.6810283527938015
+        },
+        {
+          "label": "chapter5-224",
+          "n": 32,
+          "wall_s": 282.746520742774,
+          "audio_s": 150.64,
+          "generation_over_audio": 1.8769684064177776
+        },
+        {
+          "label": "chapter5-256",
+          "n": 32,
+          "wall_s": 342.89526400808245,
+          "audio_s": 199.19999999999996,
+          "generation_over_audio": 1.721361767108848
+        },
+        {
+          "label": "chapter5-288",
+          "n": 32,
+          "wall_s": 414.01720768772066,
+          "audio_s": 218.56,
+          "generation_over_audio": 1.894295423168561
+        },
+        {
+          "label": "chapter5-320",
+          "n": 32,
+          "wall_s": 318.6077596824616,
+          "audio_s": 167.83999999999997,
+          "generation_over_audio": 1.8982826482510824
+        },
+        {
+          "label": "chapter5-352",
+          "n": 32,
+          "wall_s": 363.2376738237217,
+          "audio_s": 190.00000000000003,
+          "generation_over_audio": 1.9117772306511667
+        },
+        {
+          "label": "chapter5-384",
+          "n": 32,
+          "wall_s": 383.091076945886,
+          "audio_s": 201.84000000000003,
+          "generation_over_audio": 1.8979938413886541
+        },
+        {
+          "label": "chapter5-416",
+          "n": 32,
+          "wall_s": 318.8189214998856,
+          "audio_s": 149.60000000000002,
+          "generation_over_audio": 2.131142523394957
+        },
+        {
+          "label": "chapter5-448",
+          "n": 32,
+          "wall_s": 330.4750315938145,
+          "audio_s": 154.4,
+          "generation_over_audio": 2.140382328975482
+        },
+        {
+          "label": "chapter5-480",
+          "n": 32,
+          "wall_s": 355.7272452097386,
+          "audio_s": 175.67999999999998,
+          "generation_over_audio": 2.0248590915854887
+        },
+        {
+          "label": "chapter5-512",
+          "n": 32,
+          "wall_s": 312.9424681356177,
+          "audio_s": 143.6,
+          "generation_over_audio": 2.179265098437449
+        },
+        {
+          "label": "chapter5-544",
+          "n": 32,
+          "wall_s": 318.1114953001961,
+          "audio_s": 183.04,
+          "generation_over_audio": 1.7379343056173302
+        },
+        {
+          "label": "chapter5-576",
+          "n": 32,
+          "wall_s": 293.5548045169562,
+          "audio_s": 155.52000000000004,
+          "generation_over_audio": 1.8875694734886583
+        },
+        {
+          "label": "chapter5-608",
+          "n": 32,
+          "wall_s": 283.9522265987471,
+          "audio_s": 150.64,
+          "generation_over_audio": 1.8849722955307162
+        },
+        {
+          "label": "chapter5-640",
+          "n": 32,
+          "wall_s": 308.82592178322375,
+          "audio_s": 187.04,
+          "generation_over_audio": 1.651122336308938
+        },
+        {
+          "label": "chapter5-672",
+          "n": 32,
+          "wall_s": 303.7811359753832,
+          "audio_s": 175.84000000000003,
+          "generation_over_audio": 1.7275997268845722
+        },
+        {
+          "label": "chapter5-704",
+          "n": 32,
+          "wall_s": 296.94778425991535,
+          "audio_s": 179.35999999999999,
+          "generation_over_audio": 1.6555964778095194
+        },
+        {
+          "label": "chapter5-736",
+          "n": 32,
+          "wall_s": 379.04238029383123,
+          "audio_s": 253.84,
+          "generation_over_audio": 1.493233455301888
+        }
+      ],
+      "generation_provenance": {
+        "script": "thunder_audio_campaign.py",
+        "written": "2026-09-30T00:23:59",
+        "host": "instance-d2ijtkhu-main",
+        "git": {
+          "commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+          "branch": "results/thunder-20260929",
+          "dirty": false,
+          "modified_tracked_files": null,
+          "untracked_harness_files": null,
+          "harness_sha256": "1266119d0eee156f5be17fe2924dd103e83f0c54d26aa545c27098bf8009f9b4"
+        },
+        "args": {
+          "inputs": "chapter",
+          "out": "result.json"
+        }
+      },
+      "asr": {
+        "n": 764,
+        "requested": 768,
+        "excluded_no_reference_tokens": 4,
+        "mean_clip_wer": 0.11680196342115512,
+        "median_clip_wer": 0.07407407407407407,
+        "clips_wer_over_0_2": 126,
+        "empty_hypotheses": 0
+      }
+    },
+    "voices": {
+      "n": 80,
+      "workers": 1,
+      "wall_s": 3085.900095226243,
+      "audio_s": 717.92,
+      "generation_over_audio": 4.2983899253764255,
+      "audio_over_generation": 0.23264525028227317,
+      "max_peak_abs": 0.81640625,
+      "clips_with_samples_at_clip_threshold": 0,
+      "max_clip_fraction": 0.0,
+      "sample_rate": 24000,
+      "channels": 1,
+      "batches": [
+        {
+          "label": "silky_mezzo_30s_f_shipped",
+          "n": 20,
+          "wall_s": 757.0472203865647,
+          "audio_s": 168.88,
+          "generation_over_audio": 4.482752370834704
+        },
+        {
+          "label": "silky_mezzo_30s_f_clean",
+          "n": 20,
+          "wall_s": 739.1187554504722,
+          "audio_s": 174.24,
+          "generation_over_audio": 4.2419579628700195
+        },
+        {
+          "label": "silky_alto_40s_f_literary_2_shipped",
+          "n": 20,
+          "wall_s": 796.3241910804063,
+          "audio_s": 187.67999999999998,
+          "generation_over_audio": 4.242989082909241
+        },
+        {
+          "label": "silky_alto_40s_f_literary_2_clean",
+          "n": 20,
+          "wall_s": 793.4099283087999,
+          "audio_s": 187.12,
+          "generation_over_audio": 4.240112913150918
+        }
+      ],
+      "generation_provenance": {
+        "script": "thunder_audio_campaign.py",
+        "written": "2026-09-30T00:24:09",
+        "host": "instance-ux8f6tfp-main",
+        "git": {
+          "commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+          "branch": "results/thunder-20260929",
+          "dirty": false,
+          "modified_tracked_files": null,
+          "untracked_harness_files": null,
+          "harness_sha256": "1266119d0eee156f5be17fe2924dd103e83f0c54d26aa545c27098bf8009f9b4"
+        },
+        "args": {
+          "inputs": "voices",
+          "out": "result.json"
+        }
+      },
+      "asr": {
+        "n": 80,
+        "requested": 80,
+        "excluded_no_reference_tokens": 0,
+        "mean_clip_wer": 0.0883036389443628,
+        "median_clip_wer": 0.08347826086956522,
+        "clips_wer_over_0_2": 7,
+        "empty_hypotheses": 0
+      },
+      "asr_by_voice_arm": {
+        "silky_alto_40s_f_literary_2_clean": {
+          "n": 20,
+          "mean_clip_wer": 0.06975874783111626,
+          "median_clip_wer": 0.05208333333333333,
+          "clips_wer_over_0_2": 1
+        },
+        "silky_alto_40s_f_literary_2_shipped": {
+          "n": 20,
+          "mean_clip_wer": 0.07587707394944238,
+          "median_clip_wer": 0.06971153846153846,
+          "clips_wer_over_0_2": 1
+        },
+        "silky_mezzo_30s_f_clean": {
+          "n": 20,
+          "mean_clip_wer": 0.11155922395308585,
+          "median_clip_wer": 0.10644257703081232,
+          "clips_wer_over_0_2": 3
+        },
+        "silky_mezzo_30s_f_shipped": {
+          "n": 20,
+          "mean_clip_wer": 0.09601951004380671,
+          "median_clip_wer": 0.10912698412698413,
+          "clips_wer_over_0_2": 2
+        }
+      }
+    }
+  },
+  "source_hashes": {
+    "chapter_result": "ec1e23cfe811ce598d911a522396ebaed22ebfdc1efcd167e5125ed7ae44ec3e",
+    "chapter_workload": "20b996c55cb7831911c927c89e1ab6554195f94e9d4ed45a7e0add51c257e541",
+    "voices_result": "1a8cf962ff0c0f31a76f3f6e1958c3174b374b67364564f86b7326b32423e96f",
+    "voices_workload": "43304a9021f5f5bc3389823ec46e500c5ae2cedbfdadd0408b69dd33028c4e97"
+  },
+  "controls": {
+    "one_second_sine_accepted": true,
+    "silence_rejected": true,
+    "nonfinite_rejected": true,
+    "truncated_rejected": true,
+    "wer_positive_and_three_negative_cases": true,
+    "punctuation_only_reference_is_unscored": true
+  },
+  "asr_model": "openai/whisper-base.en",
+  "device": "cpu",
+  "asr_elapsed_s": 798.4607858080417,
+  "verification_script_sha256": "22aa01dd79980fe1e76b539110bb54aa60663c0885367fec10a7c00315c10a97",
+  "asr_source_sha256": "0f874ab387d12611e54ab6fa91885d88bbce1485e8ae0a81c2190a81d1d20358",
+  "note": "Mean/median WER is per clip, not pooled word-weighted WER. ASR errors include recognizer errors. No listening, accent, alignment, or automatic promotion verdict; no local speed baseline for this workload."
+}
