@@ -1,0 +1,148 @@
+{
+  "workload_sha256": "20b996c55cb7831911c927c89e1ab6554195f94e9d4ed45a7e0add51c257e541",
+  "bytes": 388270,
+  "workers": 4,
+  "requested": 768,
+  "batch_labels": [
+    "chapter5-0",
+    "chapter5-32",
+    "chapter5-64",
+    "chapter5-96",
+    "chapter5-128",
+    "chapter5-160",
+    "chapter5-192",
+    "chapter5-224",
+    "chapter5-256",
+    "chapter5-288",
+    "chapter5-320",
+    "chapter5-352",
+    "chapter5-384",
+    "chapter5-416",
+    "chapter5-448",
+    "chapter5-480",
+    "chapter5-512",
+    "chapter5-544",
+    "chapter5-576",
+    "chapter5-608",
+    "chapter5-640",
+    "chapter5-672",
+    "chapter5-704",
+    "chapter5-736"
+  ],
+  "files": [
+    {
+      "path": "adapters/breathy_alto_50s_f_fantasy/adapter_config.json",
+      "sha256": "f4f96923f8e674eb429601e55f38590a29252e6822a7d620885958d7ddefbfaf"
+    },
+    {
+      "path": "adapters/breathy_alto_50s_f_fantasy/adapter_model.safetensors",
+      "sha256": "470e437c8cc216460d1a0f64dbd280e7c4e58d0381c4379b12a444424c1c92a8"
+    },
+    {
+      "path": "adapters/breathy_alto_50s_f_fantasy/ref_sample.wav",
+      "sha256": "691fbdf0f17b8916df1cc7786ed1b48ec83c8f388e43672976f2a8b801dc2620"
+    },
+    {
+      "path": "adapters/breathy_alto_50s_f_fantasy/training_meta.json",
+      "sha256": "2e73d86b1c75f98faf24e842c518ca20641f086a9c89e7b65935eb5a31613c98"
+    },
+    {
+      "path": "adapters/husky_alto_40s_f/adapter_config.json",
+      "sha256": "f7e708f593f1ca99341ed81c7fb157ec6e1f4d14a7840249de7e389b7de9ba86"
+    },
+    {
+      "path": "adapters/husky_alto_40s_f/adapter_model.safetensors",
+      "sha256": "54a6c676dc80f0aeaaa9c27cb32fe40c312566d39a497ddcc4e956bd0883370b"
+    },
+    {
+      "path": "adapters/husky_alto_40s_f/ref_sample.wav",
+      "sha256": "2ef2de700d27400972914faca258a96558cc046da8f21813bb57afffecc19d4f"
+    },
+    {
+      "path": "adapters/husky_alto_40s_f/training_meta.json",
+      "sha256": "d5852e59f548396c8f9471832ffd12cdd334c48bd46da0b379b727ca8b364528"
+    },
+    {
+      "path": "adapters/husky_soprano_20s_f/adapter_config.json",
+      "sha256": "c2dbb1a754e39190186d2c2e2629e314fcdf6925b13f4defeafcecf2c9dc25e8"
+    },
+    {
+      "path": "adapters/husky_soprano_20s_f/adapter_model.safetensors",
+      "sha256": "38f2e579325aee9c8f7d07dd5fcdcbfd514857dfd148464c1d340ac05b50a3ff"
+    },
+    {
+      "path": "adapters/husky_soprano_20s_f/ref_sample.wav",
+      "sha256": "36757b3538a95bf985e566f8f73937cc1087928015ed41eeb3fb5327b910ca32"
+    },
+    {
+      "path": "adapters/husky_soprano_20s_f/training_meta.json",
+      "sha256": "be9257fbb68fb6b4e35249419f2307457b1b67c397dc50effffeea60dd0cfd59"
+    },
+    {
+      "path": "adapters/husky_tenor_30s_m_fantasy/adapter_config.json",
+      "sha256": "4e8870554733697cccece690b1ec804830815e7ca960ed24f8937b48cb5e1dc2"
+    },
+    {
+      "path": "adapters/husky_tenor_30s_m_fantasy/adapter_model.safetensors",
+      "sha256": "46d327b1b2f3e8ed200e95e7d42861cc1b5b195348250505a89e38e38740ba32"
+    },
+    {
+      "path": "adapters/husky_tenor_30s_m_fantasy/ref_sample.wav",
+      "sha256": "7ae1ddbb74eec77afabeb60c427dbd2c301a407d402bdcbf043542639f38c76c"
+    },
+    {
+      "path": "adapters/husky_tenor_30s_m_fantasy/training_meta.json",
+      "sha256": "bf4a7cb0251a4fc3de09fba7841e1b595a83496cc45b6f4e10bd59d33b6e268a"
+    },
+    {
+      "path": "adapters/silky_baritone_30s_m_fantasy/adapter_config.json",
+      "sha256": "1dba75bcdd94b13b73c0d98a8e5bb4cf63aef0ff463c0aae65ee308b4898d9d2"
+    },
+    {
+      "path": "adapters/silky_baritone_30s_m_fantasy/adapter_model.safetensors",
+      "sha256": "4b6705eee044c8ee5246fb738ca332e1d24fb2c02b88a7a6c303c486ce218007"
+    },
+    {
+      "path": "adapters/silky_baritone_30s_m_fantasy/ref_sample.wav",
+      "sha256": "1a5b62d5814e8a29d329f45d307563b7d3e5aa0c9489e58a47299c1a4193826a"
+    },
+    {
+      "path": "adapters/silky_baritone_30s_m_fantasy/training_meta.json",
+      "sha256": "a2688ca9a7f4ba7ee2aeae38929bdaa1dc1fc256d3832bb0acbcef26d5d83e1e"
+    },
+    {
+      "path": "adapters/silky_baritone_45s_m/adapter_config.json",
+      "sha256": "da82d2304972793bdc618a684015836cb0c8481e99a55456985bdce3e028be7c"
+    },
+    {
+      "path": "adapters/silky_baritone_45s_m/adapter_model.safetensors",
+      "sha256": "41e45e1ed60ffcdfe008eb707b6941d03a73662cd7744fa274d10b66d0f5ae32"
+    },
+    {
+      "path": "adapters/silky_baritone_45s_m/ref_sample.wav",
+      "sha256": "30207b6a2cbbb187517ff2e96c6447b64a90e556616a65b2bcb63b5f7a26ca9d"
+    },
+    {
+      "path": "adapters/silky_baritone_45s_m/training_meta.json",
+      "sha256": "041c8546dccdfed731f374edb8c67d6b5fc979e434c761cbc11155ced6599e22"
+    },
+    {
+      "path": "adapters/warm_baritone_50s_m_gothic/adapter_config.json",
+      "sha256": "4e8870554733697cccece690b1ec804830815e7ca960ed24f8937b48cb5e1dc2"
+    },
+    {
+      "path": "adapters/warm_baritone_50s_m_gothic/adapter_model.safetensors",
+      "sha256": "14367a6ec3f21e089d25a68e76cc4b6bf3baa18fb49ed72f7b9399abe142c170"
+    },
+    {
+      "path": "adapters/warm_baritone_50s_m_gothic/ref_sample.wav",
+      "sha256": "60086e11f37706af7f9af78f25020598c4edd91ea0846ceee544f81b8c19418d"
+    },
+    {
+      "path": "adapters/warm_baritone_50s_m_gothic/training_meta.json",
+      "sha256": "5c59bbe079528662fd7723397069f1afd7ee4502fcf7ebeae964384788ef5171"
+    }
+  ],
+  "raw_capture": "/home/fakemitch/Desktop/thunder_campaign_20260929/chapter",
+  "note": "Frozen text/cast and audio inputs kept locally and on the assigned cloud box; raw book text is not copied into this report."
+}

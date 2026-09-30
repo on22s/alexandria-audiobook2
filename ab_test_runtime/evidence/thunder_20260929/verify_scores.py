@@ -42,7 +42,9 @@ def main():
     # Independently fetched remote hashes accompany the new seed3 capture.
     for item in json.loads((EVIDENCE / "remote_manifest.json").read_text()):
         name = Path(item["path"]).name
-        if name.startswith("lora_serving_eval__"):
+        if item.get("capture"):
+            path = EVIDENCE / item["capture"]
+        elif name.startswith("lora_serving_eval__"):
             path = REPO / "ab_test_runtime/experiments" / name
         elif name.startswith("attribution_gold_"):
             path = EVIDENCE / "fixtures" / name

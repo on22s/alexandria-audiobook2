@@ -1,6 +1,6 @@
 {
-  "verified": 10,
-  "rows": 53100,
+  "verified": 11,
+  "rows": 58410,
   "results": [
     {
       "artifact": "lora_serving_eval__qwen3-8b-window25-michel2v2-q2k-paired-michel2_full-tnr-2-pdnc9-20260928.json",
@@ -238,6 +238,46 @@
         "improved": 577,
         "regressed": 182,
         "p": 1.2164847642016255e-48
+      },
+      "failure_rows": {},
+      "producer_dirty": true
+    },
+    {
+      "artifact": "lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json",
+      "sha256": "8bc7bef25d61828f08c439b1010f526828d222f34da758d6bef2f0cb429b009c",
+      "host": "instance-vrlak8vr-main",
+      "model": "qwen3-8b-window25-michel2v2-seed3-ud-q2kxl",
+      "summary": {
+        "base": {
+          "correct": 1701,
+          "n": 2655,
+          "accuracy_pct": 64.0677966101695,
+          "unanswered": 38
+        },
+        "lora": {
+          "correct": 2025,
+          "n": 2655,
+          "accuracy_pct": 76.27118644067797,
+          "unanswered": 25
+        }
+      },
+      "strict": {
+        "base": {
+          "n": 2598,
+          "correct": 1694,
+          "accuracy": 0.6520400307929176
+        },
+        "lora": {
+          "n": 2598,
+          "correct": 2006,
+          "accuracy": 0.7721324095458044
+        }
+      },
+      "paired": {
+        "n": 2655,
+        "improved": 560,
+        "regressed": 236,
+        "p": 3.4817739221286483e-31
       },
       "failure_rows": {},
       "producer_dirty": true

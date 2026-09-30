@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 380 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 381 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 262
+- `exploratory`: 263
 - `historical_only`: 65
 - `provisional`: 11
 - `supported_measurement`: 42
@@ -249,6 +249,7 @@ All 380 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-q3ks-paired-michel2_full-tnr-0-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-seed2-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-seed2-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-ud-iq2m-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-window25-michel2v2-ud-iq3xxs-paired-michel2_full-tnr-4-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |

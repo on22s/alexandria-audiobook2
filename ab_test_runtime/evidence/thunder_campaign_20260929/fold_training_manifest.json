@@ -1,0 +1,99 @@
+{
+  "train_books": [
+    "Emma",
+    "MansfieldPark",
+    "NorthangerAbbey",
+    "Persuasion",
+    "PrideAndPrejudice",
+    "SenseAndSensibility",
+    "TheAwakening",
+    "TheSignOfTheFour",
+    "TheSunAlsoRises"
+  ],
+  "evaluation_books": [
+    "AHandfulOfDust",
+    "APassageToIndia",
+    "ARoomWithAView",
+    "AlicesAdventuresInWonderland",
+    "AnneOfGreenGables",
+    "DaisyMiller",
+    "HardTimes",
+    "HowardsEnd",
+    "NightAndDay",
+    "OliverTwist",
+    "TheAgeOfInnocence",
+    "TheGambler",
+    "TheInvisibleMan",
+    "TheManWhoWasThursday",
+    "TheMysteriousAffairAtStyles",
+    "ThePictureOfDorianGray",
+    "TheSportOfTheGods",
+    "WhereAngelsFearToTread",
+    "WinnieThePooh"
+  ],
+  "coverage": {
+    "Emma": 135,
+    "MansfieldPark": 114,
+    "NorthangerAbbey": 96,
+    "Persuasion": 77,
+    "PrideAndPrejudice": 126,
+    "SenseAndSensibility": 119,
+    "TheAwakening": 81,
+    "TheSignOfTheFour": 75,
+    "TheSunAlsoRises": 152
+  },
+  "examples": 975,
+  "data_sha256": "8ab9e5b1030a2eda894ca6746612375cdbb76de53337bd77faed28cebe248207",
+  "builder_sha256": "a6b15c26f31933133a55eee52f894bc6b758a1040a61e51eb0f979aa17365ab8",
+  "seed": 20260924,
+  "source_sha256": {
+    "Emma": {
+      "novel_text.txt": "244f3afe05a7490c0fe0daddad0b93ab42f5639ac2fc24814b321c91dd143d1c",
+      "quotation_info.csv": "2e6672f9e575b5ad83d335f9ef1f3f5ad1c755dfe1c95b4bdb733c57b3247455",
+      "character_info.csv": "906919c0041cf368e4f9dec3828dd07675505bd538687be8ddd7dd72f307bd85"
+    },
+    "MansfieldPark": {
+      "novel_text.txt": "b6c3c9f73be5e54682dc8b77f31844e48f3972b8e1f80dd86bd2b62c5ff80d87",
+      "quotation_info.csv": "3a7a3078031d14ab9cba8361ce873830bbce0ef296b581569287933dcd26feb5",
+      "character_info.csv": "398d4c853c83b5a7bab056acad8212624391fb9476a6b7243583554d623b7250"
+    },
+    "NorthangerAbbey": {
+      "novel_text.txt": "b204181174e72d207e7a7d48db85faf1758a6e73b9abbf9f8f94ef29e28e13ee",
+      "quotation_info.csv": "2939bb20a22e9e668a66bb77be3e9c06fb8c522a42798037d2e8febf07277ab4",
+      "character_info.csv": "0d03ab52218ca4ba16d3730a7371fd6c562d120da0b0f4a4d58e6807eb569ebe"
+    },
+    "Persuasion": {
+      "novel_text.txt": "b42c4b4735cadffec44ef7462405b1551388fd1be6c35487c23745763584cd26",
+      "quotation_info.csv": "818959323968d05be920a1488c14bb133143655a801954abb49d192a8c70a53d",
+      "character_info.csv": "296f5ec2c1fdbf80f60c94402fd302c361588c9119dcd3aac16e1ea10f79c67e"
+    },
+    "PrideAndPrejudice": {
+      "novel_text.txt": "03ef2a45e7d958ea400cd63e77499ba65e0aa4a06e35c434ca348a0e46789660",
+      "quotation_info.csv": "4eb8d235fc06dfb39c11eb5525fa21943d1a9f0e1d01af61f9329fa10512792b",
+      "character_info.csv": "8d4661674754541c01c2b3492cd4ef2a2554b186eaad733a1794dc8fb8a43a83"
+    },
+    "SenseAndSensibility": {
+      "novel_text.txt": "504919bfd78b59cc995904769eb51e645be05c805718e445d0ec969366e0d5c5",
+      "quotation_info.csv": "b9c9c6ae60f72c73e9c43acbda76adffc9a34c4de33a0e9ffcf8b394f9ebea4e",
+      "character_info.csv": "958a873dd5e5522a985561c57224326e6054e4e9e14c58b1d30e4ceae2055727"
+    },
+    "TheAwakening": {
+      "novel_text.txt": "70e6caa8b14d81c3675f774158abfe674e091b73dafc784ef33c13f08a3de603",
+      "quotation_info.csv": "d5b95f316a562b170be3de5b6ef13e8e216ba0bdbd307d5d0ba9ff721fae3f0c",
+      "character_info.csv": "0ea4940bdafea0ca843a4e0f3fe11a45e0e738a1691992928ea3bc5da5e66cf5"
+    },
+    "TheSignOfTheFour": {
+      "novel_text.txt": "f64ea9c167a8bda40b1d2c79516759b3c15c50d5f1808fe4a1a2bacd8188ea5f",
+      "quotation_info.csv": "673d2b10888ffb0bce565f3ba6ac37165d86395c7a2fd8bd51f4492c7bf01ed2",
+      "character_info.csv": "fd2b00a0ca988b75cd7f201699ff3dcfe27231430db9e21e14b0322801a2e486"
+    },
+    "TheSunAlsoRises": {
+      "novel_text.txt": "4fd2e7b51fc866b9f5abfa11be3137c4954a005aeddc1858b8e7778426316923",
+      "quotation_info.csv": "4fad59f179406ff9b5685a2fb6a3bcbc91df21d0239377f01483feed33ea12e6",
+      "character_info.csv": "cca517a802182827c6dbb23a80f9edfe23938b9b63769f4346adc125ccefa6e3"
+    }
+  },
+  "quote_samples_per_book": 200,
+  "prompt_contract": "captured michel2_full window25 surround2000",
+  "limitation": "Books are held out; authors are not guaranteed disjoint."
+}

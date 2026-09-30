@@ -1,0 +1,7 @@
+[
+  {
+    "model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    "snapshot": "/home/ubuntu/.cache/huggingface/hub/models--Qwen--Qwen3-TTS-12Hz-1.7B-Base/snapshots/fd4b254389122332181a7c3db7f27e918eec64e3",
+    "revision": "fd4b254389122332181a7c3db7f27e918eec64e3"
+  }
+]

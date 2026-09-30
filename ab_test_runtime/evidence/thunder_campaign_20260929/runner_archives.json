@@ -1,0 +1,38 @@
+[
+  {
+    "original": "run_fold_20260929.sh",
+    "sha256": "d81338f3ec16fa2293f24af7bac9771bea323e66df32630ff71cd9bbb4025f08",
+    "bytes": 2385,
+    "archive": "run_fold_20260929.sh.gz"
+  },
+  {
+    "original": "launch_chapter_20260929.sh",
+    "sha256": "6025d167111ddac97da10692370f298169469abf42661ceca564c6665f094a53",
+    "bytes": 664,
+    "archive": "launch_chapter_20260929.sh.gz"
+  },
+  {
+    "original": "launch_voices_20260929.sh",
+    "sha256": "e5191a412ec1bd4f2ed661c0fe9c175d30e3d7c3f1f46ec5876e19c1709b9782",
+    "bytes": 778,
+    "archive": "launch_voices_20260929.sh.gz"
+  },
+  {
+    "original": "launch_fold_20260929.sh",
+    "sha256": "e2fc0198604c247efc23d399f6c9daf0073e86f478d6ca5f7c8884180a6d7f93",
+    "bytes": 520,
+    "archive": "launch_fold_20260929.sh.gz"
+  },
+  {
+    "original": "score_voices_20260929.py",
+    "sha256": "ecc138b611f1acbd72ed6024f91d93df0609a66965c44ad8cad8562e706639b8",
+    "bytes": 1914,
+    "archive": "score_voices_20260929.py.gz"
+  },
+  {
+    "original": "download_audio_models.py",
+    "sha256": "c5dd172a887b5da273bca2ad41398fbe7cba69c7e8d4d0474a970041d30184d3",
+    "bytes": 380,
+    "archive": "download_audio_models.py.gz"
+  }
+]
