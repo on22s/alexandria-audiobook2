@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-30 from `ab_test_runtime/experiments/` — 1802 artifacts, 3123 arms.
+Generated 2026-09-30 from `ab_test_runtime/experiments/` — 1803 artifacts, 3123 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -4315,6 +4315,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `three_pass_vs_single_pdnc.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_pdnc_resumed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_qwen3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `thunder_attribution_verification__20260930.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `thunder_audio_verification__20260930.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `thunder_identity_verification__20260930.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `tight_gate__narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_sum_s20260905__control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

@@ -1,0 +1,515 @@
+{
+  "status": "complete",
+  "source_result_sha256": "debee575c12595c5adaea01318966714dd38d9c28e2e61a02f405fef63d3e78f",
+  "source_provenance": {
+    "commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+    "branch": "results/thunder-20260929",
+    "dirty": false,
+    "modified_tracked_files": null,
+    "untracked_harness_files": null,
+    "harness_sha256": "1266119d0eee156f5be17fe2924dd103e83f0c54d26aa545c27098bf8009f9b4"
+  },
+  "controls_passed": 6,
+  "verification": {
+    "rows_checked": 11086,
+    "correctness_mismatches": 0,
+    "availability_mismatches": 0,
+    "expected_ids_per_arm": 5543,
+    "frozen_files_verified": 57,
+    "train_examples": 975,
+    "train_books": [
+      "emma",
+      "mansfieldpark",
+      "northangerabbey",
+      "persuasion",
+      "prideandprejudice",
+      "senseandsensibility",
+      "theawakening",
+      "thesignofthefour",
+      "thesunalsorises"
+    ],
+    "evaluation_books": [
+      "ahandfulofdust",
+      "alicesadventuresinwonderland",
+      "anneofgreengables",
+      "apassagetoindia",
+      "aroomwithaview",
+      "daisymiller",
+      "hardtimes",
+      "howardsend",
+      "nightandday",
+      "olivertwist",
+      "theageofinnocence",
+      "thegambler",
+      "theinvisibleman",
+      "themanwhowasthursday",
+      "themysteriousaffairatstyles",
+      "thepictureofdoriangray",
+      "thesportofthegods",
+      "whereangelsfeartotread",
+      "winniethepooh"
+    ],
+    "book_overlap": 0,
+    "training_data_sha256": "8ab9e5b1030a2eda894ca6746612375cdbb76de53337bd77faed28cebe248207",
+    "prompt_hashes_present": 0,
+    "raw_responses_present": 0
+  },
+  "overall": {
+    "arms": {
+      "base": {
+        "n": 5543,
+        "correct": 3494,
+        "unanswered": 89,
+        "accuracy": 0.6303445787479705
+      },
+      "lora": {
+        "n": 5543,
+        "correct": 3840,
+        "unanswered": 113,
+        "accuracy": 0.6927656503698358
+      }
+    },
+    "improved": 895,
+    "regressed": 549,
+    "delta_percentage_points": 6.242107162186539,
+    "exact_mcnemar_p": 7.340184716239499e-20
+  },
+  "shared_answered_only": {
+    "arms": {
+      "base": {
+        "n": 5354,
+        "correct": 3439,
+        "unanswered": 0,
+        "accuracy": 0.6423234964512514
+      },
+      "lora": {
+        "n": 5354,
+        "correct": 3802,
+        "unanswered": 0,
+        "accuracy": 0.7101232723197609
+      }
+    },
+    "improved": 857,
+    "regressed": 494,
+    "delta_percentage_points": 6.779977586850949,
+    "exact_mcnemar_p": 3.818581760388874e-23
+  },
+  "per_book": {
+    "pdnc_ahandfulofdust": {
+      "arms": {
+        "base": {
+          "n": 494,
+          "correct": 294,
+          "unanswered": 2,
+          "accuracy": 0.5951417004048583
+        },
+        "lora": {
+          "n": 494,
+          "correct": 317,
+          "unanswered": 6,
+          "accuracy": 0.6417004048582996
+        }
+      },
+      "improved": 84,
+      "regressed": 61,
+      "delta_percentage_points": 4.655870445344135,
+      "exact_mcnemar_p": 0.06732947143058453
+    },
+    "pdnc_alicesadventuresinwonderland": {
+      "arms": {
+        "base": {
+          "n": 185,
+          "correct": 84,
+          "unanswered": 0,
+          "accuracy": 0.4540540540540541
+        },
+        "lora": {
+          "n": 185,
+          "correct": 132,
+          "unanswered": 1,
+          "accuracy": 0.7135135135135136
+        }
+      },
+      "improved": 58,
+      "regressed": 10,
+      "delta_percentage_points": 25.945945945945947,
+      "exact_mcnemar_p": 2.361627111046021e-09
+    },
+    "pdnc_anneofgreengables": {
+      "arms": {
+        "base": {
+          "n": 208,
+          "correct": 164,
+          "unanswered": 0,
+          "accuracy": 0.7884615384615384
+        },
+        "lora": {
+          "n": 208,
+          "correct": 168,
+          "unanswered": 4,
+          "accuracy": 0.8076923076923077
+        }
+      },
+      "improved": 23,
+      "regressed": 19,
+      "delta_percentage_points": 1.9230769230769273,
+      "exact_mcnemar_p": 0.6439689563703723
+    },
+    "pdnc_apassagetoindia": {
+      "arms": {
+        "base": {
+          "n": 459,
+          "correct": 250,
+          "unanswered": 10,
+          "accuracy": 0.5446623093681917
+        },
+        "lora": {
+          "n": 459,
+          "correct": 235,
+          "unanswered": 0,
+          "accuracy": 0.5119825708061002
+        }
+      },
+      "improved": 58,
+      "regressed": 73,
+      "delta_percentage_points": -3.26797385620915,
+      "exact_mcnemar_p": 0.2211160191629952
+    },
+    "pdnc_aroomwithaview": {
+      "arms": {
+        "base": {
+          "n": 331,
+          "correct": 208,
+          "unanswered": 4,
+          "accuracy": 0.6283987915407855
+        },
+        "lora": {
+          "n": 331,
+          "correct": 217,
+          "unanswered": 12,
+          "accuracy": 0.6555891238670695
+        }
+      },
+      "improved": 43,
+      "regressed": 34,
+      "delta_percentage_points": 2.7190332326283984,
+      "exact_mcnemar_p": 0.36203179773966154
+    },
+    "pdnc_daisymiller": {
+      "arms": {
+        "base": {
+          "n": 272,
+          "correct": 229,
+          "unanswered": 5,
+          "accuracy": 0.8419117647058824
+        },
+        "lora": {
+          "n": 272,
+          "correct": 221,
+          "unanswered": 4,
+          "accuracy": 0.8125
+        }
+      },
+      "improved": 24,
+      "regressed": 32,
+      "delta_percentage_points": -2.941176470588236,
+      "exact_mcnemar_p": 0.34968195298368476
+    },
+    "pdnc_hardtimes": {
+      "arms": {
+        "base": {
+          "n": 211,
+          "correct": 151,
+          "unanswered": 0,
+          "accuracy": 0.7156398104265402
+        },
+        "lora": {
+          "n": 211,
+          "correct": 162,
+          "unanswered": 5,
+          "accuracy": 0.7677725118483413
+        }
+      },
+      "improved": 31,
+      "regressed": 20,
+      "delta_percentage_points": 5.213270142180104,
+      "exact_mcnemar_p": 0.16077960181198847
+    },
+    "pdnc_howardsend": {
+      "arms": {
+        "base": {
+          "n": 382,
+          "correct": 258,
+          "unanswered": 0,
+          "accuracy": 0.675392670157068
+        },
+        "lora": {
+          "n": 382,
+          "correct": 284,
+          "unanswered": 1,
+          "accuracy": 0.743455497382199
+        }
+      },
+      "improved": 64,
+      "regressed": 38,
+      "delta_percentage_points": 6.806282722513091,
+      "exact_mcnemar_p": 0.012920451911126197
+    },
+    "pdnc_nightandday": {
+      "arms": {
+        "base": {
+          "n": 265,
+          "correct": 206,
+          "unanswered": 0,
+          "accuracy": 0.7773584905660378
+        },
+        "lora": {
+          "n": 265,
+          "correct": 216,
+          "unanswered": 1,
+          "accuracy": 0.8150943396226416
+        }
+      },
+      "improved": 30,
+      "regressed": 20,
+      "delta_percentage_points": 3.7735849056603765,
+      "exact_mcnemar_p": 0.20263875106454066
+    },
+    "pdnc_olivertwist": {
+      "arms": {
+        "base": {
+          "n": 136,
+          "correct": 102,
+          "unanswered": 1,
+          "accuracy": 0.75
+        },
+        "lora": {
+          "n": 136,
+          "correct": 96,
+          "unanswered": 0,
+          "accuracy": 0.7058823529411765
+        }
+      },
+      "improved": 14,
+      "regressed": 20,
+      "delta_percentage_points": -4.411764705882348,
+      "exact_mcnemar_p": 0.39152830513194203
+    },
+    "pdnc_theageofinnocence": {
+      "arms": {
+        "base": {
+          "n": 344,
+          "correct": 202,
+          "unanswered": 13,
+          "accuracy": 0.5872093023255814
+        },
+        "lora": {
+          "n": 344,
+          "correct": 232,
+          "unanswered": 4,
+          "accuracy": 0.6744186046511628
+        }
+      },
+      "improved": 68,
+      "regressed": 38,
+      "delta_percentage_points": 8.720930232558132,
+      "exact_mcnemar_p": 0.0046185356920239295
+    },
+    "pdnc_thegambler": {
+      "arms": {
+        "base": {
+          "n": 246,
+          "correct": 126,
+          "unanswered": 26,
+          "accuracy": 0.5121951219512195
+        },
+        "lora": {
+          "n": 246,
+          "correct": 132,
+          "unanswered": 40,
+          "accuracy": 0.5365853658536586
+        }
+      },
+      "improved": 27,
+      "regressed": 21,
+      "delta_percentage_points": 2.4390243902439046,
+      "exact_mcnemar_p": 0.470879013621712
+    },
+    "pdnc_theinvisibleman": {
+      "arms": {
+        "base": {
+          "n": 234,
+          "correct": 139,
+          "unanswered": 0,
+          "accuracy": 0.594017094017094
+        },
+        "lora": {
+          "n": 234,
+          "correct": 164,
+          "unanswered": 4,
+          "accuracy": 0.7008547008547008
+        }
+      },
+      "improved": 37,
+      "regressed": 12,
+      "delta_percentage_points": 10.68376068376068,
+      "exact_mcnemar_p": 0.0004697573180081349
+    },
+    "pdnc_themanwhowasthursday": {
+      "arms": {
+        "base": {
+          "n": 110,
+          "correct": 75,
+          "unanswered": 0,
+          "accuracy": 0.6818181818181818
+        },
+        "lora": {
+          "n": 110,
+          "correct": 82,
+          "unanswered": 2,
+          "accuracy": 0.7454545454545455
+        }
+      },
+      "improved": 17,
+      "regressed": 10,
+      "delta_percentage_points": 6.363636363636371,
+      "exact_mcnemar_p": 0.24778856337070465
+    },
+    "pdnc_themysteriousaffairatstyles": {
+      "arms": {
+        "base": {
+          "n": 403,
+          "correct": 133,
+          "unanswered": 18,
+          "accuracy": 0.33002481389578164
+        },
+        "lora": {
+          "n": 403,
+          "correct": 245,
+          "unanswered": 22,
+          "accuracy": 0.607940446650124
+        }
+      },
+      "improved": 129,
+      "regressed": 17,
+      "delta_percentage_points": 27.79156327543424,
+      "exact_mcnemar_p": 1.710414012325665e-22
+    },
+    "pdnc_thepictureofdoriangray": {
+      "arms": {
+        "base": {
+          "n": 344,
+          "correct": 263,
+          "unanswered": 0,
+          "accuracy": 0.7645348837209303
+        },
+        "lora": {
+          "n": 344,
+          "correct": 291,
+          "unanswered": 0,
+          "accuracy": 0.8459302325581395
+        }
+      },
+      "improved": 52,
+      "regressed": 24,
+      "delta_percentage_points": 8.139534883720923,
+      "exact_mcnemar_p": 0.001761872002940625
+    },
+    "pdnc_thesportofthegods": {
+      "arms": {
+        "base": {
+          "n": 325,
+          "correct": 225,
+          "unanswered": 2,
+          "accuracy": 0.6923076923076923
+        },
+        "lora": {
+          "n": 325,
+          "correct": 242,
+          "unanswered": 0,
+          "accuracy": 0.7446153846153846
+        }
+      },
+      "improved": 50,
+      "regressed": 33,
+      "delta_percentage_points": 5.230769230769228,
+      "exact_mcnemar_p": 0.07841962481580764
+    },
+    "pdnc_whereangelsfeartotread": {
+      "arms": {
+        "base": {
+          "n": 344,
+          "correct": 247,
+          "unanswered": 0,
+          "accuracy": 0.7180232558139535
+        },
+        "lora": {
+          "n": 344,
+          "correct": 260,
+          "unanswered": 5,
+          "accuracy": 0.7558139534883721
+        }
+      },
+      "improved": 50,
+      "regressed": 37,
+      "delta_percentage_points": 3.779069767441856,
+      "exact_mcnemar_p": 0.1979791406725175
+    },
+    "pdnc_winniethepooh": {
+      "arms": {
+        "base": {
+          "n": 250,
+          "correct": 138,
+          "unanswered": 8,
+          "accuracy": 0.552
+        },
+        "lora": {
+          "n": 250,
+          "correct": 144,
+          "unanswered": 2,
+          "accuracy": 0.576
+        }
+      },
+      "improved": 36,
+      "regressed": 30,
+      "delta_percentage_points": 2.399999999999991,
+      "exact_mcnemar_p": 0.5385827752459466
+    }
+  },
+  "book_summary": {
+    "improved": 16,
+    "regressed": 3,
+    "tied": 0,
+    "macro_delta_percentage_points": 6.103391479591293,
+    "bootstrap95_macro_delta_percentage_points": [
+      2.7671400124587837,
+      10.060256905769073
+    ],
+    "bootstrap_draws": 20000,
+    "bootstrap_seed": 20260930
+  },
+  "normalized_candidate_coverage_diagnostic": {
+    "base": 5543,
+    "lora": 5543
+  },
+  "limitations": [
+    "Book-held-out, not a verified author-held-out split.",
+    "Recomputes stored predictions; absent raw replies and prompt hashes prevent reparsing and byte-level prompt comparison.",
+    "Quote-level McNemar assumes independent pairs; report book-level bootstrap separately.",
+    "No development-book evaluation of this adapter; does not close goal 1.3 gap target."
+  ],
+  "measurement": {
+    "model": "Qwen3-8B UD-Q2_K_XL, F16 rank-16 adapter",
+    "training_examples": 975,
+    "train_books": 9,
+    "evaluation_books": 19,
+    "window_limit_per_book": 40,
+    "prompt_variant": "michel2_full",
+    "reasoning_effort": "low",
+    "server_reasoning_budget": 1024,
+    "evaluation_elapsed_seconds": 42516.4,
+    "finished_cdt": "2026-09-30T08:42:00.434633-05:00",
+    "headline_includes_unanswered_as_wrong": true
+  },
+  "verifier_sha256": "7e434313ae3c04e32208b0016705eb0b9e85b360483e0938edf550ebd4708748"
+}

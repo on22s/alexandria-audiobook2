@@ -110,11 +110,14 @@ automatic promotion is performed.
 
 ## A100 fold evaluation
 
-The separate A100 job trained on 975 windows from nine books and then began
-paired base/adapter evaluation on 19 held-out books. Its final result was not
-complete at the last check. The running checkpoint is not presented as a
-finished benchmark and is excluded from these two completed A6000 results.
-No live cloud scripts or jobs were changed to collect or score this evidence.
+The separate A100 job finished at 8:42 AM CDT on September 30. Independent
+verification of 5,543 sampled quotations per arm gives 63.03% base versus
+69.28% LoRA, a gain of 6.24 percentage points including unanswered rows as
+wrong. The adapter improves 16 of 19 held-out books and leaves 113 unanswered
+versus 89 for base. Training used 975 windows from nine disjoint books.
+See the [A100 scoring report](thunder-a100-foldswap-2026-09-30.md) for per-book
+results, frozen-input checks, and the absence of retained raw responses and
+prompt hashes. No live cloud scripts or jobs were changed to score this run.
 
 ## Artifacts and replay
 
