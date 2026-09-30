@@ -3901,6 +3901,7 @@ three_pass_vs_single_pdnc_resumed.json,supported_structure,provenance,yes,,,,,,,
 three_pass_vs_single_qwen3.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 thunder_attribution_verification__20260930.json,exploratory,none,no,,3a6ff280,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 thunder_audio_verification__20260930.json,exploratory,none,no,,36ca342e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+thunder_completed_followups_verification__20260930.json,exploratory,none,no,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 thunder_fullchapter_speed_verification__20260930.json,exploratory,none,no,,f16fd4a7,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 thunder_identity_verification__20260930.json,exploratory,none,no,,36ca342e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 thunder_listening_followup_verification__20260930.json,exploratory,none,no,,0bdf3c1f,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results

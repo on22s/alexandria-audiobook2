@@ -35,7 +35,7 @@ Listener reports flagged cut-off endings in real pairs 1, 11 and 12: sixteen-wor
 
 Four voices previously rated 1/5 were retested on the exact original held-out line, alongside two previously clean controls, at generation seeds 20260930 and 20261001. This used the original honest-retrain checkpoints, verified against their recorded hashes; **no training was performed**. Twelve main renders and four same-text foreign-voice controls completed, and every downloaded 24 kHz mono WAV hash, duration and finite nonzero samples was checked.
 
-One `husky_baritone_20s_m_anime` render lasted **163.76 seconds**, versus **10.40 seconds** at the other new seed. This is a measured duration anomaly, not an independently confirmed looping diagnosis. Pitch was measured using pYIN with 100/200 Hz tone controls and a silence rejection control. For the three previously reported wrong-voice pairs:
+One `husky_baritone_20s_m_anime` render lasted **163.76 seconds**, versus **10.40 seconds** at the other new seed. This duration anomaly was subsequently reproduced byte-for-byte and reported as garbled/runaway audio by the listener; see the completed follow-up below. Pitch was measured using pYIN with 100/200 Hz tone controls and a silence rejection control. For the three previously reported wrong-voice pairs:
 
 | Adapter | Human median f0 | New seed 20260930 | New seed 20261001 |
 |---|---:|---:|---:|
@@ -43,7 +43,7 @@ One `husky_baritone_20s_m_anime` render lasted **163.76 seconds**, versus **10.4
 | warm_baritone_40s_m_fantasy | 93 Hz | 201 Hz | 197 Hz |
 | breathy_tenor_18s_m_supernatural | 293 Hz | 124 Hz | 156 Hz |
 
-These measurements describe pitch differences. They do not establish perceived sex, audible cracking, the cause of voice mismatch, or acceptable quality. An 18-pair private blinded package is prepared (12 main pairs, four foreign-voice controls, two identical-human controls); **new retest listening ratings are pending**. Goals 6.5 and 7.1 gain the completed chapter listening comparison; their broader targets remain open.
+These measurements describe pitch differences. They do not establish perceived sex, audible cracking, the cause of voice mismatch, or acceptable quality. An 18-pair private blinded package is prepared (12 main pairs, four foreign-voice controls, two identical-human controls); **listening is now scored**, with one missing similarity rating retained explicitly; see [completed Chinese and voice follow-ups](thunder-completed-followups-2026-09-30.md). Goals 6.5 and 7.1 gain the completed chapter listening comparison; their broader targets remain open.
 
 - [Aggregate listening/retest verification](../../ab_test_runtime/experiments/thunder_listening_followup_verification__20260930.json)
 - [Portable follow-up verifier](../../ab_test_runtime/evidence/thunder_results_20260930/verify_listening_followup.py), using private `--raw-root` and aggregate `--out` arguments.
