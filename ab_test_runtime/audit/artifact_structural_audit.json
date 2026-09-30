@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 1001,
-    "exploratory": 424,
+    "exploratory": 425,
     "provisional": 381,
     "artifacts_that_generated_nothing": 15
   },
@@ -26154,6 +26154,21 @@
       "artifact": "thunder_identity_verification__20260930.json",
       "bytes": 12523,
       "sha256": "2d9593c348a945cd89620022fd5794fd73ebf49b136f2dda78e4c5364770d8a1",
+      "completeness": "complete",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "thunder_japanese_development_verification__20260930.json",
+      "bytes": 33148,
+      "sha256": "9362dbae51c42b102069244dfd75d38138247d000ae103d9326c7149d16a030b",
       "completeness": "complete",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},

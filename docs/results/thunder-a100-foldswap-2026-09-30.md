@@ -34,7 +34,7 @@ The adapter improves 16 books and regresses on three. Giving every book equal we
 
 The adapter leaves **113 unanswered versus 89 for base**. Of 5,543 paired IDs, 5,354 received answers in both arms. Restricting to those gives 64.23% → 71.01%, +6.78 points, with 857 improvements and 494 regressions. That secondary figure excludes 189 IDs and is not the headline result.
 
-**Interpretation:** the trained adapter improves attribution on books excluded from this training run, with losses on some books and more unanswered lines. This supports transfer for this frozen configuration. It does not close goal 1.3: the development-versus-held-out gap for this same adapter was not measured. No adapter promotion or goal-target change is made.
+**Interpretation:** the trained adapter improves attribution on books excluded from this training run, with losses on some books and more unanswered lines. This supports transfer for this frozen configuration. It does not close goal 1.3: the matching development comparison now measures a 3.27-point quote-weighted gap, documented in [the completed follow-up](thunder-japanese-development-2026-09-30.md); broader model-specific generalisation remains open. No adapter promotion or goal-target change is made.
 
 **Replay limits:** raw responses and per-row prompt hashes are absent throughout this run. Verification reconstructs expected evaluation IDs from the frozen segmentation, exclusions, and window schedule, and recomputes the saved predictions against answer keys. It cannot independently reparse model replies or prove byte-identical prompts. The source, dataset, weights, converted adapter, server binary, and logs have recorded hashes.
 
