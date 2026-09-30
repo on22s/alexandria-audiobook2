@@ -1,0 +1,198 @@
+{
+  "status": "complete",
+  "scope": "Replay of stored scores; no new GPU inference or human ratings",
+  "chinese": {
+    "generated": 300,
+    "human_controls": 150,
+    "metric_controls": {
+      "pitch_tone_100": {
+        "f0_median": 100.3,
+        "f0_spread": 0.0
+      },
+      "pitch_tone_200": {
+        "f0_median": 200.7,
+        "f0_spread": 0.0
+      },
+      "silence_pitch_rejected": true,
+      "phonation_steady": {
+        "jitter_local": 0.0,
+        "shimmer_local": 0.0,
+        "hnr_db": 112.8161
+      },
+      "phonation_perturbed": {
+        "jitter_local": 0.0236,
+        "shimmer_local": 0.1434,
+        "hnr_db": 18.8984
+      },
+      "ecapa_self": 0.9999999403953552,
+      "human_reference_similarities": [
+        0.7794785499572754,
+        0.8400405645370483
+      ],
+      "cer": "identical=0; Chinese deletion=.5; repetition=.5"
+    },
+    "arms": {
+      "long_typical": {
+        "duration_failures": 49,
+        "n": 150,
+        "cer_mean_duration_valid": 0.8177728573047827,
+        "ecapa_median_all": 0.7231224775314331
+      },
+      "short_original": {
+        "duration_failures": 0,
+        "n": 150,
+        "cer_mean_duration_valid": 0.40594695125671704,
+        "ecapa_median_all": 0.7765295207500458
+      }
+    },
+    "human_cer_mean": 0.4314696389432895,
+    "common_valid": {
+      "long_typical": {
+        "n": 101,
+        "cer_mean": 0.8177728573047827,
+        "ecapa_median": 0.7553439140319824
+      },
+      "short_original": {
+        "n": 101,
+        "cer_mean": 0.4019761845178762,
+        "ecapa_median": 0.7671865224838257
+      }
+    },
+    "common_line_acoustic_comparison": {
+      "f0_median": {
+        "paired_lines": 101,
+        "human_median": 181.9,
+        "long_typical": {
+          "generated_median": 178.8,
+          "ratio": 0.982957669048928
+        },
+        "short_original": {
+          "generated_median": 186.1,
+          "ratio": 1.0230896096756459
+        }
+      },
+      "f0_spread": {
+        "paired_lines": 101,
+        "human_median": 86.2,
+        "long_typical": {
+          "generated_median": 99.8,
+          "ratio": 1.1577726218097446
+        },
+        "short_original": {
+          "generated_median": 102.8,
+          "ratio": 1.1925754060324825
+        }
+      },
+      "jitter_local": {
+        "paired_lines": 101,
+        "human_median": 0.0274,
+        "long_typical": {
+          "generated_median": 0.0302,
+          "ratio": 1.102189781021898
+        },
+        "short_original": {
+          "generated_median": 0.0257,
+          "ratio": 0.9379562043795621
+        }
+      },
+      "shimmer_local": {
+        "paired_lines": 101,
+        "human_median": 0.13,
+        "long_typical": {
+          "generated_median": 0.1193,
+          "ratio": 0.9176923076923077
+        },
+        "short_original": {
+          "generated_median": 0.1127,
+          "ratio": 0.8669230769230769
+        }
+      },
+      "hnr_db": {
+        "paired_lines": 101,
+        "human_median": 9.5719,
+        "long_typical": {
+          "generated_median": 9.991,
+          "difference_db": 0.41910000000000025
+        },
+        "short_original": {
+          "generated_median": 10.4861,
+          "difference_db": 0.914200000000001
+        }
+      },
+      "vtl_cm": {
+        "paired_lines": 101,
+        "human_median": 13.27,
+        "long_typical": {
+          "generated_median": 13.15,
+          "ratio": 0.9909570459683498
+        },
+        "short_original": {
+          "generated_median": 14.03,
+          "ratio": 1.0572720422004522
+        }
+      }
+    },
+    "short_lower_cer_common_pairs": 37,
+    "limits": [
+      "Chinese CER includes recognizer and source-transcript errors.",
+      "49 duration failures remain failures regardless of acoustic/CER scores.",
+      "VTL is a formant-based proxy; pitch does not classify sex or prove speaker identity.",
+      "HNR comparisons are dB differences, never ratios.",
+      "Acoustic missing/partial cases reported explicitly, no zero-valued fallback."
+    ]
+  },
+  "japanese": {
+    "generated": 180,
+    "human_controls": 90,
+    "metric_controls": {
+      "cer": "identical/deletion/insertion passed"
+    },
+    "arms_by_seed": {
+      "1234:left": {
+        "n": 30,
+        "cer_mean": 0.1542647709819689,
+        "human_cer_mean": 0.2507945804319513
+      },
+      "1234:right": {
+        "n": 30,
+        "cer_mean": 0.14261417036292784,
+        "human_cer_mean": 0.17609404265714299
+      },
+      "1234:grouped": {
+        "n": 30,
+        "cer_mean": 0.13140081923072816,
+        "human_cer_mean": 0.27007824268739494
+      },
+      "1235:left": {
+        "n": 30,
+        "cer_mean": 0.1328370953966846,
+        "human_cer_mean": 0.2507945804319513
+      },
+      "1235:right": {
+        "n": 30,
+        "cer_mean": 0.13214945727390773,
+        "human_cer_mean": 0.17609404265714299
+      },
+      "1235:grouped": {
+        "n": 30,
+        "cer_mean": 0.1232159492916081,
+        "human_cer_mean": 0.27007824268739494
+      }
+    },
+    "limits": [
+      "Thirty pairs and two fixed seeds, one narrator.",
+      "Same-text ECAPA is descriptive; cross-text human ceiling must bound arms before normalized identity claims.",
+      "Truncation below is a duration-control experiment, not a quality-approved playback.",
+      "Raw CER includes recognizer and source-transcript errors."
+    ]
+  },
+  "provenance": {
+    "chinese_result_sha256": "a265e1e1d8e86d27525f8b168f92761f104a7d74313cf0f2c9a0a0e14999c857",
+    "japanese_result_sha256": "deb79de5d0c2ce15d23cfc7cc30b1ffae9259573905d6ff6102520a58b53f235",
+    "chinese_scorer_sha256": "195244b4a16e122a218e7ae8d47713856c0d85457c1ab25e143391404682b074",
+    "japanese_scorer_sha256": "ebef9e1220957be390226a6d988e348257de0aa23e299b9e5e7cc64800cf14d9",
+    "japanese_model_revision": "06f233fe06e710322aca913c1bc4249a0d71fce1",
+    "chinese_asr_revision": "e37978b90ca9030d5170a5c07aadb050351a65bb"
+  },
+  "verified_manifest_files": 19
+}

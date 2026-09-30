@@ -17,7 +17,14 @@ These paired measurements support a duration improvement on these thirty pairs. 
 
 Aligned accent and acoustic scoring completed for all 180 generated and 90 human recordings, with no alignment skips or partial acoustic rows. All eleven accent tests ran without skips; tone, silence and irregular-phonation controls passed. The grouped accent-drop measure is 81.86% / 80.36% at the two seeds versus 78.67% for matching human recordings. Those measures use different voiced-phrase denominators; a higher percentage is not proof of better pronunciation. Grouped median pitch is 131.25 / 130.50 Hz versus human 137.00 Hz; spread is 61.55 / 64.20 Hz versus human 62.75 Hz. Jitter, shimmer and HNR measurements are included in the aggregate artifact. HNR is measured in dB, not interpreted as a ratio.
 
-Whisper-base mean CER is 19.49% / 19.85% on grouped generation, versus 26.96% on the matching human recordings. That human error rate makes this a noisy instrument, not a pronunciation pass. Independent large-v3 transcription is still pending.
+Whisper-base mean CER is 19.49% / 19.85% on grouped generation, versus 26.96% on the matching human recordings. That human error rate makes this a noisy instrument, not a pronunciation pass. Independent large-v3 transcription is now complete for all 180 generated and 90 human recordings, with accepting/rejecting CER controls passed.
+
+| Seed | Left CER | Right CER | Grouped CER | Matching grouped human CER |
+|---|---:|---:|---:|---:|
+| 1234 | 15.43% | 14.26% | 13.14% | 27.01% |
+| 1235 | 13.28% | 13.21% | 12.32% | 27.01% |
+
+Grouped mean CER is descriptively lower in both seeds. Separate segments and grouped recordings have different reference lengths; these arm means are not a token-weighted concatenation comparison or a significance test. The high human CER remains a warning about recognizer/source-transcript mismatch, so lower generated CER does not prove better pronunciation than humans. This is thirty pairs from one narrator, not native listening approval.
 
 ## The identity control changes the interpretation
 
@@ -33,3 +40,5 @@ The equal-duration control truncates all compared recordings to the same prefix 
 Native Japanese and Chinese pronunciation, accent and listening validation remain pending until fluent raters can help. No language-specific ratings were collected. The private delivery package is unrated. Raw recordings, transcripts, input paths, responses, notes and sealed keys remain outside Git. No Chunagon material is involved.
 
 [Aggregate results](../../ab_test_runtime/experiments/thunder_japanese_development_verification__20260930.json) and [portable development/duration verifier](../../ab_test_runtime/evidence/thunder_results_20260930/verify_japanese_development.py). The verifier repeats attribution and waveform/duration checks; it does not independently repeat cloud ASR, accent, ECAPA or acoustic extraction.
+
+[Completed quality score replay](../../ab_test_runtime/evidence/thunder_results_20260930/verify_completed_quality.py) checks all 19 downloaded manifest files and both scorer hashes, then recomputes the Chinese common-line and Japanese per-arm CER summaries from saved scores. It does not re-transcribe audio or independently repeat the GPU instruments. [Quality aggregate](../../ab_test_runtime/experiments/thunder_completed_quality_verification__20260930.json).

@@ -12,7 +12,15 @@ The same 150 held-out AISHELL-3 lines were generated with the original short ref
 | Maximum duration ratio | 74.20 | 1.217 |
 | Longest generated clip | 163.76 s | 5.76 s |
 
-Every long-reference rejection passed with the short reference. This supports the long-reference configuration causing duration failures in this paired test, rather than these sentences inevitably failing. It does not isolate which property of that reference causes the failures. The failed campaign status records the 49 gate verdicts; it is not an infrastructure failure. Chinese pronunciation, speaker similarity and acoustic-quality scoring remain outstanding. No goal is closed.
+Every long-reference rejection passed with the short reference. This supports the long-reference configuration causing duration failures in this paired test, rather than these sentences inevitably failing. It does not isolate which property of that reference causes the failures. The failed campaign status records the 49 gate verdicts; it is not an infrastructure failure. Automated Chinese ASR, ECAPA and acoustic scoring is now complete; native listening approval remains pending. No goal is closed.
+
+### Completed automated quality scoring
+
+All 300 generated clips and 150 human controls were scored. Pitch tones, silence rejection, regular/perturbed phonation, ECAPA self-similarity and accepting/rejecting CER controls passed. Downloaded scorer/results hashes were verified and aggregate calculations replayed; ASR, embeddings and acoustic extraction were not independently rerun. All 49 duration failures remain failures.
+
+On the **same 101 lines where both arms pass duration**, mean character error rate (CER) is **81.78% long versus 40.20% short**, and median human-anchor ECAPA is **0.7553 versus 0.7672**. The short arm has lower CER on 37/101 pairs; the mean gap does not imply most pairs improved. Across all 150 short clips CER is 40.59%; human controls average 43.15%. That human error rate makes CER a noisy recognizer/source-transcript measure, not pure TTS pronunciation error.
+
+Together with the duration failures, these measurements favor retaining the original short-reference configuration for this frozen test. They do not establish native pronunciation quality, a speaker-identity pass or a general reference-length rule. Common-line acoustic comparisons are retained in the aggregate artifact: long/short median pitch 178.8/186.1 Hz versus human 181.9 Hz; HNR differences from human +0.419/+0.914 dB. Acoustic proximity does not override failed durations.
 
 ## Original 18-pair listening retest
 
@@ -48,4 +56,4 @@ The listener again reported garbage/runaway audio on the long anime render despi
 - [Aggregate verification](../../ab_test_runtime/experiments/thunder_completed_followups_verification__20260930.json)
 - [Portable verifier](../../ab_test_runtime/evidence/thunder_results_20260930/verify_completed_followups.py), accepting private `--chinese-root`, `--voice-root`, `--retest-root` and aggregate `--out` paths.
 
-Raw corpus text, audio, ASR output, keys, detailed listening notes and weights remain private. No Chunagon material is used. Existing production settings, safety limits and voice weights remain unchanged. A100 development and Japanese confirmation results are still pending in this update.
+Raw corpus text, audio, ASR output, keys, detailed listening notes and weights remain private. No Chunagon material is used. Existing production settings, safety limits and voice weights remain unchanged. A100 development and Japanese confirmation are documented in [the completed development report](thunder-japanese-development-2026-09-30.md).
