@@ -1,0 +1,291 @@
+{
+  "status": "complete",
+  "experiment": "thunder_listening_followup",
+  "runtime_commit": "454417276a323649acb6c2c98a02f97acd2edfaf",
+  "chapter": {
+    "rated_at": "2026-09-30T18:07:23.604Z",
+    "raters": 1,
+    "rated_pairs": 24,
+    "main_pairs": 20,
+    "preferences": {
+      "workers4": 8,
+      "Tie": 5,
+      "workers16": 7
+    },
+    "same_speaker": {
+      "Yes": 16,
+      "No": 2,
+      "Unsure": 2
+    },
+    "by_selection": {
+      "worsened": {
+        "workers4": 4,
+        "workers16": 4
+      },
+      "improved": {
+        "Tie": 3,
+        "workers4": 1
+      },
+      "random": {
+        "Tie": 2,
+        "workers16": 3,
+        "workers4": 3
+      }
+    },
+    "controls": [
+      {
+        "kind": "cutoff_control",
+        "passed": true
+      },
+      {
+        "kind": "same_control",
+        "passed": true
+      },
+      {
+        "kind": "same_control",
+        "passed": true
+      },
+      {
+        "kind": "cutoff_control",
+        "passed": true
+      }
+    ],
+    "ratings_sha256": "097235f0e0a891cf2540c567ff77e67e3f858146c433a5db549f659f23c94c98",
+    "sealed_key_sha256": "277a324686ca66617b34d180faf071d60655f370d74ac382269a119062a84d51",
+    "html_sha256": "6240fc45449293e476160f779a8255d52592a8c4091e29f4229bddeb3000d2f7",
+    "limits": "One rater, one chapter, enriched problem-case selection; preference counts do not establish equivalence or population failure rates. Deliberate truncation controls excluded."
+  },
+  "retest": {
+    "completed_valid_waveforms": 16,
+    "main_renders": 12,
+    "foreign_voice_controls": 4,
+    "new_generation_seeds": [
+      20260930,
+      20261001
+    ],
+    "training_performed": false,
+    "main_duration_range_s": [
+      7.28,
+      163.76
+    ],
+    "pitch": {
+      "status": "complete",
+      "controls": "100 Hz and 200 Hz within 3 Hz; silence rejected",
+      "rows": [
+        {
+          "adapter": "husky_tenor_30s_m_literary",
+          "role": "clean_control",
+          "human": {
+            "median_hz": 148.1652464233414,
+            "voiced_frames": 110,
+            "frames": 230
+          },
+          "original": {
+            "median_hz": 201.23395482506686,
+            "voiced_frames": 96,
+            "frames": 228
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 171.677511892231,
+                "voiced_frames": 153,
+                "frames": 243
+              },
+              "seconds": 7.76
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 180.8384017769491,
+                "voiced_frames": 133,
+                "frames": 228
+              },
+              "seconds": 7.28
+            }
+          ]
+        },
+        {
+          "adapter": "husky_baritone_20s_m_anime",
+          "role": "failure",
+          "human": {
+            "median_hz": 221.3558864606254,
+            "voiced_frames": 231,
+            "frames": 295
+          },
+          "original": {
+            "median_hz": 508.54228529246177,
+            "voiced_frames": 637,
+            "frames": 5118
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 211.97200712382107,
+                "voiced_frames": 268,
+                "frames": 326
+              },
+              "seconds": 10.4
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 471.75388730172057,
+                "voiced_frames": 1713,
+                "frames": 5118
+              },
+              "seconds": 163.76
+            }
+          ]
+        },
+        {
+          "adapter": "warm_tenor_20s_m",
+          "role": "failure",
+          "human": {
+            "median_hz": 159.25820908062818,
+            "voiced_frames": 189,
+            "frames": 247
+          },
+          "original": {
+            "median_hz": 80.09039125020206,
+            "voiced_frames": 147,
+            "frames": 303
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 103.86438732073715,
+                "voiced_frames": 165,
+                "frames": 288
+              },
+              "seconds": 9.2
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 108.15005551329962,
+                "voiced_frames": 147,
+                "frames": 243
+              },
+              "seconds": 7.76
+            }
+          ]
+        },
+        {
+          "adapter": "warm_baritone_40s_m_fantasy",
+          "role": "failure",
+          "human": {
+            "median_hz": 93.33825641581444,
+            "voiced_frames": 248,
+            "frames": 351
+          },
+          "original": {
+            "median_hz": 211.35980966307562,
+            "voiced_frames": 214,
+            "frames": 283
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 200.65276998924227,
+                "voiced_frames": 243,
+                "frames": 276
+              },
+              "seconds": 8.8
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 197.20567550058965,
+                "voiced_frames": 205,
+                "frames": 276
+              },
+              "seconds": 8.8
+            }
+          ]
+        },
+        {
+          "adapter": "warm_baritone_40s_m_2",
+          "role": "clean_control",
+          "human": {
+            "median_hz": 108.15005551329962,
+            "voiced_frames": 139,
+            "frames": 276
+          },
+          "original": {
+            "median_hz": 145.1992907063151,
+            "voiced_frames": 199,
+            "frames": 313
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 119.30885085810569,
+                "voiced_frames": 192,
+                "frames": 326
+              },
+              "seconds": 10.4
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 136.26962419838446,
+                "voiced_frames": 118,
+                "frames": 381
+              },
+              "seconds": 12.16
+            }
+          ]
+        },
+        {
+          "adapter": "breathy_tenor_18s_m_supernatural",
+          "role": "failure",
+          "human": {
+            "median_hz": 292.92684683702953,
+            "voiced_frames": 192,
+            "frames": 259
+          },
+          "original": {
+            "median_hz": 127.8720601954181,
+            "voiced_frames": 168,
+            "frames": 273
+          },
+          "new_seeds": [
+            {
+              "seed": 20260930,
+              "pitch": {
+                "median_hz": 124.2317908609653,
+                "voiced_frames": 177,
+                "frames": 233
+              },
+              "seconds": 7.44
+            },
+            {
+              "seed": 20261001,
+              "pitch": {
+                "median_hz": 155.62074655812117,
+                "voiced_frames": 209,
+                "frames": 296
+              },
+              "seconds": 9.44
+            }
+          ]
+        }
+      ],
+      "note": "Pitch is descriptive and does not establish perceived sex, speaker identity, or audible cracking."
+    },
+    "blind_package_pairs": 18,
+    "listening_ratings_complete": false,
+    "result_sha256": "344983ce53a8e93244ed27c82856796e7518d85c7d786f5b3cf92caac6fadf47",
+    "inputs_manifest_sha256": "aaa88872df07b5c98a1684f616a8e9895330cbd8a03c2ef9cd68f816b6dbd422",
+    "pitch_sha256": "a56cd498cfdcb6b6d7c0b4d1575c2b16785c848050dc6ecd59cc4ff99d0fb056",
+    "limits": "Valid waveform does not mean acceptable speech. Pitch does not establish perceived sex, speaker identity or audible cracking. New listening ratings pending."
+  },
+  "verifier_sha256": "b2ea77a108a97e020c303de062446a20251a6e255dc7c3d83fbadab036b35773",
+  "privacy": "Raw text, notes, audio, keys and weights remain private; no Chunagon material."
+}
