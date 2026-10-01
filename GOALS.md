@@ -89,10 +89,11 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 > unseen books were scored, the drop was **4.4 points** — real, but modest. The
 > work is running a clean test, not building a new ability.
 
-**Where this stands, as of 2026-09-28 (a summary of the dated updates below):** the target (a held-out
+**Where this stands, as of 2026-09-30 (a summary of the dated updates below):** the target (a held-out
 gap within 5 points) is met on three of the six bases measured on the 28-novel instrument: Qwen3.8-27B
 UD-Q3_K_XL (-2.2), Qwen3.6-35B-A3B UD-IQ2_XXS (-3.3) and DeepSeek v4-pro (+1.8); it is missed on Qwen3-8B
-Q4_K_M (-7.2), Qwen3.5-9B Q4_K_M (-8.7) and Qwen3.6-35B-A3B UD-IQ1_M (-5.2), so the goal stays open for those. The first "Current" block below is
+Q4_K_M (-7.2), Qwen3.5-9B Q4_K_M (-8.7) and Qwen3.6-35B-A3B UD-IQ1_M (-5.2), so the goal stays open for those. The 2026-09-30 Qwen3-8B UD-Q2_K_XL fold-swap adapter (-3.27, same sign convention) is a seventh
+row but not a like-for-like one: its "development" side is the nine books it trained on, not the 28-novel instrument (see the 2026-09-30 block). The first "Current" block below is
 the 2026-08-08 base-arm measurement (-12.6, a different model and prompt), kept for history.
 
 **Thunder confirmation completed 2026-09-30.** The frozen Qwen3-8B fold-swap
@@ -100,10 +101,17 @@ adapter, trained on nine PDNC books, scores 69.28% on 5,543 sampled quotations
 from the other nineteen, versus 63.03% for base (+6.24 points; 895 fixes,
 549 regressions). Its matching nine-book development score is 72.54% versus
 61.77% base. The adapter's quote-weighted development-to-held-out gap is
-**3.27 points**, inside the five-point criterion for this configuration.
-This completes the previously requested matching comparison; broader
-model-specific generalisation remains OPEN. Book exclusion is verified;
-author exclusion is not. Sixteen held-out books improve and three regress.
+**3.27 points** (-3.27 in the convention of the summary above), inside the
+five-point criterion for this configuration. The development books are the
+nine this adapter trained on, so this is a train-versus-held-out gap for one
+frozen adapter and quant, not a 28-novel-instrument measurement like the rows
+above. This completes the previously requested matching comparison; broader
+model-specific generalisation remains OPEN. Book exclusion is verified (none
+of the nineteen held-out books appears in the training windows). Author
+exclusion is not verified by any artifact: matching titles to authors by hand,
+the training books (Austen, Doyle, Hemingway, Chopin) share no author with the
+held-out nineteen, but no recorded author field backs that, so it stays open
+until one does. Sixteen held-out books improve and three regress.
 
 CPU error analysis finds alias-aware gold-speaker coverage on all 5,543 IDs
 in both fixture-augmented full rosters; this does not test production roster
