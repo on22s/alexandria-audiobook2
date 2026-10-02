@@ -79,8 +79,10 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def load(book, goldfile):
-    cp = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
     gold = json.load(open(REPO + "/app/fixtures/" + goldfile))
     return cp["segmented"], gold
 

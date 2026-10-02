@@ -1,3 +1,4 @@
+from tests.test_support import assert_file_lock_released
 import base64
 import importlib.util
 import os
@@ -67,7 +68,7 @@ class FrontendJsSplitTests(unittest.TestCase):
         workbench = (_STATIC_DIR / "js" / "app-workbench.js").read_text(encoding="utf-8")
         voicelab = (_STATIC_DIR / "js" / "app-voicelab.js").read_text(encoding="utf-8")
         self.assertIn("pollVoicelab();", workbench)
-        self.assertIn("function pollVoicelab()", voicelab)
+        self.assertRegex(voicelab, r"\bfunction\s+pollVoicelab\s*\(")
         html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
         self.assertLess(html.index("app-workbench.js"), html.index("app-voicelab.js"))
 
@@ -101,7 +102,7 @@ class FrontendTests(unittest.TestCase):
     def test_persona_failure_opens_manual_recovery(self):
         frontend = _read_frontend_source()
         for required in (
-                "const failed = (status.logs || [])",
+                "const failed = isTaskFailed(status)",
                 "recoveryPanel.open = true",
                 "persona-recovery-context",
                 "Stage: persona generation",
@@ -315,7 +316,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("id=\"btn-lora-cancel\"", html)
         self.assertIn("/api/lora/train/cancel", html)
         self.assertIn("promoteLoraCandidate", html)
-        self.assertIn("/promote`, {}", html)
+        self.assertIn("/promote`, {expected_candidate_id: candidateId}", html)
         self.assertIn("rollbackLoraPromotion", html)
         self.assertIn("/rollback-promotion`, {}", html)
         self.assertIn("recoverLoraCheckpointSwap", html)
@@ -462,9 +463,29 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`", js)
         self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`)", js)
         self.assertIn("renderStyleTimeline(voice.name, config)", js)
-        # collectVoiceConfig rebuilds entries from the form; the timeline must pass through
-        collector = js[js.index("function collectVoiceConfig()"):js.index("return config;", js.index("function collectVoiceConfig()"))]
-        self.assertIn("'style_timeline'", collector)
+        # Exercise metadata preservation rather than require a particular key whitelist.
+        import subprocess
+        script = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const indexStart=source.indexOf('function getLoraModelsById(');const indexHelper=indexStart>=0?source.slice(indexStart,source.indexOf('async function suggestVoices(',indexStart)):'';
+const code=indexHelper+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
+const timeline=[{from_index:0,character_style:'Warm'},{from_index:8,character_style:'Tense'}];
+const metadata={type:'custom',voice:'Ryan',style_timeline:timeline,seed:0};
+const before=JSON.stringify(metadata);
+const fields={'.voice-type:checked':{value:'custom'},'.voice-select':{value:'Aiden'},'.character-style':{value:'Calm'}};
+const card={dataset:{voice:'ALICE'},querySelector:selector=>fields[selector]||null};
+const context={window:{_voicesByName:{ALICE:{config:metadata}}},document:{querySelectorAll:()=>[card]}};
+vm.runInNewContext(code,context);
+const collected=JSON.parse(JSON.stringify(context.collectVoiceConfig()));
+assert.deepStrictEqual(collected.ALICE.style_timeline,timeline);
+assert.strictEqual(collected.ALICE.voice,'Aiden');
+assert.strictEqual(collected.ALICE.seed,'0');
+assert.strictEqual(JSON.stringify(metadata),before);
+"""
+        result = subprocess.run(['node', '-e', script, str(_STATIC_DIR / 'js/app-core.js')],
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_dialogue_detection_select_offers_exactly_the_config_modes(self):
         """A select whose options drift from the pydantic Literal saves a value
@@ -617,3 +638,135 @@ class VoiceCardScopeTests(unittest.TestCase):
         ok = "${AVAILABLE_VOICES.map(v => `<option value=\"${v}\">${v}</option>`).join('')}"
         self.assertTrue(free.search(bad) and not bound.search(bad))
         self.assertTrue(free.search(ok) and bound.search(ok))
+
+
+class BuiltinAdapterCollectionTests(unittest.TestCase):
+    def test_actual_collector_and_http_save_retain_supported_builtin_path(self):
+        import json
+        import subprocess
+        import tempfile
+        from fastapi import FastAPI
+        from routers import voices
+        script = r"""
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const start = source.indexOf('function collectVoiceConfig()');
+const indexStart = source.indexOf('function getLoraModelsById(');
+const indexHelper = indexStart >= 0 ? source.slice(indexStart, source.indexOf('async function suggestVoices(', indexStart)) : '';
+const collector = indexHelper + source.slice(start, source.indexOf('function onVoiceReadyChange(', start));
+const cases = [
+    [{id:'builtin',path:'builtin_models/path_only'}, 'builtin_models/path_only'],
+    [{id:'builtin',adapter_path:'builtin_models/adapter_only'}, 'builtin_models/adapter_only'],
+    [{id:'builtin',adapter_path:'builtin_models/explicit',path:'builtin_models/fallback'}, 'builtin_models/explicit'],
+    [{id:'builtin',adapter_path:'',path:'builtin_models/fallback'}, 'builtin_models/fallback'],
+    [{id:'builtin'}, ''], [null, '']
+];
+const results = [];
+for (const [model, expected] of cases) {
+    const fields = {'.alias-select':{value:''}, '.voice-type:checked':{value:'builtin_lora'},
+        '.builtin-lora-select':{value:'builtin'}, '.builtin-lora-style':{value:'Measured'},
+        '.voice-ready':{checked:true}};
+    const card = {dataset:{voice:'ALICE'}, querySelector: selector => fields[selector]};
+    const context = {window:{_loraModelsCache:model ? [model] : []},
+        document:{querySelectorAll: () => [card]}};
+    vm.runInNewContext(collector, context);
+    const before = JSON.stringify(context.window);
+    const config = context.collectVoiceConfig();
+    assert.strictEqual(config.ALICE.adapter_path, expected);
+    assert.strictEqual(config.ALICE.adapter_id, 'builtin');
+    assert.strictEqual(config.ALICE.character_style, 'Measured');
+    assert.strictEqual(config.ALICE.ready, true);
+    assert.strictEqual(JSON.stringify(context.window), before);
+    results.push(config);
+}
+console.log(JSON.stringify(results));
+"""
+        source = _STATIC_DIR / "js/app-core.js"
+        result = subprocess.run(["node", "-e", script, str(source)], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        configs = json.loads(result.stdout)
+        app = FastAPI()
+        app.include_router(voices.router)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "voices.json")
+            untouched = {"type": "custom", "voice": "Ryan"}
+            path.write_text(json.dumps({"OTHER": untouched}))
+            with patch.object(voices, "VOICE_CONFIG_PATH", str(path)), TestClient(app) as client:
+                for config in configs:
+                    response = client.post("/api/save_voice_config", json=config)
+                    self.assertEqual(200, response.status_code, response.text)
+                    saved = json.loads(path.read_text())
+                    self.assertEqual(config["ALICE"]["adapter_path"], saved["ALICE"]["adapter_path"])
+                    self.assertEqual("builtin", saved["ALICE"]["adapter_id"])
+                    self.assertEqual(untouched, saved["OTHER"])
+            assert_file_lock_released(str(path))
+
+
+class LlmModeValidationTests(unittest.TestCase):
+    def test_real_mode_handler_keeps_invalid_edits_and_reverts_selection(self):
+        import subprocess
+        script = r"""
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const code = source.slice(source.indexOf('function populateLlmInputs('), source.indexOf('async function testLlmConnection('));
+for (const previous of ['local','remote']) {
+    for (const [field,value,diagnostic] of [
+        ['llm-request-timeout','not-a-number','Request timeout'],
+        ['llm-provider-headers','{broken','Custom headers'],
+        ['llm-provider-extra-body','[]','Custom request body']
+    ]) {
+        const next = previous === 'local' ? 'remote' : 'local';
+        const elements = {};
+        function element(id) {
+            if (!elements[id]) {
+                let value = '';
+                elements[id] = {style:{display:'original'}, innerHTML:'previous result'};
+                Object.defineProperty(elements[id], 'value', {get() { return value; }, set(v) { value = String(v); }});
+            }
+            return elements[id];
+        }
+        const notifications = [];
+        const context = {currentLlmMode:previous, savedLlmMode:previous,
+            llmProfiles:{local:{base_url:'local-url',model_name:'local-model'}, remote:{base_url:'remote-url',model_name:'remote-model'}},
+            document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level})};
+        vm.runInNewContext(code, context);
+        context.populateLlmInputs(previous);
+        element('llm-mode').value = next;
+        element(field).value = value;
+        element('llm-url').value = 'unsaved-' + previous;
+        const originalProfiles = JSON.stringify(context.llmProfiles);
+        const originalFields = Object.fromEntries(Object.entries(elements).map(([key,e]) => [key,e.value]));
+        context.onLlmModeChange(false);
+        assert.strictEqual(context.currentLlmMode, previous);
+        assert.strictEqual(element('llm-mode').value, previous);
+        assert.strictEqual(JSON.stringify(context.llmProfiles), originalProfiles);
+        for (const [key,value] of Object.entries(originalFields)) {
+            if (key !== 'llm-mode') { assert.strictEqual(element(key).value, value); }
+        }
+        assert.strictEqual(notifications.length, 1);
+        assert.strictEqual(notifications[0].level, 'error');
+        assert(notifications[0].message.includes(diagnostic));
+        assert.strictEqual(element('llm-ssh-group').style.display, 'original');
+        assert.strictEqual(element('llm-test-result').innerHTML, 'previous result');
+        // Correcting the input permits the same requested mode switch and saves the leaving profile.
+        element(field).value = field === 'llm-request-timeout' ? '12.5' : '{"valid":true}';
+        element('llm-mode').value = next;
+        context.onLlmModeChange(false);
+        assert.strictEqual(context.currentLlmMode, next);
+        assert.strictEqual(element('llm-mode').value, next);
+        assert.strictEqual(context.llmProfiles[previous].base_url, 'unsaved-' + previous);
+        assert.strictEqual(element('llm-url').value, next + '-url');
+        assert.strictEqual(element('llm-ssh-group').style.display, next === 'remote' ? '' : 'none');
+        assert.strictEqual(element('llm-test-result').innerHTML, '');
+        assert.strictEqual(notifications.length, 1);
+        context.onLlmModeChange(true);
+        assert.strictEqual(context.currentLlmMode, next);
+    }
+}
+"""
+        result = subprocess.run(["node", "-e", script, str(_STATIC_DIR / "js/app-core.js")], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)

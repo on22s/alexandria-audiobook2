@@ -1,16 +1,21 @@
 import argparse
 import hashlib
+from chunk_status_journal import remove_chunk_snapshot
+from generation_checkpoint_shards import (GenerationCheckpointShards,
+    load_generation_shard_checkpoint, remove_generation_shard_checkpoint)
 import os
 import sys
 import json
 import re
 import time
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
-from config_settings import load_app_config
+from generation_completion import get_file_sha256, get_generation_input
+from config_settings import load_app_config, get_generation_config
 from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body
-from llm_provider import classify_llm_error, get_retry_delay
+from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
+from llm_provider import FailoverClient, RunProfileChanged, RunRequestAdmissionError
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from validation_reporting import format_validation_findings
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
@@ -18,7 +23,7 @@ from dialogue_spans import apply_dialogue_map
 from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
                              get_valid_narrator_name, is_narrator_attested)
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
-                               get_effective_max_tokens, get_next_retry_max_tokens)
+                               get_effective_max_tokens, get_next_retry_max_tokens, TokenBudgetError)
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
 from apostrophe_repair import restore_stripped_apostrophes
@@ -34,7 +39,8 @@ from script_preflight import (MAX_REPLACEMENT_SHARE, audit_script,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
-                   get_app_config_path, is_generic_speaker, safe_load_json)
+                   get_app_config_path, is_generic_speaker, safe_load_json, file_lock,
+                   is_path_inside)
 
 
 def get_generation_checkpoint_path(output_path):
@@ -46,15 +52,20 @@ def get_generation_quality_path(output_path):
 
 
 def get_response_log_path(log_name):
-    """Return an isolated response log when a durable run id is available."""
-    log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+    """Return a contained response-log path without creating directories."""
+    log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
     run_id = os.environ.get("ALEXANDRIA_RUN_ID")
     if not run_id:
         return os.path.join(log_dir, log_name)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", run_id):
+        raise ValueError("ALEXANDRIA_RUN_ID must be a single safe run identifier")
     stem, extension = os.path.splitext(log_name)
-    response_dir = os.path.join(log_dir, "responses", run_id)
-    os.makedirs(response_dir, exist_ok=True)
-    return os.path.join(response_dir, stem + (extension or ".log"))
+    response_base = os.path.join(log_dir, "responses")
+    response_dir = os.path.join(response_base, run_id)
+    log_path = os.path.join(response_dir, stem + (extension or ".log"))
+    if not is_path_inside(log_path, response_base):
+        raise ValueError("Response log escapes the run-response directory")
+    return log_path
 
 
 def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
@@ -78,6 +89,7 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
             "adaptively_split": item.get("adaptively_split", False),
             "near_miss_accepted": item.get("near_miss_accepted", False),
             "attempts": item.get("attempts", []),
+            "model_binding": item.get("model_binding"),
         } for item in accepted_chunks],
         **details,
     }
@@ -85,6 +97,20 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
 
 def save_generation_quality_manifest(output_path, manifest):
     atomic_json_write(manifest, get_generation_quality_path(output_path))
+
+
+def publish_completed_generation(output_path, entries, manifest, input_path, input_sha256):
+    """Publish the verified output before binding its completion evidence."""
+    if manifest.get('status') != 'verified':
+        raise ValueError('Cannot publish an unverified generation')
+    if get_file_sha256(input_path) != input_sha256:
+        raise ValueError('Source input changed during generation; preserving prior output')
+    atomic_json_write(entries, output_path)
+    save_generation_quality_manifest(output_path, {
+        **manifest, 'status': 'complete',
+        'completion_artifact': {'version': 1, 'input_sha256': input_sha256,
+                                'output_sha256': get_file_sha256(output_path)},
+    })
 
 
 def passes_final_generation_gate(whole_quality, preflight, unresolved_repairs=None):
@@ -148,29 +174,46 @@ def get_valid_chunk_size(config_value, cli_value=None):
 
 
 def load_generation_checkpoint(output_path, fingerprint):
-    checkpoint = safe_load_json(get_generation_checkpoint_path(output_path), None)
-    if not isinstance(checkpoint, dict) or checkpoint.get("fingerprint") != fingerprint:
+    try:
+        checkpoint = load_generation_shard_checkpoint(get_generation_checkpoint_path(output_path))
+    except FileNotFoundError:
+        return []
+    if (not isinstance(checkpoint, dict)
+            or get_run_fingerprint_identity(checkpoint.get("fingerprint"))
+            != get_run_fingerprint_identity(fingerprint)):
         return []
     accepted = checkpoint.get("accepted_chunks")
     if not isinstance(accepted, list) or len(accepted) > len(fingerprint["chunk_sha256"]):
         return []
     for index, item in enumerate(accepted):
         if (not isinstance(item, dict) or not isinstance(item.get("entries"), list)
-                or not item.get("quality", {}).get("passed")
                 or item.get("source_sha256") != fingerprint["chunk_sha256"][index]):
+            return []
+        quality = item.get("quality")
+        if not isinstance(quality, dict):
+            return []
+        if quality.get("passed") is True:
+            continue
+        if item.get("near_miss_accepted") is not True:
+            return []
+        try:
+            if not is_trigram_only_near_miss(quality):
+                return []
+        except (AttributeError, TypeError, ValueError):
             return []
     return accepted
 
 
-def save_generation_checkpoint(output_path, fingerprint, accepted_chunks):
-    atomic_json_write({"fingerprint": fingerprint, "accepted_chunks": accepted_chunks},
-                      get_generation_checkpoint_path(output_path))
+def save_generation_checkpoint(output_path, fingerprint, accepted_chunks, writer=None):
+    writer = writer or GenerationCheckpointShards(get_generation_checkpoint_path(output_path), fingerprint)
+    if (os.path.abspath(writer.path) != os.path.abspath(get_generation_checkpoint_path(output_path))
+            or writer.fingerprint != fingerprint):
+        raise ValueError("Generation checkpoint writer belongs to a different run")
+    writer.save_chunks(accepted_chunks)
 
 
 def clear_generation_checkpoint(output_path):
-    path = get_generation_checkpoint_path(output_path)
-    if os.path.exists(path):
-        os.remove(path)
+    remove_generation_shard_checkpoint(get_generation_checkpoint_path(output_path))
 
 
 class AdjacentArrayOverlapError(ValueError):
@@ -609,6 +652,7 @@ class LLMGenParams:
     # their meaning.
     quoted_must_be_spoken: bool = True
     unquoted_must_be_narrator: bool = True
+    request_admission: object = field(default=None, repr=False, compare=False)
 
 
 
@@ -686,9 +730,15 @@ def is_schema_rejection(error):
                             "must be one of", "but got", "must be 'text'", "invalid parameter"))
 
 
-def create_completion(client, response_format, schema_rejected_by=None, **kwargs):
+def create_completion(client, response_format, schema_rejected_by=None,
+                      run_profile_index=None, request_admission=None, **kwargs):
     """One completion request; if the server rejects the schema, remember
     that for its base URL and send the same request free-form."""
+    endpoint = str(getattr(client, "base_url", ""))
+    if isinstance(client, FailoverClient) and run_profile_index is not None:
+        endpoint = client.get_profile_base_url(run_profile_index)
+        kwargs["_run_profile_index"] = run_profile_index
+        kwargs["_request_admission"] = request_admission
     if response_format:
         try:
             return client.chat.completions.create(response_format=response_format, **kwargs)
@@ -696,7 +746,7 @@ def create_completion(client, response_format, schema_rejected_by=None, **kwargs
             if not is_schema_rejection(error):
                 raise
             if schema_rejected_by is not None:
-                schema_rejected_by.add(str(getattr(client, "base_url", "")))
+                schema_rejected_by.add(endpoint)
             print(f"  structured output rejected by the server ({error}); "
                   "sending free-form JSON for the rest of this run", flush=True)
     return client.chat.completions.create(**kwargs)
@@ -857,6 +907,26 @@ def retry_line(attempt, max_retries):
     return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"
 
 
+def ensure_run_request_params(client, params):
+    """Return parameters bound to the serving profile without changing the input."""
+    # Only our explicit wrapper owns runtime-profile switching; ordinary SDK
+    # clients and in-process providers retain their existing caller settings.
+    from llm_provider import FailoverClient
+    if not isinstance(client, FailoverClient):
+        return params
+    profile = client.ensure_active_runtime_profile()
+    if profile is None:
+        return params
+    config = profile["config"]
+    defaults = LLMGenParams()
+    changes = {name: config.get(name, getattr(defaults, name)) for name in (
+        "provider_extra_body", "structured_output", "api_retry_limit",
+        "retry_initial_delay_seconds", "retry_multiplier", "retry_max_delay_seconds",
+        "retry_jitter", "on_api_exhaustion")}
+    changes["context_length"] = profile["context_length"]
+    return replace(params, **changes)
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
@@ -870,6 +940,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     `log_name` is the raw-response log basename; `label` tags each block
     (e.g. "CHUNK 3/40" or "BATCH 2/10").
     """
+    run_profile_index = (client.get_active_profile_index()
+                         if isinstance(client, FailoverClient) else None)
+    params = ensure_run_request_params(client, params)
+    if run_profile_index == 1:
+        model_name = client.secondary_model
     if codec is None:
         from response_codecs import get_codec
         codec = get_codec("json")
@@ -952,6 +1027,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             response = create_completion(
                 client, get_response_format(params, client),
                 schema_rejected_by=schema_rejected_by,
+                run_profile_index=run_profile_index, request_admission=params.request_admission,
                 model=model_name,
                 messages=messages,
                 temperature=params.temperature,
@@ -1003,19 +1079,26 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if trace:
                     reasoning_tokens = max(1, len(trace) // 4)
 
-            # Log raw response for debugging (rotating to cap unbounded growth)
-            log_path = get_response_log_path(log_name)
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            if not os.environ.get("ALEXANDRIA_RUN_ID"):
-                _rotate_log_if_large(log_path)
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"\n{'='*80}\n")
-                lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason}\n")
-                if usage:
-                    lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
-                lf.write(f"{'─'*80}\n")
-                lf.write(text)
-                lf.write(f"\n{'='*80}\n")
+            # A local log failure must not consume the provider retry/failover budget.
+            response_log_error = None
+            try:
+                log_path = get_response_log_path(log_name)
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with file_lock(log_path):
+                    if not os.environ.get("ALEXANDRIA_RUN_ID"):
+                        _rotate_log_if_large(log_path)
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write(f"\n{'='*80}\n")
+                        lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason}\n")
+                        if usage:
+                            lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
+                        lf.write(f"{'─'*80}\n")
+                        lf.write(text)
+                        lf.write(f"\n{'='*80}\n")
+            except (OSError, UnicodeError, ValueError) as exc:
+                response_log_error = f"{type(exc).__name__}: {exc}"
+                print(f"WARNING: response logging failed for {label}: {response_log_error}. "
+                      "Keeping the provider response for validation.", flush=True)
 
             print(f"  finish_reason={finish_reason}", end="")
             if usage:
@@ -1035,6 +1118,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "response_fingerprint": response_fingerprint,
                     "response_repeat_count": repeat_count,
                 }
+                if response_log_error is not None:
+                    attempt_record["response_log_error"] = response_log_error
+                    attempt_record["raw_response"] = text
                 attempt_observer(attempt_record)
 
             if finish_reason == "length":
@@ -1068,7 +1154,12 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                               f"beyond {effective_max} in the loaded context.")
 
         except Exception as e:
-            error_details = classify_llm_error(e)
+            if isinstance(e, (TokenBudgetError, RunProfileChanged, RunRequestAdmissionError)):
+                category = ("context_budget" if isinstance(e, TokenBudgetError) else
+                            "profile_changed" if isinstance(e, RunProfileChanged) else "request_admission")
+                error_details = {"category": category, "status_code": None, "retryable": False}
+            else:
+                error_details = classify_llm_error(e)
             api_retry_limit = (params.api_retry_limit if params.api_retry_limit is not None
                                else max_retries)
             can_retry = error_details["retryable"] and attempt < api_retry_limit
@@ -1103,6 +1194,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                                     else ["api_error", error_details["category"]])})
             print(f"Error calling LLM API (attempt {attempt_number}) after {time.time() - t0:.1f}s "
                   f"[{error_details['category']}]: {e}")
+            if (run_profile_index is not None
+                    and run_profile_index != client.get_active_profile_index()):
+                return _retry_same_request()
             if can_retry:
                 if retry_delay:
                     print(f"Retrying in {retry_delay:.1f}s...")
@@ -1165,7 +1259,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         # Try to parse, with repair attempts
         entries = codec.parse(json_text)
 
-        if entries and len(entries) > 0:
+        if entries or (codec.name == "json_object" and isinstance(entries, dict)):
             if transform_entries:
                 transformed = transform_entries(entries)
                 if transformed.get("unresolved"):
@@ -1351,19 +1445,31 @@ def _build_chunk_context(chunk_num, total_chunks, previous_entries):
     return "\n".join(context_parts)
 
 
+
+def build_chunk_request_prompt(chunk, chunk_num, total_chunks, user_prompt_template,
+                               previous_entries=None):
+    """Render the same complete context for prediction and actual requests."""
+    context = _build_chunk_context(chunk_num, total_chunks, previous_entries)
+    return user_prompt_template.format(context=context, chunk=chunk)
+
 def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
                                  max_tokens, context_length, parallel,
-                                 context_growth_chars=2000, reserve=512):
-    """Estimate real prompt/completion size and per-slot context fit for a book."""
+                                 context_growth_chars=2000, reserve=512,
+                                 previous_entries_by_chunk=None):
+    """Predict known request contexts; unknown future context cannot promise fit."""
     requests = []
     total_chunks = len(chunks)
     for number, chunk in enumerate(chunks, 1):
-        context = _build_chunk_context(number, total_chunks, None)
-        user_prompt = user_prompt_template.format(context=context, chunk=chunk)
+        known_contexts = previous_entries_by_chunk or {}
+        context_known = number == 1 or number in known_contexts
+        user_prompt = build_chunk_request_prompt(
+            chunk, number, total_chunks, user_prompt_template, known_contexts.get(number))
         prompt_tokens = math.ceil((len(system_prompt) + len(user_prompt)
                                    + context_growth_chars) / 3)
         predicted_completion = min(int(max_tokens), max(256, math.ceil(len(chunk) * 0.8)))
         requests.append({"chunk_number": number, "prompt_tokens": prompt_tokens,
+                         "context_known": context_known,
+                         "context_growth_allowance_chars": context_growth_chars,
                          "predicted_completion_tokens": predicted_completion,
                          "predicted_total_tokens": prompt_tokens + predicted_completion + reserve})
     totals = sorted(item["predicted_total_tokens"] for item in requests)
@@ -1374,7 +1480,10 @@ def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
             "parallel": parallel, "per_slot_context": per_slot,
             "worst_predicted_tokens": worst, "p95_predicted_tokens": p95,
             "average_predicted_tokens": round(sum(totals) / len(totals), 1) if totals else 0,
-            "predicted_fits": bool(per_slot and worst <= per_slot),
+            "context_complete": all(item["context_known"] for item in requests),
+            "static_predicted_fits": bool(per_slot and worst <= per_slot),
+            "predicted_fits": (False if not per_slot or worst > per_slot else
+                               True if all(item["context_known"] for item in requests) else None),
             "required_total_context": {str(level): worst * level for level in range(1, 5)},
             "requests": requests}
 
@@ -1406,8 +1515,8 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
 
-    context = _build_chunk_context(chunk_num, total_chunks, previous_entries)
-    user_prompt = usr_template.format(context=context, chunk=chunk)
+    user_prompt = build_chunk_request_prompt(
+        chunk, chunk_num, total_chunks, usr_template, previous_entries)
     established_speakers = [entry.get("speaker") for entry in (previous_entries or [])
                             if isinstance(entry, dict) and entry.get("speaker")]
 
@@ -1676,6 +1785,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
     parser.add_argument("--output", default=None, help="Output JSON path (default: ../annotated_script.json)")
+    parser.add_argument("--model", default=None, help="Generation model for this run; config.json is unchanged.")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction, default=True,
                          help="Strip known non-narrative compiler front matter (translator's "
                               "note / table of contents) before generation")
@@ -1709,8 +1819,7 @@ def main():
         print(f"Error: Input file not found: {input_file_path}")
         sys.exit(1)
 
-    with open(input_file_path, 'r', encoding='utf-8') as f:
-        book_content = f.read()
+    book_content, input_sha256 = get_generation_input(input_file_path)
 
     book_content, preprocessing = get_preprocessed_source(
         book_content, strip_front_matter=args.strip_front_matter)
@@ -1730,9 +1839,9 @@ def main():
         print(f"Stripped publisher matter: "
               f"{publisher_matter['front_paragraphs']} paragraph(s) from the "
               f"front, {publisher_matter['back_paragraphs']} from the back")
-        if front_matter_removed:
-            print(f"Stripped {front_matter_removed['removed_chars']} characters of known "
-                  "front matter (translator's note / table of contents) before generation")
+    if front_matter_removed:
+        print(f"Stripped {front_matter_removed['removed_chars']} characters of known "
+              "front matter (translator's note / table of contents) before generation")
     # PREFLIGHT. Name every known damage class before spending GPU time.
     #
     # Damage in a source file otherwise surfaces as a generation failure
@@ -1792,12 +1901,15 @@ def main():
     config_path = get_app_config_path(data_dir, root, app_dir)
     if not os.path.exists(config_path):
         print("Warning: config.json not found. Using defaults.")
-    config = load_app_config(config_path)
+    try:
+        config = get_generation_config(load_app_config(config_path), args.model)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     llm_config = get_active_llm_config(config)
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")
     api_key = llm_config.get("api_key", "local")
-    model_name = llm_config.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
+    model_name = llm_config["model_name"]
     llm_mode = config.get("llm_mode", "local")
 
     # The attribution adapter measured +9.8 cross-book and +14.6 through the
@@ -1874,7 +1986,7 @@ def main():
     # processed strictly sequentially), so only the self-heal call applies
     # here - is_remote/lm_status aren't needed for anything else in this file.
     _, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
     print(heal_msg)
 
     # Create OpenAI client with custom base URL
@@ -1904,7 +2016,8 @@ def main():
     print(f"Request preflight: worst={request_preflight['worst_predicted_tokens']} tokens, "
           f"p95={request_preflight['p95_predicted_tokens']}, "
           f"per-slot={request_preflight['per_slot_context']}, "
-          f"fits={request_preflight['predicted_fits']}")
+          f"fits={request_preflight['predicted_fits']}; "
+          "unknown future roster/tail context is checked on each actual request")
 
     output_path = args.output or os.path.join(data_dir, "annotated_script.json")
     response_log = os.path.relpath(get_response_log_path("llm_responses.log"), data_dir)
@@ -1948,10 +2061,28 @@ def main():
 
     fingerprint = get_generation_fingerprint(
         book_content, chunks, model_name, base_url, gen_params, chunk_size)
+    initial_binding = get_run_model_binding(client, model_name)
+    if initial_binding["failover_model"] is not None:
+        fingerprint["model_binding"] = initial_binding
     accepted_chunks = load_generation_checkpoint(output_path, fingerprint)
+    checkpoint_writer = GenerationCheckpointShards(get_generation_checkpoint_path(output_path), fingerprint)
     if accepted_chunks:
         print(f"Resuming from generation checkpoint: {len(accepted_chunks)}/{total_chunks} validated chunks.")
         all_entries = [entry for item in accepted_chunks for entry in item["entries"]]
+
+    context_speakers = {}
+
+    def apply_context_entries(entries):
+        for entry in entries:
+            speaker = entry.get("speaker")
+            if speaker:
+                context_speakers.setdefault(speaker, entry)
+
+    apply_context_entries(all_entries)
+
+    resumed_binding = {"failover_used": any(
+        item.get("model_binding", {}).get("failover_used") is True
+        for item in accepted_chunks)}
 
     for i, chunk in enumerate(chunks, 1):
         if i <= len(accepted_chunks):
@@ -1959,7 +2090,11 @@ def main():
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
         chunk_start = time.monotonic()
-        previous = all_entries if len(all_entries) > 0 else None
+        previous = None
+        if all_entries:
+            # Keep first-seen identity order and the exact three-entry tail.
+            previous = (all_entries if len(all_entries) <= 3 else
+                        list(context_speakers.values()) + all_entries[-3:])
         chunk_attempts = []
         entries, adaptively_split = process_chunk_adaptively(
             client, model_name, chunk, i, total_chunks, gen_params,
@@ -1974,7 +2109,9 @@ def main():
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
                 failure="chunk_failed_after_retries", response_log=response_log,
-                model_name=model_name, failed_chunk_attempts=chunk_attempts))
+                model_name=model_name,
+                model_binding=get_run_model_binding(client, model_name, resumed_binding),
+                failed_chunk_attempts=chunk_attempts))
             print(f"Error: chunk {i}/{total_chunks} failed validation after retries; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -1990,7 +2127,9 @@ def main():
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
                 failure="post_return_validation_failed", failed_quality=quality,
-                model_name=model_name, response_log=response_log))
+                model_name=model_name,
+                model_binding=get_run_model_binding(client, model_name, resumed_binding),
+                response_log=response_log))
             print(f"Error: chunk {i}/{total_chunks} failed post-return validation; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -1998,6 +2137,7 @@ def main():
             print(f"  Chunk {i}/{total_chunks} accepted as trigram-only near-miss "
                   f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
         all_entries.extend(entries)
+        apply_context_entries(entries)
         accepted_chunks.append({
             "chunk_number": i,
             "source_sha256": fingerprint["chunk_sha256"][i - 1],
@@ -2006,8 +2146,9 @@ def main():
             "adaptively_split": adaptively_split,
             "near_miss_accepted": near_miss_accepted,
             "attempts": chunk_attempts,
+            "model_binding": get_run_model_binding(client, model_name, resumed_binding),
         })
-        save_generation_checkpoint(output_path, fingerprint, accepted_chunks)
+        save_generation_checkpoint(output_path, fingerprint, accepted_chunks, writer=checkpoint_writer)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
 
         remaining = total_chunks - i
@@ -2053,6 +2194,7 @@ def main():
         fingerprint, accepted_chunks, source_normalizations,
         total_chunks=total_chunks, response_log=response_log,
         model_name=model_name,
+        model_binding=get_run_model_binding(client, model_name, resumed_binding),
         source_unicode=source_unicode,
         request_preflight=request_preflight,
         whole_book_quality=whole_quality,
@@ -2068,15 +2210,14 @@ def main():
         print("Error: final whole-book quality gate failed; preserving existing output and checkpoint")
         sys.exit(1)
 
-    atomic_json_write(all_entries, output_path)
-    save_generation_quality_manifest(output_path, {**final_manifest, "status": "complete"})
+    publish_completed_generation(output_path, all_entries, final_manifest,
+                                 input_file_path, input_sha256)
     clear_generation_checkpoint(output_path)
 
     # Only clear chunks when writing to the default annotated_script.json location
     if args.output is None:
         chunks_path = os.path.join(data_dir, "chunks.json")
-        if os.path.exists(chunks_path):
-            os.remove(chunks_path)
+        if remove_chunk_snapshot(chunks_path):
             print("Cleared old chunks.json")
 
     # Summary (check both "speaker" and "type" fields)

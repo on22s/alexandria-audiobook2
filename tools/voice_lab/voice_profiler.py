@@ -20,10 +20,13 @@ import csv
 import io
 import json
 import os
+import posixpath
 import re
 import sys
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlsplit
 
 try:
     import numpy as np
@@ -40,27 +43,20 @@ if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
 from voicelab_settings import get_profiler_paths
+from voice_manifest import get_voice_manifest
+from device_utils import normalize_device
+from utils import atomic_json_write
+from archive_utils import read_zip_member_bounded
+
+# Bounds apply to expanded bytes; reference clips and passages are read in memory.
+MAX_REF_WAV_BYTES = 32 * 1024**2
+MAX_REF_TEXT_BYTES = 1024**2
+MAX_EPUB_XML_BYTES = 2 * 1024**2
+MAX_EPUB_CHAPTER_BYTES = 8 * 1024**2
+MAX_EPUB_PASSAGE_BYTES = 32 * 1024**2
 
 CSV_FIELDS = ("id", "narrator", "best_loss", "voice_profile", "gender_est",
               "mean_f0", "std_f0", "speaking_rate")
-
-
-def atomic_json_write(data, target_path):
-    """Write JSON via temp file + os.replace, so a crash mid-write (Ctrl+C,
-    OOM-kill, etc.) during this script's per-narrator manifest checkpoint
-    can't truncate/corrupt manifest.json - a shared file that
-    batch_train_lora.py, name_voices.py, and the web app's LoRA listing all
-    depend on, not just this script's own progress."""
-    directory = os.path.dirname(target_path) or "."
-    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp_path, target_path)
-    except Exception:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        raise
 
 
 def atomic_csv_write(rows: list[dict], target_path: str) -> None:
@@ -94,18 +90,21 @@ def get_preflight_report(manifest_path: str, model_path: str,
     except (ImportError, OSError) as e:
         errors.append(f"llama_cpp unavailable: {e}")
     try:
-        with open(manifest_path, encoding="utf-8") as f:
-            manifest = json.load(f)
-        if not isinstance(manifest, list):
-            errors.append("manifest must contain a JSON list")
-    except (OSError, json.JSONDecodeError) as e:
+        get_voice_manifest(manifest_path)
+    except (OSError, ValueError) as e:
         errors.append(f"manifest unreadable: {e}")
     if not os.path.isfile(model_path):
         errors.append(f"model not found: {model_path}")
     output_dir = os.path.dirname(os.path.abspath(output_csv))
+    probe_dir = output_dir
+    while not os.path.exists(probe_dir):
+        parent = os.path.dirname(probe_dir)
+        if parent == probe_dir:
+            break
+        probe_dir = parent
     probe_path = None
     try:
-        fd, probe_path = tempfile.mkstemp(prefix=".voice_profiler_check_", dir=output_dir)
+        fd, probe_path = tempfile.mkstemp(prefix=".voice_profiler_check_", dir=probe_dir)
         os.close(fd)
     except OSError:
         errors.append(f"output directory is not writable: {output_dir}")
@@ -139,9 +138,12 @@ OUTPUT_CSV = PROFILER_PATHS["output_csv"]
 
 # ── Acoustic analysis ─────────────────────────────────────────────────────────
 
+from voice_acoustics import is_measured_pitch, get_pitch_gender_estimate, get_profiler_acoustic_operations
+
 def analyze_ref_wav(wav_bytes: bytes) -> dict:
     y, sr = librosa.load(io.BytesIO(wav_bytes), sr=22050, mono=True)
     duration = len(y) / sr
+    operations = get_profiler_acoustic_operations(y, sr)
 
     # Pitch via probabilistic YIN.
     #
@@ -168,38 +170,39 @@ def analyze_ref_wav(wav_bytes: bytes) -> dict:
     # bright male tenor really does sit near 180 Hz, and the threshold was
     # always too crude to separate him from a contralto. Better pitch removes
     # the noise that was hiding it.
-    f0, voiced_flag, _ = librosa.pyin(y, fmin=50, fmax=400, sr=sr)
+    f0, voiced_flag, _ = operations["pyin"]()
     voiced = f0[voiced_flag & ~np.isnan(f0)]
     mean_f0 = float(np.mean(voiced)) if len(voiced) > 0 else 0.0
     std_f0  = float(np.std(voiced))  if len(voiced) > 0 else 0.0
 
     # Energy
-    rms = librosa.feature.rms(y=y)[0]
+    rms = operations["rms"]()[0]
     mean_rms = float(np.mean(rms))
 
     # Brightness (spectral centroid)
-    centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+    centroid = operations["centroid"]()[0]
     mean_centroid = float(np.mean(centroid))
 
     # Spectral rolloff — where 85% of energy lives; low = dark/warm, high = bright
-    rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)[0]
+    rolloff = operations["rolloff"]()[0]
     mean_rolloff = float(np.mean(rolloff))
 
     # Voice smoothness: harmonic component energy vs total energy
     # Calibrated for speech (speech median ~0.37, max ~0.75 — much lower than instruments)
-    y_harmonic = librosa.effects.harmonic(y, margin=2.0)
-    harm_rms  = float(np.mean(librosa.feature.rms(y=y_harmonic)[0]))
-    total_rms = float(np.mean(librosa.feature.rms(y=y)[0])) + 1e-8
+    harm_rms = float(np.mean(operations["harmonic"]()[0]))
+    total_rms = mean_rms + 1e-8
     smoothness = harm_rms / total_rms
 
     # Spectral flatness — noise-like quality; calibrated for speech (median ~0.037)
-    flatness = float(np.mean(librosa.feature.spectral_flatness(y=y)[0]))
+    flatness = float(np.mean(operations["flatness"]()[0]))
 
     # Speaking rate
-    onsets = librosa.onset.onset_detect(y=y, sr=sr, units='time')
+    onsets = operations["onset"]()
     rate = len(onsets) / duration if duration > 0 else 0.0
 
     return {
+        'pitch_status':  'measured' if len(voiced) else 'unvoiced',
+        'voiced_frame_count': len(voiced),
         'mean_f0':       mean_f0,
         'std_f0':        std_f0,
         'mean_rms':      mean_rms,
@@ -223,7 +226,10 @@ def interpret_features(f: dict) -> str:
     flat     = f['flatness']
 
     # Pitch / gender / register + rough age decade estimate
-    if f0 < 100:
+    if not is_measured_pitch(f0):
+        pitch_label = "unknown pitch (no voiced frames)"
+        age_est = "no pitch-based age estimate"
+    elif f0 < 100:
         pitch_label = "very deep bass male"
         age_est = "likely 50s–70s"
     elif f0 < 125:
@@ -249,7 +255,9 @@ def interpret_features(f: dict) -> str:
         age_est = "likely teens–30s"
 
     # Pitch variation → delivery style
-    if std < 18:
+    if not is_measured_pitch(f0):
+        variation = "unknown (no voiced frames)"
+    elif std < 18:
         variation = "nearly monotone, flat affect"
     elif std < 30:
         variation = "controlled, measured variation"
@@ -314,8 +322,10 @@ def interpret_features(f: dict) -> str:
     else:
         pace = "rapid-fire delivery"
 
+    pitch_summary = (f"{f0:.0f}Hz → {pitch_label}, {age_est}" if is_measured_pitch(f0)
+                     else f"{pitch_label}; {age_est}")
     return (
-        f"Pitch: {f0:.0f}Hz → {pitch_label}, {age_est}\n"
+        f"Pitch: {pitch_summary}\n"
         f"Pitch variation: {std:.0f}Hz → {variation}\n"
         f"Voice texture: {texture}\n"
         f"Tone brightness: {brightness}\n"
@@ -395,23 +405,45 @@ def find_epub(dataset_id: str, epub_dirs: list[str]) -> str | None:
 
 def extract_epub_passage(epub_path: str, target_chars: int = 600) -> str:
     """Pull a prose passage from ~20% into the book (past front matter)."""
+    def get_local_member_path(href, directory=""):
+        uri = urlsplit(href)
+        if uri.scheme or uri.netloc:
+            return None
+        path = unquote(uri.path)
+        if not path or path.startswith("/"):
+            return None
+        resolved = posixpath.normpath(posixpath.join(directory, path))
+        if resolved == ".." or resolved.startswith("../"):
+            return None
+        return resolved
+
     try:
-        import zipfile as zmod
-        with zmod.ZipFile(epub_path, 'r') as zf:
+        with zipfile.ZipFile(epub_path, 'r') as zf:
             names = set(zf.namelist())
             if 'META-INF/container.xml' not in names:
                 return ""
-            container = zf.read('META-INF/container.xml').decode('utf-8', errors='ignore')
-            opf_m = re.search(r'full-path="([^"]+\.opf)"', container)
-            if not opf_m:
+            remaining_bytes = MAX_EPUB_PASSAGE_BYTES
+            def read_member(name, limit):
+                nonlocal remaining_bytes
+                data = read_zip_member_bounded(zf, name, min(limit, remaining_bytes))
+                remaining_bytes -= len(data)
+                return data
+            container = ET.fromstring(read_member('META-INF/container.xml', MAX_EPUB_XML_BYTES))
+            opf_path = None
+            for node in container.iter():
+                if node.tag.rsplit("}", 1)[-1] == "rootfile":
+                    member = get_local_member_path(node.get("full-path", ""))
+                    if member and member.endswith(".opf"):
+                        opf_path = member
+                        break
+            if not opf_path or opf_path not in names:
                 return ""
-            opf_path = opf_m.group(1)
-            opf_dir  = os.path.dirname(opf_path)
-            opf      = zf.read(opf_path).decode('utf-8', errors='ignore')
-
-            spine_ids = re.findall(r'<itemref\s+idref="([^"]+)"', opf)
-            manifest  = {m.group(1): m.group(2)
-                         for m in re.finditer(r'<item\b[^>]+\bid="([^"]+)"[^>]+href="([^"]+)"', opf)}
+            opf_dir = posixpath.dirname(opf_path)
+            opf = ET.fromstring(read_member(opf_path, MAX_EPUB_XML_BYTES))
+            spine_ids = [node.get("idref") for node in opf.iter()
+                         if node.tag.rsplit("}", 1)[-1] == "itemref" and node.get("idref")]
+            manifest = {node.get("id"): node.get("href") for node in opf.iter()
+                        if node.tag.rsplit("}", 1)[-1] == "item" and node.get("id")}
 
             start = max(1, len(spine_ids) // 5)  # skip first 20%
             collected = ""
@@ -419,12 +451,14 @@ def extract_epub_passage(epub_path: str, target_chars: int = 600) -> str:
                 href = manifest.get(item_id, "")
                 if not href:
                     continue
-                fpath = (opf_dir + "/" + href).lstrip("/") if opf_dir else href
+                fpath = get_local_member_path(href, opf_dir)
+                if fpath is None:
+                    continue
                 if fpath not in names:
-                    fpath = href
+                    fpath = get_local_member_path(href)
                 if fpath not in names:
                     continue
-                html_bytes = zf.read(fpath).decode('utf-8', errors='ignore')
+                html_bytes = read_member(fpath, MAX_EPUB_CHAPTER_BYTES).decode('utf-8', errors='ignore')
                 p = _TextExtractor()
                 p.feed(html_bytes)
                 raw = p.text()
@@ -434,7 +468,8 @@ def extract_epub_passage(epub_path: str, target_chars: int = 600) -> str:
                 if len(collected) >= target_chars:
                     break
             return collected[:target_chars].strip()
-    except Exception:
+    except Exception as e:
+        print(f"  WARNING reading EPUB passage: {e}", flush=True)
         return ""
 
 
@@ -465,7 +500,7 @@ def get_ref_wav(zip_path: str) -> bytes | None:
     try:
         with zipfile.ZipFile(zip_path, 'r') as zf:
             if 'ref.wav' in zf.namelist():
-                return zf.read('ref.wav')
+                return read_zip_member_bounded(zf, 'ref.wav', MAX_REF_WAV_BYTES)
     except Exception as e:
         print(f"  ERROR reading zip: {e}", flush=True)
     return None
@@ -475,9 +510,9 @@ def get_ref_text(zip_path: str) -> str:
     try:
         with zipfile.ZipFile(zip_path, 'r') as zf:
             if 'ref_text.txt' in zf.namelist():
-                return zf.read('ref_text.txt').decode('utf-8').strip()
-    except Exception:
-        pass
+                return read_zip_member_bounded(zf, 'ref_text.txt', MAX_REF_TEXT_BYTES).decode('utf-8').strip()
+    except Exception as e:
+        print(f"  WARNING reading reference text: {e}", flush=True)
     return ""
 
 
@@ -500,7 +535,7 @@ def profile_csv_row(entry: dict) -> dict | None:
         "narrator": parse_narrator_name(dataset_id),
         "best_loss": entry.get("best_loss", entry.get("final_loss", 0)),
         "voice_profile": profile,
-        "gender_est": "female" if mean_f0 >= 165 else "male",
+        "gender_est": get_pitch_gender_estimate(mean_f0),
         "mean_f0": mean_f0,
         "std_f0": features.get("std_f0", 0),
         "speaking_rate": features.get("speaking_rate", 0),
@@ -566,7 +601,10 @@ def llm_describe(llm, narrator: str, summary: str,
         temperature=0.6,
         stop=["\n"],
     )
-    return resp['choices'][0]['message']['content'].strip().strip('"').strip("'")
+    description = resp['choices'][0]['message']['content'].strip().strip('"').strip("'").strip()
+    if not description:
+        raise ValueError("empty voice-profile response")
+    return description
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -575,6 +613,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Profile narrator voices via acoustics + LLM")
     parser.add_argument("--manifest",   default=MANIFEST)
     parser.add_argument("--model",      default=MODEL_PATH,    help="Path to GGUF model")
+    parser.add_argument("--device", type=normalize_device, default="auto",
+                        help="Execution device; cpu disables GPU offloading")
     parser.add_argument("--output_csv", default=OUTPUT_CSV)
     parser.add_argument("--epub-dir", dest="epub_dirs", action="append", default=[],
                         help="Optional EPUB search directory (repeatable)")
@@ -593,11 +633,8 @@ def main() -> int:
         print(f"ERROR: manifest not found: {args.manifest} (run batch_train_lora.py first)")
         return 1
     try:
-        with open(args.manifest, encoding='utf-8') as f:
-            manifest = json.load(f)
-        if not isinstance(manifest, list):
-            raise ValueError("manifest must contain a JSON list")
-    except (OSError, json.JSONDecodeError, ValueError) as e:
+        manifest = get_voice_manifest(args.manifest)
+    except (OSError, ValueError) as e:
         print(f"ERROR: manifest unreadable: {e}", flush=True)
         return 1
 
@@ -636,7 +673,7 @@ def main() -> int:
             llm = Llama(
                 model_path=args.model,
                 n_ctx=2048,
-                n_gpu_layers=-1,
+                n_gpu_layers=0 if args.device == "cpu" else -1,
                 verbose=False,
             )
         except Exception as e:
@@ -644,8 +681,11 @@ def main() -> int:
             return 1
         print("LLM ready.\n", flush=True)
 
-    preview_rows = []
+    processed_count = 0
     errors = 0
+    # This invocation uses one EPUB match/passage snapshot per book.
+    epub_matches = {}
+    epub_passages = {}
 
     for i, entry in enumerate(todo, 1):
         dataset_id = entry.get('dataset_id', entry.get('name', ''))
@@ -675,8 +715,14 @@ def main() -> int:
         ref_text     = get_ref_text(zip_path)
         description  = summary  # fallback for dry_run
 
-        epub_path    = find_epub(dataset_id, args.epub_dirs)
-        book_passage = extract_epub_passage(epub_path) if epub_path else ""
+        _, title, asin = get_dataset_identity(dataset_id)
+        book_key = (title, asin)
+        if book_key not in epub_matches:
+            epub_matches[book_key] = find_epub(dataset_id, args.epub_dirs)
+        epub_path = epub_matches[book_key]
+        if epub_path and epub_path not in epub_passages:
+            epub_passages[epub_path] = extract_epub_passage(epub_path)
+        book_passage = epub_passages.get(epub_path, "")
 
         if epub_path:
             print(f"  epub: {os.path.basename(epub_path)}", flush=True)
@@ -697,6 +743,7 @@ def main() -> int:
 
         if not args.dry_run:
             entry['voice_features'] = {
+                'pitch_status': 'measured' if is_measured_pitch(features['mean_f0']) else 'unvoiced',
                 'mean_f0':       round(features['mean_f0'], 1),
                 'std_f0':        round(features['std_f0'], 1),
                 'mean_rms':      round(features['mean_rms'], 4),
@@ -715,16 +762,7 @@ def main() -> int:
                 return 1
 
         if not llm_failed:
-            preview_rows.append({
-                'id':            entry['id'],
-                'narrator':      narrator,
-                'best_loss':     best_loss,
-                'voice_profile': description,
-                'gender_est':    'female' if features['mean_f0'] >= 165 else 'male',
-                'mean_f0':       round(features['mean_f0'], 1),
-                'std_f0':        round(features['std_f0'], 1),
-                'speaking_rate': round(features['speaking_rate'], 2),
-            })
+            processed_count += 1
 
     if not args.dry_run:
         csv_rows = [row for entry in manifest if (row := profile_csv_row(entry)) is not None]
@@ -735,7 +773,7 @@ def main() -> int:
             return 1
         print(f"\nCSV: {args.output_csv}")
 
-    print(f"Done: {len(preview_rows)} profiles processed, {errors} errors")
+    print(f"Done: {processed_count} profiles processed, {errors} errors")
     return 1 if errors else 0
 
 

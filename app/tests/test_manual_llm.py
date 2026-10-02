@@ -4,6 +4,8 @@ back; the pipeline's own validation gates it."""
 import asyncio
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -37,6 +39,121 @@ def _answer_when_pending(client, content, mismatch_first=False):
 
 
 class ManualClientTests(unittest.TestCase):
+    def test_non_object_replies_keep_request_pending_until_valid_reply(self):
+        import io
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            bad_replies = [None, "bad", ["bad"]]
+            pending_id = None
+            polls = 0
+
+            def publish_response(_seconds):
+                nonlocal pending_id, polls
+                polls += 1
+                self.assertLessEqual(polls, 4, "client never accepted the valid response")
+                self.assertFalse(os.path.exists(client.response_path))
+                with open(client.pending_path) as handle:
+                    pending = json.load(handle)
+                if pending_id is None:
+                    pending_id = pending["id"]
+                self.assertEqual(pending_id, pending["id"])
+                reply = bad_replies.pop(0) if bad_replies else {"id": pending_id, "content": "valid"}
+                with open(client.response_path, "w") as handle:
+                    json.dump(reply, handle)
+
+            output = io.StringIO()
+            with patch.object(llm_provider.time, "sleep", side_effect=publish_response), \
+                 redirect_stdout(output):
+                response = client.create(model="test", messages=[])
+            self.assertEqual("valid", response.choices[0].message.content)
+            self.assertEqual(4, polls)
+            self.assertEqual(3, output.getvalue().count("JSON object"))
+            self.assertEqual(1, client.sequence)
+            self.assertFalse(os.path.exists(client.pending_path))
+            self.assertFalse(os.path.exists(client.response_path))
+
+
+    def test_dead_request_owner_is_replaced_when_a_new_request_starts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            client.POLL_SECONDS = 0.01
+            os.makedirs(client.dir, exist_ok=True)
+            with open(client.pending_path, "w", encoding="utf-8") as target:
+                json.dump({"id": "abandoned", "owner_pid": 99999999,
+                           "owner_thread": 1}, target)
+            with open(client.response_path, "w", encoding="utf-8") as target:
+                json.dump({"id": "abandoned", "content": "stale"}, target)
+            def answer_new_request():
+                for _ in range(200):
+                    try:
+                        with open(client.pending_path, encoding="utf-8") as source:
+                            pending = json.load(source)
+                        if pending["id"] != "abandoned":
+                            with open(client.response_path, "w", encoding="utf-8") as target:
+                                json.dump({"id": pending["id"], "content": "fresh"}, target)
+                            return
+                    except (FileNotFoundError, ValueError):
+                        pass
+                    time.sleep(0.01)
+            threading.Thread(target=answer_new_request, daemon=True).start()
+            answer = client.create(model="m", messages=[])
+            self.assertEqual("fresh", answer.choices[0].message.content)
+            self.assertFalse(os.path.exists(client.pending_path))
+
+    def test_second_client_waits_without_erasing_first_pending_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first = ManualClient(tmp)
+            first.POLL_SECONDS = 0.01
+            answers = {}
+            one = threading.Thread(target=lambda: answers.update(
+                first=first.create(model="m", messages=[{"role": "user", "content": "first"}])
+                .choices[0].message.content), daemon=True)
+            one.start()
+            for _ in range(200):
+                if os.path.exists(first.pending_path):
+                    break
+                time.sleep(0.01)
+            with open(first.pending_path, encoding="utf-8") as source:
+                first_request = json.load(source)
+
+            with patch("utils.get_runtime_data_dir", return_value=tmp):
+                second = make_llm_client({"transport": "manual"}, 10)
+            second.POLL_SECONDS = 0.01
+            with open(first.pending_path, encoding="utf-8") as source:
+                self.assertEqual(first_request, json.load(source))
+
+            two = threading.Thread(target=lambda: answers.update(
+                second=second.create(model="m", messages=[{"role": "user", "content": "second"}])
+                .choices[0].message.content), daemon=True)
+            two.start()
+            time.sleep(0.05)
+            with open(first.pending_path, encoding="utf-8") as source:
+                self.assertEqual(first_request["id"], json.load(source)["id"])
+            self.assertTrue(two.is_alive())
+
+            with open(first.response_path, "w", encoding="utf-8") as target:
+                json.dump({"id": first_request["id"], "content": "one"}, target)
+            one.join(2)
+            self.assertFalse(one.is_alive())
+            second_request = None
+            for _ in range(200):
+                try:
+                    with open(second.pending_path, encoding="utf-8") as source:
+                        pending = json.load(source)
+                    if pending["id"] != first_request["id"]:
+                        second_request = pending
+                        break
+                except FileNotFoundError:
+                    pass
+                time.sleep(0.01)
+            self.assertIsNotNone(second_request)
+            with open(second.response_path, "w", encoding="utf-8") as target:
+                json.dump({"id": second_request["id"], "content": "two"}, target)
+            two.join(2)
+            self.assertFalse(two.is_alive())
+            self.assertEqual({"first": "one", "second": "two"}, answers)
+
     def test_request_is_written_reply_is_returned_and_files_are_cleaned(self):
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)
@@ -73,6 +190,43 @@ class ManualClientTests(unittest.TestCase):
             client.create(model="m", messages=[])
             self.assertEqual(2, client.sequence)
 
+    def test_pending_artifact_preserves_completion_contract_and_schema(self):
+        import copy
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            schema = {"type": "json_schema", "json_schema": {
+                "name": "annotation", "strict": True, "schema": {
+                    "type": "object", "properties": {"speaker": {"type": "string"}},
+                    "required": ["speaker"], "additionalProperties": False}}}
+            kwargs = {"model": "o3", "messages": [{"role": "user", "content": "hello"}],
+                      "max_completion_tokens": 512, "response_format": schema,
+                      "top_p": 0.8, "seed": 123,
+                      "extra_body": {"reasoning_effort": "high", "top_k": 20},
+                      "timeout": object(), "extra_headers": {"Authorization": "secret"}}
+            original = copy.deepcopy({k: v for k, v in kwargs.items() if k != "timeout"})
+            seen = {}
+
+            def answer(_seconds):
+                self.assertFalse(seen, "request did not accept the matching reply")
+                with open(client.pending_path, encoding="utf-8") as handle:
+                    seen.update(json.load(handle))
+                with open(client.response_path, "w", encoding="utf-8") as handle:
+                    json.dump({"id": seen["id"], "content": '{"speaker":"NARRATOR"}'}, handle)
+
+            with patch.object(llm_provider.time, "sleep", side_effect=answer):
+                result = client.create(**kwargs)
+            for key in ("max_completion_tokens", "response_format", "top_p", "seed", "extra_body"):
+                self.assertEqual(kwargs[key], seen["params"][key])
+            self.assertTrue(seen["params"]["json_schema"])
+            self.assertNotIn("timeout", seen["params"])
+            self.assertNotIn("extra_headers", seen["params"])
+            self.assertNotIn("messages", seen["params"])
+            self.assertEqual(kwargs["messages"], seen["messages"])
+            self.assertEqual('{"speaker":"NARRATOR"}', result.choices[0].message.content)
+            self.assertEqual(original, {k: v for k, v in kwargs.items() if k != "timeout"})
+            self.assertFalse(os.path.exists(client.pending_path))
+            self.assertFalse(os.path.exists(client.response_path))
+
     def test_a_reply_to_another_request_is_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)
@@ -101,18 +255,33 @@ class ManualClientTests(unittest.TestCase):
 
 class ManualThreePassTests(unittest.TestCase):
     def test_a_three_pass_run_completes_with_a_person_answering_every_request(self):
+        """Run the native file-reply fixture in an owned, bounded CPU child."""
+        code = (
+            "import faulthandler; faulthandler.dump_traceback_later(8, exit=True); "
+            "from tests.test_manual_llm import ManualThreePassTests; "
+            "ManualThreePassTests()._run_manual_three_pass_fixture()"
+        )
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(os.path.abspath(path) for path in sys.path)}
+        try:
+            result = subprocess.run([sys.executable, "-c", code], env=env,
+                                    capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired as error:
+            self.fail(f"Manual three-pass fixture timed out: {error.stdout!r} {error.stderr!r}")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def _run_manual_three_pass_fixture(self):
         """No HTTP: each request lands in the data dir, a stand-in user replies,
         the pipeline validates and moves on. Same three answers as the fake
         client fixtures elsewhere, delivered through the files."""
         import three_pass_generate as tp
         from generate_script import LLMGenParams
-        source = "The room was cold. \"Tell me the truth.\""
+        source = "Elena entered the cold room. \"Tell me the truth.\""
         answers = [
-            json.dumps([{"type": "NARRATOR", "text": "The room was cold."},
+            json.dumps([{"type": "NARRATOR", "text": "Elena entered the cold room."},
                         {"type": "SPOKEN", "text": "Tell me the truth."}]),
-            json.dumps([{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+            json.dumps([{"n": 0, "head": "Elena entered the", "speaker": "NARRATOR"},
                         {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]),
-            json.dumps([{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
+            json.dumps([{"n": 0, "head": "Elena entered the", "instruct": "Cold, still narration."},
                         {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]),
         ]
         with tempfile.TemporaryDirectory() as tmp:
@@ -139,6 +308,11 @@ class ManualThreePassTests(unittest.TestCase):
             entries = tp.run_three_pass(client, "m", source,
                                         LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
                                         chunk_size=6000)
+            self.assertFalse(os.path.exists(client.pending_path))
+            self.assertFalse(os.path.exists(client.response_path))
+        self.assertEqual(["Elena entered the cold room.", "Tell me the truth."],
+                         [entry["text"] for entry in entries])
+        self.assertTrue(all(entry.get("instruct") for entry in entries))
         self.assertEqual(["NARRATOR", "ELENA"], [e["speaker"] for e in entries])
         self.assertEqual([1, 2, 3], sequences)
 

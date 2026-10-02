@@ -12,7 +12,7 @@
 # evidence the gap was capacity on the harder languages rather than anything
 # about the harness.
 set -uo pipefail
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 L="$REPO/ab_test_runtime/logs"
 MODEL="$REPO/whisper.cpp/models/ggml-large-v3.bin"
 PY="$REPO/app/env/bin/python"

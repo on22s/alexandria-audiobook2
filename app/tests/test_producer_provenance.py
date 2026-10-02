@@ -96,6 +96,15 @@ class ProducerProvenanceTest(unittest.TestCase):
                 continue
             with open(os.path.join(EXPERIMENTS, name), encoding="utf-8") as fh:
                 source = fh.read()
+            # This writes dependency receipts, not experiment result artifacts.
+            # Actual PCM/dependency mutation checks live in
+            # test_reference_spread_resume; the receipt has input/output hashes
+            # and is compared byte-for-byte before accepting a completed arm.
+            if name == "reference_spread_resume.py":
+                self.assertIn("'files': {str(path): file_sha256(path)", source)
+                self.assertIn("return {str(path): file_sha256(path) for path in files}", source)
+                self.assertIn("stored != {'inputs': current, 'outputs': outputs}", source)
+                continue
             if "atomic_json_write(" in source or "json.dump(" in source:
                 yield name, source
 

@@ -1,5 +1,7 @@
 import io
 import json
+import hashlib
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,6 +14,44 @@ from voice_dataset_merge import get_pcm_hash, get_source_records, is_reusable_me
 
 
 class VoiceDatasetMergeTests(unittest.TestCase):
+    def test_source_fingerprint_covers_middle_bytes_even_when_size_and_mtime_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp, "source.zip")
+            for size in (1536 * 1024, 4 * 1024 * 1024):
+                with self.subTest(size=size):
+                    source.write_bytes(b"a" * size)
+                    original = get_source_records([source])
+                    stat = source.stat()
+                    with source.open("r+b") as handle:
+                        handle.seek(1200 * 1024)
+                        handle.write(b"changed middle")
+                    os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+                    changed = get_source_records([source])
+                    self.assertNotEqual(original, changed)
+                    self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                                     changed[0]["fingerprint"]["sha256"])
+
+    def test_changed_middle_bytes_rebuild_the_actual_merge_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp, "source.zip"), Path(tmp, "merged.zip")
+            self.make_zip(source, [self.make_wav(180)])
+            # ZIP supports a prepended stub; keep the payload and ZIP directory
+            # outside the modified middle region so edge hashes miss the change.
+            source.write_bytes(b"a" * (4 * 1024 * 1024) + source.read_bytes())
+            self.assertEqual("merged", merge_voice_datasets([source], output)["status"])
+            self.assertEqual("reused", merge_voice_datasets([source], output)["status"])
+            stat = source.stat()
+            with source.open("r+b") as handle:
+                handle.seek(2 * 1024 * 1024)
+                handle.write(b"changed middle")
+            os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            self.assertEqual("merged", merge_voice_datasets([source], output)["status"])
+            with zipfile.ZipFile(output) as archive:
+                manifest = json.loads(archive.read("merge_manifest.json"))
+            self.assertEqual(get_source_records([source]), manifest["sources"])
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                             manifest["sources"][0]["fingerprint"]["sha256"])
+
     def make_same_pcm_at_rate(self, rate):
         output = io.BytesIO()
         sf.write(output, np.arange(16, dtype=np.float32) / 128, rate,
@@ -111,3 +151,52 @@ class VoiceDatasetMergeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MergeArtifactRecoveryTests(unittest.TestCase):
+    def test_invalid_utf8_manifest_is_rebuilt_as_real_audio_zip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp, 'source.zip'), Path(tmp, 'merged.zip')
+            clip = VoiceDatasetMergeTests.make_wav(self, 180)
+            VoiceDatasetMergeTests.make_zip(self, source, [clip])
+            with zipfile.ZipFile(output, 'w') as archive:
+                archive.writestr('merge_manifest.json', b'{"broken": "\xff"}')
+            sources = get_source_records([source])
+            self.assertFalse(is_reusable_merge(output, sources))
+            self.assertEqual('merged', merge_voice_datasets([source], output)['status'])
+            with zipfile.ZipFile(output) as archive:
+                manifest = json.loads(archive.read('merge_manifest.json'))
+                rows = [json.loads(line) for line in archive.read('metadata.jsonl').splitlines()]
+                audio, rate = sf.read(io.BytesIO(archive.read(rows[0]['audio_filepath'])))
+            self.assertEqual(sources, manifest['sources'])
+            self.assertEqual(8000, len(audio))
+            self.assertEqual(16000, rate)
+            self.assertEqual('reused', merge_voice_datasets([source], output)['status'])
+
+    def test_fingerprint_metadata_and_hash_describe_same_opened_inode(self):
+        from unittest.mock import patch
+        from voice_dataset_merge import get_file_fingerprint
+        for replace_before_open in (True, False):
+            with self.subTest(replace_before_open=replace_before_open), tempfile.TemporaryDirectory() as tmp:
+                source, replacement = Path(tmp, 'source.zip'), Path(tmp, 'replacement.zip')
+                source.write_bytes(b'old bytes')
+                replacement.write_bytes(b'replacement archive bytes')
+                os.utime(source, ns=(1000000000, 1000000000))
+                os.utime(replacement, ns=(2000000000, 2000000000))
+                expected_path = replacement if replace_before_open else source
+                expected_stat = expected_path.stat()
+                expected_bytes = expected_path.read_bytes()
+                real_open = Path.open
+                def open_replaced(path, *args, **kwargs):
+                    if path == source and args == ('rb',):
+                        if replace_before_open:
+                            os.replace(replacement, source)
+                            return real_open(path, *args, **kwargs)
+                        handle = real_open(path, *args, **kwargs)
+                        os.replace(replacement, source)
+                        return handle
+                    return real_open(path, *args, **kwargs)
+                with patch.object(Path, 'open', open_replaced):
+                    fingerprint = get_file_fingerprint(source)
+                self.assertEqual({'size': expected_stat.st_size, 'mtime_ns': expected_stat.st_mtime_ns,
+                    'sha256': hashlib.sha256(expected_bytes).hexdigest()}, fingerprint)

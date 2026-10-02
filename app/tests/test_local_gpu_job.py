@@ -24,8 +24,8 @@ class LocalGpuJobTests(unittest.TestCase):
         self.assertEqual(app, run.call_args.kwargs["cwd"])
         self.assertTrue(run.call_args.kwargs["check"])
         env = run.call_args.kwargs["env"]
-        self.assertEqual(os.path.expanduser("~/.alexandria_gpu.lock"),
-                         env["GPU_LOCK"])
+        self.assertEqual(os.environ.get("GPU_LOCK"), env.get("GPU_LOCK"),
+                         "gpu_job.sh must choose its own default lock")
         self.assertEqual(os.path.join(temp, "ab_test_runtime", "logs",
                                       "gpu_jobq.log"), env["GPU_QLOG"])
 

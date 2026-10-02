@@ -23,7 +23,7 @@ def format_validation_findings(findings):
         if finding.get("value") not in (None, ""):
             details.append(f"rejected={json.dumps(finding['value'], ensure_ascii=False)}")
         expected = finding.get("expected")
-        if expected:
+        if expected is not None:
             details.append(f"expected={expected}")
         rendered.append(f"{message} ({'; '.join(details)})" if details
                         else message)

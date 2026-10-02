@@ -32,12 +32,18 @@ class PrepareSourceTextTest(unittest.TestCase):
             prepare_source_text("ab�cd�ef�g")
         self.assertIn("density", str(caught.exception).lower())
 
-    def test_index18_density_is_admitted(self):
-        # index18 sits at 1.4%, below the 2% ceiling: 14 damaged in 1000.
-        source = ("x" * 986) + ("�" * 14)
+    def test_repairable_fourteen_per_thousand_are_admitted(self):
+        source = ("filler " * 140) + ("don�t " * 14)
         text, report = prepare_source_text(source)
         self.assertNotIn("�", text)
         self.assertEqual(report["repaired"] + report["residual"], 14)
+
+    def test_ambiguous_fourteen_character_run_is_not_invented_into_punctuation(self):
+        # A repeated lost run cannot stand in for measured repairable index18 prose.
+        source = ("x" * 986) + ("�" * 14)
+        with self.assertRaisesRegex(ValueError, "replacement characters"):
+            prepare_source_text(source)
+
 
 
 

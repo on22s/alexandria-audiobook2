@@ -109,7 +109,7 @@ LINE_HEADER = ("You are a script writer converting books into audiobook scripts 
                "using the pipe format below — no JSON, no markdown, no "
                "explanations.")
 
-LINE_FORMAT_BLOCK = """FORMAT — one record per line, exactly two pipes, no header row:
+LINE_FORMAT_BLOCK = """FORMAT — one record per line, two field-separating pipes, no header row:
 NARRATOR|Quiet, tense narration.|The room had gone cold. Elena stood by the window, arms folded, watching the last light drain from the sky.
 ELENA|Firm quiet authority, low and controlled, voice tight with restrained anger.|Tell me the truth.
 MARCUS|Defensive evasion, flat and guarded, forcing calm he does not feel.|There is nothing to tell.
@@ -126,29 +126,25 @@ class PromptShapeError(ValueError):
     """The shipped prompt no longer has the shape this transform rewrites."""
 
 
-def build_line_format_prompt(system_prompt):
-    """Rewrite only the format-spec region of the shipped system prompt.
-
-    The RULES section is where the real instructions live and it is identical
-    for both arms, so it is NOT duplicated into a second file - a copy would
-    drift and the A/B would silently stop comparing like with like. This
-    raises rather than returning a half-converted prompt: an arm that still
-    says "Output ONLY valid JSON" while being parsed as lines would look like
-    a format failure and would be recorded as one.
-    """
-    if not system_prompt:
+def build_output_format_prompt(system_prompt, header, format_block):
+    """Replace one recognized format region and reject retained JSON demands."""
+    import re
+    if not isinstance(system_prompt, str) or not system_prompt:
         raise PromptShapeError("no system prompt to convert")
-    start = system_prompt.find("FORMAT:")
-    rules = system_prompt.find("RULES:")
-    if start == -1 or rules == -1 or rules <= start:
-        raise PromptShapeError(
-            "expected 'FORMAT:' before 'RULES:' in the system prompt")
-    head, tail = system_prompt[:start], system_prompt[rules:]
-    if "JSON" not in head:
+    sections = list(re.finditer(r"^[ \t]*(FORMAT|RULES)[ \t]*:", system_prompt,
+                                re.IGNORECASE | re.MULTILINE))
+    if [match.group(1).upper() for match in sections] != ["FORMAT", "RULES"]:
+        raise PromptShapeError("expected one 'FORMAT:' before one 'RULES:' in the system prompt")
+    head, tail = system_prompt[:sections[0].start()], system_prompt[sections[1].start():]
+    first_line, newline, remainder = head.partition("\n")
+    if not re.search(r"\bJSON\b", first_line, re.IGNORECASE):
         raise PromptShapeError("expected the JSON instruction in the header")
-    first_newline = head.find("\n")
-    remainder = head[first_newline:] if first_newline != -1 else "\n"
-    converted = LINE_HEADER + remainder + LINE_FORMAT_BLOCK + "\n" + tail
-    if "valid JSON array" in converted:
+    retained = newline + remainder if newline else "\n"
+    if re.search(r"\bJSON\b", retained + tail, re.IGNORECASE):
         raise PromptShapeError("a JSON instruction survived the conversion")
-    return converted
+    return header + retained + format_block + "\n" + tail
+
+
+def build_line_format_prompt(system_prompt):
+    """Keep shared annotation rules while changing only the response format."""
+    return build_output_format_prompt(system_prompt, LINE_HEADER, LINE_FORMAT_BLOCK)

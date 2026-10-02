@@ -52,14 +52,13 @@ class IdealSettingsEndpointTest(unittest.TestCase):
         self.assertIn("32768", message)
 
     def test_a_real_lm_studio_endpoint_still_gets_configured(self):
-        """The probe returns None for anything that is not llama.cpp, and that
-        path must be untouched - skipping it would be the opposite bug."""
+        """A positively verified LM Studio endpoint retains managed reloads."""
         with mock.patch.object(lmstudio_settings, "get_llama_cpp_status",
                                return_value=None), \
              mock.patch.object(lmstudio_settings, "apply_lmstudio_settings",
                                return_value=(True, "loaded with ideal settings")) as apply_, \
              mock.patch.object(lmstudio_settings, "get_current_status",
-                               return_value={"available": True, "loaded": False,
+                               return_value={"management_verified": True, "available": True, "loaded": False,
                                              "context_length": 8192,
                                              "parallel": 1, "optimized": False}):
             message = lmstudio_settings.ensure_ideal_settings(

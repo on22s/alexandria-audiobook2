@@ -23,7 +23,7 @@ SCRIPT = os.path.join(REPO, "gpu_pause.sh")
 
 # Written by gpu_job.sh. Terminal means THE JOB WILL NOT RUN.
 TERMINAL = ["OK       ", "FAILED   ", "NO_VRAM  ", "NO_LLM   ", "KILLED   ",
-            "LOCK_FAILED", "INTERRUPTED ", "STOPPED  "]
+            "LOCK_FAILED", "PENDING_FAILED", "INTERRUPTED ", "STOPPED  "]
 # These are written and the job PROCEEDS, so they must not clear it.
 NON_TERMINAL = ["DIRTY_RUN", "LLM_UNCHECKED", "VRAM_UNKNOWN", "HELD     "]
 
@@ -79,3 +79,47 @@ class TerminalMarkerTests(unittest.TestCase):
     def test_markers_that_still_run_the_job_do_not_clear_it(self):
         for marker in NON_TERMINAL:
             self.assertEqual(self._status(marker), "jobA", marker)
+
+
+class SpacedJobNameTests(unittest.TestCase):
+    def test_actual_status_retains_full_live_name_and_terminal_markers(self):
+        import signal
+        from pathlib import Path
+        for name in ("goal 13", "goal  13", "goal_13"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                wrapper = root / "gpu_job.sh"
+                wrapper.write_text('#!/bin/bash\nprintf ready > "$READY_PATH"\nsleep 30\n')
+                wrapper.chmod(0o755)
+                rocm = root / "rocm-smi"
+                rocm.write_text('#!/bin/sh\nprintf "total used memory: 0\\n"\n')
+                rocm.chmod(0o755)
+                ready = root / "ready"
+                log = root / "q.log"
+                env = {**os.environ, "READY_PATH": str(ready), "GPU_QLOG": str(log),
+                       "GPU_PAUSE_FLAG": str(root / "flag"),
+                       "GPU_PENDING_DIR": str(root / "pending"),
+                       "PATH": tmp + os.pathsep + os.environ["PATH"]}
+                child = subprocess.Popen([str(wrapper), name], env=env, start_new_session=True)
+                try:
+                    deadline = time.monotonic() + 3
+                    while not ready.exists() and child.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(ready.exists(), "fixture process must be live before status")
+                    self.assertIsNone(child.poll())
+                    for marker in (None, "HELD     ", "OK       ", "NO_LLM   "):
+                        text = f"2026-09-30T14:00:00Z START    {name}\n"
+                        if marker:
+                            text += f"2026-09-30T14:00:01Z {marker} {name}\n"
+                        log.write_text(text)
+                        before = log.read_bytes()
+                        result = subprocess.run([SCRIPT, "status"], env=env,
+                                                capture_output=True, text=True, timeout=10)
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        expected = name if marker in (None, "HELD     ") else "none"
+                        self.assertIn("running job: " + expected + "\n", result.stdout)
+                        self.assertEqual(before, log.read_bytes())
+                        self.assertFalse((root / "flag").exists())
+                finally:
+                    os.killpg(child.pid, signal.SIGTERM)
+                    child.wait(timeout=5)

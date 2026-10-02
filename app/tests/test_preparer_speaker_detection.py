@@ -253,13 +253,26 @@ class GetSpeakerDiarizationTests(unittest.TestCase):
             ))
             sf.write(audio_path, audio, 8000)
 
-            with patch.dict(sys.modules, {"torch": _FAKE_TORCH}):
+            with patch.dict(sys.modules, {"torch": _FAKE_TORCH}), \
+                 patch.object(sf, "read", side_effect=AssertionError("full read")):
                 decoded = get_diarization_audio_input(audio_path)
 
         self.assertEqual(8000, decoded["sample_rate"])
         self.assertEqual((2, 800), tuple(decoded["waveform"].shape))
         self.assertAlmostEqual(0.25, decoded["waveform"][0, 0].item(), places=3)
         self.assertAlmostEqual(-0.25, decoded["waveform"][1, 0].item(), places=3)
+        self.assertIsInstance(decoded["waveform"].base, np.memmap)
+
+    def test_diarization_input_reads_across_blocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audio_path = os.path.join(tmp, "long.wav")
+            audio = np.zeros(6101, dtype=np.float32)
+            audio[-1] = 0.5
+            sf.write(audio_path, audio, 100)
+            with patch.dict(sys.modules, {"torch": _FAKE_TORCH}):
+                decoded = get_diarization_audio_input(audio_path)
+        self.assertEqual((1, 6101), decoded["waveform"].shape)
+        self.assertAlmostEqual(0.5, decoded["waveform"][0, -1].item(), places=3)
 
 
 if __name__ == "__main__":

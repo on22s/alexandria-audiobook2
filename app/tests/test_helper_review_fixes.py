@@ -1,7 +1,9 @@
 import asyncio
+from contextlib import ExitStack
 import base64
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -113,7 +115,68 @@ class HelperReviewTests(unittest.TestCase):
             path = str(Path(directory) / 'book.json')
             for value in (None, [], 42):
                 utils.atomic_json_write(value, path + '.review_checkpoint.json')
-                self.assertIsNone(review_script.load_checkpoint(path, 1, 10, 2))
+                self.assertIsNone(review_script.load_checkpoint(path, 1, 10, 2, []))
+
+    def test_review_checkpoint_rejects_other_book_and_accepts_saved_partial_output(self):
+        first = [{"speaker": "A", "text": "First book"},
+                 {"speaker": "A", "text": "More first book"}]
+        corrected = [{"speaker": "A", "text": "First book corrected"}]
+        partial_output = corrected + first[1:]
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'book.json')
+            review_script.save_checkpoint(
+                path, 1, 2, 1, 0, corrected, {}, corrected, [1], [],
+                review_script._entries_fingerprint(first),
+                review_script._entries_fingerprint(partial_output))
+            self.assertIsNotNone(review_script.load_checkpoint(path, 2, 1, 0, first))
+            self.assertIsNotNone(review_script.load_checkpoint(path, 2, 1, 0, partial_output))
+            other_book = [{"speaker": "B", "text": "Other book"}, first[1]]
+            self.assertIsNone(review_script.load_checkpoint(path, 2, 1, 0, other_book))
+
+    def test_incomplete_review_defers_merge_until_successful_resume(self):
+        entries = [{"speaker": "NARRATOR", "text": word, "instruct": "calm"}
+                   for word in ("One.", "Two.", "Three.")]
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'book.json')
+            utils.atomic_json_write(entries, path)
+            config = {"llm_mode": "remote", "generation": {
+                "review_batch_size": 2, "merge_narrators": True}}
+            calls = []
+
+            def review(_client, _model, batch, batch_index, *_args, **_kwargs):
+                calls.append(batch_index)
+                if len(calls) == 2:
+                    return None
+                return batch
+
+            with ExitStack() as stack:
+                stack.enter_context(patch.object(sys, 'argv',
+                                                 ['review_script.py', '--input', path]))
+                stack.enter_context(patch.object(review_script, 'get_runtime_data_dir',
+                                                 return_value=directory))
+                stack.enter_context(patch.object(review_script, 'load_app_config',
+                                                 return_value=config))
+                stack.enter_context(patch.object(review_script, 'get_active_llm_config',
+                                                 return_value={}))
+                stack.enter_context(patch.object(review_script, 'ensure_ideal_settings',
+                                                 return_value=(True, {}, 'ready')))
+                stack.enter_context(patch.object(review_script, 'make_run_client',
+                                                 return_value=object()))
+                stack.enter_context(patch.object(review_script, 'get_cached_or_benchmarked_concurrency',
+                                                 return_value=1))
+                stack.enter_context(patch.object(review_script, 'get_current_status',
+                                                 return_value={'loaded': False}))
+                stack.enter_context(patch.object(review_script, 'review_batch',
+                                                 side_effect=review))
+                review_script.main()
+                self.assertEqual(entries, utils.safe_load_json(path))
+                self.assertTrue(Path(path + '.review_checkpoint.json').exists())
+                review_script.main()
+
+            self.assertEqual([1, 2, 2], calls)
+            self.assertEqual([{"speaker": "NARRATOR", "text": "One. Two. Three.",
+                               "instruct": "calm"}], utils.safe_load_json(path))
+            self.assertFalse(Path(path + '.review_checkpoint.json').exists())
 
     def test_bad_chunks_are_backed_up_and_regenerated(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -136,8 +199,66 @@ class HelperReviewTests(unittest.TestCase):
             link.symlink_to(outside)
             for path in ('../outside.wav', str(outside), 'link.wav'):
                 chunk = {'audio_path': path}
-                with self.assertRaises(ValueError):
-                    manager._load_chunks_with_audio(chunks=[chunk])
+                with patch('project._load_audio_segment') as decode:
+                    self.assertEqual(([], 1), manager._load_chunks_with_audio(chunks=[chunk]))
+                    decode.assert_not_called()
                 with self.assertRaises(ValueError):
                     manager._chapter_fingerprint([chunk])
             self.assertEqual(manager.get_chunk_audio_path('inside.wav'), str(root / 'inside.wav'))
+
+
+class PromptFileFailureTests(unittest.TestCase):
+    def test_empty_prompt_part_rejected_without_replacing_cached_pair(self):
+        from prompt_loader import load_prompts_file
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'prompts.txt'
+            for num_parts, text in ((2, '---SEPARATOR---'),
+                                    (2, 'system---SEPARATOR--- \n\t'),
+                                    (2, ' \t---SEPARATOR---user'),
+                                    (3, 'system---SEPARATOR------SEPARATOR---advanced')):
+                with self.subTest(text=text):
+                    path.write_text(text, encoding='utf-8')
+                    cache = {'mtime': -1, 'prompts': ('previous system', 'previous user')}
+                    before = dict(cache)
+                    with self.assertRaisesRegex(RuntimeError, 'malformed'):
+                        load_prompts_file(path, num_parts, 'missing', 'malformed', cache)
+                    self.assertEqual(before, {key: value for key, value in cache.items() if key != 'malformed_version'})
+                    stat = path.stat()
+                    self.assertEqual((stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns), cache['malformed_version'])
+            path.write_text(' system ---SEPARATOR--- user ', encoding='utf-8')
+            cache = {}
+            self.assertEqual(('system', 'user'), load_prompts_file(path, 2, 'missing', 'malformed', cache))
+            with patch('prompt_loader.open', side_effect=AssertionError('cache should avoid read')):
+                self.assertEqual(('system', 'user'), load_prompts_file(path, 2, 'missing', 'malformed', cache))
+
+    def test_metadata_io_failure_uses_controlled_runtime_error(self):
+        from prompt_loader import load_prompts_file
+        for error in (PermissionError('access denied'), OSError('device offline')):
+            with self.subTest(error=error), patch('prompt_loader.os.stat', side_effect=error):
+                cache = {'mtime': 1, 'prompts': ('system', 'user')}
+                before = dict(cache)
+                with self.assertRaisesRegex(RuntimeError, 'Error reading') as caught:
+                    load_prompts_file('prompts.txt', 2, 'missing', 'malformed', cache)
+                self.assertIs(error, caught.exception.__cause__)
+                self.assertEqual(before, cache)
+        with patch('prompt_loader.os.stat', side_effect=FileNotFoundError()):
+            with self.assertRaisesRegex(RuntimeError, '^missing$'):
+                load_prompts_file('prompts.txt', 2, 'missing', 'malformed', {})
+
+
+class ReviewReportHistoryTests(unittest.TestCase):
+    def test_same_second_reports_preserve_each_runs_contents(self):
+        first_stats = {'entries_before': 1, 'entries_after': 1, 'total_changes': 0}
+        second_stats = {'entries_before': 2, 'entries_after': 2, 'total_changes': 0}
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(core, 'REPORTS_DIR', tmp), \
+             patch.object(core.time, 'strftime', return_value='2026-09-29_21-00-00'), \
+             patch.object(core, '_llm_summarize_report', return_value=None):
+            first = core._write_single_review_report(first_stats)
+            original = Path(first).read_bytes()
+            second = core._write_single_review_report(second_stats)
+            self.assertNotEqual(first, second)
+            self.assertEqual(original, Path(first).read_bytes())
+            self.assertIn('**1** lines to **1** lines', Path(first).read_text())
+            self.assertIn('**2** lines to **2** lines', Path(second).read_text())
+            self.assertEqual(2, len(list(Path(tmp).glob('review_*.md'))))

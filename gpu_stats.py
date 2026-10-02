@@ -175,16 +175,14 @@ def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
         logger.debug(f"{rocm_smi_path} returned error: {result.returncode}, stderr: {result.stderr}")
         return None
 
-    # rocm-smi sometimes prints warnings to stdout ahead of the JSON, and
-    # the JSON payload itself may be pretty-printed across several lines.
-    # Parse everything from the first line that opens the JSON object so a
-    # multi-line payload isn't truncated to just "{".
+    # Warnings may start with a brace or follow a pretty-printed JSON object.
+    # Try each object-opening line and decode only the complete JSON payload.
     lines = result.stdout.split('\n')
     for i, line in enumerate(lines):
         if line.strip().startswith('{'):
             try:
-                return json.loads('\n'.join(lines[i:]))
+                return json.JSONDecoder().raw_decode('\n'.join(lines[i:]).lstrip())[0]
             except (json.JSONDecodeError, ValueError) as e:
                 logger.debug(f"{rocm_smi_path} JSON parse error: {e}")
-                return None
+                continue
     return None

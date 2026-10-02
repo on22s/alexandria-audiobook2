@@ -11,6 +11,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "determinism_chain" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 # NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
 # third lock file that serialised against neither the repo lock the other

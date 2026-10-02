@@ -81,7 +81,9 @@ SEED = int(os.environ.get("EXPERIMENT_SEED", "20260728"))
 
 gold = json.load(open(GOLD_PATH))
 src = open(M + f"inputs/{BOOK}.txt", encoding="utf-8").read()
-cp = json.load(open(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json"))
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
+cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json")
 seg, named = cp["segmented"], [e for e in (cp.get("named") or []) if e]
 roster = [r.upper() for r in build_roster(named, src)]
 AL = [{n.upper() for n in g} for g in gold.get("aliases", [])]

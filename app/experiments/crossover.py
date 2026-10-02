@@ -131,9 +131,10 @@ def norm(t):
 
 
 segs, rosters = {}, {}
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 for key, model in SEG_SOURCES.items():
-    cp = json.load(open(
-        f"{OVERNIGHT}{model}/{BOOK}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(f"{OVERNIGHT}{model}/{BOOK}/result.json.threepass_checkpoint.json")
     segs[key] = cp["segmented"]
     rosters[key] = [r.upper() for r in
                     build_roster([e for e in (cp.get("named") or []) if e], src)]

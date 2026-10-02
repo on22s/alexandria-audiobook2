@@ -47,6 +47,22 @@ class TestStructuralMarks(unittest.TestCase):
         # "■■■" is one scene break, not three sentence ends.
         self.assertEqual(normalize_for_speech("one ■■■ two"), "one. two.")
 
+    def test_inline_asterisks_and_underscores_are_not_scene_breaks(self):
+        for text in ("Use snake_case.", "The expression is A*B.",
+                     "Use snake__case and A***B.", "He said _hello_ softly.",
+                     "The name is 名_前."):
+            with self.subTest(text=text):
+                result = get_speech_normalization(text)
+                self.assertEqual(text, result["text"])
+                self.assertNotIn("structural_break", [
+                    change["type"] for change in result["transformations"]])
+                self.assertEqual(text, normalize_for_speech(result["text"]))
+
+    def test_standalone_asterisk_and_underscore_scene_breaks_still_work(self):
+        for marker in ("***", "___", "*_*", "* * *"):
+            with self.subTest(marker=marker):
+                self.assertEqual("one. two.", normalize_for_speech(f"one {marker} two"))
+
 
 class TestSpokenSymbols(unittest.TestCase):
     """Some symbols are words the writer expects read aloud."""
@@ -62,6 +78,19 @@ class TestSpokenSymbols(unittest.TestCase):
         out = normalize_for_speech("Copyright © 2016 Tappei")
         self.assertEqual(out.lower().count("copyright"), 1)
 
+    def test_copyright_symbol_does_not_erase_authored_repetition(self):
+        text = "The heading says copyright copyright © 2016."
+        self.assertEqual(
+            "The heading says copyright copyright 2016.", normalize_for_speech(text))
+
+    def test_redundant_copyright_symbol_is_recorded_as_a_drop(self):
+        result = get_speech_normalization("COPYRIGHT © 2016.")
+        self.assertEqual("COPYRIGHT 2016.", result["text"])
+        self.assertEqual(
+            [{"type": "dropped_redundant_symbol", "symbol": "©", "replacement": ""},
+             {"type": "collapsed_spacing", "count": 1}],
+            result["transformations"])
+
     def test_daggers_are_dropped_not_spoken(self):
         # A footnote dagger is a reference mark; reading it is nonsense.
         out = normalize_for_speech("a claim† here")
@@ -74,6 +103,15 @@ class TestLeavesProseAlone(unittest.TestCase):
 
     def test_plain_sentence_is_unchanged(self):
         self.assertEqual(normalize_for_speech("Hello world."), "Hello world.")
+
+    def test_authored_repetition_reaches_the_shared_tts_normalizer_intact(self):
+        for text in ("She had had enough.", "It was very very emphatic.",
+                     "No no no!", "He said GO go.", "はい はい。"):
+            with self.subTest(text=text):
+                expected = text if text.endswith(".") else text + "."
+                self.assertEqual(expected, normalize_for_speech(text))
+                self.assertNotIn("duplicate_spoken_word", [
+                    change["type"] for change in get_speech_normalization(text)["transformations"]])
 
     def test_typographic_quotes_are_preserved(self):
         # 59,004 of the library's non-ASCII characters are U+2019 and the
@@ -124,7 +162,8 @@ class TestSpeechEvidence(unittest.TestCase):
         self.assertTrue(result["changed"])
         self.assertIn("identifier", result["risk_categories"])
         self.assertEqual(
-            {"spoken_symbol", "structural_break", "duplicate_spoken_word"},
+            {"dropped_redundant_symbol", "structural_break",
+             "collapsed_spacing", "normalized_sentence_boundary"},
             {item["type"] for item in result["transformations"]})
 
     def test_risk_classifier_is_selective(self):
@@ -152,3 +191,54 @@ class TestSpeechEvidence(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpeechControlAndRiskTests(unittest.TestCase):
+    def test_nonwhitespace_control_characters_never_reach_shared_tts_text(self):
+        from speech_text import verbalize_symbols
+        controls = [chr(code) for code in (*range(32), *range(127, 160))
+                    if not chr(code).isspace()]
+        for control in controls:
+            with self.subTest(control=repr(control)):
+                result = get_speech_normalization('Alpha' + control + 'Beta.')
+                self.assertEqual('Alpha Beta.', result['text'])
+                self.assertEqual(result['text'], normalize_for_speech('Alpha' + control + 'Beta.'))
+                drop = next(change for change in result['transformations']
+                            if change['type'] == 'dropped_unspeakable')
+                self.assertEqual([control], drop['symbols'])
+                self.assertEqual(1, drop['count'])
+        text = 'A\tB\nC\rD'
+        self.assertEqual((text, []), verbalize_symbols(text))
+
+    def test_dotted_numbers_and_versions_are_not_urls_but_real_url_forms_remain_risks(self):
+        for text in ('Release 1.2', 'v1.2.3', 'The ratio is 12.34.',
+                     'Version 10.20.30.40', 'Values 1.2 and 3.4.'):
+            with self.subTest(text=text):
+                self.assertNotIn('url', get_speech_risks(text))
+                self.assertEqual(text.rstrip('.') + '.', normalize_for_speech(text))
+        for text in ('example.com', 'sub.example.org/help', 'www.example.com',
+                     'https://127.0.0.1/help', 'https//example.net/help',
+                     'example.xn--p1ai/path'):
+            with self.subTest(text=text):
+                self.assertIn('url', get_speech_risks(text))
+
+
+class SpeechFormattingEvidenceTests(unittest.TestCase):
+    def test_each_formatting_change_has_specific_evidence_and_second_pass_is_clean(self):
+        cases = (('Wait... Now.', 'Wait. Now.', 'collapsed_periods'),
+                 ('Two   words.', 'Two words.', 'collapsed_spacing'),
+                 ('No final period', 'No final period.', 'normalized_sentence_boundary'),
+                 ('  Trim edges.  ', 'Trim edges.', 'normalized_sentence_boundary'))
+        for source, expected, kind in cases:
+            with self.subTest(source=source):
+                result = get_speech_normalization(source)
+                self.assertEqual(expected, result['text'])
+                self.assertTrue(result['changed'])
+                self.assertIn(kind, [change['type'] for change in result['transformations']])
+                repeated = get_speech_normalization(result['text'])
+                self.assertFalse(repeated['changed'])
+                self.assertEqual([], repeated['transformations'])
+                self.assertEqual(expected, normalize_for_speech(source))
+        clean = get_speech_normalization('Plain prose.')
+        self.assertFalse(clean['changed'])
+        self.assertEqual([], clean['transformations'])

@@ -40,6 +40,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "moss_vs_lora" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"

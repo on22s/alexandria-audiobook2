@@ -14,10 +14,20 @@ echo "[$started] Watchdog started, polling tmux session '$SESSION' every ${INTER
 
 # Wait until the session actually exists (gives the run a moment to come up if
 # the watchdog started a hair faster than the tmux session).
+observed=0
 for _ in 1 2 3 4 5; do
-    tmux has-session -t "$SESSION" 2>/dev/null && break
+    if tmux has-session -t "$SESSION" 2>/dev/null; then
+        observed=1
+        break
+    fi
     sleep 2
 done
+if [ "$observed" -eq 0 ]; then
+    message="tmux session '$SESSION' never appeared; completion is unverified."
+    echo "[$(date -Iseconds)] $message" >> "$LOG"
+    echo "$message" >&2
+    exit 1
+fi
 
 # Now poll until it's gone.
 while tmux has-session -t "$SESSION" 2>/dev/null; do

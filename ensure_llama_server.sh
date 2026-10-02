@@ -21,6 +21,8 @@
 #   LLAMA_CTX     context length           (default 32768)
 #   LLAMA_LOG     server log path          (default ~/llama_server.log)
 set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/run_chains/lib/server_cleanup.sh" || exit 2
 
 ADAPTER="${1:-}"
 # RESOLVE FROM PATH FIRST. This defaulted to a hand-built
@@ -33,7 +35,7 @@ ADAPTER="${1:-}"
 # comparison whose earlier arms used the packaged build.
 #
 # LLAMA_BIN still overrides, for deliberately testing a specific build.
-BIN="${LLAMA_BIN:-$(command -v llama-server 2>/dev/null || echo "$HOME/llama.cpp/build/bin/llama-server")}"
+BIN="$(get_llama_server_binary)"
 # ONE DEFAULT, HERE. Four chains pasted the same GGUF path inline to satisfy
 # the "required" check below, and every caller that forgot - unseen_books.sh,
 # which starts a server only when none is running - aborted with
@@ -57,11 +59,36 @@ URL="http://127.0.0.1:${PORT}/v1/models"
 [ -n "$ADAPTER" ] && [ ! -f "$ADAPTER" ] && {
     echo "ensure_llama_server: no adapter at $ADAPTER" >&2; exit 2; }
 
+MODEL=$(readlink -f -- "$MODEL") || exit 2
+if [ -n "$ADAPTER" ]; then
+    ADAPTER=$(readlink -f -- "$ADAPTER") || exit 2
+fi
+
+# Keep inspection, replacement and stamp publication in one kernel-owned
+# transaction. The background server closes this descriptor before exec.
+if ! exec 8>"$STAMP.lock" || ! flock 8; then
+    echo "ensure_llama_server: cannot acquire lifecycle lock at $STAMP.lock" >&2
+    exit 2
+fi
+
 # -f is load-bearing. llama-server answers 503 while it loads weights, and
 # `curl -s` exits 0 on a 503 - which is precisely how an eval once fired at a
 # server that was not up yet and died on HTTP 503. Without -f this whole
 # readiness check is decorative.
-ready() { curl -sf --max-time 5 "$URL" >/dev/null 2>&1; }
+READY_PYTHON="$(command -v python3)"
+READY_VALIDATOR="$SCRIPT_DIR/app/llama_server_identity.py"
+if [ ! -x "$READY_PYTHON" ] || [ ! -f "$READY_VALIDATOR" ]; then
+    echo "ensure_llama_server: readiness identity validator unavailable" >&2
+    exit 2
+fi
+ready() {
+    local models props adapters
+    models=$(curl -sf --max-time 5 "$URL" 2>/dev/null) || return 1
+    props=$(curl -sf --max-time 5 "${URL%/v1/models}/props" 2>/dev/null) || return 1
+    adapters=$(curl -sf --max-time 5 "${URL%/v1/models}/lora-adapters" 2>/dev/null) || return 1
+    printf '%s\0' "$models" "$props" "$adapters" | \
+        "$READY_PYTHON" -B "$READY_VALIDATOR" "$MODEL" "$ADAPTER" "${LLAMA_ALIAS:-qwen3-14b}" "$CTX" 1 "${LLAMA_THINKING:-0}"
+}
 
 file_identity() {
     [ -n "$1" ] && stat -Lc '%d:%i:%s:%y' "$1" 2>/dev/null || printf '%s' none
@@ -78,11 +105,14 @@ if ready && [ "$(cat "$STAMP" 2>/dev/null)" = "$SERVER_IDENTITY" ]; then
     exit 0
 fi
 
-# -x, NOT -f. `pkill -f llama-server` matches ANY command line containing the
-# string, including the shell that invoked this script - it killed a test
-# harness mid-command here, exit 144, before the server was ever launched. The
-# exact-name form matches the process, which is what was meant.
-pkill -x llama-server 2>/dev/null
+if ! mkdir -p -- "$(dirname -- "$LOG")" || ! : >> "$LOG"; then
+    echo "ensure_llama_server: cannot write server log at $LOG" >&2
+    exit 2
+fi
+
+# The configured listener is selected by its kernel socket inode, then its
+# executable and process birth are verified before signalling through a pidfd.
+"$READY_PYTHON" -B "$SCRIPT_DIR/app/llama_server_process.py" "$PORT" "$BIN" || exit 2
 sleep 5
 # REASONING OFF, AND AN ALIAS. Both were missing here. Without them the
 # PR #308 remeasurement died on chunk 4/90:
@@ -121,7 +151,8 @@ else
     ARGS+=(--reasoning off)
 fi
 [ -n "$ADAPTER" ] && ARGS+=(--lora "$ADAPTER")
-"$BIN" "${ARGS[@]}" > "$LOG" 2>&1 &
+"$BIN" "${ARGS[@]}" > "$LOG" 2>&1 8>&- &
+SERVER_PID=$!
 
 for _ in $(seq 1 120); do
     if ready; then
@@ -129,9 +160,15 @@ for _ in $(seq 1 120); do
         echo "ensure_llama_server: ready for ${ADAPTER:-base}"
         exit 0
     fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo "ensure_llama_server: SERVER_DIED for ${ADAPTER:-base}; see $LOG" >&2
+        stop_owned_server "$SERVER_PID" || exit 1
+        exit 1
+    fi
     sleep 10
 done
 
 # Fail loudly rather than letting the caller run against nothing.
 echo "ensure_llama_server: SERVER_NEVER_READY for ${ADAPTER:-base}; see $LOG" >&2
+stop_owned_server "$SERVER_PID" || exit 1
 exit 1

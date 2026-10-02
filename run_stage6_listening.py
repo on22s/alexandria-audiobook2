@@ -11,6 +11,8 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
 
+from utils import file_lock
+
 from experiments.blinded_listening import (  # noqa: E402
     _load_document, _resolve_source, validate_package)
 from experiments.provenance import (  # noqa: E402
@@ -80,12 +82,14 @@ def validate_instruction(path):
         input_sha256((CHUNKS, VOICE_CONFIG, CONFIG)))
     if not doc.get("all_arms_rendered"):
         raise RuntimeError("instruction checkpoint did not render every arm")
-    comparisons = doc.get("comparisons") or []
-    if len(comparisons) != 4:
+    comparisons = doc.get("comparisons")
+    if not isinstance(comparisons, list) or len(comparisons) != 4:
         raise RuntimeError("instruction checkpoint must have four comparisons")
     for index, comparison in enumerate(comparisons):
-        files = comparison.get("arm_files") or {}
-        if set(files) != {"none", "per_char", "per_line"}:
+        if not isinstance(comparison, dict):
+            raise RuntimeError(f"instruction comparison {index} must be an object")
+        files = comparison.get("arm_files")
+        if not isinstance(files, dict) or set(files) != {"none", "per_char", "per_line"}:
             raise RuntimeError(f"instruction comparison {index} has wrong arms")
         for path_value in files.values():
             _resolve_source(path_value)
@@ -103,12 +107,14 @@ def validate_casting(path):
                       LORA_MANIFEST)))
     if not doc.get("published") or doc.get("lines") != 14:
         raise RuntimeError("casting checkpoint is incomplete")
-    arms = doc.get("arms") or {}
-    if set(arms) != {"current", "scene_aware"}:
+    arms = doc.get("arms")
+    if not isinstance(arms, dict) or set(arms) != {"current", "scene_aware"}:
         raise RuntimeError("casting checkpoint has wrong arms")
     expected = list(range(14))
     for name, arm in arms.items():
-        if arm.get("lines") != expected:
+        if not isinstance(arm, dict):
+            raise RuntimeError(f"casting arm {name} must be an object")
+        if not isinstance(arm.get("lines"), list) or arm.get("lines") != expected:
             raise RuntimeError(f"casting arm {name} has unequal line coverage")
         _resolve_source(arm.get("path", ""))
     return doc
@@ -121,7 +127,10 @@ def validate_scene(path):
     doc = require_identity(
         path, "scene_aware_casting.py", args,
         input_sha256((CHUNKS, VOICE_CONFIG, LORA_MANIFEST, ALIASES)))
-    if not isinstance(doc.get("scene_aware", {}).get("assignment"), dict):
+    scene = doc.get("scene_aware")
+    if not isinstance(scene, dict):
+        raise RuntimeError("scene_aware must be an object")
+    if not isinstance(scene.get("assignment"), dict):
         raise RuntimeError("scene-aware checkpoint lacks an assignment")
     return doc
 
@@ -197,7 +206,7 @@ def ensure_package():
     record_experiment_stage(STATUS, "blind_package", PUBLIC, bool(existing))
 
 
-def main():
+def run_stage6():
     if os.path.exists(STATUS):
         prior = load_experiment_status(STATUS)
         if prior.get("status") == "running":
@@ -220,6 +229,12 @@ def main():
     except Exception as exc:
         finish_experiment_status(STATUS, "failed", "Inspect the failing stage before retrying.", str(exc))
         raise
+
+
+def main():
+    os.makedirs(os.path.dirname(os.path.abspath(STATUS)), exist_ok=True)
+    with file_lock(STATUS, timeout=0):
+        return run_stage6()
 
 
 if __name__ == "__main__":

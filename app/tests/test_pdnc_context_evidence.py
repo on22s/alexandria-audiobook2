@@ -101,7 +101,8 @@ class PdncContextEvidenceTests(unittest.TestCase):
                 json.dump({"meta": {"phase": "pilot",
                                      "validation": "ok",
                                      "decision": {"advance": True}}}, handle)
-            self.assertTrue(require_passing_pilot(path)["advance"])
+            with self.assertRaises(ValueError):
+                require_passing_pilot(path)
 
     def test_quality_failure_isolates_only_the_irrecoverable_row(self):
         calls = []

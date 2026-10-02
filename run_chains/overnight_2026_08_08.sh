@@ -9,7 +9,7 @@
 # ORDER MATTERS. The cheap bookkeeping runs first so that if anything goes
 # wrong overnight there is still a correct library ranking in the morning.
 set -uo pipefail
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
 # NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
@@ -21,20 +21,13 @@ export GPU_QLOG="$L/gpu_jobq.log"
 mkdir -p "$L"
 cd "$REPO/app"
 
-stage() {
-    local name="$1"; shift
-    echo ""
-    echo "=== $name  $(date -u +%FT%TZ) ==="
-    "$REPO/gpu_job.sh" "$name" "$@" > "$L/$name.log" 2>&1
-    echo "  rc=$?"
-    tail -6 "$L/$name.log" | sed 's/^/  /' | cut -c1-115
-    return 0          # a failed stage must not strand the rest of the night
-}
+STAGE_LOG_DIR="$L"
+source "$REPO/run_chains/lib/stage.sh"
 
 # 1. RE-SCORE THE LIBRARY (~1.5h). Thirteen adapters were rebuilt today and the
 #    published ranking still reflects their broken scores. This is the number
 #    anyone would quote, so it should be the true one.
-stage library_fidelity_post_fix timeout 21600 "$PY" -u experiments/library_voice_fidelity.py \
+run_stage library_fidelity_post_fix 6h -- "$REPO/gpu_job.sh" library_fidelity_post_fix timeout 21600 "$PY" -u experiments/library_voice_fidelity.py \
     --lines 10 \
     --out "$REPO/ab_test_runtime/experiments/library_voice_fidelity_postfix.json"
 
@@ -52,11 +45,11 @@ stage library_fidelity_post_fix timeout 21600 "$PY" -u experiments/library_voice
 # shapes. The same two adapters are used deliberately - extending a measurement
 # is worth more than starting a third one, and voice_drift skips lines it has
 # already generated, so the first 400 of each are already on disk.
-stage drift_2000_husky_tenor timeout 36000 "$PY" -u experiments/voice_drift.py \
+run_stage drift_2000_husky_tenor 10h -- "$REPO/gpu_job.sh" drift_2000_husky_tenor timeout 36000 "$PY" -u experiments/voice_drift.py \
     --adapter husky_tenor_30s_m_literary --lines 2000 \
     --out "$REPO/ab_test_runtime/experiments/voice_drift_2000__husky_tenor_30s_m_literary.json"
 
-stage drift_2000_warm_mezzo timeout 36000 "$PY" -u experiments/voice_drift.py \
+run_stage drift_2000_warm_mezzo 10h -- "$REPO/gpu_job.sh" drift_2000_warm_mezzo timeout 36000 "$PY" -u experiments/voice_drift.py \
     --adapter warm_mezzo_30s_f_fantasy_2 --lines 2000 \
     --out "$REPO/ab_test_runtime/experiments/voice_drift_2000__warm_mezzo_30s_f_fantasy_2.json"
 
@@ -66,9 +59,11 @@ stage drift_2000_warm_mezzo timeout 36000 "$PY" -u experiments/voice_drift.py \
 #    generation rather than of particular voices - which is what all three
 #    moving the same direction suggested - this should look like the others.
 #    If it does not, "drift" is really "these two adapters drift".
-stage drift_2000_warm_baritone timeout 36000 "$PY" -u experiments/voice_drift.py \
+run_stage drift_2000_warm_baritone 10h -- "$REPO/gpu_job.sh" drift_2000_warm_baritone timeout 36000 "$PY" -u experiments/voice_drift.py \
     --adapter warm_baritone_40s_m_2 --lines 2000 \
     --out "$REPO/ab_test_runtime/experiments/voice_drift_2000__warm_baritone_40s_m_2.json"
 
 echo ""
 echo "OVERNIGHT DONE $(date -u +%FT%TZ)"
+
+stage_summary overnight_2026_08_08

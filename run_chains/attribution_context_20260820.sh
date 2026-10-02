@@ -49,7 +49,7 @@ run_stage two_stage_w3200 8h -- \
                "$REPO/app/fixtures/attribution_gold_pdnc_thesignofthefour_w3200.json" \
     --limit 1300 --keep-prompts --tag w3200 \
     --out "$runtime/experiments/two_stage_attribution_w3200.json"
-stage_commit_artifacts two_stage_w3200 "$REPO"
+stage_commit_artifacts two_stage_w3200 "$REPO" "$runtime/experiments/two_stage_attribution_w3200.json" "$runtime/experiments/two_stage_attribution_w3200.json.ckpt" "$runtime/experiments/two_stage_attribution_w3200.json.ckpt.stale"
 
 # Same rows, same model, one variable. Scored against the 400-char run already
 # on disk so the comparison is paired rather than two headline percentages.
@@ -57,7 +57,7 @@ run_stage compare_windows 20m -- \
     "$python" -u "$REPO/app/experiments/two_stage_selection_gap.py" \
     --artifact "$runtime/experiments/two_stage_attribution_w3200.json" \
     --out "$runtime/experiments/two_stage_selection_gap_w3200.json"
-stage_commit_artifacts compare_windows "$REPO"
+stage_commit_artifacts compare_windows "$REPO" "$runtime/experiments/two_stage_selection_gap_w3200.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary attribution_context_20260820

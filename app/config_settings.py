@@ -1,5 +1,6 @@
 """Shared config.json models and shape-safe loading boundary."""
 
+import copy
 import json
 import logging
 import os
@@ -7,7 +8,8 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, get_origin
+from types import UnionType
 
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 
@@ -204,13 +206,19 @@ class AppConfig(BaseModel):
     generation: Optional[GenerationConfig] = None
 
 
-_DICT_SECTIONS = {"llm": LLMConfig, "tts": TTSConfig}
-_OPTIONAL_DICT_SECTIONS = {
-    "prompts": PromptConfig,
-    "generation": GenerationConfig,
-    "llm_local": LLMConfig,
-    "llm_remote": LLMConfig,
-}
+def get_config_section_model(field):
+    """Read section and nullability policy directly from a schema field."""
+    annotation = field.annotation
+    nullable = False
+    if get_origin(annotation) in (Union, UnionType):
+        arguments = get_args(annotation)
+        nullable = type(None) in arguments
+        members = [member for member in arguments if member is not type(None)]
+        if len(members) == 1:
+            annotation = members[0]
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation, nullable
+    return None, False
 
 
 def _get_field_adapter(model: type[BaseModel], field_name: str) -> TypeAdapter:
@@ -283,54 +291,34 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
     config = dict(loaded)
     _migrate_presegment_quotes(config)
 
-    for section, model in _DICT_SECTIONS.items():
-        if section not in config:
-            continue
-        if not isinstance(config[section], dict):
-            warnings.append(ConfigWarning(section, "Invalid section ignored"))
-            needs_backup = True
-            logger.warning("Invalid '%s' section in config, ignoring it", section)
-            del config[section]
-            continue
-        config[section] = _validate_present_fields(section, config[section], model, warnings)
-
-    for section, model in _OPTIONAL_DICT_SECTIONS.items():
-        if config.get(section) is None:
-            continue
-        if not isinstance(config[section], dict):
-            warnings.append(ConfigWarning(section, "Invalid section ignored"))
-            needs_backup = True
-            logger.warning("Invalid '%s' section in config, ignoring it", section)
-            config[section] = None
-            continue
-        config[section] = _validate_present_fields(section, config[section], model, warnings)
-
-    for field_name in ("llm_mode", "llm_remote_ssh"):
+    for field_name, field in AppConfig.model_fields.items():
         if field_name not in config:
             continue
+        model, nullable = get_config_section_model(field)
+        if model is not None:
+            if nullable and config[field_name] is None:
+                continue
+            if not isinstance(config[field_name], dict):
+                warnings.append(ConfigWarning(field_name, "Invalid section ignored"))
+                needs_backup = True
+                logger.warning("Invalid '%s' section in config, ignoring it", field_name)
+                if nullable:
+                    config[field_name] = None
+                else:
+                    del config[field_name]
+                continue
+            config[field_name] = _validate_present_fields(
+                field_name, config[field_name], model, warnings)
+            continue
         try:
-            config[field_name] = _get_field_adapter(AppConfig, field_name).validate_python(
-                config[field_name]
-            )
+            adapter = _get_field_adapter(AppConfig, field_name)
+            validated = adapter.validate_python(config[field_name])
+            # Collection fields such as prompt_presets remain JSON-native.
+            config[field_name] = adapter.dump_python(validated, mode="json")
         except ValidationError:
             warnings.append(ConfigWarning(field_name, "Invalid stored value ignored"))
             logger.warning("Invalid stored config value '%s', ignoring it", field_name)
             del config[field_name]
-
-    if "prompt_presets" in config:
-        try:
-            # validated, then back to plain dicts: every reader of the loaded
-            # config (the Setup GET, the attribution-preset resolver) treats
-            # it as JSON data, and a list of model objects made a saved preset
-            # vanish from GET /api/config (it failed an isinstance(dict) check)
-            config["prompt_presets"] = [
-                preset.model_dump() for preset in
-                _get_field_adapter(AppConfig, "prompt_presets").validate_python(config["prompt_presets"])
-            ]
-        except ValidationError:
-            warnings.append(ConfigWarning("prompt_presets", "Invalid stored value ignored"))
-            logger.warning("Invalid stored config value 'prompt_presets', ignoring it")
-            del config["prompt_presets"]
 
     return AppConfigLoadResult(config, tuple(warnings), needs_backup)
 
@@ -386,3 +374,20 @@ def backup_damaged_app_config(path: str) -> str:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
     return backup_path
+
+
+def get_generation_config(config, model_override=None):
+    """Return isolated run settings with one validated active generation model."""
+    from lmstudio_settings import get_active_llm_config
+    selected = (model_override if model_override is not None else
+                get_active_llm_config(config).get(
+                    "model_name", "richardyoung/qwen3-14b-abliterated:Q8_0"))
+    if (not isinstance(selected, str) or not selected.strip()
+            or any(ord(char) < 32 or ord(char) == 127 for char in selected)):
+        raise ValueError("generation model must be a nonempty name without control characters")
+    result = copy.deepcopy(config)
+    active = {**get_active_llm_config(result), "model_name": selected.strip()}
+    mode = result.get("llm_mode") or "local"
+    result[f"llm_{mode}"] = active
+    result["llm"] = copy.deepcopy(active)
+    return result

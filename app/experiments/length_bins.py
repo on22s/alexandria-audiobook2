@@ -57,10 +57,12 @@ def bin_of(text):
     return BIN_NAMES[-1]
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def population(book):
     """Every spoken segment in the book, binned. This is the target the fixture
     is supposed to represent."""
-    cp = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
     spoken = [e for e in cp["segmented"] if e.get("type") != "NARRATOR"]
     counts = collections.Counter(bin_of(e.get("text")) for e in spoken)
     total = sum(counts.values())
@@ -74,7 +76,7 @@ def scored_bins(book, goldfile):
     it removes short lines and is itself a source of the mismatch.
     """
     gold = json.load(open(REPO + "/app/fixtures/" + goldfile))
-    cp = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
     occ = collections.Counter(norm(e.get("text")) for e in cp["segmented"])
     kept, dropped = {}, []
     for g in gold["entries"]:

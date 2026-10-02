@@ -151,3 +151,66 @@ class VoiceLabHealthTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfilerPreflightIdentityTests(unittest.TestCase):
+    def test_changed_profile_inputs_reject_old_preflight_before_gpu_claim(self):
+        from pathlib import Path
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import voicelab
+        api = FastAPI()
+        api.include_router(voicelab.router)
+        probe = {'torch': 'fixture', 'hip': None, 'gpu': None,
+                 'deps': {'llama_cpp': True}, 'python': 'fixture'}
+        for changed in ('request_model', 'config_model', 'epub_dirs'):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+                root = Path(tmp)
+                inputs = root / 'inputs'
+                inputs.mkdir()
+                epub = root / 'epubs'
+                epub.mkdir()
+                first = root / 'first.gguf'
+                second = root / 'second.gguf'
+                first.write_bytes(b'fixture-one')
+                second.write_bytes(b'fixture-two')
+                cfg = {'zips_dir': str(inputs), 'rocm_python': sys.executable,
+                       'profiler_model': str(first), 'epub_dirs': []}
+                body = {'stages': ['profile'], 'device': 'cpu'}
+                original_cfg = copy.deepcopy(cfg)
+                with patch.object(voicelab, 'DATA_DIR', tmp), \
+                     patch.object(voicelab, '_load_voicelab_config', side_effect=lambda: copy.deepcopy(cfg)), \
+                     patch.object(voicelab, '_probe_voicelab_interpreter', return_value=probe), \
+                     patch.object(voicelab, '_run_profiler_preflight', return_value={'status': 'passed'}) as check, \
+                     patch.object(voicelab.shutil, 'disk_usage', return_value=SimpleNamespace(free=30 * 1024 ** 3)), \
+                     patch.object(voicelab, 'check_global_gpu_lock', side_effect=AssertionError('stale preflight reached GPU guard')) as gpu:
+                    original = client.post('/api/voicelab/preflight', json=body)
+                    self.assertEqual(200, original.status_code, original.text)
+                    before = original.json()
+                    self.assertTrue(before['ready'], before)
+                    unchanged = client.post('/api/voicelab/preflight', json=body).json()
+                    self.assertEqual(before['preflight_id'], unchanged['preflight_id'])
+                    self.assertEqual(original_cfg, cfg)
+                    if changed == 'request_model':
+                        body['profiler_model'] = str(second)
+                    elif changed == 'config_model':
+                        cfg['profiler_model'] = str(second)
+                    else:
+                        cfg['epub_dirs'] = [str(epub)]
+                    start = client.post('/api/voicelab/start', json={**body, 'preflight_id': before['preflight_id']})
+                    self.assertEqual(409, start.status_code, start.text)
+                    self.assertIn('inputs changed', start.json()['detail'])
+                    gpu.assert_not_called()
+                    after = client.post('/api/voicelab/preflight', json=body).json()
+                    self.assertTrue(after['ready'], after)
+                    self.assertNotEqual(before['preflight_id'], after['preflight_id'])
+                    command = check.call_args.args[0]
+                    expected_model = str(first if changed == 'epub_dirs' else second)
+                    self.assertEqual(expected_model, command[command.index('--model') + 1])
+                    if changed == 'epub_dirs':
+                        self.assertEqual(str(epub), command[command.index('--epub-dir') + 1])
+                    self.assertEqual(b'fixture-one', first.read_bytes())
+                    self.assertEqual(b'fixture-two', second.read_bytes())

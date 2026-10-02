@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -102,10 +103,35 @@ class FrontendGuards(unittest.TestCase):
             if not os.path.exists(path):
                 continue
             with open(path, encoding="utf-8") as handle:
-                for i, line in enumerate(handle, 1):
-                    if "localStorage." in line and "try" not in line:
-                        offenders.append(f"{name}:{i}")
+                text = handle.read()
+            protected = set()
+            if name == os.path.join("js", "app-core.js"):
+                start = text.index('        function saveVoiceDraftRecord(')
+                end = text.index('        function enqueueVoiceDraft(', start)
+                protected.update(range(text[:start].count('\n') + 1,
+                                       text[:end].count('\n') + 1))
+                self.assert_voice_draft_storage_failures_are_caught(text[start:end])
+            for i, line in enumerate(text.splitlines(), 1):
+                if "localStorage." in line and "try" not in line and i not in protected:
+                    offenders.append(f"{name}:{i}")
         self.assertEqual([], offenders)
+
+    def assert_voice_draft_storage_failures_are_caught(self, source):
+        code = r"""
+const vm=require('vm'),assert=require('assert');
+const source=process.argv[1],record={key:'fixture'};
+for(const operation of ['saveVoiceDraftRecord','removeVoiceDraftRecord']){
+ for(const failure of operation==='saveVoiceDraftRecord'?['lookup','setItem','getItem']:['lookup','getItem','removeItem']){
+  const error=Error(failure),storage={setItem(){if(failure==='setItem'){throw error;}},getItem(){if(failure==='getItem'){throw error;}return JSON.stringify(record);},removeItem(){if(failure==='removeItem'){throw error;}}};
+  const window={};Object.defineProperty(window,'localStorage',{get(){if(failure==='lookup'){throw error;}return storage;}});
+  const ctx={window,record,error};vm.createContext(ctx);vm.runInContext('let _voiceDraftStorageError=null;'+source,ctx);
+  const result=ctx[operation](record);if(operation==='saveVoiceDraftRecord'){assert.strictEqual(result,false);}
+  assert(vm.runInContext('_voiceDraftStorageError===error',ctx));
+ }
+}
+"""
+        result = subprocess.run(['node', '-e', code, source], capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_dataset_delete_checks_the_response(self):
         with open(os.path.join(STATIC, "js", "app-workbench.js"), encoding="utf-8") as handle:

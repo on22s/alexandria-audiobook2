@@ -24,7 +24,7 @@ PAUSE = os.path.join(REPO, "gpu_pause.sh")
 
 # Classified by reading gpu_job.sh: does the job still run after this line?
 TERMINAL = {"OK", "FAILED", "REFUSED", "NO_VRAM", "NO_LLM", "KILLED",
-            "LOCK_FAILED", "INTERRUPTED", "STOPPED"}
+            "LOCK_FAILED", "PENDING_FAILED", "INTERRUPTED", "STOPPED"}
 PROCEEDS = {"DIRTY_RUN", "LLM_UNCHECKED", "VRAM_UNKNOWN", "HELD", "START",
             "QUEUED", "IDENT", "RELEASED"}
 
@@ -33,17 +33,25 @@ def markers_written():
     """-> every marker gpu_job.sh writes to the queue log."""
     with open(JOB, encoding="utf-8") as fh:
         text = fh.read()
+    # Queue preflight gates write their outcomes through the same recorder.
+    for relative in re.findall(r'source "\$REPO/(run_chains/lib/[^"\n]+)"', text):
+        with open(os.path.join(REPO, relative), encoding="utf-8") as fh:
+            text += '\n' + fh.read()
     return set(re.findall(r'\$\(stamp\)\s+([A-Z_]+)', text))
 
 
 def markers_cleared():
     """-> every marker gpu_pause.sh treats as terminal."""
     with open(PAUSE, encoding="utf-8") as fh:
+        pause = fh.read()
+    if 'source "$REPO/run_chains/lib/gpu_queue_log.sh"' not in pause or 'get_logged_queue_job' not in pause:
+        raise AssertionError("gpu_pause.sh must use the shared queue status reader")
+    with open(os.path.join(REPO, "run_chains/lib/gpu_queue_log.sh"), encoding="utf-8") as fh:
         for line in fh:
-            if '{name=""}' in line and "/" in line:
+            if '{line=""}' in line and "/" in line:
                 body = line[line.index("/") + 1:line.rindex("/")]
                 return {p.strip() for p in body.split("|") if p.strip()}
-    raise AssertionError("no terminal-marker pattern found in gpu_pause.sh")
+    raise AssertionError("no terminal-marker pattern found in shared queue status reader")
 
 
 @unittest.skipUnless(os.path.exists(JOB) and os.path.exists(PAUSE),

@@ -18,22 +18,20 @@ What stays in alexandria_compare.py: the review UI, merge logic
 (parse_annotated_tokens, merge_annotations_with_source), checkpoint/log
 handling, CLI plumbing. The preparer does not need any of those.
 
-`_PROPER_NOUNS` is a module-level frozenset that's empty by default. Callers
-populate it once during their setup via:
-
-    import alexandria_alignment as alignment
-    alignment._PROPER_NOUNS = alignment._build_proper_nouns(source_text)
-
-so all the fuzzy-alignment helpers below see the same lexicon without
-threading it through every call site. Empty lexicon == pre-feature behaviour.
+Callers build a per-book proper-noun lexicon and pass it to alignment helpers.
+The default empty lexicon preserves library callers' baseline behavior.
 """
 
 import re
+import io
 import difflib
 import functools
 import sys
+import os
+import zipfile
 from pathlib import Path
 from collections import Counter
+from typing import NamedTuple
 
 # ── Optional EPUB support ─────────────────────────────────────────────────────
 try:
@@ -126,7 +124,71 @@ def split_compounds(text: str) -> list:
     return _COMPOUND_SPLIT.sub(' ', text).split()
 
 
+def get_source_word_lists(text: str) -> tuple:
+    """Keep each normalized matching word paired with its source spelling."""
+    display, matching = [], []
+    for token in split_compounds(text):
+        words = to_words(token)
+        if not words:
+            continue
+        if len(words) == 1:
+            pieces = [token]
+        else:
+            # Removing emphasis can join letters across '*' boundaries. Keep
+            # original offsets while finding the same lexical runs normalize uses.
+            markers = {position for match in _EMPHASIS.finditer(token)
+                       for position in (match.start(), match.end() - 1)}
+            offsets = [i for i in range(len(token)) if i not in markers]
+            plain = ''.join(token[i] for i in offsets).translate(_SMART_QUOTES)
+            spans = list(re.finditer(r"[\w']+|&", plain))
+            if len(spans) != len(words):
+                raise ValueError('Source token cannot be mapped to normalized words')
+            boundaries = [0] + [offsets[span.start()] for span in spans[1:]] + [len(token)]
+            pieces = [token[start:end] for start, end in zip(boundaries, boundaries[1:])]
+        display.extend(pieces)
+        matching.extend(words)
+    return display, matching
+
+
 # ── Source loaders ─────────────────────────────────────────────────────────────
+EPUB_MAX_ARCHIVE_BYTES = 512 * 1024**2
+EPUB_MAX_MEMBERS = 10_000
+EPUB_MAX_EXPANDED_BYTES = 256 * 1024**2
+EPUB_MAX_EXPANSION_RATIO = 1_000
+
+
+def validate_epub_archive(path: str, *, archive_bytes: bytes | None = None) -> None:
+    """Reject EPUBs that would exhaust memory before either parser sees them."""
+    if archive_bytes is not None and not isinstance(archive_bytes, bytes):
+        raise ValueError("captured EPUB archive must be bytes")
+    size = len(archive_bytes) if archive_bytes is not None else os.path.getsize(path)
+    if size > EPUB_MAX_ARCHIVE_BYTES:
+        raise ValueError("EPUB archive exceeds the 512 MB input limit")
+    source = io.BytesIO(archive_bytes) if archive_bytes is not None else path
+    with zipfile.ZipFile(source) as archive:
+        members = archive.infolist()
+        if len(members) > EPUB_MAX_MEMBERS:
+            raise ValueError("EPUB archive has too many entries")
+        if sum(member.file_size for member in members) > EPUB_MAX_EXPANDED_BYTES:
+            raise ValueError("EPUB archive expands beyond 256 MB")
+        expanded = 0
+        for member in members:
+            if member.is_dir():
+                continue
+            ratio = member.file_size / max(1, member.compress_size)
+            if ratio > EPUB_MAX_EXPANSION_RATIO:
+                raise ValueError("EPUB archive has an excessive expansion ratio")
+            member_expanded = 0
+            with archive.open(member) as content:
+                while chunk := content.read(64 * 1024):
+                    member_expanded += len(chunk)
+                    expanded += len(chunk)
+                    if expanded > EPUB_MAX_EXPANDED_BYTES:
+                        raise ValueError("EPUB archive expands beyond 256 MB")
+                    if member_expanded / max(1, member.compress_size) > EPUB_MAX_EXPANSION_RATIO:
+                        raise ValueError("EPUB archive has an excessive expansion ratio")
+
+
 def load_epub(path: str) -> str:
     if not EPUB_AVAILABLE:
         sys.exit(
@@ -135,6 +197,7 @@ def load_epub(path: str) -> str:
             "or:\n"
             "  pip install ebooklib beautifulsoup4"
         )
+    validate_epub_archive(path)
     book = epub.read_epub(path)
     parts = []
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
@@ -212,15 +275,8 @@ _FUZZY_KEEP_THRESHOLD_PROPER_NOUN = 0.35  # deeper relaxation for known proper n
 # bridge: 'coodo'↔'kudou' = 0.40, 'youth'↔'yurie' = 0.40, 'caia'↔'kaya' = 0.50.
 # K↔C substitution, vowel collapse, length drift. When we KNOW the source-
 # side token is a recurring proper noun in this specific book (built into
-# _PROPER_NOUNS at source load), the boundary alignment is almost certainly
+# the per-book lexicon at source load), the boundary alignment is almost certainly
 # correct — relax the bar to 0.35 so the name actually lands in the span.
-
-# Proper-noun lexicon for the currently-loaded source. Populated once by
-# callers via _build_proper_nouns() after the OCR/diacritic source-clean.
-# Stays empty when the script is imported as a library and no caller sets
-# it — _step_threshold falls back to the regular long-word path in that case.
-_PROPER_NOUNS: frozenset = frozenset()
-
 
 # Words frequently Title-cased mid-sentence in novels but NOT proper nouns —
 # honorifics in direct address ('Father', 'Miss', 'Lord'), region adjectives
@@ -264,7 +320,8 @@ def _build_proper_nouns(source_text: str) -> frozenset:
     )
 
 
-def _step_threshold(chunk_word: str, src_word: str, dc: int, ds: int) -> float:
+def _step_threshold(chunk_word: str, src_word: str, dc: int, ds: int,
+                    proper_nouns: frozenset) -> float:
     """Acceptance threshold for one trim extension step.
 
     Three tiers, applied only to 1↔1 steps (compound forms keep the default
@@ -274,7 +331,7 @@ def _step_threshold(chunk_word: str, src_word: str, dc: int, ds: int) -> float:
       - 0.55 default
     """
     if dc == 1 and ds == 1:
-        if len(chunk_word) >= 3 and src_word in _PROPER_NOUNS:
+        if len(chunk_word) >= 3 and src_word in proper_nouns:
             return _FUZZY_KEEP_THRESHOLD_PROPER_NOUN
         if len(chunk_word) >= 5 and len(src_word) >= 5:
             return _FUZZY_KEEP_THRESHOLD_LONG
@@ -365,6 +422,7 @@ def trim_span_to_alignment(
     orig_words: list,
     start: int,
     end: int,
+    proper_nouns: frozenset = frozenset(),
 ) -> tuple:
     """Shrink an orig_words[start:end] span down to its actually-aligned region.
 
@@ -418,7 +476,7 @@ def trim_span_to_alignment(
               if ci + 1 < len(chunk_words) else 0.0
         sim, dc, ds = max(((s11, 1, 1), (s12, 1, 2), (s21, 2, 1)),
                           key=lambda t: t[0])
-        step_th = _step_threshold(chunk_words[ci], orig_words[sj], dc, ds)
+        step_th = _step_threshold(chunk_words[ci], orig_words[sj], dc, ds, proper_nouns)
         # Number-equivalence override: if the chunk's leading N words spell a
         # number that matches the source's digit token (or vice versa), accept
         # it as a perfect (1.0) match.
@@ -463,7 +521,7 @@ def trim_span_to_alignment(
               if ci - 1 >= 0 else 0.0
         sim, dc, ds = max(((s11, 1, 1), (s12, 1, 2), (s21, 2, 1)),
                           key=lambda t: t[0])
-        step_th = _step_threshold(chunk_words[ci], orig_words[sj], dc, ds)
+        step_th = _step_threshold(chunk_words[ci], orig_words[sj], dc, ds, proper_nouns)
         # Number-equivalence override on the leading side too.
         if sim < step_th:
             nsim, ndc, nds = _num_eq_step_leading(chunk_words, ci, orig_words, sj)
@@ -697,6 +755,7 @@ def find_best_match(
     cursor: int,
     window: int = 1000,
     backtrack: int = 200,
+    proper_nouns: frozenset = frozenset(),
 ) -> tuple:
     """
     Slide a fixed-width window (len == chunk) over orig_words near cursor,
@@ -734,7 +793,8 @@ def find_best_match(
         if span:
             sm.set_seq1(span)
             r = sm.ratio()
-            t_start, t_end = trim_span_to_alignment(chunk_words, orig_words, cursor, end_i)
+            t_start, t_end = trim_span_to_alignment(
+                chunk_words, orig_words, cursor, end_i, proper_nouns)
             if t_end > t_start:
                 return t_start, t_end, _ratio(chunk_words, orig_words[t_start:t_end])
             return cursor, end_i, r
@@ -747,12 +807,13 @@ def find_best_match(
             continue
         sm.set_seq1(span)
         r = sm.ratio()
-        if r > best_ratio:
+        if r > best_ratio or (r == best_ratio and abs(i - cursor) < abs(best_start - cursor)):
             best_ratio = r
             best_start = i
             best_end   = end_i
 
-    t_start, t_end = trim_span_to_alignment(chunk_words, orig_words, best_start, best_end)
+    t_start, t_end = trim_span_to_alignment(
+        chunk_words, orig_words, best_start, best_end, proper_nouns)
     if t_end > t_start:
         best_start, best_end = t_start, t_end
         best_ratio = _ratio(chunk_words, orig_words[best_start:best_end])
@@ -827,18 +888,22 @@ def auto_anchor(
     min_ratio: float = 0.4,
 ) -> tuple:
     """
-    Try the first few JSONL entries until one finds a confident position in
-    the source. Returns (entry_idx, source_word_idx, ratio).
+    Search the first few JSONL entries for a confident source position.
+    Prefer the earliest high-confidence match, or the strongest weaker match.
+    Returns (entry_idx, source_word_idx, ratio).
     If none anchor confidently, returns (0, 0, 0.0).
     """
+    best = (0, 0, 0.0)
     for entry_idx in range(min(max_attempts, len(entries))):
         chunk_words = to_words(entries[entry_idx].get('text', ''))
         if len(chunk_words) < min_words:
             continue
         start, _, ratio = find_anchor_position(chunk_words, orig_match, min_ratio)
-        if ratio >= min_ratio:
+        if ratio >= 0.9:
             return entry_idx, start, ratio
-    return 0, 0, 0.0
+        if ratio >= min_ratio and ratio > best[2]:
+            best = (entry_idx, start, ratio)
+    return best
 
 
 def realign(
@@ -847,6 +912,7 @@ def realign(
     cursor: int,
     max_search: int = 3000,
     min_ratio: float = 0.45,
+    proper_nouns: frozenset = frozenset(),
 ) -> tuple:
     """
     Wider search ahead of cursor for a confident match. Called when the normal
@@ -902,69 +968,92 @@ def realign(
 
     win_start = best_start
     win_end   = min(best_start + span_size, len(orig_match))
-    t_start, t_end = trim_span_to_alignment(chunk_words, orig_match, win_start, win_end)
+    t_start, t_end = trim_span_to_alignment(
+        chunk_words, orig_match, win_start, win_end, proper_nouns)
     if t_end > t_start:
         return t_start, t_end, _ratio(chunk_words, orig_match[t_start:t_end])
     return win_start, win_end, best_ratio
 
 
-def estimate_alignment_quality(
-    entries: list,
-    orig_match: list,
-    initial_cursor: int,
-    max_samples: int = 30,
-    start_entry_idx: int = 0,
-    threshold: float = 0.45,
-) -> tuple:
-    """Pre-scan the first ~max_samples entries to estimate how well the audio
-    aligns with the chosen source. Returns (avg_ratio, n_sampled, n_below_60).
+class AlignmentMatch(NamedTuple):
+    start: int
+    end: int
+    ratio: float
+    no_source_match: bool
+    reanchored: bool
 
-    A low average (< ~0.70) usually means the audiobook was narrated from a
-    different translation/edition than the EPUB you provided — different
-    publisher's intro credits, different editor's prose, or just the wrong
-    file entirely. Catching this upfront beats discovering it after 50
-    hand-edits.
 
-    Mirrors the run() loop's full alignment logic (find_best_match → realign
-    → full-source re-anchor) so the estimate reflects what the user will
-    actually see, including recoveries that the new re-anchor catches. Pass
-    the caller's actual acceptance threshold (source_threshold/threshold) so
-    the tier-0 recovery gate genuinely matches what run()/annotate_chunks use -
-    see FIXED.md F-104/F-113/F-114.
-    """
+class AlignmentSample(NamedTuple):
+    entry_idx: int
+    cursor: int
+    chunk_words: tuple
+    match: AlignmentMatch
+
+
+class AlignmentPrescan(NamedTuple):
+    source_words: tuple
+    threshold: float
+    proper_nouns: frozenset
+    metrics: tuple
+    samples: tuple
+
+
+def get_alignment_match(chunk_words, orig_match, cursor, threshold, proper_nouns=frozenset(),
+                        *, find_match=None, realign_match=None, find_anchor=None, trim_match=None):
+    """Read one alignment through the existing local/wide/full recovery gates."""
+    find_match = find_match or find_best_match
+    realign_match = realign_match or realign
+    find_anchor = find_anchor or find_anchor_position
+    trim_match = trim_match or trim_span_to_alignment
+    start, end, ratio = find_match(chunk_words, orig_match, cursor, proper_nouns=proper_nouns)
+    no_source_match = False
+    reanchored = False
+    if ratio < threshold and len(chunk_words) >= 5:
+        r_start, r_end, r_ratio = realign_match(chunk_words, orig_match, cursor, proper_nouns=proper_nouns)
+        if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
+            start, end, ratio = r_start, r_end, r_ratio
+        else:
+            a_start, a_end, a_ratio = find_anchor(chunk_words, orig_match, overlap_ratio_hint=0.6)
+            if a_ratio >= 0.6 and a_ratio > ratio + 0.4:
+                t_start, t_end = trim_match(chunk_words, orig_match, a_start, a_end, proper_nouns)
+                if t_end > t_start:
+                    start, end = t_start, t_end
+                    ratio = _ratio(chunk_words, orig_match[start:end])
+                else:
+                    start, end, ratio = a_start, a_end, a_ratio
+                reanchored = True
+            else:
+                no_source_match = True
+    return AlignmentMatch(start, end, ratio, no_source_match, reanchored)
+
+
+def get_alignment_quality_prescan(entries, orig_match, initial_cursor, max_samples=30,
+                                  start_entry_idx=0, threshold=0.45, proper_nouns=frozenset()):
+    """Return quality metrics and immutable results for matching review states."""
     cursor = initial_cursor
     ratios = []
+    samples = []
     for idx in range(start_entry_idx, min(start_entry_idx + max_samples, len(entries))):
         chunk_words = to_words(entries[idx].get('text', ''))
         if len(chunk_words) < 5:
             continue
-        start, end, ratio = find_best_match(chunk_words, orig_match, cursor)
-        if ratio < threshold:
-            r_start, r_end, r_ratio = realign(chunk_words, orig_match, cursor)
-            if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
-                start, end, ratio = r_start, r_end, r_ratio
-            else:
-                a_start, a_end, a_ratio = find_anchor_position(
-                    chunk_words, orig_match, overlap_ratio_hint=0.6
-                )
-                if a_ratio >= 0.6 and a_ratio > ratio + 0.4:
-                    t_start, t_end = trim_span_to_alignment(
-                        chunk_words, orig_match, a_start, a_end
-                    )
-                    if t_end > t_start:
-                        start, end = t_start, t_end
-                        ratio = _ratio(chunk_words, orig_match[start:end])
-                    else:
-                        start, end, ratio = a_start, a_end, a_ratio
-        ratios.append(ratio)
-        if ratio >= 0.45:
-            cursor = end
-    if not ratios:
-        return 0.0, 0, 0, 0
-    avg = sum(ratios) / len(ratios)
-    low = sum(1 for r in ratios if r < 0.60)        # outright misalignment
-    review_needed = sum(1 for r in ratios if r < 0.90)  # below auto-approve bar
-    return avg, len(ratios), low, review_needed
+        match = get_alignment_match(chunk_words, orig_match, cursor, threshold, proper_nouns)
+        samples.append(AlignmentSample(idx, cursor, tuple(chunk_words), match))
+        ratios.append(match.ratio)
+        if match.ratio >= threshold:
+            cursor = match.end
+    metrics = ((sum(ratios) / len(ratios), len(ratios),
+                sum(r < 0.60 for r in ratios), sum(r < 0.90 for r in ratios))
+               if ratios else (0.0, 0, 0, 0))
+    return AlignmentPrescan(tuple(orig_match), threshold, frozenset(proper_nouns), metrics, tuple(samples))
+
+
+def estimate_alignment_quality(entries, orig_match, initial_cursor, max_samples=30,
+                               start_entry_idx=0, threshold=0.45, proper_nouns=frozenset()):
+    """Return the existing average/count/low/review quality metrics."""
+    return get_alignment_quality_prescan(
+        entries, orig_match, initial_cursor, max_samples, start_entry_idx,
+        threshold, proper_nouns).metrics
 
 
 def find_text_in_source(text: str, orig_match: list) -> int:
@@ -1148,7 +1237,12 @@ def merge_annotations_with_source(annotated_text: str, source_words: list) -> st
                 ).ratio()
                 if sim >= _FUZZY_KEEP_THRESHOLD:
                     for k in range(src_n):
-                        src_to_tok[j1 + k] = annotated[i1]
+                        token = dict(annotated[i1])
+                        if k:
+                            token['leading_pause'] = ''
+                        if k < src_n - 1:
+                            token['trailing_pause'] = ''
+                        src_to_tok[j1 + k] = token
             elif src_n == 1 and chunk_n > 1 and j1 not in src_to_tok:
                 cat = ''.join(annot_words[i1:i2])
                 sim = difflib.SequenceMatcher(

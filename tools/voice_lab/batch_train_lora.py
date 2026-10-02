@@ -35,9 +35,13 @@ import zipfile
 REPO2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP_DIR = os.path.join(REPO2_DIR, "app")
 sys.path.insert(0, APP_DIR)
+from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
 from utils import file_lock
+from voice_manifest import get_voice_manifest, validate_adapter_registration_id_locked, validate_adapter_training_output, get_resolved_adapter_manifest_rows_locked
+from adapter_naming_transaction import lock_adapter_naming
+from adapter_publication import get_adapter_publication_recovery_command
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -74,8 +78,7 @@ def get_dataset_id_collisions(zip_paths: list[str]) -> dict[str, list[str]]:
 
 def load_manifest(path: str) -> list:
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        return get_voice_manifest(path)
     return []
 
 
@@ -98,14 +101,11 @@ def save_manifest(path: str, data: list):
 
 
 def is_completed_adapter(path: str) -> bool:
-    """Return whether path contains a complete, loadable PEFT adapter."""
-    required = ("training_meta.json", "adapter_config.json", "adapter_model.safetensors")
-    if not os.path.isdir(path) or not all(os.path.isfile(os.path.join(path, name)) for name in required):
-        return False
+    """Return whether path contains a complete, structurally valid PEFT artifact."""
     try:
-        with open(os.path.join(path, "training_meta.json"), encoding="utf-8") as f:
-            return isinstance(json.load(f), dict)
-    except (OSError, json.JSONDecodeError, ValueError):
+        validate_adapter_artifacts(path, require_training_meta=True)
+        return True
+    except AdapterValidationError:
         return False
 
 
@@ -119,20 +119,31 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
     renamed. Falls back to a directory-name-prefix scan for adapters that
     predate manifest tracking or aren't yet registered in it.
     """
-    for entry in manifest:
-        if entry.get("dataset_id") == dataset_id:
-            candidate = os.path.join(models_dir, entry.get("id", ""))
-            if is_completed_adapter(candidate):
+    with file_lock(os.path.join(models_dir, "manifest.json")):
+        pending = get_adapter_publication_recovery_command(models_dir)
+        if pending:
+            raise ValueError("Adapter publication recovery is required: " + pending)
+        canonical = get_resolved_adapter_manifest_rows_locked(models_dir, manifest)
+        for entry in canonical:
+            if entry.get("dataset_id") == dataset_id:
+                candidate = os.path.join(models_dir, entry.get("id", ""))
+                if is_completed_adapter(candidate):
+                    return candidate
+        for name in os.listdir(models_dir):
+            candidate = os.path.join(models_dir, name)
+            if (name == dataset_id or name.startswith(dataset_id + "_")) and is_completed_adapter(candidate):
                 return candidate
-    for name in os.listdir(models_dir):
-        candidate = os.path.join(models_dir, name)
-        if (name == dataset_id or name.startswith(dataset_id + "_")) and is_completed_adapter(candidate):
-            return candidate
-    return None
+        return None
 
 
 def extract_zip(zip_path: str, dest_dir: str):
     """Extract zip, flattening a single top-level directory if present."""
+    if os.path.islink(dest_dir):
+        raise ValueError("dataset extraction destination is a symlink")
+    for root, directories, files in os.walk(dest_dir):
+        for name in directories + files:
+            if os.path.islink(os.path.join(root, name)):
+                raise ValueError("dataset extraction destination contains a symlink")
     with zipfile.ZipFile(zip_path, "r") as zf:
         validate_zip_members(zf, dest_dir)
         zf.extractall(dest_dir)
@@ -167,6 +178,25 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     dataset_dir = os.path.join(args.datasets_dir, dataset_id)
     output_dir  = os.path.join(args.models_dir, adapter_id)
     output_existed = os.path.exists(output_dir)
+    manifest_path = getattr(args, 'manifest', os.path.join(args.models_dir, 'manifest.json'))
+    os.makedirs(args.models_dir, exist_ok=True)
+    if output_existed:
+        try:
+            validate_adapter_training_output(output_dir)
+        except (OSError, ValueError) as error:
+            print(f'  ERROR admitting existing adapter output: {error}', flush=True)
+            return None
+    if not output_existed:
+        try:
+            with lock_adapter_naming(args.models_dir, manifest_path):
+                pending = get_adapter_publication_recovery_command(args.models_dir)
+                if pending:
+                    raise ValueError('Adapter publication recovery is required: ' + pending)
+                validate_adapter_registration_id_locked(args.models_dir, adapter_id, load_manifest(manifest_path))
+                os.mkdir(output_dir)
+        except (OSError, ValueError) as error:
+            print(f'  ERROR reserving adapter output: {error}', flush=True)
+            return None
 
     def fail(message: str) -> None:
         print(f"  ERROR {message}", flush=True)
@@ -189,8 +219,12 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         fail("no metadata.jsonl after extraction")
         return None
 
-    with open(meta_path, encoding="utf-8") as metadata_file:
-        sample_count = sum(1 for line in metadata_file if line.strip())
+    try:
+        with open(meta_path, encoding="utf-8") as metadata_file:
+            sample_count = sum(1 for line in metadata_file if line.strip())
+    except (OSError, UnicodeError) as exc:
+        fail(f"reading metadata: {exc}")
+        return None
 
     # Build command
     command = [
@@ -223,16 +257,28 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
             text=True,
             bufsize=1,
         )
-        for line in proc.stdout:
-            line = line.rstrip()
-            log_lines.append(line)
-            # Print summary lines to console, skip per-step noise
-            if any(line.startswith(tag) for tag in
-                   ("[EPOCH]", "[DONE]", "[ERROR]", "[TRAIN] Early", "[TRAIN] Safe",
-                    "[DATA] Found", "[DATA] Prepared", "[DATA] Duration",
-                    "[DATA] Using reference", "[TRAIN] ===", "[TRAIN]   ")):
-                print(f"  {line}", flush=True)
-        proc.wait()
+        try:
+            for line in proc.stdout:
+                line = line.rstrip()
+                log_lines.append(line)
+                # Print summary lines to console, skip per-step noise
+                if any(line.startswith(tag) for tag in
+                       ("[EPOCH]", "[DONE]", "[ERROR]", "[TRAIN] Early", "[TRAIN] Safe",
+                        "[DATA] Found", "[DATA] Prepared", "[DATA] Duration",
+                        "[DATA] Using reference", "[TRAIN] ===", "[TRAIN]   ")):
+                    print(f"  {line}", flush=True)
+            proc.wait()
+        finally:
+            try:
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait()
+            finally:
+                proc.stdout.close()
         elapsed = time.time() - t0
 
         if proc.returncode != 0:
@@ -262,6 +308,8 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         return None
 
     print(f"  Epoch losses: {epoch_losses}", flush=True)
+    if not epoch_losses:
+        print("  Epoch count unavailable: no parseable epoch summaries.", flush=True)
     print(f"  Adapter saved — best_loss={best_loss:.4f}  time={elapsed:.0f}s", flush=True)
 
     # Cleanup extracted dataset
@@ -274,7 +322,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "name":         dataset_id,
         "dataset_id":   dataset_id,
         "zip_source":   zip_path,
-        "epochs_run":   max(epoch_losses.keys()) if epoch_losses else args.max_epochs,
+        "epochs_run":   max(epoch_losses.keys()) if epoch_losses else None,
         "epoch_losses": epoch_losses,
         "final_loss":   final_loss,
         "best_loss":    best_loss,
@@ -349,7 +397,11 @@ def main() -> int:
     os.makedirs(args.models_dir, exist_ok=True)
     os.makedirs(args.datasets_dir, exist_ok=True)
 
-    manifest = load_manifest(args.manifest)
+    try:
+        manifest = load_manifest(args.manifest)
+    except (OSError, ValueError) as e:
+        print(f"ERROR: manifest unreadable: {e}", flush=True)
+        return 1
 
     print(f"Found {len(zips)} zip(s) in {args.zips_dir}")
     print(f"Target loss: {args.target_loss}  Max epochs: {args.max_epochs}  LR: {args.lr}")
@@ -387,15 +439,24 @@ def main() -> int:
             continue
 
         # Register in manifest
-        with file_lock(args.manifest):
-            manifest = load_manifest(args.manifest)
-            manifest.append(result)
-            save_manifest(args.manifest, manifest)
+        try:
+            with lock_adapter_naming(args.models_dir, args.manifest):
+                pending = get_adapter_publication_recovery_command(args.models_dir)
+                if pending:
+                    raise ValueError('Adapter publication recovery is required: ' + pending)
+                manifest = load_manifest(args.manifest)
+                validate_adapter_registration_id_locked(args.models_dir, result['id'], manifest)
+                manifest.append(result)
+                save_manifest(args.manifest, manifest)
+        except (OSError, ValueError) as e:
+            err += 1
+            print(f"  ERROR: unable to register adapter in manifest: {e}\n", flush=True)
+            continue
         done += 1
 
         elapsed_all = time.time() - start_all
         remaining = len(zips) - i
-        avg_per = elapsed_all / i
+        avg_per = elapsed_all / (done + err)
         eta_s = remaining * avg_per
         eta_min = eta_s / 60
         print(f"  Progress: {done} done, {skip} skipped, {err} errors — "

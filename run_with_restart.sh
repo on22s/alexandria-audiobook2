@@ -42,6 +42,16 @@ shopt -s -o pipefail
 MAX_RETRIES=${MAX_RETRIES:-20}
 BACKOFF_SECONDS=${BACKOFF_SECONDS:-10}
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+GPU_WRAPPER="$SCRIPT_DIR/gpu_job.sh"
+if [[ ! -f "$GPU_WRAPPER" ]]; then
+    echo "ERROR: GPU lock wrapper not found at $GPU_WRAPPER" >&2
+    exit 2
+fi
+if [[ "${ALEXANDRIA_GPU_LOCK_HELD:-}" != 1 ]]; then
+    exec bash "$GPU_WRAPPER" preparer-restart bash "$SCRIPT_DIR/run_with_restart.sh" "$@"
+fi
+bash "$GPU_WRAPPER" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit $?
+
 PREPARER="$SCRIPT_DIR/alexandria_preparer_rocm_compatible.py"
 PYTHON="$SCRIPT_DIR/app/env/bin/python"
 
@@ -55,6 +65,48 @@ if [[ ! -f "$PREPARER" ]]; then
     exit 2
 fi
 
+CHILD_PGID=""
+cleanup_preparer() {
+    local rc=$?
+    if [[ -n "$CHILD_PGID" ]]; then
+        # Finish cleanup even if another signal arrives during the grace period.
+        trap '' INT TERM HUP
+        kill -TERM -- "-$CHILD_PGID" 2>/dev/null || true
+        local waited=0
+        # Match gpu_job.sh's shutdown grace so checkpoint writes can finish.
+        while (( waited < 20 )); do
+            kill -0 -- "-$CHILD_PGID" 2>/dev/null || break
+            sleep 1
+            waited=$((waited + 1))
+        done
+        kill -KILL -- "-$CHILD_PGID" 2>/dev/null || true
+        wait "$CHILD_PGID" 2>/dev/null || true
+        CHILD_PGID=""
+    fi
+    return "$rc"
+}
+trap cleanup_preparer EXIT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+run_preparer() {
+    # Bash job control gives this child its own group without a setsid fork.
+    set -m
+    "$PYTHON" "$PREPARER" "$@" &
+    CHILD_PGID=$!
+    set +m
+    local rc
+    wait "$CHILD_PGID"
+    rc=$?
+    # A trapped INT interrupts wait before the preparer has necessarily exited.
+    while kill -0 "$CHILD_PGID" 2>/dev/null; do
+        wait "$CHILD_PGID"
+        rc=$?
+    done
+    CHILD_PGID=""
+    return "$rc"
+}
+
 # Detect a double-Ctrl-C so the user has a clean way to abort the whole loop.
 LAST_INT=0
 on_int() {
@@ -67,6 +119,9 @@ on_int() {
         exit 130
     fi
     LAST_INT=$now
+    if [[ -n "$CHILD_PGID" ]]; then
+        kill -INT -- "-$CHILD_PGID" 2>/dev/null || true
+    fi
     echo ""
     echo "[$(date '+%H:%M:%S')] SIGINT received — preparer should be shutting down."
     echo "                 Hit Ctrl-C again within 5s to abort the wrapper too, otherwise it'll restart."
@@ -102,7 +157,7 @@ while true; do
     # Build the argv. Pass through everything the user supplied, plus --resume
     # from the second attempt onward.
     if (( attempt == 1 )); then
-        "$PYTHON" "$PREPARER" "$@"
+        run_preparer "$@"
         rc=$?
     else
         # Make --resume idempotent — only add it if the user didn't already
@@ -115,9 +170,9 @@ while true; do
             fi
         done
         if (( already_resume == 1 )); then
-            "$PYTHON" "$PREPARER" "$@"
+            run_preparer "$@"
         else
-            "$PYTHON" "$PREPARER" "$@" --resume
+            run_preparer "$@" --resume
         fi
         rc=$?
     fi

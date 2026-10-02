@@ -18,7 +18,8 @@ import verify_release
 
 class CiEnvParityTests(unittest.TestCase):
     """The local verifier is only useful if it predicts CI, which means the set
-    of libraries it hides must match the set CI actually lacks."""
+    of libraries it hides must match the set CI actually lacks. CPU
+    adapter dependencies are installed in both environments."""
 
     def _workflow(self):
         path = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "tests.yml"
@@ -28,27 +29,23 @@ class CiEnvParityTests(unittest.TestCase):
         return (Path(__file__).resolve().parent.parent / "requirements.txt").read_text(encoding="utf-8")
 
     def test_blocked_modules_match_what_ci_omits(self):
-        # CI pip-installs requirements.txt minus an explicit exclusion list.
-        match = re.search(r"grep -vE '\^\(([^)]+)\)==' requirements\.txt", self._workflow())
-        self.assertIsNotNone(
-            match, "could not find CI's pip exclusion in tests.yml; update this test with it")
-        excluded = set(match.group(1).split("|"))
-
-        # Plus anything the workflow never installs because it is not declared.
+        workflow = self._workflow()
+        self.assertIn("python -m pip install -r requirements.txt", workflow)
+        self.assertIn("python -m pip install 'torch==2.10.0+cpu' 'torchaudio==2.10.0+cpu' --index-url https://download.pytorch.org/whl/cpu", workflow)
+        self.assertIn("assert torch.version.cuda is None and torch.version.hip is None", workflow)
+        self.assertNotIn("grep -vE", workflow)
+        self.assertEqual((), ci_env.BLOCKED_MODULES,
+                         "CI installs real CPU adapter-validation dependencies")
         declared = {
             re.split(r"[=<>~\[]", line, 1)[0].strip().lower()
             for line in self._requirements().splitlines()
             if line.strip() and not line.strip().startswith("#")
         }
-        undeclared = {m for m in ci_env.BLOCKED_MODULES if m not in declared}
-
-        self.assertEqual(
-            set(ci_env.BLOCKED_MODULES), excluded | undeclared,
-            "ci_env.BLOCKED_MODULES has drifted from what CI installs")
+        self.assertTrue({"peft", "transformers"} <= declared)
 
     def test_torch_is_absent_from_requirements(self):
-        # The premise of blocking torch: prod gets it from torch.js, not pip.
-        # If torch is ever pinned here, CI would have it and blocking is wrong.
+        # Production gets its platform-specific Torch from torch.js.
+        # The CPU CI pin must remain separate from production requirements.
         declared = {
             re.split(r"[=<>~\[]", line, 1)[0].strip().lower()
             for line in self._requirements().splitlines()
@@ -185,7 +182,7 @@ class ReleaseVerifierTests(unittest.TestCase):
                 pass
 
         process = unittest.mock.Mock(stdout=InterruptingOutput())
-        with patch.object(verify_release.subprocess, "Popen", return_value=process), \
+        with patch.object(verify_release, "start_owned_subprocess", return_value=process), \
              patch.object(verify_release, "stop_process_group") as stop:
             with self.assertRaises(KeyboardInterrupt):
                 verify_release.run_command("interrupted", ["command"], ".")
@@ -260,6 +257,28 @@ class ReleaseVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ran only 12 tests"):
             verify_release.validate_unittest_output("Ran 12 tests in 0.1s\n\nOK\n")
 
+    def test_unittest_final_summary_supersedes_nested_fixture_summaries(self):
+        for nested in ("Ran 1 test in 0.01s\n\nOK\n",
+                       "Ran 1600 tests in 0.01s\n\nOK (skipped=2)\n",
+                       "Ran 1600 tests in 0.01s\n\nFAILED (failures=1)\n"):
+            output = nested + "Ran 6296 tests in 597.0s\n\nOK\n"
+            for value in (output, io.StringIO(output)):
+                with self.subTest(nested=nested, streaming=not isinstance(value, str)):
+                    verify_release.validate_unittest_output(value)
+
+    def test_unittest_nested_success_cannot_hide_an_invalid_final_summary(self):
+        for final, message in (
+                ("Ran 0 tests in 0.0s\n\nOK\n", "under the .* floor"),
+                ("Ran 12 tests in 0.0s\n\nOK\n", "under the .* floor"),
+                ("Ran 1600 tests in 1.0s\n\nFAILED (failures=1)\n", "successful summary"),
+                ("Ran 1600 tests in 1.0s\n\nOK (skipped=2)\n", "2 skipped"),
+                ("Ran 1600 tests in 1.0s\n", "successful summary")):
+            output = "Ran 1600 tests in 0.1s\n\nOK\n" + final
+            for value in (output, io.StringIO(output)):
+                with self.subTest(final=final, streaming=not isinstance(value, str)):
+                    with self.assertRaisesRegex(ValueError, message):
+                        verify_release.validate_unittest_output(value)
+
     def test_json_report_records_successful_gates_and_api_results(self):
         api_result = {
             "counts": {"passed": 1, "failed": 0, "skipped": 1, "total": 2},
@@ -326,3 +345,105 @@ class ReleaseVerifierTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnexpectedGateFailureReportTests(unittest.TestCase):
+    def test_unexpected_gate_exception_is_terminal_and_reported_with_redaction(self):
+        for error in (TypeError('token=secret broken gate'), AttributeError('broken gate'),
+                      KeyError('missing gate key'), SystemExit(0)):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as tmp:
+                report_path = Path(tmp, 'report.json')
+                with patch.object(verify_release, 'compile_python_files', side_effect=error), \
+                     contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                     contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    rc = verify_release.main(['--json-report', str(report_path)])
+                self.assertEqual(1, rc)
+                report = json.loads(report_path.read_text())
+                self.assertEqual('failed', report['status'])
+                self.assertEqual('failed', report['gates'][0]['status'])
+                self.assertEqual('compile_python', report['failure']['gate'])
+                self.assertEqual(type(error).__name__, report['failure']['type'])
+                self.assertNotIn('secret', json.dumps(report))
+                self.assertIn('RELEASE VERIFICATION FAILED', stderr.getvalue())
+                self.assertNotIn('RELEASE VERIFICATION PASSED', stdout.getvalue())
+
+    def test_actual_api_json_loading_cannot_leave_failed_report_running(self):
+        for summary in ([], {'schema_version':1, 'mode':'quick', 'tests':[],
+                             'counts':{'passed':0,'failed':0,'skipped':0,'total':0}}):
+            with self.subTest(summary=summary), tempfile.TemporaryDirectory() as tmp:
+                report_path = Path(tmp, 'report.json')
+                def command(_label, args, cwd, **kwargs):
+                    if '--json-summary' in args:
+                        Path(args[args.index('--json-summary')+1]).write_text(json.dumps(summary))
+                with patch.object(verify_release, 'compile_python_files', return_value=None), \
+                     patch.object(verify_release, 'run_command', side_effect=command), \
+                     contextlib.redirect_stdout(io.StringIO()), \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(1, verify_release.main(['--json-report', str(report_path)]))
+                report = json.loads(report_path.read_text())
+                self.assertEqual('failed', report['status'])
+                self.assertEqual('api_tests', report['failure']['gate'])
+                self.assertEqual('failed', report['gates'][-1]['status'])
+
+
+class CompileArtifactIsolationTests(unittest.TestCase):
+    def test_actual_bytecode_is_temporary_and_source_tree_is_unchanged(self):
+        import marshal
+        import py_compile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / 'readonly'
+            repo.mkdir()
+            files = []
+            for name, value in (('a/same.py', 7), ('b/same.py', 9)):
+                path = repo / name
+                path.parent.mkdir()
+                path.write_text(f'VALUE = {value}\n', encoding='utf-8')
+                path.chmod(0o444)
+                path.parent.chmod(0o555)
+                files.append(path)
+            before = {p.relative_to(repo): p.read_bytes() for p in repo.rglob('*') if p.is_file()}
+            compiler = py_compile.compile
+            outputs = []
+            def compile_to_temporary(source, *args, **kwargs):
+                cfile = kwargs.get('cfile')
+                self.assertIsNotNone(cfile, 'Compiler would write into the read-only source checkout')
+                target = Path(cfile)
+                self.assertNotIn(repo, target.parents)
+                result = compiler(source, *args, **kwargs)
+                namespace = {}
+                exec(marshal.loads(target.read_bytes()[16:]), namespace)
+                outputs.append((target, namespace['VALUE']))
+                return result
+            try:
+                with patch.object(verify_release, 'get_python_paths', return_value=files), \
+                     patch.object(verify_release.py_compile, 'compile', side_effect=compile_to_temporary):
+                    verify_release.compile_python_files(repo)
+                self.assertEqual([7, 9], [value for _, value in outputs])
+                self.assertEqual(2, len({path for path, _ in outputs}))
+                self.assertTrue(all(not path.exists() for path, _ in outputs))
+                self.assertEqual(before, {p.relative_to(repo): p.read_bytes() for p in repo.rglob('*') if p.is_file()})
+                self.assertFalse(any(repo.rglob('__pycache__')))
+            finally:
+                for path in files:
+                    path.parent.chmod(0o755)
+                    path.chmod(0o644)
+
+    def test_compile_error_propagates_and_removes_temporary_bytecode(self):
+        import py_compile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            good, bad = repo / 'good.py', repo / 'bad.py'
+            good.write_text('VALUE = 7\n', encoding='utf-8')
+            bad.write_text('def broken(\n', encoding='utf-8')
+            compiler = py_compile.compile
+            outputs = []
+            def compile_file(source, *args, **kwargs):
+                outputs.append(Path(kwargs['cfile']))
+                return compiler(source, *args, **kwargs)
+            with patch.object(verify_release, 'get_python_paths', return_value=[good,bad]), \
+                 patch.object(verify_release.py_compile, 'compile', side_effect=compile_file):
+                with self.assertRaises(py_compile.PyCompileError):
+                    verify_release.compile_python_files(repo)
+            self.assertEqual(2, len(outputs))
+            self.assertTrue(all(not output.exists() for output in outputs))
+            self.assertEqual({'good.py', 'bad.py'}, {path.name for path in repo.iterdir()})

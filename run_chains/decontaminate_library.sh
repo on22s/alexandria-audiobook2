@@ -20,7 +20,7 @@
 # identical data and seed. Retraining without it would fix the contamination
 # and leave the bigger defect in place.
 set -uo pipefail
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) || exit 1
 
 # HOLD THE REAL LOCK INSTEAD OF GUESSING WHO IS RUNNING.
 #
@@ -43,16 +43,48 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "decontaminate_library" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
 LIST="$REPO/ab_test_runtime/contaminated_adapters.txt"
 WORK="$REPO/ab_test_runtime/decontaminate"
-mkdir -p "$WORK"
+mkdir -p "$WORK" "$L" "$REPO/ab_test_runtime/experiments"
 cd "$REPO/app"
 
 
-mapfile -t ADAPTERS < "$LIST"
+if ! adapter_lines=$("$PY" - "$LIST" "$REPO" <<'PYLIST'
+import sys
+from pathlib import Path
+from voice_manifest import validate_adapter_name
+try:
+    names = []
+    for number, line in enumerate(Path(sys.argv[1]).read_text(encoding="utf-8").splitlines(), 1):
+        name = line.strip()
+        if not name or name.startswith("#"):
+            continue
+        validate_adapter_name(name)
+        if name in names:
+            raise ValueError(f"duplicate adapter on line {number}: {name}")
+        if not (Path(sys.argv[2]) / "lora_models" / name).is_dir():
+            raise ValueError(f"adapter on line {number} does not exist: {name}")
+        names.append(name)
+    if not names:
+        raise ValueError("adapter list has no adapter IDs")
+    print("\n".join(names))
+except (OSError, UnicodeError, ValueError) as exc:
+    sys.exit(f"Invalid adapter list: {exc}")
+PYLIST
+); then
+    exit 1
+fi
+ADAPTERS=()
+while IFS= read -r adapter; do
+    ADAPTERS+=("$adapter")
+done <<< "$adapter_lines"
+failures=0
+reports=()
 echo "retraining ${#ADAPTERS[@]} adapters on the 180-clip train split"
 
 # Batched so a failure costs one batch, not the night, and so partial results
@@ -63,26 +95,35 @@ for ((i=0; i<${#ADAPTERS[@]}; i+=BATCH)); do
     tag=$(( i / BATCH + 1 ))
     echo ""
     echo "=== batch $tag: ${#slice[@]} adapters  $(date -u +%FT%TZ) ==="
-    timeout 43200 "$PY" -u experiments/retrain_honest.py \
-        --adapters "${slice[@]}" \
-        --use-medoid \
-        --work "$WORK/batch$tag" \
-        --out "$REPO/ab_test_runtime/experiments/decontaminate_batch$tag.json" \
-        > "$L/decontaminate_batch$tag.log" 2>&1
-    echo "  rc=$?"
+    report="$REPO/ab_test_runtime/experiments/decontaminate_batch$tag.json"
+    command=("$PY" -u experiments/retrain_honest.py
+        --adapters "${slice[@]}" --use-medoid --resume
+        --work "$WORK/batch$tag" --out "$report")
+    timeout 43200 "${command[@]}" > "$L/decontaminate_batch$tag.log" 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        "${command[@]}" --check-artifact "$report" >> "$L/decontaminate_batch$tag.log" 2>&1
+        rc=$?
+    fi
+    echo "  rc=$rc"
+    if [ "$rc" -eq 0 ]; then
+        reports+=("$report")
+    else
+        failures=$((failures + 1))
+    fi
     tail -4 "$L/decontaminate_batch$tag.log" | sed 's/^/  /' | cut -c1-110
 done
 
 echo ""
 echo "=== summary: which retrains beat what ships  $(date -u +%FT%TZ) ==="
-"$PY" - <<'PYEOF'
-import json, glob
+"$PY" - "$REPO" "${reports[@]}" <<'PYEOF'
+import json, sys
+from pathlib import Path
+repo = Path(sys.argv[1])
 base = {r["adapter"]: r.get("ecapa") for r in json.load(open(
-    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/"
-    "experiments/library_voice_fidelity_n10.json", encoding="utf-8"))["results"]}
+    repo / "ab_test_runtime/experiments/library_voice_fidelity_n10.json", encoding="utf-8"))["results"]}
 rows = []
-for path in sorted(glob.glob("/home/fakemitch/pinokio/api/alexandria-audiobook2.git/"
-                             "ab_test_runtime/experiments/decontaminate_batch*.json")):
+for path in sys.argv[2:]:
     for r in json.load(open(path, encoding="utf-8")).get("results", []):
         new = r.get("new_ecapa_heldout")
         old = base.get(r["adapter"])
@@ -96,5 +137,13 @@ for name, old, new in sorted(better, key=lambda x: -(x[2] - x[1]))[:15]:
 print("\n  NOTHING WAS OVERWRITTEN. To promote, review the list then run:")
 print("    app/env/bin/python promote_adapters.py --dry-run")
 PYEOF
+summary_rc=$?
+if [ "$summary_rc" -ne 0 ]; then
+    failures=$((failures + 1))
+fi
 echo ""
+if [ "$failures" -ne 0 ]; then
+    echo "DECONTAMINATION INCOMPLETE: $failures failed batches/summary $(date -u +%FT%TZ)"
+    exit 1
+fi
 echo "DECONTAMINATION DONE $(date -u +%FT%TZ)"

@@ -47,3 +47,22 @@ class DedupBenchmarkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DedupLegacyOutputHashTests(unittest.TestCase):
+    def test_legacy_audio_key_outputs_have_reproducible_content_hash(self):
+        for key in ('audio', 'audio_filepath'):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, 'output.zip')
+                metadata = (json.dumps({key: 'train/second.wav', 'text': 'Second'}, ensure_ascii=False)+'\n').encode()
+                pcm = b'actual archive member bytes'
+                with zipfile.ZipFile(path, 'w') as archive:
+                    archive.writestr('metadata.jsonl', metadata)
+                    archive.writestr('train/second.wav', pcm)
+                before = path.read_bytes()
+                digest = hashlib.sha256()
+                digest.update(metadata)
+                digest.update(b'train/second.wav')
+                digest.update(pcm)
+                self.assertEqual((digest.hexdigest(), 1), _hash_dataset_content(path))
+                self.assertEqual(before, path.read_bytes())

@@ -13,10 +13,17 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     call all three loaders together, repeatedly, on the same request paths.
     """
     try:
-        mtime = os.path.getmtime(path)
+        stat = os.stat(path)
+        mtime = stat.st_mtime
+        file_version = (stat.st_dev, stat.st_ino, stat.st_size,
+                        stat.st_mtime_ns, stat.st_ctime_ns)
     except FileNotFoundError:
         raise RuntimeError(missing_msg)
+    except OSError as exc:
+        raise RuntimeError(f"Error reading {path}: {exc}") from exc
 
+    if cache.get("malformed_version") == file_version:
+        raise RuntimeError(malformed_msg)
     if cache.get("mtime") == mtime and cache.get("prompts") is not None:
         return cache["prompts"]
 
@@ -32,9 +39,14 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     # everything after it) into the last part's text.
     parts = raw.split("---SEPARATOR---")
     if len(parts) != num_parts:
+        cache["malformed_version"] = file_version
         raise RuntimeError(malformed_msg)
 
     prompts = tuple(p.strip() for p in parts)
+    if not all(prompts):
+        cache["malformed_version"] = file_version
+        raise RuntimeError(malformed_msg)
+    cache.pop("malformed_version", None)
     cache["mtime"] = mtime
     cache["prompts"] = prompts
     return prompts

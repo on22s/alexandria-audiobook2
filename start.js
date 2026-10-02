@@ -16,8 +16,8 @@ module.exports = {
         },
         message: "python app.py",
         on: [{
-          // Capture the URL when the server prints it
-          event: "/(http:\\/\\/\\S+)/",
+          // Capture the serving announcement, after Uvicorn has bound the app
+          event: "/Uvicorn running on (http:\\/\\/\\S+)/",
           done: true
         }, {
           // Stop visibly instead of leaving "Starting" waiting for a URL

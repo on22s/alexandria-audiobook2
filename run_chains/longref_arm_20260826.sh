@@ -41,35 +41,36 @@ done
 
 declare -A EVAL=( [en]=ljspeech_eval [ja]=kokoro_eval [zh]=aishell3_eval )
 
+builds=()
+for lang in en ja zh; do
+    builds+=("$runtime/${EVAL[$lang]}/build_longref.json")
+done
+validate_stage_files "${builds[@]}" || exit 1
+
 for lang in en ja zh; do
     dir="${EVAL[$lang]}"
     build="$runtime/$dir/build_longref.json"
-    if [ ! -f "$build" ]; then
-        stage_note "SKIP $lang: no $build - run reference_rebuild.py first"
-        continue
-    fi
     run_stage "longref_gen_$lang" 3h --needs-vram -- \
         "$REPO/gpu_job.sh" "longref_$lang" \
         "$python" -u "$REPO/app/experiments/ljspeech_generate.py" \
         --build "$build" --arms clone --limit 0 \
         --out-dir "$runtime/$dir/longref" \
         --out "$runtime/experiments/longref__${lang}_generate.json"
-    stage_commit_artifacts "longref_gen_$lang" "$REPO"
+    stage_commit_artifacts "longref_gen_$lang" "$REPO" "$runtime/experiments/longref__${lang}_generate.json"
 done
 
 # Score with the SAME probe the goals use, so the new numbers are comparable to
 # the committed ones rather than to a second implementation ([[Rule 15]]).
-run_stage longref_quality 1h -- \
+run_stage longref_quality 1h --requires-ok longref_gen_en --requires-ok longref_gen_ja --requires-ok longref_gen_zh -- \
     "$python" -u "$REPO/app/experiments/pitch_quality_probe.py" \
     --lines 150 \
     --manifest en=longref__en_generate.json \
     --manifest ja=longref__ja_generate.json \
     --manifest zh=longref__zh_generate.json \
     --out "$runtime/experiments/pitch_quality_longref.json"
-stage_commit_artifacts longref_quality "$REPO"
+stage_commit_artifacts longref_quality "$REPO" "$runtime/experiments/pitch_quality_longref.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
-stage_summary longref_arm_20260826
 
 echo
 echo "HOW TO READ IT. The cells that matter are zh clone vtl_cm (was 1.0607x,"
@@ -78,3 +79,5 @@ echo "null puts those measures' own spread at 0.9588-1.0337 and 0.9410-1.0658,"
 echo "so a move has to clear that to be a move. If neither budges, the"
 echo "reference is not the mechanism and the 2.6 product decision is the"
 echo "answer after all."
+
+stage_summary longref_arm_20260826

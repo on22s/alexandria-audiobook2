@@ -20,45 +20,92 @@
 # wait that long for the chain to APPEAR before concluding it is finished.
 
 chain_running() {
-    pgrep -f "run_chains/$1" 2>/dev/null \
-        | grep -qv -e "^$$\$" -e "^$PPID\$"
+    local wanted="$1" proc pid executable index script path
+    local -a argv
+    case "$wanted" in ""|*/*) echo "Invalid chain name: $wanted" >&2; return 2;; esac
+    if [ ! -d /proc/self ]; then
+        echo "Cannot inspect running chains: /proc is unavailable" >&2
+        return 2
+    fi
+    for proc in /proc/[0-9]*; do
+        pid=${proc##*/}
+        [ "$pid" = "$$" ] || [ "$pid" = "$BASHPID" ] || [ "$pid" = "$PPID" ] && continue
+        executable=$(readlink "$proc/exe" 2>/dev/null) || continue
+        case "${executable##*/}" in bash|sh|dash|zsh|ksh) ;; *) continue;; esac
+        mapfile -d '' -t argv < "$proc/cmdline" 2>/dev/null || continue
+        index=1
+        while [ "$index" -lt "${#argv[@]}" ]; do
+            case "${argv[index]}" in
+                --) index=$((index + 1)); break;;
+                -c*|--command*|-s) index=${#argv[@]}; break;;
+                -o|+o|-O|+O|--rcfile|--init-file) index=$((index + 2));;
+                --norc|--noprofile|--posix|--restricted|--verbose|--debugger|--login) index=$((index + 1));;
+                -*|+*)
+                    # Combined c/s options read commands instead of a script argument.
+                    case "${argv[index]}" in *c*|*s*) index=${#argv[@]}; break;; esac
+                    index=$((index + 1));;
+                *) break;;
+            esac
+        done
+        [ "$index" -lt "${#argv[@]}" ] || continue
+        script=${argv[index]}
+        case "$script" in /*) path="$script";; *) path="$proc/cwd/$script";; esac
+        path=$(readlink -f -- "$path" 2>/dev/null) || continue
+        [ "${path##*/}" = "$wanted" ] || continue
+        [ "$(basename -- "$(dirname -- "$path")")" = run_chains ] || continue
+        return 0
+    done
+    return 1
 }
 
 # wait_for_chain <script-name> [appear-grace-seconds]
 wait_for_chain() {
-    local name="$1" grace="${2:-0}" waited=0
-    if [ "$grace" -gt 0 ] && ! chain_running "$name"; then
-        echo "[$(date -u +%FT%TZ)] $name not started yet; allowing ${grace}s for it to appear"
-        while [ "$waited" -lt "$grace" ] && ! chain_running "$name"; do
-            sleep 10; waited=$((waited + 10))
-        done
-    fi
-    if ! chain_running "$name"; then
-        echo "[$(date -u +%FT%TZ)] $name is not running; continuing"
-        return 0
-    fi
+    local name="$1" grace="${2:-0}" waited=0 delay status
+    while :; do
+        if chain_running "$name"; then
+            break
+        else
+            status=$?
+            [ "$status" -eq 1 ] || return "$status"
+        fi
+        if [ "$waited" -ge "$grace" ]; then
+            echo "[$(date -u +%FT%TZ)] $name is not running; continuing"
+            return 0
+        fi
+        [ "$waited" -ne 0 ] || echo "[$(date -u +%FT%TZ)] $name not started yet; allowing ${grace}s for it to appear"
+        delay=$((grace - waited))
+        [ "$delay" -le 5 ] || delay=5
+        sleep "$delay"; waited=$((waited + delay))
+    done
     echo "[$(date -u +%FT%TZ)] waiting for $name"
-    while chain_running "$name"; do sleep 120; done
+    while :; do
+        if chain_running "$name"; then
+            sleep 5
+        else
+            status=$?
+            [ "$status" -eq 1 ] || return "$status"
+            break
+        fi
+    done
     echo "[$(date -u +%FT%TZ)] $name finished"
 }
 
-# REFUSE A DIRTY TREE UP FRONT. gpu_job.sh refuses each job individually, so a
-# chain launched from a dirty tree reaches its summary in minutes having run
-# nothing - 22 such refusals in one day, all reading `uncommitted changes`
-# ([[Rule 24]]). Generated artifacts are excluded, matching gpu_job.sh's own
-# list, because a run rewriting its outputs is not a run whose code changed.
+# Reuse the GPU wrapper's read-only source policy before launching a chain.
+# Its NUL-delimited interface preserves tracked status and odd untracked paths.
 refuse_if_dirty() {
-    local repo="$1"
-    local dirty
-    dirty=$(git -C "$repo" status --porcelain \
-            -- ':(exclude)ab_test_runtime/experiments/*.json' \
-               ':(exclude)ab_test_runtime/audit/*.json' \
-               ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' \
-               ':(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md' 2>/dev/null \
-            | grep -v '^??' || true)
-    if [ -n "${dirty:-}" ]; then
+    local repo="$1" gate="${BASH_SOURCE[0]%/*}/../../gpu_job.sh" source_fd source_pid
+    local -a source_state
+    exec {source_fd}< <(bash "$gate" --print-source-state "$repo")
+    source_pid=$!
+    mapfile -d '' -t source_state <&"$source_fd"
+    exec {source_fd}<&-
+    if ! wait "$source_pid" || [ "${source_state[0]:-unknown}" = unknown ]; then
+        echo "REFUSING: could not inspect the repository's working tree." >&2
+        return 1
+    fi
+    if [ "${source_state[0]:-unknown}" != clean ]; then
         echo "REFUSING: the tree is dirty, so gpu_job.sh would reject every stage:"
-        printf '%s\n' "$dirty" | sed 's/^/    /'
+        printf '%s\n' "${source_state[@]:1}" | sed '/^$/d; s/^/    /'
         return 1
     fi
     return 0

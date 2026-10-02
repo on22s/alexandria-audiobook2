@@ -47,7 +47,7 @@ run_stage two_stage_full 8h -- \
     "$REPO/gpu_job.sh" two_stage_full \
     "$python" -u "$REPO/app/experiments/two_stage_attribution.py" --limit 1300 \
     --out "$runtime/experiments/two_stage_attribution_full.json"
-stage_commit_artifacts two_stage_full "$REPO"
+stage_commit_artifacts two_stage_full "$REPO" "$runtime/experiments/two_stage_attribution_full.json" "$runtime/experiments/two_stage_attribution_full.json.ckpt" "$runtime/experiments/two_stage_attribution_full.json.ckpt.stale"
 
 # ---- 2. index18's attribution, now that its dialogue exists ----------------
 # The corrupt file had no quotation marks, so nothing could mark a spoken line
@@ -59,7 +59,7 @@ run_stage index18_dialogue_map 20m -- \
 # ---- 3. The books nothing has generated yet --------------------------------
 run_stage unseen_books_rest 8h -- \
     env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books.sh"
-stage_commit_artifacts unseen_books_rest "$REPO"
+# This generator writes under unseen_books, outside the experiment commit scope.
 
 # ---- 4. Finish the respelling separator question ---------------------------
 # Three arms against the shipped hyphen, on identical terms. The first was cut
@@ -71,7 +71,7 @@ for sep in none space dot; do
         "$python" -u "$REPO/app/experiments/measure_respellings.py" \
         --min-books 5 --only-e-row --separator "$sep" --limit 120 \
         --work "$runtime/respelling_sep_$sep" --out "$out"
-    stage_commit_artifacts "separator_$sep" "$REPO"
+    stage_commit_artifacts "separator_$sep" "$REPO" "$out"
 done
 
 run_stage separator_pauses 1h -- \
@@ -79,11 +79,12 @@ run_stage separator_pauses 1h -- \
     --arm none=respelling_sep_none --arm space=respelling_sep_space \
     --arm dot=respelling_sep_dot \
     --out "$runtime/experiments/respelling_pauses_separators.json"
+stage_commit_artifacts separator_pauses "$REPO" "$runtime/experiments/respelling_pauses_separators.json"
 
 # ---- 5. Everything still unreplayable --------------------------------------
 run_stage replay_to_completion 6h -- \
     "$REPO/run_chains/replay_dirty_evidence_20260817.sh"
-stage_commit_artifacts replay_to_completion "$REPO"
+# The child commits each dispatched artifact by its exact path.
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary continuation_20260819

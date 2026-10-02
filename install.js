@@ -1,3 +1,5 @@
+const whisperAssets = require("./whisper_assets.json")
+
 module.exports = {
   requires: {
     bundle: "ai"
@@ -8,10 +10,11 @@ module.exports = {
       message: "uv cache clean"
     }
   }, {
+    when: "{{!exists('app/env')}}",
     method: "shell.run",
     params: {
       path: "app",
-      message: "python -m venv env"
+      message: "uv venv --python 3.10 env"
     }
   }, {
     // Install the platform-correct torch FIRST so transitive deps below
@@ -54,6 +57,12 @@ module.exports = {
       ]
     }
   }, {
+    method: "script.start",
+    params: {
+      uri: "llama_cpp.js",
+      params: { path: "app", venv: "env", constraints: "torch-constraints.txt" }
+    }
+  }, {
     // The preparer has a separate ML environment so adding pyannote cannot
     // replace Voice Lab's known-working torch/ROCm stack.
     when: "{{platform === 'linux' && gpu === 'amd'}}",
@@ -88,27 +97,34 @@ module.exports = {
     }
   }, {
     when: "{{platform === 'linux' && gpu === 'amd'}}",
-    method: "shell.run",
+    method: "script.start",
     params: {
-      venv: "preparer_env",
-      env: {
-        UV_CONSTRAINT: "preparer_env/torch-constraints.txt",
-        PIP_CONSTRAINT: "preparer_env/torch-constraints.txt"
-      },
-      message: "CMAKE_ARGS=\"-DGGML_HIP=ON -DAMDGPU_TARGETS=$(rocminfo | awk '/Name: *gfx/{print $2; exit}')\" uv pip install llama-cpp-python==0.3.23 --no-binary llama-cpp-python"
+      uri: "llama_cpp.js",
+      params: { path: ".", venv: "preparer_env", constraints: "preparer_env/torch-constraints.txt" }
     }
   }, {
     when: "{{!exists('whisper.cpp')}}",
     method: "shell.run",
     params: {
-      message: "git clone --depth 1 --branch v1.9.1 https://github.com/ggml-org/whisper.cpp whisper.cpp"
+      message: [
+        "git init whisper.cpp",
+        `git -C whisper.cpp remote add origin ${whisperAssets.source_repo}`,
+        `git -C whisper.cpp fetch --depth 1 origin ${whisperAssets.source_commit}`,
+        "git -C whisper.cpp checkout --detach FETCH_HEAD"
+      ]
     }
   }, {
     when: "{{!exists('models/whisper.cpp/ggml-small.en.bin')}}",
     method: "fs.download",
     params: {
-      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
+      url: `https://huggingface.co/${whisperAssets.model_repo}/resolve/${whisperAssets.model_revision}/${whisperAssets.model_filename}`,
       dir: "models/whisper.cpp"
+    }
+  }, {
+    method: "shell.run",
+    params: {
+      venv: "app/env",
+      message: "python tools/verify_whisper_assets.py"
     }
   }, {
     when: "{{platform === 'linux' && gpu === 'amd'}}",

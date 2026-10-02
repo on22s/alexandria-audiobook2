@@ -31,6 +31,9 @@ def _safe_name(model):
     return model.replace("/", "__")
 from three_pass_generate import build_roster
 
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+
 M = (REPO + "/"
      "ab_test_runtime/results/matrix_20260725-115148/")
 # The model under test. Only this varies between runs.
@@ -47,12 +50,12 @@ INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
 BOOK = os.environ.get("EXPERIMENT_BOOK", "mushoku16")
 GOLD = os.environ.get("EXPERIMENT_GOLD",
                       "fixtures/attribution_gold_random.json")
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))))
 GOLD_PATH = REPO + "/app/" + GOLD
 gold = json.load(open(GOLD_PATH))
 src = open(M + f"inputs/{BOOK}.txt", encoding="utf-8").read()
-cp = json.load(open(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json"))
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
+cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json")
 seg, named = cp["segmented"], [e for e in (cp.get("named") or []) if e]
 roster = [r.upper() for r in build_roster(named, src)]
 AL = [{n.upper() for n in g} for g in gold.get("aliases", [])]

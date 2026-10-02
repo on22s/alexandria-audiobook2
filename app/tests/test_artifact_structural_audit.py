@@ -16,6 +16,10 @@ class StructuralAuditTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        subprocess.run(["git", "init", "-q", self.temp.name], check=True, capture_output=True)
+        self.repo_patch = patch.object(audit, "REPO", self.temp.name)
+        self.repo_patch.start()
+        self.addCleanup(self.repo_patch.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -23,6 +27,7 @@ class StructuralAuditTests(unittest.TestCase):
     def write(self, name, document):
         path = self.root / name
         path.write_text(json.dumps(document), encoding="utf-8")
+        subprocess.run(["git", "add", path.name], cwd=self.root, check=True, capture_output=True)
         return path
 
     def test_classifies_all_identity_contracts_without_scientific_claims(self):
@@ -51,6 +56,7 @@ class StructuralAuditTests(unittest.TestCase):
 
     def test_unreadable_json_is_visible_not_skipped(self):
         (self.root / "broken.json").write_text("{", encoding="utf-8")
+        subprocess.run(["git", "add", "broken.json"], cwd=self.root, check=True, capture_output=True)
         result = audit.build_audit(str(self.root))
         self.assertEqual(1, len(result["artifacts"]))
         self.assertIn("unreadable JSON", result["artifacts"][0]["reason"])
@@ -109,19 +115,12 @@ class IndexableArtifactTests(unittest.TestCase):
         self.assertEqual(["local_only.json"], skipped,
                          "an unindexed artifact must still be reported")
 
-    def test_a_directory_without_git_indexes_everything(self):
-        """The fallback, asserted rather than assumed.
-
-        Returning an empty index outside a repo would be a plausible-looking
-        answer to a question that was never asked - a source export would
-        silently report that no evidence exists.
-        """
+    def test_a_directory_without_git_refuses_unknown_membership(self):
         self._write("a.json")
         self._write("b.json")
         with patch.object(audit, "REPO", self.tmp.name):
-            keep, skipped = audit.indexable_artifacts(self.tmp.name)
-        self.assertEqual(2, len(keep))
-        self.assertEqual([], skipped)
+            with self.assertRaisesRegex(RuntimeError, "Cannot determine tracked"):
+                audit.indexable_artifacts(self.tmp.name)
 
 
 if __name__ == "__main__":

@@ -26,12 +26,14 @@ def manifest(status="complete", total=165, done=165, failures=(), model=MODEL):
     return {"status": status,
             "progress": {"chunks_total": total, "chunks_completed": done},
             "diagnostic_failures": list(failures),
-            "fingerprint": {"model_name": model, "pipeline": "three_pass"}}
+            "fingerprint": {"model_name": model, "pipeline": "three_pass"},
+            "model_binding": {"primary_model": model, "failover_model": None, "failover_used": False}}
 
 
 def quality(status="complete", total=82, accepted=82, model=MODEL):
     return {"status": status, "total_chunks": total,
-            "accepted_chunk_count": accepted, "model_name": model}
+            "accepted_chunk_count": accepted, "model_name": model,
+            "model_binding": {"primary_model": model, "failover_model": None, "failover_used": False}}
 
 
 class ReuseTest(unittest.TestCase):

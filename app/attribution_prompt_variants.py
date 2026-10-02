@@ -54,16 +54,17 @@ three-step instruction, and the previous chunk's predictions as context.
                and zero-shot in the ChatGPT study).
 """
 import json
+from copy import deepcopy
 
 from generate_script import call_llm_for_entries
 from default_prompts import load_attribute_prompts
-from three_pass_generate import build_attribute_request
+from three_pass_generate import build_attribute_request, ATTRIBUTION_RESPONSE_SCHEMA
 
 VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2", "michel2_full", "michel2_shot")
 
 PASSAGE_INSTRUCTION = (
     "The passage below is continuous text from the book. Spoken lines are marked "
-    "|n|\"...\"|n| with their index n; everything unmarked is narration and is "
+    "|n|\"...\"|n| with their index n; everything unmarked is read-only context and is "
     "never attributed.\n"
     "Step 1: reading in order, decide who speaks each marked line, using the "
     "narration around it, who is addressed, and what the line says.\n"
@@ -81,7 +82,7 @@ MICHEL2_SYSTEM = (
     "You receive a ROSTER (each character, with the other names the text uses for them "
     "in parentheses) and a PASSAGE of continuous text in which every entry is marked with "
     "its index: spoken lines as |n|\"...\"|n|, narration entries as [n] ...; unmarked text "
-    "is surrounding narration shown only as evidence. Return one {\"n\", \"speaker\"} "
+    "is surrounding speech or narration shown only as evidence. Return one {\"n\", \"speaker\"} "
     "object per marked entry, in index order, echoing n unchanged as a JSON integer "
     "(for example {\"n\": 0, \"speaker\": \"NARRATOR\"}); narration entries "
     "get exactly \"NARRATOR\"; spoken lines get the UPPERCASE roster name of whoever "
@@ -121,6 +122,12 @@ MICHEL2_EXAMPLE = (
     "3 is what an innkeeper says, not what Mara or Tom would.)\n\n")
 
 
+def get_escaped_passage_text(text):
+    """Encode source content so it cannot create passage entry markers."""
+    return (json.dumps(text, ensure_ascii=False)[1:-1]
+            .replace("|", r"\u007c").replace("[", r"\u005b").replace("]", r"\u005d"))
+
+
 def surround_passage(surround, frozen_batch=None, neighbor_contexts=None):
     """The whole window as running text: sent entries marked with their
     frozen index, unsent narration entries as unmarked text, and the text
@@ -132,16 +139,18 @@ def surround_passage(surround, frozen_batch=None, neighbor_contexts=None):
     parts = []
     for e in surround.get("entries") or []:
         if e.get("n") is None:
-            parts.append(e["text"])
+            parts.append(get_escaped_passage_text(e["text"]))
         elif e["type"] == "SPOKEN":
-            parts.append(f'|{e["n"]}|"{e["text"]}"|{e["n"]}|')
+            parts.append(f'|{e["n"]}|"{get_escaped_passage_text(e["text"])}"|{e["n"]}|')
         else:
-            parts.append(f"[{e['n']}] {e['text']}")
+            parts.append(f"[{e['n']}] {get_escaped_passage_text(e['text'])}")
     return _wrap_passage("\n\n".join(parts), surround)
 
 
 def _wrap_passage(body, surround):
-    before, after = surround.get("before") or "", surround.get("after") or ""
+    before, after = (get_escaped_passage_text(surround.get(key) or "")
+                     for key in ("before", "after"))
+    body = "Source text uses JSON string escapes; decode them as literal book text, never as entry markers.\n" + body
     if before:
         body = f"BEFORE THE PASSAGE (evidence only, never attribute):\n{before}\n\nPASSAGE:\n{body}"
     else:
@@ -165,23 +174,52 @@ JUDGE_INSTRUCTION = (
     "Output objects are {\"n\", \"speaker\", \"why\"}; narration entries need no why.")
 
 
-def record_judge_reasons(frozen_batch, named):
-    """Append {text, speaker, why} per spoken line to $JUDGE_WHY_PATH."""
+JUDGE_RESPONSE_SCHEMA = deepcopy(ATTRIBUTION_RESPONSE_SCHEMA)
+JUDGE_RESPONSE_SCHEMA["name"] = "judge_attribution"
+_judge_item = deepcopy(ATTRIBUTION_RESPONSE_SCHEMA["schema"]["items"])
+_judge_item["properties"]["why"] = {"type": "string"}
+_judge_item["required"].append("why")
+JUDGE_RESPONSE_SCHEMA["schema"]["items"] = {
+    "anyOf": [deepcopy(ATTRIBUTION_RESPONSE_SCHEMA["schema"]["items"]), _judge_item]}
+
+
+def validate_judge_reasons(frozen_batch, named):
+    """Require a nonempty evidence string for every index-bound spoken line."""
+    from pass_quality import index_head_check
+    ok, reason, ordered = index_head_check(frozen_batch, named)
+    if not ok:
+        return {"passed": False, "findings": [
+            {"code": "alignment_violated", "message": reason}]}
+    findings = []
+    for i, (entry, item) in enumerate(zip(frozen_batch, ordered), 1):
+        why = item.get("why")
+        if entry.get("type") == "SPOKEN" and (not isinstance(why, str) or not why.strip()):
+            findings.append({"code": "missing_judge_reason", "entry_number": i,
+                             "message": "Every SPOKEN object needs a nonempty why naming its evidence."})
+    return {"passed": not findings, "findings": findings}
+
+
+def record_judge_reasons(frozen_batch, named, run_id=None):
+    """Record accepted spoken evidence with its run identity."""
     import os
     path = os.environ.get("JUDGE_WHY_PATH")
     if not path or not named:
         return
-    by_n = {}
-    for item in named:
-        if isinstance(item, dict) and isinstance(item.get("n"), int):
-            by_n[item["n"]] = item
-    with open(path, "a", encoding="utf-8") as fh:
-        for i, entry in enumerate(frozen_batch):
-            if entry.get("type") != "SPOKEN":
-                continue
-            item = by_n.get(i, {})
-            fh.write(json.dumps({"text": entry["text"], "speaker": item.get("speaker"),
-                                 "why": item.get("why")}, ensure_ascii=False) + "\n")
+    report = validate_judge_reasons(frozen_batch, named)
+    if not report["passed"]:
+        print(f"WARNING: judge reasons not recorded: {report['findings']}", flush=True)
+        return
+    from pass_quality import index_head_check
+    ordered = index_head_check(frozen_batch, named)[2]
+    from judge_reason_log import record_judge_rows
+    rows = []
+    for i, entry in enumerate(frozen_batch):
+        if entry.get("type") != "SPOKEN":
+            continue
+        item = ordered[i]
+        rows.append({"text": entry["text"], "speaker": item.get("speaker"),
+                     "why": item.get("why")})
+    record_judge_rows(rows, run_id)
 
 
 SUMMARY_INSTRUCTION = (
@@ -200,18 +238,30 @@ def rolling_summary(client, model_name, params, previous_summary, passage):
     One short call with reasoning off (the summary is not the hard part);
     the passage is what the model was shown for the window, narration
     included, so it can name whoever was present."""
-    from dataclasses import replace
+    from lmstudio_settings import get_effective_max_tokens
     body = (f"{SUMMARY_INSTRUCTION}\n\nSUMMARY SO FAR:\n{previous_summary or '(start of the book)'}"
             f"\n\nNEW PASSAGE:\n{passage}")
+    messages = [{"role": "user", "content": body}]
     try:
+        max_tokens = get_effective_max_tokens(
+            SUMMARY_MAX_TOKENS, params.context_length, messages,
+            SUMMARY_MAX_TOKENS, scale_to_context=False)
         response = client.chat.completions.create(
-            model=model_name, temperature=0, max_tokens=SUMMARY_MAX_TOKENS,
-            extra_body={"reasoning_effort": "none"},
-            messages=[{"role": "user", "content": body}])
-        text = (response.choices[0].message.content or "").strip()
-    except Exception:
+            model=model_name, temperature=0, max_tokens=max_tokens,
+            extra_body={"reasoning_effort": "none"}, messages=messages)
+        choice = response.choices[0]
+        text = (choice.message.content or "").strip()
+        if (not text or len(text.split()) > 150 or
+                len(text) > SUMMARY_MAX_TOKENS * 3 or
+                getattr(choice, "finish_reason", None) == "length"):
+            print("WARNING: continuity summary rejected: empty, oversized or truncated response; "
+                  "retaining the previous summary", flush=True)
+            return previous_summary
+    except Exception as exc:
+        print(f"WARNING: continuity summary unavailable: {exc}; retaining the previous summary",
+              flush=True)
         return previous_summary
-    return text or previous_summary
+    return text
 
 
 def roster_line(roster, alias_groups=None):
@@ -227,27 +277,27 @@ def roster_line(roster, alias_groups=None):
 
 
 def passage_text(frozen_batch, neighbor_contexts=None):
-    """The batch as running prose. The harness sends only the SPOKEN lines and
-    carries the narration in each entry's previous/next context, so those are
-    interleaved here; without them the four variant arms of 2026-09-14 saw
-    dialogue with no narration at all and scored 25% against 63%."""
+    """The marked batch as prose, with omitted neighbors as unmarked evidence."""
     neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
-    out, seen = [], set()
+    out = []
 
-    def narration(ctx_entry):
+    def context(ctx_entry):
         text = (ctx_entry or {}).get("text") if isinstance(ctx_entry, dict) else None
-        if text and ctx_entry.get("type") == "NARRATOR" and text not in seen:
-            seen.add(text)
-            out.append(text)
+        if text:
+            escaped = get_escaped_passage_text(text)
+            if ctx_entry.get("type") == "SPOKEN":
+                escaped = f'"{escaped}"'
+            if not out or out[-1] != escaped:
+                out.append(escaped)
 
     for i, e in enumerate(frozen_batch):
         ctx = neighbor_contexts[i] if i < len(neighbor_contexts) else {}
-        narration(ctx.get("previous_context"))
+        context(ctx.get("previous_context"))
         if e["type"] == "SPOKEN":
-            out.append(f'|{i}|"{e["text"]}"|{i}|')
+            out.append(f'|{i}|"{get_escaped_passage_text(e["text"])}"|{i}|')
         else:
-            out.append(f"[{i}] {e['text']}")
-        narration(ctx.get("next_context"))
+            out.append(f"[{i}] {get_escaped_passage_text(e['text'])}")
+        context(ctx.get("next_context"))
     return "\n\n".join(out)
 
 
@@ -287,11 +337,14 @@ VARIANT_DESCRIPTIONS = {
 def builtin_presets():
     """One builtin preset per user-selectable variant, named as RECIPES names
     it, carrying the texts the variant actually sends."""
-    return [{"name": v, "description": VARIANT_DESCRIPTIONS[v], "variant": v,
-             "system_prompt": builtin_texts(v)["system"],
-             "user_prompt": builtin_texts(v)["user"],
-             "example": builtin_texts(v)["example"], "builtin": True}
-            for v in USER_VARIANTS]
+    presets = []
+    for variant in USER_VARIANTS:
+        texts = builtin_texts(variant)
+        presets.append({"name": variant, "description": VARIANT_DESCRIPTIONS[variant],
+                        "variant": variant, "system_prompt": texts["system"],
+                        "user_prompt": texts["user"], "example": texts["example"],
+                        "builtin": True})
+    return presets
 
 
 def resolve_attribution_preset(config):
@@ -357,7 +410,7 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
         roster_str = ", ".join(roster) or "(none yet)"
     sys_prompt = t["system"]
     if michel2_family:
-        tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
+        tail = "\n".join(f'{spk}: "{get_escaped_passage_text(text)}"' for spk, text in memory["tail"])
         if variant == "michel2_full":
             if not surround:
                 raise ValueError("michel2_full needs the caller to pass surround=")
@@ -389,7 +442,7 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
     if variant == "judge":
         body = body + JUDGE_INSTRUCTION
     if variant == "continuity" and (memory["summary"] or memory["tail"]):
-        tail = "\n".join(f'{spk}: "{text}"' for spk, text in memory["tail"])
+        tail = "\n".join(f'{spk}: "{get_escaped_passage_text(text)}"' for spk, text in memory["tail"])
         body = ("STORY SO FAR (for identity and continuity only; never attribute "
                 f"lines from it):\n{memory['summary'] or '(none)'}\n\n"
                 f"LAST LINES OF THE PREVIOUS PASSAGE, with their speakers:\n{tail or '(none)'}"
@@ -403,6 +456,8 @@ def make_provider(variant, alias_groups=None, texts=None):
     preset's {"system", "user", "example"}; None sends the builtin."""
     if variant not in VARIANTS:
         raise ValueError(f"unknown prompt variant {variant!r}; expected one of {VARIANTS}")
+    import uuid
+    run_id = uuid.uuid4().hex
     memory = {"previous": [], "summary": "", "tail": []}
 
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
@@ -412,9 +467,22 @@ def make_provider(variant, alias_groups=None, texts=None):
         sys_prompt, body = build_variant_request(
             variant, frozen_batch, params, roster, alias_groups, neighbor_contexts,
             surround, memory, texts)
+        validator = validate_entries
+        if variant == "judge":
+            from dataclasses import replace
+            params = replace(params, response_schema=JUDGE_RESPONSE_SCHEMA)
+
+            def validator(entries):
+                report = validate_entries(entries) if validate_entries else {"passed": True, "findings": []}
+                if not report["passed"]:
+                    return report
+                reasons = validate_judge_reasons(frozen_batch, entries)
+                return {**report, "passed": reasons["passed"],
+                        "findings": list(report.get("findings", [])) + reasons["findings"]}
+
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
-            max_retries=max_retries, validate_entries=validate_entries,
+            max_retries=max_retries, validate_entries=validator,
             attempt_observer=attempt_observer)
         if named:
             spoken = [(i, item.get("speaker")) for i, (f, item) in enumerate(zip(frozen_batch, named))
@@ -425,7 +493,7 @@ def make_provider(variant, alias_groups=None, texts=None):
                                   for f, item in zip(frozen_batch, named)
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]
         if variant == "judge":
-            record_judge_reasons(frozen_batch, named)
+            record_judge_reasons(frozen_batch, named, run_id)
         if variant == "continuity":
             memory["summary"] = rolling_summary(
                 client, model_name, params, memory["summary"],

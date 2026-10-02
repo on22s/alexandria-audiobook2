@@ -330,3 +330,63 @@ class RejudgeSelectionTest(unittest.TestCase):
         old, new = self._rows("narrow", "wider")
         rows = rows_to_rejudge(old, new, {"x": {"answer": "ambiguous"}})
         self.assertEqual(1, len(rows))
+
+
+class GoldAliasEquivalenceTests(unittest.TestCase):
+    def test_known_equivalences_and_rejections_do_not_mutate_judges_or_aliases(self):
+        import copy
+        cases = [('Alice', 'Bob', [['Alice', ' Bob ']], True),
+                 (' Alice ', 'carol', [['Alice', ' Bob'], ['bob ', 'Carol']], True),
+                 ('José', ' Pepe ', [[' José ', 'pepe']], True),
+                 ('Alice', 'Dora', [['Alice', 'Bob'], ['Bob', 'Carol']], False),
+                 ('Alice', 'Dora', [['Alice', ''], [' ', 'Dora']], False),
+                 ('Alice', 'Alicia', [], False)]
+        for a, b, aliases, expected in cases:
+            with self.subTest(a=a, b=b, aliases=aliases):
+                first = {'shared': {'answer': a}, 'first-only': {'answer': 'Ignored'}}
+                second = {'shared': {'answer': b}, 'second-only': {'answer': 'Ignored'}}
+                before = copy.deepcopy((first, second, aliases))
+                self.assertEqual((1, []) if expected else (0, [('shared', a, b)]),
+                                 agreement(first, second, aliases))
+                self.assertEqual(before, (first, second, aliases))
+
+    def test_real_cli_agree_and_merge_store_same_equivalence_components(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+        script = Path(__file__).parent.parent / 'gold_set_builder.py'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first, second, batch, output = [root / name for name in
+                                           ('first.json', 'second.json', 'batch.json', 'fixture.json')]
+            first.write_text(json.dumps({'rows': [{'id': 'line', 'ANSWER': 'Alice', 'reasoning': 'Attested.'}]}))
+            second.write_text(json.dumps({'rows': [{'id': 'line', 'ANSWER': 'Carol'}]}))
+            row = {'id': 'line', 'entry_index': 7, 'line': 'A unique spoken line.',
+                   'passage_before': 'Alice entered.', 'passage_after': 'Carol left.'}
+            batch.write_text(json.dumps({'book': 'fixture', 'rows': [row]}))
+            original = [p.read_bytes() for p in (first, second, batch)]
+            aliases = ['--alias', 'Alice, Bob', '--alias', ' bob ,Carol',
+                       '--alias', 'Dora,', '--alias', ' ,Erin']
+            result = subprocess.run([sys.executable, str(script), 'agree', str(first),
+                                     '--second', str(second)] + aliases,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn('1 agree (100.0%), 0 differ', result.stdout)
+            result = subprocess.run([sys.executable, str(script), 'merge', 'fixture', str(first),
+                                     '--batches', str(batch), '--judged-by', 'human', '--out', str(output)] + aliases,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            fixture = json.loads(output.read_text())
+            self.assertEqual([['ALICE', 'BOB', 'CAROL'], ['DORA'], ['ERIN']], fixture['aliases'])
+            self.assertEqual('fixture', fixture['book'])
+            self.assertEqual({'id': 'line', 'book': 'fixture', 'entry_index': 7,
+                              'line': row['line'], 'expected_speaker': 'ALICE',
+                              'judged_by': 'human', 'reasoning': 'Attested.'}, fixture['entries'][0])
+            self.assertEqual(original, [p.read_bytes() for p in (first, second, batch)])
+
+    def test_shared_normalization_merges_transitively_in_any_group_order(self):
+        from gold_set_builder import get_normalized_gold_alias_groups
+        groups = [['a', 'b'], ['c', 'd'], ['b', 'c'], ['a', 'a'], [], [' ', '']]
+        self.assertEqual([['A', 'B', 'C', 'D']], get_normalized_gold_alias_groups(groups))
+        self.assertEqual([['A', 'B', 'C', 'D']], get_normalized_gold_alias_groups(list(reversed(groups))))
+        self.assertEqual([], get_normalized_gold_alias_groups(None))

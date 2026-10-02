@@ -29,6 +29,19 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
+
+def copy_gpu_owner(root):
+    """Copy queue runtime and shared gates into disposable script checkouts."""
+    destination = os.path.join(root, "app")
+    os.makedirs(destination, exist_ok=True)
+    for name in ("gpu_queue_owner.py", "subprocess_ownership.py", "gpu_progress.py"):
+        shutil.copy(os.path.join(REPO, "app", name), os.path.join(destination, name))
+
+    library = os.path.join(root, "run_chains", "lib")
+    os.makedirs(library, exist_ok=True)
+    for name in ("gpu_queue_log.sh", "gpu_pending.sh", "gpu_vram.sh", "gpu_llm.sh", "llm_job.sh", "llm_campaign.sh", "reclaim_vram.sh", "server_cleanup.sh"):
+        shutil.copy(os.path.join(REPO, "run_chains", "lib", name), os.path.join(library, name))
+
 # `unittest discover` is run from app/, which puts app/ on sys.path and makes
 # `experiments` importable. Running this file directly puts app/tests/ there
 # instead, and the Rule 15 cross-check below died on ModuleNotFoundError - a
@@ -64,6 +77,7 @@ def isolated_env(tmpdir, **extra):
                # gpu_pause.sh dutifully reported four dead chains that were
                # only ever tests.
                GPU_PENDING_DIR=os.path.join(tmpdir, "pending"),
+               GPU_PROGRESS_DIR=os.path.join(tmpdir, "progress"),
                # Fifth. The dirty-tree tests write a patch per run, and
                # 202 of them accumulated in the real working tree.
                GPU_PATCH_DIR=os.path.join(tmpdir, "dirty_patches"),
@@ -191,12 +205,23 @@ class GpuJobTest(unittest.TestCase):
     def test_a_failed_flock_refuses_to_run_the_command(self):
         """THE DEFECT. An unchecked `flock` ran the command anyway."""
         marker = os.path.join(self.tmp.name, "must_not_exist")
-        d = self.fake_bin("flock", "#!/bin/bash\nexit 73\n")
+        real_flock = shlex.quote(shutil.which("flock"))
+        d = self.fake_bin("flock", '#!/bin/bash\nif [ "$*" = 9 ]; then exit 73; fi\nexec ' + real_flock + ' "$@"\n')
         r = self.run_job("gated", "touch", marker, path_prefix=d)
         self.assertFalse(os.path.exists(marker),
                          "command ran despite the lock failing")
         self.assertEqual(r.returncode, 4)
         self.assertIn("LOCK_FAILED", self.log())
+        self.assertNotIn("START", self.log())
+        self.assertNotIn("OK", self.log())
+
+    def test_a_failed_queue_flock_refuses_before_gpu_admission(self):
+        marker = os.path.join(self.tmp.name, "must_not_exist")
+        d = self.fake_bin("flock", "#!/bin/bash\nexit 73\n")
+        r = self.run_job("queue-gated", "touch", marker, path_prefix=d)
+        self.assertFalse(os.path.exists(marker))
+        self.assertEqual(8, r.returncode)
+        self.assertIn("cannot write queue log", r.stderr)
         self.assertNotIn("START", self.log())
         self.assertNotIn("OK", self.log())
 
@@ -350,6 +375,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.root = self.tmp.name
         self.script = os.path.join(self.root, "gpu_job.sh")
         shutil.copy(GPU_JOB, self.script)
+        copy_gpu_owner(self.root)
         os.chmod(self.script, 0o755)
 
     def tearDown(self):
@@ -366,7 +392,10 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._git("init", "-q")
         self._git("config", "user.email", "t@example.com")
         self._git("config", "user.name", "T")
-        self._git("add", "gpu_job.sh", "app/experiments/kept.py")
+        with open(os.path.join(self.root, ".gitignore"), "w") as handle:
+            handle.write("/queue.log\n/queue.log.*\n/gpu.lock\n/pending/\n/progress/\n/dirty_patches/\n")
+        self._git("add", "gpu_job.sh", "app/experiments/kept.py", ".gitignore",
+                  "app/gpu_queue_owner.py", "app/subprocess_ownership.py", "app/gpu_progress.py", "run_chains/lib")
         self._git("commit", "-qm", "baseline")
         if dirty:
             with open(os.path.join(self.root, "gpu_job.sh"), "a") as handle:
@@ -569,15 +598,13 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("REFUSED", self._log())
         self.assertNotIn("START", self._log())
 
-    def test_untracked_notes_are_not_treated_as_dirt(self):
-        """Counting scratch files made an earlier dirty flag true on every
-        run, which is the same as being false."""
+    def test_nonignored_notes_and_text_are_inputs(self):
         self._make_repo(dirty=False)
         self._add_untracked("NOTES.md")
         with open(os.path.join(self.root, "scratch.txt"), "w") as handle:
-            handle.write("thinking out loud\n")
-        self.assertEqual(0, self._run().returncode)
-        self.assertIn("tree=clean", self._log())
+            handle.write("potential fixture input\n")
+        self.assertEqual(5, self._run().returncode)
+        self.assertIn("tree=dirty:", self._log())
 
     def test_the_shell_gate_agrees_with_the_python_provenance(self):
         """Two implementations of one question WILL drift (Rule 15).
@@ -593,14 +620,13 @@ class DirtyTreeGateTest(unittest.TestCase):
             os.path.abspath(__file__))))
         python_says_dirty = _git_state(repo_root)["dirty"]
 
-        state = subprocess.run(
-            ["bash", "-c",
-             f'source <(sed -n "/^tree_state()/,/^}}/p" {GPU_JOB!r}); '
-             f'cd {repo_root!r} && set -- {GPU_JOB!r} && tree_state'],
-            capture_output=True, text=True, timeout=30).stdout.strip()
-        if state == "unknown":
-            self.skipTest("git could not answer in this environment")
-        shell_says_dirty = state.startswith("dirty")
+        result = subprocess.run(
+            ["bash", GPU_JOB, "--print-source-state", repo_root],
+            capture_output=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stderr)
+        state = result.stdout.split(b"\0")[0].decode("utf-8")
+        self.assertNotEqual("unknown", state, "native repository state must be known")
+        shell_says_dirty = state.startswith("dirty:")
 
         self.assertEqual(
             python_says_dirty, shell_says_dirty,
@@ -608,41 +634,25 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
 
-    def test_both_gates_exclude_exactly_the_same_generated_files(self):
-        """The live check above only compares the CURRENT tree, so it passes
-        trivially whenever both gates happen to say dirty - which is most of
-        the time during development. This compares the lists themselves.
-
-        The list matters: on 2026-08-19 it named the experiment JSON but not
-        RESULTS_INDEX.md, results_index.csv or ab_test_runtime/audit/*.json.
-        refresh_indexes.py rewrites those at the end of every chain, so a
-        finishing chain dirtied the tree and every stage a CONCURRENT chain
-        still had queued was refused in 0s - six of them, and two idle hours.
-        """
-        import re as _re
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-        with open(GPU_JOB, encoding="utf-8") as handle:
-            shell_src = handle.read()
-        with open(os.path.join(repo_root, "app", "experiments", "manifest.py"),
-                  encoding="utf-8") as handle:
-            python_src = handle.read()
-
-        def excludes(source, start_marker):
-            body = source[source.index(start_marker):][:2000]
-            return sorted(set(_re.findall(r':\(exclude\)([^\'"\s,]+)', body)))
-
-        shell = excludes(shell_src, "modified=$(git")
-        python = excludes(python_src, 'modified = run("git"')
-        self.assertTrue(shell, "found no exclusions in gpu_job.sh")
-        self.assertEqual(
-            shell, python,
-            "the shell gate and the Python provenance exclude different "
-            "files; one will let through what the other refuses")
-        for expected in ("RESULTS_INDEX.md", "results_index.csv",
-                         "ab_test_runtime/audit/*.json",
-                         "ab_test_runtime/experiments/*.json"):
-            self.assertIn(expected, shell)
+    def test_both_readers_exclude_declared_generated_outputs(self):
+        from experiments.manifest import _git_state
+        self._make_repo(dirty=False)
+        for name in ("RESULTS_INDEX.md", "results_index.csv", "LEGACY_ATTRIBUTION_AUDIT_probe.md",
+                     "ab_test_runtime/audit/probe.json", "ab_test_runtime/experiments/probe.json"):
+            with self.subTest(name=name):
+                path = os.path.join(self.root, name)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w") as handle:
+                    handle.write("baseline output\n")
+                self._git("add", "--", name)
+                self._git("commit", "-qm", "generated output")
+                with open(path, "w") as handle:
+                    handle.write("regenerated output\n")
+                self.assertEqual(0, self._run().returncode)
+                self.assertIn("tree=clean", self._log())
+                state = _git_state(self.root)
+                self.assertFalse(state["dirty"])
+                self.assertEqual("clean", state["source_state"])
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
@@ -694,7 +704,7 @@ class LockInheritanceTest(unittest.TestCase):
                          "the child still has the lock file open; if it "
                          "outlives its parent the queue deadlocks")
 
-    def test_a_surviving_child_does_not_keep_the_lock_held(self):
+    def test_owner_loss_stops_worker_before_releasing_the_lock(self):
         """The behaviour that actually bit: kill the wrapper, leave the child."""
         # isolated_env, not a hand-built dict. This was the seventh call site
         # to rebuild it by hand and it duly forgot two knobs: GPU_PENDING_DIR
@@ -727,9 +737,8 @@ class LockInheritanceTest(unittest.TestCase):
         deadline = time.time() + 30
         while time.time() < deadline and self._lock_is_held():
             time.sleep(0.25)
-        self.assertTrue(os.path.exists("/proc/%d" % child),
-                        "the child died too - this test proves nothing unless "
-                        "it outlives the wrapper")
+        self.assertFalse(os.path.exists("/proc/%d" % child),
+                         "lease was released before the owned worker was reaped")
         self.assertFalse(self._lock_is_held(),
                          "an orphaned child is still holding the GPU lock")
 

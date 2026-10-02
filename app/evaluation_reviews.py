@@ -17,15 +17,20 @@ Design guarantees (Phase 6 success criteria):
 """
 
 import datetime
+import json
+from contextlib import nullcontext
 import os
 import random
 
 from utils import atomic_json_write, file_lock, get_unique_id, safe_load_json, secure_filename
+from voice_manifest import validate_adapter_name
 
 STORE_VERSION = 1
 MAX_REVIEWS = 50
 SESSION_MAX_AGE_SECONDS = 6 * 3600
 MAX_NOTE_CHARS = 1000
+MIN_RATING = 1
+MAX_RATING = 5
 VALID_CHOICES = ("A", "B", "tie")
 
 
@@ -42,10 +47,11 @@ def _sessions_dir(reviews_dir):
 
 
 def _store_path(reviews_dir, adapter_id):
-    safe = secure_filename(adapter_id)
-    if not safe or safe != adapter_id:
-        raise ReviewError("Invalid adapter id")
-    return os.path.join(reviews_dir, f"{safe}.json")
+    try:
+        validate_adapter_name(adapter_id)
+    except ValueError as error:
+        raise ReviewError("Invalid adapter id") from error
+    return os.path.join(reviews_dir, f"{adapter_id}.json")
 
 
 def _session_path(reviews_dir, session_id):
@@ -53,6 +59,157 @@ def _session_path(reviews_dir, session_id):
     if not safe or safe != session_id:
         raise ReviewError("Invalid session id")
     return os.path.join(_sessions_dir(reviews_dir), f"{safe}.json")
+
+
+def _get_session_created_at(session):
+    if not isinstance(session, dict):
+        return None
+    try:
+        created = datetime.datetime.fromisoformat(session.get("created_at", ""))
+    except (TypeError, ValueError):
+        return None
+    return created if created.tzinfo is not None else None
+
+
+def _is_session_expired(session, max_age_seconds=SESSION_MAX_AGE_SECONDS, now=None):
+    created = _get_session_created_at(session)
+    if created is None:
+        return True
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return created < now - datetime.timedelta(seconds=max_age_seconds)
+
+
+def _decision_path(reviews_dir, session_id):
+    return os.path.join(reviews_dir, "_pending_decisions",
+                        os.path.basename(_session_path(reviews_dir, session_id)))
+
+
+def _get_decision_journal(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            journal = json.load(handle)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as error:
+        raise ReviewError("Could not read pending review decision") from error
+    if not isinstance(journal, dict) or journal.get("version") != STORE_VERSION:
+        raise ReviewError("Pending review decision is invalid")
+    session, record = journal.get("session"), journal.get("record")
+    if not isinstance(session, dict) or not isinstance(record, dict):
+        raise ReviewError("Pending review decision is invalid")
+    session_id, adapter_id = session.get("session_id"), session.get("adapter_id")
+    if not isinstance(session_id, str) or not isinstance(adapter_id, str):
+        raise ReviewError("Pending review decision identity is invalid")
+    _store_path(os.path.dirname(path), adapter_id)  # validate the stored identity
+    if os.path.basename(_session_path(os.path.dirname(path), session_id)) != os.path.basename(path):
+        raise ReviewError("Pending review decision identity is invalid")
+    if (not {"id", "created_at", "adapter_id", "candidate_id", "blind", "evidence",
+             "build", "automated", "human"}.issubset(record)
+            or _get_session_created_at(session) is None):
+        raise ReviewError("Pending review decision record is invalid")
+    human = record.get("human")
+    if (record.get("id") != "hr_" + session_id or record.get("adapter_id") != adapter_id
+            or record.get("candidate_id") != session.get("candidate_id")
+            or record.get("evidence") != session.get("fingerprint")
+            or record.get("build") != (session.get("build") or {})
+            or record.get("automated") != (session.get("automated") or {})
+            or record.get("blind") != bool(session.get("blind"))
+            or not isinstance(human, dict)
+            or human.get("choice_role") not in ("production", "candidate", "tie")
+            or not isinstance(human.get("notes"), str)
+            or len(human["notes"]) > MAX_NOTE_CHARS
+            or _get_session_created_at(record) is None):
+        raise ReviewError("Pending review decision record is invalid")
+    if _clean_rating(human.get("rating")) != human.get("rating"):
+        raise ReviewError("Pending review decision rating is invalid")
+    return journal
+
+
+def _sync_directory(path):
+    # The deletion is the consumption marker; persist it before publishing history.
+    if os.name == "posix":
+        fd = os.open(os.path.dirname(path), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def _remove_decision_journal(path):
+    journal = _get_decision_journal(path)
+    if journal is None:
+        raise ReviewError("Pending review decision disappeared before recovery finished")
+    try:
+        os.unlink(path)
+        try:
+            _sync_directory(path)
+        except OSError:
+            # A failed deletion sync must retain the replay barrier: a later
+            # append/cleanup cannot age out its ID while deletion is uncertain.
+            atomic_json_write(journal, path)
+            raise
+    except OSError as error:
+        raise ReviewError("Could not finish pending review decision recovery") from error
+
+
+def _get_store_with_review(store, record):
+    reviews = store.get("reviews") if isinstance(store, dict) else None
+    reviews = reviews if isinstance(reviews, list) else []
+    matches = [item for item in reviews if isinstance(item, dict) and item.get("id") == record["id"]]
+    if matches:
+        if len(matches) != 1 or matches[0] != record:
+            raise ReviewError("Pending review decision conflicts with recorded history")
+        return store
+    return {"version": STORE_VERSION, "reviews": (reviews + [record])[-MAX_REVIEWS:]}
+
+
+def _publish_consumed_decision(store, record, session_path, store_path, journal_path):
+    """Commit one consumed decision; foreground submit and recovery share this boundary."""
+    updated = _get_store_with_review(store, record)
+    _sync_directory(session_path)
+    if updated is not store:
+        atomic_json_write(updated, store_path)
+    _sync_directory(store_path)
+    _remove_decision_journal(journal_path)
+    return updated
+
+
+def _apply_pending_decisions(reviews_dir, adapter_id):
+    """Recover this adapter while its store lock is held; never take a session lock."""
+    store_path = _store_path(reviews_dir, adapter_id)
+    store = safe_load_json(store_path, default={"version": STORE_VERSION, "reviews": []})
+    pending_dir = os.path.dirname(_decision_path(reviews_dir, "review"))
+    if not os.path.isdir(pending_dir):
+        return store
+    for name in sorted(os.listdir(pending_dir)):
+        if name.startswith(".") or not name.endswith(".json"):
+            continue
+        path = os.path.join(pending_dir, name)
+        journal = _get_decision_journal(path)
+        if journal is None or journal["session"]["adapter_id"] != adapter_id:
+            continue
+        session = journal["session"]
+        session_path = _session_path(reviews_dir, session["session_id"])
+        try:
+            with open(session_path, encoding="utf-8") as handle:
+                original = json.load(handle)
+            original_present = True
+        except FileNotFoundError:
+            original_present = False
+        except (OSError, ValueError) as error:
+            raise ReviewError("Could not verify pending review decision session") from error
+        if original_present:
+            if original != session:
+                raise ReviewError("Pending review decision session identity changed")
+            # Preparation alone never accepts a vote. The original remains retryable.
+            _remove_decision_journal(path)
+            continue
+        try:
+            store = _publish_consumed_decision(
+                store, journal["record"], session_path, store_path, path)
+        except OSError as error:
+            raise ReviewError("Could not publish pending review decision") from error
+    return store
 
 
 def evidence_fingerprint(production_result, candidate_result):
@@ -118,15 +275,17 @@ def create_session(reviews_dir, adapter_id, candidate_id, fingerprint, pairs,
     return {"session_id": session_id, "blind": blind, "pairs": client_pairs}
 
 
-def get_session_audio_path(reviews_dir, session_id, label, probe_id):
+def get_session_audio_path(reviews_dir, session_id, label, probe_id, adapter_id=None):
     """Resolve a blind label + probe id to its real audio path, or raise.
 
     The router validates the returned path is inside the models dir before
     streaming it.
     """
     session = safe_load_json(_session_path(reviews_dir, session_id), default=None)
-    if not session:
+    if _is_session_expired(session):
         raise ReviewError("Review session is unknown or has expired")
+    if adapter_id is not None and session.get("adapter_id") != adapter_id:
+        raise ReviewError("Review session does not belong to this adapter")
     path = ((session.get("audio") or {}).get(label) or {}).get(probe_id)
     if not path:
         raise ReviewError("Unknown review audio")
@@ -140,7 +299,7 @@ def _clean_rating(rating):
         value = int(rating)
     except (TypeError, ValueError):
         raise ReviewError("Rating must be an integer 1-5 or omitted")
-    if not 1 <= value <= 5:
+    if not MIN_RATING <= value <= MAX_RATING:
         raise ReviewError("Rating must be between 1 and 5")
     return value
 
@@ -160,55 +319,59 @@ def submit(reviews_dir, adapter_id, session_id, choice, current_fingerprint,
 
     session_path = _session_path(reviews_dir, session_id)
     os.makedirs(_sessions_dir(reviews_dir), exist_ok=True)  # file_lock needs the parent dir
-    # Claim the pending session atomically: hold its lock across load → validate
-    # → delete so two concurrent submits (e.g. a double-click) can't both pass
-    # and each append a record. The loser finds the session already consumed.
-    with file_lock(session_path):
-        session = safe_load_json(session_path, default=None)
-        if not session:
-            raise ReviewError("Review session is unknown or has expired")
-        if session.get("adapter_id") != adapter_id:
-            raise ReviewError("Review session does not belong to this adapter")
-        if session.get("fingerprint") != current_fingerprint:
-            # Evidence changed (retrained/promoted/rolled back) since the session
-            # opened — the human listened to audio that no longer represents state.
-            raise ReviewError("Evaluation evidence changed since the review opened; "
-                              "reopen the review")
-
-        labels = session.get("labels") or {}
-        choice_role = "tie" if choice == "tie" else labels.get(choice)
-        if choice_role not in ("production", "candidate", "tie"):
-            raise ReviewError("Review session labels are invalid; reopen the review")
-
-        record = {
-            "id": get_unique_id("hr"),
-            "created_at": _utc_now(),
-            "adapter_id": adapter_id,
-            "candidate_id": session.get("candidate_id"),
-            "blind": bool(session.get("blind")),
-            "evidence": current_fingerprint,
-            "build": session.get("build") or {},
-            "automated": session.get("automated") or {},
-            "human": {"choice_role": choice_role, "rating": rating, "notes": note_text},
-        }
-        # Consume the session before recording so a duplicate can't double-record.
-        try:
-            os.unlink(session_path)
-        except OSError:
-            pass
-
     store_path = _store_path(reviews_dir, adapter_id)
-    os.makedirs(reviews_dir, exist_ok=True)
-    with file_lock(store_path):
-        store = safe_load_json(store_path, default=None) or {"version": STORE_VERSION, "reviews": []}
-        reviews = store.get("reviews")
-        if not isinstance(reviews, list):
-            reviews = []
-        reviews.append(record)
-        # Bounded: keep the newest MAX_REVIEWS, drop the oldest. Append-only in
-        # the sense that existing records are never edited, only aged out.
-        store = {"version": STORE_VERSION, "reviews": reviews[-MAX_REVIEWS:]}
-        atomic_json_write(store, store_path)
+    # Every public store operation recovers before it can trim or delete history.
+    # Keep session -> store ordering; recovery itself never acquires session locks.
+    with file_lock(session_path):
+        with file_lock(store_path):
+            store = _apply_pending_decisions(reviews_dir, adapter_id)
+            session = safe_load_json(session_path, default=None)
+            if _is_session_expired(session):
+                raise ReviewError("Review session is unknown or has expired")
+            if session.get("adapter_id") != adapter_id:
+                raise ReviewError("Review session does not belong to this adapter")
+            if session.get("session_id") != session_id:
+                raise ReviewError("Review session identity is invalid; reopen the review")
+            if session.get("fingerprint") != current_fingerprint:
+                # Evidence changed (retrained/promoted/rolled back) since the session
+                # opened — the human listened to audio that no longer represents state.
+                raise ReviewError("Evaluation evidence changed since the review opened; "
+                                  "reopen the review")
+
+            labels = session.get("labels") or {}
+            choice_role = "tie" if choice == "tie" else labels.get(choice)
+            if choice_role not in ("production", "candidate", "tie"):
+                raise ReviewError("Review session labels are invalid; reopen the review")
+
+            record = {
+                "id": "hr_" + session_id,
+                "created_at": _utc_now(),
+                "adapter_id": adapter_id,
+                "candidate_id": session.get("candidate_id"),
+                "blind": bool(session.get("blind")),
+                "evidence": current_fingerprint,
+                "build": session.get("build") or {},
+                "automated": session.get("automated") or {},
+                "human": {"choice_role": choice_role, "rating": rating, "notes": note_text},
+            }
+            journal_path = _decision_path(reviews_dir, session_id)
+            os.makedirs(os.path.dirname(journal_path), exist_ok=True)
+            try:
+                atomic_json_write({"version": STORE_VERSION, "session": session,
+                                   "record": record}, journal_path)
+                _sync_directory(journal_path)
+                _sync_directory(os.path.dirname(journal_path))
+            except OSError as error:
+                raise ReviewError("Could not prepare review decision; session remains retryable") from error
+            try:
+                os.unlink(session_path)
+            except OSError as error:
+                _remove_decision_journal(journal_path)
+                raise ReviewError("Could not consume review session; no decision was recorded") from error
+            try:
+                _publish_consumed_decision(store, record, session_path, store_path, journal_path)
+            except OSError as error:
+                raise ReviewError("Review decision is pending recovery") from error
 
     return {
         "recorded": True,
@@ -221,10 +384,14 @@ def submit(reviews_dir, adapter_id, session_id, choice, current_fingerprint,
 
 def list_reviews(reviews_dir, adapter_id):
     """Return this adapter's review history, newest first (bounded by MAX_REVIEWS)."""
-    store = safe_load_json(_store_path(reviews_dir, adapter_id), default=None)
-    if not store or not isinstance(store.get("reviews"), list):
+    path = _store_path(reviews_dir, adapter_id)
+    if not os.path.isdir(reviews_dir):
         return []
-    return list(reversed(store["reviews"]))
+    with file_lock(path):
+        store = _apply_pending_decisions(reviews_dir, adapter_id)
+        if not store or not isinstance(store.get("reviews"), list):
+            return []
+        return list(reversed(store["reviews"]))
 
 
 def summarize(reviews_dir, adapter_id):
@@ -233,7 +400,11 @@ def summarize(reviews_dir, adapter_id):
     Kept separate from the automated recommendation by the caller — this only
     reports what humans preferred.
     """
-    reviews = list_reviews(reviews_dir, adapter_id)
+    return get_review_summary(list_reviews(reviews_dir, adapter_id))
+
+
+def get_review_summary(reviews):
+    """Summarize an already-loaded history with the existing human-choice policy."""
     tally = {"production": 0, "candidate": 0, "tie": 0}
     for review in reviews:
         role = (review.get("human") or {}).get("choice_role")
@@ -250,15 +421,18 @@ def summarize(reviews_dir, adapter_id):
 
 def cleanup(reviews_dir, adapter_id):
     """Delete this adapter's review history, reporting count and bytes freed."""
+    if not os.path.isdir(reviews_dir):
+        return {"removed_count": 0, "freed_bytes": 0}
     path = _store_path(reviews_dir, adapter_id)
-    store = safe_load_json(path, default=None)
-    removed = len(store.get("reviews", [])) if isinstance(store, dict) else 0
-    freed = 0
-    try:
-        freed = os.path.getsize(path)
-        os.unlink(path)
-    except OSError:
+    with file_lock(path):
+        store = _apply_pending_decisions(reviews_dir, adapter_id)
+        removed = len(store.get("reviews", [])) if isinstance(store, dict) else 0
         freed = 0
+        try:
+            freed = os.path.getsize(path)
+            os.unlink(path)
+        except OSError:
+            freed = 0
     return {"removed_count": removed, "freed_bytes": freed}
 
 
@@ -267,21 +441,30 @@ def prune_sessions(reviews_dir, max_age_seconds=SESSION_MAX_AGE_SECONDS):
     sessions = _sessions_dir(reviews_dir)
     if not os.path.isdir(sessions):
         return []
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-        seconds=max_age_seconds)
+    now = datetime.datetime.now(datetime.timezone.utc)
     removed = []
     for name in os.listdir(sessions):
-        if not name.endswith(".json"):
+        if name.startswith(".") or not name.endswith(".json"):
             continue
-        record = safe_load_json(os.path.join(sessions, name), default=None) or {}
-        try:
-            created = datetime.datetime.fromisoformat(record.get("created_at", ""))
-        except (TypeError, ValueError):
-            created = None
-        if created is None or created < cutoff:
-            try:
-                os.unlink(os.path.join(sessions, name))
-                removed.append(name)
-            except OSError:
-                pass
+        session_id = name[:-5]
+        path = _session_path(reviews_dir, session_id)
+        with file_lock(path):
+            record = safe_load_json(path, default=None)
+            if not os.path.exists(path) or not _is_session_expired(record, max_age_seconds, now):
+                continue
+            journal_path = _decision_path(reviews_dir, session_id)
+            adapter_id = record.get("adapter_id") if isinstance(record, dict) else None
+            lock = file_lock(_store_path(reviews_dir, adapter_id)) if adapter_id else nullcontext()
+            with lock:
+                journal = _get_decision_journal(journal_path)
+                if journal is not None and journal["session"] != record:
+                    raise ReviewError("Pending review decision session identity changed")
+                if journal is not None:
+                    _remove_decision_journal(journal_path)
+                try:
+                    os.unlink(path)
+                    _sync_directory(path)
+                    removed.append(name)
+                except OSError:
+                    pass
     return removed

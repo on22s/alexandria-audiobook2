@@ -12,15 +12,20 @@ managed over SSH instead of the local `lms` CLI (see apply_remote_lmstudio_setti
 """
 
 import json
+import hashlib
+import ipaddress
+import re
 import shlex
 import shutil
 import subprocess
 import threading
 import time
-from collections import defaultdict
+from weakref import WeakValueDictionary
+from copy import deepcopy
 from urllib.parse import urlparse
 
 from utils import run_rocm_smi_json
+from lmstudio_endpoint import get_lmstudio_endpoint_status
 
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
@@ -152,14 +157,18 @@ _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
 
 def is_local_llm_endpoint(base_url):
-    """Return True if base_url points at a local LM Studio (so the local `lms`
-    CLI and the local GPU VRAM watchdog are meaningful). Returns False for a
-    remote endpoint (e.g. LM Studio on a Thunder Compute instance), where the
-    model is loaded/managed elsewhere and local `lms`/nvidia-smi calls are moot.
-    """
+    """Recognize local address spellings, without asserting runtime ownership."""
     if not base_url:
         return True
-    return (urlparse(base_url).hostname or "").lower() in _LOCAL_HOSTS
+    host = (urlparse(base_url).hostname or "").lower().removesuffix(".")
+    if host in _LOCAL_HOSTS:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    mapped = address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else None
+    return address.is_loopback or (mapped is not None and mapped.is_loopback)
 
 
 def is_remote_llm(llm_mode, base_url):
@@ -222,32 +231,53 @@ def find_lms_binary():
     return shutil.which("lms")
 
 
-def get_local_vram_bytes():
-    """Return (total_bytes, used_bytes), or None when no reliable probe works."""
-    data = run_rocm_smi_json(["--showmeminfo", "vram"],
+def get_local_gpu_info():
+    """Return identity and memory from one unambiguous local GPU probe."""
+    data = run_rocm_smi_json(["--showmeminfo", "vram", "--showproductname"],
                              rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
     if data:
-        for card_data in data.values():
+        if len(data) != 1:
+            return None
+        card = next(iter(data.values()))
+        if not isinstance(card, dict):
+            return None
+        name = card.get("Card Series") or card.get("Card Model")
+        backend = "rocm"
+        try:
+            total = int(card["VRAM Total Memory (B)"])
+            used = int(card["VRAM Total Used Memory (B)"])
+        except (KeyError, TypeError, ValueError):
+            total, used = None, None
+    else:
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,memory.total,memory.used",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5)
+            lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            if result.returncode != 0 or len(lines) != 1:
+                return None
+            name, total_text, used_text = lines[0].rsplit(",", 2)
+            backend = "cuda"
             try:
-                total = int(card_data["VRAM Total Memory (B)"])
-                used = int(card_data["VRAM Total Used Memory (B)"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            if total > 0 and 0 <= used <= total:
-                return total, used
+                total = int(total_text.strip()) * 1024 ** 2
+                used = int(used_text.strip()) * 1024 ** 2
+            except ValueError:
+                total, used = None, None
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return None
+    name = name.strip() if isinstance(name, str) else None
+    if not name or name == "N/A":
+        return None
+    if total is None or total <= 0 or used is None or not 0 <= used <= total:
+        total, used = None, None
+    return {"name": name, "backend": backend, "total": total, "used": used}
 
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.total,memory.used",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5)
-        total_mib, used_mib = (int(part.strip())
-                               for part in result.stdout.splitlines()[0].split(","))
-        if result.returncode == 0 and total_mib > 0 and 0 <= used_mib <= total_mib:
-            return total_mib * 1024 ** 2, used_mib * 1024 ** 2
-    except (OSError, IndexError, ValueError, subprocess.TimeoutExpired):
-        pass
-    return None
+
+def get_local_vram_bytes():
+    """Return memory only when the local device selection is unambiguous."""
+    info = get_local_gpu_info()
+    return (info["total"], info["used"]) if info and info["total"] is not None else None
 
 
 def get_safe_local_settings(model_name, model_loaded, vram_bytes=None):
@@ -302,6 +332,13 @@ def _ssh_run(ssh_alias, remote_cmd, timeout, connect_timeout=10):
     )
 
 
+def is_lmstudio_status_optimized(status, ideal_settings):
+    """Compare a loaded status against the selected safe settings."""
+    return (bool(status["loaded"])
+            and status["context_length"] == ideal_settings["context_length"]
+            and status["parallel"] == ideal_settings["parallel"])
+
+
 def _parse_lms_ps_output(stdout, model_name, ideal_settings):
     """Parse `lms ps --json` output and return the status dict for model_name.
 
@@ -334,10 +371,10 @@ def _parse_lms_ps_output(stdout, model_name, ideal_settings):
         if m.get("identifier") == model_name or m.get("modelKey") == model_name:
             context_length = m.get("contextLength")
             parallel = m.get("parallel")
-            optimized = (context_length == ideal_settings["context_length"]
-                         and parallel == ideal_settings["parallel"])
-            return {"available": True, "loaded": True, "context_length": context_length,
-                    "parallel": parallel, "optimized": optimized}
+            status = {"available": True, "loaded": True, "context_length": context_length,
+                      "parallel": parallel}
+            status["optimized"] = is_lmstudio_status_optimized(status, ideal_settings)
+            return status
 
     return {"available": True, "loaded": False, "context_length": None,
             "parallel": None, "optimized": False}
@@ -366,9 +403,9 @@ def get_lmstudio_status(model_name):
     if result.returncode != 0:
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
-    initial = _parse_lms_ps_output(result.stdout, model_name, IDEAL_SETTINGS)
-    ideal = get_safe_local_settings(model_name, initial["loaded"])
-    status = _parse_lms_ps_output(result.stdout, model_name, ideal)
+    status = _parse_lms_ps_output(result.stdout, model_name, IDEAL_SETTINGS)
+    ideal = get_safe_local_settings(model_name, status["loaded"])
+    status["optimized"] = is_lmstudio_status_optimized(status, ideal)
     status.update({"ideal_context_length": ideal["context_length"],
                    "ideal_parallel": ideal["parallel"],
                    "settings_reason": ideal["reason"]})
@@ -376,15 +413,11 @@ def get_lmstudio_status(model_name):
 
 
 def _remote_server_bound(ssh_alias, port, timeout=10):
-    """True if a process on ssh_alias is listening on 0.0.0.0:<port>
-    specifically (not 127.0.0.1:<port> - that distinction IS the bug this
-    guards against: an LM Studio server bound to localhost only is
-    unreachable through the forwarded HTTPS tunnel, but still looks
-    "loaded" to `lms ps`). Returns None on SSH failure - callers should
-    treat that as "unknown", not "unreachable".
+    """Read whether this port has a network wildcard listener, not loopback.
 
-    Pure read (Rule 16) - never starts anything; see
-    ensure_remote_server_running for the mutating counterpart.
+    Recognize IPv4/IPv6 and ss's abbreviated wildcard spelling. This observes
+    a listener, not end-to-end tunnel reachability or IPv6 dual-stack policy.
+    SSH failure remains unknown (None); this function never starts anything.
     """
     try:
         result = _ssh_run(ssh_alias, "ss -tlnp", timeout=timeout, connect_timeout=10)
@@ -392,8 +425,17 @@ def _remote_server_bound(ssh_alias, port, timeout=10):
         return None
     if result.returncode != 0:
         return None
-    needle = f"0.0.0.0:{port} "
-    return any(needle in line for line in result.stdout.splitlines())
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if fields and fields[0] in ("tcp", "tcp6"):
+            fields = fields[1:]
+        if len(fields) < 5 or fields[0] != "LISTEN":
+            continue
+        host, separator, listener_port = fields[3].rpartition(":")
+        if (separator and listener_port == str(port)
+                and host in ("0.0.0.0", "*", "::", "[::]")):
+            return True
+    return False
 
 
 def ensure_remote_server_running(ssh_alias, port, timeout=30):
@@ -405,8 +447,14 @@ def ensure_remote_server_running(ssh_alias, port, timeout=30):
 
     Returns (success, message). Never raises.
     """
+    if isinstance(port, str):
+        digits = port.strip().lstrip("0")
+        if re.fullmatch(r"[0-9]+", port.strip()) and len(digits) <= 5:
+            port = int(digits or "0")
+    if type(port) is not int or not 1 <= port <= 65535:
+        return False, "Invalid server port: expected an integer from 1 to 65535"
     if _remote_server_bound(ssh_alias, port, timeout=10):
-        return True, f"Server already bound on 0.0.0.0:{port}"
+        return True, f"Server already bound on a network wildcard at port {port}"
     remote_cmd = f"lms server start --port {port} --bind 0.0.0.0"
     try:
         result = _ssh_run(ssh_alias, remote_cmd, timeout=timeout, connect_timeout=15)
@@ -453,10 +501,46 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20, port=None):
     return status
 
 
-_remote_status_cache = {}  # (ssh_alias, model_name) -> (timestamp, status_dict)
+_remote_status_cache = {}  # native/runtime identity tuples -> (timestamp, status_dict)
+_local_status_cache_epoch = 0
 _REMOTE_STATUS_CACHE_TTL = 10  # seconds - shorter than the UI's 30s poll interval
 _remote_status_cache_lock = threading.Lock()  # protects _remote_status_cache itself (fast dict ops only)
-_remote_status_key_locks = defaultdict(threading.Lock)  # one lock per (ssh_alias, model_name)
+_remote_status_key_locks = WeakValueDictionary()  # waiting/fetching callers own strong references
+
+def ensure_remote_status_key_lock(key):
+    """Retain one lock while callers are waiting for or fetching this key."""
+    with _remote_status_cache_lock:
+        lock = _remote_status_key_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _remote_status_key_locks[key] = lock
+        return lock
+
+
+def is_local_status_cache_key(key):
+    return len(key) == 5 and key[-1] == "local-ui"
+
+
+def _prune_expired_remote_status_cache_locked(now):
+    """Remove expired observations; callers hold the cache mutex."""
+    local_now = time.monotonic()
+    expired = [key for key, (timestamp, _) in _remote_status_cache.items()
+               if (local_now if is_local_status_cache_key(key) else now) - timestamp >= _REMOTE_STATUS_CACHE_TTL]
+    for key in expired:
+        del _remote_status_cache[key]
+
+
+def ensure_remote_status_cache_entry(key):
+    """Prune expired observations and return an independent live entry."""
+    with _remote_status_cache_lock:
+        _prune_expired_remote_status_cache_locked(time.time())
+        return deepcopy(_remote_status_cache.get(key))
+
+
+def save_remote_status_cache(key, status):
+    """Store a copied observation without retaining expired other keys."""
+    save_runtime_status_cache(key, status, None)
+
 
 def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
     """Like get_remote_lmstudio_status, but reuses a result younger than
@@ -476,42 +560,66 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
     else's slow round-trip.
     """
     key = (ssh_alias, model_name)
-    now = time.time()
-    with _remote_status_cache_lock:
-        cached = _remote_status_cache.get(key)
-    if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+    cached = ensure_remote_status_cache_entry(key)
+    if cached:
         return cached[1]
 
-    with _remote_status_key_locks[key]:
-        now = time.time()
-        with _remote_status_cache_lock:
-            cached = _remote_status_cache.get(key)
-        if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+    with ensure_remote_status_key_lock(key):
+        cached = ensure_remote_status_cache_entry(key)
+        if cached:
             return cached[1]
         status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
-        with _remote_status_cache_lock:
-            _remote_status_cache[key] = (time.time(), status)
-        return status
+        save_remote_status_cache(key, status)
+        return deepcopy(status)
 
 
-def get_remote_runtime_status_cached(base_url, ssh_alias, model_name):
-    """Cache the complete remote runtime decision, including `/props`."""
-    key = (ssh_alias, model_name, base_url)
-    now = time.time()
+def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=None):
+    """Preserve the existing remote runtime-cache API."""
+    return get_runtime_status_cached("remote", base_url, ssh_alias, model_name, api_key)
+
+
+def save_runtime_status_cache(key, status, local_epoch):
+    """Reject a local observation that overlapped a settings invalidation."""
+    snapshot = deepcopy(status)
     with _remote_status_cache_lock:
-        cached = _remote_status_cache.get(key)
-    if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+        if local_epoch is not None and local_epoch != _local_status_cache_epoch:
+            return
+        now = time.time()
+        _prune_expired_remote_status_cache_locked(now)
+        timestamp = time.monotonic() if is_local_status_cache_key(key) else now
+        _remote_status_cache[key] = (timestamp, snapshot)
+
+
+def invalidate_local_status_cache():
+    """Retire local UI observations, including in-flight results."""
+    global _local_status_cache_epoch
+    with _remote_status_cache_lock:
+        _local_status_cache_epoch += 1
+        for key in list(_remote_status_cache):
+            if is_local_status_cache_key(key):
+                del _remote_status_cache[key]
+
+
+def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key=None):
+    """Cache an explicitly requested UI runtime observation, including `/props`."""
+    remote = is_remote_llm(llm_mode, base_url)
+    key = (ssh_alias, model_name, base_url,
+           hashlib.sha256(repr((type(api_key).__name__, api_key)).encode()).hexdigest()
+           if api_key is not None else None)
+    if not remote:
+        key = (None, *key[1:], "local-ui")
+    cached = ensure_remote_status_cache_entry(key)
+    if cached:
         return cached[1]
-    with _remote_status_key_locks[key]:
-        with _remote_status_cache_lock:
-            cached = _remote_status_cache.get(key)
-        if cached and (time.time() - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+    with ensure_remote_status_key_lock(key):
+        cached = ensure_remote_status_cache_entry(key)
+        if cached:
             return cached[1]
-        status = (get_llama_cpp_status(base_url, model_name)
-                  or get_remote_lmstudio_status(ssh_alias, model_name))
         with _remote_status_cache_lock:
-            _remote_status_cache[key] = (time.time(), status)
-        return status
+            epoch = _local_status_cache_epoch
+        status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        save_runtime_status_cache(key, status, None if remote else epoch)
+        return deepcopy(status)
 
 
 def invalidate_remote_status_cache(ssh_alias=None):
@@ -523,8 +631,10 @@ def invalidate_remote_status_cache(ssh_alias=None):
     ssh_alias=None clears every cached entry; pass a specific alias to
     clear just that one.
     """
+    global _local_status_cache_epoch
     with _remote_status_cache_lock:
         if ssh_alias is None:
+            _local_status_cache_epoch += 1
             _remote_status_cache.clear()
         else:
             for key in [k for k in _remote_status_cache if k[0] == ssh_alias]:
@@ -532,7 +642,7 @@ def invalidate_remote_status_cache(ssh_alias=None):
 
 
 def _gpu_name_from_probes(run):
-    """Shared logic for get_gpu_name_and_backend/get_remote_gpu_name_and_backend.
+    """SSH-compatible diagnostic logic for get_remote_gpu_name_and_backend.
 
     `run` is a callable(argv_list) -> CompletedProcess-like object with
     .returncode/.stdout, so the same probe logic works for a local
@@ -542,8 +652,8 @@ def _gpu_name_from_probes(run):
     shell (bash -lc) prints a decorative banner ahead of any command's real
     output (confirmed live - 4 lines of box-drawing before the actual
     "NVIDIA RTX A6000"), so the real answer is always the most recent line,
-    never the first. Harmless for the local (banner-free) case too, since
-    there's only one line of real output there either way.
+    never the first. Local memory/profile selection uses get_local_gpu_info
+    instead; this remote diagnostic does not size local profiles.
     """
     try:
         result = run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"])
@@ -570,22 +680,9 @@ def _gpu_name_from_probes(run):
 
 
 def get_gpu_name_and_backend():
-    """Return (gpu_name, backend) for the local machine, backend in
-    ("cuda", "rocm", None). No torch dependency (same subprocess-based style
-    as review_script.py's get_vram_usage) so this works even in environments
-    without torch installed. Prefers rocm-smi's JSON output (more reliable
-    than scraping --showproductname's text) before falling back to the
-    shared text-scraping probe.
-    """
-    name_data = run_rocm_smi_json(["--showproductname"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
-    if name_data:
-        for card_data in name_data.values():
-            if isinstance(card_data, dict):
-                name = card_data.get("Card Series") or card_data.get("Card Model")
-                if name and name != "N/A":
-                    return name, "rocm"
-
-    return _gpu_name_from_probes(lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=5))
+    """Return the identity selected by the same local policy as VRAM sizing."""
+    info = get_local_gpu_info()
+    return (info["name"], info["backend"]) if info else (None, None)
 
 
 def get_remote_gpu_name_and_backend(ssh_alias):
@@ -615,44 +712,49 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
     else:
         settings = DEFAULT_SETTINGS
 
-    # `lms load` refuses to load if a model is already loaded under the same
-    # identifier, so drop any existing instance first. If unload fails (e.g.
-    # the model is busy), the load below will likely fail too - remember that
-    # so the failure message can explain why the old settings may still be
-    # active instead of just reporting the load error in isolation.
-    unload_failed = False
+    invalidate_local_status_cache()
     try:
-        unload_result = subprocess.run([lms, "unload", model_name], capture_output=True,
-                                        text=True, timeout=60)
-        unload_failed = unload_result.returncode != 0
-    except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
-        unload_failed = True
+        # `lms load` refuses to load if a model is already loaded under the same
+        # identifier, so drop any existing instance first. If unload fails (e.g.
+        # the model is busy), the load below will likely fail too - remember that
+        # so the failure message can explain why the old settings may still be
+        # active instead of just reporting the load error in isolation.
+        unload_failed = False
+        try:
+            unload_result = subprocess.run([lms, "unload", model_name], capture_output=True,
+                                            text=True, timeout=60)
+            unload_failed = unload_result.returncode != 0
+        except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
+            unload_failed = True
 
-    try:
-        result = subprocess.run(
-            [lms, "load", model_name,
-             "--context-length", str(settings["context_length"]),
-             "--parallel", str(settings["parallel"]),
-             "--gpu", settings["gpu"],
-             "--identifier", model_name,
-             "--ttl", str(ttl),
-             "-y"],
-            capture_output=True, text=True, timeout=180
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
-        return False, f"Failed to run lms load: {e}"
+        try:
+            result = subprocess.run(
+                [lms, "load", model_name,
+                 "--context-length", str(settings["context_length"]),
+                 "--parallel", str(settings["parallel"]),
+                 "--gpu", settings["gpu"],
+                 "--identifier", model_name,
+                 "--ttl", str(ttl),
+                 "-y"],
+                capture_output=True, text=True, timeout=180
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
+            return False, f"Failed to run lms load: {e}"
 
-    if result.returncode != 0:
-        msg = result.stderr.strip() or result.stdout.strip() or "lms load failed"
-        if unload_failed:
-            msg += (" (unloading the previously-loaded model also failed - "
-                    "it may still be running with different settings)")
-        return False, msg
+        if result.returncode != 0:
+            msg = result.stderr.strip() or result.stdout.strip() or "lms load failed"
+            if unload_failed:
+                msg += (" (unloading the previously-loaded model also failed - "
+                        "it may still be running with different settings)")
+            return False, msg
 
-    label = "VRAM-safe" if ideal else "default"
-    detail = (f" ({settings['context_length']} context, parallel {settings['parallel']}; "
-              f"{settings.get('reason', 'fixed profile')})")
-    return True, f"Reloaded {model_name} with {label} settings{detail}"
+        label = "VRAM-safe" if ideal else "default"
+        detail = (f" ({settings['context_length']} context, parallel {settings['parallel']}; "
+                  f"{settings.get('reason', 'fixed profile')})")
+        return True, f"Reloaded {model_name} with {label} settings{detail}"
+
+    finally:
+        invalidate_local_status_cache()
 
 
 def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234):
@@ -724,6 +826,7 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     Returns None - not a status - when /props does not answer, so an LM Studio
     endpoint falls through to the LM Studio path untouched.
     """
+    import urllib.error
     import urllib.request
 
     root = base_url.rsplit("/v1", 1)[0].rstrip("/")
@@ -739,10 +842,15 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     try:
         with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
             props = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        # Cache an unsupported route, not a loading server, rate limit, auth
+        # failure or gateway outage. Those do not identify the runtime.
+        if exc.code in (404, 405, 501):
+            with _props_miss_lock:
+                _props_miss[root] = time.monotonic()
+        return None
     except Exception:                                       # noqa: BLE001
-        with _props_miss_lock:
-            _props_miss[root] = time.monotonic()
-        return None                                         # not llama.cpp
+        return None
     if not isinstance(props, dict) or "default_generation_settings" not in props:
         with _props_miss_lock:
             _props_miss[root] = time.monotonic()
@@ -779,38 +887,92 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     }
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False):
-    """Fetch live status (local or remote) with no self-heal side effect -
-    just the is_remote_llm dispatch shared by ensure_ideal_settings's own
-    status checks, the /api/lmstudio/status route, and any later
-    re-verification that doesn't want to trigger a reload.
+def get_lmstudio_management_binding(base_url, ssh_alias=None):
+    """Verify a direct native endpoint against its configured CLI server."""
+    try:
+        url = urlparse(base_url)
+        port = url.port or (443 if url.scheme == "https" else 80)
+        if url.scheme not in ("http", "https") or url.path.rstrip("/") not in ("", "/v1"):
+            return False, None, "proxied or invalid API root has no verified CLI binding"
+        if ssh_alias:
+            _validate_ssh_alias(ssh_alias)
+            if is_local_llm_endpoint(base_url):
+                return False, None, "forwarded loopback API has no verified SSH transport binding"
+            config = subprocess.run(["ssh", "-G", ssh_alias], capture_output=True,
+                                    text=True, timeout=5)
+            proxies = [line.split(None, 1)[1].strip() for line in config.stdout.splitlines()
+                       if line.lower().startswith("proxycommand ")]
+            if any(proxy != "none" for proxy in proxies):
+                return False, None, "custom SSH proxy transport has no verified direct API binding"
+            hosts = [line.split(None, 1)[1].strip() for line in config.stdout.splitlines()
+                     if line.lower().startswith("hostname ")]
+            if (config.returncode != 0 or len(hosts) != 1
+                    or hosts[0].lower().removesuffix(".") != (url.hostname or "").lower().removesuffix(".")):
+                return False, None, "SSH destination does not match API hostname"
+            result = _ssh_run(ssh_alias, "lms server status --json --quiet", timeout=10)
+        else:
+            if not is_local_llm_endpoint(base_url):
+                return False, None, "nonlocal API has no management host"
+            binary = find_lms_binary()
+            if not binary:
+                return False, None, "local lms CLI unavailable"
+            result = subprocess.run([binary, "server", "status", "--json", "--quiet"],
+                                    capture_output=True, text=True, timeout=5)
+        if result.returncode != 0:
+            return False, None, "CLI server status failed"
+        try:
+            parsed = json.loads(result.stdout)
+            document = parsed if isinstance(parsed, dict) else None
+        except ValueError:
+            document = None
+        for line in reversed(result.stdout.splitlines()) if document is None else []:
+            try:
+                candidate = json.loads(line)
+                if isinstance(candidate, dict):
+                    document = candidate
+                    break
+            except ValueError:
+                continue
+        if (not document or document.get("running") is not True
+                or type(document.get("port")) is not int or document["port"] != port):
+            return False, None, "CLI server port does not match API endpoint"
+        return True, port, "native API and direct CLI server binding verified"
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False, None, "CLI management binding could not be verified"
 
-    use_cache=True (only for the polling /api/lmstudio/status route, which
-    gets hit every ~30s per open browser tab) reuses a recent remote-status
-    result instead of making a fresh SSH round-trip every call. Callers that
-    need a guaranteed-fresh read before acting on it (e.g. ensure_ideal_settings
-    deciding whether to reload) must leave this False.
+
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None, cache_local=False):
+    """Read runtime without reloads; cache_local opts the UI into bounded caching.
+
+    Existing local worker reads stay live even when use_cache=True.
     """
-    # Probe the endpoint before dispatching by location. llama.cpp exposes the
-    # same native /props endpoint locally and remotely; treating every remote
-    # endpoint as LM Studio made Thunder llama.cpp servers receive `lms`
-    # management commands they do not support.
-    if is_remote_llm(llm_mode, base_url):
-        if use_cache:
-            return get_remote_runtime_status_cached(
-                base_url, ssh_alias, model_name)
-        native = get_llama_cpp_status(base_url, model_name)
-        if native is not None:
-            return native
-        return get_remote_lmstudio_status(ssh_alias, model_name)
-    # Ask the endpoint what it IS before asking LM Studio about it. This
-    # project runs llama.cpp, whose /props answer is authoritative; falling
-    # through to `lms ps` reported every llama.cpp model as unloaded.
+    remote = is_remote_llm(llm_mode, base_url)
+    if use_cache and (remote or cache_local):
+        return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key)
     native = get_llama_cpp_status(base_url, model_name)
-    return native if native is not None else get_lmstudio_status(model_name)
+    if native is not None:
+        return native
+    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key)
+    if endpoint is None:
+        return {"runtime": "unknown", "available": False, "loaded": False,
+                "context_length": None, "parallel": None, "optimized": False,
+                "management_verified": False,
+                "management_reason": "endpoint native runtime could not be verified"}
+    if remote and not ssh_alias:
+        binding = (False, None, "remote API has no SSH management host")
+    else:
+        binding = get_lmstudio_management_binding(base_url, ssh_alias if remote else None)
+    verified, port, reason = binding
+    if verified:
+        status = (get_remote_lmstudio_status(ssh_alias, model_name) if remote
+                  else get_lmstudio_status(model_name))
+    else:
+        status = endpoint
+    return {**status, "runtime": "lmstudio", "management_verified": verified,
+            "management_port": port, "management_reason": reason}
 
 
-def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
+def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
     """Return the settings a subsequent ``ensure_ideal_settings`` will target.
 
     This is a pure sizing helper for preflight UIs: it reports the verified
@@ -818,12 +980,13 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     ``ensure_ideal_settings`` before dispatching work and size against its
     fresh post-heal status.
     """
-    status = get_current_status(llm_mode, base_url, model_name, ssh_alias)
-    if status.get("runtime") == "llama.cpp":
+    status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+    if status.get("runtime") == "llama.cpp" or not status.get("management_verified"):
         return {
-            "context_length": status.get("ideal_context_length"),
-            "parallel": status.get("ideal_parallel"),
-            "settings_reason": status.get("settings_reason"),
+            "context_length": (status.get("ideal_context_length") or status.get("context_length")
+                               or IDEAL_SETTINGS["context_length"]),
+            "parallel": status.get("ideal_parallel") or status.get("parallel") or 1,
+            "settings_reason": status.get("settings_reason") or "current settings or conservative fallback",
         }
     if is_remote_llm(llm_mode, base_url):
         return {"context_length": REMOTE_IDEAL_SETTINGS["context_length"],
@@ -837,7 +1000,7 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     }
 
 
-def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
+def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
     """Self-heal LM Studio's load settings (local or remote) toward the ideal
     config (VRAM-safe locally, large-context remotely), then return the FRESH
     post-heal status so callers can size chunking/context decisions and the
@@ -853,7 +1016,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     is_remote = is_remote_llm(llm_mode, base_url)
 
     initial_status = get_current_status(
-        llm_mode, base_url, model_name, ssh_alias)
+        llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
     if initial_status.get("runtime") == "llama.cpp":
         return (is_remote, initial_status,
                 "llama.cpp server at %s - context %s, %s slot(s), fixed at "
@@ -861,13 +1024,17 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
                 % (base_url, initial_status.get("context_length"),
                    initial_status.get("parallel")))
 
+    if not initial_status.get("management_verified"):
+        return is_remote, initial_status, "Settings were not applied: " + initial_status.get(
+            "management_reason", "endpoint management ownership is unverified")
+
     if is_remote and not ssh_alias:
         return (True, initial_status,
                 "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.")
 
     if is_remote:
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias)
-        apply_settings = lambda: apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        apply_settings = lambda: apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=initial_status["management_port"])
         label = "Remote LM Studio"
         ok_warning = ("Proceeding with whatever is currently loaded, which may truncate "
                       "responses or fail outright if the context is too small.")
@@ -882,7 +1049,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
         # warn about. get_llama_cpp_status already answers this question and
         # returns None for anything that is not llama.cpp (Rule 15) - the local
         # branch simply never asked it.
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
         apply_settings = lambda: apply_lmstudio_settings(model_name, ideal=True)
         label = "LM Studio"
         ok_warning = ("The model may be running with a higher 'parallel'/context-length "
@@ -898,6 +1065,8 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     ok, msg = apply_settings()
     status = get_status()
     if ok:
+        if not (status.get("management_verified") and status.get("loaded") and status.get("optimized")):
+            return is_remote, status, f"{label}: CLI reported reload, but fresh status did not verify ideal settings. {status.get('management_reason', '')}"
         return is_remote, status, f"{label}: {msg}"
     if status["loaded"] and status["optimized"]:
         return (is_remote, status,

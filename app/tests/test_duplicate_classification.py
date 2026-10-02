@@ -65,6 +65,21 @@ class SourceOccurrenceTest(unittest.TestCase):
         self.assertEqual(0, script_preflight.source_occurrences_for_text(
             source, self.N("the model made this whole sentence up entirely")))
 
+    def test_phrase_cannot_start_or_end_inside_another_source_token(self):
+        phrase = "foo bar baz qux quux"
+        for source in ("pre" + phrase, phrase + "suffix", "pre" + phrase + "suffix",
+                       "предслово два три четыре пять"):
+            with self.subTest(source=source):
+                text = "слово два три четыре пять" if source.startswith("пред") else phrase
+                self.assertEqual(0, script_preflight.source_occurrences_for_text(
+                    self.N(source), self.N(text)))
+
+    def test_embedded_match_cannot_inflate_real_occurrences(self):
+        phrase = "foo bar baz qux quux"
+        source = "pre" + phrase + " " + phrase + " " + phrase
+        self.assertEqual(2, script_preflight.source_occurrences_for_text(
+            self.N(source), self.N(phrase)))
+
 
 class DuplicateRepairTest(unittest.TestCase):
 
@@ -115,6 +130,74 @@ class DuplicateRepairTest(unittest.TestCase):
                          "the source repeats this block; deleting a copy "
                          "would corrupt faithful text")
 
+    def test_embedded_contiguous_block_does_not_authorize_deleting_invented_text(self):
+        block = [{"speaker": "NARRATOR", "text": "foo bar baz qux quux"},
+                 {"speaker": "NARRATOR", "text": "another fabricated line fits five words"}]
+        entries = [dict(entry) for entry in block + block]
+        source = "pre" + " ".join(entry["text"] for entry in block)
+        repair = build_deterministic_repair(entries, source)
+        self.assertEqual(entries, repair["entries"])
+        self.assertTrue(repair["unresolved"])
+        self.assertEqual([], repair["changes"])
+
+    def test_near_duplicate_support_uses_the_same_whole_token_counter(self):
+        phrase = "foo bar baz qux quux"
+        findings = script_preflight.find_adjacent_near_duplicate_entries(
+            [phrase, phrase], "pre" + phrase + " " + phrase)
+        self.assertEqual(1, len(findings))
+        self.assertEqual([False, False], findings[0]["details"]["source_supported"])
+
+    def test_adjacent_real_phrase_occurrences_are_both_counted(self):
+        phrase = "foo bar baz qux quux"
+        self.assertEqual(2, script_preflight.source_occurrences_for_text(
+            phrase + " " + phrase, phrase))
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShortSourceOccurrenceTests(unittest.TestCase):
+    def test_short_exact_phrases_count_without_partial_token_or_subphrase_matches(self):
+        normalize = script_preflight._normalize_words
+        for source, phrase, expected in (
+                ("Open the door. Then close it. Open the door.", "Open the door.", 2),
+                ("Yes. She nodded. Yes.", "Yes.", 2),
+                ("Open the doorway. Reopen the door.", "Open the door.", 0),
+                ("Open the window. Close the door.", "Open the door.", 0),
+                ("Open the door.", "Open the door gently.", 0),
+                ("", "Open the door.", 0), ("Open the door.", "", 0)):
+            with self.subTest(source=source, phrase=phrase):
+                self.assertEqual(expected, script_preflight.source_occurrences_for_text(
+                    normalize(source), normalize(phrase)))
+
+    def test_faithful_noncontiguous_short_repeated_dialogue_is_retained(self):
+        import copy
+        texts = ["Open the door.", "Wait for me."]
+        entries = [{"speaker": "ALICE", "text": text} for text in texts * 2]
+        before = copy.deepcopy(entries)
+        source = "Open the door. She reached for the latch. Wait for me. A voice called. " * 2
+        report = script_preflight.audit_script(entries, source)
+        finding = next(f for f in report["findings"] if f["code"] == "adjacent_duplicate_block")
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(0, finding["details"]["contiguous_block_occurrences"])
+        result = build_deterministic_repair(entries, source)
+        self.assertEqual(before, result["entries"])
+        self.assertEqual([], result["unresolved"])
+        self.assertEqual(before, entries)
+
+    def test_one_real_short_block_is_repaired_but_invented_short_lines_are_kept(self):
+        import copy
+        entries = [{"speaker": "ALICE", "text": text}
+                   for text in ["Open the door.", "Wait for me."] * 2]
+        before = copy.deepcopy(entries)
+        real_source = "Open the door. She reached for the latch. Wait for me. A voice called."
+        result = build_deterministic_repair(entries, real_source)
+        self.assertEqual(before[:2], result["entries"])
+        self.assertEqual([], result["unresolved"])
+        invented_source = "Open the window. She waited nearby. Call to me. A voice called."
+        result = build_deterministic_repair(entries, invented_source)
+        self.assertEqual(before, result["entries"])
+        self.assertTrue(result["unresolved"])
+        self.assertEqual(before, entries)

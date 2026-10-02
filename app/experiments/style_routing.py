@@ -95,8 +95,10 @@ def person_density(seg, index):
     return len(FP.findall(nar)) / words * 1000 if words >= 20 else None
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def stratify(book, artifact, feature, bands):
-    seg = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))["segmented"]
+    seg = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")["segmented"]
     pos = {norm(e.get("text")): i for i, e in enumerate(seg)}
     doc = json.load(open(E + artifact))
     arms = collections.defaultdict(dict)

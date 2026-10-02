@@ -39,6 +39,18 @@ class LineFormatRoundTrip(unittest.TestCase):
         self.assertEqual(round_tripped, entries)
         self.assertEqual(len(line_format.format_entries(entries).splitlines()), 1)
 
+    def test_carriage_returns_and_literal_escapes_round_trip_through_both_parsers(self):
+        from response_codecs import get_codec
+        for text in ("one\rtwo", "one\r\ntwo", r"literal\r and \n and \backslash"):
+            with self.subTest(text=text):
+                entries = [{"speaker": "NARRATOR", "text": text, "instruct": "Flat."}]
+                encoded = line_format.format_entries(entries)
+                self.assertEqual(1, len(encoded.splitlines()))
+                self.assertEqual(entries, line_format.parse_entries(encoded))
+                self.assertEqual((entries, []), line_format.salvage_entries(encoded))
+                self.assertEqual(entries, get_codec("lines").parse(encoded))
+                self.assertEqual(text, entries[0]["text"])
+
     def test_backslash_is_not_eaten(self):
         entries = [{"speaker": "NARRATOR", "text": r"a\nb", "instruct": "Flat."}]
         self.assertEqual(
@@ -46,6 +58,15 @@ class LineFormatRoundTrip(unittest.TestCase):
 
 
 class LineFormatFailsLoud(unittest.TestCase):
+    def test_delimiters_in_metadata_are_rejected_before_serialization(self):
+        for field in ('speaker', 'instruct'):
+            with self.subTest(field=field):
+                entries = [{"speaker": "NARRATOR", "instruct": "Calm.", "text": "a | b"}]
+                entries[0][field] = "first|second"
+                with self.assertRaisesRegex(line_format.LineFormatError, field):
+                    line_format.format_entries(entries)
+                self.assertEqual("first|second", entries[0][field])
+
     def test_missing_field_raises(self):
         with self.assertRaises(line_format.LineFormatError):
             line_format.parse_entries("NARRATOR|only two fields")

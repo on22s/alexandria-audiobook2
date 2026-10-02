@@ -33,5 +33,5 @@ fi
 
 run_stage regate_rerun "${LEFT}s" -- \
     "$REPO/run_chains/regate_with_provenance_20260817.sh"
-stage_commit_artifacts regate_rerun "$REPO"
+# The child commits each dispatched artifact by its exact path.
 stage_summary regate_rerun

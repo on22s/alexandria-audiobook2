@@ -8,9 +8,34 @@ import argparse
 import difflib
 import json
 import random
+from collections import Counter
+
+from utils import atomic_json_write
+from generation_checkpoint_deltas import load_generation_checkpoint_document
 
 from attribution_accuracy import normalize_speaker
 
+
+
+def load_attribution_entries(path):
+    """Load checkpoint or result entries with one validated shape policy."""
+    data = load_generation_checkpoint_document(path)
+    if isinstance(data, dict):
+        entries = data.get("named")
+        if entries is not None and not isinstance(entries, list):
+            raise ValueError(f"Checkpoint named entries must be a list: {path}")
+        if not entries:
+            entries = data.get("entries")
+        if entries is None:
+            entries = []
+    elif isinstance(data, list):
+        entries = data
+    else:
+        raise ValueError(f"Checkpoint must be an object or entry list: {path}")
+    if not isinstance(entries, list) or any(
+            entry is not None and not isinstance(entry, dict) for entry in entries):
+        raise ValueError(f"Checkpoint entries must be objects or null: {path}")
+    return entries
 
 def normalize(text):
     """Collapse whitespace and case so alignment is not defeated by formatting."""
@@ -37,13 +62,20 @@ def align_arms(arm_a, arm_b):
     left = [e for _, e in left_indexed]
     left_keys = [normalize(e.get("text")) for e in left]
     right_keys = [normalize(e.get("text")) for e in right]
-    matcher = difflib.SequenceMatcher(a=left_keys, b=right_keys, autojunk=False)
+    left_counts, right_counts = Counter(left_keys), Counter(right_keys)
+    left_positions = [i for i, key in enumerate(left_keys)
+                      if key and left_counts[key] == right_counts[key] == 1]
+    right_positions = [i for i, key in enumerate(right_keys)
+                       if key and left_counts[key] == right_counts[key] == 1]
+    matcher = difflib.SequenceMatcher(
+        a=[left_keys[i] for i in left_positions],
+        b=[right_keys[i] for i in right_positions], autojunk=False)
     pairs = []
     for a_start, b_start, size in matcher.get_matching_blocks():
         for offset in range(size):
-            position = a_start + offset
+            position = left_positions[a_start + offset]
             pairs.append((left_indexed[position][0], left[position],
-                          right[b_start + offset]))
+                          right[right_positions[b_start + offset]]))
     coverage = len(pairs) / max(len(left), len(right), 1)
     return pairs, coverage
 
@@ -83,22 +115,17 @@ def main():
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--output", default="disagreements.json")
     args = parser.parse_args()
+    if args.size < 0:
+        parser.error("--size must be nonnegative")
 
-    def load(path):
-        data = json.load(open(path, encoding="utf-8"))
-        if isinstance(data, dict):
-            return data.get("named") or data.get("entries") or []
-        return data
-
-    entries_a, entries_b = load(args.arm_a), load(args.arm_b)
+    entries_a, entries_b = load_attribution_entries(args.arm_a), load_attribution_entries(args.arm_b)
     pairs, coverage = align_arms(entries_a, entries_b)
-    rows = find_disagreements(entries_a, entries_b)
+    rows = find_disagreements(entries_a, entries_b, pairs=pairs)
     sample = sample_disagreements(rows, args.size, args.seed)
-    with open(args.output, "w", encoding="utf-8") as fh:
-        json.dump({"entries_arm_a": len(entries_a), "entries_arm_b": len(entries_b),
-                   "aligned": len(pairs), "alignment_coverage": round(coverage, 4),
-                   "disagreement_count": len(rows), "sample": sample},
-                  fh, indent=2, ensure_ascii=False)
+    atomic_json_write(
+        {"entries_arm_a": len(entries_a), "entries_arm_b": len(entries_b),
+         "aligned": len(pairs), "alignment_coverage": round(coverage, 4),
+         "disagreement_count": len(rows), "sample": sample}, args.output)
     print(f"aligned {len(pairs)} of {len(entries_a)}/{len(entries_b)} entries "
           f"({coverage:.1%} coverage)")
     print(f"{len(rows)} disagreements among aligned entries "

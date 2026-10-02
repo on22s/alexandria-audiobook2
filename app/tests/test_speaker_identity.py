@@ -11,6 +11,52 @@ def _entry(speaker):
 
 
 class SpeakerIdentityTests(unittest.TestCase):
+    def test_prose_split_repair_respects_established_roster_spelling(self):
+        entries = [{"speaker": "R UDEUS", "text": "Rudeus returned."}]
+        original = copy.deepcopy(entries)
+        result = stabilize_speaker_identities(entries, ["R UDEUS", "UNUSED ROSTER"])
+        self.assertEqual("R UDEUS", result["entries"][0]["speaker"])
+        self.assertEqual(["R UDEUS", "UNUSED ROSTER"], result["speakers"])
+        self.assertEqual(original, entries)
+
+    def test_split_repair_requires_a_complete_name_token_in_prose(self):
+        for text in ("Rudeusson returned.", "Arudeus returned.", "Rudeus_1 returned."):
+            with self.subTest(text=text):
+                result = stabilize_speaker_identities([{"speaker": "R UDEUS", "text": text}])
+                self.assertEqual("R UDEUS", result["entries"][0]["speaker"])
+
+    def test_split_repair_returns_the_actual_repaired_speaker_and_keeps_roster(self):
+        result = stabilize_speaker_identities(
+            [{"speaker": "R UDEUS", "text": "(Rudeus) returned."},
+             {"speaker": "ALICE", "text": "Hello."}], ["UNUSED ROSTER"])
+        self.assertEqual(["RUDEUS", "ALICE"], [e["speaker"] for e in result["entries"]])
+        self.assertEqual({"RUDEUS", "ALICE", "UNUSED ROSTER"}, set(result["speakers"]))
+        self.assertNotIn("R UDEUS", result["speakers"])
+
+    def test_canonically_equivalent_unicode_names_share_existing_identity(self):
+        composed = "JOSÉ"
+        decomposed = "JOSE\u0301"
+        self.assertEqual(composed, resolve_speaker_label(decomposed, [composed]))
+        entries = [_entry(decomposed)]
+        original = copy.deepcopy(entries)
+        result = stabilize_speaker_identities(entries, [composed])
+        self.assertEqual(composed, result["entries"][0]["speaker"])
+        self.assertEqual(original, entries)
+        self.assertIsNone(resolve_speaker_label("JOSÈ", [composed]))
+        self.assertIsNone(resolve_speaker_label("ＪＯＳＥ", ["JOSE"]))
+
+    def test_canonically_equivalent_unicode_names_share_existing_identity(self):
+        composed = "JOSÉ"
+        decomposed = "JOSE\u0301"
+        self.assertEqual(composed, resolve_speaker_label(decomposed, [composed]))
+        entries = [_entry(decomposed)]
+        original = copy.deepcopy(entries)
+        result = stabilize_speaker_identities(entries, [composed])
+        self.assertEqual(composed, result["entries"][0]["speaker"])
+        self.assertEqual(original, entries)
+        self.assertIsNone(resolve_speaker_label("JOSÈ", [composed]))
+        self.assertIsNone(resolve_speaker_label("ＪＯＳＥ", ["JOSE"]))
+
 
     def test_consistency_report_counts_usage_and_deduplicates_suggestions(self):
         entries = [{"speaker": "ROSWAAL"}, {"speaker": "ROSWAL"},

@@ -26,7 +26,7 @@ mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
 
 echo "[$(date -u +%FT%TZ)] STAGE 1: refusal stratification"
-./run_chains/unanswered_stratification_20260830.sh || echo "  stage 1 rc=$?"
+run_stage refusal_stratification 0 -- ./run_chains/unanswered_stratification_20260830.sh
 
 # --needs-vram because stage 1 leaves llama-server holding the card:
 # ensure_llama_server deliberately outlives its job, and on 2026-08-31 that
@@ -44,5 +44,5 @@ for SEED in 20260916 20260917 20260918; do
         --lines 20 --seed "$SEED" \
         --work "ab_test_runtime/${name}" --out "$out"
 done
-stage_summary overnight_20260901
+stage_summary overnight_20260901 || exit "$?"
 echo "[$(date -u +%FT%TZ)] COMPLETE overnight_20260901"

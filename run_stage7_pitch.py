@@ -11,6 +11,7 @@ sys.path.insert(0, APP)
 from experiments.pitch_profile_matrix import (  # noqa: E402
     load_adapters, validate_artifact)
 from local_gpu_job import run_gpu_job  # noqa: E402
+from results_index_validation import require_results_index_entries  # noqa: E402
 
 PYTHON = os.path.join(APP, "env", "bin", "python")
 MANIFEST = os.path.join(REPO, "lora_models", "manifest.json")
@@ -28,13 +29,7 @@ def run(command):
 
 
 def require_index_entries(*filenames):
-    for index_name in ("RESULTS_INDEX.md", "results_index.csv"):
-        with open(os.path.join(REPO, index_name), encoding="utf-8") as handle:
-            contents = handle.read()
-        missing = [name for name in filenames if name not in contents]
-        if missing:
-            raise RuntimeError(
-                f"{index_name} is missing {', '.join(missing)}")
+    require_results_index_entries(REPO, *filenames)
 
 
 def require_pilot_gate(doc):
@@ -55,7 +50,7 @@ def ensure_pilot(adapter):
             "stage7_pitch.log")
     doc = validate_artifact(PILOT, expected_count=4)
     require_pilot_gate(doc)
-    print("Stage 7 pilot validated strictly and cleared (4/4 rows).", flush=True)
+    print("Stage 7 pilot validated strictly and cleared the pitch-measurement gate.", flush=True)
 
 
 def ensure_full(adapter_count):
@@ -77,8 +72,7 @@ def main():
             f"Stage 7 expected 75 usable adapters; found {len(adapters)}")
     ensure_pilot(adapters[0]["adapter"])
     ensure_full(len(adapters))
-    run([PYTHON, "tools/audit/audit_experiment_artifacts.py"])
-    run([PYTHON, "tools/audit/collect_results.py"])
+    run([PYTHON, "refresh_indexes.py"])
     require_index_entries("pitch_profile_matrix_pilot.json",
                           "pitch_profile_matrix.json")
     run([PYTHON, "-m", "unittest", "discover", "-s", "app",

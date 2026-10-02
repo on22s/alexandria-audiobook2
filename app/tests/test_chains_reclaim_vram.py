@@ -84,8 +84,8 @@ class ChainsReclaimVramTest(unittest.TestCase):
     def test_the_remedy_is_present_in_the_shared_runner(self):
         src = read(os.path.join(CHAINS, "lib", "stage.sh"))
         self.assertIn("--needs-vram", src)
-        self.assertIn("pkill -x llama-server", src,
-                      "the reclaim must use -x, never -f")
+        self.assertNotIn("pkill", src)
+        self.assertIn("GPU_RECLAIM_VRAM=1 timeout", src)
 
 
 if __name__ == "__main__":

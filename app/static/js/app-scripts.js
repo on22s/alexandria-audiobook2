@@ -23,34 +23,44 @@
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div>
-                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${JSON.stringify(s.name)})'><i class="fas fa-stethoscope me-1"></i>Audit</button>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${JSON.stringify(s.name)})'><i class="fas fa-upload me-1"></i>Load</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick='deleteScript(${JSON.stringify(s.name)})'><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${getInlineStringArgument(s.name)})'><i class="fas fa-stethoscope me-1"></i>Audit</button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${getInlineStringArgument(s.name)})'><i class="fas fa-upload me-1"></i>Load</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick='deleteScript(${getInlineStringArgument(s.name)})'><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
             });
         }
 
+        let _savedScriptAuditRequest = 0;
         async function auditSavedScript(name) {
+            const requestId = ++_savedScriptAuditRequest;
             const panel = document.getElementById('saved-script-preflight');
             panel.style.display = 'block';
             panel.className = 'alert alert-secondary small mt-3 mb-0';
             panel.textContent = `Auditing ${name}…`;
             try {
                 const report = await API.post(`/api/scripts/${encodeURIComponent(name)}/preflight`, {});
+                if (requestId !== _savedScriptAuditRequest) { return; }
                 const counts = report.counts || {};
-                const risks = (report.findings || []).filter(item => item.code === 'nonprose_speech_risk');
-                panel.className = `alert ${counts.blocking ? 'alert-danger' : risks.length ? 'alert-warning' : 'alert-success'} small mt-3 mb-0`;
-                const items = risks.map(item => {
-                    const details = item.details || {};
+                const findings = report.findings || [];
+                panel.className = `alert ${counts.blocking ? 'alert-danger' : findings.length ? 'alert-warning' : 'alert-success'} small mt-3 mb-0`;
+                const items = findings.map(item => {
                     const entries = (item.entry_numbers || []).join(', ');
-                    const categories = (details.categories || []).join(', ');
-                    return `<li>Entry ${escapeHtml(entries)}: ${escapeHtml(categories)} — preview: ${escapeHtml(details.normalized_preview || '')}. Audio validation: ${escapeHtml((details.validation || {}).status || 'unknown')}.</li>`;
+                    const location = entries ? `Entry ${escapeHtml(entries)}: ` : '';
+                    const message = escapeHtml(item.message || item.code || 'Review this finding.');
+                    let detailsText = '';
+                    if (item.code === 'nonprose_speech_risk') {
+                        const details = item.details || {};
+                        const categories = (details.categories || []).join(', ');
+                        detailsText = ` ${escapeHtml(categories)} — preview: ${escapeHtml(details.normalized_preview || '')}. Audio validation: ${escapeHtml((details.validation || {}).status || 'unknown')}.`;
+                    }
+                    return `<li>${location}${message}${detailsText}</li>`;
                 }).join('');
                 panel.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${counts.blocking || 0} blocking, ${counts.manual_review || 0} manual review.`
-                    + (items ? `<div class="mt-1">Non-prose entries have elevated TTS error risk:</div><ul class="mb-0">${items}</ul>` : ' No non-prose speech risks detected.');
+                    + (items ? `<ul class="mt-1 mb-0">${items}</ul>` : ' No findings detected.');
             } catch (error) {
+                if (requestId !== _savedScriptAuditRequest) { return; }
                 panel.className = 'alert alert-danger small mt-3 mb-0';
                 panel.textContent = `Audit failed: ${error.message || error}`;
             }
@@ -64,16 +74,8 @@
                 return;
             }
             try {
-                const res = await fetch('/api/scripts/save', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name})
-                });
-                if (!res.ok) {
-                    const err = await res.json();
-                    showToast(err.detail || 'Failed to save script.', 'error');
-                    return;
-                }
+                await flushVoiceSaves();
+                await API.post('/api/scripts/save', { name });
                 nameInput.value = '';
                 loadSavedScripts();
             } catch (e) {
@@ -85,22 +87,17 @@
         async function loadScript(name) {
             if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`)) { return; }
             try {
-                const res = await fetch('/api/scripts/load', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name})
-                });
-                if (!res.ok) {
-                    const err = await res.json();
-                    showToast(err.detail || 'Failed to load script.', 'error');
-                    return;
-                }
+                await flushVoiceSaves();
+                const loaded = await API.post('/api/scripts/load', { name });
+                applyCurrentBookFilename(`${loaded.name}.json`);
+                clearCharacterAliases();
+                resetDesignerForm();
                 showToast(`Script "${name}" loaded.`, 'success');
                 clearVoiceSuggestions();
+                await loadCharacterAliases(false);
                 await loadChunks(true);
                 await loadVoices();
                 loadSavedScripts();
-                resetDesignerForm();
                 loadDesignedVoices();
             } catch (e) {
                 console.error('Error loading script:', e);
@@ -111,12 +108,7 @@
         async function deleteScript(name) {
             if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`)) { return; }
             try {
-                const res = await fetch(`/api/scripts/${encodeURIComponent(name)}`, {method: 'DELETE'});
-                if (!res.ok) {
-                    const err = await res.json();
-                    showToast(err.detail || 'Failed to delete script.', 'error');
-                    return;
-                }
+                await API.del(`/api/scripts/${encodeURIComponent(name)}`);
                 loadSavedScripts();
             } catch (e) {
                 console.error('Error deleting script:', e);
@@ -149,9 +141,9 @@
                                     <td><strong>${escapeHtml(v.name)}</strong></td>
                                     <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.description)}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${JSON.stringify(v.filename)})' title="Play"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${JSON.stringify(v.id)})' title="Edit"><i class="fas fa-edit"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${JSON.stringify(v.id)})' title="Delete"><i class="fas fa-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${getInlineStringArgument(v.filename)})' title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${getInlineStringArgument(v.id)})' title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${getInlineStringArgument(v.id)})' title="Delete"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -163,7 +155,22 @@
             }
         }
 
+        function invalidateDesignerWork() {
+            window._designerGeneration = (window._designerGeneration || 0) + 1;
+            window._designPreviewRequest = null;
+            const previewButton = document.getElementById('btn-design-preview');
+            if (previewButton) {
+                previewButton.disabled = false;
+            }
+            return window._designerGeneration;
+        }
+
+        function isDesignerGenerationCurrent(generation) {
+            return generation === (window._designerGeneration || 0);
+        }
+
         function resetDesignerForm() {
+            invalidateDesignerWork();
             document.getElementById('design-voice-name').value = '';
             document.getElementById('design-source-name').value = '';
             document.getElementById('design-description').value = '';
@@ -188,6 +195,11 @@
             if (!description) { showToast('Please enter a voice description.', 'warning'); return; }
             if (!sampleText) { showToast('Please enter sample text.', 'warning'); return; }
 
+            const generation = window._designerGeneration || 0;
+            const request = {};
+            window._designPreviewRequest = request;
+            const isCurrent = () => isDesignerGenerationCurrent(generation)
+                && window._designPreviewRequest === request;
             const btn = document.getElementById('btn-design-preview');
             btn.disabled = true;
             statusEl.innerHTML = window._editingDesignedVoiceId
@@ -201,6 +213,7 @@
                     sample_text: sampleText
                 });
 
+                if (!isCurrent()) { return; }
                 const audio = document.getElementById('design-preview-audio');
                 audio.src = result.audio_url + '?t=' + Date.now();
                 previewContainer.style.display = 'block';
@@ -211,23 +224,24 @@
                 // Extract filename from URL for save
                 window._currentPreviewFile = result.audio_url.split('/').pop().split('?')[0];
             } catch (e) {
+                if (!isCurrent()) { return; }
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed: ${escapeHtml(e.message)}</span>`;
             } finally {
-                btn.disabled = false;
+                if (isCurrent()) {
+                    btn.disabled = false;
+                }
             }
         };
 
         window.saveDesignedVoice = async () => {
+            if (window._designSavePending) { return; }
             const name = document.getElementById('design-voice-name').value.trim();
             if (!name) { showToast('Please enter a name for the voice.', 'warning'); return; }
             if (!window._currentPreviewFile) { showToast('Generate a preview first.', 'warning'); return; }
 
+            window._designSavePending = true;
             try {
-                // Only an id that names a saved designed voice updates in place;
-                // the persona-edit flow stores a character NAME here, which is
-                // a new voice, not an existing one.
-                const editingId = (window._designedVoicesCache || []).some(v => v.id === window._editingDesignedVoiceId)
-                    ? window._editingDesignedVoiceId : null;
+                const editingId = window._editingDesignedVoiceId || null;
                 await API.post('/api/voice_design/save', {
                     name: name,
                     description: document.getElementById('design-description').value.trim(),
@@ -237,13 +251,17 @@
                 });
                 document.getElementById('design-voice-name').value = '';
                 window._editingDesignedVoiceId = null;
+                const previewButton = document.getElementById('btn-design-preview');
+                if (previewButton) {
+                    previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Generate Preview';
+                }
                 loadDesignedVoices();
                 // If we're editing a generated persona, propagate alias choice to voice card and trigger save
                 const source = document.getElementById('design-source-name').value;
                 const aliasSelect = document.getElementById('design-alias-select');
                 const selectedAlias = aliasSelect.value;
                 if (source && (selectedAlias || aliasSelect.dataset.aliasLookupFailed !== 'true')) {
-                    const card = document.querySelector(`.voice-card[data-voice="${source}"]`);
+                    const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(source)}"]`);
                     if (card) {
                         const aliasSel = card.querySelector('.alias-select');
                         if (aliasSel) {
@@ -255,11 +273,18 @@
                 }
             } catch (e) {
                 showToast('Error saving voice: ' + e.message, 'error');
+            } finally {
+                window._designSavePending = false;
             }
         };
 
+        function getLocalAudioUrl(rawPath, timestamp) {
+            const path = rawPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+            return `/${path}?t=${timestamp}`;
+        }
+
         window.playDesignedVoice = (filename) => {
-            const audio = new Audio(`/designed_voices/${filename}?t=${Date.now()}`);
+            const audio = new Audio(getLocalAudioUrl(`designed_voices/${filename}`, Date.now()));
             audio.play();
         };
 
@@ -275,6 +300,7 @@
         };
 
         window.openDesignedVoiceForEdit = async (voiceId) => {
+            const generation = invalidateDesignerWork();
             try {
                 const voice = (window._designedVoicesCache || []).find(v => v.id === voiceId);
                 if (!voice) {
@@ -307,6 +333,7 @@
                 // Try to read existing alias from voices config
                 try {
                     const voices = await API.get('/api/voices');
+                    if (!isDesignerGenerationCurrent(generation)) { return; }
                     aliasSelect.innerHTML = '<option value="">-- None --</option>';
                     voices.filter(v => v.name !== voice.name).forEach(v => {
                         const opt = document.createElement('option');
@@ -327,12 +354,13 @@
                         aliasSelect.value = '';
                     }
                 } catch (e) {
+                    if (!isDesignerGenerationCurrent(generation)) { return; }
                     aliasSelect.dataset.aliasLookupFailed = 'true';
                 }
 
                 // Update preview audio and current preview file
                 const audio = document.getElementById('design-preview-audio');
-                audio.src = `/designed_voices/${voice.filename}?t=${Date.now()}`;
+                audio.src = getLocalAudioUrl(`designed_voices/${voice.filename}`, Date.now());
                 window._currentPreviewFile = voice.filename;
                 window._editingDesignedVoiceId = voice.id;
                 document.getElementById('design-preview-container').style.display = 'block';
@@ -346,6 +374,7 @@
                 document.getElementById('design-description').focus();
                 showToast('Loaded designed voice for editing', 'info');
             } catch (e) {
+                if (!isDesignerGenerationCurrent(generation)) { return; }
                 showToast('Failed to load voice for edit: ' + e.message, 'error');
             }
         };
@@ -357,10 +386,17 @@
             const description = card ? (card.querySelector('.design-description')?.value || '') : '';
 
             document.querySelector('[data-tab="designer"]').click();
+            resetDesignerForm();
             document.getElementById('design-voice-name').value = voiceName;
             document.getElementById('design-source-name').value = voiceName;
             document.getElementById('design-description').value = description;
-            window._editingDesignedVoiceId = voiceName || null;
+            document.getElementById('design-sample-text').value = card?.querySelector('.ref-text')?.value || '';
+            const cardAlias = card?.querySelector('.alias-select');
+            const aliasSelect = document.getElementById('design-alias-select');
+            aliasSelect.innerHTML = cardAlias?.innerHTML || '<option value="">-- None --</option>';
+            aliasSelect.value = cardAlias?.value || '';
+            aliasSelect.dataset.aliasLookupFailed = 'false';
+            window._editingDesignedVoiceId = null;
             window._currentPreviewFile = null;
             document.getElementById('design-preview-container').style.display = 'none';
 
@@ -395,37 +431,27 @@
                 return;
             }
 
-            if (val.startsWith('clone:')) {
-                const voiceId = val.substring(6);
-                const voice = (window._cloneVoicesCache || []).find(v => v.id === voiceId);
-                if (voice) {
-                    refAudio.value = `clone_voices/${voice.filename}`;
-                    refText.value = voice.ref_text || '';   // recorded at import; older uploads have none
-                    refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'inline-block';
-                }
-            } else if (val.startsWith('design:')) {
-                const voiceId = val.substring(7);
-                const voice = (window._designedVoicesCache || []).find(v => v.id === voiceId);
-                if (voice) {
-                    refAudio.value = `designed_voices/${voice.filename}`;
-                    refText.value = voice.sample_text;
-                    refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'none';
-                }
-            } else {
-                // Legacy: plain voice ID (backward compat with old designed voice values)
-                const voice = (window._designedVoicesCache || []).find(v => v.id === val);
-                if (voice) {
-                    refAudio.value = `designed_voices/${voice.filename}`;
-                    refText.value = voice.sample_text;
-                    refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'none';
-                }
+            const isClone = val.startsWith('clone:');
+            // Plain IDs are legacy designed-voice values.
+            const voiceId = isClone ? val.substring(6) : val.startsWith('design:') ? val.substring(7) : val;
+            const voices = isClone ? window._cloneVoicesCache : window._designedVoicesCache;
+            const voice = (voices || []).find(v => v.id === voiceId);
+            if (!voice) {
+                const previous = getLibraryVoiceReference(refAudio.value);
+                const previousValue = previous ? `${previous.type}:${previous.id}` : refAudio.value ? '__manual__' : '';
+                select.value = previousValue;
+                if (select.value !== previousValue) { select.value = refAudio.value ? '__manual__' : ''; }
+                refAudio.readOnly = !!previous && select.value === previousValue;
+                if (playBtn) { playBtn.style.display = refAudio.value ? 'inline-block' : 'none'; }
+                if (deleteBtn) { deleteBtn.style.display = previous?.type === 'clone' && refAudio.readOnly ? 'inline-block' : 'none'; }
+                showToast('The selected voice reference is no longer available. Previous reference kept; refresh Voices and choose another.', 'warning');
+                return;
             }
+            refAudio.value = `${isClone ? 'clone_voices' : 'designed_voices'}/${voice.filename}`;
+            refText.value = isClone ? voice.ref_text || '' : voice.sample_text;
+            refAudio.readOnly = true;
+            if (playBtn) { playBtn.style.display = 'inline-block'; }
+            if (deleteBtn) { deleteBtn.style.display = isClone ? 'inline-block' : 'none'; }
             saveVoicesDebounced();
         };
 
@@ -461,7 +487,9 @@
             f.submit.disabled = !(f.refText.value.trim() && f.rightsConfirmed.checked);
         }
 
+        let _cloneImportGeneration = 0;
         function _openCloneImportModal(file) {
+            const generation = ++_cloneImportGeneration;
             const f = _cloneImportFields();
             document.getElementById('clone-import-filename').textContent = file.name;
             f.refText.value = '';
@@ -474,10 +502,21 @@
             _refreshCloneImportSubmit();
             const modalEl = document.getElementById('cloneImportModal');
             const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (generation !== _cloneImportGeneration) { return; }
+                _cloneImportGeneration++;
+                f.submit.onclick = null;
+            }, { once: true });
             f.submit.onclick = async () => {
                 f.submit.disabled = true;
                 const ok = await _submitCloneImport(file);
-                if (ok) { modal.hide(); } else { _refreshCloneImportSubmit(); }
+                if (generation !== _cloneImportGeneration) { return; }
+                if (ok) {
+                    f.submit.onclick = null;
+                    modal.hide();
+                } else {
+                    _refreshCloneImportSubmit();
+                }
             };
             modal.show();
         }
@@ -514,7 +553,7 @@
             const card = btn.closest('.card-body');
             const refAudio = card.querySelector('.ref-audio').value;
             if (refAudio) {
-                const audio = new Audio(`/${refAudio}?t=${Date.now()}`);
+                const audio = new Audio(getLocalAudioUrl(refAudio, Date.now()));
                 audio.play();
             }
         };

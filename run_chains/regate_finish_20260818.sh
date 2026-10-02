@@ -48,11 +48,11 @@ fi
 # THE INDEXES LAST, AND ONLY HERE. 67 rewritten artifacts make all three stale,
 # and refreshing them mid-run would dirty tracked files for no benefit while
 # more artifacts were still being written.
-stage_note "refreshing indexes"
-if "$REPO/app/env/bin/python" "$REPO/refresh_indexes.py" > "$STAGE_LOG_DIR/refresh.log" 2>&1; then
-    stage_note "indexes refreshed"
-else
-    stage_note "index refresh FAILED - see $STAGE_LOG_DIR/refresh.log"
+run_stage refresh_indexes 0 -- \
+    "$REPO/app/env/bin/python" "$REPO/refresh_indexes.py"
+if ! is_stage_successful refresh_indexes; then
+    stage_summary regate_finish
+    exit 1
 fi
 
 git -C "$REPO" add ab_test_runtime/experiments/ ab_test_runtime/audit/ \

@@ -35,16 +35,19 @@ MIN_PEAK = 0.05
 def normalize_reference_audio(src, dst):
     """Decode any container (pydub/ffmpeg) and write 24 kHz mono 16-bit WAV.
 
-    Raises ValueError when the input does not decode as audio."""
+    Raises ValueError when decoding, normalising, or exporting fails."""
     from pydub import AudioSegment
     try:
         with open(src, "rb") as source:
             audio = AudioSegment.from_file(source)
     except Exception as exc:                                # noqa: BLE001
         raise ValueError(f"could not decode audio: {exc}") from exc
-    audio = audio.set_channels(1).set_frame_rate(TARGET_RATE).set_sample_width(2)
-    with open(dst, "wb+") as target:
-        audio.export(target, format="wav")
+    try:
+        audio = audio.set_channels(1).set_frame_rate(TARGET_RATE).set_sample_width(2)
+        with open(dst, "wb+") as target:
+            audio.export(target, format="wav")
+    except Exception as exc:                                # noqa: BLE001
+        raise ValueError(f"could not normalise audio: {exc}") from exc
     return dst
 
 
@@ -59,7 +62,7 @@ def measure_reference_audio(path):
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return {
-        "duration_s": round(n / rate, 3) if rate else 0.0,
+        "duration_s": n / rate if rate else 0.0,
         "sample_rate": int(rate),
         "peak": float(np.max(np.abs(mono))) if n else 0.0,
         "silence_ratio": float(np.mean(np.abs(mono) < 0.001)) if n else 1.0,
@@ -88,7 +91,7 @@ def check_reference_audio(measures):
 
 def import_reference_audio(src, dst):
     """Normalise src into dst, measure, and return (measures, problems).
-    On a decode failure returns ({}, [reason]) and writes nothing."""
+    On a decode or normalisation failure returns ({}, [reason]) and removes dst."""
     try:
         normalize_reference_audio(src, dst)
     except ValueError as exc:

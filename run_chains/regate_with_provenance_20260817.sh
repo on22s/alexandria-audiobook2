@@ -30,23 +30,40 @@
 # PR #308 remeasurement is still running and will simply wait its turn.
 set -uo pipefail
 
+# Operational ceiling, not a predicted runtime: measured gates took 2.0-2.7
+# minutes on the original card. Keep ample startup headroom, but never wait
+# forever for one adapter. An override must still impose a positive deadline.
+GATE_TIMEOUT="${REGATE_GATE_TIMEOUT-15m}"
+if ! [[ "$GATE_TIMEOUT" =~ ^[1-9][0-9]*[smh]$ ]]; then
+    echo "REGATE FAILED: REGATE_GATE_TIMEOUT must be a positive duration (s/m/h)" >&2
+    exit 1
+fi
+
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" regate_with_provenance \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 
 PY="$REPO/app/env/bin/python"
 EXP="$REPO/ab_test_runtime/experiments"
 LOG="$REPO/ab_test_runtime/logs/regate_provenance"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
+STAGE_LOG_DIR="$LOG"
 mkdir -p "$LOG"
 cd "$REPO"
+QUEUE=$(mktemp "${TMPDIR:-/tmp}/regate_queue.XXXXXX") || exit 1
+trap 'rm -f -- "$QUEUE"' EXIT
+JOURNAL="$EXP/regate_provenance_campaign.json"
+CAMPAIGN="$REPO/app/gate_campaign.py"
 
 # Rebuild the queue from the artifacts themselves rather than a stored list:
 # each one records the adapter path it gated, so the set re-gated is exactly
 # the set that exists, and an adapter deleted since August drops out loudly
 # rather than being silently skipped.
-"$PY" - <<'PYEOF' > /tmp/regate_queue.tsv
+if ! "$PY" - <<'PYEOF' > "$QUEUE"
 import glob, json, os
 missing = []
 for path in sorted(glob.glob("ab_test_runtime/experiments/gate_promote__*.json")):
@@ -67,24 +84,51 @@ for path in sorted(glob.glob("ab_test_runtime/experiments/gate_promote__*.json")
 for name in missing:
     print(f"# MISSING ADAPTER {name}", flush=True)
 PYEOF
+then
+    echo "REGATE FAILED: could not build adapter queue" >&2
+    exit 1
+fi
 
-total=$(grep -vc '^#' /tmp/regate_queue.tsv)
+total=$(grep -vc '^#' "$QUEUE")
 echo "REGATE START $(date -u +%FT%TZ)  adapters=$total"
-grep '^#' /tmp/regate_queue.tsv || true
+grep '^#' "$QUEUE" || true
+
+run_stage campaign_start 0 -- "$PY" "$CAMPAIGN" start "$QUEUE" "$JOURNAL"
+if ! is_stage_successful campaign_start; then
+    stage_summary regate_campaign
+    exit 1
+fi
+stage_commit_artifacts campaign_start "$REPO" "$JOURNAL" || exit 1
 
 done_n=0
 failed_n=0
+rejected_n=0
 while IFS=$'\t' read -r name adapter data; do
     case "$name" in \#*) continue;; esac
     out="$EXP/gate_promote__$name.json"
-    "$PY" -u app/experiments/verify_adapter_identity.py \
-        --adapter "$adapter" --dataset "$data" --lines 6 \
-        --out "$out" > "$LOG/$name.log" 2>&1
-    rc=$?
+    run_stage "regate_$name" "$GATE_TIMEOUT" -- \
+        "$PY" -u app/experiments/verify_adapter_identity.py \
+        --adapter "$adapter" --dataset "$data" --lines 6 --out "$out"
+    result="${STAGE_RESULT[regate_$name]}"
+    rc=0
+    if [ "$result" != ok ]; then
+        rc="${result#failed:}"
+    fi
+    if [ "$rc" -eq 3 ]; then
+        rejected_n=$((rejected_n + 1))
+        echo "REJECTED $name (measured identity verdict)"
+    fi
     done_n=$((done_n + 1))
     [ "$rc" -ne 0 ] && failed_n=$((failed_n + 1))
     echo "[$done_n/$total] rc=$rc $name"
-done < /tmp/regate_queue.tsv
+    run_stage "campaign_result_$name" 0 -- "$PY" "$CAMPAIGN" result "$JOURNAL" "$name" "$rc"
+    stage_commit_artifacts "regate_$name" "$REPO" "$out" "$JOURNAL"
+done < "$QUEUE"
+
+run_stage campaign_complete 0 -- "$PY" "$CAMPAIGN" complete "$JOURNAL"
+if is_stage_successful campaign_complete; then
+    stage_commit_artifacts campaign_complete "$REPO" "$JOURNAL"
+fi
 
 # A STRICT GATE, BECAUSE THIS LOOP LIED FOR TWO HOURS. Bash discards each
 # iteration's exit status, and `set -e` does not apply inside a loop body, so
@@ -96,11 +140,12 @@ done < /tmp/regate_queue.tsv
 # reporting step after it that can restore a zero exit.
 if [ "$failed_n" -gt 0 ]; then
     echo "REGATE FAILED $(date -u +%FT%TZ): $failed_n of $total adapters" >&2
-    echo "  Nothing here was measured. Read one per-adapter log before" >&2
-    echo "  re-running: $LOG/<adapter>.log" >&2
+    echo "  Measured rejections: $rejected_n; execution failures: $((failed_n - rejected_n))." >&2
+    echo "  Read per-adapter evidence before re-running: $LOG/regate_<adapter>.log" >&2
     exit 1
 fi
 
+stage_summary regate_artifacts || exit "$?"
 echo "REGATE COMPLETE $(date -u +%FT%TZ)"
 echo
 echo "WHAT TO READ:"

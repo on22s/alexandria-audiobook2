@@ -26,7 +26,7 @@
 # annotations (TheSignOfTheFour, TheAwakening), so if generation succeeds they
 # can be scored against goal 1.3 rather than only counted for completion.
 set -uo pipefail
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
 
 # HOLD THE REAL LOCK INSTEAD OF GUESSING WHO IS RUNNING. The poll loop this
 # replaces enumerated script names, so a GPU job nobody listed was invisible -
@@ -38,6 +38,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "pdnc_generation" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
@@ -55,14 +57,16 @@ if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
     echo "ABORT: no qwen3 server on 8090"; exit 1
 fi
 command cp -f "$REPO/app/config.json" "$BACKUP"
-"$PY" - <<'PYEOF'
-import json
-p = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json"
-d = json.load(open(p, encoding="utf-8"))
+"$PY" - "$REPO/app/config.json" <<'PYEOF' || exit 1
+import json, sys
+from utils import atomic_json_write
+p = sys.argv[1]
+with open(p, encoding="utf-8") as handle:
+    d = json.load(handle)
 for key in ("llm", "llm_local"):
     if isinstance(d.get(key), dict):
         d[key]["model_name"] = "qwen3-14b"
-json.dump(d, open(p, "w", encoding="utf-8"), indent=2)
+atomic_json_write(d, p)
 print("config -> qwen3-14b")
 PYEOF
 

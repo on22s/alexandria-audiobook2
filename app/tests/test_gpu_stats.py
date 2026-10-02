@@ -1,4 +1,8 @@
 import subprocess
+import json
+from pathlib import Path
+import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -41,3 +45,40 @@ class GpuStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RocmJsonOutputTests(unittest.TestCase):
+    def test_actual_cpu_command_parses_complete_payload_after_brace_warning_or_before_trailing_warning(self):
+        card = {"card0": {"GPU use (%)": "7", "VRAM Total Memory (B)": "16000000000"}}
+        payload = json.dumps(card, indent=2)
+        cases = (payload, "WARNING: permission notice\n" + payload,
+                 "{warning: telemetry notice}\n" + payload,
+                 "{not JSON\n" + payload + "\nWARNING: done",
+                 "  " + payload + "\n{trailing warning}")
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp) / "rocm-fixture"
+            for output in cases:
+                with self.subTest(output=output):
+                    executable.write_text("#!" + sys.executable + "\nimport sys\n"
+                        + "assert sys.argv[1:]==['--showuse','--json']\n"
+                        + "sys.stdout.write(" + repr(output) + ")\n")
+                    executable.chmod(0o755)
+                    result = gpu_stats.run_rocm_smi_json(["--showuse"], str(executable), timeout=2)
+                    self.assertEqual(card, result)
+                    with patch.object(gpu_stats, "nvidia_smi_utilization", return_value=None):
+                        self.assertEqual(7, gpu_stats.sample_gpu_utilization(str(executable), timeout=2))
+
+    def test_malformed_nonzero_missing_and_timed_out_commands_remain_unknown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp) / "rocm-fixture"
+            for output, code in (("{broken", 0), ("warning only", 0),
+                                 ("", 0), ('{"card0":{"GPU use (%)":"7"}}', 1)):
+                with self.subTest(output=output, code=code):
+                    executable.write_text("#!" + sys.executable + "\nimport sys\n"
+                        + "sys.stdout.write(" + repr(output) + ")\nsys.exit(" + str(code) + ")\n")
+                    executable.chmod(0o755)
+                    self.assertIsNone(gpu_stats.run_rocm_smi_json(["--showuse"], str(executable), timeout=2))
+            self.assertIsNone(gpu_stats.run_rocm_smi_json([], str(Path(tmp) / "missing"), timeout=2))
+            with patch.object(gpu_stats.subprocess, "run", side_effect=subprocess.TimeoutExpired("CPU fixture", .1)) as run:
+                self.assertIsNone(gpu_stats.run_rocm_smi_json(["--showuse"], str(executable), timeout=.1))
+            self.assertEqual(.1, run.call_args.kwargs["timeout"])

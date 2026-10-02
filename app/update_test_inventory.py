@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+from utils import atomic_json_write
+
 from tests.test_inventory import (EXCLUDED_TEST_MODULES, INVENTORY_PATH,
                             _tracked_test_modules, get_unit_test_inventory)
 
@@ -35,7 +37,8 @@ def check_inventory(path=INVENTORY_PATH):
 def write_inventory(path=INVENTORY_PATH):
     """Write the current inventory deterministically and return its path."""
     path = Path(path)
-    path.write_text(format_inventory(get_unit_test_inventory()), encoding="utf-8")
+    inventory = get_unit_test_inventory()
+    atomic_json_write(dict(sorted(inventory.items())), str(path))
     return path
 
 
@@ -60,6 +63,14 @@ def main(argv=None):
     parser.add_argument("--check", action="store_true",
                         help="report drift without modifying the inventory")
     args = parser.parse_args(argv)
+    untracked = find_untracked_test_modules()
+    if untracked:
+        print("\nWARNING: these test files are untracked and are NOT in the "
+              "inventory.\nIf they belong to this change, 'git add' them and "
+              "run this again, or CI\nwill discover tests the inventory does "
+              "not list:")
+        for name in untracked:
+            print(f"  {name}")
     if args.check:
         differences = check_inventory()
         if differences:
@@ -71,14 +82,6 @@ def main(argv=None):
         return 0
     path = write_inventory()
     print(f"Updated {path}")
-    untracked = find_untracked_test_modules()
-    if untracked:
-        print("\nWARNING: these test files are untracked and are NOT in the "
-              "inventory.\nIf they belong to this change, 'git add' them and "
-              "run this again, or CI\nwill discover tests the inventory does "
-              "not list:")
-        for name in untracked:
-            print(f"  {name}")
     return 0
 
 

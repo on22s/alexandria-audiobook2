@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 from routers import scripts_library
+from tests.test_support import assert_directory_payload_names
 
 
 class RepairPreviewTokenTests(unittest.TestCase):
@@ -48,7 +49,7 @@ class RepairPreviewTokenTests(unittest.TestCase):
             self.apply(preview)
         self.assertEqual(409, raised.exception.status_code)
         self.assertEqual(self.original, self.script.read_text(encoding="utf-8"))
-        self.assertEqual(["book.json"], sorted(p.name for p in self.scripts.iterdir()))
+        assert_directory_payload_names(self, self.scripts, ['book.json'], lock_targets=[self.scripts / '.active_book_transaction.json', self.script])
         fresh = self.preview()
         self.assertNotEqual(preview["sha256"], fresh["sha256"])
         result = self.apply(fresh)

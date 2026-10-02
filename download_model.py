@@ -3,22 +3,23 @@
 
 import os
 import sys
+import shutil
+import tempfile
 
 # Try to import with proper error handling
 try:
-    from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
+    from transformers import AutoProcessor
+    from huggingface_hub import snapshot_download
 except ImportError:
-    print("ERROR: transformers not installed")
-    print("Install with: pip install transformers")
+    print("ERROR: transformers or huggingface_hub not installed")
+    print("Install with: pip install transformers huggingface_hub")
     sys.exit(1)
 
 def download_model():
     """Download and cache the whisper-base model locally.
 
-    The model id and this destination path are also hardcoded in
-    alexandria_preparer_rocm_compatible.py (the script that consumes this
-    directory, preferring it over the bare HuggingFace id when present) -
-    keep both in sync if the model changes.
+    Publish the directory only after both save operations complete. A failed
+    download or replacement must not damage an existing offline bundle.
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(script_dir, "models", "whisper-base")
@@ -29,32 +30,54 @@ def download_model():
     print(f"Destination: {model_path}")
     print()
 
+    staged_path = None
+    backup_path = None
     try:
-        # Create directory if needed
-        os.makedirs(model_path, exist_ok=True)
+        parent = os.path.dirname(model_path)
+        os.makedirs(parent, exist_ok=True)
+        staged_path = tempfile.mkdtemp(prefix=".whisper-base-download-", dir=parent)
 
-        # Download model
-        print("Downloading model weights...")
-        model = AutoModelForSpeechSeq2Seq.from_pretrained(
-            "openai/whisper-base",
-            torch_dtype="auto",
-            use_safetensors=True
+        # Stream the weight file to disk without constructing a model object.
+        print("Downloading model and processor files...")
+        snapshot_download(
+            repo_id="openai/whisper-base", local_dir=staged_path,
+            allow_patterns=["*.json", "*.txt", "model.safetensors"],
         )
-        model.save_pretrained(model_path)
-        print(f"✓ Model saved: {len(list(model.parameters())):,} parameters")
+        for name in ("config.json", "model.safetensors"):
+            path = os.path.join(staged_path, name)
+            if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                raise ValueError(f"Offline snapshot is missing a non-empty {name}")
+        print("✓ Model weights downloaded")
 
-        # Download processor
-        print("Downloading processor...")
-        processor = AutoProcessor.from_pretrained("openai/whisper-base")
-        processor.save_pretrained(model_path)
+        # Validate/save only the small processor, strictly from the staged files.
+        print("Validating processor...")
+        processor = AutoProcessor.from_pretrained(staged_path, local_files_only=True)
+        processor.save_pretrained(staged_path)
         print("✓ Processor saved")
 
         # Check size (stdlib walk — portable, no shell/du dependency)
         total_bytes = sum(
             os.path.getsize(os.path.join(dp, f))
-            for dp, _, files in os.walk(model_path) for f in files
+            for dp, _, files in os.walk(staged_path) for f in files
         )
         print(f"✓ Total size: {total_bytes / (1024 ** 2):.1f} MB")
+
+        if os.path.lexists(model_path):
+            if os.path.islink(model_path) or not os.path.isdir(model_path):
+                raise ValueError("Offline model destination must be a directory, not a link or file")
+            backup_path = staged_path + ".previous"
+            os.replace(model_path, backup_path)
+        try:
+            os.replace(staged_path, model_path)
+        except BaseException:
+            if backup_path is not None:
+                os.replace(backup_path, model_path)
+                backup_path = None
+            raise
+        staged_path = None
+        if backup_path is not None:
+            shutil.rmtree(backup_path)
+            backup_path = None
 
         print()
         print("=" * 70)
@@ -65,9 +88,14 @@ def download_model():
 
     except Exception as e:
         print(f"✗ ERROR: {e}")
+        if backup_path is not None:
+            print(f"Previous download retained for recovery: {backup_path}")
         import traceback
         traceback.print_exc()
         return 1
+    finally:
+        if staged_path is not None and os.path.isdir(staged_path):
+            shutil.rmtree(staged_path)
 
 if __name__ == "__main__":
     sys.exit(download_model())

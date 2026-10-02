@@ -6,6 +6,7 @@ module level - so this file can be imported by either environment regardless
 of whether torch is installed there yet.
 """
 import os
+import re
 import sys
 
 # Canonical implementation lives in gpu_stats.py at the repo root, shared
@@ -89,16 +90,21 @@ def compute_dtype(device):
     a Radeon 660M by a downstream fork, cjdell/alexandria-audiobook adb3a66).
     The arch comes from get_device_properties().gcnArchName, not the
     marketing name, so the next APU generation is covered by its gfx id.
+    If that query cannot identify the device, use fp32 and report why.
     """
     import torch
     if "cuda" not in str(device):
         return torch.float32
     if getattr(torch.version, "hip", None):
         try:
-            arch = str(torch.cuda.get_device_properties(0).gcnArchName)
+            arch = str(torch.cuda.get_device_properties(device).gcnArchName or "").split(":")[0].strip()
         except Exception:
             arch = ""
-        if arch.split(":")[0] in ROCM_FP32_ONLY_ARCHES:
+        if not re.fullmatch(r"gfx[0-9a-f]+", arch):
+            print(f"WARNING: could not identify ROCm architecture for {device}; using float32.",
+                  flush=True)
+            return torch.float32
+        if arch in ROCM_FP32_ONLY_ARCHES:
             return torch.float32
     return torch.bfloat16
 

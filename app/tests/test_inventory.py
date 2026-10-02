@@ -161,3 +161,90 @@ class UntrackedTestWarningTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InventoryCheckWarningTests(unittest.TestCase):
+    def test_check_warns_about_actual_untracked_tests_without_writing_inventory(self):
+        import contextlib
+        import io
+        import tempfile
+        import tests.test_inventory as inventory_module
+        import update_test_inventory as updater
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            tests=root/'app/tests'
+            tests.mkdir(parents=True)
+            subprocess.run(['git','init','-q'],cwd=root,check=True)
+            (tests/'test_tracked.py').write_text('# tracked fixture\n',encoding='utf-8')
+            (tests/'test_new.py').write_text('# new local fixture\n',encoding='utf-8')
+            (tests/'test_api.py').write_text('# explicitly excluded\n',encoding='utf-8')
+            subprocess.run(['git','add','app/tests/test_tracked.py'],cwd=root,check=True)
+            path=tests/'unit_test_inventory.json'
+            expected={'test_tracked':['tests.test_tracked.Example.test_one']}
+            path.write_text(updater.format_inventory(expected),encoding='utf-8')
+            before=path.read_bytes()
+            actual_check=updater.check_inventory
+            for current,code in ((expected,0),({'test_tracked':[]},1)):
+                with self.subTest(code=code), \
+                     patch.object(updater,'__file__',str(root/'app/update_test_inventory.py')), \
+                     patch.object(inventory_module,'__file__',str(tests/'test_inventory.py')), \
+                     patch.object(updater,'get_unit_test_inventory',return_value=current), \
+                     patch.object(updater,'check_inventory',side_effect=lambda:actual_check(path)), \
+                     patch.object(updater,'write_inventory') as write:
+                    output=io.StringIO()
+                    with contextlib.redirect_stdout(output):
+                        result=updater.main(['--check'])
+                    self.assertEqual(code,result)
+                    self.assertIn('WARNING:',output.getvalue())
+                    self.assertIn('test_new.py',output.getvalue())
+                    self.assertNotIn('  test_api.py',output.getvalue())
+                    self.assertNotIn('  test_tracked.py',output.getvalue())
+                    self.assertEqual(before,path.read_bytes())
+                    write.assert_not_called()
+
+
+class AtomicInventoryWriterTests(unittest.TestCase):
+    def test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory(self):
+        import tempfile
+        from unittest.mock import patch
+        import update_test_inventory as updater
+        inventory = {"test_z": ["unicode_é"], "test_a": ["first"]}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "inventory.json")
+            prior = b'{"prior": ["retained"]}'
+            path.write_bytes(prior)
+            with path.open("rb") as old_reader, \
+                 patch.object(updater, "get_unit_test_inventory", return_value=inventory):
+                self.assertEqual(path, updater.write_inventory(path))
+                actual = path.read_bytes()
+                self.assertEqual(inventory, json.loads(actual))
+                self.assertLess(actual.index(b'"test_a"'), actual.index(b'"test_z"'))
+                self.assertIn("é".encode(), actual)
+                self.assertEqual(prior, old_reader.read())
+                self.assertEqual([], updater.check_inventory(path))
+                self.assertEqual(actual, path.read_bytes())
+            self.assertEqual([path], list(Path(tmp).iterdir()))
+
+    def test_failed_serialization_or_replace_preserves_prior_inventory_and_cleans_temporary_files(self):
+        import tempfile
+        from unittest.mock import patch
+        import update_test_inventory as updater
+        import utils
+        def broken_dump(data, handle, **kwargs):
+            handle.write('{"partial":')
+            raise ValueError("serialization interrupted")
+        for operation, error in (("serialize", ValueError), ("replace", OSError)):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "inventory.json")
+                prior = b'{"prior": ["retained"]}'
+                path.write_bytes(prior)
+                fault = (patch.object(utils.json, "dump", side_effect=broken_dump)
+                         if operation == "serialize" else
+                         patch.object(utils.os, "replace", side_effect=OSError("disk failure")))
+                with patch.object(updater, "get_unit_test_inventory", return_value={"new": ["complete"]}), fault:
+                    with self.assertRaises(error):
+                        updater.write_inventory(path)
+                self.assertEqual(prior, path.read_bytes())
+                self.assertEqual({"prior": ["retained"]}, json.loads(path.read_bytes()))
+                self.assertEqual([path], list(Path(tmp).iterdir()))

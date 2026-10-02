@@ -1,7 +1,7 @@
 """The reference re-gate chain must queue its model-loading step."""
 import os
 from pathlib import Path
-import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -26,12 +26,13 @@ class RegateGpuLockTests(unittest.TestCase):
             gpu_job.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$GPU_DISPATCH"\n',
                                encoding="utf-8")
             gpu_job.chmod(0o755)
-            chain = root / "regate.sh"
-            source = CHAIN.read_text(encoding="utf-8")
-            source = source.replace(
-                'REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git',
-                'REPO=' + shlex.quote(str(root)), 1)
-            chain.write_text(source, encoding="utf-8")
+            chain = root / "run_chains/regate.sh"
+            chain.parent.mkdir()
+            library = chain.parent / "lib"
+            library.mkdir()
+            for name in ("stage.sh", "server_cleanup.sh"):
+                shutil.copyfile(ROOT / "run_chains/lib" / name, library / name)
+            chain.write_text(CHAIN.read_text(encoding="utf-8"), encoding="utf-8")
             env = {**os.environ, "GPU_DISPATCH": str(root / "dispatch.log"),
                    "DIRECT_GATE": str(root / "direct.log")}
             result = subprocess.run(["bash", str(chain)], env=env,

@@ -38,9 +38,14 @@ for seed in 20260906 20260907 20260908 20260909 20260910 20260911 20260912 20260
     out="ab_test_runtime/experiments/${name}.json"
     # Resume: a finished seed is never recomputed, so an interrupted night
     # continues where it stopped rather than starting over.
-    if [ -s "$out" ]; then
-        echo "[$(date -u +%FT%TZ)] SKIP $name (already complete)"
+    if ./app/env/bin/python app/experiments/library_voice_fidelity.py \
+        --check-artifact --lines 20 --seed "$seed" \
+        --work "ab_test_runtime/${name}" --out "$out"; then
+        echo "[$(date -u +%FT%TZ)] SKIP $name (validated complete)"
         continue
+    else
+        rc=$?
+        [ "$rc" -eq 1 ] || exit "$rc"
     fi
     echo "[$(date -u +%FT%TZ)] START $name"
     ./gpu_job.sh "$name" \
@@ -50,5 +55,8 @@ for seed in 20260906 20260907 20260908 20260909 20260910 20260911 20260912 20260
         --work "ab_test_runtime/${name}" \
         --out "$out" \
         > "ab_test_runtime/logs/${name}.out" 2>&1 || exit $?
+    ./app/env/bin/python app/experiments/library_voice_fidelity.py \
+        --check-artifact --lines 20 --seed "$seed" \
+        --work "ab_test_runtime/${name}" --out "$out" || exit $?
 done
 echo "[$(date -u +%FT%TZ)] COMPLETE overnight_fidelity_replication_20260829"

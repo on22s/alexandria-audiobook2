@@ -10,6 +10,7 @@ rebuilding a dataset.
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -50,6 +51,10 @@ class RecheckReportingTest(unittest.TestCase):
         os.makedirs(self.experiments)
         self.log_dir = os.path.join(self.tmp.name, "logs")
         os.makedirs(self.log_dir)
+        helper_dir = os.path.join(self.tmp.name, 'app/experiments')
+        os.makedirs(helper_dir)
+        shutil.copyfile(os.path.join(REPO, 'app/experiments/recheck_result.py'),
+                        os.path.join(helper_dir, 'recheck_result.py'))
 
     def _run(self, adapters, exit_codes, write_artifact=True):
         """adapters: [(name, old_score)]; exit_codes: {name: rc}."""
@@ -67,16 +72,19 @@ class RecheckReportingTest(unittest.TestCase):
             handle.write(
                 "#!/usr/bin/bash\n"
                 "name=${1#regate2_}\n"
+                "previous=''; out=''\n"
+                "for arg in \"$@\"; do if [ \"$previous\" = --out ]; then out=$arg; fi; previous=$arg; done\n"
+                "passed=true; score=0.6612\n"
                 "for pair in %s; do\n"
                 "  if [ \"${pair%%%%:*}\" = \"$name\" ]; then rc=${pair##*:}; fi\n"
                 "done\n"
                 "if [ \"${rc:-0}\" -eq 0 ] || [ \"${rc:-0}\" -eq 3 ]; then\n"
+                "  if [ \"${rc:-0}\" -eq 3 ]; then passed=false; score=0.2; fi\n"
                 "  %s\n"
                 "fi\n"
                 "exit ${rc:-0}\n"
                 % (codes,
-                   ("printf '{\"median_ecapa\": 0.6612}' > "
-                    "%s/gate_recheck__$name.json" % self.experiments)
+                   ("printf '{\"adapter\": \"adapter/%s\", \"median_ecapa\": %s, \"lines\": 1, \"passed\": %s}' \"$name\" \"$score\" \"$passed\" > \"$out\"")
                    if write_artifact else "true"))
         os.chmod(stub, 0o755)
 
@@ -114,7 +122,7 @@ class RecheckReportingTest(unittest.TestCase):
     def test_the_new_score_is_reported_not_the_old_one(self):
         result = self._run([("gamma", "0.0342")], {"gamma": 3})
         line = next(l for l in result.stdout.splitlines() if "gamma" in l)
-        self.assertIn("0.6612", line, "the score printed must come from this "
+        self.assertIn("0.2000", line, "the score printed must come from this "
                                       "run's artifact, not the input file")
         self.assertIn("was 0.0342", line, "keep the old score for comparison, "
                                           "but labelled as the old one")

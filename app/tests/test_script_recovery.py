@@ -2,6 +2,9 @@
 route, manual segmentation injection through pass 1's own gate, and the
 nothing-lost skip."""
 import asyncio
+import copy
+import core
+from contextlib import contextmanager
 import json
 import os
 import tempfile
@@ -76,6 +79,75 @@ def _write_relaxed_quote_run(tmp):
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_generation_claim_occurs_under_checkpoint_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "annotated_script.json")
+            held = False
+
+            @contextmanager
+            def tracking_lock(_path):
+                nonlocal held
+                held = True
+                try:
+                    yield
+                finally:
+                    held = False
+
+            original_claim=core.claim_gpu_task
+            def claim(task):
+                self.assertTrue(held)
+                return original_claim(task)
+            state=copy.deepcopy(core.process_state)
+            for value in state.values():value['running']=False
+
+            with patch.object(script_module, "SCRIPT_PATH", script_path), \
+                 patch.object(script_module, "DATA_DIR", tmp), \
+                 patch.object(script_module, "three_pass_refusal", return_value=None), \
+                 patch.object(script_module, "check_global_gpu_lock"), \
+                 patch.object(script_module, "get_active_reasoning_effort", return_value=None), \
+                 patch.object(script_module, "build_generate_script_command", return_value=["run"]), \
+                 patch.object(script_module, "file_lock", side_effect=tracking_lock), \
+                 patch.object(core, "claim_gpu_task", side_effect=claim) as claimed,                  patch.object(core, "process_state", state),                  patch.object(script_module, "process_state", state),                  patch.object(core, "_task_claims", {}),                  patch.object(core, "_gpu_leases", {}),                  patch.object(core, "acquire_gpu_lock", return_value=None):
+                try:
+                    script_module.start_script_generation(
+                        script_module.BackgroundTasks(), os.path.join(tmp, "book.txt"), None)
+                    claimed.assert_called_once_with("script")
+                    self.assertTrue(core.is_task_running("script"))
+                finally:
+                    core.release_pending_task_claims()
+                self.assertFalse(core.is_task_running("script"))
+            self.assertFalse(held)
+
+    def test_manual_recovery_rechecks_running_state_after_checkpoint_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = _write_failed_run(tmp)
+            checkpoint_path = three_pass_checkpoint_path(script_path)
+            with open(checkpoint_path, "rb") as source:
+                before = source.read()
+            state = script_module.process_state["script"]
+            previous = state["running"]
+            real_lock = script_module.file_lock
+
+            @contextmanager
+            def generation_claimed_while_waiting(path):
+                with real_lock(path):
+                    state["running"] = True
+                    yield
+
+            try:
+                state["running"] = False
+                with patch.object(script_module, "SCRIPT_PATH", script_path), \
+                     patch.object(script_module, "DATA_DIR", tmp), \
+                     patch.object(script_module, "file_lock",
+                                  side_effect=generation_claimed_while_waiting):
+                    with self.assertRaises(HTTPException) as raised:
+                        script_module.apply_manual_recovery([], "manual")
+                self.assertEqual(409, raised.exception.status_code)
+                with open(checkpoint_path, "rb") as source:
+                    self.assertEqual(before, source.read())
+            finally:
+                state["running"] = previous
+
     def _run(self, fn, *args, writer=_write_failed_run):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = writer(tmp)
@@ -194,3 +266,133 @@ class RecoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenerateScriptStateTests(unittest.TestCase):
+    def test_corrupt_or_nonobject_state_returns400_without_dispatch_or_mutation(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from pathlib import Path
+        api = FastAPI()
+        api.include_router(script_module.router)
+        cases = (b'{"input_file_path":', b'[]', b'["book.txt"]', b'null', b'true',
+                 b'7', b'"book.txt"', b'{}', b'{"input_file_path": ""}')
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(script_module, 'DATA_DIR', tmp), \
+             patch.object(script_module, 'start_script_generation') as dispatch, \
+             TestClient(api, raise_server_exceptions=False) as client:
+            state = Path(tmp)/'state.json'
+            for payload in cases:
+                with self.subTest(payload=payload):
+                    state.write_bytes(payload)
+                    response = client.post('/api/generate_script')
+                    self.assertEqual(400, response.status_code, response.text)
+                    self.assertEqual('No input file found in state', response.json()['detail'])
+                    dispatch.assert_not_called()
+                    self.assertEqual(payload, state.read_bytes())
+
+    def test_missing_state_remains400_and_valid_state_forwards_selected_input_and_options(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from pathlib import Path
+        api = FastAPI()
+        api.include_router(script_module.router)
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(script_module, 'DATA_DIR', tmp), \
+             patch.object(script_module, 'start_script_generation', return_value={'status': 'started'}) as dispatch, \
+             TestClient(api) as client:
+            state = Path(tmp)/'state.json'
+            missing = client.post('/api/generate_script')
+            self.assertEqual(400, missing.status_code, missing.text)
+            self.assertEqual('No input file selected', missing.json()['detail'])
+            dispatch.assert_not_called()
+            book = Path(tmp)/'book.txt'
+            book.write_text('Selected source text.', encoding='utf-8')
+            payload = json.dumps({'input_file_path': str(book), 'custom': {'keep': True}}).encode()
+            state.write_bytes(payload)
+            options = {'strip_front_matter': False, 'first_person_narrator': 'Watson', 'start_over': True}
+            response = client.post('/api/generate_script', json=options)
+            self.assertEqual(200, response.status_code, response.text)
+            dispatch.assert_called_once()
+            tasks, input_file, request = dispatch.call_args.args
+            self.assertIsInstance(tasks, script_module.BackgroundTasks)
+            self.assertEqual(str(book), input_file)
+            self.assertEqual(options, request.model_dump())
+            self.assertEqual(payload, state.read_bytes())
+            self.assertEqual('Selected source text.', book.read_text(encoding='utf-8'))
+
+
+class BatchReportPublicationTests(unittest.TestCase):
+    def _write_report(self, directory):
+        with patch.object(script_module, 'REPORTS_DIR', directory), \
+             patch.object(script_module.time, 'strftime', return_value='fixed'):
+            return script_module._write_batch_review_report(
+                {'tasks': [], 'totals_fwd': {'total_changes': 0}}, ['book'], False, False)
+
+    def test_interrupted_write_preserves_old_report_and_leaves_no_temp(self):
+        import builtins
+        from pathlib import Path
+        real_open = builtins.open
+        real_fdopen = os.fdopen
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'batch_review_fixed.md'
+            original = b'previous complete report\n'
+            path.write_bytes(original)
+
+            @contextmanager
+            def interrupted(handle):
+                with handle as stream:
+                    def write(text):
+                        stream.write(text[:len(text) // 2])
+                        stream.flush()
+                        raise OSError('injected interruption during report write')
+                    from types import SimpleNamespace
+                    yield SimpleNamespace(write=write, flush=stream.flush, fileno=stream.fileno)
+
+            def wrap_open(file, mode='r', *args, **kwargs):
+                handle = real_open(file, mode, *args, **kwargs)
+                return interrupted(handle) if 'w' in mode and str(file).endswith('.md') else handle
+
+            def wrap_fdopen(fd, *args, **kwargs):
+                return interrupted(real_fdopen(fd, *args, **kwargs))
+
+            with patch('builtins.open', side_effect=wrap_open), \
+                 patch.object(script_module.os, 'fdopen', side_effect=wrap_fdopen):
+                self.assertIsNone(self._write_report(tmp))
+            self.assertEqual(original, path.read_bytes())
+            self.assertEqual([path.name], sorted(item.name for item in Path(tmp).iterdir()))
+
+    def test_reader_sees_old_report_until_complete_replacement(self):
+        from pathlib import Path
+        real_replace = os.replace
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'batch_review_fixed.md'
+            original = b'previous complete report\n'
+            path.write_bytes(original)
+            published = []
+
+            def inspect_replace(source, destination):
+                self.assertEqual(original, path.read_bytes())
+                content = Path(source).read_bytes()
+                self.assertTrue(content.startswith(b'# Batch Review Report\n'))
+                self.assertTrue(content.endswith(b'\n'))
+                self.assertIn(b'**Total changes:** 0', content)
+                real_replace(source, destination)
+                published.append(content)
+
+            with patch.object(script_module.os, 'replace', side_effect=inspect_replace):
+                self.assertEqual(str(path), self._write_report(tmp))
+            self.assertEqual(1, len(published))
+            self.assertEqual(published[0], path.read_bytes())
+            self.assertEqual([path.name], sorted(item.name for item in Path(tmp).iterdir()))
+
+    def test_failed_replacement_preserves_report_and_removes_staged_file(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'batch_review_fixed.md'
+            original = b'previous complete report\n'
+            path.write_bytes(original)
+            with patch.object(script_module.os, 'replace', side_effect=OSError('unavailable')):
+                self.assertIsNone(self._write_report(tmp))
+            self.assertEqual(original, path.read_bytes())
+            self.assertEqual([path.name], sorted(item.name for item in Path(tmp).iterdir()))

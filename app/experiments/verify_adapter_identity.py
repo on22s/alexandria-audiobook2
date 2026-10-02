@@ -31,6 +31,8 @@ not ranking good voices against each other.
 """
 import argparse
 import json
+import math
+from pathlib import Path
 import os
 import statistics
 import sys
@@ -40,6 +42,85 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
 sys.path.insert(0, os.path.join(APP, "experiments"))
+
+
+def get_directory_identity_clips(dataset, lines):
+    """Read the same held-out rows used by generation and cache validation."""
+    clips = []
+    with open(os.path.join(dataset, "val", "metadata.jsonl"), encoding="utf-8") as handle:
+        for line in list(handle)[:lines]:
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            path = os.path.join(dataset, entry["audio_filepath"])
+            if os.path.isfile(path):
+                clips.append((path, entry.get("text") or ""))
+    return clips
+
+
+def get_identity_gate_inputs(adapter, dataset, lines):
+    """Hash current adapter bytes and the held-out inputs, without inference."""
+    from experiments.provenance import input_sha256
+
+    if type(lines) is not int or lines < 1:
+        raise ValueError("requested lines must be a positive integer")
+    paths = [os.path.join(adapter, "adapter_model.safetensors"),
+             os.path.join(adapter, "adapter_config.json"),
+             os.path.join(adapter, "training_meta.json"),
+             os.path.join(adapter, "ref_sample.wav"), __file__,
+             os.path.join(APP, "tts.py"),
+             os.path.join(APP, "experiments", "generation.py"),
+             os.path.join(APP, "experiments", "library_voice_fidelity.py")]
+    for name in ("ref_sample.txt",):
+        path = os.path.join(adapter, name)
+        if os.path.exists(path):
+            paths.append(path)
+    config = os.path.join(APP, "config.json")
+    if os.path.exists(config):
+        paths.append(config)
+    if str(dataset).endswith(".zip"):
+        paths.append(dataset)
+    else:
+        paths.append(os.path.join(dataset, "val", "metadata.jsonl"))
+        paths.extend(path for path, _ in get_directory_identity_clips(dataset, lines))
+    return input_sha256(paths)
+
+
+def get_completed_identity_gate(path, adapter, dataset, lines=6, seed=1234,
+                                threshold=0.45):
+    """Read a fully measured gate for these exact inputs and settings."""
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    if not isinstance(document, dict):
+        raise ValueError("identity gate must be an object")
+    expected = {"schema_version": 1, "requested_lines": lines, "seed": seed,
+                "inputs": get_identity_gate_inputs(adapter, dataset, lines)}
+    evidence = document.get("measurement")
+    if (not isinstance(evidence, dict) or evidence != expected
+            or type(evidence.get("schema_version")) is not int
+            or type(evidence.get("requested_lines")) is not int
+            or type(evidence.get("seed")) is not int):
+        raise ValueError("identity gate inputs or measurement settings changed")
+    scores = document.get("ecapa_scores")
+    if (not isinstance(scores, list) or len(scores) != lines
+            or any(type(value) not in (int, float) or not math.isfinite(value)
+                   or not -1 <= value <= 1 for value in scores)):
+        raise ValueError("identity gate must measure every requested line")
+    if (type(document.get("lines")) is not int or document["lines"] != lines
+            or type(document.get("generation_failures")) is not int
+            or document["generation_failures"] != 0):
+        raise ValueError("identity gate contains incomplete or failed generation")
+    median = statistics.median(scores)
+    if (type(document.get("threshold")) not in (int, float)
+            or not math.isfinite(document["threshold"])
+            or document["threshold"] != threshold
+            or type(document.get("median_ecapa")) not in (int, float)
+            or document["median_ecapa"] != round(median, 4)
+            or type(document.get("passed")) is not bool
+            or document["passed"] != (median >= threshold)
+            or document.get("adapter") != os.path.relpath(adapter, REPO)):
+        raise ValueError("identity gate verdict does not match measured scores")
+    return document
 
 
 def main():
@@ -54,7 +135,19 @@ def main():
                          "band between failures (<=0.404) and working (>=0.65)")
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--check-artifact", help="validate a cached gate without inference")
     args = ap.parse_args()
+    if args.lines < 1 or not math.isfinite(args.min_ecapa) or not -1 <= args.min_ecapa <= 1:
+        ap.error("lines must be positive and min-ecapa must be a finite cosine threshold")
+    if args.check_artifact:
+        try:
+            document = get_completed_identity_gate(
+                args.check_artifact, args.adapter, args.dataset,
+                args.lines, args.seed, args.min_ecapa)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            ap.exit(1, f"REFUSING incomplete or stale identity gate: {error}\n")
+        sys.exit(0 if document["passed"] else 3)
+    inputs = get_identity_gate_inputs(args.adapter, args.dataset, args.lines)
 
     from library_voice_fidelity import extract_val, ecapa_pairs
     work = os.path.join(args.adapter, "identity_check")
@@ -63,21 +156,9 @@ def main():
     if args.dataset.endswith(".zip"):
         clips = extract_val(args.dataset, work, args.lines)
     else:
-        meta = os.path.join(args.dataset, "val", "metadata.jsonl")
-        if not os.path.exists(meta):
-            sys.exit(f"no val split in {args.dataset}; nothing held out to "
-                     f"test against")
-        clips = []
-        with open(meta, encoding="utf-8") as fh:
-            for line in list(fh)[:args.lines]:
-                if not line.strip():
-                    continue
-                e = json.loads(line)
-                p = os.path.join(args.dataset, e["audio_filepath"])
-                if os.path.exists(p):
-                    clips.append((p, e.get("text") or ""))
-    if not clips:
-        sys.exit("no held-out clips available")
+        clips = get_directory_identity_clips(args.dataset, args.lines)
+    if len(clips) != args.lines:
+        sys.exit(f"need {args.lines} held-out clips; only {len(clips)} available")
 
     from tts import TTSEngine
     from experiments.generation import render, GenerationFailed
@@ -114,6 +195,13 @@ def main():
               "neither passed nor refused.")
         sys.exit(2)
 
+    if (failed or len(cos or []) != args.lines or len(vals) != args.lines
+            or any(type(value) not in (int, float) or not math.isfinite(value)
+                   or not -1 <= value <= 1 for value in vals)):
+        print("NOT MEASURED: incomplete or invalid held-out scores")
+        sys.exit(2)
+    if inputs != get_identity_gate_inputs(args.adapter, args.dataset, args.lines):
+        sys.exit("identity inputs changed during measurement; refusing publication")
     median = statistics.median(vals)
     ok = median >= args.min_ecapa
     # DISPLAY PRECISION MUST EXCEED COMPARISON PRECISION. At 3 decimal places
@@ -137,7 +225,9 @@ def main():
     doc = {"adapter": os.path.relpath(args.adapter, REPO),
            "median_ecapa": round(median, 4), "lines": len(vals),
            "generation_failures": failed, "threshold": args.min_ecapa,
-           "passed": ok, "verdict": verdict}
+           "passed": ok, "verdict": verdict, "ecapa_scores": vals,
+           "measurement": {"schema_version": 1, "requested_lines": args.lines,
+                           "seed": args.seed, "inputs": inputs}}
     # PROVENANCE, which this gate has never recorded. 87 gate artifacts exist
     # with no commit, no host and no dirty flag - and goal 2.7 rests on them:
     # "9 were promoted", and breathy_alto_50s_f_fantasy's 0.404 -> 0.503 rescue
@@ -150,8 +240,8 @@ def main():
     except Exception as exc:                                    # noqa: BLE001
         doc["provenance"] = {"error": str(exc)[:120]}
     out = args.out or os.path.join(args.adapter, "identity_check.json")
-    with open(out, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1, ensure_ascii=False)
+    from utils import atomic_json_write
+    atomic_json_write(doc, out)
     print(f"\nwrote {out}")
     # Non-zero so a training chain refuses to promote a voice that resembles
     # nobody, the same contract verify_adapter_stops uses.

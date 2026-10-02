@@ -32,7 +32,7 @@ run_stage pitch_quality_n200 5h --needs-vram -- \
     "$python" -u "$REPO/app/experiments/pitch_quality_probe.py" \
     --lines 200 \
     --out "$runtime/experiments/pitch_quality_probe_n200.json"
-stage_commit_artifacts pitch_quality_n200 "$REPO"
+stage_commit_artifacts pitch_quality_n200 "$REPO" "$runtime/experiments/pitch_quality_probe_n200.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary settle_2_6_20260820

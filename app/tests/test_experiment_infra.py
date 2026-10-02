@@ -194,13 +194,13 @@ def stage_index_scripts(tmp):
     these three tests fail on the import - which is the fixture being wrong,
     not the code: the real repository has both files.
 
-    The staged directory is deliberately NOT a git repository, so it also
-    exercises the fallback where git cannot answer and every artifact on disk
-    is indexed.
+    The miniature repo registers fixture artifacts in Git before generation,
+    so it exercises the same tracked-membership contract as the real checkout.
     """
+    subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
     audit_dir = os.path.join(tmp, "tools", "audit")
     os.makedirs(audit_dir, exist_ok=True)
-    for name in ("collect_results.py", "audit_experiment_artifacts.py"):
+    for name in ("collect_results.py", "audit_experiment_artifacts.py", "pipeline_repeat_scoring.py"):
         shutil.copy2(os.path.join(APP, "..", "tools", "audit", name),
                      os.path.join(audit_dir, name))
     # audit_experiment_artifacts imports experiments.manifest for the ONE
@@ -210,10 +210,21 @@ def stage_index_scripts(tmp):
     # trimmed one that breaks whenever a shared helper is introduced.
     pkg = os.path.join(tmp, "app", "experiments")
     os.makedirs(pkg, exist_ok=True)
+    for name in ("generation_checkpoint_deltas.py", "generation_checkpoint_shards.py",
+                 "utils.py", "adapter_publication.py"):
+        shutil.copy2(os.path.join(APP, name), os.path.join(tmp, "app", name))
+    shutil.copy2(os.path.join(APP, "..", "gpu_stats.py"), os.path.join(tmp, "gpu_stats.py"))
     for name in ("__init__.py", "manifest.py"):
         src = os.path.join(APP, "experiments", name)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(pkg, name))
+
+
+def run_index_script(command, **kwargs):
+    """Register each fixture artifact before invoking the actual collector."""
+    subprocess.run(["git", "add", "ab_test_runtime/experiments"],
+                   cwd=kwargs["cwd"], check=True, capture_output=True)
+    return subprocess.run(command, **kwargs)
 
 
 class CollectResultsRobustnessTest(unittest.TestCase):
@@ -244,7 +255,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
             with open(os.path.join(experiments, "probe.json"), "w",
                       encoding="utf-8") as handle:
                 json.dump({"status": "complete"}, handle)
-            subprocess.run(
+            run_index_script(
                 [sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                 capture_output=True, check=True)
             with open(os.path.join(tmp, "results_index.csv"), "rb") as handle:
@@ -270,13 +281,13 @@ class CollectResultsRobustnessTest(unittest.TestCase):
             with open(os.path.join(audit, "legacy_attribution_audit.json"),
                       "w", encoding="utf-8") as handle:
                 json.dump({"artifacts": []}, handle)
-            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
+            run_index_script([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            capture_output=True, check=True)
             structural = os.path.join(audit, "artifact_structural_audit.json")
             with open(structural, "w", encoding="utf-8") as handle:
                 json.dump({"artifacts": [{"artifact": artifact,
                                            "classification": "supported_structure"}]}, handle)
-            checked = subprocess.run([sys.executable, "tools/audit/collect_results.py", "--check"],
+            checked = run_index_script([sys.executable, "tools/audit/collect_results.py", "--check"],
                                      cwd=tmp, capture_output=True, text=True)
         self.assertNotEqual(0, checked.returncode)
         self.assertIn("results index is stale", checked.stderr)
@@ -299,10 +310,10 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                 with open(os.path.join(audit, name), "w", encoding="utf-8") as handle:
                     json.dump({"artifacts": []}, handle)
             env = dict(os.environ, TZ="America/Chicago")
-            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
+            run_index_script([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            env=env, capture_output=True, check=True)
             env["TZ"] = "UTC"
-            checked = subprocess.run([sys.executable, "tools/audit/collect_results.py", "--check"],
+            checked = run_index_script([sys.executable, "tools/audit/collect_results.py", "--check"],
                                      cwd=tmp, env=env, capture_output=True, text=True)
         self.assertEqual(0, checked.returncode, checked.stderr)
 
@@ -320,7 +331,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                          "legacy_attribution_audit.json"):
                 with open(os.path.join(audit, name), "w", encoding="utf-8") as handle:
                     json.dump({"artifacts": []}, handle)
-            subprocess.run([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
+            run_index_script([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            capture_output=True, check=True)
             with open(os.path.join(tmp, "results_index.csv"),
                       encoding="utf-8") as handle:
@@ -369,3 +380,176 @@ class AnalysisScriptTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CollectResultsHostProvenanceTests(unittest.TestCase):
+    def test_csv_host_matches_the_environment_used_for_machine_classification(self):
+        import csv
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_index_scripts(tmp)
+            root = Path(tmp)
+            experiments = root / 'ab_test_runtime/experiments'
+            audit = root / 'ab_test_runtime/audit'
+            experiments.mkdir(parents=True)
+            audit.mkdir(parents=True)
+            fixtures = {
+                'environment_only.json': {'lmstudio':{'host':'thunder-worker-1'}},
+                'environment_wins.json': {'host':'local-harness','lmstudio':{'host':'thunder-worker-2'}},
+                'fallback.json': {'host':'local-worker','lmstudio':{}},
+                'unknown.json': {'lmstudio':{}}}
+            sources = {}
+            for name, meta in fixtures.items():
+                path = experiments / name
+                sources[path] = json.dumps({'meta':meta, 'rows':[{'arm':'base','correct':True}]})
+                path.write_text(sources[path], encoding='utf-8')
+            for name in ('artifact_structural_audit.json','legacy_attribution_audit.json'):
+                (audit / name).write_text(json.dumps({'artifacts':[]}), encoding='utf-8')
+            result = run_index_script([sys.executable,'tools/audit/collect_results.py'],cwd=root,capture_output=True,text=True)
+            self.assertEqual(0,result.returncode,result.stderr)
+            with (root/'results_index.csv').open(encoding='utf-8') as handle:
+                rows = {row['artifact']:row for row in csv.DictReader(handle)}
+            for name, meta in fixtures.items():
+                self.assertEqual(meta['lmstudio'].get('host') or meta.get('host') or '',rows[name]['host'])
+                self.assertEqual('cloud-a6000-lmstudio' if name.startswith('environment') else 'local-lmstudio',rows[name]['env_tag'])
+                self.assertEqual('100.0',rows[name]['accuracy_pct'])
+            for path, text in sources.items():
+                self.assertEqual(text,path.read_text(encoding='utf-8'))
+
+
+class CollectResultsMetadataShapeTests(unittest.TestCase):
+    def test_malformed_metadata_is_reported_without_losing_valid_artifacts(self):
+        import csv
+        import copy
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_index_scripts(tmp)
+            root=Path(tmp)
+            experiments=root/'ab_test_runtime/experiments'
+            audit=root/'ab_test_runtime/audit'
+            experiments.mkdir(parents=True)
+            audit.mkdir(parents=True)
+            good={'meta':{'host':'fixture','git':{'dirty':False,'commit':'abcdef1234'},
+                          'lmstudio':{'host':'thunder-fixture'},'validation':'ok'},
+                  'rows':[{'arm':'base','correct':True},{'arm':'base','correct':False}]}
+            documents={}
+            for field in ('meta','git','lmstudio'):
+                for index,value in enumerate((None,True,7,'bad',[],['bad'])):
+                    document=copy.deepcopy(good)
+                    if field=='meta':document['meta']=value
+                    else:document['meta'][field]=value
+                    documents[f'bad_{field}_{index}.json']=document
+            documents['valid.json']=good
+            documents['missing_optional.json']={'rows':[{'arm':'base','correct':True}]}
+            for name,document in documents.items():
+                (experiments/name).write_text(json.dumps(document),encoding='utf-8')
+            before={path:path.read_bytes() for path in experiments.iterdir()}
+            for name in ('artifact_structural_audit.json','legacy_attribution_audit.json'):
+                (audit/name).write_text(json.dumps({'artifacts':[]}),encoding='utf-8')
+            result=run_index_script([sys.executable,'tools/audit/collect_results.py'],cwd=root,capture_output=True,text=True)
+            self.assertEqual(0,result.returncode,result.stderr)
+            with (root/'results_index.csv').open(encoding='utf-8') as handle:
+                rows={row['artifact']:row for row in csv.DictReader(handle)}
+            self.assertEqual(set(documents),set(rows))
+            for name in documents:
+                if name.startswith('bad_'):
+                    self.assertIn('SKIPPED: malformed metadata',rows[name]['note'])
+                    self.assertEqual('',rows[name]['accuracy_pct'])
+            self.assertEqual('50.0',rows['valid.json']['accuracy_pct'])
+            self.assertEqual('thunder-fixture',rows['valid.json']['host'])
+            self.assertEqual('abcdef12',rows['valid.json']['commit'])
+            self.assertEqual('100.0',rows['missing_optional.json']['accuracy_pct'])
+            for path,content in before.items():self.assertEqual(content,path.read_bytes())
+
+
+class GoalCitationFilenameTests(unittest.TestCase):
+    def test_goal_citations_include_hyphen_dot_and_uppercase_stems(self):
+        import csv
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_index_scripts(tmp)
+            root=Path(tmp)
+            experiments=root/'ab_test_runtime/experiments'
+            audit=root/'ab_test_runtime/audit'
+            experiments.mkdir(parents=True)
+            audit.mkdir(parents=True)
+            names=('normal_name.json','dash-name.json','version.2.json','UPPER_case.json')
+            for name in (*names,'uncited.json'):
+                (experiments/name).write_text(json.dumps({'rows':[{'arm':'base','correct':True}]}),encoding='utf-8')
+            text='### 1.2 First goal\n'+', '.join(f'`{name}`' for name in names)+'\n### 2.3 Second goal\n`dash-name.json` and `UPPER_case.json` again.\n'
+            (root/'GOALS.md').write_text(text,encoding='utf-8')
+            for name in ('artifact_structural_audit.json','legacy_attribution_audit.json'):
+                (audit/name).write_text(json.dumps({'artifacts':[]}),encoding='utf-8')
+            result=run_index_script([sys.executable,'tools/audit/collect_results.py'],cwd=root,capture_output=True,text=True)
+            self.assertEqual(0,result.returncode,result.stderr)
+            with (root/'results_index.csv').open(encoding='utf-8') as handle:
+                rows={row['artifact']:row for row in csv.DictReader(handle)}
+            for name in names:
+                self.assertEqual('1.2,2.3' if name in ('dash-name.json','UPPER_case.json') else '1.2',rows[name]['cited_by_goal'])
+                self.assertEqual('100.0',rows[name]['accuracy_pct'])
+            self.assertEqual('',rows['uncited.json']['cited_by_goal'])
+            self.assertEqual(text,(root/'GOALS.md').read_text(encoding='utf-8'))
+
+
+class ResultsSummaryTotalsTests(unittest.TestCase):
+    def test_generated_prose_tracks_real_csv_rows_and_citation_changes(self):
+        import csv
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_index_scripts(tmp)
+            root = Path(tmp)
+            experiments = root / 'ab_test_runtime/experiments'
+            audit = root / 'ab_test_runtime/audit'
+            experiments.mkdir(parents=True)
+            audit.mkdir(parents=True)
+            for name in ('artifact_structural_audit.json', 'legacy_attribution_audit.json'):
+                (audit/name).write_text(json.dumps({'artifacts': []}), encoding='utf-8')
+            shutil.copy2(Path(APP)/'experiments/replay_artifact.py', root/'app/experiments/replay_artifact.py')
+            (root/'app/experiments/fixture_producer.py').write_text('# fixture command; never executed\n')
+            goals = root / 'GOALS.md'
+            goals.write_text('### 1.2 Fixture\n', encoding='utf-8')
+            sources = {}
+            command = [sys.executable, 'tools/audit/collect_results.py']
+
+            def generate(replayable, cited, total):
+                result = run_index_script(command, cwd=root, capture_output=True, text=True, timeout=20)
+                self.assertEqual(0, result.returncode, result.stderr)
+                markdown = (root/'RESULTS_INDEX.md').read_text(encoding='utf-8')
+                with (root/'results_index.csv').open(encoding='utf-8') as handle:
+                    rows = list(csv.DictReader(handle))
+                self.assertEqual(total, len(rows))
+                self.assertIn(f'{replayable} of {total} rows are replayable.', markdown)
+                self.assertIn(f'`cited_by_goal` is populated on {cited} rows of {total}', markdown)
+                self.assertNotIn('only goals 2.4 and 5.4', markdown)
+                checked = run_index_script(command+['--check'], cwd=root, capture_output=True, text=True, timeout=20)
+                self.assertEqual(0, checked.returncode, checked.stderr)
+                for path, content in sources.items():
+                    self.assertEqual(content, path.read_bytes())
+                return rows
+
+            generate(0, 0, 0)
+            documents = {
+                'replayable.json': {'meta': {}, 'provenance': {'script': 'fixture_producer.py', 'args': {}},
+                                    'rows': [{'arm': 'base', 'correct': True}, {'arm': 'tuned', 'correct': False}]},
+                'plain.json': {'rows': [{'arm': 'base', 'correct': True}]},
+                'skipped.json': {'rows': 7},
+            }
+            for name, document in documents.items():
+                path = experiments/name
+                path.write_text(json.dumps(document), encoding='utf-8')
+                sources[path] = path.read_bytes()
+            goals.write_text('### 1.2 Fixture\n`replayable.json` and `skipped.json`.\n', encoding='utf-8')
+            first = generate(2, 3, 4)
+            self.assertEqual({'base': '100.0', 'tuned': '0.0'},
+                             {r['arm']: r['accuracy_pct'] for r in first if r['artifact']=='replayable.json'})
+            extra = experiments/'extra.json'
+            extra.write_text(json.dumps({'meta': {}, 'provenance': {'script': 'fixture_producer.py', 'args': {}},
+                                         'rows': [{'arm': 'base', 'correct': False}]}), encoding='utf-8')
+            sources[extra] = extra.read_bytes()
+            goals.write_text('### 3.4 Different goal\n`replayable.json` and `extra.json`.\n', encoding='utf-8')
+            stale = run_index_script(command+['--check'], cwd=root, capture_output=True, text=True, timeout=20)
+            self.assertEqual(1, stale.returncode, stale.stderr)
+            second = generate(3, 3, 5)
+            self.assertEqual('0.0', next(r for r in second if r['artifact']=='extra.json')['accuracy_pct'])
+            goals.write_text('### 3.4 Different goal\n`plain.json` only.\n', encoding='utf-8')
+            generate(3, 1, 5)

@@ -30,10 +30,17 @@ hard-depend on a second environment would be a worse failure than an
 occasionally poor reference. The caller logs which path was taken.
 """
 import json
+import math
 import os
 import sys
 import statistics
 import subprocess
+import threading
+import time
+from collections import OrderedDict
+from pathlib import Path
+from lora_evidence import get_file_sha256
+from utils import is_path_inside, get_runtime_data_dir
 
 APP = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(APP)
@@ -64,30 +71,131 @@ def get_speaker_model_python(voicelab_config=None):
 # comparisons, enough to identify the majority speaker, and the cost grows
 # quadratically.
 MAX_CLIPS = 12
+REFERENCE_SCORE_CACHE_LIMIT = 64
+REFERENCE_SCORE_CACHE_TTL = 600.0
+_REFERENCE_SCORE_CACHE = OrderedDict()
+_REFERENCE_WORKER_LOCK = threading.Lock()
 
 
-def _speaker_similarities(pairs, timeout=600):
+def _get_reference_score_key(pairs, python_bin, script):
+    """Bind reuse to audio bytes, selected runtime, worker and local model assets."""
+    files = {"python": Path(python_bin), "worker": Path(script)}
+    prefixes = {Path(python_bin).absolute().parent.parent,
+                Path(python_bin).resolve().parent.parent}
+    sites = {Path(part) for part in os.environ.get("PYTHONPATH", "").split(os.pathsep) if part}
+    sites.update(Path.home().glob(".local/lib/python*/site-packages"))
+    for prefix in prefixes:
+        config = prefix / "pyvenv.cfg"
+        if config.is_file():
+            files[str(config)] = config
+        sites.update(prefix.glob("lib/python*/site-packages"))
+        sites.add(prefix / "Lib/site-packages")
+    for site in sites:
+        for package in ("speechbrain", "torch", "torchaudio", "numpy", "scipy", "librosa",
+                        "soundfile", "hyperpyyaml", "huggingface_hub"):
+            for metadata in site.glob(package + "-*.dist-info/METADATA"):
+                files[str(metadata)] = metadata
+            for entry in (site / package / "__init__.py", site / (package + ".py")):
+                if entry.is_file():
+                    files[str(entry)] = entry
+    assets = Path(REPO) / "ab_test_runtime/ecapa"
+    if assets.exists():
+        for parent, directories, names in os.walk(assets):
+            if any((Path(parent) / name).is_symlink() for name in directories):
+                raise ValueError("Cannot fingerprint a linked ECAPA asset directory")
+            for name in names:
+                path = Path(parent) / name
+                files[str(path)] = path
+    environment = tuple((name, os.environ.get(name)) for name in (
+        "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "HF_HOME", "HUGGINGFACE_HUB_CACHE",
+        "TORCH_HOME", "OMP_NUM_THREADS"))
+    hashes = {path: get_file_sha256(path) for pair in pairs for path in pair}
+    return (os.path.abspath(python_bin), tuple(sorted((name, get_file_sha256(path))
+                                                    for name, path in files.items())),
+            environment, tuple((hashes[a], hashes[b]) for a, b in pairs))
+
+
+def _is_complete_reference_scores(values, count):
+    return (isinstance(values, list) and len(values) == count
+            and all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                    and math.isfinite(value) for value in values))
+
+
+def get_reference_audio_path(path, dataset_root):
+    """Resolve reference audio within its caller's trusted dataset boundary."""
+    resolved = os.path.realpath(os.path.join(dataset_root, os.fspath(path)))
+    if not is_path_inside(resolved, dataset_root):
+        raise ValueError(f"reference audio is outside the dataset: {path}")
+    return resolved
+
+
+def _speaker_similarities(pairs, timeout=600, *, dataset_root=None):
     """Cosine similarity per pair, or None if the model is unavailable."""
-    python_bin = get_speaker_model_python()
+    from config_settings import load_app_config
+    from utils import get_app_config_path, get_runtime_data_dir
+    config_path = get_app_config_path(get_runtime_data_dir(REPO), REPO, APP)
+    voicelab_config = load_app_config(config_path).get("voicelab")
+    if voicelab_config is not None and not isinstance(voicelab_config, dict):
+        print("WARNING: Invalid Voice Lab configuration; reference selection declined.",
+              flush=True)
+        return None
+    python_bin = get_speaker_model_python(voicelab_config)
     if not pairs or not python_bin:
         return None
     script = os.path.join(APP, "experiments", "_ecapa_batch.py")
     if not os.path.exists(script):
         return None
-    try:
-        out = subprocess.run(
-            [python_bin, script],
-            input=json.dumps([[os.path.abspath(a), os.path.abspath(b)]
-                              for a, b in pairs]),
-            capture_output=True, text=True, timeout=timeout, cwd=APP)
-    except (subprocess.SubprocessError, OSError):
+    root = dataset_root if dataset_root is not None else get_runtime_data_dir(REPO)
+    resolved_pairs = [[get_reference_audio_path(a, root), get_reference_audio_path(b, root)]
+                      for a, b in pairs]
+    if any(not os.path.isfile(path) for pair in resolved_pairs for path in pair):
         return None
-    if out.returncode != 0:
+    deadline = time.monotonic() + timeout
+    if not _REFERENCE_WORKER_LOCK.acquire(timeout=max(0, timeout)):
         return None
     try:
-        return json.loads(out.stdout.strip().splitlines()[-1])
-    except (ValueError, IndexError):
-        return None
+        try:
+            key = _get_reference_score_key(resolved_pairs, python_bin, script)
+        except (OSError, ValueError):
+            key = None  # missing provenance disables reuse, not the existing scorer
+        now = time.monotonic()
+        for old_key, (created, _) in list(_REFERENCE_SCORE_CACHE.items()):
+            if now - created >= REFERENCE_SCORE_CACHE_TTL:
+                del _REFERENCE_SCORE_CACHE[old_key]
+        if key is not None and key in _REFERENCE_SCORE_CACHE:
+            _REFERENCE_SCORE_CACHE.move_to_end(key)
+            return list(_REFERENCE_SCORE_CACHE[key][1])
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            out = subprocess.run(
+                [python_bin, script], input=json.dumps(resolved_pairs),
+                capture_output=True, text=True, timeout=remaining, cwd=APP)
+        except (subprocess.SubprocessError, OSError):
+            return None
+        if out.returncode != 0:
+            return None
+        try:
+            values = json.loads(out.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            return None
+        try:
+            complete = _is_complete_reference_scores(values, len(resolved_pairs))
+        except OverflowError:
+            complete = False
+        if key is not None and complete:
+            try:
+                after = _get_reference_score_key(resolved_pairs, python_bin, script)
+            except (OSError, ValueError):
+                after = None
+            if key == after:
+                _REFERENCE_SCORE_CACHE[key] = (time.monotonic(), tuple(values))
+                while len(_REFERENCE_SCORE_CACHE) > REFERENCE_SCORE_CACHE_LIMIT:
+                    _REFERENCE_SCORE_CACHE.popitem(last=False)
+        return values
+    finally:
+        _REFERENCE_WORKER_LOCK.release()
 
 
 MIN_USABLE_SIMILARITY = 0.60
@@ -106,30 +214,42 @@ becomes a regression.
 """
 
 
-def rank_reference_samples(wav_paths, max_clips=MAX_CLIPS):
+def rank_reference_samples(wav_paths, max_clips=MAX_CLIPS, *, dataset_root=None):
     """Return candidate ``(original_index, median_similarity)`` pairs best first.
 
     An empty list means the model was unavailable, too few clips were usable,
     or the similarity result was incomplete. Indices always address the
     original input list, including when missing files were filtered out.
+    dataset_root is the caller's trusted extraction/work root; direct callers
+    default to the configured runtime data root. Escaping paths raise ValueError.
     """
-    usable = [(i, p) for i, p in enumerate(wav_paths)
-              if p and os.path.exists(p)]
-    if len(usable) < 3:
-        return []
+    root = dataset_root if dataset_root is not None else get_runtime_data_dir(REPO)
+    resolved = [(i, get_reference_audio_path(p, root)) for i, p in enumerate(wav_paths) if p]
+    usable = [(i, p) for i, p in resolved if os.path.isfile(p)]
     sample = usable[:max_clips]
+    if len(sample) < 3:
+        return []
     pairs, index = [], []
     for a in range(len(sample)):
         for b in range(a + 1, len(sample)):
             pairs.append((sample[a][1], sample[b][1]))
             index.append((a, b))
-    sims = _speaker_similarities(pairs)
+    sims = _speaker_similarities(pairs, dataset_root=root)
     if not sims or len(sims) != len(pairs):
         return []
     scores = {a: [] for a in range(len(sample))}
     for (a, b), value in zip(index, sims):
         if value is None:
             continue
+        try:
+            valid = (isinstance(value, (int, float)) and not isinstance(value, bool)
+                     and math.isfinite(value))
+        except OverflowError:
+            valid = False
+        if not valid:
+            print("WARNING: ECAPA returned an invalid similarity; reference selection declined.",
+                  flush=True)
+            return []
         scores[a].append(value)
         scores[b].append(value)
     medians = {a: statistics.median(v) for a, v in scores.items() if v}
@@ -141,9 +261,9 @@ def rank_reference_samples(wav_paths, max_clips=MAX_CLIPS):
 
 
 def select_reference_sample(wav_paths, max_clips=MAX_CLIPS,
-                            reference_rank=0):
+                            reference_rank=0, *, dataset_root=None):
     """Return one ranked reference candidate, declining weak candidates."""
-    ranked = rank_reference_samples(wav_paths, max_clips=max_clips)
+    ranked = rank_reference_samples(wav_paths, max_clips=max_clips, dataset_root=dataset_root)
     if not ranked or reference_rank < 0 or reference_rank >= len(ranked):
         return None, None
     best, score = ranked[reference_rank]

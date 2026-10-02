@@ -1,5 +1,9 @@
 import json
+import asyncio
+import contextvars
+import functools
 import logging
+import math
 import os
 import queue
 import re
@@ -7,8 +11,14 @@ import signal
 import shutil
 import subprocess
 import sys
+
+from subprocess_ownership import (SUBPROCESS_TERMINATE_GRACE_SECONDS,
+                                 start_owned_subprocess, stop_owned_subprocess, send_subprocess_signal,
+                                 terminate_windows_process_tree as terminate_owned_windows_process_tree)
+from voicelab_settings import get_voicelab_python
 import threading
 import time
+import uuid
 from typing import List, Optional, Tuple
 
 import aiofiles
@@ -20,10 +30,12 @@ from config_settings import load_app_config
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
                    is_generic_speaker, is_path_inside, safe_load_json,
                    secure_filename)
-from lmstudio_settings import (get_current_status, get_effective_max_tokens,
+from lmstudio_settings import (get_active_llm_config, get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
 from run_history import finish_run, prune_runs, record_artifact, start_run
+from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
+from task_ownership import acquire_task_lease
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -75,7 +87,7 @@ def _safe_subpath(base_dir: str, name: str) -> str:
     then delete/extract it, so a value like '..' can't reach outside base_dir.
     """
     target = os.path.realpath(os.path.join(base_dir, name))
-    if not is_path_inside(target, base_dir):
+    if target == os.path.realpath(base_dir) or not is_path_inside(target, base_dir):
         raise HTTPException(status_code=400, detail="Invalid name.")
     return target
 
@@ -156,12 +168,8 @@ def get_active_book_id() -> Optional[str]:
 
 
 def _save_active_book_id(book_id: str, input_path: Optional[str] = None) -> None:
-    state_path = os.path.join(DATA_DIR, "state.json")
-    state = safe_load_json(state_path, default={})
-    state["active_book_id"] = secure_filename(book_id)
-    if input_path is not None:
-        state["input_file_path"] = input_path
-    atomic_json_write(state, state_path)
+    from book_state_transaction import apply_book_input_selection
+    apply_book_input_selection(DATA_DIR, input_path, secure_filename(book_id))
 
 
 def _saved_book_meta_path(name: str) -> str:
@@ -225,18 +233,27 @@ def get_cast_storage_pool(lib: dict, cast_name: str, name: str,
     return lib["casts"][cast_name].setdefault("members", {})
 
 
-def get_cast_adapter_usage(lib: dict, cast_name: Optional[str]) -> dict:
+def get_cast_adapter_usage(lib: dict, cast_name: Optional[str], adapter_id_map=None) -> dict:
     """Derive LoRA usage from distinct stored cast-member identities."""
     usage = {}
     if not cast_name or cast_name not in lib.get("casts", {}):
         return usage
     members = list(lib.get("shared", {}).items())
     members += list(lib["casts"][cast_name].get("members", {}).items())
+    from voice_manifest import get_resolved_adapter_id_mapping
+    adapter_ids = [(member.get("config") or {}).get("adapter_id")
+                   for _, member in members]
+    identities = adapter_id_map
+    if identities is None:
+        identities = {os.path.normcase(name): current for name, current in
+                      get_resolved_adapter_id_mapping(
+                          LORA_MODELS_DIR, [adapter_id for adapter_id in adapter_ids if adapter_id]).items()}
     for key, member in members:
         cfg = member.get("config") or {}
         adapter_id = cfg.get("adapter_id")
         if not adapter_id:
             continue
+        adapter_id = identities.get(os.path.normcase(adapter_id), adapter_id)
         item = usage.setdefault(adapter_id, {"character_count": 0, "total_lines": 0, "characters": []})
         item["character_count"] += 1
         assignments = member.get("assignments") or {}
@@ -381,7 +398,7 @@ VOICELAB_DEFAULTS = {
     # therefore the interpreter that is running - it exists by definition -
     # and the preflight probe reports per-stage what it lacks. A separate env
     # can still be configured here or via ALEXANDRIA_ROCM_PYTHON.
-    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", sys.executable),
+    "rocm_python": get_voicelab_python({}),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
     # Optional book folders used to enrich voice profiles with a prose sample.
@@ -444,7 +461,8 @@ def _load_voicelab_config() -> dict:
             with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                for key in ("rocm_python", "profiler_model", "zips_dir"):
+                cfg["rocm_python"] = get_voicelab_python(data, cfg["rocm_python"])
+                for key in ("profiler_model", "zips_dir"):
                     if isinstance(data.get(key), str):
                         cfg[key] = data[key]
                 epub_dirs = data.get("epub_dirs")
@@ -501,6 +519,7 @@ process_state = {
     "lora_test": {"running": False, "logs": []},
     "voice_design": {"running": False, "logs": []},
     "lmstudio_optimize": {"running": False, "logs": []},
+    "llm_test": {"running": False, "logs": [], "start_time": None},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
@@ -524,12 +543,11 @@ LLM_TASKS = {"script", "batch_script", "review", "batch_review", "persona",
              "voices", "nicknames"} & set(process_state.keys())
 
 
-def llm_is_on_this_gpu() -> bool:
+def is_llm_on_this_gpu(config) -> bool:
     """The active LLM profile's `on_this_gpu`, or - when unset - whether its
     endpoint is local to this machine. Conservative on any failure: True."""
     try:
         from lmstudio_settings import get_active_llm_config, is_remote_llm
-        config = load_app_config(CONFIG_PATH)
         llm = get_active_llm_config(config) or {}
         if llm.get("transport") == "manual":
             return False   # the user is the model; no GPU involved
@@ -541,42 +559,77 @@ def llm_is_on_this_gpu() -> bool:
         return True
 
 
-def gpu_lock_conflicts(new_task_name: str) -> set:
+def llm_is_on_this_gpu() -> bool:
+    """Read the active config through the shared local-GPU dispatch policy."""
+    try:
+        return is_llm_on_this_gpu(load_app_config(CONFIG_PATH))
+    except Exception:
+        return True
+
+
+def gpu_lock_conflicts(new_task_name: str, *, cpu_only=False) -> set:
     """The tasks that must not be running for `new_task_name` to start."""
-    others = GPU_TASKS - {new_task_name}
+    if cpu_only or new_task_name in NON_GPU_TASKS:
+        return set()
+    others = {name for name in GPU_TASKS - {new_task_name}
+              if not is_task_cpu_only(name)}
     if llm_is_on_this_gpu():
         return others
     if new_task_name in LLM_TASKS:
         return others & LLM_TASKS
     return others - LLM_TASKS
 
-def check_global_gpu_lock(new_task_name: str):
+
+def is_task_running(task_name, states=None):
+    """Owned pending/started work stays admitted through callback cleanup."""
+    owner = _task_claims.get(task_name)
+    states = process_state if states is None else states
+    return bool(states.get(task_name, {}).get("running")
+                or (owner and owner["phase"] in ("pending", "started")))
+
+
+def is_task_cpu_only(task_name):
+    """Only an owned CPU claim exempts a running task from GPU conflicts."""
+    return bool(_task_claims.get(task_name, {}).get("cpu_only"))
+
+
+def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
     """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
 
     Raises HTTPException on conflict (every caller relies on this propagating
     straight out of the route handler) - unlike check_disk_space/
     check_text_loss's return-a-value convention.
     """
-    if process_state.get(new_task_name, {}).get("running"):
+    if is_task_running(new_task_name):
         raise HTTPException(
             status_code=400,
             detail=f"{new_task_name.replace('_', ' ').capitalize()} is already running."
         )
-    if new_task_name in NON_GPU_TASKS:
-        # NON_GPU_TASKS are exempt from the global GPU lock - don't block them
-        # on other GPU tasks' running state, only guard against double-starting
-        # themselves (handled above).
-        return
-    for task_name in gpu_lock_conflicts(new_task_name):
-        if process_state.get(task_name, {}).get("running"):
+    for task_name in gpu_lock_conflicts(new_task_name, cpu_only=cpu_only):
+        if is_task_running(task_name):
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM."
             )
 
 _gpu_lock = threading.Lock()
+_gpu_leases = {}
+_task_claims = {}
+_request_task_claims = contextvars.ContextVar("alexandria_request_task_claims", default=None)
 
-def claim_gpu_task(task_name: str):
+
+def _reap_gpu_leases():
+    while True:
+        with _gpu_lock:
+            for task_name, handle in list(_gpu_leases.items()):
+                if not is_task_running(task_name):
+                    release_gpu_lock(handle)
+                    del _gpu_leases[task_name]
+            if not _gpu_leases:
+                return
+        time.sleep(0.1)
+
+def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False):
     """Atomically re-check and reserve the GPU lock for task_name.
 
     check_global_gpu_lock() alone has a TOCTOU race: two requests for
@@ -587,10 +640,191 @@ def claim_gpu_task(task_name: str):
     check and mark the task as running.
     """
     with _gpu_lock:
-        check_global_gpu_lock(task_name)
-        if "cancel" in process_state[task_name]:
-            process_state[task_name]["cancel"] = False
-        process_state[task_name]["running"] = True
+        for old_task, handle in list(_gpu_leases.items()):
+            if not is_task_running(old_task):
+                release_gpu_lock(handle)
+                del _gpu_leases[old_task]
+        if cpu_only:
+            check_global_gpu_lock(task_name, cpu_only=True)
+        else:
+            check_global_gpu_lock(task_name)
+        needs_local_gpu = (not cpu_only and task_name not in NON_GPU_TASKS
+                           and (task_name not in LLM_TASKS
+                                or (llm_is_on_this_gpu() if llm_config is None
+                                    else is_llm_on_this_gpu(llm_config))))
+        task_lease = None
+        handle = None
+        try:
+            conflicts = gpu_lock_conflicts(task_name, cpu_only=cpu_only)
+            if cpu_only:
+                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, cpu_only=True)
+            else:
+                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts)
+            if needs_local_gpu:
+                handle = acquire_gpu_lock()
+            if handle is not None:
+                _gpu_leases[task_name] = handle
+                if len(_gpu_leases) == 1:
+                    threading.Thread(target=_reap_gpu_leases, daemon=True).start()
+            if "cancel" in process_state[task_name]:
+                process_state[task_name]["cancel"] = False
+            process_state[task_name]["running"] = True
+            claim_id = uuid.uuid4().hex
+            _task_claims[task_name] = {"id": claim_id, "phase": "claimed", "lease": task_lease,
+                                      "cpu_only": cpu_only}
+            process_state[task_name]["cpu_only"] = cpu_only
+            return claim_id
+        except BaseException as error:
+            if task_name in process_state:
+                process_state[task_name]["running"] = False
+            _task_claims.pop(task_name, None)
+            _gpu_leases.pop(task_name, None)
+            if handle is not None:
+                release_gpu_lock(handle)
+            if task_lease is not None:
+                task_lease.close()
+            if isinstance(error, (OSError, RuntimeError)):
+                raise HTTPException(status_code=400, detail=str(error)) from error
+            raise
+
+
+def release_gpu_task_claim(task_name: str, claim_id=None, pending_only=False):
+    """Release a claim whose worker could not be started."""
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        if claim_id is not None and (owner is None or owner["id"] != claim_id):
+            return False
+        if pending_only and (owner is None or owner["phase"] != "pending"):
+            return False
+        process_state[task_name]["running"] = False
+        _task_claims.pop(task_name, None)
+        handle = _gpu_leases.pop(task_name, None)
+        try:
+            if handle is not None:
+                release_gpu_lock(handle)
+        finally:
+            if owner is not None and owner.get("lease") is not None:
+                owner["lease"].close()
+        return True
+
+
+class _RequestTaskClaims(list):
+    """Shared request admission remains closed after ASGI cancellation."""
+    closed = False
+
+
+def reserve_background_task(task_name, *, cpu_only=False):
+    """Reserve unstarted work and bind its token to the current request."""
+    claim_id = claim_gpu_task(task_name, cpu_only=True) if cpu_only else claim_gpu_task(task_name)
+    try:
+        with _gpu_lock:
+            claims = _request_task_claims.get()
+            if claims is not None and getattr(claims, "closed", False):
+                raise HTTPException(status_code=409, detail="The initiating request is no longer active")
+            _task_claims[task_name]["phase"] = "pending"
+            if claims is not None:
+                claims.append((task_name, claim_id))
+    except BaseException:
+        release_gpu_task_claim(task_name, claim_id)
+        raise
+    return claim_id
+
+
+def register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs):
+    """Adopt the same pending reservation; registration never double-claims."""
+    try:
+        with _gpu_lock:
+            owner = _task_claims.get(task_name)
+            if owner is None or owner["id"] != claim_id or owner["phase"] != "pending":
+                raise HTTPException(status_code=409, detail="Task reservation is no longer active")
+        background_tasks.add_task(_run_owned_background_task, task_name, claim_id,
+                                  functools.partial(callback, *args, **kwargs))
+    except BaseException:
+        release_gpu_task_claim(task_name, claim_id, pending_only=True)
+        raise
+    return claim_id
+
+
+def schedule_claimed_background_task(background_tasks, task_name, callback, *args, cpu_only=False, **kwargs):
+    """Reserve and register one owned worker; failed registration rolls back."""
+    claim_id = reserve_background_task(task_name, cpu_only=True) if cpu_only else reserve_background_task(task_name)
+    return register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs)
+
+
+async def run_claimed_task_worker(task_name, callback, *args, **kwargs):
+    """Keep a started thread's exact claim until its callback exits after cancellation."""
+    claim_id = reserve_background_task(task_name)
+    try:
+        return await asyncio.to_thread(_run_owned_background_task, task_name, claim_id,
+                                       functools.partial(callback, *args, **kwargs))
+    finally:
+        release_gpu_task_claim(task_name, claim_id, pending_only=True)
+
+
+def _ensure_owned_task_started(task_name, claim_id, already_started=False):
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        phase = "started" if already_started else "pending"
+        if owner is None or owner["id"] != claim_id or owner["phase"] != phase:
+            return False
+        owner["phase"] = "started"
+        return True
+
+
+def _run_owned_background_task(task_name, claim_id, callback, already_started=False):
+    if not _ensure_owned_task_started(task_name, claim_id, already_started):
+        return
+    try:
+        return callback()
+    finally:
+        release_gpu_task_claim(task_name, claim_id)
+
+
+def start_claimed_task_thread(task_name, claim_id, callback, *args, **kwargs):
+    """Adopt a reservation before OS thread start; an alive worker keeps its claim."""
+    worker = None
+    try:
+        worker = threading.Thread(target=_run_owned_background_task,
+                                  args=(task_name, claim_id, functools.partial(callback, *args, **kwargs), True),
+                                  daemon=True)
+        if not _ensure_owned_task_started(task_name, claim_id):
+            raise HTTPException(status_code=409, detail="Task reservation is no longer active")
+        worker.start()
+    except BaseException:
+        if worker is None or not worker.is_alive():
+            release_gpu_task_claim(task_name, claim_id)
+        raise
+    return worker
+
+
+def release_pending_task_claims():
+    """Shutdown releases reservations only; started workers retain admission."""
+    with _gpu_lock:
+        pending = [(name, owner["id"]) for name, owner in _task_claims.items()
+                   if owner["phase"] == "pending"]
+    for name, claim_id in pending:
+        release_gpu_task_claim(name, claim_id, pending_only=True)
+
+
+class TaskClaimMiddleware:
+    """ASGI request lifetime includes response sending and background execution."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        claims = _RequestTaskClaims()
+        token = _request_task_claims.set(claims)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            with _gpu_lock:
+                claims.closed = True
+                pending = list(claims)
+            for name, claim_id in pending:
+                release_gpu_task_claim(name, claim_id, pending_only=True)
+            _request_task_claims.reset(token)
 
 def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     """Reset a process_state[...] entry for the start of a new batch run.
@@ -735,9 +969,9 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
     # NOTE: do NOT bail out here if state["running"] is already True. GPU tasks
     # reserve their slot via claim_gpu_task() on the request thread (which sets
-    # running=True before this background task is scheduled), and the few
-    # non-GPU callers (e.g. nicknames) guard against double-starts at their own
-    # endpoint. A guard here would see claim_gpu_task's own reservation and
+    # running=True before this background task is scheduled). Nicknames also
+    # runs LLM work and reserves its slot at the endpoint. A guard here would
+    # see claim_gpu_task's own reservation and
     # abort every GPU task, deadlocking the queue.
     state["running"] = True
     state["logs"] = []
@@ -811,6 +1045,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         if "pid"         in state: state["pid"]         = None
         state["running"] = False
         if "return_code" in state: state["return_code"] = return_code
+    return return_code
 
 
 
@@ -842,10 +1077,10 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
     proc = state.get("process")
     _resume_if_paused(state, proc)
 
+    state["cancel"] = True
     pid = state.get("pid")
     if not pid:
         # Pre-Popen race window: flag is checked by run_process immediately after Popen
-        state["cancel"] = True
         return {"status": "cancel queued"}
     try:
         # Signal the whole group (grandchildren too); proc when we have it, else pid.
@@ -874,7 +1109,7 @@ def _batch_cancel_helper(state_key: str):
     return {"status": "cancel_requested"}
 
 
-CANCEL_TERMINATE_GRACE_SECONDS = 10.0
+CANCEL_TERMINATE_GRACE_SECONDS = SUBPROCESS_TERMINATE_GRACE_SECONDS
 
 
 def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
@@ -890,7 +1125,7 @@ def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
     if not kill_sent and now - terminate_requested_at >= CANCEL_TERMINATE_GRACE_SECONDS:
         try:
             if sys.platform == "win32":
-                process.kill()
+                terminate_windows_process_tree(process, force=True)
             else:
                 _send_signal_tree(process, signal.SIGKILL)
         except (ProcessLookupError, OSError):
@@ -904,6 +1139,9 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
     state = process_state[task_name]
     run_id = None
     error = None
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        direct_claim = owner["id"] if owner is not None and owner["phase"] == "claimed" else None
     try:
         try:
             prune_runs(RUN_HISTORY_DIR)
@@ -942,7 +1180,43 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
                 finish_run(RUN_HISTORY_DIR, run_id, final_status, error=error)
             except Exception:
                 logger.exception("Could not finish run history record %s", run_id)
+        if direct_claim is not None:
+            release_gpu_task_claim(task_name, direct_claim)
 
+
+
+def ensure_failed_subprocess_stopped(process, state):
+    """Stop owned work before exceptional stream cleanup releases its handles."""
+    _resume_if_paused(state, process)
+    stop_owned_subprocess(process, timeout=CANCEL_TERMINATE_GRACE_SECONDS,
+                          force_after_grace=True)
+
+
+def get_gpu_task_environment(state: dict, env: dict = None) -> dict:
+    """Copy subprocess settings and describe this task's held kernel lease."""
+    environment = dict(os.environ if env is None else env)
+    with _gpu_lock:
+        for task_name, task_state in process_state.items():
+            handle = _gpu_leases.get(task_name)
+            if task_state is state and handle is not None and is_task_running(task_name):
+                environment.update(
+                    GPU_LOCK=os.fspath(handle.name),
+                    ALEXANDRIA_GPU_LOCK_HELD="1",
+                    ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()),
+                    ALEXANDRIA_GPU_LOCK_FD=str(handle.fileno()),
+                )
+                break
+    return environment
+
+
+def get_task_lease_descriptor(state):
+    """Read the current claim's borrowed descriptor for its Linux command owner."""
+    with _gpu_lock:
+        for task_name, task_state in process_state.items():
+            owner = _task_claims.get(task_name)
+            if task_state is state and owner is not None and owner.get("lease") is not None:
+                return owner["lease"].fileno()
+    return None
 
 
 def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None, env: dict = None) -> Tuple[int, List[str]]:
@@ -968,140 +1242,200 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             log_fh = open(log_file, "a", encoding="utf-8")
         except OSError:
             log_fh = None
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        cwd=cwd,
-        env=env if env is not None else os.environ.copy(),
-        # Own process group (pgid == pid) so cancel/pause can signal the whole
-        # tree — grandchildren (e.g. Voice Lab's batch_train_lora → train_lora,
-        # or the profiler's llama child) would otherwise survive. POSIX-only;
-        # ignored on Windows.
-        start_new_session=True,
-    )
-
-    if "process" in state:
-        state["process"] = process
-    if "pid" in state:
-        state["pid"] = process.pid
-    if "processes" in state:
-        state["processes"].append(process)
-
-    log_queue: queue.Queue = queue.Queue()
-
-    def _reader(stream, q):
-        try:
-            for line in stream:
-                q.put(line)
-        except Exception as e:
-            # Log the error so we know why the reader died
-            logger.error(f"Subprocess reader thread failed: {e}")
-        finally:
-            # Always put None sentinel even if iteration failed
-            try:
-                q.put(None)
-            except Exception:
-                pass  # Queue might be closed, nothing we can do
-
-    reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
-    reader.start()
-
-    own_lines: List[str] = []
-    terminate_requested_at = None
-    kill_sent = False
-    max_idle_cycles = 600  # Max consecutive Empty polls before assuming reader died (600 * 0.2s = 120s)
-    idle_cycles = 0
-
-    def _honor_cancel():
-        # Graceful group termination first; force-kill the same group if a child
-        # or grandchild ignores SIGTERM and keeps the output pipe open.
-        nonlocal terminate_requested_at, kill_sent
-        if state.get("cancel"):
-            terminate_requested_at, kill_sent = apply_cancel_escalation(
-                process, terminate_requested_at, kill_sent)
-
-    while True:
-        try:
-            line = log_queue.get(timeout=0.2)  # Increased from 0.05 to reduce CPU spinning
-            idle_cycles = 0  # Reset on successful get
-        except queue.Empty:
-            if not state.get("paused"):
-                idle_cycles += 1
-            else:
-                idle_cycles = 0  # Reset during pause to prevent false-positive reader thread timeouts
-            if idle_cycles > max_idle_cycles:
-                if process.poll() is not None:
-                    # Process has exited but the reader thread hasn't delivered
-                    # its output/None sentinel - it may have crashed.
-                    logger.warning(f"Queue polling timed out after {max_idle_cycles * 0.2}s after process exit - assuming reader thread died")
-                    break
-                # Process is still running (e.g. a slow LLM call with no stdout
-                # output) - keep waiting rather than dropping output that
-                # arrives later.
-                idle_cycles = 0
-            _honor_cancel()
-            continue
-        # Also honor cancel when output is flowing continuously — otherwise a
-        # chatty stage never reaches the Empty branch and can't be terminated
-        # until it happens to go quiet.
-        _honor_cancel()
-        if line is None:
-            break
-        log_line = line.strip()
-        if log_line:
-            entry = f"{log_prefix}{log_line}" if log_prefix else log_line
-            own_lines.append(entry)
-            state["logs"].append(entry)
-            # The child froze itself (generate_script.pause_for_operator) after
-            # exhausting API retries. Mirror that here so the UI shows Paused
-            # and its Resume button - SIGCONT via _resume_task - wakes it.
-            if log_line.startswith(AUTO_PAUSE_MARKER):
-                state["paused"] = "resumed" not in log_line
-            if len(state["logs"]) > max_logs:
-                state["logs"].pop(0)
-            if log_fh:
-                try:
-                    log_fh.write(entry + "\n")
-                    log_lines_since_flush += 1
-                    now = time.time()
-                    # Flush on whichever comes first: a burst of 50 lines, or ~1s
-                    # since the last flush — so /api/logs/{task_name} (served
-                    # directly from this file) doesn't lag the live in-memory
-                    # log by much during slow-running tasks.
-                    if log_lines_since_flush >= 50 or now - last_flush_time >= 1:
-                        log_fh.flush()
-                        log_lines_since_flush = 0
-                        last_flush_time = now
-                except OSError as e:
-                    # Log write failed (e.g., disk full). Notify user and close file handle.
-                    state["logs"].append(f"WARNING: Log file write failed ({e}). Subsequent logs will only appear in memory.")
-                    try:
-                        log_fh.close()
-                    except OSError:
-                        pass
-                    log_fh = None  # Stop trying to write to disk
-
-    reader.join(timeout=1)
-    if reader.is_alive():
-        # A detached grandchild can retain the inherited pipe after its parent
-        # exits. Do not let that keep this task state permanently running.
-        logger.warning("Subprocess reader did not finish; closing inherited stdout pipe")
+    process = None
+    reader = None
     try:
-        process.stdout.close()
-    except OSError:
-        pass
-    reader.join(timeout=1)
-    process.wait()
-    if "processes" in state and process in state["processes"]:
-        state["processes"].remove(process)
-    if log_fh:
+        subprocess_env = get_gpu_task_environment(state, env)
+        lease_fd = None
+        if (sys.platform == "linux"
+                and subprocess_env.get("ALEXANDRIA_GPU_LOCK_HELD") == "1"
+                and subprocess_env.get("ALEXANDRIA_GPU_LOCK_PID") == str(os.getpid())):
+            lease_fd = int(subprocess_env.get("ALEXANDRIA_GPU_LOCK_FD", "9"))
+        process = start_owned_subprocess(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            cwd=cwd,
+            env=subprocess_env,
+            gpu_lease_fd=lease_fd,
+            task_lease_fd=get_task_lease_descriptor(state) if sys.platform == "linux" else None,
+            termination_grace=CANCEL_TERMINATE_GRACE_SECONDS,
+            # Linux uses a reaper; Windows uses a gated Job Object owner.
+            # Other POSIX hosts retain the owned process-group dispatch.
+            start_new_session=True,
+        )
+
+        if sys.platform != "win32":
+            process._alexandria_pgid = process.pid
+
+        if "process" in state:
+            state["process"] = process
+        if "pid" in state:
+            state["pid"] = process.pid
+        if "processes" in state:
+            state["processes"].append(process)
+
+        log_queue: queue.Queue = queue.Queue()
+
+        def _reader(stream, q):
+            try:
+                for line in stream:
+                    q.put(line)
+            except Exception as e:
+                # Log the error so we know why the reader died
+                logger.error(f"Subprocess reader thread failed: {e}")
+            finally:
+                # Always put None sentinel even if iteration failed
+                try:
+                    q.put(None)
+                except Exception:
+                    pass  # Queue might be closed, nothing we can do
+
+        reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
+        reader.start()
+
+        own_lines: List[str] = []
+        terminate_requested_at = None
+        kill_sent = False
+        max_idle_cycles = 600  # Max consecutive Empty polls before assuming reader died (600 * 0.2s = 120s)
+        idle_cycles = 0
+
+        def _honor_cancel():
+            # Graceful group termination first; force-kill the same group if a child
+            # or grandchild ignores SIGTERM and keeps the output pipe open.
+            nonlocal terminate_requested_at, kill_sent
+            if state.get("cancel"):
+                terminate_requested_at, kill_sent = apply_cancel_escalation(
+                    process, terminate_requested_at, kill_sent)
+
+        while True:
+            try:
+                line = log_queue.get(timeout=0.2)  # Increased from 0.05 to reduce CPU spinning
+                idle_cycles = 0  # Reset on successful get
+            except queue.Empty:
+                if not state.get("paused"):
+                    idle_cycles += 1
+                else:
+                    idle_cycles = 0  # Reset during pause to prevent false-positive reader thread timeouts
+                if idle_cycles > max_idle_cycles:
+                    if process.poll() is not None:
+                        # Process has exited but the reader thread hasn't delivered
+                        # its output/None sentinel - it may have crashed.
+                        logger.warning(f"Queue polling timed out after {max_idle_cycles * 0.2}s after process exit - assuming reader thread died")
+                        break
+                    # Process is still running (e.g. a slow LLM call with no stdout
+                    # output) - keep waiting rather than dropping output that
+                    # arrives later.
+                    idle_cycles = 0
+                _honor_cancel()
+                continue
+            # Drain only lines already available, without delaying slow output.
+            pending_lines = [line]
+            while pending_lines[-1] is not None and len(pending_lines) < 128:
+                try:
+                    pending_lines.append(log_queue.get_nowait())
+                except queue.Empty:
+                    break
+            log_entries = []
+            for line in pending_lines:
+                # Cancellation remains per line even under continuous output.
+                _honor_cancel()
+                if line is None:
+                    break
+                log_line = line.strip()
+                if log_line:
+                    entry = f"{log_prefix}{log_line}" if log_prefix else log_line
+                    own_lines.append(entry)
+                    log_entries.append(entry)
+                    # The child froze itself (generate_script.pause_for_operator) after
+                    # exhausting API retries. Mirror that here so the UI shows Paused
+                    # and its Resume button - SIGCONT via _resume_task - wakes it.
+                    if log_line.startswith(AUTO_PAUSE_MARKER):
+                        state["paused"] = "resumed" not in log_line
+                    if log_fh:
+                        try:
+                            log_fh.write(entry + "\n")
+                            log_lines_since_flush += 1
+                            now = time.time()
+                            # Flush on whichever comes first: a burst of 50 lines, or ~1s
+                            # since the last flush — so /api/logs/{task_name} (served
+                            # directly from this file) doesn't lag the live in-memory
+                            # log by much during slow-running tasks.
+                            if log_lines_since_flush >= 50 or now - last_flush_time >= 1:
+                                log_fh.flush()
+                                log_lines_since_flush = 0
+                                last_flush_time = now
+                        except OSError as e:
+                            # Log write failed (e.g., disk full). Notify user and close file handle.
+                            log_entries.append(f"WARNING: Log file write failed ({e}). Subsequent logs will only appear in memory.")
+                            try:
+                                log_fh.close()
+                            except OSError:
+                                pass
+                            log_fh = None  # Stop trying to write to disk
+
+            if log_entries:
+                # Preserve the shared list and publish the exact bounded tail once
+                # per queued burst instead of shifting it for every emitted line.
+                logs = state["logs"]
+                entries = log_entries[-max_logs:] if max_logs > 0 else []
+                overflow = max(0, len(logs) + len(entries) - max_logs)
+                if overflow:
+                    del logs[:overflow]
+                logs.extend(entries)
+                # Another control path may append while this burst is published.
+                overflow = max(0, len(logs) - max_logs)
+                if overflow:
+                    del logs[:overflow]
+            if pending_lines[-1] is None:
+                break
+
+        reader.join(timeout=1)
+        if reader.is_alive():
+            # The owner has exited, but a failed reader may still need cleanup.
+            logger.warning("Subprocess reader did not finish; closing inherited stdout pipe")
         try:
-            log_fh.close()  # flushes any remaining buffered lines
+            process.stdout.close()
         except OSError:
             pass
-    return process.returncode, own_lines
+        reader.join(timeout=1)
+        while True:
+            _honor_cancel()
+            try:
+                process.wait(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        return process.returncode, own_lines
+
+    except BaseException:
+        if process is not None:
+            try:
+                ensure_failed_subprocess_stopped(process, state)
+            except BaseException:
+                logger.exception("Failed to stop subprocess after stream failure")
+        raise
+    finally:
+        if process is not None:
+            if "processes" in state and process in state["processes"]:
+                state["processes"].remove(process)
+            if state.get("process") is process:
+                state["process"] = None
+            if state.get("pid") == process.pid:
+                state["pid"] = None
+            if reader is not None and reader.is_alive():
+                reader.join(timeout=1)
+            if process.stdout is not None and (reader is None or not reader.is_alive()):
+                process.stdout.close()
+        if process is not None:
+            control = getattr(process, "_alexandria_control", None)
+            if control is not None:
+                control.close()
+        if log_fh is not None:
+            log_fh.close()
+
 
 _REVIEW_ENTRIES_RE = re.compile(r'Review complete:\s*(\d+)\s*->\s*(\d+)\s*entries')
 _REVIEW_SUMMARY_PATTERNS = {
@@ -1500,8 +1834,12 @@ AUTO_PAUSE_MARKER = "[AUTO-PAUSE]"
 def llm_timeout_seconds():
     """-> seconds any single LLM request may take before it is an error."""
     try:
-        return float(os.environ.get("ALEXANDRIA_LLM_TIMEOUT", 600))
+        timeout = float(os.environ.get("ALEXANDRIA_LLM_TIMEOUT", 600))
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout must be positive and finite")
+        return timeout
     except (TypeError, ValueError):
+        logger.warning("Invalid ALEXANDRIA_LLM_TIMEOUT; using the 600-second deadline")
         return 600.0
 
 
@@ -1558,10 +1896,11 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
             {"role": "user", "content": markdown_body},
         ]
         full_cfg = load_app_config(CONFIG_PATH)
-        llm_cfg = full_cfg.get("llm") or {}
+        llm_cfg = get_active_llm_config(full_cfg)
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
-            model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True)
+            model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True,
+            api_key=llm_cfg.get("api_key"))
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
@@ -1635,7 +1974,7 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
     """
     os.makedirs(REPORTS_DIR, exist_ok=True)
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-    path = os.path.join(REPORTS_DIR, f"review_{timestamp}.md")
+    path = os.path.join(REPORTS_DIR, f"review_{timestamp}_{uuid.uuid4().hex}.md")
 
     intro = [
         "# Script Review Report",
@@ -1686,34 +2025,16 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
     return path
 
 
+def terminate_windows_process_tree(proc_or_pid, force=False):
+    """Dispatch Windows termination through the shared owner backend."""
+    return terminate_owned_windows_process_tree(
+        proc_or_pid, force=force, timeout=CANCEL_TERMINATE_GRACE_SECONDS)
+
+
 def _send_signal_tree(proc_or_pid, sig) -> None:
-    """Send `sig` to the whole process group, so grandchildren are signalled too.
-
-    Every cancelable/pausable subprocess is started with start_new_session=True
-    (see _stream_subprocess_to_logs), which makes each the leader of its own
-    process group (pgid == pid). Signalling only the direct child (proc.terminate/
-    send_signal) misses grandchildren — e.g. Voice Lab's `train` stage runs
-    batch_train_lora.py which spawns train_lora.py, and profiling spawns a llama
-    process — so a cancel would leave the real GPU worker running orphaned and a
-    pause would freeze only the idle wrapper. Kill the group instead.
-
-    Accepts a Popen or a bare pid. Raises ProcessLookupError/OSError like
-    proc.send_signal so existing callers' handlers still catch an already-exited
-    process. Falls back to the direct process (Windows, or if the group can't be
-    resolved)."""
-    pid = proc_or_pid.pid if hasattr(proc_or_pid, "pid") else proc_or_pid
-    if sys.platform != "win32":
-        try:
-            os.killpg(os.getpgid(pid), sig)
-            return
-        except ProcessLookupError:
-            raise  # process/group already gone — let caller treat as exited
-        except OSError:
-            pass  # couldn't resolve/signal the group; fall back to direct
-    if hasattr(proc_or_pid, "send_signal"):
-        proc_or_pid.send_signal(sig)
-    else:
-        os.kill(pid, sig)
+    """Dispatch through the shared subprocess owner, retaining the task grace."""
+    return send_subprocess_signal(
+        proc_or_pid, sig, termination_grace=CANCEL_TERMINATE_GRACE_SECONDS)
 
 
 def pause_resume_supported():

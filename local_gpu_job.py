@@ -6,7 +6,6 @@ import subprocess
 def run_gpu_job(repo, app, python, name, timeout_seconds, script, arguments,
                 log_name):
     env = os.environ.copy()
-    env["GPU_LOCK"] = os.path.expanduser("~/.alexandria_gpu.lock")
     env["GPU_QLOG"] = os.path.join(
         repo, "ab_test_runtime", "logs", "gpu_jobq.log")
     log_path = os.path.join(repo, "ab_test_runtime", "logs", log_name)

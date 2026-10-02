@@ -15,6 +15,7 @@ import time
 import requests
 
 from utils import atomic_json_write
+from api_test_auth import get_api_test_headers
 
 # ── Global state ─────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ def wait_for_task(task, timeout=120, poll_interval=2):
     last_status_code = None
     last_body = None
     while time.time() < deadline:
-        r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        r = get(f"/api/status/{task}", timeout=10)
         last_status_code = r.status_code
         last_body = r.text[:200]
         if r.status_code == 200 and not r.json().get("running"):
@@ -139,7 +140,7 @@ def wait_for_running(task, timeout=30, poll_interval=1):
     actually holding the lock before asserting a second task is blocked."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        r = get(f"/api/status/{task}", timeout=10)
         if r.status_code == 200 and r.json().get("running"):
             return True
         time.sleep(poll_interval)
@@ -147,15 +148,18 @@ def wait_for_running(task, timeout=30, poll_interval=1):
 
 
 def get(path, **kwargs):
-    return requests.get(f"{BASE_URL}{path}", timeout=30, **kwargs)
+    return requests.get(f"{BASE_URL}{path}", timeout=kwargs.pop("timeout", 30),
+                        headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
 
 
 def post(path, **kwargs):
-    return requests.post(f"{BASE_URL}{path}", timeout=kwargs.pop("timeout", 30), **kwargs)
+    return requests.post(f"{BASE_URL}{path}", timeout=kwargs.pop("timeout", 30),
+                         headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
 
 
 def delete(path, **kwargs):
-    return requests.delete(f"{BASE_URL}{path}", timeout=30, **kwargs)
+    return requests.delete(f"{BASE_URL}{path}", timeout=kwargs.pop("timeout", 30),
+                           headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
 
 
 def llm_mode_fields(original):
@@ -926,7 +930,7 @@ def test_clone_voices_list():
 
 def test_clone_voices_upload_bad_format():
     files = {"file": ("test.txt", b"not audio", "text/plain")}
-    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files)
+    r = post("/api/clone_voices/upload", files=files)
     assert_status(r, 400)
 
 
@@ -950,7 +954,7 @@ def test_clone_voices_upload_and_delete():
     files = {"file": (f"{TEST_PREFIX}clone_test.wav", wav_bytes, "audio/wav")}
     # Silence is refused by the reference gate now; the same request with the
     # required transcript + rights fields but a silent clip is a 400.
-    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files,
+    r = post("/api/clone_voices/upload", files=files,
                       data={"ref_text": "test clip", "rights_confirmed": "true"})
     assert_status(r, 400)
     # A real 4 s tone with the required fields imports.
@@ -962,7 +966,7 @@ def test_clone_voices_upload_and_delete():
         b'fmt ', 16, 1, 1, sample_rate, sample_rate * 2, 2, 16,
         b'data', len(tone))
     files = {"file": (f"{TEST_PREFIX}clone_test.wav", wav_header + tone, "audio/wav")}
-    r = requests.post(f"{BASE_URL}/api/clone_voices/upload", files=files,
+    r = post("/api/clone_voices/upload", files=files,
                       data={"ref_text": "test clip", "rights_confirmed": "true"})
     assert_status(r, 200)
     data = r.json()

@@ -12,35 +12,24 @@ for path in "$MODEL" "$ADAPTER"; do
     [ -f "$path" ] || { echo "missing required input: $path" >&2; exit 1; }
 done
 
-llama-server -m "$MODEL" --lora "$ADAPTER" --host 127.0.0.1 --port "$PORT" \
-    -ngl 99 -c 32768 -np 1 --flash-attn on >"$LOG.server" 2>&1 &
-server_pid=$!
-cleanup() {
-    kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-ready=0
-for _ in $(seq 1 120); do
-    if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
-        ready=1
-        break
-    fi
-    kill -0 "$server_pid" 2>/dev/null || break
-    sleep 2
-done
-[ "$ready" -eq 1 ] || { echo "llama-server did not become healthy" >&2; exit 1; }
+source "$REPO/run_chains/lib/managed_server.sh" || exit 1
+ensure_managed_server_lease cloud_balanced_eval_20260824 "$0" "$@" || exit 1
+start_managed_server "$PORT" "$LOG.server" 120 2 llama-server -m "$MODEL" --lora "$ADAPTER" --host 127.0.0.1 --port "$PORT" \
+    -ngl 99 -c 32768 -np 1 --flash-attn on || exit 1
 
 cd "$REPO"
-EXPERIMENT_ENV="$(python3 - <<'PY'
+if ! EXPERIMENT_ENV="$(python3 - <<'PY'
 import json, platform, subprocess
 gpu = subprocess.check_output([
     "nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"
 ], text=True).strip()
 print(json.dumps({"host": platform.node(), "gpu": gpu, "backend": "CUDA"}))
 PY
-)" \
+)"; then
+    echo "cannot capture GPU provenance; evaluation was not started" >&2
+    exit 1
+fi
+export EXPERIMENT_ENV
 python3 -u app/experiments/lora_serving_eval_20260824.py \
     --books index18 mushoku16 owarimonogatari3 \
     --base_url "http://127.0.0.1:$PORT/v1" \

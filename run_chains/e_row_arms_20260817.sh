@@ -36,24 +36,13 @@ set -uo pipefail
 # at 1129 of 1200 terms - and a chain skipping on existence would skip it
 # forever, on a subset biased toward the commonest items. Ask the artifact.
 artifact_complete() {
-    "$1" - "$2" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if d.get("status") == "complete":
-    sys.exit(0)
-if d.get("status") == "partial":
-    sys.exit(1)
-r, c = d.get("results"), d.get("candidates_considered")
-sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
-PYEOF
+    "$1" "$REPO/app/experiments/respelling_completion.py" "$2" "$3"
 }
 
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
-python="$REPO/app/env/bin/python"
+source "$REPO/run_chains/lib/queue.sh"
+python=$(resolve_python "$REPO") || { echo "no interpreter for e-row arms" >&2; exit 1; }
 export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 LIMIT="${E_ROW_LIMIT:-400}"
@@ -61,7 +50,8 @@ LIMIT="${E_ROW_LIMIT:-400}"
 note() { echo "[$(date -u +%FT%TZ)] $*"; }
 
 for spelling in e ay ei; do
-    out="$runtime/experiments/respelling_e_row__${spelling}.json"
+    out="$runtime/experiments/respelling_e_row__${spelling}_n${LIMIT}.json"
+    legacy="$runtime/experiments/respelling_e_row__${spelling}.json"
     # artifact_complete() is defined above and was never called here: the skip
     # asked only whether the FILE existed. A run cut short leaves a file that
     # looks finished - respelling_e_row__ay_n1200.json sits in this repository
@@ -70,8 +60,11 @@ for spelling in e ay ei; do
     # arm forever, on a biased subset, while reporting SKIP as though it were
     # done. Three sibling chains already ask the artifact; this one wrote the
     # helper and kept the old test.
-    if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+    if [ -e "$out" ] && artifact_complete "$python" "$out" "$LIMIT"; then
         note "SKIP $spelling (artifact complete)"; continue
+    fi
+    if [ ! -e "$out" ] && [ -e "$legacy" ] && artifact_complete "$python" "$legacy" "$LIMIT"; then
+        note "SKIP $spelling (legacy artifact covers requested limit)"; continue
     fi
     [ -e "$out" ] && note "REDO $spelling (artifact exists but is incomplete)"
     note "START e-row arm: $spelling"
@@ -89,7 +82,7 @@ echo "HOW TO READ IT. Compare each arm against the SAME terms in"
 echo "respelling_measure_rescored.json, which holds the eh baseline:"
 echo
 echo "  app/env/bin/python app/experiments/rescore_respellings.py \\"
-echo "      --artifact ab_test_runtime/experiments/respelling_e_row__ay.json \\"
+echo "      --artifact ab_test_runtime/experiments/respelling_e_row__ay_n${LIMIT}.json \\"
 echo "      --out /tmp/e_ay_rescored.json"
 echo
 echo "The number that matters is recovers_word on the shared terms, not the"

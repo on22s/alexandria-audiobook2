@@ -1,5 +1,7 @@
 """Validation shared by generated and manually recovered persona payloads."""
 
+from utils import get_unsafe_text_controls
+
 
 def validate_persona_payload(payload):
     """Return normalized persona text or raise ``ValueError``."""
@@ -11,6 +13,10 @@ def validate_persona_payload(payload):
         raise ValueError("persona description is required and must be a string")
     if not isinstance(ref_text, str) or not ref_text.strip():
         raise ValueError("persona ref_text is required and must be a string")
+    for field, text in (("description", description), ("ref_text", ref_text)):
+        controls = get_unsafe_text_controls(text)
+        if controls:
+            raise ValueError(f"persona {field} contains unsafe controls: {', '.join(controls)}")
     description = description.strip()
     ref_text = ref_text.strip()
     if len(description) > 4000 or len(ref_text) > 2000:

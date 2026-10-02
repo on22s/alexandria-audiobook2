@@ -9,6 +9,7 @@ around the same check (Rule 15).
 import os
 import subprocess
 import sys
+import socket
 import tempfile
 import unittest
 
@@ -99,3 +100,73 @@ class DefaultModelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServerLogPreflightTests(unittest.TestCase):
+    def test_real_launcher_creates_log_parent_and_refuses_unusable_targets_before_stop(self):
+        from pathlib import Path
+        import shlex
+        for problem in (None, "parent-file", "log-directory"):
+            with self.subTest(problem=problem), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                model = root / "fixture.gguf"
+                model.write_bytes(b"model stand-in")
+                log = root / "nested/logs/server.log"
+                if problem == "parent-file":
+                    log.parent.parent.write_bytes(b"keep blocking parent bytes")
+                elif problem == "log-directory":
+                    log.mkdir(parents=True)
+                wrappers = root / "standins"
+                wrappers.mkdir()
+                for name, body in (
+                        ("curl", 'test -f "$FIXTURE_ROOT/launched" || exit 1\n'
+                         + 'exec python3 -c ' + shlex.quote(
+                             'import json,os,sys;url=sys.argv[-1];print(json.dumps('
+                             '{"model_path":os.environ["LLAMA_MODEL"],"default_generation_settings":{"n_ctx":int(os.environ.get("LLAMA_CTX","32768")),"params":{"reasoning_format":"none"}},"total_slots":1} if url.endswith("/props") else '
+                             '([] if url.endswith("/lora-adapters") else {"data":[{"id":"qwen3-14b","meta":{}}]})))')
+                         + ' "$@"'),
+                        ("pkill", 'printf "%s\\n" "$*" >> "$FIXTURE_ROOT/stopped"'),
+                        ("sleep", 'exec /bin/sleep 0.01')):
+                    path = wrappers / name
+                    path.write_text("#!/bin/bash\n" + body + "\n")
+                    path.chmod(0o755)
+                binary = root / "fake-server"
+                binary.write_text('#!/bin/bash\ntouch "$FIXTURE_ROOT/launched"\necho fake-server-log\n')
+                binary.chmod(0o755)
+                script = root / "ensure.sh"
+                helper = root / "run_chains/lib/server_cleanup.sh"
+                helper.parent.mkdir(parents=True)
+                helper.write_bytes(Path(REPO, "run_chains/lib/server_cleanup.sh").read_bytes())
+                (root / "app").mkdir()
+                for name in ("llama_server_identity.py","llama_server_process.py","subprocess_ownership.py"):
+                    (root / "app" / name).write_bytes(Path(REPO, "app", name).read_bytes())
+                source = Path(SCRIPT).read_text()
+                original = 'STAMP="$HOME/.llama_server_adapter"'
+                self.assertEqual(1, source.count(original))
+                source = source.replace(original, "STAMP=" + shlex.quote(str(root / "stamp")))
+                script.write_text(source)
+                with socket.socket() as probe:
+                    probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
+                env = dict(os.environ, LLAMA_PORT=str(port), FIXTURE_ROOT=str(root), LLAMA_BIN=str(binary),
+                           LLAMA_MODEL=str(model), LLAMA_LOG=str(log),
+                           PATH=str(wrappers) + os.pathsep + os.environ["PATH"])
+                result = subprocess.run(["bash", str(script)], cwd=tmp, env=env,
+                                        capture_output=True, text=True, timeout=10)
+                if problem is None:
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("fake-server-log", log.read_text())
+                    self.assertTrue((root / "launched").is_file())
+                    self.assertFalse((root / "stopped").exists(), "startup must not kill global same-named processes")
+                    self.assertTrue((root / "stamp").is_file())
+                else:
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("cannot write server log", result.stderr)
+                    self.assertIn(str(log), result.stderr)
+                    self.assertFalse((root / "stopped").exists())
+                    self.assertFalse((root / "launched").exists())
+                    self.assertFalse((root / "stamp").exists())
+                    if problem == "parent-file":
+                        self.assertEqual(b"keep blocking parent bytes", log.parent.parent.read_bytes())
+                    else:
+                        self.assertTrue(log.is_dir())
+                self.assertEqual(b"model stand-in", model.read_bytes())

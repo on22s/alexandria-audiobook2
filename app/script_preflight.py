@@ -2,10 +2,12 @@
 
 import difflib
 import re
+import shlex
 import unicodedata
 from collections import Counter
 
 from speech_text import get_speech_normalization
+from utils import get_unsafe_text_controls
 
 
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
@@ -44,9 +46,7 @@ def audit_unicode_text(text, source_text=None):
     source_scripts = {script for char in source if (script := _character_script(char))}
     introduced = (sorted(set(scripts) - source_scripts) if source_text is not None
                   else sorted(set(scripts) - {"LATIN"}))
-    controls = sorted({f"U+{ord(char):04X}" for char in text
-                       if unicodedata.category(char) in {"Cc", "Cs"}
-                       and char not in "\n\r\t"})
+    controls = get_unsafe_text_controls(text)
     mixed = []
     for match in _WORD_RE.finditer(text):
         word_scripts = sorted({script for char in match.group() if (script := _character_script(char))})
@@ -56,7 +56,10 @@ def audit_unicode_text(text, source_text=None):
     return {"normalization": "NFC", "is_nfc": text == unicodedata.normalize("NFC", text),
             "scripts": scripts, "introduced_scripts": introduced,
             "replacement_character_count": text.count("\ufffd"),
-            "unsafe_controls": controls, "mixed_script_words": mixed}
+            "unsafe_controls": controls,
+            "format_controls": sorted({f"U+{ord(char):04X}" for char in text
+                                       if unicodedata.category(char) == "Cf"}),
+            "mixed_script_words": mixed}
 
 
 def is_possible_misattributed_narration(text, speaker):
@@ -68,8 +71,13 @@ def _normalize(value):
     return " ".join(str(value or "").split()).casefold()
 
 
+def get_normalized_word_tokens(value):
+    """Read immutable word tokens using the existing preflight normalization."""
+    return tuple(_WORD_RE.findall(_normalize(value)))
+
+
 def _normalize_words(value):
-    return " ".join(_WORD_RE.findall(_normalize(value)))
+    return " ".join(get_normalized_word_tokens(value))
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -106,8 +114,8 @@ def replacement_repair_hint(source_path=None):
         "This is a decoding error, not lost content: the file was read with "
         "the wrong codec and every non-ASCII character became U+FFFD. Repair "
         "it with\n"
-        "    cd app && env/bin/python repair_source_encoding.py "
-        f"{target} --apply\n"
+        "    cd app && env/bin/python repair_source_encoding.py --apply -- "
+        f"{shlex.quote(str(target))}\n"
         "which writes <source>.repaired.txt beside the original, leaves the "
         "original untouched, and reports every substitution. It refuses to "
         "write if a substitution would break sentence structure."
@@ -123,6 +131,14 @@ def replacement_load_is_acceptable(count, length):
     if not count:
         return True
     return (count / max(1, length)) <= MAX_REPLACEMENT_SHARE
+
+
+def get_source_phrase_occurrences(source_normalized, phrase_normalized):
+    """Count literal whole-token phrases in word-normalized source text."""
+    if not source_normalized or not phrase_normalized:
+        return 0
+    pattern = r"(?<!\S)" + re.escape(phrase_normalized) + r"(?!\S)"
+    return sum(1 for _match in re.finditer(pattern, source_normalized))
 
 
 def source_occurrences_for_text(source_normalized, text_normalized,
@@ -148,26 +164,29 @@ def source_occurrences_for_text(source_normalized, text_normalized,
     distinctive, which keeps the count meaningful - a short common phrase
     would appear everywhere and make a duplication look faithful.
 
-    Returns 0 only when no window of `minimum_tokens` words appears anywhere,
-    which is the real "invented" case.
+    Entries shorter than `minimum_tokens` require their complete exact phrase;
+    longer entries require a matching window of at least `minimum_tokens` words.
     """
     tokens = text_normalized.split()
     if not tokens or not source_normalized:
         return 0
+    if len(tokens) < minimum_tokens:
+        return get_source_phrase_occurrences(source_normalized, " ".join(tokens))
     for size in range(len(tokens), minimum_tokens - 1, -1):
         best = 0
         for start in range(0, len(tokens) - size + 1):
             window = " ".join(tokens[start:start + size])
-            best = max(best, source_normalized.count(window))
+            best = max(best, get_source_phrase_occurrences(source_normalized, window))
         if best:
             return best
     return 0
 
 
-def find_adjacent_duplicate_blocks(texts, source_text):
+def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None):
     findings = []
     occupied = set()
-    source_normalized = _normalize_words(source_text)
+    if source_normalized is None:
+        source_normalized = _normalize_words(source_text)
     for block_size in range(5, 1, -1):
         index = 0
         while index + (2 * block_size) <= len(texts):
@@ -198,7 +217,7 @@ def find_adjacent_duplicate_blocks(texts, source_text):
                 # So fall back to the per-entry minimum: if every line in the
                 # block is in the source, the block is duplicated (removable).
                 # Only a line the source lacks entirely is an invention.
-                contiguous = source_normalized.count(block_text) if source_normalized else 0
+                contiguous = get_source_phrase_occurrences(source_normalized, block_text)
                 if source_normalized and not contiguous:
                     source_occurrences = min(
                         source_occurrences_for_text(
@@ -233,7 +252,7 @@ def find_adjacent_duplicate_blocks(texts, source_text):
     return findings
 
 
-def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90):
+def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90, *, exact_findings=None, source_normalized=None):
     """Adjacent entry pairs that are near-duplicates of each other but not
     supported by the source - likely model re-generation at a seam.
 
@@ -246,30 +265,40 @@ def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90)
     """
     findings = []
     occupied = set()
-    for finding in find_adjacent_duplicate_blocks(texts, source_text):
+    if source_normalized is None:
+        source_normalized = _normalize_words(source_text)
+    if exact_findings is None:
+        exact_findings = find_adjacent_duplicate_blocks(
+            texts, source_text, source_normalized=source_normalized)
+    for finding in exact_findings:
         occupied.update(number - 1 for number in finding["entry_numbers"])
 
-    source_normalized = _normalize_words(source_text) if source_text else ""
     for index in range(len(texts) - 1):
         if index in occupied or (index + 1) in occupied:
             continue
         first, second = texts[index], texts[index + 1]
         if len(first) < 8 or len(second) < 8:
             continue
-        first_words = _WORD_RE.findall(first)
-        second_words = _WORD_RE.findall(second)
+        first_words = _normalize_words(first).split()
+        second_words = _normalize_words(second).split()
         if len(first_words) < 5 or len(second_words) < 5:
             continue
-        ratio = difflib.SequenceMatcher(None, first_words, second_words, autojunk=False).ratio()
+        matcher = difflib.SequenceMatcher(None, first_words, second_words, autojunk=False)
+        # Both quick ratios are upper bounds; preserve candidates at the threshold.
+        if matcher.real_quick_ratio() < minimum_ratio or matcher.quick_ratio() < minimum_ratio:
+            continue
+        ratio = matcher.ratio()
         if ratio < minimum_ratio:
             continue
 
         if source_text:
             # Identical text used twice needs two occurrences in the source to be
             # "genuinely repeated prose"; one occurrence can't back both uses.
-            required_occurrences = 2 if first == second else 1
-            first_supported = source_normalized.count(_normalize_words(first)) >= required_occurrences
-            second_supported = source_normalized.count(_normalize_words(second)) >= required_occurrences
+            required_occurrences = 2 if first_words == second_words else 1
+            first_supported = get_source_phrase_occurrences(
+                source_normalized, _normalize_words(first)) >= required_occurrences
+            second_supported = get_source_phrase_occurrences(
+                source_normalized, _normalize_words(second)) >= required_occurrences
             if first_supported and second_supported:
                 continue
             source_checked = True
@@ -298,14 +327,12 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
 
     texts = []
     instructions = []
-    valid_entries = []
     for index, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
             findings.append(_finding("blocking", "invalid_entry", "Entry must be a JSON object.", [index]))
             texts.append("")
             continue
 
-        valid_entries.append((index, entry))
         raw_text = entry.get("text")
         raw_speaker = entry.get("speaker")
         raw_instruct = entry.get("instruct")
@@ -351,6 +378,12 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
                                      "Entry contains replacement characters "
                                      "the source gate already accepted.",
                                      [index], unicode=unicode_report))
+        for field, value in (("speaker", speaker), ("instruct", instruct)):
+            controls = get_unsafe_text_controls(value)
+            if controls:
+                findings.append(_finding("blocking", "unsafe_unicode_character",
+                                         f"Entry {field} contains unsafe control characters.",
+                                         [index], field=field, unsafe_controls=controls))
         if index <= 30 and _FRONT_MATTER_RE.search(text):
             findings.append(_finding("manual_review", "front_matter", "Possible publication front matter.", [index]))
         if is_possible_misattributed_narration(text, speaker):
@@ -380,8 +413,15 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
                 },
             ))
 
-    findings.extend(find_adjacent_duplicate_blocks(texts, source_text))
-    findings.extend(find_adjacent_near_duplicate_entries(texts, source_text))
+    source_tokens = get_normalized_word_tokens(source_text)
+    source_normalized = " ".join(source_tokens)
+    exact_findings = find_adjacent_duplicate_blocks(
+        texts, source_text, source_normalized=source_normalized)
+    findings.extend(exact_findings)
+    findings.extend(find_adjacent_near_duplicate_entries(
+        texts, source_text, exact_findings=exact_findings,
+        source_normalized=source_normalized))
+    del source_normalized
 
     nonempty_instructions = [value for value in instructions if value]
     if len(nonempty_instructions) >= 20:
@@ -394,7 +434,8 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             ))
 
     if source_text:
-        source_words = Counter(_WORD_RE.findall(_normalize(source_text)))
+        source_words = Counter(source_tokens)
+        del source_tokens
         script_words = Counter(word for text in texts for word in _WORD_RE.findall(text))
         source_total = sum(source_words.values())
         matched = sum(min(count, script_words.get(word, 0)) for word, count in source_words.items())

@@ -31,7 +31,7 @@ run_stage hyphen_allrows_1600 6h --needs-vram -- \
     --min-books 5 --separator hyphen --limit 1600 \
     --work "$runtime/respelling_hyphen_allrows" \
     --out "$runtime/experiments/respelling_hyphen_allrows_n1600.json"
-stage_commit_artifacts hyphen_allrows_1600 "$REPO"
+stage_commit_artifacts hyphen_allrows_1600 "$REPO" "$runtime/experiments/respelling_hyphen_allrows_n1600.json"
 
 # Pauses over the same three forms on the same terms, now that all of them
 # exist at this size. Refuses rather than writing an empty artifact.
@@ -40,7 +40,7 @@ run_stage pauses_allrows 1h -- \
     --arm none=respelling_none_allrows \
     --arm hyphen_wide=respelling_hyphen_allrows \
     --out "$runtime/experiments/respelling_pauses_allrows.json"
-stage_commit_artifacts pauses_allrows "$REPO"
+stage_commit_artifacts pauses_allrows "$REPO" "$runtime/experiments/respelling_pauses_allrows.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary decide_respelling_20260820

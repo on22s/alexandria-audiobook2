@@ -41,7 +41,7 @@ class RepairLossyReplacementsTest(unittest.TestCase):
         text, _ = repair_lossy_replacements("\n���\n")
         self.assertEqual(text, "\n“…”\n")
 
-    def test_residual_is_neutralized_to_apostrophe(self):
+    def test_residual_uses_canonical_fallback(self):
         # "coup d<FFFD><FFFD>tat": the second FFFD was an "e-acute", a letter,
         # which no context rule can restore. It must survive rule inference and
         # then be neutralized.

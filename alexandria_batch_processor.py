@@ -14,11 +14,16 @@ import json
 import re
 import logging
 import threading
-import torch
+import math
+import tempfile
+import hashlib
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 from gpu_stats import run_rocm_smi_json
+sys.path.append(str(Path(__file__).resolve().parent / "app"))
+from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 
 # Setup logging
 log_dir = "logs"
@@ -50,6 +55,10 @@ logger.info(f"Log file: {log_file}")
 
 def get_gpu_stats():
     """Get current GPU memory and utilization stats."""
+    try:
+        import torch
+    except ImportError:
+        return None
     if not torch.cuda.is_available():
         return None
 
@@ -154,7 +163,17 @@ def _fuzzy_score(audio_tokens, book_tokens):
     return 2 * precision * recall / (precision + recall)
 
 
-def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50):
+def get_source_candidates(source_folder):
+    """Read and tokenize eligible source filenames once for a batch."""
+    if not source_folder or not os.path.isdir(source_folder):
+        return []
+    return [(entry.path, _normalize_filename_tokens(Path(entry.name).stem))
+            for entry in sorted(os.scandir(source_folder), key=lambda item: item.name.lower())
+            if entry.is_file() and entry.name.lower().endswith(('.epub', '.txt'))]
+
+
+def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50,
+                     source_candidates=None):
     """Find the best-matching source file in `source_folder` for an audio
     file. Two-stage match:
 
@@ -197,16 +216,12 @@ def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50):
 
     best_score = 0.0
     best_path  = None
-    for entry in os.scandir(source_folder):
-        if not entry.is_file():
-            continue
-        if not entry.name.lower().endswith(('.epub', '.txt')):
-            continue
-        book_tokens = _normalize_filename_tokens(Path(entry.name).stem)
+    candidates = source_candidates if source_candidates is not None else get_source_candidates(source_folder)
+    for source_path, book_tokens in candidates:
         score = _fuzzy_score(audio_tokens, book_tokens)
         if score > best_score:
             best_score = score
-            best_path = entry.path
+            best_path = source_path
 
     if best_path is not None and best_score >= fuzzy_threshold:
         return best_path
@@ -234,6 +249,87 @@ def check_disk_space(path, required_gb_per_file, num_files):
         logger.debug(f"Disk space check failed: {e}")
         return True  # Don't block on check failure
 
+
+def save_batch_receipt(path, data):
+    """Replace a receipt only after the complete JSON has reached disk."""
+    directory = os.path.dirname(path) or "."
+    fd, temporary = tempfile.mkstemp(prefix=".batch_results_", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as receipt:
+            json.dump(data, receipt, indent=2)
+            receipt.flush()
+            os.fsync(receipt.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+
+
+def get_output_name(audio_file):
+    """Keep dataset names distinct for same-stem audio at different paths."""
+    audio_path = Path(audio_file)
+    source_id = hashlib.sha256(os.fsencode(os.path.realpath(audio_path))).hexdigest()[:12]
+    return f"alexandria_dataset_{audio_path.stem}_{source_id}.zip"
+
+
+def get_source_identity(audio_file):
+    path = Path(audio_file)
+    stat = path.stat()
+    return {"path": os.path.realpath(path), "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns}
+
+
+def get_output_volumes(output_name):
+    """Find the base archive and any speaker/style/volume-suffixed archives."""
+    output = Path(output_name)
+    return sorted(str(path) for path in output.parent.iterdir()
+                  if path.is_file() and path.suffix == ".zip" and
+                  (path.name == output.name or path.stem.startswith(output.stem + "_")))
+
+
+def get_volume_state(output_name):
+    return {path: (os.stat(path).st_size, os.stat(path).st_mtime_ns)
+            for path in get_output_volumes(output_name)}
+
+
+def is_complete_dataset_zip(path):
+    """Accept a prior output only when its ZIP and dataset payload are readable."""
+    try:
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        with zipfile.ZipFile(path) as archive:
+            names = set(archive.namelist())
+            if "metadata.jsonl" not in names or not any(
+                    name.startswith(("train/", "val/")) and name.endswith(".wav")
+                    for name in names):
+                return False
+            return archive.testzip() is None and bool(archive.read("metadata.jsonl").strip())
+    except (OSError, zipfile.BadZipFile, RuntimeError):
+        return False
+
+
+def get_completed_volumes(audio_file, output_name):
+    """Return recorded, verified volumes or an empty list when resume is unsafe."""
+    marker = output_name + ".complete.json"
+    try:
+        with open(marker, encoding="utf-8") as file:
+            record = json.load(file)
+        volumes = record["volumes"]
+        if record["source"] != get_source_identity(audio_file):
+            return []
+        available = set(get_output_volumes(output_name))
+        if not volumes or any(path not in available or not is_complete_dataset_zip(path)
+                              for path in volumes):
+            return []
+        return volumes
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
 class BatchProcessor:
     SUPPORTED_FORMATS = {'.wav', '.mp3', '.m4a', '.flac', '.ogg'}
 
@@ -254,6 +350,7 @@ class BatchProcessor:
         self.source_path      = source_path
         self.source_threshold = source_threshold
         self.keep_unaligned   = keep_unaligned
+        self.source_matches = {}
         self.results = {
             "succeeded": [],
             "failed": [],
@@ -285,11 +382,11 @@ class BatchProcessor:
         for audio_file in audio_files:
             audio_path = Path(audio_file)
 
-            if not audio_path.exists():
-                logger.error(f"  ✗ File not found: {audio_file}")
+            if not audio_path.is_file():
+                logger.error(f"  ✗ Audio file not found: {audio_file}")
                 self.results["skipped"].append({
                     "file": audio_file,
-                    "reason": "File not found"
+                    "reason": "Audio file not found"
                 })
                 continue
 
@@ -302,17 +399,22 @@ class BatchProcessor:
                 continue
 
             # Check if output already exists (resume capability)
-            expected_output = f"alexandria_dataset_{audio_path.stem}.zip"
-            if os.path.exists(expected_output) and not self.force:
-                output_size_mb = os.path.getsize(expected_output) / (1024 * 1024)
-                logger.info(f"  ⊘ {audio_path.name} → already processed: {expected_output} ({output_size_mb:.1f} MB)")
+            expected_output = get_output_name(audio_file)
+            completed_volumes = get_completed_volumes(audio_file, expected_output) if not self.force else []
+            if completed_volumes:
+                output_size_mb = sum(os.path.getsize(path) for path in completed_volumes) / (1024 * 1024)
+                logger.info(f"  ⊘ {audio_path.name} → already processed: {len(completed_volumes)} ZIP volume(s) ({output_size_mb:.1f} MB)")
                 self.results["skipped"].append({
                     "file": audio_file,
-                    "output": expected_output,
+                    "output": completed_volumes[0],
+                    "outputs": completed_volumes,
                     "output_size_mb": output_size_mb,
                     "reason": "Already processed (use --force to reprocess)"
                 })
                 continue
+            if (os.path.exists(expected_output + ".complete.json") or
+                    get_output_volumes(expected_output)) and not self.force:
+                logger.warning(f"  ⚠ Dataset completion record missing or invalid, reprocessing: {expected_output}")
 
             file_size_mb = audio_path.stat().st_size / (1024 * 1024)
             logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
@@ -328,8 +430,13 @@ class BatchProcessor:
         elif self.source_folder:
             matches = []
             misses  = []
+            candidates = get_source_candidates(self.source_folder)
+            self.source_matches = {
+                af: _find_source_for(af, self.source_folder, source_candidates=candidates)
+                for af in valid_files
+            }
             for af in valid_files:
-                src = _find_source_for(af, self.source_folder)
+                src = self.source_matches[af]
                 (matches if src else misses).append(af)
             logger.info(f"  ├─ Source-guided: matching from {self.source_folder}/")
             logger.info(f"  │   {len(matches)} matched, {len(misses)} no match "
@@ -348,7 +455,6 @@ class BatchProcessor:
 
     def process_file(self, audio_file, file_index, total_files):
         """Process a single audio file with real-time output streaming."""
-        file_name = Path(audio_file).stem
         file_size = os.path.getsize(audio_file) / (1024 * 1024)
 
         logger.info("=" * 70)
@@ -367,11 +473,13 @@ class BatchProcessor:
             logger.info(f"  └─ Batch ETA: calculating after first file completes...")
         logger.info("=" * 70)
 
-        output_name = f"alexandria_dataset_{file_name}.zip"
+        output_name = get_output_name(audio_file)
+        previous_volumes = get_volume_state(output_name)
+        source_identity = get_source_identity(audio_file)
         cmd = [
             sys.executable,
             "-u",  # Unbuffered output for real-time streaming
-            "alexandria_preparer_rocm_compatible.py",
+            str(Path(__file__).resolve().with_name("alexandria_preparer_rocm_compatible.py")),
             "--audio", audio_file,
             "--model", self.model_path,
             "--chunk-size", str(self.chunk_size),
@@ -393,7 +501,9 @@ class BatchProcessor:
         if self.source_path:
             matched_source = self.source_path
         elif self.source_folder:
-            matched_source = _find_source_for(audio_file, self.source_folder)
+            matched_source = self.source_matches.get(audio_file)
+            if audio_file not in self.source_matches:
+                matched_source = _find_source_for(audio_file, self.source_folder)
             if matched_source is None:
                 logger.warning(
                     f"  ⚠ No source match in {self.source_folder} for "
@@ -415,6 +525,11 @@ class BatchProcessor:
         process = None
         last_stderr_lines = []
         try:
+            # A failed re-run must not leave an old success marker authorizing
+            # whatever subset of volumes the child may overwrite.
+            marker = output_name + ".complete.json"
+            if os.path.exists(marker):
+                os.unlink(marker)
             # Use Popen for real-time output streaming
             process = subprocess.Popen(
                 cmd,
@@ -465,23 +580,32 @@ class BatchProcessor:
             if returncode == 0:
                 logger.info(f"✓ SUCCESS: {Path(audio_file).name} processed ({time_str})")
 
-                if os.path.exists(output_name):
-                    output_size = os.path.getsize(output_name) / (1024 * 1024)
-                    logger.info(f"  ├─ Output: {output_name} ({output_size:.1f} MB)")
+                current_volumes = get_volume_state(output_name)
+                new_volumes = [path for path, state in current_volumes.items()
+                               if previous_volumes.get(path) != state]
+                if (new_volumes and get_source_identity(audio_file) == source_identity and
+                        all(is_complete_dataset_zip(path) for path in new_volumes)):
+                    save_batch_receipt(output_name + ".complete.json", {
+                        "source": source_identity,
+                        "volumes": new_volumes,
+                    })
+                    output_size = sum(os.path.getsize(path) for path in new_volumes) / (1024 * 1024)
+                    logger.info(f"  ├─ Output: {len(new_volumes)} ZIP volume(s) ({output_size:.1f} MB)")
                     logger.info(f"  └─ Time: {time_str}")
 
                     self.results["succeeded"].append({
                         "file": audio_file,
-                        "output": output_name,
+                        "output": new_volumes[0],
+                        "outputs": new_volumes,
                         "output_size_mb": output_size,
                         "time": time_str,
                         "time_seconds": elapsed_secs
                     })
                 else:
-                    logger.warning(f"⚠ Output file not created: {output_name}")
+                    logger.warning(f"⚠ No complete output ZIP volumes created: {output_name}")
                     self.results["failed"].append({
                         "file": audio_file,
-                        "reason": "Output file not created",
+                        "reason": "No complete output ZIP volumes created",
                         "time": time_str
                     })
 
@@ -517,6 +641,7 @@ class BatchProcessor:
                     process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     process.kill()
+                    process.wait()
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": "User interrupted (KeyboardInterrupt)"
@@ -642,12 +767,11 @@ class BatchProcessor:
 
         # Save results to JSON
         results_file = f"batch_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        with open(results_file, 'w') as f:
-            json.dump({
-                "timestamp": datetime.now().isoformat(),
-                "total_time_seconds": self.total_time,
-                "results": self.results
-            }, f, indent=2)
+        save_batch_receipt(results_file, {
+            "timestamp": datetime.now().isoformat(),
+            "total_time_seconds": self.total_time,
+            "results": self.results
+        })
         logger.info(f"Results saved to: {results_file}")
         logger.info("=" * 70)
 
@@ -691,7 +815,7 @@ def main():
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Reprocess files even if alexandria_dataset_<name>.zip already exists"
+        help="Reprocess files even if a valid dataset ZIP already exists"
     )
 
     # ── Source-guided chunking (forwarded to preparer) ────────────────────────
@@ -740,7 +864,8 @@ def main():
         if not folder.is_dir():
             print(f"Error: --folder path is not a directory: {args.folder}", file=sys.stderr)
             sys.exit(1)
-        found = sorted(str(p) for p in folder.iterdir() if p.suffix.lower() in BatchProcessor.SUPPORTED_FORMATS)
+        found = sorted(str(p) for p in folder.iterdir()
+                       if p.is_file() and p.suffix.lower() in BatchProcessor.SUPPORTED_FORMATS)
         if not found:
             print(f"Error: no supported audio files found in {args.folder}", file=sys.stderr)
             sys.exit(1)
@@ -750,10 +875,14 @@ def main():
         parser.error("provide at least one audio file or use --folder")
 
     # Sanity-check source flags before doing anything expensive.
-    if args.source and not os.path.exists(args.source):
+    if args.source and not os.path.isfile(args.source):
         parser.error(f"--source: file does not exist: {args.source}")
     if args.source_folder and not os.path.isdir(args.source_folder):
         parser.error(f"--source-folder: directory does not exist: {args.source_folder}")
+    if not math.isfinite(args.chunk_size) or args.chunk_size <= 0:
+        parser.error("--chunk-size must be a finite positive number")
+    if not math.isfinite(args.source_threshold) or not 0 <= args.source_threshold <= 1:
+        parser.error("--source-threshold must be a finite number between 0 and 1")
 
     processor = BatchProcessor(
         model_path=args.model,
@@ -767,7 +896,14 @@ def main():
         keep_unaligned=args.keep_unaligned,
     )
 
-    success = processor.run(audio_files)
+    try:
+        gpu_lease = acquire_gpu_lock()
+    except (OSError, RuntimeError) as error:
+        parser.error(str(error))
+    try:
+        success = processor.run(audio_files)
+    finally:
+        release_gpu_lock(gpu_lease)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

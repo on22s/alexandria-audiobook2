@@ -7,26 +7,6 @@
 # goes through gpu_job.sh, which blocks on the shared lock rather than racing.
 set -uo pipefail
 
-# ARTIFACT EXISTS IS NOT ARTIFACT FINISHED. A run killed mid-way leaves a file
-# that looks complete - respelling_e_row__ay_n1200.json sits in this repository
-# at 1129 of 1200 terms - and a chain skipping on existence would skip it
-# forever, on a subset biased toward the commonest items. Ask the artifact.
-artifact_complete() {
-    "$1" - "$2" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if d.get("status") == "complete":
-    sys.exit(0)
-if d.get("status") == "partial":
-    sys.exit(1)
-r, c = d.get("results"), d.get("candidates_considered")
-sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
-PYEOF
-}
-
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$repo/ab_test_runtime"
 python="$repo/app/env/bin/python"
@@ -45,16 +25,20 @@ stage() { "$repo/gpu_job.sh" "$@"; }
 # said, 44.3% -> 14.1% CER. That remedy has never been pointed at Japanese,
 # and ggml-large-v3.bin is already on disk.
 ja_out="$runtime/experiments/asr_ja_largev3_hybrid.json"
-if [ ! -f "$ja_out" ]; then
+ja_command=("$python" -u "$repo/app/experiments/asr_backends.py"
+    --build "$runtime/kokoro_ja_asr_eval/build.json"
+    --backends whisper_cpp whisper_cpp_hybrid --lang ja
+    --limit 50 --align-clips 50
+    --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli"
+    --whisper-cpp-model "$models/ggml-large-v3.bin" --out "$ja_out")
+if ! "${ja_command[@]}" --check-artifact "$ja_out"; then
     if ! stage asr_ja_largev3_hybrid timeout --signal=INT --kill-after=30s 7200 \
-        "$python" -u "$repo/app/experiments/asr_backends.py" \
-        --build "$runtime/kokoro_ja_asr_eval/build.json" \
-        --backends whisper_cpp whisper_cpp_hybrid --lang ja \
-        --limit 50 --align-clips 50 \
-        --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli" \
-        --whisper-cpp-model "$models/ggml-large-v3.bin" \
-        --out "$ja_out"; then
+        "${ja_command[@]}"; then
         echo "JAPANESE large-v3/hybrid FAILED; later stages not started"
+        exit 1
+    fi
+    if ! "${ja_command[@]}" --check-artifact "$ja_out"; then
+        echo "JAPANESE large-v3/hybrid FAILED: output is incomplete or stale" >&2
         exit 1
     fi
 fi
@@ -75,22 +59,35 @@ unfair_baseline=(
     warm_baritone_30s_m_2
     warm_baritone_30s_m_scifi
 )
+baseline_failures=0
 for adapter in "${unfair_baseline[@]}"; do
     out="$runtime/experiments/baseline_heldout__${adapter}.json"
-    # Existence alone read a cut-short run as finished; artifact_complete()
-    # was defined at the top of this file and never called.
-    [ -f "$out" ] && artifact_complete "$python" "$out" && continue
     data="$runtime/reference_rank1_all21/$adapter/data"
+    baseline_command=("$python" -u "$repo/app/experiments/verify_adapter_identity.py"
+        --adapter "$repo/lora_models/$adapter" --dataset "$data" --lines 10 --out "$out")
+    if "${baseline_command[@]}" --check-artifact "$out"; then rc=0; else rc=$?; fi
+    # A complete negative verdict is valid baseline evidence, not a worker failure.
+    if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then continue; fi
     if [ ! -d "$data" ]; then
-        echo "SKIP $adapter: no held-out split at $data"
+        echo "BASELINE BLOCKED $adapter: no held-out split at $data"
+        baseline_failures=$((baseline_failures + 1))
         continue
     fi
-    if ! stage "baseline_heldout__$adapter" \
-        timeout --signal=INT --kill-after=30s 3600 \
-        "$python" -u "$repo/app/experiments/verify_adapter_identity.py" \
-        --adapter "$repo/lora_models/$adapter" --dataset "$data" \
-        --lines 10 --out "$out"; then
-        echo "BASELINE MEASUREMENT FAILED for $adapter"
+    if stage "baseline_heldout__$adapter" \
+        timeout --signal=INT --kill-after=30s 3600 "${baseline_command[@]}"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+        echo "BASELINE MEASUREMENT FAILED for $adapter (rc=$rc)"
+        baseline_failures=$((baseline_failures + 1))
+        continue
+    fi
+    if "${baseline_command[@]}" --check-artifact "$out"; then rc=0; else rc=$?; fi
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+        echo "BASELINE MEASUREMENT FAILED for $adapter: output is incomplete or stale"
+        baseline_failures=$((baseline_failures + 1))
     fi
 done
 
@@ -119,27 +116,33 @@ fi
 gate_failures=0
 for adapter in "${failed_adapters[@]}"; do
     out="$runtime/experiments/gate_reference_rank2__${adapter}.json"
-    if [ -f "$out" ]; then
-        grep -q '"passed": true' "$out" || gate_failures=$((gate_failures + 1))
+    base="$runtime/reference_rank2_failed/$adapter"
+    gate_command=("$python" -u "$repo/app/experiments/verify_adapter_identity.py"
+        --adapter "$base/adapter" --dataset "$base/data" --lines 10 --out "$out")
+    if "${gate_command[@]}" --check-artifact "$out"; then rc=0; else rc=$?; fi
+    if [ "$rc" -eq 0 ]; then continue; fi
+    if [ "$rc" -eq 3 ]; then
+        gate_failures=$((gate_failures + 1))
         continue
     fi
-    base="$runtime/reference_rank2_failed/$adapter"
     if [ ! -f "$base/adapter/adapter_model.safetensors" ]; then
         echo "GATE BLOCKED $adapter: retrained adapter is missing"
         gate_failures=$((gate_failures + 1))
         continue
     fi
-    if ! stage "gate_reference_rank2__$adapter" \
-        timeout --signal=INT --kill-after=30s 3600 \
-        "$python" -u "$repo/app/experiments/verify_adapter_identity.py" \
-        --adapter "$base/adapter" --dataset "$base/data" --lines 10 \
-        --out "$out"; then
+    if stage "gate_reference_rank2__$adapter" \
+        timeout --signal=INT --kill-after=30s 3600 "${gate_command[@]}"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    if [ "$rc" -ne 0 ] || ! "${gate_command[@]}" --check-artifact "$out"; then
         gate_failures=$((gate_failures + 1))
     fi
 done
 
 echo
-echo "REMAINING GOAL WORK COMPLETE $(date -u +%FT%TZ)"
+echo "  baseline measurement failures: $baseline_failures of ${#unfair_baseline[@]}"
 echo "  rank-2 gate failures: $gate_failures of ${#failed_adapters[@]}"
 echo
 echo "NOT QUEUED, because neither is a measurement:"
@@ -154,3 +157,9 @@ echo "      another measurement of the gap."
 echo
 echo "Do not promote anything from stage 2 or 3 automatically. Review the"
 echo "artifacts and use promote_adapters.py with its rollback receipt."
+
+if [ "$baseline_failures" -gt 0 ] || [ "$gate_failures" -gt 0 ]; then
+    echo "REMAINING GOAL WORK FAILED: $baseline_failures baseline measurements and $gate_failures rank-2 gates failed" >&2
+    exit 1
+fi
+echo "REMAINING GOAL WORK COMPLETE $(date -u +%FT%TZ)"

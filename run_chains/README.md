@@ -54,15 +54,17 @@ source "$(dirname "$0")/lib/stage.sh"
 
 run_stage prepare 30m -- "$python" prepare.py
 run_stage measure 2h --requires-ok prepare -- "$REPO/gpu_job.sh" measure ...
-stage_commit_artifacts measure "$REPO"
+stage_commit_artifacts measure "$REPO" "$runtime/experiments/my_measurement.json"
 stage_summary my_chain      # LAST. Nothing after it may restore a zero exit.
 ```
 
 - `--requires-ok NAME` is task-spooler's `-W`: run only if that stage ended
   *well*, not merely ended. A stage never run counts as unsatisfied, because a
   resumed chain must not read "I did not see it fail" as success.
-- `stage_commit_artifacts` keeps a stage's own output from dirtying the tree
-  and getting the next stage refused by `gpu_job.sh`'s gate.
+- `stage_commit_artifacts` requires exact individual experiment file paths, including
+  any checkpoints the worker writes. Paths are literal Git file paths; shared
+  directories and omitted paths are refused. Composite chains commit in the child loop that knows the
+  dispatched output. Git failures are counted in the final stage summary.
 - Failures do not stop the chain: one dead stage at 2am must not take the
   remaining ten hours with it. `stage_summary` still exits non-zero.
 

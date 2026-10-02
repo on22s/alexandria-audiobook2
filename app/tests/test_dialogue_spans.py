@@ -14,6 +14,15 @@ from dialogue_spans import (apply_source_speakers, detect_convention, mark_entri
 
 
 class ConventionTest(unittest.TestCase):
+    def test_one_character_utterances_are_counted_and_located_for_each_quote_style(self):
+        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」'), ('『', '』')]:
+            with self.subTest(opener=opener):
+                words = list('AIえあ!?')
+                text = '\n'.join(opener + word + closer for word in words)
+                self.assertEqual('paired_quotes', detect_convention(text))
+                self.assertEqual(words, [text[a:b] for a, b in spoken_spans(text)])
+                self.assertEqual([], spoken_spans(opener + closer, 'paired_quotes'))
+
     def test_curly_quotes_are_recognised(self):
         text = "\n".join(f"He paused. “Line number {i}, spoken aloud.”" for i in range(6))
         self.assertEqual("paired_quotes", detect_convention(text))
@@ -127,6 +136,57 @@ class MixedQuoteStyleTest(unittest.TestCase):
 
 
 class PrintedSpeakerLabelTest(unittest.TestCase):
+
+    def test_repeated_adverbs_cannot_create_authoritative_speakers(self):
+        import copy
+        from dialogue_spans import apply_dialogue_map
+        for word in ('Perhaps','Meanwhile','Nevertheless','Apparently','Possibly'):
+            with self.subTest(word=word):
+                lines=[f'Actual spoken line {i}.' for i in range(6)]
+                source='\n\n'.join(f'{word} “{line}”' for line in lines)
+                entries=[{'speaker':'ALICE','text':line} for line in lines];before=copy.deepcopy(entries)
+                result=apply_dialogue_map(entries,source)
+                self.assertEqual(['ALICE']*6,[row['speaker'] for row in result['entries']])
+                self.assertEqual([],result['speaker_changes']);self.assertEqual(6,result['spoken'])
+                self.assertTrue(all('source_speaker' not in row for row in result['entries']))
+                self.assertEqual([],speaker_labels(source,speaker_names=['ALICE']))
+                self.assertEqual(before,entries)
+
+    def test_corroborated_labels_still_correct_other_entries_and_ignore_unknown_adverbs(self):
+        from dialogue_spans import apply_dialogue_map
+        lines=[(prefix,f'{prefix} line {i}.') for i in range(4)
+               for prefix in ('Alice','Perhaps','Meanwhile')]
+        source='\n\n'.join(f'{prefix} “{line}”' for prefix,line in lines)
+        entries=[{'speaker':'ALICE' if i==0 else 'NARRATOR','text':line}
+                 for i,(_prefix,line) in enumerate(lines)]
+        result=apply_dialogue_map(entries,source)
+        self.assertEqual(3,len(result['speaker_changes']))
+        for (prefix,line),row in zip(lines,result['entries']):
+            self.assertEqual('ALICE' if prefix=='Alice' else 'NARRATOR',row['speaker'])
+            self.assertEqual(line,source[slice(*row['source_span'])]);self.assertTrue(row['spoken'])
+            if prefix!='Alice':self.assertNotIn('source_speaker',row)
+
+    def test_explicit_inventory_can_establish_real_name_that_is_also_a_sentence_word(self):
+        source='\n\n'.join(f'The “A line {i}.”' for i in range(6))
+        entries=[{'speaker':'NARRATOR','text':'A line 0.'}]
+        marked=mark_entries(iter(entries),source,'paired_quotes',speaker_names=iter(['THE']))
+        fixed,changes=apply_source_speakers(marked)
+        self.assertEqual('THE',fixed[0]['speaker']);self.assertEqual(1,len(changes))
+
+    def test_generator_entries_use_same_inventory_without_consuming_the_rows(self):
+        entries=({'speaker':'ALICE','text':f'Line {i}.'} for i in range(6))
+        source='\n'.join(f'Alice “Line {i}.”' for i in range(6))
+        marked=mark_entries(entries,source,'paired_quotes')
+        self.assertEqual(6,len(marked));self.assertTrue(all(row.get('source_speaker')=='Alice' for row in marked))
+
+    def test_remapping_drops_old_uncorroborated_source_speaker_without_mutating_input(self):
+        import copy
+        source='\n'.join(f'Perhaps “Line {i}.”' for i in range(6))
+        entries=[{'speaker':'ALICE','text':'Line 0.','source_speaker':'Perhaps'}];before=copy.deepcopy(entries)
+        mapped=mark_entries(entries,source,'paired_quotes')
+        fixed,changes=apply_source_speakers(mapped)
+        self.assertNotIn('source_speaker',mapped[0]);self.assertEqual('ALICE',fixed[0]['speaker'])
+        self.assertEqual([],changes);self.assertEqual(before,entries)
     """When the book prints the speaker, copying it beats inferring it.
 
     arc4_volume10wn is a web-novel transcript: `Subaru “line”`, the name
@@ -142,7 +202,7 @@ class PrintedSpeakerLabelTest(unittest.TestCase):
          for i in range(4)]))
 
     def test_printed_names_are_extracted(self):
-        names = {name for _, name in speaker_labels(self.TRANSCRIPT)}
+        names = {name for _, name in speaker_labels(self.TRANSCRIPT,speaker_names=['SUBARU','PETRA'])}
         self.assertEqual({"Subaru", "Petra"}, names)
 
     def test_a_name_must_recur_before_it_is_believed(self):
@@ -162,7 +222,7 @@ class PrintedSpeakerLabelTest(unittest.TestCase):
 
     def test_the_label_becomes_the_speaker(self):
         entries = [{"speaker": "NARRATOR", "text": "Line 0 from Subaru."}]
-        marked = mark_entries(entries, self.TRANSCRIPT, "paired_quotes")
+        marked = mark_entries(entries, self.TRANSCRIPT, "paired_quotes",speaker_names=['SUBARU','PETRA'])
         fixed, changes = apply_source_speakers(marked)
         self.assertEqual("SUBARU", fixed[0]["speaker"])
         self.assertEqual("printed_speaker_label", changes[0]["type"])
@@ -173,3 +233,53 @@ class PrintedSpeakerLabelTest(unittest.TestCase):
             mark_entries(entries, self.TRANSCRIPT, "paired_quotes"))
         self.assertEqual("NARRATOR", fixed[0]["speaker"])
         self.assertEqual([], changes)
+
+
+class FullEntrySourceMappingTests(unittest.TestCase):
+    def test_long_shared_prefix_uses_full_text_for_speaker_and_raw_span(self):
+        import copy
+        prefix = "This is the same long opening of a different passage. " * 4
+        narration = prefix + "narration ending."
+        spoken = [prefix + f"spoken ending {number}." for number in range(6)]
+        source = narration + "\n" + "\n".join('Alice “' + line + '”' for line in spoken)
+        self.assertTrue(uses_speaker_labels(source,speaker_names=['ALICE']))
+        entries = [{"speaker": "WRONG", "text": line} for line in spoken]
+        original = copy.deepcopy(entries)
+        marked = mark_entries(entries, source, "paired_quotes",speaker_names=['ALICE'])
+        for line, row in zip(spoken, marked):
+            self.assertTrue(row["spoken"])
+            self.assertEqual("Alice", row["source_speaker"])
+            self.assertEqual(line, source[slice(*row["source_span"])])
+        self.assertEqual(original, entries)
+        applied, changes = apply_source_speakers(marked)
+        self.assertEqual(["ALICE"] * 6, [row["speaker"] for row in applied])
+        self.assertEqual(6, len(changes))
+
+    def test_shared_prefix_cannot_establish_an_unwritten_suffix(self):
+        prefix = "A repeating introductory phrase with no unique identity. " * 4
+        source = '“' + prefix + 'authored ending.”'
+        entries = [{"text": prefix + "invented ending.", "speaker": "UNKNOWN"}]
+        marked = mark_entries(entries, source, "paired_quotes")
+        self.assertNotIn("spoken", marked[0])
+        self.assertNotIn("source_span", marked[0])
+        self.assertNotIn("source_speaker", marked[0])
+
+
+class ConventionValidationTests(unittest.TestCase):
+    def test_unknown_explicit_convention_is_rejected(self):
+        text = 'ANNA: Hello there.\n— Dash speech.\n“Quoted speech.”'
+        for convention in ('dash', 'quote', '', 'LABEL_LINES', 7, []):
+            with self.subTest(convention=convention):
+                with self.assertRaises(ValueError):
+                    spoken_spans(text, convention)
+                with self.assertRaises(ValueError):
+                    mark_entries([{'text': 'Hello there.'}], text, convention)
+
+    def test_each_supported_convention_preserves_offsets(self):
+        text = 'ANNA: Hello there.\n— Dash speech.\n“Quoted speech.”'
+        for convention, expected in (('label_lines', 'Hello there.'),
+                                     ('dash_lines', 'Dash speech.'),
+                                     ('paired_quotes', 'Quoted speech.')):
+            with self.subTest(convention=convention):
+                self.assertEqual([expected], [text[a:b] for a,b in spoken_spans(text, convention)])
+        self.assertEqual([], spoken_spans('Plain narration.', None))

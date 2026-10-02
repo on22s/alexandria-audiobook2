@@ -19,15 +19,15 @@ class BenchmarkRunnerTests(unittest.TestCase):
                  "ref_audio_sha256": digest},
                 {"voice_type": "clone", "ref_audio": "ref.wav",
                  "ref_audio_sha256": digest}]}
-            completed = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-            with patch.object(benchmark_runner.subprocess, "run",
+            completed = type("Result", (), {"returncode": 0, "stdout": "/tmp/alexandria-tts-benchmark-assets.abcdefghij\n", "stderr": ""})()
+            with patch.object(benchmark_runner, "run_benchmark_subprocess",
                               return_value=completed) as run:
                 staged = benchmark_runner._stage_remote_tts_assets(
                     payload, tmp, "tnr-0")
         self.assertEqual(2, run.call_count)
         self.assertEqual("ref.wav", payload["fixtures"][0]["ref_audio"])
         self.assertEqual(
-            f"/tmp/alexandria-tts-benchmark-assets/{digest}.wav",
+            f"/tmp/alexandria-tts-benchmark-assets.abcdefghij/{digest}.wav",
             staged["fixtures"][0]["ref_audio"])
 
     def test_tts_fixture_drift_is_rejected_before_worker(self):
@@ -74,15 +74,15 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 {"voice_type": "lora", "adapter_path": "adapter",
                  "adapter_artifact_sha256": hashes}]}
             completed = type("Result", (), {
-                "returncode": 0, "stdout": "", "stderr": ""})()
-            with patch.object(benchmark_runner.subprocess, "run",
+                "returncode": 0, "stdout": "/tmp/alexandria-tts-benchmark-assets.abcdefghij\n", "stderr": ""})()
+            with patch.object(benchmark_runner, "run_benchmark_subprocess",
                               return_value=completed) as run:
                 staged = benchmark_runner._stage_remote_tts_assets(
                     payload, tmp, "tnr-0")
         self.assertEqual(6, run.call_count)
         self.assertEqual("adapter", payload["fixtures"][0]["adapter_path"])
         self.assertTrue(staged["fixtures"][0]["adapter_path"].startswith(
-            "/tmp/alexandria-tts-benchmark-assets/lora-"))
+            "/tmp/alexandria-tts-benchmark-assets.abcdefghij/lora-"))
 
     def test_network_rtt_probe_returns_elapsed_seconds(self):
         class FakeModels:
@@ -126,7 +126,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     "llm_local": {"model_name": "model", "base_url": "http://local"}}), \
                  patch.object(benchmark_runner, "get_lmstudio_status", return_value={
                      "available": True, "loaded": True, "context_length": 8192}), \
-                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "make_llm_client"), \
                  patch.object(benchmark_runner, "process_chunk", return_value=entries):
                 report = benchmark_runner.run_script_generation_benchmark(
                     manifest, environment, str(Path(tmp, "report.json")), state,
@@ -194,7 +194,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     "llm_local": {"model_name": "model", "base_url": "http://local"}}), \
                  patch.object(benchmark_runner, "get_lmstudio_status", return_value={
                      "available": True, "loaded": True, "context_length": 8192}), \
-                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "make_llm_client"), \
                  patch.object(benchmark_runner, "review_batch", return_value=corrected):
                 report = benchmark_runner.run_script_review_benchmark(
                     manifest, environment, str(Path(tmp, "report.json")), state,
@@ -236,7 +236,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             "returncode": 0,
             "stdout": 'LLM_BENCHMARK_RESULT=[{"fixture_id":"f","repetition":1,"status":"passed"}]',
             "stderr": ""})()
-        with patch.object(benchmark_runner.subprocess, "run",
+        with patch.object(benchmark_runner, "run_benchmark_subprocess",
                           return_value=completed) as run:
             cases = benchmark_runner._run_llm_worker(
                 "nickname_detection", {"model_name": "m"},
@@ -249,7 +249,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
 
     def test_run_llm_worker_raises_with_stderr_on_failure(self):
         completed = type("Result", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
-        with patch.object(benchmark_runner.subprocess, "run", return_value=completed):
+        with patch.object(benchmark_runner, "run_benchmark_subprocess", return_value=completed):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 benchmark_runner._run_llm_worker(
                     "nickname_detection", {}, {"remote_root": "/r", "remote_python": "/p"},
@@ -276,7 +276,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     "llm_remote_ssh": "tnr-0"}), \
                  patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
                      "available": True, "loaded": True, "context_length": 8192}), \
-                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "make_llm_client"), \
                  patch.object(benchmark_runner, "_run_llm_worker",
                               return_value=[worker_case]) as run_worker:
                 report = benchmark_runner.run_script_generation_benchmark(
@@ -287,7 +287,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             run_worker.assert_called_once()
             self.assertEqual("script_generation", run_worker.call_args.args[0])
             payload = run_worker.call_args.args[1]
-            self.assertEqual("http://localhost:1234/v1", payload["base_url"])
+            self.assertEqual("http://localhost:1234/v1", payload["llm_config"]["base_url"])
             self.assertEqual("one two three four five", payload["fixtures"][0]["text"])
 
     def test_script_review_thunder_target_dispatches_to_worker(self):
@@ -313,7 +313,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     "llm_remote_ssh": "tnr-0"}), \
                  patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
                      "available": True, "loaded": True, "context_length": 8192}), \
-                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "make_llm_client"), \
                  patch.object(benchmark_runner, "_run_llm_worker",
                               return_value=[worker_case]) as run_worker:
                 report = benchmark_runner.run_script_review_benchmark(
@@ -341,7 +341,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                         "llm_remote_ssh": "tnr-0"}), \
                      patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
                          "available": True, "loaded": True, "context_length": 8192}), \
-                     patch.object(benchmark_runner, "OpenAI"), \
+                     patch.object(benchmark_runner, "make_llm_client"), \
                      patch.object(benchmark_runner, "_run_llm_worker",
                                   return_value=[worker_case]) as run_worker:
                     report = benchmark_runner.run_persona_generation_benchmark(
@@ -366,7 +366,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                      "llm_remote_ssh": "tnr-0"}), \
                  patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
                      "available": True, "loaded": True, "context_length": 8192}), \
-                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "make_llm_client"), \
                  patch.object(benchmark_runner, "_run_llm_worker",
                               return_value=[worker_case]) as run_worker:
                 environment = benchmark_core.build_environment_fingerprint("thunder", {
@@ -382,3 +382,201 @@ class BenchmarkRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RemoteProfilingHashOutputTests(unittest.TestCase):
+    def test_remote_hash_uses_last_nonempty_line_after_ssh_banner(self):
+        fixture = {'zip_path': 'fixture.zip', 'zip_sha256': 'zip-hash',
+                   'model_sha256': 'a'*64}
+        settings = {'remote_root': '/remote', 'remote_python': '/remote/python',
+                    'remote_model_path': '/remote/model.gguf'}
+        result_type = type('Result', (), {})
+        def result(stdout='', returncode=0):
+            value = result_type()
+            value.stdout, value.stderr, value.returncode = stdout, '', returncode
+            return value
+        for output in ('a'*64+'  /remote/model.gguf\n',
+                       'Thunder Compute banner\n\n'+'a'*64+'  /remote/model.gguf\n\n'):
+            with self.subTest(output=output), patch.object(benchmark_runner, 'run_benchmark_subprocess', side_effect=[
+                result(), result(output),
+                result('PROFILING_BENCHMARK_RESULT={"status":"passed","metrics":{}}\n')]) as run:
+                observed = benchmark_runner._run_profiling_worker(fixture, 'thunder', settings, '/local', 'fixture-host')
+                self.assertEqual('passed', observed['status'])
+                self.assertEqual(3, run.call_count)
+        for output, status in (('Thunder banner\n'+'b'*64+' model\n', 0),
+                               ('Thunder banner\n', 0), (' \n\n', 0),
+                               ('a'*64+' model\n', 1)):
+            with self.subTest(output=output, status=status), patch.object(
+                benchmark_runner.subprocess, 'run', side_effect=[result(), result(output, status)]) as run:
+                with self.assertRaisesRegex(ValueError, 'model hash'):
+                    benchmark_runner._run_profiling_worker(fixture, 'thunder', settings, '/local', 'fixture-host')
+                self.assertEqual(2, run.call_count)
+
+
+class TTSBenchmarkCancellationTests(unittest.TestCase):
+    def test_http_cancel_during_worker_preserves_measured_cases_and_resume(self):
+        import copy
+        import json
+        import numpy as np
+        import soundfile as sf
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import benchmark
+        from tts_benchmark import measure_wav
+        for target in ('local', 'thunder'):
+            for cancel in (False, True):
+                with self.subTest(target=target, cancel=cancel), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    fixture = {'id': 'voice', 'text': 'A measured sentence.',
+                        'instruct': 'Calm.', 'speaker': 'ANN', 'voice': 'Ryan', 'seed': 7}
+                    content = {key: fixture[key] for key in
+                               ('text', 'instruct', 'speaker', 'voice', 'seed')}
+                    fixture['sha256'] = benchmark_runner._hash_entries(content)
+                    manifest = {'schema_version': 1, 'stage': 'tts_generation',
+                        'targets': [target], 'repetitions': 2, 'fixtures': [fixture]}
+                    environment = benchmark_core.build_environment_fingerprint(target, {
+                        'hostname': 'cpu-fixture', 'gpu_name': 'unmeasured', 'backend': 'cpu',
+                        'python_version': '3.10', 'git_commit': 'fixture'})
+                    before = copy.deepcopy((manifest, environment))
+                    state = {'running': True, 'cancel': False, 'logs': [],
+                        'status': 'running', 'tasks': [{'fixture_id': 'voice', 'status': 'pending'}]}
+                    app = FastAPI()
+                    app.include_router(benchmark.router)
+                    path = root / 'report.json'
+                    config = root / 'config.json'
+                    config.write_text(json.dumps({'tts': {'device': 'cpu'},
+                                                  'llm_remote_ssh': 'fixture-host'}))
+                    original_config = config.read_bytes()
+                    pcm = np.sin(np.arange(2400) * 0.11).astype(np.float32) * 0.2
+                    with patch.object(benchmark, 'process_state', {'benchmark': state}), TestClient(app) as client:
+                        def worker(payload, selected_target, settings, root_dir, output_dir, ssh_alias):
+                            self.assertTrue(state['running'])
+                            self.assertEqual(target, selected_target)
+                            self.assertEqual([1, 2], payload['fixtures'][0]['repetition_numbers'])
+                            self.assertEqual('fixture-host', ssh_alias)
+                            if cancel:
+                                response = client.post('/api/benchmark/cancel')
+                                self.assertEqual(200, response.status_code, response.text)
+                                self.assertEqual({'status': 'cancel queued'}, response.json())
+                                self.assertTrue(state['cancel'])
+                            cases = []
+                            for repetition in (1, 2):
+                                audio = root / ('case' + str(repetition) + '.wav')
+                                sf.write(audio, pcm, 24000, subtype='PCM_16')
+                                cases.append({'fixture_id': 'voice', 'repetition': repetition,
+                                    'status': 'passed', 'metrics': measure_wav(str(audio), 1.0)})
+                            return cases
+                        with patch.object(benchmark_runner, '_run_tts_worker', side_effect=worker) as dispatch:
+                            report = benchmark_runner.run_tts_generation_benchmark(
+                                manifest, environment, str(path), state, str(config), tmp)
+                        dispatch.assert_called_once()
+                        self.assertEqual('cancelled' if cancel else 'complete', state['status'])
+                        self.assertEqual('done', state['tasks'][0]['status'])
+                        self.assertEqual([1, 2], [case['repetition'] for case in report['cases']])
+                        self.assertTrue(all(case['quality']['passed'] for case in report['cases']))
+                        self.assertEqual(report, json.loads(path.read_text()))
+                        for repetition, case in zip((1, 2), report['cases']):
+                            audio = root / ('case' + str(repetition) + '.wav')
+                            self.assertEqual(case['metrics'], measure_wav(str(audio), 1.0))
+                        saved = path.read_bytes()
+                        state.update(cancel=False, status='running')
+                        with patch.object(benchmark_runner, '_run_tts_worker') as no_dispatch:
+                            resumed = benchmark_runner.run_tts_generation_benchmark(
+                                manifest, environment, str(path), state, str(config), tmp)
+                        no_dispatch.assert_not_called()
+                        self.assertEqual(report, resumed)
+                        self.assertEqual(saved, path.read_bytes())
+                        self.assertEqual('complete', state['status'])
+                    self.assertEqual(before, (manifest, environment))
+                    self.assertEqual(original_config, config.read_bytes())
+
+
+class NicknameEmptyGoldScoringTests(unittest.TestCase):
+    def test_known_negative_positive_and_false_positive_cases_preserve_raw_results(self):
+        import copy
+        import json
+        cases = [({}, {}, {}, True, 1., 1., 1.),
+                 ({}, {'Bri': 'Brian'}, {'Bri': ['invented']}, False, 0., 1., 1.),
+                 ({'Bri': 'Brian'}, {}, {}, False, 0., 0., 0.),
+                 ({'Bri': 'Brian'}, {'Bri': 'Brian'}, {'bri': ['evidence']}, True, 1., 1., 1.),
+                 ({'Bri': 'Brian'}, {'Bri': 'Brian', 'Bob': 'Robert'}, {'Bri': ['evidence']}, False, .5, 1., 1.),
+                 ({'Bri': 'Brian'}, {'Bri': 'Brian'}, {}, False, 1., 1., 0.)]
+        for expected, aliases, evidence, passed, precision, recall, coverage in cases:
+            with self.subTest(expected=expected, aliases=aliases, evidence=evidence):
+                fixture = {'id': 'fixture', 'entries': [], 'existing_aliases': {}, 'expected_aliases': expected}
+                before = copy.deepcopy((fixture, aliases, evidence))
+                with patch.object(benchmark_runner, 'find_nicknames', return_value=(aliases, evidence)) as detector:
+                    result = benchmark_runner._run_nickname_case(fixture, 1, object(), 'model', 4096, 1)
+                detector.assert_called_once()
+                self.assertEqual('passed' if passed else 'failed', result['status'])
+                self.assertEqual({'passed': passed, 'precision': precision, 'recall': recall,
+                                  'evidence_coverage': coverage}, result['quality'])
+                self.assertEqual(aliases, result['aliases'])
+                self.assertEqual(evidence, result['evidence'])
+                self.assertEqual(before, (fixture, aliases, evidence))
+                self.assertEqual(result, json.loads(json.dumps(result, allow_nan=False)))
+
+
+class PersonaEmptyFixtureTests(unittest.TestCase):
+    def fixture(self, speakers):
+        import copy
+        content = {'entries': [{'speaker': 'NARRATOR', 'text': 'No dialogue.'}],
+                   'speakers': copy.deepcopy(speakers), 'batch_size': 40}
+        return {**content, 'id': 'fixture', 'sha256': benchmark_runner._hash_entries(content)}
+
+    def test_runner_rejects_hash_valid_empty_or_malformed_speakers_before_work(self):
+        import copy
+        for speakers in ([], None, '', 'ALICE', [''], ['  '], [7]):
+            with self.subTest(speakers=speakers):
+                fixture = self.fixture(speakers)
+                original = copy.deepcopy(fixture)
+                with patch.object(benchmark_runner.generate_personas, '_discover_batch_characters',
+                                  side_effect=AssertionError('invalid fixture reached discovery')) as discover, \
+                     patch.object(benchmark_runner.generate_personas, '_compile_persona') as compile_persona:
+                    with self.assertRaisesRegex(ValueError, 'persona speakers'):
+                        benchmark_runner._run_persona_case(fixture, object(), 'model', 4096)
+                    discover.assert_not_called()
+                    compile_persona.assert_not_called()
+                self.assertEqual(original, fixture)
+
+    def test_actual_remote_worker_rejects_hash_valid_empty_fixture(self):
+        import llm_benchmark_worker
+        fixture = self.fixture([])
+        fixture['repetition_numbers'] = [1]
+        payload = {'base_url': 'http://fixture.invalid/v1', 'model_name': 'model',
+                   'fixtures': [fixture]}
+        with patch.object(llm_benchmark_worker, 'make_llm_client'), \
+             patch.object(benchmark_runner.generate_personas, '_discover_batch_characters') as discovery:
+            with self.assertRaisesRegex(ValueError, 'persona speakers'):
+                llm_benchmark_worker.execute_payload('persona_generation', payload)
+            discovery.assert_not_called()
+
+    def test_builder_and_runner_share_speaker_validation(self):
+        from benchmark_validation import validate_persona_speakers
+        from benchmark_fixtures import build_persona_generation_manifest
+        with self.assertRaisesRegex(ValueError, 'persona speakers'):
+            build_persona_generation_manifest([{'entries': [{'speaker': 'NARRATOR', 'text': 'No dialogue.'}]}])
+        speakers = ['ALICE', 'BOB']
+        self.assertIsNone(validate_persona_speakers(speakers))
+        self.assertEqual(['ALICE', 'BOB'], speakers)
+
+    def test_real_case_scoring_preserves_positive_and_missing_persona_failure(self):
+        import copy
+        from benchmark_fixtures import build_persona_generation_manifest
+        fixture = build_persona_generation_manifest([{'entries': [{'speaker': 'ALICE', 'text': 'Hello there.'}]}])['fixtures'][0]
+        original = copy.deepcopy(fixture)
+        characters = [{'name': 'ALICE', 'features': ['a calm voice'], 'sample_lines': ['Hello there.']}]
+        def compile_fixture(client, model, engine, config, root, ref_dir, speaker, samples, *args, **kwargs):
+            kwargs["preview_saver"](root, engine, config, speaker, 'Calm voice.', 'Hello there.')
+        for compile_function, passed in ((compile_fixture, True), (lambda *args, **kwargs: None, False)):
+            with self.subTest(passed=passed), \
+                 patch.object(benchmark_runner.generate_personas, '_discover_batch_characters', return_value=copy.deepcopy(characters)), \
+                 patch.object(benchmark_runner.generate_personas, '_compile_persona', side_effect=compile_function):
+                result = benchmark_runner._run_persona_case(fixture, object(), 'model', 4096)
+            self.assertEqual('passed' if passed else 'failed', result['status'])
+            self.assertEqual(passed, result['quality']['passed'])
+            self.assertEqual(1 if passed else 0, result['quality']['speaker_coverage'])
+            self.assertEqual(1, result['quality']['evidence_coverage'])
+            self.assertEqual(1, result['discovery_calls'])
+            self.assertEqual(1, result['compile_calls'])
+        self.assertEqual(original, fixture)

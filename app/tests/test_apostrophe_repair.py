@@ -97,3 +97,37 @@ class Pipeline(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CliticAuditEvidenceTests(unittest.TestCase):
+    def test_each_actual_repair_has_original_offset_and_survives_pipeline_reporting(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        raw = "I m here. I don t know.\nWe re home and she s tired.\nThey ve gone, you ll stay, I d wait. once re-entered."
+        expected = "I'm here. I don't know.\nWe're home and she's tired.\nThey've gone, you'll stay, I'd wait. once re-entered."
+        repaired, changes = restore_stripped_apostrophes(raw)
+        self.assertEqual(expected, repaired)
+        self.assertEqual(7, len(changes))
+        replay = raw
+        for change in sorted(changes, key=lambda item: item["offset"], reverse=True):
+            offset = change["offset"]
+            self.assertEqual(change["before"], raw[offset:offset + len(change["before"])])
+            self.assertEqual(raw.count("\n", 0, offset) + 1, change["line"])
+            self.assertEqual("stripped_apostrophe", change["rule"])
+            replay = replay[:offset] + change["after"] + replay[offset + len(change["before"]):]
+        self.assertEqual(repaired, replay)
+        processed, report = get_preprocessed_source(raw, strip_front_matter=False)
+        self.assertEqual(expected, processed)
+        self.assertEqual(7, sum(change["rule"] == "stripped_apostrophe"
+                                for change in report["source_normalizations"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "source_audit.json"
+            path.write_text(json.dumps({"source": raw, "repaired": processed, "report": report}))
+            actual = json.loads(path.read_text())
+            self.assertEqual(expected, actual["repaired"])
+            self.assertEqual(7, len(actual["report"]["source_normalizations"]))
+
+    def test_healthy_clitics_and_hyphenated_words_remain_unchanged(self):
+        raw = "I'm here and we're ready. once re-entered."
+        self.assertEqual((raw, []), restore_stripped_apostrophes(raw))

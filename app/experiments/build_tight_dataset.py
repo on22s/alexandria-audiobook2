@@ -50,9 +50,10 @@ from experiments.provenance import provenance  # noqa: E402
 
 def cached_clips(cache_path, stems):
     """-> {stem: (embeddings, clip filenames)} for the volumes we may use."""
-    import pickle
-    with open(cache_path, "rb") as fh:
-        cache = pickle.load(fh)
+    from voice_analysis_cache import load_voice_analysis_pickle
+    cache = load_voice_analysis_pickle(cache_path, None)
+    if cache is None:
+        raise FileNotFoundError(cache_path)
     out = {}
     for k, v in cache.items():
         stem = os.path.basename(k)

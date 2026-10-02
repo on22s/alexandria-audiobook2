@@ -24,10 +24,10 @@ def _sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def _read_book(path):
+def _read_book(path, raw):
     if path.suffix.lower() == ".epub":
-        return extract_epub_text(str(path))
-    return path.read_text(encoding="utf-8", errors="replace")
+        return extract_epub_text(str(path), archive_bytes=raw)
+    return raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _passage_around(text, start, target_chars):
@@ -61,14 +61,14 @@ def build_manifest(books_dir, max_books=10, target_chars=1200):
     paths = sorted(
         (path for path in books_dir.iterdir()
          if path.is_file() and path.suffix.lower() in BOOK_EXTENSIONS),
-        key=lambda path: path.name.casefold(),
+        key=lambda path: (path.name.casefold(), path.name),
     )[:max_books]
     books = []
     errors = []
     for path in paths:
         try:
             raw = path.read_bytes()
-            text = _read_book(path)
+            text = _read_book(path, raw)
             if not text.strip():
                 raise ValueError("no readable text")
             passages = select_passages(text, target_chars=target_chars)

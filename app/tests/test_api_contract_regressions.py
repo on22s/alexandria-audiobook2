@@ -1,4 +1,7 @@
 import ast
+import copy
+from contextlib import ExitStack
+import core
 import os
 import json
 from pathlib import Path
@@ -13,10 +16,140 @@ from fastapi import BackgroundTasks, HTTPException
 import app as app_module
 import routers.editor as editor_router
 import routers.preparer as preparer_router
+import routers.dataset_builder as dataset_builder_router
 import update_api_contract_snapshots as api_contract
 
 
 class ApiContractTests(unittest.TestCase):
+    def setUp(self):
+        # Admission tests reserve real kernel task leases but never run workers.
+        # Keep their resource namespace and simulated shared state disposable.
+        self.root = tempfile.TemporaryDirectory()
+        self.addCleanup(self.root.cleanup)
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        snapshots = {name: copy.deepcopy(state) for name, state in core.process_state.items()}
+        def restore_state():
+            for name, saved in snapshots.items():
+                core.process_state[name].clear()
+                core.process_state[name].update(saved)
+        self.addCleanup(restore_state)
+        for state in core.process_state.values():
+            state['running'] = False
+        self.stack.enter_context(patch.object(core, 'DATA_DIR', self.root.name))
+        self.stack.enter_context(patch.object(core, '_task_claims', {}))
+        self.stack.enter_context(patch.object(core, '_gpu_leases', {}))
+        self.stack.enter_context(patch.object(core, 'acquire_gpu_lock', return_value=None))
+        acquire = core.acquire_task_lease
+        def acquire_owned(*args, **kwargs):
+            lease = acquire(*args, **kwargs)
+            self.addCleanup(lease.close)
+            return lease
+        self.stack.enter_context(patch.object(core, 'acquire_task_lease', side_effect=acquire_owned))
+
+    def test_empty_preparer_batch_is_rejected_before_any_resource_or_background_work(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app = FastAPI()
+        app.include_router(preparer_router.router)
+        with patch.object(preparer_router, "_resolve_preparer_interpreter", return_value="fixture-python") as resolve, \
+             patch.object(preparer_router, "check_global_gpu_lock") as check, \
+             patch.object(preparer_router, "check_disk_space", return_value=(True, 10)) as disk, \
+             patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim, \
+             patch.object(core, "_task_claims", {}), \
+             patch.object(core, "_gpu_leases", {}), \
+             patch.object(core, "acquire_gpu_lock", return_value=None), \
+             patch.object(core, "llm_is_on_this_gpu", return_value=True), \
+             patch.object(preparer_router, "_run_claimed_background_task") as run, \
+             TestClient(app) as client:
+            response = client.post("/api/preparer/batch/start", json={"tasks": []})
+            self.assertEqual(422, response.status_code, response.text)
+            self.assertTrue(any(error["loc"] == ["body", "tasks"] for error in response.json()["detail"]))
+            for operation in (resolve, check, disk, claim, run):
+                operation.assert_not_called()
+
+    def test_nonempty_preparer_batch_still_claims_schedules_once_and_honors_gpu_conflict(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app = FastAPI()
+        app.include_router(preparer_router.router)
+        request = {"tasks": [{"audio_filename": "clip.wav", "output_filename": "dataset.zip"}]}
+        with patch.object(preparer_router, "_resolve_preparer_interpreter", return_value="fixture-python"), \
+             patch.object(preparer_router, "check_global_gpu_lock") as check, \
+             patch.object(preparer_router, "check_disk_space", return_value=(True, 10)), \
+             patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim, \
+             patch.object(core, "_task_claims", {}), \
+             patch.object(core, "_gpu_leases", {}), \
+             patch.object(core, "acquire_gpu_lock", return_value=None), \
+             patch.object(core, "llm_is_on_this_gpu", return_value=True), \
+             patch.object(preparer_router, "_run_claimed_background_task") as run, \
+             TestClient(app) as client:
+            response = client.post("/api/preparer/batch/start", json=request)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual({"status": "started", "task_count": 1}, response.json())
+            check.assert_called_once_with("batch_preparer")
+            claim.assert_called_once_with("batch_preparer")
+            run.assert_called_once()
+            self.assertEqual("batch_preparer", run.call_args.args[0])
+            self.assertTrue(callable(run.call_args.args[1]))
+            check.side_effect = HTTPException(status_code=400, detail="GPU task already running")
+            claim.reset_mock()
+            run.reset_mock()
+            response = client.post("/api/preparer/batch/start", json=request)
+            self.assertEqual(400, response.status_code)
+            claim.assert_not_called()
+            run.assert_not_called()
+
+    def test_dataset_builder_thread_start_failure_releases_gpu_claim(self):
+        import asyncio
+        state = dataset_builder_router.process_state['dataset_builder']
+        original = state['running'];state['running'] = False
+        request = dataset_builder_router.DatasetBatchGenRequest(
+            name='test', description='voice',
+            samples=[dataset_builder_router.LoraDatasetSample(text='hello')])
+        try:
+            with tempfile.TemporaryDirectory() as root, \
+                 patch.object(dataset_builder_router, 'DATASET_BUILDER_DIR', root), \
+                 patch.object(dataset_builder_router, 'check_global_gpu_lock'), \
+                 patch.object(core, '_task_claims', {}), \
+                 patch.object(core, '_gpu_leases', {}), \
+                 patch.object(core, 'acquire_gpu_lock', return_value=None), \
+                 patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
+                 patch.object(core, 'release_gpu_task_claim', wraps=core.release_gpu_task_claim) as released, \
+                 patch.object(dataset_builder_router.threading.Thread, 'start', side_effect=RuntimeError('thread unavailable')):
+                with self.assertRaisesRegex(RuntimeError, 'thread unavailable'):
+                    asyncio.run(dataset_builder_router.dataset_builder_generate_batch(request))
+                self.assertFalse(core.is_task_running('dataset_builder'))
+                self.assertEqual({},core._task_claims)
+            self.assertFalse(state['running']);self.assertEqual(1,released.call_count)
+            self.assertEqual('dataset_builder',released.call_args.args[0]);self.assertIsInstance(released.call_args.args[1],str)
+        finally:state['running'] = original
+
+    def test_preparer_publication_failure_restores_previous_uploads(self):
+        with tempfile.TemporaryDirectory() as root:
+            staged = {}
+            for name in ('audio.wav', 'source.txt'):
+                final = Path(root, name)
+                final.write_text('old ' + name)
+                pending = Path(root, name + '.pending')
+                pending.write_text('new ' + name)
+                staged[str(final)] = str(pending)
+            original_replace = preparer_router.os.replace
+
+            def fail_second(source, target):
+                if source.endswith('source.txt.pending'):
+                    raise OSError('publish failed')
+                return original_replace(source, target)
+
+            with patch.object(preparer_router.os, 'replace', side_effect=fail_second):
+                with self.assertRaisesRegex(OSError, 'publish failed'):
+                    preparer_router.publish_preparer_uploads(
+                        staged, lambda: self.fail('scheduled incomplete upload'))
+            for final in staged:
+                self.assertEqual('old ' + Path(final).name, Path(final).read_text())
+            self.assertEqual(['audio.wav', 'source.txt'],
+                             sorted(path.name for path in Path(root).iterdir()))
+
     def test_missing_contract_snapshot_is_a_clear_validation_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "snapshots are missing or invalid"):
@@ -58,13 +191,46 @@ class ApiContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as output_dir:
             valid_file = Path(output_dir, "dataset.zip")
             valid_file.write_bytes(b"zip")
+            Path(output_dir, "directory.zip").mkdir()
             with patch.object(preparer_router, "PREPARER_OUTPUT_DIR", output_dir):
                 with self.assertRaises(HTTPException) as raised:
                     asyncio.run(preparer_router.preparer_download("."))
+                with self.assertRaises(HTTPException) as directory_error:
+                    asyncio.run(preparer_router.preparer_download("directory.zip"))
                 response = asyncio.run(preparer_router.preparer_download("dataset.zip"))
 
-        self.assertEqual(404, raised.exception.status_code)
+        self.assertEqual(400, raised.exception.status_code)
+        self.assertIn("Only dataset ZIP", raised.exception.detail)
+        self.assertEqual(404, directory_error.exception.status_code)
         self.assertEqual(str(valid_file), response.path)
+
+    def test_preparer_rejects_source_and_audio_upload_name_collision_before_writing(self):
+        import asyncio
+        import io
+        from unittest.mock import AsyncMock
+        from starlette.datastructures import UploadFile as StarletteUpload
+        with tempfile.TemporaryDirectory() as tmp:
+            upload_path = Path(tmp, "book.wav")
+            upload_path.write_bytes(b"existing audio")
+            config = json.dumps({"audio_filename": "book.wav", "source_filename": "book.wav"})
+            audio = StarletteUpload(io.BytesIO(b"audio"), filename="book.wav")
+            source = StarletteUpload(io.BytesIO(b"source"), filename="book.wav")
+            with patch.object(preparer_router, "UPLOADS_DIR", tmp), \
+                 patch.object(preparer_router, "_resolve_preparer_interpreter", return_value="python"), \
+                 patch.object(preparer_router, "check_global_gpu_lock"), \
+                 patch.object(preparer_router, "check_disk_space", return_value=(True, 10)), \
+                 patch.object(preparer_router, "claim_gpu_task") as claim, \
+                 patch.object(preparer_router, "_save_upload_limited", new_callable=AsyncMock,
+                              wraps=preparer_router._save_upload_limited) as save:
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(preparer_router.preparer_start(
+                        BackgroundTasks(), config_json=config, audio_file=audio, source_file=source))
+            self.assertEqual(400, raised.exception.status_code)
+            self.assertIn("different", raised.exception.detail)
+            save.assert_not_called()
+            claim.assert_not_called()
+            self.assertEqual(b"existing audio", upload_path.read_bytes())
+            self.assertEqual([upload_path], list(Path(tmp).iterdir()))
 
     def test_concurrent_same_name_preparer_uploads_do_not_overwrite_each_other(self):
         """Two overlapping starts with the same filename: one starts, one is

@@ -37,7 +37,7 @@ for sep in space dot; do
         --min-books 5 --separator "$sep" --limit 1600 \
         --work "$runtime/respelling_${sep}_allrows" \
         --out "$runtime/experiments/respelling_${sep}_allrows_n1600.json"
-    stage_commit_artifacts "allrows_$sep" "$REPO"
+    stage_commit_artifacts "allrows_$sep" "$REPO" "$runtime/experiments/respelling_${sep}_allrows_n1600.json"
 done
 
 # All four forms, same terms, one table. Refuses rather than writing an empty
@@ -49,7 +49,7 @@ run_stage pauses_four_arms 1h -- \
     --arm dot=respelling_dot_allrows \
     --arm hyphen_wide=respelling_hyphen_allrows \
     --out "$runtime/experiments/respelling_pauses_allrows_4arm.json"
-stage_commit_artifacts pauses_four_arms "$REPO"
+stage_commit_artifacts pauses_four_arms "$REPO" "$runtime/experiments/respelling_pauses_allrows_4arm.json"
 
 # Selectivity for every arm that now has all-rows data, so the rescue/breakage
 # split is stated on the same footing for all four.
@@ -60,7 +60,7 @@ run_stage selectivity_all 30m -- \
     "$runtime/experiments/respelling_space_allrows_n1600.json" \
     "$runtime/experiments/respelling_dot_allrows_n1600.json" \
     --out "$runtime/experiments/respelling_selectivity_4arm.json"
-stage_commit_artifacts selectivity_all "$REPO"
+stage_commit_artifacts selectivity_all "$REPO" "$runtime/experiments/respelling_selectivity_4arm.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary separator_allrows_20260820

@@ -148,3 +148,30 @@ class RunHistoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunTimestampPruningTests(unittest.TestCase):
+    def test_naive_timestamps_follow_invalid_record_policy_and_protected_runs_survive(self):
+        import datetime
+        import json
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            records = {
+                "run_naive_old": ("completed", "2025-01-01T00:00:00"),
+                "run_naive_recent": ("completed", now.replace(tzinfo=None).isoformat()),
+                "run_old": ("completed", (now - datetime.timedelta(days=100)).isoformat()),
+                "run_recent": ("completed", now.isoformat()),
+                "run_active": ("running", "2025-01-01T00:00:00"),
+                "run_failed": ("failed", now.replace(tzinfo=None).isoformat()),
+            }
+            for run_id, (status, timestamp) in records.items():
+                (root / f"{run_id}.json").write_text(json.dumps({
+                    "id": run_id, "task": "review", "status": status, "started_at": timestamp}))
+            preserved = {key: (root / f"{key}.json").read_bytes()
+                         for key in ("run_recent", "run_active", "run_failed")}
+            self.assertEqual({"run_naive_old", "run_naive_recent", "run_old"}, set(prune_runs(tmp)))
+            for key, raw in preserved.items():
+                self.assertEqual(raw, (root / f"{key}.json").read_bytes())
+            self.assertEqual(set(preserved), {r["id"] for r in list_runs(tmp)})

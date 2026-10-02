@@ -1,7 +1,7 @@
 """Hash-verified production Voice Lab dedup benchmark worker."""
 
+from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -9,14 +9,21 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from benchmark_validation import (get_benchmark_file_path, get_benchmark_directory_path,
+                                  get_benchmark_archive_audio_path, get_benchmark_output_path)
+from lora_evidence import get_file_sha256
 
 
-def _hash_file(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as source:
-        for block in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+def get_dedup_dataset_path(root, name):
+    try:
+        return get_benchmark_directory_path(root, name)
+    except ValueError as exc:
+        raise ValueError("dedup dataset is outside the fixture root or missing") from exc
+
+
+def get_dedup_audio_path(root, name):
+    """Return a contained source with an unchanged portable ZIP member name."""
+    return get_benchmark_archive_audio_path(root, name)
 
 
 def _hash_dataset_content(path):
@@ -27,40 +34,70 @@ def _hash_dataset_content(path):
                    if line.strip()]
         digest.update(metadata)
         for entry in entries:
-            relative_path = entry["audio_filepath"]
+            relative_path = entry.get("audio_filepath") or entry.get("audio")
             digest.update(relative_path.encode("utf-8"))
             digest.update(archive.read(relative_path))
     return digest.hexdigest(), len(entries)
 
 
+
+def get_dedup_selected_entries(entries, samples_per_volume):
+    """Select exactly two full volumes; invalid counts cannot alter slicing."""
+    if type(samples_per_volume) is not int or samples_per_volume < 1:
+        raise ValueError("dedup samples_per_volume must be a positive integer")
+    if not isinstance(entries, list) or len(entries) < samples_per_volume * 2:
+        raise ValueError("dedup source dataset has too few samples for two volumes")
+    selected = entries[:samples_per_volume * 2]
+    if any(not isinstance(entry, dict) for entry in selected):
+        raise ValueError("dedup metadata entries must be objects")
+    return selected
+
+
+def validate_dedup_audio_hash_coverage(entries, audio_sha256):
+    """Every selected clip needs a declared hash before any processing."""
+    if not isinstance(audio_sha256, dict):
+        raise ValueError("dedup audio hashes must be a mapping")
+    for entry in entries:
+        path = entry.get("audio_filepath") or entry.get("audio")
+        if not isinstance(path, str) or not path:
+            raise ValueError("dedup selected audio path is missing")
+        if path not in audio_sha256:
+            raise ValueError(f"dedup selected audio hash is missing: {path}")
+
 def execute_fixture(fixture, python_executable, analysis_script):
-    source_dir = os.path.abspath(os.path.join(fixture["root_dir"], fixture["dataset_path"]))
-    metadata_path = os.path.join(source_dir, "metadata.jsonl")
-    if _hash_file(metadata_path) != fixture["metadata_sha256"]:
+    source_dir = get_dedup_dataset_path(fixture["root_dir"], fixture["dataset_path"])
+    metadata_path = get_benchmark_file_path(source_dir, "metadata.jsonl")
+    with open(metadata_path, "rb") as metadata_file:
+        metadata_raw = metadata_file.read()
+    if hashlib.sha256(metadata_raw).hexdigest() != fixture["metadata_sha256"]:
         raise ValueError("dedup metadata hash changed")
-    with open(metadata_path, encoding="utf-8") as metadata_file:
-        entries = [json.loads(line) for line in metadata_file if line.strip()]
-    entries = entries[:fixture["samples_per_volume"] * 2]
+    entries = get_dedup_selected_entries(
+        [json.loads(line) for line in metadata_raw.decode("utf-8").splitlines() if line.strip()],
+        fixture["samples_per_volume"])
+    validate_dedup_audio_hash_coverage(entries, fixture["audio_sha256"])
+    audio_paths = {name: get_dedup_audio_path(source_dir, name)
+                   for name in fixture["audio_sha256"]}
     for relative_path, expected in fixture["audio_sha256"].items():
-        if _hash_file(os.path.join(source_dir, relative_path)) != expected:
+        if get_file_sha256(audio_paths[relative_path]) != expected:
             raise ValueError(f"dedup audio hash changed: {relative_path}")
     with tempfile.TemporaryDirectory(prefix="alexandria-dedup-benchmark-") as scratch:
-        narrator_dir = os.path.join(scratch, "zips", "benchmark_narrator")
+        zips_dir = get_benchmark_output_path(scratch, "zips")
+        narrator_dir = get_benchmark_output_path(zips_dir, "benchmark_narrator")
         os.makedirs(narrator_dir)
         size = fixture["samples_per_volume"]
         for volume_index, volume_entries in enumerate((entries[:size], entries[size:]), 1):
-            zip_path = os.path.join(narrator_dir, f"volume_{volume_index:02d}.zip")
+            zip_path = get_benchmark_output_path(narrator_dir, f"volume_{volume_index:02d}.zip")
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
                 for entry in volume_entries:
                     relative_path = entry.get("audio_filepath") or entry.get("audio")
-                    archive.write(os.path.join(source_dir, relative_path), relative_path)
+                    archive.write(audio_paths[relative_path], relative_path)
                 metadata = "".join(json.dumps(entry, ensure_ascii=False) + "\n"
                                    for entry in volume_entries)
                 archive.writestr("metadata.jsonl", metadata)
-        output_dir = os.path.join(scratch, "dedup_output")
+        output_dir = get_benchmark_output_path(scratch, "dedup_output")
         env = dict(os.environ, PYTHONHASHSEED=str(fixture["seed"]))
         command = [python_executable, "-u", analysis_script, "--phase", "dedup",
-                   "--device", "cuda", "--zips2", os.path.join(scratch, "zips"),
+                   "--device", "cuda", "--zips2", zips_dir,
                    "--dedup-out", output_dir, "--seed", str(fixture["seed"])]
         started = time.monotonic()
         result = subprocess.run(command, cwd=scratch, env=env, capture_output=True,
@@ -68,16 +105,18 @@ def execute_fixture(fixture, python_executable, analysis_script):
         elapsed = time.monotonic() - started
         if result.returncode:
             raise RuntimeError((result.stdout + "\n" + result.stderr)[-4000:])
-        with open(os.path.join(output_dir, "dedup_clusters.json"), encoding="utf-8") as report_file:
+        output_dir = get_benchmark_output_path(scratch, "dedup_output")
+        zips_dir = get_benchmark_output_path(scratch, "zips")
+        with open(get_benchmark_output_path(output_dir, "dedup_clusters.json"), encoding="utf-8") as report_file:
             report = json.load(report_file)
         narrator = report["narrators"]["benchmark_narrator"]
-        deduped_dir = os.path.join(scratch, "zips", "_deduped")
+        deduped_dir = get_benchmark_output_path(zips_dir, "_deduped")
         output_zips = []
         for name in os.listdir(deduped_dir):
-            path = os.path.join(deduped_dir, name)
+            path = get_benchmark_output_path(deduped_dir, name)
             if name.endswith(".zip"):
                 content_hash, sample_count = _hash_dataset_content(path)
-                output_zips.append({"name": name, "archive_sha256": _hash_file(path),
+                output_zips.append({"name": name, "archive_sha256": get_file_sha256(path),
                                     "content_sha256": content_hash,
                                     "sample_count": sample_count})
     similarity = narrator["similarity_matrix"][0][1]
@@ -90,14 +129,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload", required=True)
     args = parser.parse_args()
-    payload = json.loads(base64.b64decode(args.payload).decode("utf-8"))
-    try:
-        metrics = execute_fixture(payload["fixture"], payload["python"],
-                                  payload["analysis_script"])
-        result = {"status": "passed", "metrics": metrics, "error": None}
-    except Exception as exc:
-        result = {"status": "failed", "metrics": {}, "error": str(exc)}
-    print("DEDUP_BENCHMARK_RESULT=" + json.dumps(result, separators=(",", ":")))
+    def execute():
+        payload = get_decoded_worker_payload(args.payload)
+        return execute_fixture(payload["fixture"], payload["python"], payload["analysis_script"])
+    emit_benchmark_worker_result('DEDUP_BENCHMARK_RESULT=',
+                                 execute, metrics_only=True)
 
 
 if __name__ == "__main__":

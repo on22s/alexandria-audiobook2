@@ -57,7 +57,7 @@ class BenchmarkApiTests(unittest.TestCase):
                 _request(["local", "thunder"]))
         lock.assert_called_once_with("benchmark")
         local.assert_called_once_with(benchmark.ROOT_DIR, "local-model")
-        remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model", remote_root=None)
+        remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model", remote_root=None, remote_python="python3")
         self.assertEqual("ready", result["benchmark_state"])
 
     def test_preflight_rejects_mismatched_torch_builds_across_targets(self):
@@ -182,3 +182,30 @@ class BenchmarkApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BenchmarkSelectedRuntimeTests(unittest.TestCase):
+    def test_all_remote_llm_and_cpu_stages_forward_selected_worker_runtime(self):
+        stages = ('script_generation', 'script_review', 'persona_generation',
+                  'nickname_detection', 'voicelab_naming', 'audacity_export', 'm4b_export')
+        for stage in stages:
+            with self.subTest(stage=stage):
+                request = benchmark.BenchmarkPreflightRequest(manifest={
+                    'schema_version':1, 'stage':stage, 'targets':['thunder'],
+                    'fixtures':[{'id':'fixture','sha256':'abc'}],
+                    'settings':{'remote_root':'/worker checkout', 'remote_python':'/selected python'}})
+                with patch.object(benchmark, 'load_app_config', return_value={
+                    'llm_remote':{'model_name':'worker-model'}, 'llm_remote_ssh':'fixture-ssh'}), \
+                     patch.object(benchmark, 'check_global_gpu_lock'), \
+                     patch.object(benchmark, 'collect_cpu_environment', return_value={'target':'thunder','sha256':'cpu'}) as cpu, \
+                     patch.object(benchmark, 'collect_thunder_environment', return_value={'target':'thunder','sha256':'llm'}) as llm:
+                    result = benchmark._build_benchmark_preflight(request)
+                if stage in ('voicelab_naming','audacity_export','m4b_export'):
+                    cpu.assert_called_once_with(benchmark.ROOT_DIR,'thunder','fixture-ssh',
+                        remote_root='/worker checkout',remote_python='/selected python')
+                    llm.assert_not_called()
+                else:
+                    llm.assert_called_once_with(benchmark.ROOT_DIR,'fixture-ssh','worker-model',
+                        remote_root='/worker checkout',remote_python='/selected python')
+                    cpu.assert_not_called()
+                self.assertEqual('ready',result['benchmark_state'])

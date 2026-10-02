@@ -34,14 +34,15 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual(1, len(review["direction_normalizations"]))
 
     def test_content_apply_requires_expected_values_and_does_not_mutate(self):
-        entries = [_entry("Copyright"), _entry("Story", instruct="Old direction")]
+        entries = [_entry("Copyright"), _entry("Story", instruct=" Old   direction ")]
         repair = apply_content_selections(entries,
             [{"entry_number": 1, "expected_text": "Copyright"}],
-            [{"entry_number": 2, "expected_instruct": "Old direction",
-              "new_instruct": " New   direction "}])
+            [{"entry_number": 2, "expected_instruct": " Old   direction ",
+              "new_instruct": "Old direction"}])
         self.assertEqual("Copyright", entries[0]["text"])
         self.assertEqual(["Story"], [entry["text"] for entry in repair["entries"]])
-        self.assertEqual("New direction", repair["entries"][0]["instruct"])
+        self.assertEqual(" Old   direction ", entries[1]["instruct"])
+        self.assertEqual("Old direction", repair["entries"][0]["instruct"])
         with self.assertRaises(ValueError):
             apply_content_selections(entries,
                 [{"entry_number": 1, "expected_text": "Changed"}], [])
@@ -74,6 +75,13 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual(original, entries)
         self.assertEqual("Please take care of it.", repair["entries"][0]["text"])
         self.assertEqual(3, len(repair["entries"]))
+        self.assertEqual([], repair["unresolved"])
+
+    def test_deterministic_repair_keeps_cyrillic_word_present_in_source(self):
+        entries = [_entry("Он рос быстро.")]
+        repair = build_deterministic_repair(entries, "Он рос быстро.")
+        self.assertEqual(entries, repair["entries"])
+        self.assertEqual([], repair["changes"])
         self.assertEqual([], repair["unresolved"])
 
     def test_deterministic_repair_refuses_unproven_unicode_and_keeps_source_duplicates(self):
@@ -125,6 +133,118 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual(entries, repair["entries"])
         self.assertEqual("previous_pause_already_set", repair["unresolved"][0]["reason"])
 
+    def test_empty_pause_is_attached_to_a_surviving_duplicate_block_row(self):
+        block = [_entry("The first sufficiently long line."),
+                 _entry("The second sufficiently long line.")]
+        entries = block + [dict(entry) for entry in block] + [_entry("")]
+        original = json.loads(json.dumps(entries))
+        repair = build_deterministic_repair(entries, " ".join(e["text"] for e in block))
+        self.assertEqual(2, len(repair["entries"]))
+        self.assertEqual(1000, repair["entries"][1].get("pause_after"))
+        self.assertEqual([], repair["unresolved"])
+        pause = next(c for c in repair["changes"] if c["type"] == "empty_entry_to_pause")
+        self.assertEqual(2, pause["pause_after_entry_number"])
+        self.assertEqual(original, entries)
+
+    def test_explicit_empty_pause_preserves_authored_duration_including_zero(self):
+        for duration in (0, 500, 1500):
+            with self.subTest(duration=duration):
+                entries = [_entry("Spoken line."), {**_entry(""), "pause_after": duration},
+                           _entry("Following line.")]
+                original = json.loads(json.dumps(entries))
+                repair = build_deterministic_repair(entries, "Spoken line. Following line.")
+                self.assertEqual(2, len(repair["entries"]))
+                self.assertEqual(duration, repair["entries"][0]["pause_after"])
+                self.assertEqual(duration, repair["changes"][0]["pause_ms"])
+                self.assertEqual([], repair["unresolved"])
+                self.assertEqual(original, entries)
+
+    def test_untransferable_empty_metadata_and_invalid_pause_are_not_discarded(self):
+        for extra in ({"chapter": "Part Two"}, {"pause_after": -1},
+                      {"pause_after": "500"}, {"pause_after": True}):
+            with self.subTest(extra=extra):
+                entries = [_entry("Spoken line."), {**_entry(""), **extra}]
+                repair = build_deterministic_repair(entries, "Spoken line.")
+                self.assertEqual(entries, repair["entries"])
+                self.assertEqual([], repair["changes"])
+                self.assertEqual(1, len(repair["unresolved"]))
+
+    def test_saved_repair_preserves_pause_after_duplicate_removal_and_keeps_backup(self):
+        block = [_entry("The first sufficiently long line."),
+                 _entry("The second sufficiently long line.")]
+        entries = block + [dict(entry) for entry in block] + [
+            {**_entry(""), "pause_after": 500}, _entry("Following spoken line.")]
+        with tempfile.TemporaryDirectory() as folder:
+            scripts = Path(folder, "scripts"); scripts.mkdir()
+            uploads = Path(folder, "uploads"); uploads.mkdir()
+            script_path = scripts / "book.json"
+            original = json.dumps(entries).encode()
+            script_path.write_bytes(original)
+            (uploads / "book.txt").write_text(
+                " ".join(e["text"] for e in block) + " Following spoken line.")
+            with patch.object(scripts_library, "SCRIPTS_DIR", str(scripts)), \
+                 patch.object(scripts_library, "UPLOADS_DIR", str(uploads)):
+                preview = asyncio.run(scripts_library.preview_deterministic_repair(
+                    "book", scripts_library.ScriptRepairRequest(source_filename="book.txt")))
+                result = asyncio.run(scripts_library.apply_deterministic_repair(
+                    "book", scripts_library.ScriptRepairRequest(
+                        source_filename="book.txt", expected_sha256=preview["sha256"])))
+            saved = json.loads(script_path.read_bytes())
+            self.assertEqual(3, len(saved))
+            self.assertEqual(500, saved[1].get("pause_after"))
+            self.assertEqual(original, (scripts / result["backup"]).read_bytes())
+            from pydub import AudioSegment
+            from tts import compute_timeline
+            segment = AudioSegment(data=b"\x01\x10" * 2400, sample_width=2,
+                                   frame_rate=24000, channels=1)
+            timeline = compute_timeline([(entry, segment) for entry in saved],
+                                        pause_ms=777, same_speaker_pause_ms=111)
+            self.assertEqual(500, timeline[2][2] - (timeline[1][2] + len(timeline[1][1])))
+
+    def test_saved_repair_refuses_untransferable_empty_metadata_without_rewriting(self):
+        entries = [_entry("Spoken line."), {**_entry(""), "chapter": "Part Two"}]
+        with tempfile.TemporaryDirectory() as folder:
+            scripts = Path(folder, "scripts"); scripts.mkdir()
+            uploads = Path(folder, "uploads"); uploads.mkdir()
+            path = scripts / "book.json"
+            original = json.dumps(entries).encode()
+            path.write_bytes(original)
+            (uploads / "book.txt").write_text("Spoken line.")
+            with patch.object(scripts_library, "SCRIPTS_DIR", str(scripts)), \
+                 patch.object(scripts_library, "UPLOADS_DIR", str(uploads)):
+                preview = asyncio.run(scripts_library.preview_deterministic_repair(
+                    "book", scripts_library.ScriptRepairRequest(source_filename="book.txt")))
+                self.assertTrue(preview["unresolved"])
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(scripts_library.apply_deterministic_repair(
+                        "book", scripts_library.ScriptRepairRequest(
+                            source_filename="book.txt", expected_sha256=preview["sha256"])))
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertEqual(original, path.read_bytes())
+
+    def test_saved_repair_cannot_use_embedded_source_tokens_to_authorize_deletion(self):
+        block = [_entry("foo bar baz qux quux"),
+                 _entry("another fabricated line fits five words")]
+        entries = block + [dict(entry) for entry in block]
+        with tempfile.TemporaryDirectory() as folder:
+            scripts = Path(folder, "scripts"); scripts.mkdir()
+            uploads = Path(folder, "uploads"); uploads.mkdir()
+            path = scripts / "book.json"
+            original = json.dumps(entries).encode()
+            path.write_bytes(original)
+            (uploads / "book.txt").write_text("pre" + " ".join(e["text"] for e in block))
+            with patch.object(scripts_library, "SCRIPTS_DIR", str(scripts)), \
+                 patch.object(scripts_library, "UPLOADS_DIR", str(uploads)):
+                preview = asyncio.run(scripts_library.preview_deterministic_repair(
+                    "book", scripts_library.ScriptRepairRequest(source_filename="book.txt")))
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(scripts_library.apply_deterministic_repair(
+                        "book", scripts_library.ScriptRepairRequest(
+                            source_filename="book.txt", expected_sha256=preview["sha256"])))
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertTrue(preview["unresolved"])
+            self.assertEqual(original, path.read_bytes())
+
     def test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking(self):
         entries = [_entry(""), _entry("The саге was quiet.")]
 
@@ -154,7 +274,9 @@ class ScriptPreflightTests(unittest.TestCase):
             self.assertEqual("not_run", validation["status"])
         identifier = findings[0]["details"]
         self.assertEqual("Reference AB-1234-Z.", identifier["normalized_preview"])
-        self.assertEqual([], identifier["transformations"])
+        self.assertEqual([{
+            "type": "normalized_sentence_boundary", "trimmed_characters": 0,
+            "appended_period": True}], identifier["transformations"])
 
     def test_legitimate_japanese_is_allowed_when_source_backed(self):
         report = audit_script([_entry("彼はありがとうと言った。")], "彼はありがとうと言った。")
@@ -328,3 +450,38 @@ class ScriptPreflightTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NearDuplicateNormalizationTests(unittest.TestCase):
+    def test_case_and_punctuation_variants_need_two_source_occurrences(self):
+        from script_preflight import find_adjacent_near_duplicate_entries
+        first = 'The captain repeated the same warning twice.'
+        variants = (first.upper(), 'The captain, repeated the same warning twice!',
+                    'The captain repeated the same warning twice…')
+        for second in variants:
+            with self.subTest(second=second):
+                direct = find_adjacent_near_duplicate_entries([first, second], first)
+                self.assertEqual(1, len(direct))
+                self.assertEqual([1, 2], direct[0]['entry_numbers'])
+                self.assertEqual(1.0, direct[0]['details']['similarity'])
+                self.assertEqual([False, False], direct[0]['details']['source_supported'])
+                entries = [_entry(first), _entry(second)]
+                before = json.loads(json.dumps(entries))
+                report = audit_script(entries, first)
+                findings = [f for f in report['findings'] if f['code'] == 'adjacent_near_duplicate']
+                self.assertEqual(1, len(findings))
+                self.assertEqual('manual_review', findings[0]['severity'])
+                self.assertEqual(0, report['counts']['blocking'])
+                self.assertEqual(before, entries)
+                repeated_source = first + ' ' + first
+                self.assertEqual([], find_adjacent_near_duplicate_entries([first, second], repeated_source))
+                self.assertNotIn('adjacent_near_duplicate', {f['code'] for f in audit_script(entries, repeated_source)['findings']})
+
+    def test_supported_distinct_near_lines_and_short_echoes_remain_unflagged(self):
+        from script_preflight import find_adjacent_near_duplicate_entries
+        first = 'The captain repeated the same warning twice before dawn today.'
+        second = 'The captain repeated the same warning twice before sunset today.'
+        self.assertEqual([], find_adjacent_near_duplicate_entries([first, second], first + ' ' + second))
+        self.assertEqual([], find_adjacent_near_duplicate_entries(['No.', 'NO!'], 'No.'))
+        self.assertEqual([], find_adjacent_near_duplicate_entries([
+            first, 'Her favorite recipe calls for flour sugar and eggs.'], first))

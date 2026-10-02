@@ -208,3 +208,33 @@ class DefaultScriptsDirTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InvalidUtf8ManifestIsolationTests(unittest.TestCase):
+    def test_one_non_utf8_manifest_does_not_abort_real_cli_analysis(self):
+        import contextlib
+        import io
+        from pathlib import Path
+        import analyze_generation_attempts as analyzer
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            invalid = root / "a.generation_quality.json"
+            invalid.write_bytes(b"{\"chunks\": [], \"bad\": \"\xff\"}")
+            valid = root / "b.generation_quality.json"
+            valid.write_text(json.dumps(_manifest([{
+                "chunk_number": 1, "adaptively_split": False,
+                "attempts": [_attempt("quality_rejected", recall=.8), _attempt("accepted")]}])))
+            before = {p.name: p.read_bytes() for p in (invalid, valid)}
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                self.assertEqual(0, analyzer.main(["--scripts-dir", tmp, "--json"]))
+            artifact = root / "analysis.json"
+            artifact.write_text(stdout.getvalue())
+            report = json.loads(artifact.read_text())
+            self.assertEqual(1, report["manifest_count"])
+            self.assertEqual(1, report["recall_histogram"]["0.75-0.90"])
+            self.assertEqual({"rejected": 1, "recovered": 1}, report["recovery_by_band"]["0.75-0.90"])
+            self.assertEqual(1, len(report["warnings"]))
+            self.assertIn(invalid.name, report["warnings"][0])
+            for path in (invalid, valid):
+                self.assertEqual(before[path.name], path.read_bytes())

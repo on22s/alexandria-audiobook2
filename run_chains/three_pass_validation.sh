@@ -19,6 +19,7 @@
 # pass_quality rather than chunk_quality.
 set -uo pipefail
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+source "$REPO/run_chains/lib/stage.sh" || exit 1
 
 # HOLD THE REAL LOCK INSTEAD OF GUESSING WHO IS RUNNING. The poll loop this
 # replaces enumerated script names, so a GPU job nobody listed was invisible -
@@ -30,6 +31,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "three_pass_validation" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
@@ -63,10 +66,13 @@ PYEOF
 for book in grimgar03 mushoku16 owarimonogatari3; do
     echo ""
     echo "=== three-pass $book  $(date -u +%FT%TZ) ==="
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
     timeout 28800 "$PY" -u three_pass_generate.py "$IN/$book.txt" \
         --output "$OUT/$book.json" --pass2-on-exhaustion fallback \
         > "$L/tpv_$book.log" 2>&1
-    echo "  rc=$?"
+    rc=$?
+    record_stage_result "tpv_$book" "$rc"
+    echo "  rc=$rc"
     grep -E "Stripped publisher|Split into" "$L/tpv_$book.log" | sed 's/^/  /' | cut -c1-95
     echo "  written: $([ -f "$OUT/$book.json" ] && echo yes || echo NO)"
     "$PY" - "$OUT/$book.json.threepass_manifest.json" <<'PYEOF'
@@ -83,3 +89,4 @@ PYEOF
 done
 echo ""
 echo "THREE-PASS VALIDATION DONE $(date -u +%FT%TZ)"
+stage_summary three_pass_validation

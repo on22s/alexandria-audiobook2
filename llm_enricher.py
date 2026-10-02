@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
 import json
-import re
+import os
+import sys
 import logging
+import tempfile
 import traceback
 from typing import Dict, Any
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app"))
+from utils import extract_json_object
+from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 
 from llama_cpp import Llama, llama_supports_gpu_offload
 from gpu_stats import system_has_gpu
@@ -15,6 +21,20 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+
+def save_enriched_transcript(data, path):
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, temporary = tempfile.mkstemp(prefix='.enriched-', suffix='.json', dir=directory)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as output:
+            json.dump(data, output, indent=2)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 class LLMEnricher:
     FIELD_LABELS = {
@@ -27,7 +47,9 @@ class LLMEnricher:
         self.model_path = model_path
         self.fields = fields or list(self.FIELD_LABELS)
         self.llm = None
+        self._gpu_lease = None
         try:
+            self._gpu_lease = acquire_gpu_lock()
             # Build-level check, independent of any specific model load: does
             # this llama-cpp-python install even have GPU support compiled
             # in? n_gpu_layers=-1 below silently falls back to CPU-only
@@ -51,10 +73,19 @@ class LLMEnricher:
                 verbose=False
             )
             logger.info("LLM model loaded successfully.")
-        except Exception as e:
+        except BaseException as e:
+            self.close()
             logger.error(f"Failed to load LLM model from {self.model_path}: {e}")
             logger.debug(traceback.format_exc())
             raise
+
+    def close(self):
+        """Unload the model before releasing its GPU lease."""
+        if self.llm is not None:
+            self.llm.close()
+            self.llm = None
+        release_gpu_lock(self._gpu_lease)
+        self._gpu_lease = None
 
     def enrich_transcript_chunk(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
         """Enriches a transcript chunk with metadata using the LLM.
@@ -66,9 +97,8 @@ class LLMEnricher:
             logger.error("LLM model not loaded. Cannot enrich transcript.")
             return {**chunk, "_enrichment_failed": True}
 
-        prompt = self._create_prompt(chunk)
-
         try:
+            prompt = self._create_prompt(chunk)
             logger.info(f"Enriching chunk: {chunk.get('start', 0.0):.2f}s - {chunk.get('end', 0.0):.2f}s")
             output = self.llm(
                 prompt,
@@ -121,18 +151,9 @@ Output JSON: """
 
     def _parse_llm_output(self, output_text: str) -> Dict[str, str]:
         """Parses the LLM's output to extract metadata."""
-        # Try to find JSON in markdown code blocks first
-        json_match = re.search(r'```json\s*\n({.*?})\n\s*```', output_text, re.DOTALL)
-        if not json_match:
-            # Fallback to finding standalone JSON
-            json_match = re.search(r'(\{.*?\})', output_text, re.DOTALL)
-        
-        if json_match:
-            try:
-                metadata = json.loads(json_match.group(1))
-                return metadata
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse LLM output as JSON: {json_match.group(1)[:100]}...")
+        metadata = extract_json_object(output_text)
+        if metadata is not None:
+            return metadata
 
         logger.warning(f"Could not parse LLM output as JSON: {output_text[:200]}")
         return {
@@ -155,6 +176,21 @@ def main():
     args = parser.parse_args()
 
     try:
+        with open(args.input_file, 'r', encoding='utf-8') as f:
+            transcript_data = json.load(f)
+    except OSError as e:
+        logger.error(f"Could not read input file {args.input_file}: {e}")
+        exit(1)
+    except (json.JSONDecodeError, UnicodeError):
+        logger.error(f"Failed to decode UTF-8 JSON from input file: {args.input_file}")
+        exit(1)
+
+    if not isinstance(transcript_data, list) or any(
+            not isinstance(chunk, dict) for chunk in transcript_data):
+        logger.error("Input must contain a JSON list of transcript objects")
+        exit(1)
+
+    try:
         selected = [key for key, enabled in (
             ("speaker_attribution", args.speaker_attribution),
             ("narration_style", args.narration_style),
@@ -166,42 +202,34 @@ def main():
         exit(1)
 
     try:
-        with open(args.input_file, 'r') as f:
-            transcript_data = json.load(f)
-    except FileNotFoundError:
-        logger.error(f"Input file not found: {args.input_file}")
-        exit(1)
-    except json.JSONDecodeError:
-        logger.error(f"Failed to decode JSON from input file: {args.input_file}")
-        exit(1)
-
-    enriched_data = []
-    fail_count = 0
-    for i, chunk in enumerate(transcript_data):
-        try:
-            enriched_chunk = enricher.enrich_transcript_chunk(chunk)
-            if enriched_chunk.get("_enrichment_failed"):
+        enriched_data = []
+        fail_count = 0
+        for i, chunk in enumerate(transcript_data):
+            try:
+                enriched_chunk = enricher.enrich_transcript_chunk(chunk)
+                if enriched_chunk.get("_enrichment_failed"):
+                    fail_count += 1
+                enriched_data.append(enriched_chunk)
+            except Exception as e:
+                logger.error(f"Error processing chunk {i}: {e}")
+                logger.debug(traceback.format_exc())
                 fail_count += 1
-            enriched_data.append(enriched_chunk)
-        except Exception as e:
-            logger.error(f"Error processing chunk {i}: {e}")
-            logger.debug(traceback.format_exc())
-            fail_count += 1
-            enriched_data.append({**chunk, "_enrichment_failed": True})
+                enriched_data.append({**chunk, "_enrichment_failed": True})
 
-    if transcript_data and fail_count == len(transcript_data):
-        logger.error(f"All {fail_count} chunk(s) failed enrichment - exiting with an error so the caller can detect total failure.")
-        exit(1)
-    elif fail_count:
-        logger.warning(f"{fail_count}/{len(transcript_data)} chunk(s) failed enrichment; continuing with the rest.")
+        if transcript_data and fail_count == len(transcript_data):
+            logger.error(f"All {fail_count} chunk(s) failed enrichment - exiting with an error so the caller can detect total failure.")
+            exit(1)
+        elif fail_count:
+            logger.warning(f"{fail_count}/{len(transcript_data)} chunk(s) failed enrichment; continuing with the rest.")
 
-    try:
-        with open(args.output_file, 'w') as f:
-            json.dump(enriched_data, f, indent=2)
-        logger.info(f"Enriched transcript saved to: {args.output_file}")
-    except IOError as e:
-        logger.error(f"Failed to write output file {args.output_file}: {e}")
-        exit(1)
+        try:
+            save_enriched_transcript(enriched_data, args.output_file)
+            logger.info(f"Enriched transcript saved to: {args.output_file}")
+        except IOError as e:
+            logger.error(f"Failed to write output file {args.output_file}: {e}")
+            exit(1)
+    finally:
+        enricher.close()
 
 if __name__ == "__main__":
     main()

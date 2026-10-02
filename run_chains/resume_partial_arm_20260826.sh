@@ -19,8 +19,13 @@ set -uo pipefail
 
 SEP="${1:-}"
 LIMIT="${2:-1600}"
-if [ -z "$SEP" ]; then
-    echo "usage: $(basename "$0") <none|space|dot|hyphen> [limit]" >&2
+case "$SEP" in
+    none|space|dot|hyphen) ;;
+    *) echo "usage: $(basename "$0") <none|space|dot|hyphen> [limit]" >&2
+       exit 2 ;;
+esac
+if ! [[ "$LIMIT" =~ ^[0-9]+$ ]]; then
+    echo "limit must be a nonnegative integer" >&2
     exit 2
 fi
 
@@ -45,17 +50,7 @@ work="$runtime/respelling_${SEP}_allrows"
 # interpreter started a five-hour re-run of an arm that was already finished.
 # A check that cannot run must refuse, never fall through to the work.
 set +e
-"$python" - "$out" <<'PYEOF'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except FileNotFoundError:
-    sys.exit(1)            # nothing yet: resuming is correct
-except Exception as exc:   # unreadable: say so rather than guess
-    print(f"cannot read {sys.argv[1]}: {exc}", file=sys.stderr)
-    sys.exit(2)
-sys.exit(0 if d.get("status") == "complete" else 1)
-PYEOF
+"$python" "$REPO/app/experiments/respelling_completion.py" "$out" "$LIMIT" --refuse-unreadable
 state=$?
 set -e
 case "$state" in
@@ -82,7 +77,7 @@ run_stage "resume_${SEP}" 5h --needs-vram -- \
     "$python" -u "$REPO/app/experiments/measure_respellings.py" \
     --min-books 5 --separator "$SEP" --limit "$LIMIT" \
     --work "$work" --out "$out"
-stage_commit_artifacts "resume_${SEP}" "$REPO"
+stage_commit_artifacts "resume_${SEP}" "$REPO" "$out"
 stage_summary resume_partial_arm_20260826
 
 "$python" - "$out" <<'PYEOF'

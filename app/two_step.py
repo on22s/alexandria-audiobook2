@@ -52,34 +52,15 @@ CONVERSION_SYSTEM = (
 )
 
 
-class PromptShapeError(ValueError):
-    """The shipped prompt no longer has the shape this transform rewrites."""
+from response_codecs import PromptShapeError, build_output_format_prompt
 
 
 def build_freeform_prompt(system_prompt):
-    """Stage 1's system prompt: the shipped RULES, a non-JSON output spec.
-
-    Only the FORMAT/FIELDS region is replaced, exactly as the lines arm does,
-    so the two arms differ in output shape and nothing else. Raises rather than
-    returning a half-converted prompt - a stage-1 prompt still demanding JSON
-    would make the two-step arm secretly a one-step arm.
-    """
-    if not system_prompt:
-        raise PromptShapeError("no system prompt to convert")
-    start = system_prompt.find("FORMAT:")
-    rules = system_prompt.find("RULES:")
-    if start == -1 or rules == -1 or rules <= start:
-        raise PromptShapeError("expected 'FORMAT:' before 'RULES:'")
-    head, tail = system_prompt[:start], system_prompt[rules:]
-    first_newline = head.find("\n")
-    remainder = head[first_newline:] if first_newline != -1 else "\n"
+    """Use the common format renderer so annotation rules cannot drift."""
     header = ("You are a script writer converting books into audiobook scripts "
               "for an advanced TTS system. Work carefully; do not worry about "
               "machine-readable formatting.")
-    converted = header + remainder + FREEFORM_BLOCK + "\n" + tail
-    if "valid JSON array" in converted:
-        raise PromptShapeError("a JSON instruction survived the conversion")
-    return converted
+    return build_output_format_prompt(system_prompt, header, FREEFORM_BLOCK)
 
 
 def build_conversion_prompt(freeform_text):

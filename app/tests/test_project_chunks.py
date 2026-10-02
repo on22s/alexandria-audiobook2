@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import ANY, patch
@@ -216,6 +218,37 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
         self.assertEqual(EXPLICIT_SILENCE_MS, chunks[0]["pause_after"])
         self.assertNotIn("pause_after", chunks[1])
 
+    def test_explicit_zero_pause_survives_persisted_chunks_and_timeline(self):
+        import copy
+        import json
+        from pydub import AudioSegment
+        from tts import compute_timeline
+
+        entries = [{"speaker": "NARRATOR", "instruct": "Calm.",
+                    "text": "One.", "pause_after": 0},
+                   {"speaker": "NARRATOR", "instruct": "Calm.",
+                    "text": "Two.", "pause_after": 350},
+                   {"speaker": "NARRATOR", "instruct": "Calm.", "text": "Three."}]
+        original = copy.deepcopy(entries)
+        with tempfile.TemporaryDirectory() as root:
+            script_path = os.path.join(root, "annotated_script.json")
+            with open(script_path, "w", encoding="utf-8") as target:
+                json.dump(entries, target)
+            manager = ProjectManager(root)
+            chunks = manager.load_chunks()
+            self.assertEqual(["One.", "Two.", "Three."],
+                             [chunk["text"] for chunk in chunks])
+            self.assertEqual([0, 350, None],
+                             [chunk.get("pause_after") for chunk in chunks])
+            with open(manager.chunks_path, encoding="utf-8") as source:
+                self.assertEqual(chunks, json.load(source))
+            segment = AudioSegment(data=b"\x00\x20" * 1600,
+                                   sample_width=2, frame_rate=16000, channels=1)
+            timeline = compute_timeline([(chunk, segment) for chunk in chunks],
+                                        same_speaker_pause_ms=900)
+            self.assertEqual([0, 100, 550], [start for _, _, start in timeline])
+        self.assertEqual(original, entries)
+
     def test_entries_without_a_pause_still_merge(self):
         # The fix must not stop ordinary same-speaker merging.
         entries = [{"speaker": "NARRATOR", "instruct": "Calm.", "text": "One."},
@@ -242,3 +275,304 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
         self.assertEqual(["A.", "B.", "C."], [c["text"] for c in chunks])
         self.assertEqual([EXPLICIT_SILENCE_MS, EXPLICIT_SILENCE_MS],
                          [c["pause_after"] for c in chunks[:2]])
+
+
+class M4BExportArtifactTests(unittest.TestCase):
+    def test_staged_export_has_aac_chapters_and_failed_reexport_preserves_it(self):
+        import json
+        from pathlib import Path
+        import subprocess
+        from types import SimpleNamespace
+        from pydub import AudioSegment
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            for number in (1, 2):
+                AudioSegment.silent(duration=300, frame_rate=24000).export(
+                    Path(tmp, f"line{number}.wav"), format="wav")
+            manager.save_chunks([
+                {"id": 0, "uid": "one", "speaker": "A", "text": "Opening.",
+                 "audio_path": "line1.wav", "pause_after": 0},
+                {"id": 1, "uid": "two", "speaker": "A", "text": "Ending.",
+                 "audio_path": "line2.wav", "pause_after": 0}])
+            ok, message = manager.merge_m4b(per_chunk_chapters=True,
+                                            metadata={"title": "Example Book", "author": "Example Author"})
+            self.assertTrue(ok, message)
+            target = Path(tmp, "audiobook.m4b")
+            original = target.read_bytes()
+            probe = subprocess.run(["ffprobe", "-v", "error", "-show_streams",
+                                    "-show_chapters", "-show_format", "-of", "json", str(target)],
+                                   capture_output=True, text=True, check=True, timeout=20)
+            artifact = json.loads(probe.stdout)
+            self.assertEqual(["aac"], [s["codec_name"] for s in artifact["streams"] if s["codec_type"] == "audio"])
+            self.assertEqual(2, len(artifact["chapters"]))
+            self.assertEqual("Example Book", artifact["format"]["tags"]["title"])
+            self.assertEqual("Example Author", artifact["format"]["tags"]["artist"])
+            self.assertAlmostEqual(0.6, float(artifact["format"]["duration"]), delta=0.1)
+            self.assertGreater(len(AudioSegment.from_file(str(target))), 500)
+            with patch("project.subprocess.run", return_value=SimpleNamespace(
+                    returncode=1, stderr="Injected encoder failure")):
+                ok, message = manager.merge_m4b(per_chunk_chapters=True)
+            self.assertFalse(ok)
+            self.assertIn("FFmpeg failed", message)
+            self.assertEqual(original, target.read_bytes())
+            self.assertEqual([], list(Path(tmp).glob("*.pending.*")))
+            self.assertFalse(Path(tmp, "temp_m4b_meta.txt").exists())
+            self.assertFalse(Path(tmp, "temp_m4b_combined.wav").exists())
+
+
+class ScriptShapeRegenerationTests(unittest.TestCase):
+    def test_malformed_json_shapes_warn_without_replacing_source_or_writing_chunks(self):
+        for value in ({}, {"speaker": "A", "text": "wrong outer shape"},
+                      None, True, 42, "text", [None], [False], [1], ["text"],
+                      [[]], [{"speaker": "A", "text": "valid first"}, None]):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                script = Path(tmp, "annotated_script.json")
+                raw = json.dumps(value).encode()
+                script.write_bytes(raw)
+                manager = ProjectManager(tmp)
+                with self.assertLogs("project", level="WARNING") as logs:
+                    self.assertEqual([], manager.load_chunks())
+                    self.assertEqual((False, "No audio segments found"), manager.merge_audio())
+                self.assertTrue(all("corrupted" in line for line in logs.output))
+                self.assertTrue(any("array of objects" in line for line in logs.output))
+                self.assertEqual(raw, script.read_bytes())
+                self.assertFalse(Path(tmp, "chunks.json").exists())
+                self.assertFalse(Path(tmp, "cloned_audiobook.mp3").exists())
+
+    def test_corrupt_chunk_backup_survives_invalid_source_shape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            chunks = Path(tmp, "chunks.json")
+            chunks.write_bytes(b"{broken progress")
+            script = Path(tmp, "annotated_script.json")
+            script.write_text('{"entries":[]}')
+            with self.assertLogs("project", level="WARNING"):
+                self.assertEqual([], ProjectManager(tmp).load_chunks())
+            self.assertEqual(b"{broken progress", Path(tmp, "chunks.json.corrupt").read_bytes())
+            self.assertFalse(chunks.exists())
+            self.assertEqual('{"entries":[]}', script.read_text())
+
+    def test_valid_empty_and_nonempty_arrays_keep_regeneration_and_uid_persistence(self):
+        for entries in ([], [{"speaker": "ALICE", "text": "Wait here.", "instruct": "quiet"}]):
+            with self.subTest(entries=entries), tempfile.TemporaryDirectory() as tmp:
+                script = Path(tmp, "annotated_script.json")
+                original = json.dumps(entries).encode()
+                script.write_bytes(original)
+                manager = ProjectManager(tmp)
+                chunks = manager.load_chunks()
+                self.assertEqual(len(entries), len(chunks))
+                saved = Path(tmp, "chunks.json").read_bytes()
+                self.assertEqual(chunks, manager.load_chunks())
+                self.assertEqual(saved, Path(tmp, "chunks.json").read_bytes())
+                self.assertEqual(original, script.read_bytes())
+                if entries:
+                    self.assertEqual("Wait here.", chunks[0]["text"])
+                    self.assertEqual("ALICE", chunks[0]["speaker"])
+                    self.assertEqual("quiet", chunks[0]["instruct"])
+                    self.assertTrue(chunks[0]["uid"])
+                    self.assertEqual("pending", chunks[0]["status"])
+                    self.assertIsNone(chunks[0]["audio_path"])
+
+
+class ChunkUpdateNullTests(unittest.TestCase):
+    def _setup(self, root):
+        manager = ProjectManager(str(root))
+        chunk = {'uid': 'stable', 'text': 'Existing line', 'speaker': 'Hero',
+                 'instruct': 'Calm', 'status': 'done', 'audio_path': 'audio.wav',
+                 'pause_after': 200, 'extra': {'keep': True}}
+        path = root / 'chunks.json'
+        path.write_text(json.dumps([chunk]))
+        (root / 'audio.wav').write_bytes(b'preserved prior audio')
+        return manager, path, chunk
+
+    def test_null_render_fields_reject_entire_request_before_any_mutation(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        api = FastAPI()
+        api.include_router(editor.router)
+        for field in ('text', 'speaker', 'instruct'):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+                root = Path(tmp)
+                manager, path, _chunk = self._setup(root)
+                before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                with patch.object(editor, 'project_manager', manager), \
+                     patch.object(editor, 'check_global_gpu_lock') as guard:
+                    response = client.post('/api/chunks/0', json={field: None, 'pause_after': 999})
+                self.assertEqual(422, response.status_code, response.text)
+                self.assertEqual(field, response.json()['detail'][0]['loc'][-1])
+                guard.assert_not_called()
+                self.assertEqual(before, {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()})
+
+    def test_omitted_fields_and_null_pause_preserve_existing_render(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        api = FastAPI()
+        api.include_router(editor.router)
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            root = Path(tmp)
+            manager, path, original = self._setup(root)
+            with patch.object(editor, 'project_manager', manager), \
+                 patch.object(editor, 'check_global_gpu_lock'):
+                unchanged = client.post('/api/chunks/0', json={})
+                self.assertEqual(200, unchanged.status_code)
+                self.assertEqual(original, unchanged.json())
+                response = client.post('/api/chunks/0', json={'pause_after': None})
+            self.assertEqual(200, response.status_code)
+            expected = {k: v for k, v in original.items() if k != 'pause_after'}
+            self.assertEqual(expected, response.json())
+            self.assertEqual([expected], json.loads(path.read_bytes()))
+            self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
+
+    def test_empty_and_unicode_strings_remain_editable_with_render_invalidated(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        api = FastAPI()
+        api.include_router(editor.router)
+        for field, value in (('text', ''), ('speaker', ''), ('instruct', ''),
+                             ('text', 'こんにちは — café')):
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+                root = Path(tmp)
+                manager, path, original = self._setup(root)
+                with patch.object(editor, 'project_manager', manager), \
+                     patch.object(editor, 'check_global_gpu_lock'):
+                    response = client.post('/api/chunks/0', json={field: value})
+                self.assertEqual(200, response.status_code, response.text)
+                expected = {**original, field: value, 'status': 'pending', 'audio_path': None}
+                self.assertEqual(expected, response.json())
+                self.assertEqual([expected], json.loads(path.read_bytes()))
+                self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
+
+
+class BatchWorkerConfigTests(unittest.TestCase):
+    def test_actual_config_loader_normalizes_worker_count_before_both_routes_dispatch(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        from config_settings import load_app_config_result
+        api = FastAPI()
+        api.include_router(editor.router)
+        cases = ((2, 2), ('2', 2), (3.0, 3), (2.5, None), ('bad', None),
+                 (0, None), (-1, None), (None, None), ([], None), ({}, None))
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            path = Path(tmp) / 'config.json'
+            for endpoint, method, default in (
+                    ('/api/generate_batch', 'generate_chunks_parallel', 2),
+                    ('/api/generate_batch_fast', 'generate_chunks_batch', 4)):
+                for stored, validated in cases:
+                    with self.subTest(endpoint=endpoint, stored=stored):
+                        path.write_text(json.dumps({'tts': {'parallel_workers': stored},
+                                                   'extra': {'preserve': 1}}))
+                        before = path.read_bytes()
+                        config = load_app_config_result(str(path))
+                        if validated is None:
+                            self.assertNotIn('parallel_workers', config.data['tts'])
+                            self.assertIn('tts.parallel_workers', {w.field for w in config.warnings})
+                        else:
+                            self.assertIs(type(config.data['tts']['parallel_workers']), int)
+                            self.assertEqual(validated, config.data['tts']['parallel_workers'])
+                        generate = Mock(return_value={'completed': [0], 'failed': [], 'cancelled': 0})
+                        manager = SimpleNamespace(load_chunks=lambda: [{'uid': 'fixture'}], **{method: generate})
+                        state = {'audio': {'running': False}}
+                        with patch.object(editor, 'CONFIG_PATH', str(path)), \
+                             patch.object(editor, 'project_manager', manager), \
+                             patch.object(editor, 'process_state', state), \
+                             patch.object(editor, 'check_global_gpu_lock'), \
+                             patch.object(editor, 'schedule_claimed_background_task',
+                                          side_effect=lambda background, name, callback: background.add_task(callback)) as schedule:
+                            response = client.post(endpoint, json={'indices': [0]})
+                        schedule.assert_called_once()
+                        self.assertEqual(200, response.status_code, response.text)
+                        generate.assert_called_once()
+                        position = 1 if method == 'generate_chunks_parallel' else 2
+                        actual = generate.call_args.args[position]
+                        self.assertIs(type(actual), int)
+                        self.assertEqual(default if validated is None else validated, actual)
+                        self.assertFalse(state['audio']['running'])
+                        self.assertNotIn('Batch generation error', '\n'.join(state['audio']['logs']))
+                        self.assertEqual(before, path.read_bytes())
+
+
+class InvalidExportAudioPathTests(unittest.TestCase):
+    def _fixture(self, parent):
+        import wave
+        root = Path(parent, "book")
+        root.mkdir()
+        for path in (Path(parent, "private.wav"), root / "a.wav", root / "b.wav"):
+            with wave.open(str(path), "wb") as audio:
+                audio.setnchannels(1)
+                audio.setsampwidth(2)
+                audio.setframerate(24000)
+                audio.writeframes(b"\x01\x00" * 4800)
+        (root / "corrupt.wav").write_bytes(b"not audio")
+        paths = ["a.wav", "../private.wav", str(Path(parent, "private.wav")),
+                 ["a.wav"], {"path": "a.wav"}, "missing.wav", "corrupt.wav", "b.wav"]
+        chunks = [{"index": i, "speaker": "NARRATOR", "text": "A long narration line " * 5,
+                   "audio_path": path} for i, path in enumerate(paths)]
+        manager = ProjectManager(str(root))
+        manager.save_chunks(chunks)
+        manager.load_chunks()  # Complete existing UID backfill before the byte snapshot.
+        before = {p: p.read_bytes() for p in Path(parent).rglob("*") if p.is_file()}
+        return manager, before
+
+    def test_invalid_persisted_paths_are_skipped_without_decoding_outside_audio(self):
+        from project import _load_audio_segment
+        with tempfile.TemporaryDirectory() as parent:
+            manager, before = self._fixture(parent)
+            with patch("project._load_audio_segment", wraps=_load_audio_segment) as decode:
+                pairs, skipped = manager._load_chunks_with_audio()
+            self.assertEqual([0, 7], [chunk["index"] for chunk, _ in pairs])
+            self.assertEqual([200, 200], [len(audio) for _, audio in pairs])
+            self.assertEqual(6, skipped)
+            self.assertEqual(["a.wav", "corrupt.wav", "b.wav"],
+                             [Path(call.args[0]).name for call in decode.call_args_list])
+            self.assertTrue(all(Path(call.args[0]).parent == Path(manager.root_dir)
+                                for call in decode.call_args_list))
+            for path, data in before.items():
+                self.assertEqual(data, path.read_bytes(), str(path))
+
+    def test_partial_merge_publishes_decodable_audio_and_reports_every_skip(self):
+        from pydub import AudioSegment
+        with tempfile.TemporaryDirectory() as parent:
+            manager, before = self._fixture(parent)
+            ok, message = manager.merge_audio()
+            self.assertTrue(ok, message)
+            self.assertIn("6 chunk(s) skipped", message)
+            merged = AudioSegment.from_file(str(Path(manager.root_dir, "cloned_audiobook.mp3")))
+            self.assertGreaterEqual(len(merged), 400)
+            ok, message = manager.export_chapters(fmt="wav")
+            self.assertTrue(ok, message)
+            self.assertIn("6 chunk(s) skipped", message)
+            manifest = json.loads(Path(manager.root_dir, "chapter_exports", "manifest.json").read_text())
+            self.assertEqual(2, len(manifest["chapters"]))
+            ok, message = manager.export_chapters(fmt="wav", changed_only=True)
+            self.assertTrue(ok, message)
+            self.assertIn("6 chunk(s) skipped", message)
+            for row in manifest["chapters"]:
+                chapter = Path(manager.root_dir, "chapter_exports", row["file"])
+                self.assertEqual(200, len(AudioSegment.from_file(str(chapter))))
+            for path, data in before.items():
+                self.assertEqual(data, path.read_bytes(), str(path))
+
+    def test_all_invalid_and_cancellation_keep_the_existing_export(self):
+        from project import ExportCancelled
+        with tempfile.TemporaryDirectory() as parent:
+            manager, before = self._fixture(parent)
+            output = Path(manager.root_dir, "cloned_audiobook.mp3")
+            output.write_bytes(b"existing export")
+            chunks = manager.load_chunks()[1:-1]
+            with patch.object(manager, "load_chunks", return_value=chunks):
+                self.assertEqual(([], 6), manager._load_chunks_with_audio())
+                self.assertEqual((False, "No audio segments found"), manager.merge_audio())
+            with patch("project._load_audio_segment") as decode:
+                with self.assertRaises(ExportCancelled):
+                    manager._load_chunks_with_audio(cancel_check=lambda: True)
+                self.assertEqual((False, "Merge cancelled"),
+                                 manager.merge_audio(cancel_check=lambda: True))
+                decode.assert_not_called()
+            self.assertEqual(b"existing export", output.read_bytes())
+            for path, data in before.items():
+                self.assertEqual(data, path.read_bytes(), str(path))

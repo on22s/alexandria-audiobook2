@@ -3,11 +3,21 @@
 import hashlib
 import os
 import re
+import sys
 
 VOICE_LAB_SCRIPTS = frozenset({
     "audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
     "evaluate_lora.py", "voice_profiler.py", "name_voices.py",
 })
+
+
+def get_voicelab_python(config, default_python=None) -> str:
+    """Resolve saved interpreter strings, including explicit empty values."""
+    if isinstance(config, dict) and isinstance(config.get("rocm_python"), str):
+        return config["rocm_python"]
+    if default_python is not None:
+        return default_python
+    return os.environ.get("ALEXANDRIA_ROCM_PYTHON", sys.executable)
 
 
 def get_voice_lab_script_path(root_dir: str, filename: str) -> str:

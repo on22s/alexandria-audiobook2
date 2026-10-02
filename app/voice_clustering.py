@@ -27,6 +27,19 @@ def load_cluster_overrides(path: Path, narrator: str) -> dict:
     return {"merge": merge, "split": split}
 
 
+def get_valid_override_labels(group, label_to_index, kind):
+    """Return distinct known identities without modifying the override."""
+    if not all(isinstance(label, str) for label in group):
+        raise ValueError(f"{kind} override labels must be strings")
+    group_set = set(group)
+    if len(group_set) != len(group):
+        raise ValueError(f"{kind} override labels must be distinct")
+    unknown = [label for label in group if label not in label_to_index]
+    if unknown:
+        raise ValueError(f"unknown {kind} override label(s): {', '.join(unknown)}")
+    return group_set
+
+
 def cluster_voices(labels: list[str], similarities, threshold: float,
                    overrides: dict | None = None) -> tuple[list[list[int]], list[dict]]:
     """Return order-independent complete-link clusters and decision evidence."""
@@ -35,6 +48,10 @@ def cluster_voices(labels: list[str], similarities, threshold: float,
     matrix = np.asarray(similarities, dtype=float)
     if matrix.shape != (len(labels), len(labels)):
         raise ValueError("similarity matrix shape does not match labels")
+    if not np.isfinite(matrix).all():
+        raise ValueError("similarity matrix must contain finite values")
+    if not np.array_equal(matrix, matrix.T):
+        raise ValueError("similarity matrix must be symmetric")
     label_to_index = {label: index for index, label in enumerate(labels)}
     overrides = overrides or {"merge": [], "split": []}
 
@@ -42,20 +59,14 @@ def cluster_voices(labels: list[str], similarities, threshold: float,
     for pair in overrides.get("split", []):
         if not isinstance(pair, list) or len(pair) != 2:
             raise ValueError("each split override must contain exactly two labels")
-        unknown = [label for label in pair if label not in label_to_index]
-        if unknown:
-            raise ValueError(f"unknown split override label(s): {', '.join(unknown)}")
-        split_pairs.add(frozenset(pair))
+        split_pairs.add(frozenset(get_valid_override_labels(pair, label_to_index, "split")))
 
     clusters = [{label} for label in sorted(labels)]
     decisions = []
     for group in overrides.get("merge", []):
         if not isinstance(group, list) or len(group) < 2:
             raise ValueError("each merge override must contain at least two labels")
-        unknown = [label for label in group if label not in label_to_index]
-        if unknown:
-            raise ValueError(f"unknown merge override label(s): {', '.join(unknown)}")
-        group_set = set(group)
+        group_set = get_valid_override_labels(group, label_to_index, "merge")
         if any(pair <= group_set for pair in split_pairs):
             raise ValueError("merge and split overrides conflict")
         matched = [cluster for cluster in clusters if cluster & group_set]

@@ -7,6 +7,7 @@ profile settings, while a call's explicit options still take precedence.
 """
 
 import os
+from copy import deepcopy
 import random
 import re
 import threading
@@ -61,17 +62,28 @@ def adapt_request_for_reasoning_model(kwargs):
 
     Those models reject `max_tokens` (they want `max_completion_tokens`) and,
     whenever reasoning is on, reject the sampling controls too; local servers
-    and non-reasoning OpenAI models keep every parameter. The effort is read
-    from the request's extra_body, where get_provider_extra_body puts it.
+    and non-reasoning OpenAI models keep every parameter. Explicit effort in
+    extra_body wins over the typed parameter, as it does in the SDK's body.
+    Omitted effort preserves sampling only for documented non-reasoning defaults.
     Returns a new dict; the caller's is untouched.
     """
     if not is_openai_reasoning_model(kwargs.get("model")):
         return kwargs
     out = dict(kwargs)
-    if "max_tokens" in out and "max_completion_tokens" not in out:
-        out["max_completion_tokens"] = out.pop("max_tokens")
-    effort = str((out.get("extra_body") or {}).get("reasoning_effort") or "").lower()
-    if effort not in ("", "none"):
+    if "max_tokens" in out:
+        max_tokens = out.pop("max_tokens")
+        if "max_completion_tokens" not in out:
+            out["max_completion_tokens"] = max_tokens
+    effort = str((out.get("extra_body") or {}).get(
+        "reasoning_effort", out.get("reasoning_effort")) or "").strip().lower()
+    if not effort:
+        # Standard GPT-5.1/5.2/5.4 aliases and snapshots default to none.
+        # Other recognized reasoning models may reason by default; omit their
+        # sampling controls without changing the requested reasoning effort.
+        model = str(out.get("model") or "").strip().lower()
+        effort = "none" if re.fullmatch(
+            r"gpt-5\.(?:1|2|4)(?:-\d{4}-\d{2}-\d{2})?", model) else "medium"
+    if effort != "none":
         for key in _SAMPLING_KEYS:
             out.pop(key, None)
     return out
@@ -220,6 +232,14 @@ def get_profile_timeout(llm_config, default_timeout):
     return httpx.Timeout(request_timeout, connect=connect_timeout)
 
 
+class RunProfileChanged(RuntimeError):
+    """A request must be replanned against the now-serving runtime."""
+
+
+class RunRequestAdmissionError(RuntimeError):
+    """The serving runtime failed the caller's admission safety check."""
+
+
 class FailoverClient:
     """Two configured clients, one active. `failover()` switches to the second
     for the rest of the process and every later request goes there, with the
@@ -231,40 +251,111 @@ class FailoverClient:
     same book to both. One switch, logged, for the run."""
 
     def __init__(self, primary, primary_model, secondary, secondary_model,
-                 primary_label="primary", secondary_label="secondary"):
+                 primary_label="primary", secondary_label="secondary",
+                 secondary_config=None, ssh_alias=None):
         self._pair = [(primary, primary_model, primary_label),
                       (secondary, secondary_model, secondary_label)]
-        self._active = 0
+        self._dispatch_state = {"active": 0}
+        self._dispatch_lock = threading.Lock()
+        self._secondary_config = deepcopy(secondary_config)
+        self._ssh_alias = ssh_alias
+        self._runtime_state = {"profile": None, "semaphore": None}
+        self._runtime_lock = threading.Lock()
+        self._close_lock = threading.Lock()
+        self._closed_clients = set()
         self.chat = _FailoverChat(self)
+
+    def get_active_profile_index(self):
+        return self._dispatch_state["active"]
+
+    def get_profile_base_url(self, index):
+        return str(getattr(self._pair[index][0], "base_url", ""))
 
     @property
     def switched(self):
-        return self._active == 1
+        return self.get_active_profile_index() == 1
+
+    @property
+    def secondary_model(self):
+        return self._pair[1][1]
 
     @property
     def active_model(self):
-        return self._pair[self._active][1]
+        return self._pair[self.get_active_profile_index()][1]
 
     def failover(self, error_details):
         """Switch to the secondary. Returns True when a switch happened, False
         when this client is already on the secondary (nothing left to try)."""
-        if self.switched:
-            return False
-        self._active = 1
-        _, model, label = self._pair[1]
-        print(f"[FAILOVER] switched to the {label} profile ({model}) after "
-              f"{error_details.get('category')} (HTTP {error_details.get('status_code')}); "
-              "it serves the rest of this run.", flush=True)
-        return True
+        with self._dispatch_lock:
+            if self.switched:
+                return False
+            self._dispatch_state["active"] = 1
+            _, model, label = self._pair[1]
+            print(f"[FAILOVER] switched to the {label} profile ({model}) after "
+                  f"{error_details.get('category')} (HTTP {error_details.get('status_code')}); "
+                  "it serves the rest of this run.", flush=True)
+            return True
+
+    def ensure_active_runtime_profile(self):
+        """Read the secondary runtime once when it starts serving this run."""
+        if not self.switched or self._secondary_config is None:
+            return None
+        with self._runtime_lock:
+            if self._runtime_state["profile"] is None:
+                from lmstudio_settings import get_current_status, is_remote_llm
+                config = self._secondary_config
+                try:
+                    status = get_current_status(
+                        self._pair[1][2], config.get("base_url", ""), self.secondary_model,
+                        ssh_alias=self._ssh_alias, api_key=resolve_api_key(config.get("api_key")))
+                except Exception as error:
+                    status = {"available": False, "loaded": False,
+                              "runtime_error": f"{type(error).__name__}: {error}"}
+                context = (status.get("context_length") if status.get("available")
+                           and status.get("loaded") else None)
+                if not isinstance(context, int) or isinstance(context, bool) or context < 1:
+                    context = 4096
+                    print("[FAILOVER] secondary context could not be verified; "
+                          "using a conservative 4096-token budget, not the primary context.",
+                          flush=True)
+                parallel = status.get("parallel")
+                if not isinstance(parallel, int) or isinstance(parallel, bool) or parallel < 1:
+                    parallel = 1
+                self._runtime_state["semaphore"] = threading.BoundedSemaphore(parallel)
+                self._runtime_state["profile"] = {"config": config, "status": status,
+                                                   "context_length": context,
+                                                   "is_remote": is_remote_llm(self._pair[1][2], config.get("base_url", ""))}
+            return deepcopy(self._runtime_state["profile"])
+
+    def close(self):
+        """Close both owned clients, retaining failed closes for another attempt."""
+        errors = []
+        with self._close_lock:
+            for client, _, _ in self._pair:
+                identity = id(client)
+                if identity in self._closed_clients:
+                    continue
+                try:
+                    client.close()
+                except Exception as error:
+                    errors.append(error)
+                else:
+                    self._closed_clients.add(identity)
+        if errors:
+            raise errors[0]
 
     def _client(self):
-        return self._pair[self._active][0]
+        return self._pair[self.get_active_profile_index()][0]
 
     def with_options(self, **kwargs):
         p, pm, pl = self._pair[0]
         s, sm, sl = self._pair[1]
-        clone = FailoverClient(p.with_options(**kwargs), pm, s.with_options(**kwargs), sm, pl, sl)
-        clone._active = self._active
+        clone = FailoverClient(p.with_options(**kwargs), pm, s.with_options(**kwargs), sm, pl, sl,
+                               self._secondary_config, self._ssh_alias)
+        clone._runtime_state = self._runtime_state
+        clone._runtime_lock = self._runtime_lock
+        clone._dispatch_state = self._dispatch_state
+        clone._dispatch_lock = self._dispatch_lock
         return clone
 
     def __getattr__(self, name):
@@ -285,9 +376,24 @@ class _FailoverCompletions:
         self._owner = owner
 
     def create(self, *args, **kwargs):
-        if self._owner.switched and "model" in kwargs:
-            kwargs["model"] = self._owner.active_model
-        return self._owner._client().chat.completions.create(*args, **kwargs)
+        planned_index = kwargs.pop("_run_profile_index", None)
+        admission = kwargs.pop("_request_admission", None)
+        with self._owner._dispatch_lock:
+            index = self._owner.get_active_profile_index()
+            if planned_index is not None and planned_index != index:
+                raise RunProfileChanged("Serving profile changed after request planning")
+            target, model, _ = self._owner._pair[index]
+        # Capture the dispatch target under the switch lock. A request already
+        # admitted to the primary may finish there; it cannot migrate unnoticed.
+        if index == 1 and "model" in kwargs:
+            kwargs["model"] = model
+        profile = self._owner.ensure_active_runtime_profile() if index == 1 else None
+        if profile is None:
+            return target.chat.completions.create(*args, **kwargs)
+        with self._owner._runtime_state["semaphore"]:
+            if admission is not None and not admission(profile):
+                raise RunRequestAdmissionError("Secondary runtime failed request admission")
+            return target.chat.completions.create(*args, **kwargs)
 
     def __getattr__(self, name):
         return getattr(self._owner._client().chat.completions, name)
@@ -303,10 +409,37 @@ def make_run_client(config, active_llm_config, timeout):
     if not other:
         return primary
     mode = (config.get("llm_mode") or "local")
+    try:
+        secondary = make_llm_client(other, timeout)
+    except BaseException:
+        primary.close()
+        raise
     return FailoverClient(primary, active_llm_config.get("model_name", ""),
-                          make_llm_client(other, timeout), other.get("model_name", ""),
+                          secondary, other.get("model_name", ""),
                           primary_label=mode,
-                          secondary_label="remote" if mode == "local" else "local")
+                          secondary_label="remote" if mode == "local" else "local",
+                          secondary_config=other, ssh_alias=config.get("llm_remote_ssh"))
+
+
+def get_run_fingerprint_identity(fingerprint):
+    """Compare configured model identity independently of execution history."""
+    identity = deepcopy(fingerprint)
+    if isinstance(identity, dict) and isinstance(identity.get("model_binding"), dict):
+        binding = identity["model_binding"]
+        if isinstance(binding.get("failover_used"), bool):
+            binding.pop("failover_used")
+    return identity
+
+
+def get_run_model_binding(client, primary_model, previous=None):
+    """Read model identity and sticky failover, including validated resumed work."""
+    is_failover = isinstance(client, FailoverClient)
+    return {
+        "primary_model": primary_model,
+        "failover_model": client.secondary_model if is_failover else None,
+        "failover_used": (bool(is_failover and client.switched)
+                          or bool(previous and previous.get("failover_used") is True)),
+    }
 
 
 MANUAL_DIR_NAME = "manual_llm"
@@ -314,6 +447,24 @@ MANUAL_DIR_NAME = "manual_llm"
 
 def manual_llm_dir(data_dir):
     return os.path.join(data_dir, MANUAL_DIR_NAME)
+
+
+def is_manual_request_owner_alive(pending):
+    """Whether a queued manual request still has a process to receive it."""
+    pid = pending.get("owner_pid") if isinstance(pending, dict) else None
+    if not isinstance(pid, int) or pid < 1:
+        return False  # a legacy request cannot be tied to a live owner
+    if pid == os.getpid():
+        owner_thread = pending.get("owner_thread")
+        return any(thread.ident == owner_thread and thread.is_alive()
+                   for thread in threading.enumerate())
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
 
 
 class ManualClient:
@@ -335,12 +486,6 @@ class ManualClient:
         self.dir = manual_llm_dir(data_dir)
         self.sequence = 0
         self.chat = _ManualChat(self)
-        # a run killed mid-wait leaves its request behind; it is not ours
-        for stale in (self.pending_path, self.response_path):
-            try:
-                os.remove(stale)
-            except FileNotFoundError:
-                pass
 
     @property
     def pending_path(self):
@@ -360,22 +505,38 @@ class ManualClient:
         import json
         import uuid
         from types import SimpleNamespace
-        from utils import atomic_json_write
+        from utils import atomic_json_write, file_lock, safe_load_json
         os.makedirs(self.dir, exist_ok=True)
         self.sequence += 1
         request = {
             "id": uuid.uuid4().hex, "sequence": self.sequence, "created": time.time(),
+            "owner_pid": os.getpid(), "owner_thread": threading.get_ident(),
             "model": kwargs.get("model"), "messages": kwargs.get("messages") or [],
-            "params": {"temperature": kwargs.get("temperature"),
+            "params": {**{key: value for key, value in kwargs.items()
+                          if key not in ("model", "messages", "timeout",
+                                         "extra_headers", "extra_query")},
+                       "temperature": kwargs.get("temperature"),
                        "max_tokens": kwargs.get("max_tokens"),
                        "json_schema": bool(kwargs.get("response_format"))},
         }
-        for stale in (self.response_path,):
-            try:
-                os.remove(stale)
-            except FileNotFoundError:
-                pass
-        atomic_json_write(request, self.pending_path)
+        # The one visible prompt is a queue slot shared by all clients. Hold
+        # the short file lock only while claiming it; human replies can take
+        # hours, so the lock must not span the wait.
+        while True:
+            with file_lock(self.pending_path):
+                pending = safe_load_json(self.pending_path, None)
+                if os.path.exists(self.pending_path) and (
+                        not isinstance(pending, dict) or not pending.get("id") or
+                        not is_manual_request_owner_alive(pending)):
+                    os.remove(self.pending_path)
+                if not os.path.exists(self.pending_path):
+                    try:
+                        os.remove(self.response_path)
+                    except FileNotFoundError:
+                        pass
+                    atomic_json_write(request, self.pending_path)
+                    break
+            time.sleep(self.POLL_SECONDS)
         while True:
             try:
                 with open(self.response_path, "r", encoding="utf-8") as handle:
@@ -383,16 +544,24 @@ class ManualClient:
             except (FileNotFoundError, ValueError):
                 time.sleep(self.POLL_SECONDS)
                 continue
+            if not isinstance(response, dict):
+                print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
+                os.remove(self.response_path)
+                continue
             if response.get("id") != request["id"]:
                 # a reply to an earlier request that arrived late; not ours
                 os.remove(self.response_path)
                 continue
             break
-        os.remove(self.response_path)
-        try:
-            os.remove(self.pending_path)
-        except FileNotFoundError:
-            pass
+        with file_lock(self.pending_path):
+            # Only the request owner may release this queue slot.
+            current = safe_load_json(self.pending_path, None)
+            if isinstance(current, dict) and current.get("id") == request["id"]:
+                try:
+                    os.remove(self.response_path)
+                except FileNotFoundError:
+                    pass
+                os.remove(self.pending_path)
         content = str(response.get("content") or "")
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),

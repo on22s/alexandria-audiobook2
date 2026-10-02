@@ -15,13 +15,20 @@ A=husky_baritone_20s_m_anime
 DATA="$REPO/ab_test_runtime/retrain_honest/$A/data"
 cd "$REPO/app"
 
+failures=0
+
 echo "=== KNOWN GOOD: the retrained adapter (scored 0.685) ==="
 "$REPO/gpu_job.sh" gate_known_good \
   "$REPO/app/env/bin/python" -u experiments/verify_adapter_identity.py \
     --adapter "$REPO/ab_test_runtime/retrain_honest/$A/adapter" \
     --dataset "$DATA" --lines 5 \
     --out "$REPO/ab_test_runtime/experiments/gate_known_good.json"
-echo "  exit=$?  (expect 0)"
+rc=$?
+echo "  exit=$rc  (expect 0)"
+if [ "$rc" -ne 0 ]; then
+    echo "FAIL: known-good adapter returned $rc; expected 0." >&2
+    failures=1
+fi
 
 echo "=== KNOWN BAD: the original shipped adapter (scored 0.027) ==="
 "$REPO/gpu_job.sh" gate_known_bad \
@@ -29,4 +36,10 @@ echo "=== KNOWN BAD: the original shipped adapter (scored 0.027) ==="
     --adapter "$REPO/lora_models/$A" \
     --dataset "$DATA" --lines 5 \
     --out "$REPO/ab_test_runtime/experiments/gate_known_bad.json"
-echo "  exit=$?  (expect 3)"
+rc=$?
+echo "  exit=$rc  (expect 3)"
+if [ "$rc" -ne 3 ]; then
+    echo "FAIL: known-bad adapter returned $rc; expected 3." >&2
+    failures=1
+fi
+exit "$failures"

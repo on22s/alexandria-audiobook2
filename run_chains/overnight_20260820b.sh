@@ -35,14 +35,14 @@ run_stage none_allrows_3200 6h --needs-vram -- \
     --min-books 5 --separator none --limit 3200 \
     --work "$runtime/respelling_none_allrows" \
     --out "$runtime/experiments/respelling_none_allrows_n3200.json"
-stage_commit_artifacts none_allrows_3200 "$REPO"
+stage_commit_artifacts none_allrows_3200 "$REPO" "$runtime/experiments/respelling_none_allrows_n3200.json"
 
 # The book that has now failed three times, at chunks 29, 29 and 27 - a
 # stochastic collapse rather than one bad passage. It reports failure loudly
 # now, so a fourth failure is information rather than a silent OK.
 run_stage grimgar06_retry 5h --needs-vram -- \
     env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books_20260819b.sh"
-stage_commit_artifacts grimgar06_retry "$REPO"
+# This generator writes under unseen_books, outside the experiment commit scope.
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary overnight_20260820b

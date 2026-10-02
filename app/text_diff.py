@@ -6,7 +6,7 @@ uses (lowercase, punctuation stripped), so quote marks, italics and the
 chunker's whitespace never show up as differences - only words do.
 """
 import bisect
-import difflib
+from rapidfuzz.distance import Levenshtein
 
 from generate_script import split_into_chunk_records
 from review_script import normalize_text
@@ -38,11 +38,10 @@ def word_diff(source_text, entries, context=CONTEXT_WORDS):
     source_words = normalize_text(source_text).split()
     script_words, owner = _words_with_owners(entries)
     starts = _source_chunk_starts(source_text)
-    matcher = difflib.SequenceMatcher(a=source_words, b=script_words, autojunk=False)
     hunks = []
     totals = {"source_words": len(source_words), "script_words": len(script_words),
               "deleted": 0, "inserted": 0, "replaced": 0}
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+    for tag, i1, i2, j1, j2 in Levenshtein.opcodes(source_words, script_words):
         if tag == "equal":
             continue
         kind = {"delete": "deleted", "insert": "inserted", "replace": "replaced"}[tag]

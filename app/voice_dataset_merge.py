@@ -12,19 +12,17 @@ import numpy as np
 import soundfile as sf
 
 
-MERGE_VERSION = 2
+MERGE_VERSION = 3
 
 
 def get_file_fingerprint(path: Path) -> dict:
-    stat = path.stat()
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        digest.update(handle.read(1024 * 1024))
-        if stat.st_size > 2 * 1024 * 1024:
-            handle.seek(stat.st_size - 1024 * 1024)
-            digest.update(handle.read(1024 * 1024))
+        stat = os.fstat(handle.fileno())
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
     return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
-            "edge_sha256": digest.hexdigest()}
+            "sha256": digest.hexdigest()}
 
 
 def get_pcm_hash(wav_bytes: bytes) -> str:
@@ -48,7 +46,7 @@ def is_reusable_merge(destination: Path, sources: list[dict]) -> bool:
         with zipfile.ZipFile(destination) as archive:
             manifest = json.loads(archive.read("merge_manifest.json"))
         return manifest.get("version") == MERGE_VERSION and manifest.get("sources") == sources
-    except (OSError, KeyError, json.JSONDecodeError, zipfile.BadZipFile):
+    except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, zipfile.BadZipFile):
         return False
 
 

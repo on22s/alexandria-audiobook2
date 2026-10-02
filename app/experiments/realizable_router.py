@@ -40,6 +40,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = REPO + "/app/"
 sys.path.insert(0, APP)
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
 M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
 INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
@@ -53,7 +54,7 @@ TAG = re.compile(r"\b(said|asked|replied|shouted|whispered|muttered|called|"
 def book_features(book):
     """Book-level descriptors available at inference time. No gold is touched."""
     path = M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"
-    seg = json.load(open(path))["segmented"]
+    seg = load_generation_delta_checkpoint(path)["segmented"]
     narration = [e for e in seg if e.get("type") == "NARRATOR"]
     spoken = [e for e in seg if e.get("type") != "NARRATOR"]
     words = " ".join((e.get("text") or "") for e in narration).split()

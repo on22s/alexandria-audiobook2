@@ -25,6 +25,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -33,7 +34,11 @@ import traceback
 
 from device_utils import (enable_rocm_optimizations, is_oom_failure,
                           normalize_device, resolve_device)
+from dataset_metadata import get_training_metadata
+from voice_manifest import validate_adapter_training_output
 from utils import is_path_inside
+from adapter_checkpoint_transaction import save_adapter_checkpoint, validate_adapter_checkpoint_generation
+from lora_evidence import get_file_sha256
 
 # THE ONE PLACE THE TRAINING RATE IS DECIDED. It was four places that
 # disagreed: this CLI, the API request model, the UI input, and
@@ -89,7 +94,7 @@ def get_code_lineage():
 
 def save_evaluation_candidate(model, output_dir, existing_records, max_candidates,
                               epoch, loss):
-    """Save one bounded generated candidate and return a new records list."""
+    """Populate one bounded candidate inside a private generation staging directory."""
     if len(existing_records) >= max_candidates:
         return list(existing_records), None
     candidate_id = f"epoch_{epoch:03d}"
@@ -119,6 +124,118 @@ def deduplicate_evaluation_candidates(output_dir, records):
     return retained, skipped, production_hash
 
 
+def get_training_reference_text(data_dir, ref_audio_path, samples):
+    ref_text_file = os.path.join(data_dir, "ref_text.txt")
+    ref_sample_text = ""
+    if os.path.exists(ref_text_file):
+        with open(ref_text_file, "r", encoding="utf-8") as f:
+            ref_sample_text = f.read().strip()
+        if ref_sample_text:
+            print(f"[DATA] Using ref text from ref_text.txt: '{ref_sample_text[:60]}...'", flush=True)
+    if not ref_sample_text:
+        from lora_evidence import get_file_sha256
+        reference_hash = get_file_sha256(ref_audio_path)
+        matched_sample = next((sample for sample in samples
+                               if sample.get("audio_path")
+                               and os.path.isfile(sample["audio_path"])
+                               and get_file_sha256(sample["audio_path"]) == reference_hash), None)
+        if matched_sample is not None:
+            ref_sample_text = matched_sample["text"]
+            print(f"[DATA] Using matching sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
+        else:
+            # Legacy datasets: ref.wav is typically the first sample
+            ref_sample_text = samples[0]["text"]
+            print(f"[DATA] Using first sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
+
+    return ref_sample_text
+
+
+def get_training_checkpoint_metadata(args, samples, ref_audio_path, ref_sample_text,
+                                     epochs_completed, avg_loss, best_loss, training_time, total_oom_skips):
+    def _json_safe(x):
+        # /api/lora/models serializes with allow_nan=False, so a NaN final_loss
+        # (an all-OOM-skipped run leaves avg_loss=NaN) or the initial inf best_loss
+        # would 500 the whole model listing. Coerce any non-finite value to None.
+        return x if isinstance(x, (int, float)) and float("-inf") < x < float("inf") else None
+
+    meta = {
+        "model_name": args.model_name,
+        "epochs": epochs_completed,
+        "requested_epochs": args.epochs,
+        "lr": args.lr,
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "batch_size": args.batch_size,
+        "num_samples": len(samples),
+        "final_loss": _json_safe(avg_loss),
+        "best_loss": _json_safe(best_loss),
+        "training_time_seconds": round(training_time, 1),
+        "oom_skips": total_oom_skips,
+        "language": args.language,
+        "ref_sample_audio": ref_audio_path,
+        "ref_sample_text": ref_sample_text,
+        **get_code_lineage(),
+    }
+    return meta
+
+
+def save_training_checkpoint(model, output_dir, ref_audio_path, ref_sample_text, metadata,
+                             existing_records, max_candidates, epoch, loss,
+                             keep_candidate=False, finalize=False):
+    """Publish production, retained candidates and matching evidence as one generation."""
+    validate_adapter_training_output(output_dir)
+    outcome = None
+
+    def write_generation(staging):
+        nonlocal outcome
+        records = []
+        for record in existing_records:
+            if not isinstance(record.get('id'), str) or not re.fullmatch(r'epoch_[0-9]{3,}', record['id']):
+                raise ValueError('Invalid training candidate identity')
+            path = os.path.join(staging, 'candidates', record['id'])
+            digest = get_checkpoint_sha256(path)
+            if record.get('sha256') and record['sha256'] != digest:
+                raise ValueError('Retained training candidate changed before publication')
+            records.append({**record, 'path':path, 'sha256':digest})
+        if model is not None:
+            model.save_pretrained(staging)
+        saved = None
+        if keep_candidate:
+            records, saved = save_evaluation_candidate(model, staging, records,
+                                                       max_candidates, epoch, loss)
+        skipped = []
+        if finalize:
+            records, skipped, production_hash = deduplicate_evaluation_candidates(staging, records)
+        else:
+            production_hash = get_checkpoint_sha256(staging)
+        ref_dest = os.path.join(staging, 'ref_sample.wav')
+        shutil.copy2(ref_audio_path, ref_dest)
+        meta = {**metadata, 'ref_sample_text':ref_sample_text,
+                'checkpoint_sha256':production_hash,
+                'reference_audio_sha256':get_file_sha256(ref_dest),
+                'evaluation_candidates':[
+                    {key:record[key] for key in ('id', 'epoch', 'loss', 'sha256')}
+                    for record in records], 'evaluation_candidate_skips':skipped}
+        with open(os.path.join(staging, 'training_meta.json'), 'w', encoding='utf-8') as handle:
+            json.dump(meta, handle, indent=2, ensure_ascii=False, allow_nan=False)
+        for record in records:
+            shutil.copy2(ref_dest, os.path.join(record['path'], 'ref_sample.wav'))
+            candidate_meta = {**meta, 'candidate_id':record['id'], 'candidate_epoch':record['epoch'],
+                              'candidate_loss':record['loss'], 'checkpoint_sha256':record['sha256'],
+                              'production_checkpoint_sha256':production_hash}
+            with open(os.path.join(record['path'], 'training_meta.json'), 'w', encoding='utf-8') as handle:
+                json.dump(candidate_meta, handle, indent=2, ensure_ascii=False, allow_nan=False)
+            validate_adapter_checkpoint_generation(record['path'])
+        published = [{**record, 'path':os.path.join(output_dir, 'candidates', record['id'])}
+                     for record in records]
+        outcome = (published, next((record for record in published
+                                   if saved and record['id'] == saved['id']), None), skipped)
+
+    save_adapter_checkpoint(output_dir, write_generation)
+    return outcome
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="LoRA fine-tuning for Qwen3-TTS Base model")
     parser.add_argument("--data_dir", required=True, help="Directory containing metadata.jsonl and audio files")
@@ -144,7 +261,7 @@ def parse_args():
                              "Best checkpoint with loss >= 4.1 is always preserved. "
                              "Recommended: 4.15 for auto sweet-spot detection.")
     parser.add_argument("--seed", type=int, default=None,
-                        help="Random seed for reproducible shuffling")
+                        help="Random seed for LoRA initialization and reproducible shuffling")
     parser.add_argument("--candidate_checkpoints", type=int, default=0, choices=range(0, 3),
                         help="Keep the first N safe improvement checkpoints for evaluation (0-2)")
     return parser.parse_args()
@@ -159,12 +276,9 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     Speaker embedding is extracted from a consistent ref_audio (same for all
     samples) per the official Qwen3-TTS fine-tuning approach.
 
-    Returns list of sample dicts with pre-computed tensors.
+    Returns sample dicts with pre-computed CPU tensors. Input construction
+    transfers only the current sample to the training device.
     """
-    import librosa
-    import numpy as np
-    import torch
-    from qwen_tts.core.models.modeling_qwen3_tts import mel_spectrogram
 
     # HONOUR THE TRAIN SPLIT WHEN THE DATASET HAS ONE.
     #
@@ -179,22 +293,12 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     # ("train/sample_1200.wav", "val/sample_1210.wav"), so data_dir stays the
     # root and only the choice of metadata file changes. Datasets without a
     # train/ subdirectory fall back to the old behaviour untouched.
-    split_path = os.path.join(data_dir, "train", "metadata.jsonl")
-    root_path = os.path.join(data_dir, "metadata.jsonl")
-    if os.path.exists(split_path):
-        metadata_path, used_split = split_path, True
-    else:
-        metadata_path, used_split = root_path, False
-    if not os.path.exists(metadata_path):
-        print(f"[ERROR] metadata.jsonl not found in {data_dir}", flush=True)
-        sys.exit(1)
+    entries, used_split = get_training_metadata(data_dir)
 
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        entries = [json.loads(line) for line in f if line.strip()]
-
-    if not entries:
-        print("[ERROR] metadata.jsonl is empty", flush=True)
-        sys.exit(1)
+    import librosa
+    import numpy as np
+    import torch
+    from qwen_tts.core.models.modeling_qwen3_tts import mel_spectrogram
 
     if used_split:
         held = os.path.join(data_dir, "val", "metadata.jsonl")
@@ -251,7 +355,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
             n_fft=1024, num_mels=128, sampling_rate=24000,
             hop_size=256, win_size=1024, fmin=0, fmax=12000,
         ).transpose(1, 2).to(device).to(dtype)
-        spk_embedding = hf_model.speaker_encoder(ref_mels).detach()
+        spk_embedding = hf_model.speaker_encoder(ref_mels).detach().cpu()
 
     print(f"[DATA] Speaker embedding extracted from reference audio", flush=True)
 
@@ -292,12 +396,12 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
         # Tokenize text with chat template: <|im_start|>assistant\n{text}<|im_end|>\n<|im_start|>assistant\n
         assistant_text = f"<|im_start|>assistant\n{text}<|im_end|>\n<|im_start|>assistant\n"
         text_inputs = processor(text=assistant_text, return_tensors="pt", padding=True)
-        text_ids = text_inputs["input_ids"].to(device)
+        text_ids = text_inputs["input_ids"].detach().cpu()
         if text_ids.dim() == 1:
             text_ids = text_ids.unsqueeze(0)
 
         samples.append({
-            "codec_ids": codec_ids.to(device),          # [T, num_code_groups]
+            "codec_ids": codec_ids.detach().cpu(),      # cached on host [T, num_code_groups]
             "spk_embedding": spk_embedding,             # shared ref embedding [1, enc_dim]
             "text_ids": text_ids,                        # [1, text_len]
             "audio_path": audio_path,
@@ -340,10 +444,17 @@ def build_teacher_forcing_input(sample, hf_model, device, dtype, language="engli
     talker = hf_model.talker
     config = hf_model.config
     tc = config.talker_config  # talker config
+    language = str(language or "").strip().lower()
+    language_id = (tc.codec_language_id or {}).get(language)
+    if language != "auto" and language_id is None:
+        raise ValueError(f"Unsupported training language {language!r}; "
+                         "choose a model-supported language or 'auto'.")
+    if language == "auto":
+        language_id = None
 
-    codec_ids_2d = sample["codec_ids"]   # [T, num_code_groups]
-    spk_embedding = sample["spk_embedding"]  # [1, enc_dim]
-    text_ids = sample["text_ids"]         # [1, text_len]
+    codec_ids_2d = sample["codec_ids"].to(device)  # only the current sample [T, num_code_groups]
+    spk_embedding = sample["spk_embedding"].to(device=device, dtype=dtype)  # [1, enc_dim]
+    text_ids = sample["text_ids"].to(device)  # [1, text_len]
 
     T = codec_ids_2d.shape[0]  # number of audio frames
     num_code_groups = tc.num_code_groups
@@ -366,7 +477,6 @@ def build_teacher_forcing_input(sample, hf_model, device, dtype, language="engli
     )  # [1, 3, D]
 
     # Codec prefix: [think_id, think_bos_id, language_id, think_eos_id]
-    language_id = tc.codec_language_id.get(language, None) if tc.codec_language_id else None
     if language_id is not None:
         codec_prefill_list = [[tc.codec_think_id, tc.codec_think_bos_id,
                                language_id, tc.codec_think_eos_id]]
@@ -475,9 +585,120 @@ def build_teacher_forcing_input(sample, hf_model, device, dtype, language="engli
 
 # ── Training loop ───────────────────────────────────────────────────────
 
-def train(args):
+def run_training_sample(sample, hf_model, base_talker, transformer, parameters,
+                        device, dtype, language="english", gradient_accumulation_steps=1):
+    """Run the single-sample form of the shared minibatch transaction."""
+    return run_training_batch([sample], hf_model, base_talker, transformer, parameters,
+                              device, dtype, language, gradient_accumulation_steps)
+
+
+def run_training_batch(samples, hf_model, base_talker, transformer, parameters,
+                       device, dtype, language="english", gradient_accumulation_steps=1):
+    """Commit a complete minibatch or restore the exact prior gradient references.
+
+    One additional trainable-gradient set may coexist with the accumulated
+    window. Merge into the attempted gradients, leaving prior gradients intact
+    until the whole minibatch and all scalar loss reads have succeeded. OOM results
+    contain only text; failed tensors/exception frames leave before reclamation.
+    """
     import torch
     import torch.nn.functional as F
+
+    if not samples:
+        raise ValueError("Training minibatch must not be empty")
+    previous_grads = [parameter.grad for parameter in parameters]
+    committed = False
+    try:
+        for parameter in parameters:
+            parameter.grad = None
+        # Build teacher-forcing input
+        prepared = [build_teacher_forcing_input(sample, hf_model, device, dtype, language=language)
+                    for sample in samples]
+        full_input, labels, all_codec_ids, _ = prepared[0]
+        forward_args = {"inputs_embeds": full_input, "use_cache": False}
+        if len(prepared) > 1:
+            max_length = max(item[0].shape[1] for item in prepared)
+            full_input = torch.cat([F.pad(item[0], (0, 0, 0, max_length - item[0].shape[1]))
+                                    for item in prepared], dim=0)
+            labels = torch.cat([F.pad(item[1], (0, max_length - item[1].shape[1]), value=-100)
+                                for item in prepared], dim=0)
+            all_codec_ids = torch.cat([item[2] for item in prepared], dim=0)
+            lengths = torch.tensor([item[0].shape[1] for item in prepared], device=device)
+            forward_args = {"inputs_embeds": full_input, "use_cache": False,
+                            "attention_mask": (torch.arange(max_length, device=device)[None, :]
+                                               < lengths[:, None]).long()}
+
+        # ── Forward pass through talker transformer ──
+        # Position IDs are auto-created by the model (3D multi-rope)
+        output = transformer(**forward_args)
+        hidden_states = output.last_hidden_state  # [batch, seq_len, hidden_size]
+
+        # ── Talker main loss: predict first codec group ──
+        # codec_head predictions at audio positions
+        # With standard causal LM shift: logit at position i predicts label at position i+1
+        # Position prefill_len-1 predicts first audio code (labels[prefill_len])
+        logits = base_talker.codec_head(hidden_states)  # [batch, seq_len, vocab_size]
+
+        # Shift: logits[:-1] predict labels[1:]
+        shift_logits = logits[:, :-1, :].contiguous()
+        shift_labels = labels[:, 1:].contiguous()
+
+        talker_loss = F.cross_entropy(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1),
+            ignore_index=-100,
+        )
+
+        # ── Code predictor loss: predict remaining codec groups ──
+        # Extract hidden states at audio-predicting positions
+        # Position prefill_len-1 predicts audio step 0,
+        # position prefill_len predicts audio step 1, etc.
+        audio_parts = [
+            hidden_states[index, prefill - 1:prefill + codes.shape[0] - 1, :]
+            for index, (_inputs, _labels, codes, prefill) in enumerate(prepared)]
+        audio_hidden = audio_parts[0] if len(audio_parts) == 1 else torch.cat(audio_parts, dim=0)
+
+        # all_codec_ids: [T, num_code_groups]
+        _, sub_loss = base_talker.forward_sub_talker_finetune(
+            all_codec_ids, audio_hidden
+        )
+
+        # Combined loss (0.3 weight on sub-talker per official Qwen3-TTS training)
+        total_loss = talker_loss + 0.3 * sub_loss
+
+        # Scale for gradient accumulation
+        scaled_loss = total_loss / gradient_accumulation_steps
+        scaled_loss.backward()
+
+        # Capture loss values before freeing tensors
+        step_loss = total_loss.item()
+        step_talker_loss = talker_loss.item()
+        step_sub_loss = sub_loss.item()
+
+        merged_grads = []
+        with torch.no_grad():
+            for parameter, previous in zip(parameters, previous_grads):
+                attempted = parameter.grad
+                if attempted is not None and previous is not None:
+                    attempted.add_(previous)
+                merged_grads.append(attempted if attempted is not None else previous)
+        for parameter, gradient in zip(parameters, merged_grads):
+            parameter.grad = gradient
+        committed = True
+        return {"loss": step_loss, "talker_loss": step_talker_loss, "sub_loss": step_sub_loss}
+    except RuntimeError as error:
+        if is_oom_failure(error):
+            return {"oom_error": str(error)}
+        raise
+    finally:
+        if not committed:
+            for parameter, previous in zip(parameters, previous_grads):
+                parameter.grad = previous
+
+
+def train(args):
+    validate_adapter_training_output(args.output_dir)
+    import torch
 
     device = resolve_device(args.device)
     dtype = torch.bfloat16 if "cuda" in device else torch.float32
@@ -505,6 +726,9 @@ def train(args):
     print(f"[TRAIN] Config: epochs={args.epochs}, lr={args.lr}, lora_r={args.lora_r}, "
           f"lora_alpha={args.lora_alpha}, grad_accum={args.gradient_accumulation_steps}", flush=True)
 
+    # Refuse malformed standalone datasets before loading the Base model.
+    get_training_metadata(args.data_dir)
+
     # ── Load model ──
     print("[TRAIN] Loading Base model...", flush=True)
     from qwen_tts import Qwen3TTSModel
@@ -524,24 +748,27 @@ def train(args):
     samples, ref_audio_path = load_dataset(args.data_dir, hf_model, processor, device, dtype, args.max_audio_seconds)
 
     # ── Pre-training settings summary ──
-    total_forward_passes = len(samples) * args.epochs
+    sample_presentations = len(samples) * args.epochs
+    forward_batches = ((len(samples) + args.batch_size - 1) // args.batch_size) * args.epochs
     effective_batch = args.batch_size * args.gradient_accumulation_steps
     alpha_r_ratio = args.lora_alpha / args.lora_r
-    if total_forward_passes < 150:
+    if sample_presentations < 150:
         passes_verdict = "LOW — likely undertrained"
-    elif total_forward_passes <= 400:
+    elif sample_presentations <= 400:
         passes_verdict = "good range"
-    elif total_forward_passes <= 600:
+    elif sample_presentations <= 600:
         passes_verdict = "high — watch for overfit"
     else:
         passes_verdict = "VERY HIGH — strong overfit risk"
     print(f"[TRAIN] === Pre-training settings ===", flush=True)
     print(f"[TRAIN]   samples         : {len(samples)}", flush=True)
-    print(f"[TRAIN]   epochs          : {args.epochs}  →  total forward passes: {total_forward_passes} ({passes_verdict})", flush=True)
+    print(f"[TRAIN]   epochs          : {args.epochs}  →  sample presentations: {sample_presentations} ({passes_verdict})", flush=True)
+    print(f"[TRAIN]   forward batches : {forward_batches}", flush=True)
     print(f"[TRAIN]   learning rate   : {args.lr:.2e}", flush=True)
     print(f"[TRAIN]   lora_r          : {args.lora_r}", flush=True)
     print(f"[TRAIN]   lora_alpha      : {args.lora_alpha}  (effective scale: {alpha_r_ratio:.1f}×)", flush=True)
     print(f"[TRAIN]   grad_accum      : {args.gradient_accumulation_steps}  (effective batch: {effective_batch})", flush=True)
+    print(f"[TRAIN]   batch_size      : {args.batch_size} samples per forward", flush=True)
     print(f"[TRAIN]   max_audio_secs  : {args.max_audio_seconds}", flush=True)
     print(f"[TRAIN]   language        : {args.language}", flush=True)
     if args.target_loss is not None:
@@ -549,6 +776,13 @@ def train(args):
     else:
         print(f"[TRAIN]   loss target     : 4.1–4.2  (stop ~4.15; below 4.1 = garble risk)", flush=True)
     print(f"[TRAIN] ============================", flush=True)
+
+    # Set the seed before LoRA initialization and epoch shuffling.
+    if args.seed is not None:
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
 
     # ── Apply LoRA ──
     print("[TRAIN] Applying LoRA to talker...", flush=True)
@@ -574,19 +808,21 @@ def train(args):
     peft_talker.enable_input_require_grads()
     peft_talker.base_model.model.model.gradient_checkpointing_enable()
 
-    trainable_params = sum(p.numel() for p in peft_talker.parameters() if p.requires_grad)
+    trainable_parameters = tuple(p for p in peft_talker.parameters() if p.requires_grad)
+    trainable_params = sum(p.numel() for p in trainable_parameters)
     total_params = sum(p.numel() for p in peft_talker.parameters())
     print(f"[TRAIN] LoRA applied: {trainable_params:,} trainable / {total_params:,} total "
           f"({100 * trainable_params / total_params:.2f}%)", flush=True)
 
     # ── Optimizer ──
     optimizer = torch.optim.AdamW(
-        [p for p in peft_talker.parameters() if p.requires_grad],
+        trainable_parameters,
         lr=args.lr,
         weight_decay=0.01,
     )
 
     # ── Training ──
+    ref_sample_text = get_training_reference_text(args.data_dir, ref_audio_path, samples)
     os.makedirs(args.output_dir, exist_ok=True)
     peft_talker.train()
 
@@ -599,6 +835,14 @@ def train(args):
     candidate_records = []
     training_start = time.time()
     total_oom_skips = 0
+
+    def publish_checkpoint(model, epoch, keep_candidate=False, finalize=False):
+        metadata = get_training_checkpoint_metadata(args, samples, ref_audio_path, ref_sample_text,
+            epochs_completed, avg_loss, best_loss, time.time() - training_start, total_oom_skips)
+        return save_training_checkpoint(model, args.output_dir, ref_audio_path, ref_sample_text,
+            metadata, candidate_records, args.candidate_checkpoints, epoch, avg_loss,
+            keep_candidate=keep_candidate, finalize=finalize)
+
     consecutive_oom_skips = 0
     # If a real, non-recoverable error (corrupted CUDA context, hardware
     # fault) gets misclassified as a retry-able OOM, every subsequent step
@@ -609,17 +853,11 @@ def train(args):
     # loudly instead of finishing quietly on almost no real training.
     MAX_CONSECUTIVE_OOM_SKIPS = 10
     
-    # Set random seed for reproducible shuffling if provided
-    if args.seed is not None:
-        random.seed(args.seed)
-        torch.manual_seed(args.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(args.seed)
-
     # Access underlying model structure (stable references)
     base_talker = peft_talker.base_model.model  # original talker with LoRA layers
     transformer = base_talker.model  # Qwen3TTSTalkerModel
 
+    epochs_completed = 0
     for epoch in range(1, args.epochs + 1):
         epoch_loss = 0.0
         epoch_steps = 0
@@ -631,106 +869,47 @@ def train(args):
         epoch_samples = samples.copy()
         random.shuffle(epoch_samples)
 
-        for step_idx, sample in enumerate(epoch_samples, 1):
-            try:
-                # Build teacher-forcing input
-                full_input, labels, all_codec_ids, prefill_len = build_teacher_forcing_input(
-                    sample, hf_model, device, dtype, language=args.language
-                )
+        for offset in range(0, len(epoch_samples), args.batch_size):
+            batch = epoch_samples[offset:offset + args.batch_size]
+            step_idx = offset + len(batch)
+            sample_result = run_training_batch(
+                batch, hf_model, base_talker, transformer, trainable_parameters,
+                device, dtype, language=args.language,
+                gradient_accumulation_steps=args.gradient_accumulation_steps)
+            if "oom_error" in sample_result:
+                epoch_oom_skips += len(batch)
+                total_oom_skips += len(batch)
+                consecutive_oom_skips += len(batch)
+                if consecutive_oom_skips > MAX_CONSECUTIVE_OOM_SKIPS:
+                    raise RuntimeError(
+                        f"Aborting: {consecutive_oom_skips} consecutive OOM-like "
+                        f"sample failures at epoch={epoch} step={step_idx} "
+                        f"(requested={total_steps_per_epoch} succeeded={epoch_steps} skipped={epoch_oom_skips}; "
+                        f"last error: {sample_result['oom_error']}). "
+                        f"This many in a row means something is actually broken, not "
+                        f"just an occasional large batch hitting a VRAM limit - "
+                        f"continuing would likely train on little to no real data."
+                    )
+                print(f"[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping {len(batch)} sample(s)", flush=True)
+                if "cuda" in device:
+                    torch.cuda.empty_cache()
+                gc.collect()
+                # The helper restored accumulated gradients and released the
+                # failed graph. Keep the successful window for its next step.
+                continue
 
-                T = all_codec_ids.shape[0]  # number of audio frames
-
-                # ── Forward pass through talker transformer ──
-                # Position IDs are auto-created by the model (3D multi-rope)
-                output = transformer(
-                    inputs_embeds=full_input,
-                    use_cache=False,
-                )
-                hidden_states = output.last_hidden_state  # [1, seq_len, hidden_size]
-
-                # ── Talker main loss: predict first codec group ──
-                # codec_head predictions at audio positions
-                # With standard causal LM shift: logit at position i predicts label at position i+1
-                # Position prefill_len-1 predicts first audio code (labels[prefill_len])
-                logits = base_talker.codec_head(hidden_states)  # [1, seq_len, vocab_size]
-
-                # Shift: logits[:-1] predict labels[1:]
-                shift_logits = logits[:, :-1, :].contiguous()
-                shift_labels = labels[:, 1:].contiguous()
-
-                talker_loss = F.cross_entropy(
-                    shift_logits.view(-1, shift_logits.size(-1)),
-                    shift_labels.view(-1),
-                    ignore_index=-100,
-                )
-
-                # ── Code predictor loss: predict remaining codec groups ──
-                # Extract hidden states at audio-predicting positions
-                # Position prefill_len-1 predicts audio step 0,
-                # position prefill_len predicts audio step 1, etc.
-                audio_hidden = hidden_states[0, prefill_len - 1:prefill_len + T - 1, :]  # [T, hidden_size]
-
-                # all_codec_ids: [T, num_code_groups]
-                _, sub_loss = base_talker.forward_sub_talker_finetune(
-                    all_codec_ids, audio_hidden
-                )
-
-                # Combined loss (0.3 weight on sub-talker per official Qwen3-TTS training)
-                total_loss = talker_loss + 0.3 * sub_loss
-
-                # Scale for gradient accumulation
-                scaled_loss = total_loss / args.gradient_accumulation_steps
-                scaled_loss.backward()
-                gradients_since_step += 1
-
-                # Capture loss values before freeing tensors
-                step_loss = total_loss.item()
-                step_talker_loss = talker_loss.item()
-                step_sub_loss = sub_loss.item()
-
-                epoch_loss += step_loss
-                epoch_steps += 1
-                consecutive_oom_skips = 0
-
-                # Free intermediate tensors
-                del full_input, labels, all_codec_ids, hidden_states
-                del logits, shift_logits, shift_labels, audio_hidden
-                del talker_loss, sub_loss, total_loss, scaled_loss
-
-            except RuntimeError as e:
-                if is_oom_failure(e):
-                    epoch_oom_skips += 1
-                    total_oom_skips += 1
-                    consecutive_oom_skips += 1
-                    if consecutive_oom_skips > MAX_CONSECUTIVE_OOM_SKIPS:
-                        raise RuntimeError(
-                            f"Aborting: {consecutive_oom_skips} consecutive OOM-like "
-                            f"failures at epoch={epoch} step={step_idx} (last error: {e}). "
-                            f"This many in a row means something is actually broken, not "
-                            f"just an occasional large batch hitting a VRAM limit - "
-                            f"continuing would likely train on little to no real data."
-                        ) from e
-                    print(f"[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping sample", flush=True)
-                    if "cuda" in device:
-                        torch.cuda.empty_cache()
-                    gc.collect()
-                    # Deliberately NOT calling optimizer.zero_grad() here: this
-                    # `continue` also skips the accumulation-boundary check
-                    # below, so zeroing here would silently discard every
-                    # gradient legitimately accumulated by earlier successful
-                    # steps in the current window, with no optimizer.step()
-                    # ever applying them - lost training signal on every OOM,
-                    # not just the OOM'd sample itself. backward() accumulates
-                    # into .grad rather than overwriting it, so skipping this
-                    # step just means it contributes nothing (same as never
-                    # having run it) instead of erasing what came before it.
-                    continue
-                raise
+            gradients_since_step += 1
+            step_loss = sample_result["loss"]
+            step_talker_loss = sample_result["talker_loss"]
+            step_sub_loss = sample_result["sub_loss"]
+            epoch_loss += step_loss * len(batch)
+            epoch_steps += len(batch)
+            consecutive_oom_skips = 0
 
             # Gradient accumulation step
             if gradients_since_step >= args.gradient_accumulation_steps or step_idx == total_steps_per_epoch:
                 torch.nn.utils.clip_grad_norm_(
-                    [p for p in peft_talker.parameters() if p.requires_grad],
+                    trainable_parameters,
                     max_norm=1.0,
                 )
                 optimizer.step()
@@ -749,19 +928,29 @@ def train(args):
         if epoch_steps == 0:
             raise RuntimeError(
                 f"Epoch {epoch} completed with zero successful samples "
-                f"({epoch_oom_skips} OOM-like skip(s)); refusing to save an untrained adapter."
+                f"({epoch_oom_skips} OOM-like skip(s); requested={total_steps_per_epoch} "
+                f"succeeded={epoch_steps} skipped={epoch_oom_skips}); refusing to save an untrained adapter."
+            )
+
+        # Approved minimum coverage policy; this is not a quality measurement.
+        if epoch_steps * 2 < total_steps_per_epoch:
+            raise RuntimeError(
+                f"Epoch {epoch}: fewer than half of requested samples succeeded "
+                f"(requested={total_steps_per_epoch} succeeded={epoch_steps} skipped={epoch_oom_skips}); "
+                f"refusing to publish this epoch."
             )
 
         # Flush gradients from a partial final accumulation window. An OOM on
         # the final dataset item bypasses the in-loop boundary check above.
         if gradients_since_step:
             torch.nn.utils.clip_grad_norm_(
-                [p for p in peft_talker.parameters() if p.requires_grad],
+                trainable_parameters,
                 max_norm=1.0,
             )
             optimizer.step()
             optimizer.zero_grad()
 
+        epochs_completed = epoch
         avg_loss = epoch_loss / epoch_steps
 
         # Safe checkpoint: save whenever loss improves and is still above garble floor.
@@ -771,25 +960,21 @@ def train(args):
             if avg_loss >= GARBLE_FLOOR and avg_loss < safe_best_loss:
                 safe_best_loss = avg_loss
                 best_loss = avg_loss
-                candidate_records, saved_candidate = save_evaluation_candidate(
-                    peft_talker, args.output_dir, candidate_records,
-                    args.candidate_checkpoints, epoch, avg_loss)
+                candidate_records, saved_candidate, _skipped = publish_checkpoint(
+                    peft_talker, epoch, keep_candidate=True)
                 if saved_candidate:
                     print(f"[TRAIN] Evaluation candidate saved ({saved_candidate['id']}, "
                           f"loss={avg_loss:.4f})", flush=True)
-                peft_talker.save_pretrained(args.output_dir)
                 print(f"[TRAIN] Safe checkpoint saved (loss={avg_loss:.4f})", flush=True)
         else:
             # Original behaviour: save unconditionally when loss improves
             if avg_loss < best_loss:
                 best_loss = avg_loss
-                candidate_records, saved_candidate = save_evaluation_candidate(
-                    peft_talker, args.output_dir, candidate_records,
-                    args.candidate_checkpoints, epoch, avg_loss)
+                candidate_records, saved_candidate, _skipped = publish_checkpoint(
+                    peft_talker, epoch, keep_candidate=True)
                 if saved_candidate:
                     print(f"[TRAIN] Evaluation candidate saved ({saved_candidate['id']}, "
                           f"loss={avg_loss:.4f})", flush=True)
-                peft_talker.save_pretrained(args.output_dir)
                 print(f"[TRAIN] Best adapter saved (loss={best_loss:.4f})", flush=True)
 
         zone = ""
@@ -798,7 +983,8 @@ def train(args):
         elif args.target_loss is not None and avg_loss <= args.target_loss:
             zone = " [TARGET REACHED]"
         oom_note = f" oom_skips={epoch_oom_skips}" if epoch_oom_skips else ""
-        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}{oom_note}", flush=True)
+        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}{oom_note} "
+              f"requested={total_steps_per_epoch} succeeded={epoch_steps} skipped={epoch_oom_skips}", flush=True)
 
         # Early stopping: first epoch where loss crosses at or below the target
         if args.target_loss is not None and avg_loss <= args.target_loss:
@@ -832,81 +1018,14 @@ def train(args):
     if have_checkpoint and not last_epoch_is_best:
         print(f"[TRAIN] Final epoch (loss={avg_loss:.4f}) is not the best checkpoint - "
               f"keeping the previously saved checkpoint (loss={kept_loss:.4f})", flush=True)
+        final_model = None
     else:
-        peft_talker.save_pretrained(args.output_dir)
-
-    # Copy reference audio as ref_sample.wav for inference
-    ref_dest = os.path.join(args.output_dir, "ref_sample.wav")
-    shutil.copy2(ref_audio_path, ref_dest)
-
-    # Determine ref_sample_text: use ref_text.txt if present (written by Dataset Builder),
-    # otherwise find the sample whose audio matches ref.wav, fallback to first sample.
-    ref_text_file = os.path.join(args.data_dir, "ref_text.txt")
-    if os.path.exists(ref_text_file):
-        with open(ref_text_file, "r", encoding="utf-8") as f:
-            ref_sample_text = f.read().strip()
-        print(f"[DATA] Using ref text from ref_text.txt: '{ref_sample_text[:60]}...'", flush=True)
-    else:
-        # Legacy datasets: ref.wav is typically the first sample
-        ref_sample_text = samples[0]["text"]
-        print(f"[DATA] Using first sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
-
-    # Save training metadata
-    def _json_safe(x):
-        # /api/lora/models serializes with allow_nan=False, so a NaN final_loss
-        # (an all-OOM-skipped run leaves avg_loss=NaN) or the initial inf best_loss
-        # would 500 the whole model listing. Coerce any non-finite value to None.
-        return x if isinstance(x, (int, float)) and float("-inf") < x < float("inf") else None
-
-    candidate_records, duplicate_candidates, production_hash = (
-        deduplicate_evaluation_candidates(args.output_dir, candidate_records))
+        final_model = peft_talker
+    candidate_records, _saved, duplicate_candidates = publish_checkpoint(
+        final_model, epochs_completed, finalize=True)
     for skipped_candidate in duplicate_candidates:
         print(f"[TRAIN] Evaluation candidate {skipped_candidate['id']} skipped: "
               f"duplicate of {skipped_candidate['duplicate_of']}", flush=True)
-    meta = {
-        "model_name": args.model_name,
-        "epochs": args.epochs,
-        "lr": args.lr,
-        "lora_r": args.lora_r,
-        "lora_alpha": args.lora_alpha,
-        "gradient_accumulation_steps": args.gradient_accumulation_steps,
-        "batch_size": args.batch_size,
-        "num_samples": len(samples),
-        "final_loss": _json_safe(avg_loss),
-        "best_loss": _json_safe(best_loss),
-        "training_time_seconds": round(training_time, 1),
-        "oom_skips": total_oom_skips,
-        "language": args.language,
-        "ref_sample_audio": ref_audio_path,
-        "ref_sample_text": ref_sample_text,
-        "checkpoint_sha256": production_hash,
-        **get_code_lineage(),
-        "evaluation_candidates": [
-            {"id": record["id"], "epoch": record["epoch"], "loss": record["loss"],
-             "sha256": record["sha256"]}
-            for record in candidate_records
-        ],
-        "evaluation_candidate_skips": duplicate_candidates,
-    }
-    with open(os.path.join(args.output_dir, "training_meta.json"), "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2, ensure_ascii=False)
-
-    for record in candidate_records:
-        shutil.copy2(ref_dest, os.path.join(record["path"], "ref_sample.wav"))
-        with open(os.path.join(record["path"], "training_meta.json"), "w", encoding="utf-8") as f:
-            # The digest must describe THIS directory's bytes. Copying the
-            # production meta wholesale gave every candidate the production
-            # adapter's hash - and deduplicate_evaluation_candidates deletes
-            # any candidate whose bytes equal production, so a retained
-            # candidate's recorded digest was guaranteed to name a different
-            # file. lora_training_benchmark verifies a checkpoint against this
-            # field and would have rejected every candidate it was pointed at.
-            json.dump({**meta, "candidate_id": record["id"],
-                       "candidate_epoch": record["epoch"],
-                       "candidate_loss": record["loss"],
-                       "checkpoint_sha256": record["sha256"],
-                       "production_checkpoint_sha256": production_hash},
-                      f, indent=2, ensure_ascii=False)
 
     print(f"[DONE] Adapter saved to {args.output_dir} "
           f"(best_loss={best_loss:.4f}, time={training_time:.0f}s)", flush=True)

@@ -22,7 +22,7 @@
 # is fine: 3.1 measures whether chunks finish, and a book that cannot be
 # generated cannot be scored either way.
 set -uo pipefail
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO=$(cd "$(dirname "$0")/.." && pwd)
 
 # HOLD THE REAL LOCK INSTEAD OF GUESSING WHO IS RUNNING.
 #
@@ -45,6 +45,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "unseen_books_b" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
@@ -53,6 +55,8 @@ OUT="$REPO/ab_test_runtime/unseen_books"
 BACKUP="$L/config.json.unseen_backup"
 mkdir -p "$OUT"
 cd "$REPO/app"
+source "$REPO/run_chains/lib/config_backup.sh"
+restore_config_backup "$BACKUP" "$REPO/app/config.json" || exit 1
 
 # A LEFTOVER BACKUP MEANS THE LAST RUN DIED. `timeout --kill-after` ends in
 # SIGKILL, which no trap can catch, so on 2026-08-19 the EXIT trap never ran:
@@ -62,15 +66,11 @@ cd "$REPO/app"
 # deleting the backup on the way out means its presence is itself the signal
 # that a run did not finish.
 restore() {
-    [ -f "$BACKUP" ] || return 0
-    command cp -f "$BACKUP" "$REPO/app/config.json"
-    rm -f "$BACKUP"
+    restore_config_backup "$BACKUP" "$REPO/app/config.json" || exit 1
 }
-if [ -f "$BACKUP" ]; then
-    echo "a previous run left config.json modified; restoring it before starting"
-    restore
-fi
-trap restore EXIT INT TERM
+trap restore EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 
 # START THE SERVER RATHER THAN COMPLAINING ABOUT ITS ABSENCE. This aborted
@@ -89,10 +89,10 @@ if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
         echo "ABORT: server started but is not serving qwen3 on 8090"; exit 1
     fi
 fi
-command cp -f "$REPO/app/config.json" "$BACKUP"
-"$PY" - <<'PYEOF'
-import json
-p = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json"
+save_config_backup "$REPO/app/config.json" "$BACKUP" || exit 1
+"$PY" - "$REPO/app/config.json" <<'PYEOF'
+import json, sys
+p = sys.argv[1]
 d = json.load(open(p, encoding="utf-8"))
 for key in ("llm", "llm_local"):
     if isinstance(d.get(key), dict):
@@ -105,15 +105,13 @@ PYEOF
 # generate_script.py writes as it goes, and a book cut off mid-run leaves a
 # JSON that a bare existence check would skip forever.
 book_complete() {
-    "$PY" - "$1" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    with open(sys.argv[1], encoding="utf-8") as handle:
-        doc = json.load(handle)
-except Exception:
+    "$PY" - "$1" "$2" <<'PYEOF'
+import sys
+from generation_completion import get_generation_completion_error
+error = get_generation_completion_error(sys.argv[1], sys.argv[2])
+if error:
+    print("  incomplete: " + error)
     sys.exit(1)
-entries = doc if isinstance(doc, list) else doc.get("entries") or doc.get("script")
-sys.exit(0 if isinstance(entries, list) and len(entries) > 50 else 1)
 PYEOF
 }
 
@@ -122,19 +120,19 @@ for book in mushoku18 grimgar06 mushoku23 arc4_volume10wn; do
     total_books=$((total_books + 1))
     echo ""
     echo "=== $book  $(date -u +%FT%TZ) ==="
-    if book_complete "$OUT/$book.json"; then
+    if book_complete "$OUT/$book.json" "$IN/$book.txt"; then
         echo "  SKIP - already generated ($(stat -c%s "$OUT/$book.json") bytes)"
         skipped_books=$((skipped_books + 1))
         continue
     fi
-    timeout 43200 "$PY" -u generate_script.py "$IN/$book.txt" \
+    timeout --kill-after=120s 43200 "$PY" -u generate_script.py "$IN/$book.txt" \
         --output "$OUT/$book.json" > "$L/unseen_$book.log" 2>&1
     rc=$?
     echo "  rc=$rc"
     # Judge by the ARTIFACT as well as the code: a book can exit 0 having
     # written nothing, and "written: NO" below is already computed from the
     # file. Both must be right for the book to count as produced.
-    if [ "$rc" -ne 0 ] || ! book_complete "$OUT/$book.json"; then
+    if [ "$rc" -ne 0 ] || ! book_complete "$OUT/$book.json" "$IN/$book.txt"; then
         failed_books=$((failed_books + 1))
         failed_names="$failed_names $book"
     fi

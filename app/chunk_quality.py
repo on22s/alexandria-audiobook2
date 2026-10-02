@@ -97,10 +97,10 @@ def validate_chunk_quality(source_text, entries):
     entry_texts = [" ".join(str(entry.get("text") or "").split()).casefold()
                    if isinstance(entry, dict) else "" for entry in entries]
     for duplicate in find_adjacent_duplicate_blocks(entry_texts, source_text):
-        if duplicate.get("details", {}).get("source_occurrences") == 1:
+        if duplicate["severity"] == "blocking":
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
-                             "message": "An adjacent repeated block occurs only once in the source."})
+                             "message": "An adjacent repeated block is not repeated in the source."})
 
     recall_codes = {"low_source_token_recall", "low_ordered_trigram_recall"}
     missing_spans = (_missing_source_spans(source_tokens, output_tokens)
@@ -171,7 +171,7 @@ def _report(source_count, output_count, recall, trigram_recall, ratio, findings,
             "source_tokens": source_count,
             "output_tokens": output_count,
             "source_token_recall": round(recall, 4),
-            "ordered_trigram_recall": round(trigram_recall, 4),
+            "ordered_trigram_recall": trigram_recall,
             "output_source_ratio": round(ratio, 4),
         },
         "source_cyrillic": source_cyrillic or [],

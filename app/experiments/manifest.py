@@ -41,55 +41,27 @@ def _git_state(repo):
             return out.stdout.decode("utf-8").strip() if out.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             return None
-    # Untracked notes and scratch files do not change behaviour; modified
-    # tracked files do. Reporting the former as "dirty" made the flag useless -
-    # it was true on every run because three markdown drafts sat in the tree.
-    # OUTPUTS ARE NOT INPUT DIRT. A run that rewrites artifacts - which is
-    # replay_dirty_evidence's entire job - modifies tracked files, so from its
-    # second artifact onward it stamped dirty=True on evidence it had produced
-    # in order to BE clean, and gpu_job.sh refused every job behind it (80
-    # minutes idle, 2026-08-18). What provenance needs is "is the CODE that
-    # produced this committed", not "did anything at all change".
-    #
-    # DVC makes this split structural: a stage declares deps (inputs, script
-    # included) and outs, and dvc.lock hashes them SEPARATELY, so a rewritten
-    # output can never look like a changed input. Sacred, whose provenance
-    # block this most resembles, calls a bare repo.is_dirty() with no path
-    # filter - the same defect - and does not rely on it: what it trusts is
-    # the per-file hash of the sources that actually ran.
-    #
-    # So the excluded half is paid for, not dropped: `read_inputs` below hashes
-    # the artifacts a run READ, which catches a locally-edited baseline that
-    # this flag could only ever report as an anonymous "something changed".
-    # DERIVED INDEXES ARE OUTPUTS TOO. Leaving RESULTS_INDEX.md,
-    # results_index.csv and the audit JSON out of this list deadlocked the GPU
-    # queue for two hours on 2026-08-19: refresh_indexes.py rewrites them at
-    # the end of every chain, and gpu_job.sh's twin of this gate then refused
-    # every stage a concurrent chain still had queued. Kept in step with the
-    # shell by test_the_shell_gate_agrees_with_the_python_provenance.
-    modified = run("git", "status", "--porcelain", "--untracked-files=no",
-                   "--",
-                   ":(exclude)ab_test_runtime/experiments/*.json",
-                   ":(exclude)ab_test_runtime/audit/*.json",
-                   ":(exclude)RESULTS_INDEX.md",
-                   ":(exclude)results_index.csv",
-                   ":(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md",
-                   )
-    # An untracked harness is the dangerous case, and the first version missed
-    # it: a new experiment script is untracked while it runs, so the tree
-    # reported clean and the artifact claimed a commit that did not contain the
-    # code that produced it. Untracked .py inside the harness directory is dirt.
-    # ab_test_runtime/ is excluded: it is where runs WRITE. Scanning it
-    # counted an untracked virtualenv, three cloud_backup_* trees and
-    # generated .html views, making this flag true on every run (2026-08-29).
-    untracked = [n for n in (run("git", "ls-files", "--others",
-                                 "--exclude-standard",
-                                 "--", ":(exclude)ab_test_runtime/*")
-                             or "").splitlines()
-                 if n.endswith((".py", ".sh", ".js", ".html"))]
+    # gpu_job.sh owns classification and exclusions; no second policy here.
+    script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                          "gpu_job.sh")
+    state, modified, untracked = "unknown", "", []
+    try:
+        result = subprocess.run(["bash", script, "--print-source-state", str(repo)],
+                                capture_output=True, timeout=10)
+        fields = result.stdout.split(b"\0")
+        if result.returncode == 0 and len(fields) >= 3:
+            state = fields[0].decode("utf-8", errors="surrogateescape")
+            if state != "clean" and not state.startswith("dirty:"):
+                state = "unknown"
+            modified = fields[1].decode("utf-8", errors="surrogateescape")
+            untracked = [v.decode("utf-8", errors="surrogateescape")
+                         for v in fields[2:] if v]
+    except (OSError, subprocess.SubprocessError):
+        pass
     return {"commit": run("git", "rev-parse", "HEAD"),
             "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
-            "dirty": bool(modified) or bool(untracked),
+            "dirty": (state.startswith("dirty:") if state != "unknown" else None),
+            "source_state": state,
             "modified_tracked_files": (modified or "").splitlines() or None,
             "untracked_harness_files": untracked or None,
             # The commit identifies the repository; this identifies the code
@@ -815,9 +787,14 @@ class ExperimentRecord:
             for arm, ids in sorted(per_arm.items()):
                 if ids != reference:
                     problems.append(f"{arm} scored a different set of ids")
-        if contract.get("require_clean_tree") and self.meta.get("git", {}).get("dirty"):
-            problems.append("tree had modified tracked files: "
-                            f"{self.meta['git'].get('modified_tracked_files')}")
+        if contract.get("require_clean_tree"):
+            git = self.meta.get("git", {})
+            if git.get("dirty") is None:
+                problems.append("tree source state could not be verified")
+            elif git["dirty"]:
+                problems.append("tree had uncommitted inputs: modified tracked files="
+                                f"{git.get('modified_tracked_files')}; untracked files="
+                                f"{git.get('untracked_harness_files')}")
         return problems
 
     def write(self, path, require_valid=True, contract=None):

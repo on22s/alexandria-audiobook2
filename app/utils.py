@@ -12,8 +12,20 @@ import hashlib
 import hmac
 import base64
 import uuid
+import unicodedata
 
 logger = logging.getLogger(__name__)
+
+
+def get_unsafe_text_controls(text):
+    """Return controls, surrogates and explicit bidi overrides as code points.
+
+    Ordinary whitespace and multilingual joiners/marks remain valid text.
+    """
+    return sorted({f"U+{ord(char):04X}" for char in text
+                   if (unicodedata.category(char) in {"Cc", "Cs"}
+                       or char in "\u202d\u202e")
+                   and char not in "\n\r\t"})
 
 
 def is_nonverbal_text(text):
@@ -190,9 +202,14 @@ def secure_filename(filename: str) -> str:
         filename = filename.replace(sep, "_")
     filename = filename.lstrip(". ")
     filename = re.sub(r"[^\w\-. ]", "_", filename)
-    if len(filename) > 150:
+    filename = filename.rstrip(". ")
+    device_name = filename.split(".", 1)[0].rstrip(" ").upper()
+    if re.fullmatch(r"CON|PRN|AUX|NUL|(?:COM|LPT)[1-9¹²³]", device_name):
+        filename = "_" + filename
+    encoded = filename.encode("utf-8")
+    if len(encoded) > 150:
         suffix = hashlib.sha1(original.encode("utf-8")).hexdigest()[:8]
-        filename = filename[:150 - len(suffix) - 1] + "_" + suffix
+        filename = encoded[:150 - len(suffix) - 1].decode("utf-8", errors="ignore") + "_" + suffix
     if not filename:
         return ""
     return filename
@@ -230,7 +247,7 @@ def safe_load_json(path, default=None):
     return data
 
 
-def atomic_json_write(data, target_path, max_retries=5):
+def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
@@ -245,7 +262,9 @@ def atomic_json_write(data, target_path, max_retries=5):
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=sort_keys)
+            if trailing_newline:
+                f.write("\n")
             f.flush()
             os.fsync(f.fileno())
 
@@ -316,105 +335,128 @@ def atomic_json_write(data, target_path, max_retries=5):
 
 
 def atomic_json_write_pair(first_data, first_path, second_data, second_path):
-    """Replace two locked JSON files, rolling both back if replacement fails."""
+    """Replace two JSON files while the caller holds both read/write locks.
+
+    Roll back replaced targets on failure. Keep a failed restoration's owned
+    backup for recovery instead of deleting the last copy of the old data.
+    """
     if os.path.normcase(os.path.realpath(first_path)) == os.path.normcase(os.path.realpath(second_path)):
         raise ValueError("Paired JSON targets must be distinct")
-    staged, backups = [], []
+    staged, backups, replaced = [], [], []
+    retained = set()
     try:
         for data, path in ((first_data, first_path), (second_data, second_path)):
             directory = os.path.dirname(os.path.abspath(path))
             os.makedirs(directory, exist_ok=True)
             fd, tmp = tempfile.mkstemp(prefix=".pair-", suffix=".json", dir=directory)
+            staged.append(tmp)
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(data, handle, indent=2, ensure_ascii=False)
                 handle.flush()
                 os.fsync(handle.fileno())
-            staged.append(tmp)
-            backup = path + ".pair-backup"
             existed = os.path.exists(path)
+            backup = None
+            if existed:
+                fd, backup = tempfile.mkstemp(prefix=".pair-backup-", suffix=".json", dir=directory)
+                os.close(fd)
+            backups.append((path, backup, existed))
             if existed:
                 shutil.copy2(path, backup)
-            backups.append((path, backup, existed))
-        for index, (_data, path) in enumerate(((first_data, first_path), (second_data, second_path))):
+        for index, (path, _backup, _existed) in enumerate(backups):
             os.replace(staged[index], path)
             staged[index] = None
-    except Exception:
-        for path, backup, existed in backups:
-            if existed and os.path.exists(backup):
-                os.replace(backup, path)
-            elif not existed and os.path.exists(path):
-                os.remove(path)
+            replaced.append(index)
+    except BaseException as error:
+        failures = []
+        for index in reversed(replaced):
+            path, backup, existed = backups[index]
+            try:
+                if existed:
+                    os.replace(backup, path)
+                else:
+                    os.remove(path)
+            except OSError as rollback_error:
+                if backup is not None:
+                    retained.add(backup)
+                failures.append(f"{path}: {rollback_error}; recovery backup: {backup}")
+        if failures:
+            raise RuntimeError("Paired JSON rollback failed: " + "; ".join(failures)) from error
         raise
     finally:
         for tmp in staged:
             if tmp and os.path.exists(tmp):
                 os.remove(tmp)
         for _path, backup, _existed in backups:
-            if os.path.exists(backup):
+            if backup and backup not in retained and os.path.exists(backup):
                 os.remove(backup)
+
+
+def get_timestamped_backup_path(path):
+    """Return a collision-resistant sibling name without creating the backup."""
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000_000:09d}"
+    return f"{path}.bak-{stamp}"
 
 
 def backup_file_with_timestamp(path):
     """Copy ``path`` to a collision-resistant timestamped sibling backup."""
-    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000_000:09d}"
-    backup = f"{path}.bak-{stamp}"
+    backup = get_timestamped_backup_path(path)
     shutil.copy2(path, backup)
     return backup
 
 
 @contextlib.contextmanager
 def file_lock(target_path, timeout=10, stale_after=120):
-    """Advisory cross-process lock for read-modify-write access to target_path.
+    """Hold a kernel-owned advisory lock for a read-modify-write operation.
 
-    Coordinates against a sibling `<target_path>.lock` marker file, created via
-    an atomic exclusive open (works on POSIX and Windows). Without this, two
-    processes that each read-modify-write the same JSON file (e.g. a batch
-    review remapping speaker names in a voice_config.json while the UI applies
-    a saved cast to it) can silently lose one side's update.
-
-    This is advisory only: if the lock can't be acquired within `timeout`
-    seconds, this raises `TimeoutError` so the caller can decide how to
-    handle contention (e.g. skip the operation, return a "busy" error, or
-    retry) rather than silently proceeding without the lock. A lock file
-    older than `stale_after` seconds is treated as abandoned (e.g. left
-    behind by a crashed process) and removed.
-    
-    Args:
-        target_path: Path to the file being protected
-        timeout: Maximum seconds to wait for lock acquisition (default: 10)
-        stale_after: Seconds after which a lock file is considered abandoned
-            (default: 120 — kept well above any plausible critical-section
-            duration so a still-live holder isn't reaped and double-held)
+    The sibling .lock file remains on disk so every waiter locks the same
+    inode. Ownership ends when the descriptor closes, including process death;
+    file age never grants permission to enter a live critical section.
+    stale_after is retained for caller compatibility, but is no longer used.
+    Existing application processes must be restarted when upgrading from the
+    old exclusive-create marker protocol; the two protocols cannot coordinate.
     """
-    lock_path = target_path + ".lock"
-    deadline = time.time() + timeout
+    lock_path = os.fspath(target_path) + ".lock"
+    deadline = time.monotonic() + timeout
     acquired = False
-    while True:
+    with open(lock_path, "a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+            # Windows byte-range locks need a byte and always start at offset 0.
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\0")
+                handle.flush()
+            def acquire():
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            def release():
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            def acquire():
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            def release():
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        while True:
+            try:
+                acquire()
+                acquired = True
+                break
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f"Could not acquire file lock on {lock_path} within {timeout} seconds."
+                    ) from error
+                time.sleep(min(0.05, remaining))
         try:
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            acquired = True
-            break
-        except FileExistsError:
-            try:
-                if time.time() - os.path.getmtime(lock_path) > stale_after:
-                    os.remove(lock_path)
-                    continue
-            except OSError:
-                pass
-            if time.time() >= deadline:
-                raise TimeoutError(f"Could not acquire file lock on {lock_path} within {timeout} seconds.")
-            time.sleep(0.05)
-    try:
-        yield
-    finally:
-        # Only remove the lock file if we created it - a timed-out waiter that
-        # never acquired the lock must not delete another process's active lock.
-        if acquired:
-            try:
-                os.remove(lock_path)
-            except OSError:
-                pass
+            yield
+        finally:
+            if acquired:
+                release()
 
 
 # --- Generic speaker de-collision ---
@@ -445,7 +487,7 @@ def check_basic_auth(header_value, username, password):
     """Constant-time verify an 'Authorization: Basic <base64>' header value
     against the expected username/password. Returns False on any missing or
     malformed input (wrong scheme, bad base64, no colon)."""
-    if not header_value or not header_value.startswith("Basic "):
+    if not header_value or header_value[:6].lower() != "basic ":
         return False
     try:
         decoded = base64.b64decode(header_value[6:].strip(), validate=True).decode("utf-8")

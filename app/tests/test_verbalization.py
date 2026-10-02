@@ -65,6 +65,19 @@ class DeliveryCueTest(unittest.TestCase):
         self.assertEqual(text, "La la la")
         self.assertIn(SUNG_HINT, hints)
 
+    def test_repeated_bracketing_notes_are_all_removed_and_inner_notes_retained(self):
+        for source, expected in (("♪♪ La la ♪♪", "La la"),
+                                 ("♫♪ La ♪ la ♪♫", "La ♪ la"),
+                                 (" ♪♫ Sing~ ♫♪ ", "Sing"),
+                                 ("♪♪", "")):
+            with self.subTest(source=source):
+                text, hints = extract_delivery_cues(source)
+                self.assertEqual(expected, text)
+                self.assertEqual(1, hints.count(SUNG_HINT))
+        for source in ("♪♪ leading", "trailing ♪♪", "a ♪♪ sound"):
+            with self.subTest(source=source):
+                self.assertEqual((source, []), extract_delivery_cues(source))
+
     def test_elongation_moves_into_a_hint(self):
         text, hints = extract_delivery_cues("Yaaay~")
         self.assertEqual(text, "Yaaay")

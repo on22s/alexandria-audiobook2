@@ -16,14 +16,15 @@ import sys
 import json
 import difflib
 import argparse
+import hashlib
+import tempfile
+import os
+import uuid
 from pathlib import Path
 
 # Shared alignment primitives (source loading + cleanups, proper-noun lexicon,
 # fuzzy alignment, trim/extend, all threshold tiers, char_sim cache).
-# Anything compare needs from this module is imported here; `_alignment` is
-# kept as a module alias so main() can mutate the per-book lexicon attribute
-# (`_alignment._PROPER_NOUNS = ...`) in one place that all the helpers see.
-import alexandria_alignment as _alignment
+# Anything compare needs from this module is imported here.
 from alexandria_alignment import (
     _OCR_DIGIT_GLITCH,
     _DIACRITIC_REJOIN,
@@ -32,6 +33,7 @@ from alexandria_alignment import (
     normalize,
     to_words,
     split_compounds,
+    get_source_word_lists,
     _build_proper_nouns,
     find_best_match,
     find_anchor_position,
@@ -39,6 +41,8 @@ from alexandria_alignment import (
     realign,
     trim_span_to_alignment,
     estimate_alignment_quality,
+    get_alignment_quality_prescan,
+    get_alignment_match,
     find_text_in_source,
     merge_annotations_with_source,
     _ratio,
@@ -67,13 +71,23 @@ def load_jsonl(path: str) -> list:
 
 
 # ── Diff display ──────────────────────────────────────────────────────────────
+def get_terminal_text(value):
+    """Show untrusted controls literally, retaining normal Unicode text."""
+    text = str(value)
+    return ''.join(
+        (f'\\x{ord(char):02x}' if ord(char) < 256 else f'\\u{ord(char):04x}')
+        if (ord(char) < 32 or 127 <= ord(char) <= 159
+            or char in '\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069')
+        else char for char in text)
+
+
 def color_diff(a: list, b: list) -> tuple:
     """Return (a_colored_str, b_colored_str) with ANSI markup."""
     sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
     a_out, b_out = [], []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        a_seg = ' '.join(a[i1:i2])
-        b_seg = ' '.join(b[j1:j2])
+        a_seg = get_terminal_text(' '.join(a[i1:i2]))
+        b_seg = get_terminal_text(' '.join(b[j1:j2]))
         if tag == 'equal':
             a_out.append(a_seg)
             b_out.append(b_seg)
@@ -100,25 +114,112 @@ def checkpoint_path(jsonl_path: str) -> Path:
     p = Path(jsonl_path)
     return p.with_name(f".{p.stem}_compare_progress.json")
 
-def load_checkpoint(jsonl_path: str) -> dict:
+def get_checkpoint_identity(jsonl_path: str, source_path: str, output_path: str) -> dict:
+    """Identify the input bytes and review destinations for one session."""
+    identity = {'output': str(Path(output_path).resolve())}
+    for name, path in (('jsonl', jsonl_path), ('source', source_path)):
+        digest = hashlib.sha256()
+        with open(path, 'rb') as f:
+            for block in iter(lambda: f.read(1024 * 1024), b''):
+                digest.update(block)
+        identity[name] = digest.hexdigest()
+    return identity
+
+
+def load_checkpoint(jsonl_path: str, identity: dict = None) -> dict:
     cp = checkpoint_path(jsonl_path)
     if cp.exists():
         try:
-            return json.loads(cp.read_text())
+            saved = json.loads(cp.read_text())
+            if (not isinstance(saved, dict)
+                    or not isinstance(saved.get('decisions', {}), dict)
+                    or not isinstance(saved.get('cursor', 0), int)):
+                raise ValueError('invalid checkpoint structure')
+            if identity is not None and saved.get('identity') != identity:
+                sys.exit(f"Checkpoint {get_terminal_text(cp)} belongs to different or older inputs. "
+                         "Use --reset to start a new review, or restore the original inputs.")
+            return load_decision_journal(jsonl_path, saved)
         except (json.JSONDecodeError, ValueError, OSError) as e:
+            if checkpoint_journal_path(jsonl_path).exists():
+                sys.exit(f"Cannot recover checkpoint {get_terminal_text(cp)} with its journal: {get_terminal_text(e)}. Files preserved.")
             # Don't let a truncated/corrupt checkpoint crash the whole session
             # (it's saved after every decision, so a crash mid-write is likely).
-            print(f"WARNING: checkpoint {cp.name} is unreadable ({e}); starting fresh.")
+            print(f"WARNING: checkpoint {get_terminal_text(cp.name)} is unreadable ({get_terminal_text(e)}); starting fresh.")
+    if checkpoint_journal_path(jsonl_path).exists():
+        sys.exit(f"Checkpoint {get_terminal_text(cp)} is missing but its decision journal exists. Files preserved; use --reset explicitly.")
     return {"decisions": {}, "cursor": 0}
 
-def save_checkpoint(jsonl_path: str, decisions: dict, cursor: int):
+
+def checkpoint_journal_path(jsonl_path):
+    return checkpoint_path(jsonl_path).with_suffix('.json.journal')
+
+
+def load_decision_journal(jsonl_path, saved):
+    journal = checkpoint_journal_path(jsonl_path)
+    if not journal.exists():
+        return saved
+    generation = saved.get('generation')
+    if not isinstance(generation, str) or not generation:
+        sys.exit(f"Checkpoint {get_terminal_text(journal)} has no journal generation. Files preserved.")
+    recovered = dict(saved, decisions=dict(saved['decisions']))
+    with journal.open('rb') as stream:
+        for number, line in enumerate(stream, 1):
+            if not line.endswith(b'\n'):
+                print(f"WARNING: ignoring incomplete trailing journal record in {get_terminal_text(journal)}; prior decisions recovered.")
+                break
+            try:
+                record = json.loads(line)
+                if not isinstance(record, dict) or not isinstance(record.get('generation'), str):
+                    raise ValueError('invalid record generation')
+                if record['generation'] != generation:
+                    continue
+                key, decision, cursor = record.get('key'), record.get('decision'), record.get('cursor')
+                if (not isinstance(key, str) or not key.isdecimal()
+                        or not isinstance(decision, dict)
+                        or decision.get('action') not in ('keep', 'accept', 'merge', 'edit', 'skip')
+                        or type(cursor) is not int or cursor < 0):
+                    raise ValueError('invalid decision record')
+            except (ValueError, UnicodeDecodeError) as exc:
+                sys.exit(f"Invalid decision journal {get_terminal_text(journal)} record {number}: {get_terminal_text(exc)}. Files preserved.")
+            recovered['decisions'][key] = decision
+            recovered['cursor'] = cursor
+    return recovered
+
+
+def save_decision_checkpoint(jsonl_path, key, decision, cursor, generation):
+    record = {'generation': generation, 'key': key, 'decision': decision, 'cursor': cursor}
+    data = (json.dumps(record, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+    with checkpoint_journal_path(jsonl_path).open('ab') as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def clear_checkpoint(jsonl_path):
+    # A full snapshot remains recoverable if journal cleanup is interrupted.
+    checkpoint_journal_path(jsonl_path).unlink(missing_ok=True)
+    checkpoint_path(jsonl_path).unlink(missing_ok=True)
+
+
+def save_checkpoint(jsonl_path: str, decisions: dict, cursor: int,
+                    identity: dict = None):
     cp = checkpoint_path(jsonl_path)
-    # Write to a temp file then atomically rename, so a crash/kill mid-write
-    # can't leave a half-written checkpoint that bricks the next resume and
-    # loses hundreds of manual decisions.
-    tmp = cp.with_suffix(cp.suffix + ".tmp")
-    tmp.write_text(json.dumps({"decisions": decisions, "cursor": cursor}, indent=2))
-    tmp.replace(cp)
+    generation = uuid.uuid4().hex
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=cp.parent,
+                                         prefix=f'.{cp.name}.', suffix='.tmp', delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump({'decisions': decisions, 'cursor': cursor, 'identity': identity,
+                       'generation': generation}, stream, ensure_ascii=False, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(cp)
+        checkpoint_journal_path(jsonl_path).unlink(missing_ok=True)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return generation
 
 # ── Review log ────────────────────────────────────────────────────────────────
 # Records every entry the user manually reviewed (auto-approved entries are
@@ -142,7 +243,7 @@ def log_decision(log_path: Path, record: dict):
     except Exception as e:
         if not _log_decision_warned:
             _log_decision_warned = True
-            print(f"{YELLOW}Warning: review log stopped recording decisions ({e}). "
+            print(f"{YELLOW}Warning: review log stopped recording decisions ({get_terminal_text(e)}). "
                   f"Your choices are still being applied, just not logged.{RESET}")
 
 def remove_log_entries(log_path: Path, indices: set) -> int:
@@ -223,39 +324,41 @@ def apply_targeted_reset(
     log_path: Path,
     indices: set,
     also_clear_log: bool,
+    identity: dict = None,
 ):
     """Restore each indexed entry's text from metadata.jsonl, drop its
     checkpoint decision, and optionally remove matching review-log records.
     The cursor in the checkpoint is rewound to the smallest reset index so the
     next normal run re-aligns from there (otherwise the cursor could be ahead
     of source content that the reset entries should have consumed)."""
-    with open(jsonl_path, encoding='utf-8') as f:
-        orig_lines = f.readlines()
+    orig_entries = load_jsonl(jsonl_path)
 
     out_path = Path(output_path)
     if out_path.exists():
-        with open(out_path, encoding='utf-8') as f:
-            cur_lines = f.readlines()
+        cur_entries = load_jsonl(output_path)
+        if len(cur_entries) != len(orig_entries):
+            sys.exit(f"Cannot reset: {get_terminal_text(output_path)} has {len(cur_entries)} entries, "
+                     f"but {jsonl_path} has {len(orig_entries)}")
     else:
-        cur_lines = orig_lines.copy()
+        cur_entries = orig_entries.copy()
+
+    cp_path = checkpoint_path(jsonl_path)
+    cp = load_checkpoint(jsonl_path, identity) if (cp_path.exists() or checkpoint_journal_path(jsonl_path).exists()) else None
 
     restored, out_of_range = 0, []
     for idx in sorted(indices):
-        if 0 <= idx < len(orig_lines) and idx < len(cur_lines):
-            cur_lines[idx] = orig_lines[idx]
+        if 0 <= idx < len(orig_entries):
+            cur_entries[idx] = orig_entries[idx]
             restored += 1
         else:
             out_of_range.append(idx)
 
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.writelines(cur_lines)
+    write_jsonl_atomic(cur_entries, out_path)
 
     # Drop decisions; rewind cursor to the lowest reset index so the next
     # run re-anchors before that point instead of skipping ahead.
-    cp_path = checkpoint_path(jsonl_path)
     popped = 0
-    if cp_path.exists():
-        cp = json.loads(cp_path.read_text())
+    if cp is not None:
         decisions = cp.get('decisions', {})
         for idx in indices:
             if decisions.pop(str(idx), None) is not None:
@@ -265,12 +368,12 @@ def apply_targeted_reset(
             # cursor_after of the entry just before min_idx, if present
             prev = decisions.get(str(min_idx - 1)) if min_idx > 0 else None
             cp['cursor'] = prev['cursor_after'] if (prev and 'cursor_after' in prev) else 0
-        cp_path.write_text(json.dumps(cp, indent=2, ensure_ascii=False))
+        save_checkpoint(jsonl_path, decisions, cp.get('cursor', 0), identity)
 
     log_removed = remove_log_entries(log_path, indices) if also_clear_log and log_path.exists() else 0
 
     print(f"Reset {len(indices)} target(s):")
-    print(f"  {restored} JSONL line(s) restored from {jsonl_path}")
+    print(f"  {restored} JSONL entry/entries restored from {get_terminal_text(jsonl_path)}")
     print(f"  {popped} checkpoint decision(s) removed")
     if also_clear_log:
         print(f"  {log_removed} review log record(s) removed")
@@ -280,18 +383,35 @@ def apply_targeted_reset(
         print(f"  ⚠ Out of range (ignored): {sorted(out_of_range)}")
 
 # ── Write output ──────────────────────────────────────────────────────────────
+def write_jsonl_atomic(entries: list, output_path: Path):
+    """Replace a JSONL file only after every entry has been serialized."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8',
+                                         dir=output_path.parent, prefix=f'.{output_path.name}.',
+                                         suffix='.tmp', delete=False) as f:
+            temporary = Path(f.name)
+            for entry in entries:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        temporary.replace(output_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def write_output(entries: list, decisions: dict, output_path: str):
     """Write corrected JSONL. Entries with action 'accept', 'merge', or 'edit'
     get their text replaced; everything else is written through unchanged."""
-    with open(output_path, 'w', encoding='utf-8') as f:
-        for i, entry in enumerate(entries):
-            key = str(i)
-            d   = decisions.get(key)
-            if d and d['action'] in ('accept', 'merge', 'edit'):
-                entry = dict(entry)
-                entry['text'] = d['text']
-            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    print(f"\n{GREEN}✓ Corrected JSONL written → {output_path}{RESET}")
+    corrected = []
+    for i, entry in enumerate(entries):
+        key = str(i)
+        d   = decisions.get(key)
+        if d and d['action'] in ('accept', 'merge', 'edit'):
+            entry = dict(entry)
+            entry['text'] = d['text']
+        corrected.append(entry)
+    write_jsonl_atomic(corrected, Path(output_path))
+    print(f"\n{GREEN}✓ Corrected JSONL written → {get_terminal_text(output_path)}{RESET}")
 
 # ── Interactive review loop ───────────────────────────────────────────────────
 def run(
@@ -305,7 +425,16 @@ def run(
     jsonl_path: str,
     output_path: str,
     log_path: Path,
+    checkpoint_identity: dict = None,
+    proper_nouns: frozenset = frozenset(),
+    alignment_prescan = None,
 ):
+    prescan_matches = {}
+    if (alignment_prescan is not None
+            and alignment_prescan.source_words == tuple(orig_match)
+            and alignment_prescan.threshold == threshold
+            and alignment_prescan.proper_nouns == frozenset(proper_nouns)):
+        prescan_matches = {sample.entry_idx: sample for sample in alignment_prescan.samples}
     total    = len(entries)
     auto_ct  = 0
     review_ct = 0
@@ -313,9 +442,9 @@ def run(
     print(f"\n{BOLD}Alexandria Compare{RESET}")
     print(f"  Entries      : {total}")
     print(f"  Auto-approve : similarity ≥ {threshold:.0%}  (override with --review-all)")
-    print(f"  Checkpoint   : {checkpoint_path(jsonl_path)}")
-    print(f"  Output       : {output_path}")
-    print(f"  Review log   : {log_path}")
+    print(f"  Checkpoint   : {get_terminal_text(checkpoint_path(jsonl_path))}")
+    print(f"  Output       : {get_terminal_text(output_path)}")
+    print(f"  Review log   : {get_terminal_text(log_path)}")
     if decisions:
         print(f"  Resuming     : {len(decisions)} entries already decided")
     print()
@@ -325,13 +454,15 @@ def run(
           f"— it uses the correct source words while keeping those markers.{RESET}")
     print()
 
+    generation = save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
+
     idx = 0
     while idx < len(entries):
         entry = entries[idx]
         key = str(idx)
 
         # Already decided in a prior session — restore cursor and skip display
-        if key in decisions:
+        if key in decisions and decisions[key]['action'] != 'skip':
             if 'cursor_after' in decisions[key]:
                 cursor = decisions[key]['cursor_after']
             idx += 1
@@ -340,57 +471,20 @@ def run(
         chunk_text  = entry.get('text', '')
         chunk_words = to_words(chunk_text)
 
-        start, end, ratio = find_best_match(chunk_words, orig_match, cursor)
-
-        # ── Re-anchor when alignment looks lost ────────────────────────────────
-        # Weak match within the narrow window? The cursor may be drifting past
-        # a section the audio skipped (or vice versa). Try a wider search ahead.
-        # If realign finds a confident jump, use it. If not, the chunk likely
-        # has no source equivalent — keep cursor where it is.
-        # Tier-0 entry is gated on `threshold` itself (not a hardcoded
-        # catastrophic-only bar) so recovery fires for every chunk that
-        # wouldn't otherwise be auto-approved. Tier-1 -> tier-2 escalation is
-        # the logical complement of tier-1's own acceptance bar, so every
-        # tier-1 rejection gets a tier-2 attempt. Kept identical to
-        # alexandria_preparer_rocm_compatible.py's annotate_chunks, which
-        # mirrors this same chain. See FIXED.md F-113/F-114.
-        no_source_match = False
-        if ratio < threshold and len(chunk_words) >= 5:
-            r_start, r_end, r_ratio = realign(chunk_words, orig_match, cursor)
-            if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
-                start, end, ratio = r_start, r_end, r_ratio
-            else:
-                # Last-resort full-source re-anchor. Catches catastrophic
-                # alignment loss caused by unusual EPUB ordering — e.g. when
-                # the front matter (J Novel Club credits, copyright, etc.)
-                # sits at the END of the source. auto_anchor sees credits
-                # match credits and parks the cursor at ~99% of the file;
-                # realign only searches forward, so it can never recover
-                # the prologue prose that's actually at char 0. find_anchor_position
-                # scans the WHOLE source and can jump backward.
-                a_start, a_end, a_ratio = find_anchor_position(
-                    chunk_words, orig_match, overlap_ratio_hint=0.6
-                )
-                # Require both an absolute high bar and a clear improvement
-                # over the local ratio, so we don't false-positive on
-                # epigraphs / audio-only material that legitimately has no
-                # source equivalent.
-                if a_ratio >= 0.6 and a_ratio > ratio + 0.4:
-                    t_start, t_end = trim_span_to_alignment(
-                        chunk_words, orig_match, a_start, a_end
-                    )
-                    if t_end > t_start:
-                        start, end = t_start, t_end
-                        ratio = _ratio(chunk_words, orig_match[start:end])
-                    else:
-                        start, end, ratio = a_start, a_end, a_ratio
-                    print(f"{DIM}  [entry {idx+1}] full-source re-anchor "
-                          f"jumped cursor to source word {start} "
-                          f"(ratio {ratio:.1%}){RESET}")
-                else:
-                    # Truly no good match anywhere — likely audio-only material
-                    # (chapter epigraph, intro/outro). Don't advance cursor.
-                    no_source_match = True
+        sample = prescan_matches.get(idx)
+        if sample is not None and sample.cursor == cursor and sample.chunk_words == tuple(chunk_words):
+            match = sample.match
+        else:
+            match = get_alignment_match(
+                chunk_words, orig_match, cursor, threshold, proper_nouns,
+                find_match=find_best_match, realign_match=realign,
+                find_anchor=find_anchor_position, trim_match=trim_span_to_alignment,
+            )
+        start, end, ratio, no_source_match, reanchored = match
+        if reanchored:
+            print(f"{DIM}  [entry {idx+1}] full-source re-anchor "
+                  f"jumped cursor to source word {start} "
+                  f"(ratio {ratio:.1%}){RESET}")
 
         if no_source_match:
             orig_span_display = "(no matching passage found in source within search range)"
@@ -411,9 +505,10 @@ def run(
                 'auto': True,
             }
             cursor = new_cursor
+            save_decision_checkpoint(jsonl_path, key, decisions[key], cursor, generation)
             auto_ct += 1
             if auto_ct % 200 == 0:
-                save_checkpoint(jsonl_path, decisions, cursor)
+                generation = save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
                 print(f"{DIM}  [{idx+1}/{total}] {auto_ct} auto-approved, checkpoint saved{RESET}")
             idx += 1
             continue
@@ -421,6 +516,9 @@ def run(
         # ── Show for review ───────────────────────────────────────────────────
         review_ct += 1
         a_col, b_col = color_diff(chunk_words, orig_span_words)
+
+        # Manual decisions/undo may change the cursor; recompute subsequent work.
+        prescan_matches.clear()
 
         # Build the merge preview: source words with LLM markers re-applied.
         # This is the option that preserves prosody (emphasis + pauses) while
@@ -438,15 +536,15 @@ def run(
         print(SEP)
         print(
             f"{BOLD}Entry {idx+1}/{total}{RESET}  "
-            f"{DIM}{entry.get('audio_filepath','?')}{RESET}  "
+            f"{DIM}{get_terminal_text(entry.get('audio_filepath','?'))}{RESET}  "
             f"{fmt_time(entry.get('start', 0))} → {fmt_time(entry.get('end', 0))}  "
             f"Match: {YELLOW}{ratio:.1%}{RESET}"
         )
         print(SEP)
-        print(f"{CYAN}ANNOTATED :{RESET}  {chunk_text}")
-        print(f"{CYAN}ORIGINAL  :{RESET}  {orig_span_display}")
+        print(f"{CYAN}ANNOTATED :{RESET}  {get_terminal_text(chunk_text)}")
+        print(f"{CYAN}ORIGINAL  :{RESET}  {get_terminal_text(orig_span_display)}")
         if merge_preview:
-            print(f"{CYAN}MERGED    :{RESET}  {merge_preview}  "
+            print(f"{CYAN}MERGED    :{RESET}  {get_terminal_text(merge_preview)}  "
                   f"{DIM}(original words + LLM prosody markers){RESET}")
         print()
         print(f"  {DIM}TRANS diff:{RESET}  {a_col}")
@@ -569,7 +667,7 @@ def run(
                 # state rather than the undone attempt.
                 n_log = remove_log_entries(log_path, set(to_remove))
 
-                save_checkpoint(jsonl_path, decisions, cursor)
+                generation = save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
                 tail = f" + {len(to_remove)-1} subsequent auto-approve(s)" if len(to_remove) > 1 else ""
                 log_note = f", {n_log} log record(s) removed" if n_log else ""
                 print(f"  {YELLOW}↶ Undone entry {target+1}{tail}{log_note}. Rewinding…{RESET}")
@@ -579,7 +677,7 @@ def run(
 
             elif choice == 'q':
                 cursor = new_cursor
-                save_checkpoint(jsonl_path, decisions, cursor)
+                generation = save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
                 write_output(entries, decisions, output_path)
                 n_done = sum(1 for d in decisions.values() if d['action'] != 'skip')
                 print(f"\n{YELLOW}Paused.{RESET}  {len(decisions)}/{total} entries seen, {n_done} decided.")
@@ -618,10 +716,11 @@ def run(
             })
 
         cursor = new_cursor
-        save_checkpoint(jsonl_path, decisions, cursor)
+        save_decision_checkpoint(jsonl_path, key, decisions[key], cursor, generation)
         idx += 1
 
     # ── All entries processed ─────────────────────────────────────────────────
+    save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
     write_output(entries, decisions, output_path)
 
     kept     = sum(1 for d in decisions.values() if d['action'] == 'keep' and not d.get('auto'))
@@ -650,13 +749,13 @@ def run(
     # Clean up checkpoint on full completion (no skips remaining)
     cp = checkpoint_path(jsonl_path)
     if skipped == 0 and cp.exists():
-        cp.unlink()
+        clear_checkpoint(jsonl_path)
         print(f"  Checkpoint removed (all entries decided).")
 
     if log_path.exists():
         with open(log_path, encoding='utf-8') as _lf:
             n_logged = sum(1 for _ in _lf)
-        print(f"  Review log : {log_path} ({n_logged} manual decisions)")
+        print(f"  Review log : {get_terminal_text(log_path)} ({n_logged} manual decisions)")
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main():
@@ -709,13 +808,18 @@ def main():
                              "(default: auto-keep them as-is since they're usually intro)")
     args = parser.parse_args()
 
+    if not 0 < args.threshold <= 1:
+        parser.error("--threshold must be greater than 0 and at most 1")
+
     jsonl_path  = args.jsonl
     output_path = args.output or str(
         Path(jsonl_path).with_name(Path(jsonl_path).stem + '_corrected.jsonl')
     )
     log_path = review_log_path(output_path)
 
-    print(f"Loading JSONL   : {jsonl_path}")
+    checkpoint_identity = get_checkpoint_identity(jsonl_path, args.source, output_path)
+
+    print(f"Loading JSONL   : {get_terminal_text(jsonl_path)}")
     entries = load_jsonl(jsonl_path)
     print(f"  {len(entries)} entries")
 
@@ -726,11 +830,12 @@ def main():
     )
     if reset_indices:
         apply_targeted_reset(
-            jsonl_path, output_path, log_path, reset_indices, args.also_clear_log
+            jsonl_path, output_path, log_path, reset_indices, args.also_clear_log,
+            checkpoint_identity,
         )
         sys.exit(0)
 
-    print(f"Loading source  : {args.source}")
+    print(f"Loading source  : {get_terminal_text(args.source)}")
     source_text = load_source(args.source)
     # Strip EPUB OCR digit-in-word glitches ('thos1e' → 'those', 'Kars1a' →
     # 'Karsa') before tokenisation. The ASR-derived chunks never have these
@@ -746,12 +851,11 @@ def main():
     # the boundary acceptance bar when the source-side token is a known name —
     # critical for Japanese romanization ASR mistranscriptions like
     # 'coodo'↔'kudou' or 'youth'↔'yurie' that sit far below the default 0.55.
-    # Stored on the alignment module so every helper there sees the same value.
-    _alignment._PROPER_NOUNS = _build_proper_nouns(source_text)
-    if _alignment._PROPER_NOUNS:
-        sample = ', '.join(sorted(_alignment._PROPER_NOUNS)[:8])
-        more = f' +{len(_alignment._PROPER_NOUNS) - 8} more' if len(_alignment._PROPER_NOUNS) > 8 else ''
-        print(f"  {len(_alignment._PROPER_NOUNS)} recurring proper nouns ({sample}{more})")
+    proper_nouns = _build_proper_nouns(source_text)
+    if proper_nouns:
+        sample = ', '.join(sorted(proper_nouns)[:8])
+        more = f' +{len(proper_nouns) - 8} more' if len(proper_nouns) > 8 else ''
+        print(f"  {len(proper_nouns)} recurring proper nouns ({get_terminal_text(sample)}{more})")
 
     # Build parallel word lists: display (original form) and match (normalised).
     #
@@ -765,45 +869,41 @@ def main():
     # disappear from ORIGINAL when trim_span_to_alignment runs. Loss of the
     # hyphen in display is fine for TTS training (the audio speaks the parts
     # as separate words with a slight pause anyway).
-    source_tokens = split_compounds(source_text)
-    orig_display, orig_match = [], []
-    for w in source_tokens:
-        m = normalize(w)
-        if not m:
-            continue   # pure punctuation token
-        orig_display.append(w)
-        orig_match.append(m)
+    orig_display, orig_match = get_source_word_lists(source_text)
     print(f"  {len(orig_display):,} words")
 
     # Checkpoint
     if args.reset:
         cp = checkpoint_path(jsonl_path)
-        if cp.exists():
-            cp.unlink()
+        if cp.exists() or checkpoint_journal_path(jsonl_path).exists():
+            clear_checkpoint(jsonl_path)
             print("Checkpoint cleared — starting fresh.")
         if log_path.exists():
             log_path.unlink()
             print("Review log cleared — starting fresh.")
         decisions, cursor = {}, 0
     else:
-        saved     = load_checkpoint(jsonl_path)
+        saved     = load_checkpoint(jsonl_path, checkpoint_identity)
         decisions = saved.get("decisions", {})
         cursor    = saved.get("cursor", 0)
         if decisions:
             print(f"Resuming checkpoint: {len(decisions)} entries already decided, "
                   f"cursor at source word {cursor}")
 
+    fresh_session = not decisions
+    anchor_entry_idx = 0
+
     # ── Initial alignment: figure out where in the source to start ────────────
     # Skip this whole block if we're resuming a session.
-    if not decisions:
+    if fresh_session:
         if args.source_start is not None:
             cursor = max(0, min(args.source_start, len(orig_match)))
             preview = ' '.join(orig_display[cursor:cursor+12])
             print(f"\nStarting at source word {cursor} (--source-start)")
-            print(f"  Source: \"{preview}...\"")
+            print(f"  Source: \"{get_terminal_text(preview)}...\"")
 
         elif args.source_start_text:
-            print(f"\nSearching source for: \"{args.source_start_text}\" ...")
+            print(f"\nSearching source for: \"{get_terminal_text(args.source_start_text)}\" ...")
             pos = find_text_in_source(args.source_start_text, orig_match)
             if pos < 0:
                 sys.exit(f"{RED}Could not confidently locate that text in the source.{RESET}\n"
@@ -811,7 +911,7 @@ def main():
             cursor = pos
             preview = ' '.join(orig_display[cursor:cursor+12])
             print(f"  ✓ Found at source word {cursor}")
-            print(f"  Source: \"{preview}...\"")
+            print(f"  Source: \"{get_terminal_text(preview)}...\"")
 
         elif args.no_auto_anchor:
             cursor = 0
@@ -824,10 +924,11 @@ def main():
             anchor_idx, anchor_pos, anchor_ratio = auto_anchor(entries, orig_match)
 
             if anchor_ratio > 0:
+                anchor_entry_idx = anchor_idx
                 preview = ' '.join(orig_display[anchor_pos:anchor_pos+12])
                 print(f"  ✓ JSONL entry {anchor_idx} anchors at source word {anchor_pos} "
                       f"({YELLOW}{anchor_ratio:.1%}{RESET} match)")
-                print(f"  Source preview: \"{preview}...\"")
+                print(f"  Source preview: \"{get_terminal_text(preview)}...\"")
                 cursor = anchor_pos
 
                 # Handle entries before the anchor: audio-only intro material
@@ -848,7 +949,8 @@ def main():
                                 'cursor_after': cursor,
                                 'pre_anchor':   True,
                             }
-                        save_checkpoint(jsonl_path, decisions, cursor)
+                        save_checkpoint(jsonl_path, decisions, cursor,
+                                        checkpoint_identity)
                         print(f"     ✓ Auto-kept as-is "
                               f"({DIM}use --review-preanchor to review them individually{RESET})")
             else:
@@ -864,11 +966,15 @@ def main():
     # usually because the audiobook was narrated from a different translation
     # or edition than the EPUB. Flag it now so the user can swap sources
     # instead of grinding through 100 manual edits to find out.
-    if not decisions:
+    alignment_prescan = None
+    if fresh_session:
         print(f"\n🔍 Estimating source/audio alignment quality...")
-        avg, n_sampled, low_ct, review_ct = estimate_alignment_quality(
-            entries, orig_match, cursor, threshold=args.threshold
+        alignment_prescan = get_alignment_quality_prescan(
+            entries, orig_match, cursor, threshold=args.threshold,
+            start_entry_idx=anchor_entry_idx,
+            proper_nouns=proper_nouns,
         )
+        avg, n_sampled, low_ct, review_ct = alignment_prescan.metrics
         if n_sampled >= 10:
             pct_low = low_ct / n_sampled
             pct_review = review_ct / n_sampled
@@ -903,10 +1009,13 @@ def main():
         decisions    = decisions,
         cursor       = cursor,
         threshold    = args.threshold,
+        checkpoint_identity = checkpoint_identity,
+        proper_nouns = proper_nouns,
         review_all   = args.review_all,
         jsonl_path   = jsonl_path,
         output_path  = output_path,
         log_path     = log_path,
+        alignment_prescan = alignment_prescan,
     )
 
 if __name__ == "__main__":

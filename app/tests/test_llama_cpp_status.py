@@ -13,6 +13,7 @@ Setup tab has been wrong on every load since the project moved to llama.cpp.
 import io
 import json
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import lmstudio_settings as ls
@@ -88,14 +89,15 @@ class LlamaCppStatusTests(unittest.TestCase):
 
         def counting(url, timeout=None):
             calls.append(url)
-            raise OSError("404")
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
         with patch("urllib.request.urlopen", counting):
             for _ in range(5):
                 self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:3001/v1", "m"))
         self.assertEqual(1, len(calls), calls)
 
     def test_a_remembered_miss_expires_and_a_real_server_is_seen_again(self):
-        with patch("urllib.request.urlopen", fake_props(None)):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError(
+                "http://127.0.0.1:8090/props", 404, "Not Found", {}, None)):
             self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b"))
         with ls._props_miss_lock:
             ls._props_miss["http://127.0.0.1:8090"] -= ls.PROPS_MISS_TTL_SECONDS + 1
@@ -134,18 +136,22 @@ class DispatchTests(unittest.TestCase):
     def test_lm_studio_is_still_asked_when_the_endpoint_is_not_llama_cpp(self):
         sentinel = {"available": True, "loaded": True, "from": "lms"}
         with patch.object(ls, "get_llama_cpp_status", return_value=None), \
+             patch.object(ls, "get_lmstudio_endpoint_status", return_value={"runtime": "lmstudio"}), \
+             patch.object(ls, "get_lmstudio_management_binding", return_value=(True, 1234, "verified")), \
              patch.object(ls, "get_lmstudio_status", return_value=sentinel) as lms:
             out = ls.get_current_status("local", "http://127.0.0.1:1234/v1", "m")
-        self.assertEqual(sentinel, out)
+        self.assertEqual(sentinel, {key: out[key] for key in sentinel})
         lms.assert_called_once()
 
     def test_a_remote_endpoint_is_untouched_by_this_change(self):
         sentinel = {"remote": True}
         with patch.object(ls, "is_remote_llm", return_value=True), \
+             patch.object(ls, "get_lmstudio_endpoint_status", return_value={"runtime": "lmstudio"}), \
+             patch.object(ls, "get_lmstudio_management_binding", return_value=(True, 1234, "verified")), \
              patch.object(ls, "get_remote_lmstudio_status", return_value=sentinel), \
              patch.object(ls, "get_llama_cpp_status", return_value=None) as native:
             out = ls.get_current_status("remote", "https://x/v1", "m", "alias")
-        self.assertEqual(sentinel, out)
+        self.assertEqual(sentinel, {key: out[key] for key in sentinel})
         native.assert_called_once()
 
 

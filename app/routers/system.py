@@ -42,6 +42,9 @@ from core import (
     _warn_corrupted_json,
     check_disk_space,
     claim_gpu_task,
+    _run_owned_background_task,
+    reserve_background_task,
+    release_gpu_task_claim,
     process_state,
     project_manager,
 )
@@ -148,22 +151,31 @@ def _redact_config_secrets(config: dict) -> dict:
     return safe
 
 
+def get_api_key_endpoint(base_url):
+    """Identify the endpoint to which a stored credential belongs."""
+    return (base_url or "").strip().rstrip("/")
+
+
 def _resolve_redacted_api_key(api_key, base_url, existing=None):
     """The Setup tab's key field holds the GET sentinel for a stored key, and
     the Test / Load-models buttons send that field as-is. Map the sentinel
-    back to the stored key of the profile whose base_url matches (falling
-    back to the active profile), so a real cloud key keeps working there."""
+    back to the stored key of the profile whose base_url matches, so a
+    credential is never inherited by an unrelated endpoint."""
     if api_key != _REDACTED_SECRET:
         return api_key
     existing = existing if existing is not None else load_app_config(CONFIG_PATH)
-    wanted = (base_url or "").strip().rstrip("/")
+    wanted = get_api_key_endpoint(base_url)
     candidates = [existing.get(s) for s in ("llm_local", "llm_remote", "llm")]
     candidates = [c for c in candidates if isinstance(c, dict)]
     for profile in candidates:
-        if (profile.get("base_url") or "").strip().rstrip("/") == wanted and profile.get("api_key"):
+        if wanted and get_api_key_endpoint(profile.get("base_url")) == wanted and profile.get("api_key"):
             return profile["api_key"]
-    active = get_active_llm_config(existing) if candidates else {}
-    return active.get("api_key") or "local"
+    raise HTTPException(status_code=400, detail="Enter an API key for the changed endpoint, or clear the key field.")
+
+
+def get_config_local_profile(config: dict):
+    """Read the local profile, including the legacy single-profile shape."""
+    return get_active_llm_config({**config, "llm_mode": "local"})
 
 
 def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
@@ -171,21 +183,26 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
     updates = {}
     for section in ("llm", "llm_local", "llm_remote", "tts"):
         incoming = getattr(config, section, None)
-        saved = (existing or {}).get(section)
-        if (incoming is not None and isinstance(saved, dict)
+        saved = (get_config_local_profile(existing or {}) if section == "llm_local"
+                 else (existing or {}).get(section))
+        if (incoming is not None
                 and getattr(incoming, "api_key", None) == _REDACTED_SECRET):
+            saved = saved if isinstance(saved, dict) else {}
+            endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
+            if not endpoint or endpoint != get_api_key_endpoint(saved.get("base_url")):
+                raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
             updates[section] = incoming.model_copy(update={"api_key": saved.get("api_key", "")})
     return config.model_copy(update=updates, deep=True) if updates else config
 
 
 @router.get("/api/runs")
 async def get_run_history(limit: int = 100):
-    return {"runs": list_runs(RUN_HISTORY_DIR, limit=limit)}
+    return {"runs": await asyncio.to_thread(list_runs, RUN_HISTORY_DIR, limit=limit)}
 
 
 @router.get("/api/runs/{run_id}")
 async def get_run_history_entry(run_id: str):
-    record = get_run(RUN_HISTORY_DIR, run_id)
+    record = await asyncio.to_thread(get_run, RUN_HISTORY_DIR, run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return record
@@ -193,12 +210,10 @@ async def get_run_history_entry(run_id: str):
 
 @router.get("/api/status/version")
 async def get_version():
-    """What git commit is this running process actually executing.
+    """Current checkout/build identity, including observed uncommitted edits.
 
-    A server started before a code change lands keeps running the old code
-    with no visible sign of it - this makes that checkable directly instead
-    of discovering it indirectly (e.g. an expected new response field just
-    not showing up).
+    Loaded Python modules can predate checkout changes; this is not a
+    guarantee that a running process has reloaded every modified module.
     """
     return get_runtime_info(ROOT_DIR)
 
@@ -408,7 +423,7 @@ async def lmstudio_status():
     ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
     status = dict(await asyncio.to_thread(
         get_current_status, llm_mode, base_url, model_name, ssh_alias,
-        use_cache=True,
+        use_cache=True, api_key=llm_cfg.get("api_key"), cache_local=True,
     ))
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
@@ -436,7 +451,7 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     defaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.
     LM Studio on Thunder) are driven over SSH via the configured host alias."""
     full_cfg = load_app_config(CONFIG_PATH)
-    cfg = full_cfg.get("llm", {})
+    cfg = get_active_llm_config(full_cfg)
     model_name = cfg.get("model_name")
     if not model_name:
         raise HTTPException(status_code=400, detail="No LLM model configured")
@@ -444,16 +459,33 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     # Reloading the model is a real VRAM operation - keep it from racing any
     # other GPU_TASKS member (review/audio/script/etc.) holding VRAM against
     # the same model. See FINDINGS.md F-029.
-    claim_gpu_task("lmstudio_optimize")
-    try:
+    claim_id = reserve_background_task("lmstudio_optimize")
+
+    def _get_reload_response(message):
+        status = dict(get_current_status(full_cfg.get("llm_mode", "local"),
+            cfg.get("base_url", ""), model_name,
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key")))
+        if (not status.get("management_verified") or not status.get("loaded")
+                or status.get("optimized") is not req.enable):
+            raise HTTPException(status_code=502, detail="CLI reported reload, but fresh endpoint status did not verify the requested settings")
+        status["model"] = model_name
+        status["message"] = message
+        if is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
+            status["remote"] = True
+        return status
+
+    def _apply_settings():
+        ownership = get_current_status(full_cfg.get("llm_mode", "local"),
+            cfg.get("base_url", ""), model_name,
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"))
+        if not ownership.get("management_verified"):
+            raise HTTPException(status_code=400, detail="Settings were not applied: " + ownership.get(
+                "management_reason", "endpoint management ownership is unverified"))
         if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
-            ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+            ok, msg = apply_lmstudio_settings(model_name, ideal=req.enable)
             if not ok:
                 raise HTTPException(status_code=502, detail=msg)
-            status = await asyncio.to_thread(get_lmstudio_status, model_name)
-            status["model"] = model_name
-            status["message"] = msg
-            return status
+            return _get_reload_response(msg)
 
         # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
         ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
@@ -461,19 +493,20 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
             raise HTTPException(status_code=400, detail=(
                 "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
                 "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-        try:
-            remote_port = urlparse(cfg.get("base_url", "")).port or 1234
-        except ValueError as exc:
-            raise HTTPException(status_code=400,
-                                detail="Remote LLM base_url has an invalid port") from exc
-        ok, msg = await asyncio.to_thread(
-            apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable, remote_port)
+        ok, msg = apply_remote_lmstudio_settings(ssh_alias, model_name, req.enable, ownership["management_port"])
         if not ok:
             log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
             raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
-        return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
-    finally:
-        process_state["lmstudio_optimize"]["running"] = False
+        return _get_reload_response(msg)
+
+    try:
+        return await asyncio.to_thread(
+            _run_owned_background_task, "lmstudio_optimize", claim_id, _apply_settings)
+    except BaseException:
+        # Request cancellation releases an unstarted reservation only. An active
+        # CPU worker retains ownership until its reload and status read finish.
+        release_gpu_task_claim("lmstudio_optimize", claim_id, pending_only=True)
+        raise
 
 
 def _run_llm_test(profile: dict) -> dict:
@@ -524,9 +557,9 @@ def _run_llm_test(profile: dict) -> dict:
             "is_remote": not is_local_llm_endpoint(base_url)}
 
 
-class LlmModelsRequest(BaseModel):
-    base_url: str
+class LlmModelsRequest(LLMConfig):
     api_key: str = "local"
+    model_name: str = ""
 
 
 @router.post("/api/llm/models")
@@ -537,11 +570,13 @@ async def llm_models(request: LlmModelsRequest):
     url = _normalize_openai_base_url(request.base_url)
     if not url:
         raise HTTPException(status_code=400, detail="base_url is required")
+    url = _normalize_and_validate_llm(request).base_url
     def fetch():
         from llm_provider import make_llm_client
-        client = make_llm_client({"base_url": url,
-                                  "api_key": _resolve_redacted_api_key(request.api_key, url) or "local"},
-                                 timeout=10)
+        profile = request.model_dump()
+        profile["base_url"] = url
+        profile["api_key"] = _resolve_redacted_api_key(request.api_key, url) or "local"
+        client = make_llm_client(profile, timeout=10, respect_profile_timeout=False)
         return sorted({m.id for m in client.models.list().data})
     try:
         return {"models": await asyncio.to_thread(fetch)}
@@ -562,7 +597,23 @@ async def llm_test(profile: Optional[LLMConfig] = None):
         profile_data = cfg
     if not profile_data.get("base_url"):
         raise HTTPException(status_code=400, detail="No LLM base_url configured")
-    return await asyncio.to_thread(_run_llm_test, profile_data)
+    state = process_state["llm_test"]
+    claim_id = claim_gpu_task("llm_test")
+
+    def probe():
+        try:
+            return _run_llm_test(profile_data)
+        finally:
+            release_gpu_task_claim("llm_test", claim_id)
+
+    # Keep the worker alive if the HTTP caller disconnects: its completion
+    # still occupies the GPU slot until the actual probe returns.
+    try:
+        worker = asyncio.create_task(asyncio.to_thread(probe))
+    except BaseException:
+        release_gpu_task_claim("llm_test", claim_id)
+        raise
+    return await asyncio.shield(worker)
 
 # Endpoints
 
@@ -698,7 +749,7 @@ async def get_config():
     # seeding the local profile from the active section.
     config.setdefault("llm_mode", "local")
     if not config.get("llm_local"):
-        config["llm_local"] = dict(config.get("llm", {}))
+        config["llm_local"] = dict(get_config_local_profile(config))
     config.setdefault("llm_remote", None)
     config.setdefault("llm_remote_ssh", None)
 
@@ -734,7 +785,16 @@ async def get_config():
     # click. Not a config field: AppConfig has no such key, so a save drops it.
     config["capabilities"] = {"pause_resume": pause_resume_supported()}
 
-    return _redact_config_secrets(config)
+    safe = _redact_config_secrets(config)
+    # The public local placeholder was synthesized, not loaded from storage;
+    # sending a saved-key sentinel here would make first setup unsaveable.
+    if not loaded_config.get("llm"):
+        safe["llm"]["api_key"] = default_config["llm"]["api_key"]
+        safe["llm"]["api_key_configured"] = False
+        if not loaded_config.get("llm_local"):
+            safe["llm_local"]["api_key"] = default_config["llm"]["api_key"]
+            safe["llm_local"]["api_key_configured"] = False
+    return safe
 
 @router.get("/api/default_prompts")
 async def get_default_prompts():
@@ -742,6 +802,7 @@ async def get_default_prompts():
     pass1_system_prompt, pass1_user_prompt = load_segment_prompts()
     pass3_system_prompt, pass3_user_prompt = load_instruct_prompts()
     result = {
+        "generation": GenerationConfig().model_dump(),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "pass1_system_prompt": pass1_system_prompt,
@@ -804,54 +865,58 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
 
 @router.post("/api/config")
 async def save_config(config: AppConfig):
-    normalized_config = config.model_copy(deep=True)
+    def _save():
+        normalized_config = config.model_copy(deep=True)
 
-    # Normalize/validate whichever profiles were sent. The local/remote profiles
-    # are persisted side-by-side so toggling never loses the other one's settings.
-    if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
-        normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
-    if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
-        normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
+        # Normalize/validate whichever profiles were sent. The local/remote profiles
+        # are persisted side-by-side so toggling never loses the other one's settings.
+        if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
+            normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
+        if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
+            normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
 
-    # Pick the active profile from the toggle, then mirror it into `llm` - the
-    # section every consumer (review/generate/personas/nicknames) reads.
-    active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
-              else normalized_config.llm_local)
-    if active is None:
-        raise HTTPException(status_code=400, detail=(
-            f"llm_mode is '{normalized_config.llm_mode}' but no llm_{normalized_config.llm_mode} "
-            f"profile was provided - refusing to save a config where llm_mode "
-            f"and the active llm profile would disagree."))
-    normalized_config.llm = _normalize_and_validate_llm(active)
-
-    with file_lock(CONFIG_PATH):
-        existing = load_app_config_result(CONFIG_PATH)
-        normalized_config = _restore_redacted_secrets(normalized_config, existing.data)
-        normalized_config = keep_unsent_fields(normalized_config, existing.data)
-        # The active attribution preset decides the variant the run uses;
-        # derive the generation key from it (after the merge, so a preset the
-        # client did not resend is still found) so the CLI agrees with Setup,
-        # and refuse a preset whose template lost its placeholders.
-        from attribution_prompt_variants import resolve_attribution_preset, validate_preset_texts
-        try:
-            variant, texts, _ = resolve_attribution_preset(normalized_config.model_dump())
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        problem = validate_preset_texts(variant, texts)
-        if problem:
-            raise HTTPException(status_code=400, detail=problem)
-        generation = normalized_config.generation or GenerationConfig()
-        normalized_config.generation = generation.model_copy(
-            update={"three_pass_attribute_prompt_variant": variant})
-        if existing.needs_backup:
+        # Pick the active profile from the toggle, then mirror it into `llm` - the
+        # section every consumer (review/generate/personas/nicknames) reads.
+        active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
+                  else normalized_config.llm_local)
+        if active is None:
+            raise HTTPException(status_code=400, detail=(
+                f"llm_mode is '{normalized_config.llm_mode}' but no llm_{normalized_config.llm_mode} "
+                f"profile was provided - refusing to save a config where llm_mode "
+                f"and the active llm profile would disagree."))
+        with file_lock(CONFIG_PATH):
+            existing = load_app_config_result(CONFIG_PATH)
+            normalized_config = _restore_redacted_secrets(normalized_config, existing.data)
+            active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
+                      else normalized_config.llm_local)
+            normalized_config.llm = _normalize_and_validate_llm(active)
+            normalized_config = keep_unsent_fields(normalized_config, existing.data)
+            # The active attribution preset decides the variant the run uses;
+            # derive the generation key from it (after the merge, so a preset the
+            # client did not resend is still found) so the CLI agrees with Setup,
+            # and refuse a preset whose template lost its placeholders.
+            from attribution_prompt_variants import resolve_attribution_preset, validate_preset_texts
             try:
-                backup_damaged_app_config(CONFIG_PATH)
-            except OSError as exc:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Could not preserve damaged config before saving: {exc}",
-                ) from exc
-        atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+                variant, texts, _ = resolve_attribution_preset(normalized_config.model_dump())
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            problem = validate_preset_texts(variant, texts)
+            if problem:
+                raise HTTPException(status_code=400, detail=problem)
+            generation = normalized_config.generation or GenerationConfig()
+            normalized_config.generation = generation.model_copy(
+                update={"three_pass_attribute_prompt_variant": variant})
+            if existing.needs_backup:
+                try:
+                    backup_damaged_app_config(CONFIG_PATH)
+                except OSError as exc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Could not preserve damaged config before saving: {exc}",
+                    ) from exc
+            atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+
+    await asyncio.to_thread(_save)
     project_manager.invalidate_config_cache()
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None

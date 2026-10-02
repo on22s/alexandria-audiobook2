@@ -45,6 +45,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "unseen_books" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
@@ -53,9 +55,15 @@ OUT="$REPO/ab_test_runtime/unseen_books"
 BACKUP="$L/config.json.unseen_backup"
 mkdir -p "$OUT"
 cd "$REPO/app"
+source "$REPO/run_chains/lib/config_backup.sh"
+restore_config_backup "$BACKUP" "$REPO/app/config.json" || exit 1
 
-restore() { [ -f "$BACKUP" ] && command cp -f "$BACKUP" "$REPO/app/config.json"; }
-trap restore EXIT INT TERM
+restore() {
+    restore_config_backup "$BACKUP" "$REPO/app/config.json" || exit 1
+}
+trap restore EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 
 # START THE SERVER RATHER THAN COMPLAINING ABOUT ITS ABSENCE. This aborted
@@ -74,7 +82,7 @@ if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
         echo "ABORT: server started but is not serving qwen3 on 8090"; exit 1
     fi
 fi
-command cp -f "$REPO/app/config.json" "$BACKUP"
+save_config_backup "$REPO/app/config.json" "$BACKUP" || exit 1
 "$PY" - <<'PYEOF'
 import json
 p = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json"
@@ -86,12 +94,18 @@ json.dump(d, open(p, "w", encoding="utf-8"), indent=2)
 print("config -> qwen3-14b")
 PYEOF
 
+failed_books=0; total_books=0; failed_names=""
 for book in mushoku18 grimgar06 mushoku23 arc4_volume10wn; do
+    total_books=$((total_books + 1))
     echo ""
     echo "=== $book  $(date -u +%FT%TZ) ==="
     timeout 43200 "$PY" -u generate_script.py "$IN/$book.txt" \
         --output "$OUT/$book.json" > "$L/unseen_$book.log" 2>&1
     rc=$?
+    if [ "$rc" -ne 0 ]; then
+        failed_books=$((failed_books + 1))
+        failed_names="$failed_names $book"
+    fi
     echo "  rc=$rc"
     grep -E "Stripped publisher|Stripped [0-9]+ characters|Split into" "$L/unseen_$book.log" \
         | sed 's/^/  /' | cut -c1-95
@@ -102,4 +116,9 @@ for book in mushoku18 grimgar06 mushoku23 arc4_volume10wn; do
     grep -E "^Error" "$L/unseen_$book.log" | tail -2 | sed 's/^/  /' | cut -c1-95
 done
 echo ""
+if [ "$failed_books" -gt 0 ]; then
+    echo "UNSEEN BOOKS INCOMPLETE $(date -u +%FT%TZ): $failed_books of $total_books failed"
+    echo "  failed: $failed_names"
+    exit 1
+fi
 echo "UNSEEN BOOKS DONE $(date -u +%FT%TZ)"

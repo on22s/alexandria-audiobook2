@@ -48,14 +48,56 @@ def run(command, cwd=REPO_DIR):
     return subprocess.run(command, cwd=cwd, capture_output=True, text=True)
 
 
+def get_head_checks(repository, head_sha):
+    """Read every check-run page and the latest legacy status per context."""
+    checks = []
+    for resource in ("check-runs", "statuses"):
+        result = run(["gh", "api", f"repos/{repository}/commits/{head_sha}/{resource}",
+                      "--paginate", "--slurp"])
+        if result.returncode:
+            raise RuntimeError(f"could not inspect head {resource}: {result.stderr.strip()}")
+        try:
+            pages = json.loads(result.stdout)
+            if not isinstance(pages, list) or not pages:
+                raise ValueError("expected a nonempty array of response pages")
+            seen_contexts = set()
+            for page in pages:
+                if resource == "check-runs":
+                    if not isinstance(page, dict):
+                        raise ValueError("expected a check-runs response object")
+                    records = page.get("check_runs")
+                else:
+                    records = page
+                if not isinstance(records, list) or any(not isinstance(item, dict) for item in records):
+                    raise ValueError("expected an array of check/status objects")
+                if resource == "check-runs":
+                    checks.extend(records)
+                    continue
+                # GitHub returns statuses newest first, including across pages.
+                for item in records:
+                    context = item.get("context")
+                    if not isinstance(context, str) or not context:
+                        raise ValueError("legacy status is missing its context")
+                    if context in seen_contexts:
+                        continue
+                    seen_contexts.add(context)
+                    state = str(item.get("state") or "").upper()
+                    checks.append({"context": context,
+                                   "status": "COMPLETED" if state == "SUCCESS" else "PENDING",
+                                   "conclusion": state})
+        except (ValueError, TypeError) as error:
+            raise RuntimeError(f"could not decode head {resource}: {error}") from error
+    return checks
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", help="GitHub owner/repository; defaults to origin")
     args = parser.parse_args(argv)
 
-    dirty = run(["git", "status", "--porcelain", "--untracked-files=no"])
+    dirty = run(["git", "status", "--porcelain", "--untracked-files=all"])
     if dirty.returncode or dirty.stdout.strip():
-        print("Refusing: tracked worktree changes are present.", file=sys.stderr)
+        print("Refusing: tracked or untracked worktree changes are present.", file=sys.stderr)
         return 1
 
     with tempfile.TemporaryDirectory(prefix="alexandria-ready-") as tmp:
@@ -87,14 +129,11 @@ def main(argv=None):
         print(f"Refusing: could not inspect pull request: {view.stderr.strip()}", file=sys.stderr)
         return 1
     pr = json.loads(view.stdout)
-    checks = run([
-        "gh", "api", f"repos/{repository}/commits/{pr['headRefOid']}/check-runs",
-        "--jq", ".check_runs",
-    ])
-    if checks.returncode:
-        print(f"Refusing: could not inspect head checks: {checks.stderr.strip()}", file=sys.stderr)
+    try:
+        pr["statusCheckRollup"] = get_head_checks(repository, pr["headRefOid"])
+    except RuntimeError as error:
+        print(f"Refusing: {error}.", file=sys.stderr)
         return 1
-    pr["statusCheckRollup"] = json.loads(checks.stdout)
     errors = get_readiness_errors(pr, head.stdout.strip())
     if errors:
         for error in errors:

@@ -25,6 +25,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.provenance import provenance  # noqa: E402
+from gate_campaign import get_campaign_gate_evidence  # noqa: E402
 
 
 def sha256(path, chunk=1 << 20):
@@ -41,8 +42,7 @@ def gate_score(adapter_name, root=REPO):
         path = os.path.join(root, "ab_test_runtime", "experiments",
                             pattern % adapter_name)
         if os.path.exists(path):
-            with open(path, encoding="utf-8") as handle:
-                doc = json.load(handle)
+            doc = get_campaign_gate_evidence(path)
             return {"artifact": os.path.basename(path),
                     "median_ecapa": doc.get("median_ecapa"),
                     "passed": doc.get("passed")}

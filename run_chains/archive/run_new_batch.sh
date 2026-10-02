@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
-PREP=${PREP:-"$SCRIPT_DIR/alexandria_preparer_rocm_compatible.py"}
-PY=${PY:-"$SCRIPT_DIR/../alexandria-audiobook.git/app/env/bin/python"}
-export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
+REPO=$(cd "$SCRIPT_DIR/../.." && pwd)
+source "$SCRIPT_DIR/../lib/queue.sh"
+PREP=${PREP:-"$REPO/alexandria_preparer_rocm_compatible.py"}
+PY=${PY:-$(resolve_python "$REPO")} || { echo "No project interpreter found" >&2; exit 1; }
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 MODEL=${MODEL:-Qwen2.5-14B-Instruct-Q6_K.gguf}
 NEW_DIR=${NEW_DIR:?Set NEW_DIR to the directory containing paired WAV/EPUB files}
 OUT_BASE=${OUT_BASE:?Set OUT_BASE to the output directory}
@@ -19,7 +21,7 @@ run_narrator() {
   mkdir -p "$OUT_BASE/$stem"
 
   # First attempt
-  $PY $PREP --audio "$audio" --model "$MODEL" --output "$output" --source "$epub"
+  "$PY" "$PREP" --audio "$audio" --model "$MODEL" --output "$output" --source "$epub"
   local exit_code=$?
 
   # Auto-resume loop: retry up to 5 times on crash, using --resume to skip completed work
@@ -27,7 +29,7 @@ run_narrator() {
   while [ $exit_code -ne 0 ] && [ $attempt -le 5 ]; do
     echo "[$(date)] WARNING: $stem crashed (exit $exit_code), auto-resuming (attempt $attempt/5)..."
     sleep 5
-    $PY $PREP --audio "$audio" --model "$MODEL" --output "$output" --source "$epub" --resume
+    "$PY" "$PREP" --audio "$audio" --model "$MODEL" --output "$output" --source "$epub" --resume
     exit_code=$?
     attempt=$((attempt + 1))
   done

@@ -22,6 +22,8 @@ The convention is detected per book rather than assumed, because assuming one
 is how a book with 6,925 quote marks in its source was recorded here as "a book
 that does not mark dialogue".
 """
+from bisect import bisect_left
+from collections import deque
 import re
 
 PAIRED = [
@@ -45,7 +47,7 @@ def _paired_spans(text):
             # of the book.
             positions = [m.start() for m in re.finditer(re.escape(opener), text)]
             for start, end in zip(positions[0::2], positions[1::2]):
-                if not 2 < end - start < 2000:
+                if not 1 < end - start < 2000:
                     continue
                 # A SPAN MAY NOT CROSS A PARAGRAPH BREAK. Straight quotes are
                 # identical opening and closing, so they can only be paired by
@@ -62,7 +64,7 @@ def _paired_spans(text):
                 spans.append((start + 1, end))
         else:
             for match in re.finditer(
-                    re.escape(opener) + r"([^" + re.escape(closer) + r"]{2,2000})"
+                    re.escape(opener) + r"([^" + re.escape(closer) + r"]{1,2000})"
                     + re.escape(closer), text):
                 spans.append((match.start(1), match.end(1)))
     return spans
@@ -89,15 +91,18 @@ def detect_convention(text):
 
 def spoken_spans(text, convention=None):
     """-> sorted, non-overlapping (start, end) offsets of spoken text."""
-    convention = convention or detect_convention(text)
+    if convention is None:
+        convention = detect_convention(text)
     if convention is None:
         return []
     if convention == "paired_quotes":
         spans = _paired_spans(text)
     elif convention == "dash_lines":
         spans = [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
-    else:
+    elif convention == "label_lines":
         spans = [(m.start(2), m.end(2)) for m in LABEL_LINE.finditer(text)]
+    else:
+        raise ValueError(f"Unknown dialogue convention: {convention!r}")
     spans.sort()
     merged = []
     for start, end in spans:
@@ -133,7 +138,48 @@ def _normalize_with_offsets(value):
     return "".join(characters), offsets
 
 
-def mark_entries(entries, source_text, convention=None):
+def get_source_match_positions(source, needles):
+    """Index all exact pattern occurrences in one shared source traversal."""
+    edges, failures, outputs, terminal = [{}], [0], [0], [None]
+    positions = {needle: [] for needle in needles if needle}
+    for needle in positions:
+        node = 0
+        for character in needle:
+            child = edges[node].get(character)
+            if child is None:
+                child = len(edges)
+                edges[node][character] = child
+                edges.append({})
+                failures.append(0)
+                outputs.append(0)
+                terminal.append(None)
+            node = child
+        terminal[node] = needle
+    queue = deque(edges[0].values())
+    while queue:
+        node = queue.popleft()
+        for character, child in edges[node].items():
+            fallback = failures[node]
+            while fallback and character not in edges[fallback]:
+                fallback = failures[fallback]
+            failures[child] = edges[fallback].get(character, 0)
+            failed = failures[child]
+            outputs[child] = failed if terminal[failed] is not None else outputs[failed]
+            queue.append(child)
+    node = 0
+    for index, character in enumerate(source):
+        while node and character not in edges[node]:
+            node = failures[node]
+        node = edges[node].get(character, 0)
+        matched = node if terminal[node] is not None else outputs[node]
+        while matched:
+            needle = terminal[matched]
+            positions[needle].append(index - len(needle) + 1)
+            matched = outputs[matched]
+    return positions
+
+
+def mark_entries(entries, source_text, convention=None, speaker_names=None):
     """-> a NEW list of entries carrying `spoken` and `source_span`.
 
     Entries are matched forward through the source, in order, because the same
@@ -143,20 +189,35 @@ def mark_entries(entries, source_text, convention=None):
     claim from `spoken: false`.
     """
     spans = spoken_spans(source_text, convention)
+    entries = list(entries)
+    if speaker_names is None:
+        speaker_names = {str(entry.get('speaker') or '') for entry in entries}
+    speaker_names = tuple(speaker_names)
     # Printed speaker labels, keyed by where their quote begins. Only for books
     # that use the convention as a rule: three stray matches in a book that
     # does not would attribute three lines from noise.
-    labels = (dict(speaker_labels(source_text))
-              if uses_speaker_labels(source_text) else {})
+    labels = (dict(speaker_labels(source_text, speaker_names=speaker_names))
+              if uses_speaker_labels(source_text, speaker_names=speaker_names) else {})
     normalized_source, raw_offsets = _normalize_with_offsets(source_text)
     marked, cursor = [], 0
-    for entry in entries:
+    match_positions = None
+    for entry_index, entry in enumerate(entries):
         row = dict(entry)
-        needle = _normalize(str(entry.get("text", "")))[:120]
+        row.pop('source_speaker', None)
+        needle = _normalize(str(entry.get("text", "")))
         if needle:
-            normalized_where = normalized_source.find(needle, cursor)
-            if normalized_where == -1:                 # the model rewrote it,
-                normalized_where = normalized_source.find(needle)  # or order slipped
+            if match_positions is None:
+                normalized_where = normalized_source.find(needle, cursor)
+                if normalized_where == -1:
+                    match_positions = get_source_match_positions(
+                        normalized_source,
+                        (_normalize(str(item.get("text", "")))
+                         for item in entries[entry_index:]))
+            if match_positions is not None:
+                occurrences = match_positions.get(needle, [])
+                position = bisect_left(occurrences, cursor)
+                normalized_where = (occurrences[position] if position < len(occurrences)
+                                    else occurrences[0] if occurrences else -1)
             if normalized_where != -1:
                 cursor = normalized_where + len(needle)
                 where = raw_offsets[normalized_where]
@@ -178,13 +239,13 @@ def mark_entries(entries, source_text, convention=None):
     return marked
 
 
-def apply_dialogue_map(entries, source_text):
+def apply_dialogue_map(entries, source_text, speaker_names=None):
     """Return source-mapped entries and reproducible mapping measurements."""
     convention = detect_convention(source_text)
     if not convention:
         return {"entries": list(entries), "convention": None,
                 "located": 0, "spoken": 0, "speaker_changes": []}
-    mapped = mark_entries(entries, source_text, convention)
+    mapped = mark_entries(entries, source_text, convention, speaker_names=speaker_names)
     mapped, speaker_changes = apply_source_speakers(mapped)
     return {
         "entries": mapped,
@@ -212,7 +273,7 @@ LABEL_BEFORE_QUOTE = re.compile(
     r'[ \t]+(?=[“"「『])')
 
 
-def speaker_labels(text, minimum_repeats=3):
+def speaker_labels(text, minimum_repeats=3, speaker_names=()):
     """-> [(quote_start, name)] for quotes introduced by a printed speaker name.
 
     A name must recur before it is believed. One capitalised word before a
@@ -220,19 +281,18 @@ def speaker_labels(text, minimum_repeats=3):
     that introduces three or more quotes across a book is how that book prints
     its speakers. This is the cheapest possible attribution signal and it is
     exact where it applies, so it must not be extended by guessing: a book
-    without the convention gets an empty list, not a weak one.
+    without the convention gets an empty list, not a weak one. A corroborated
+    speaker inventory is required; repetition alone cannot establish a name.
     """
-    # Words that open a sentence far more often than they name a speaker.
-    # "The" cleared the three-repeat bar in mushoku23 and would have claimed
-    # three lines for a character called The.
-    NOT_NAMES = {"The", "A", "An", "And", "But", "Then", "So", "He", "She",
-                 "It", "They", "We", "I", "Suddenly", "After", "Before",
-                 "When", "While", "As", "At", "In", "On", "With", "That",
-                 "This", "There", "Here", "Now", "Just", "Even", "If"}
+    # Repetition establishes formatting, not identity: sentence adverbs can
+    # recur before quotes too. Require a corroborated cast name rather than
+    # trying to enumerate every word that could be narration.
+    known = {' '.join(name.split()).casefold() for name in speaker_names
+             if isinstance(name, str) and name.strip()}
     hits = [(m.end(), " ".join(m.group(1).split())) for m in
             LABEL_BEFORE_QUOTE.finditer(text)]
     hits = [(pos, name) for pos, name in hits
-            if name.split()[0] not in NOT_NAMES]
+            if name.casefold() in known]
     counts = {}
     for _, name in hits:
         counts[name] = counts.get(name, 0) + 1
@@ -240,12 +300,12 @@ def speaker_labels(text, minimum_repeats=3):
             if counts[name] >= minimum_repeats]
 
 
-def uses_speaker_labels(text, threshold=0.3):
+def uses_speaker_labels(text, threshold=0.3, speaker_names=()):
     """Does this book print the speaker before the line, as a rule?"""
     spans = spoken_spans(text)
     if not spans:
         return False
-    labelled = speaker_labels(text)
+    labelled = speaker_labels(text, speaker_names=speaker_names)
     return len(labelled) >= threshold * len(spans)
 
 

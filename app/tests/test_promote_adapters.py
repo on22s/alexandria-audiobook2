@@ -9,6 +9,93 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import promote_adapters
+from tests.test_support import write_test_adapter
+
+
+class FinitePromotionScoreTests(unittest.TestCase):
+    INVALID = (float("nan"), float("inf"), float("-inf"),
+               True, False, "0.8", [], {}, 10 ** 400)
+
+    def _check(self, score, baseline, unseen=False):
+        with tempfile.TemporaryDirectory() as root:
+            gates = Path(root, "gates")
+            gates.mkdir()
+            models = Path(root, "models")
+            (models / "voice").mkdir(parents=True)
+            write_test_adapter(models)
+            prefix = (promote_adapters.UNSEEN_PREFIX if unseen
+                      else promote_adapters.GATE_CAMPAIGNS["promote"])
+            suffix = "__clean" if unseen else ""
+            (gates / f"{prefix}voice{suffix}.json").write_text(json.dumps({
+                "median_ecapa": score, "passed": True,
+                "generation_failures": 0,
+            }))
+            if unseen:
+                (gates / f"{prefix}voice__shipped.json").write_text(
+                    json.dumps({"median_ecapa": baseline}))
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "GATE_PREFIX", prefix), \
+                 patch.object(promote_adapters, "get_adapter_source",
+                              return_value=str(models)):
+                return promote_adapters.check("voice", {"voice": baseline})
+
+    def test_invalid_gate_scores_are_refused_without_exceptions(self):
+        for score in self.INVALID:
+            for unseen in (False, True):
+                with self.subTest(score=score, unseen=unseen):
+                    ok, returned_score, reason = self._check(score, 0.4, unseen)
+                    self.assertFalse(ok)
+                    self.assertIsNone(returned_score)
+                    self.assertIn("finite", reason)
+
+    def test_invalid_baselines_are_refused_without_exceptions(self):
+        for score in self.INVALID:
+            for unseen in (False, True):
+                with self.subTest(score=score, unseen=unseen):
+                    ok, returned_score, reason = self._check(0.8, score, unseen)
+                    self.assertFalse(ok)
+                    self.assertEqual(0.8, returned_score)
+                    self.assertIn("finite", reason)
+
+    def test_finite_scores_keep_threshold_and_improvement_guards(self):
+        for score, baseline, expected in ((0.8, 0.4, True), (1, 0, True),
+                                          (0.4, 0, False), (0.8, 0.8, False),
+                                          (0.8, 0.9, False)):
+            for unseen in (False, True):
+                with self.subTest(score=score, baseline=baseline, unseen=unseen):
+                    self.assertEqual(expected, self._check(score, baseline, unseen)[0])
+
+    def test_nonfinite_gate_cannot_change_installed_files_or_write_receipt(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            models = root / "models"
+            shipped = models / "voice"
+            shipped.mkdir(parents=True)
+            (shipped / "adapter_model.safetensors").write_bytes(b"shipped weights")
+            manifest = models / "manifest.json"
+            manifest.write_text(json.dumps([{"id": "voice", "gate_ecapa": 0.4}]))
+            before = manifest.read_bytes()
+            source = root / "source"
+            source.mkdir()
+            (source / "adapter_model.safetensors").write_bytes(b"candidate weights")
+            gates = root / "gates"
+            gates.mkdir()
+            (gates / "gate_promote__voice.json").write_text(json.dumps({
+                "median_ecapa": float("nan"), "passed": True,
+                "adapter": str(source),
+            }))
+            backups = root / "backups"
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "BACKUPS", str(backups)), \
+                 patch.object(promote_adapters, "GATE_PREFIX", "gate_promote__"), \
+                 patch.object(promote_adapters, "shipped_scores", return_value={"voice": 0.4}), \
+                 patch.object(promote_adapters, "get_adapter_source", return_value=str(source)):
+                self.assertEqual(1, promote_adapters.promote(["voice"], "invalid", False))
+            self.assertEqual(b"shipped weights", (shipped / "adapter_model.safetensors").read_bytes())
+            self.assertEqual(before, manifest.read_bytes())
+            self.assertFalse(backups.exists())
 
 
 class AdapterSourceTests(unittest.TestCase):
@@ -101,6 +188,7 @@ class GateVerdictTests(unittest.TestCase):
             json.dumps(fields), encoding="utf-8")
         models = Path(root, "models", "voice")
         models.mkdir(parents=True, exist_ok=True)
+        write_test_adapter(Path(root, "models"))
         return gates, Path(root, "models")
 
     def test_a_failing_gate_is_refused_even_when_it_clears_min_ecapa(self):
@@ -180,6 +268,7 @@ class UnseenCampaignTests(unittest.TestCase):
     def _pair(self, root, clean, shipped, failures=0):
         gates = Path(root) / "gates"; gates.mkdir()
         models = Path(root) / "models"; (models / "voice").mkdir(parents=True)
+        write_test_adapter(models)
         for arm, score in (("clean", clean), ("shipped", shipped)):
             (gates / f"unseen_gate__voice__{arm}.json").write_text(json.dumps({
                 "adapter": "retrain/voice/adapter" if arm == "clean" else "lora_models/voice",
@@ -347,6 +436,46 @@ class RollbackRevertsManifestTests(unittest.TestCase):
                              "with no receipt, fall back to the measured "
                              "fidelity file rather than a stale score")
 
+    def test_rollback_stages_every_backup_before_replacing_live_adapters(self):
+        with tempfile.TemporaryDirectory() as root:
+            models = Path(root, "models")
+            backups = Path(root, "backups", "stamp")
+            models.mkdir()
+            backups.mkdir(parents=True)
+            for name in ("first", "second"):
+                Path(models, name).mkdir()
+                Path(models, name, "weights").write_text("live " + name)
+                Path(backups, name).mkdir()
+                Path(backups, name, "weights").write_text("backup " + name)
+            original_copy = promote_adapters.shutil.copytree
+
+            def fail_second(source, target, *args, **kwargs):
+                if Path(source).name == "second":
+                    raise OSError("backup unreadable")
+                return original_copy(source, target, *args, **kwargs)
+
+            with patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "BACKUPS", str(backups.parent)), \
+                 patch.object(promote_adapters.shutil, "copytree", side_effect=fail_second):
+                with self.assertRaisesRegex(OSError, "backup unreadable"):
+                    promote_adapters.rollback("stamp")
+            for name in ("first", "second"):
+                self.assertEqual("live " + name, Path(models, name, "weights").read_text())
+
+    def test_rollback_rejects_non_directory_backup_before_replacement(self):
+        with tempfile.TemporaryDirectory() as root:
+            models = Path(root, "models")
+            backups = Path(root, "backups", "stamp")
+            Path(models, "voice").mkdir(parents=True)
+            Path(models, "voice", "weights").write_text("live")
+            backups.mkdir(parents=True)
+            Path(backups, "voice").write_text("broken")
+            with patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "BACKUPS", str(backups.parent)):
+                with self.assertRaisesRegex(ValueError, "invalid rollback adapter"):
+                    promote_adapters.rollback("stamp")
+            self.assertEqual("live", Path(models, "voice", "weights").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -389,3 +518,169 @@ class EcapaPairPathTest(unittest.TestCase):
         values, reason = lvf.ecapa_pairs([], "/usr/bin/python3")
         self.assertEqual([], values)
         self.assertIsNotNone(reason)
+
+
+class GatedAdapterIdentityTests(unittest.TestCase):
+    def test_unusable_explicit_gate_source_never_falls_back_to_same_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            legacy = tmp / 'legacy'
+            alternate = tmp / 'alternate'
+            for base in (legacy, alternate):
+                (base / 'voice' / 'adapter').mkdir(parents=True)
+                (base / 'voice' / 'adapter' / 'adapter_model.safetensors').write_bytes(b'unrelated weights')
+            outside = tmp / 'outside'
+            outside.mkdir()
+            missing = legacy / 'missing' / 'adapter'
+            not_directory = legacy / 'file'
+            not_directory.write_bytes(b'file')
+            escaped = legacy / 'linked'
+            escaped.symlink_to(outside, target_is_directory=True)
+            for gated in (missing, outside, not_directory, escaped):
+                with self.subTest(gated=gated), \
+                     patch.object(promote_adapters, 'SOURCE', str(legacy)), \
+                     patch.object(promote_adapters, 'retrain_sources', return_value=(str(legacy), str(alternate))), \
+                     patch.object(promote_adapters, 'gate_result', return_value={'adapter': str(gated)}):
+                    self.assertIsNone(promote_adapters.get_adapter_source('voice'))
+            with patch.object(promote_adapters, 'SOURCE', str(legacy)), \
+                 patch.object(promote_adapters, 'retrain_sources', return_value=(str(legacy), str(alternate))), \
+                 patch.object(promote_adapters, 'gate_result', return_value={}):
+                self.assertEqual(str(legacy / 'voice' / 'adapter'), promote_adapters.get_adapter_source('voice'))
+            with patch.object(promote_adapters, 'SOURCE', str(legacy)), \
+                 patch.object(promote_adapters, 'retrain_sources', return_value=(str(legacy), str(alternate))), \
+                 patch.object(promote_adapters, 'gate_result', return_value={'adapter': str(alternate / 'voice' / 'adapter')}):
+                self.assertEqual(str(alternate / 'voice' / 'adapter'), promote_adapters.get_adapter_source('voice'))
+
+    def test_unavailable_gated_weights_cannot_change_production_or_publish_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            models = tmp / 'models'
+            installed = models / 'voice'
+            installed.mkdir(parents=True)
+            weights = installed / 'adapter_model.safetensors'
+            weights.write_bytes(b'installed weights')
+            manifest = models / 'manifest.json'
+            manifest.write_text(json.dumps([{'id': 'voice', 'gate_ecapa': 0.4}]))
+            original = manifest.read_bytes()
+            legacy = tmp / 'legacy'
+            alternative = legacy / 'voice' / 'adapter'
+            alternative.mkdir(parents=True)
+            (alternative / 'adapter_model.safetensors').write_bytes(b'unverified alternative')
+            gates = tmp / 'gates'
+            gates.mkdir()
+            (gates / 'gate_promote__voice.json').write_text(json.dumps({
+                'adapter': str(legacy / 'missing' / 'adapter'), 'median_ecapa': 0.8,
+                'passed': True, 'generation_failures': 0}))
+            backups = tmp / 'backups'
+            with patch.object(promote_adapters, 'SOURCE', str(legacy)), \
+                 patch.object(promote_adapters, 'retrain_sources', return_value=(str(legacy),)), \
+                 patch.object(promote_adapters, 'GATES', str(gates)), \
+                 patch.object(promote_adapters, 'GATE_PREFIX', 'gate_promote__'), \
+                 patch.object(promote_adapters, 'MODELS', str(models)), \
+                 patch.object(promote_adapters, 'BACKUPS', str(backups)), \
+                 patch.object(promote_adapters, 'shipped_scores', return_value={'voice': 0.4}):
+                self.assertEqual(1, promote_adapters.promote(['voice'], 'missing-gated', False))
+            self.assertEqual(b'installed weights', weights.read_bytes())
+            self.assertEqual(original, manifest.read_bytes())
+            self.assertFalse(backups.exists())
+
+
+class UnreadablePromotionEvidenceTests(unittest.TestCase):
+    def test_evidence_failures_refuse_promotion_without_touching_installed_artifacts(self):
+        import builtins, contextlib, io
+        for target, unseen_mode in (('gate', False), ('baseline', False), ('manifest', False),
+                                    ('unseen', True), ('baseline', True), ('manifest', True)):
+            for failure in ('permission', 'directory', 'invalid_json'):
+                with self.subTest(target=target, unseen_mode=unseen_mode, failure=failure), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    models, gates, source = root / 'models', root / 'gates', root / 'source'
+                    (models / 'voice').mkdir(parents=True)
+                    gates.mkdir()
+                    source.mkdir()
+                    weights = models / 'voice' / 'adapter_model.safetensors'
+                    weights.write_bytes(b'installed voice weights')
+                    (source / 'adapter_model.safetensors').write_bytes(b'candidate voice weights')
+                    manifest = models / 'manifest.json'
+                    manifest.write_text(json.dumps([{'id': 'voice', 'gate_ecapa': 0.4}]))
+                    baseline = gates / 'library_voice_fidelity_n10.json'
+                    baseline.write_text(json.dumps({'results': [{'adapter': 'voice', 'ecapa': 0.4}]}))
+                    prefix = promote_adapters.UNSEEN_PREFIX if unseen_mode else 'gate_promote__'
+                    gate = gates / (prefix + 'voice' + ('__clean' if unseen_mode else '') + '.json')
+                    gate.write_text(json.dumps({'passed': True, 'median_ecapa': 0.8, 'adapter': str(source)}))
+                    unseen = gates / 'unseen_gate__voice__shipped.json'
+                    unseen.write_text(json.dumps({'median_ecapa': 0.4}))
+                    paths = {'gate': gate, 'baseline': baseline, 'manifest': manifest, 'unseen': unseen}
+                    damaged = paths[target]
+                    if failure == 'directory':
+                        damaged.unlink()
+                        damaged.mkdir()
+                    elif failure == 'invalid_json':
+                        damaged.write_text('{broken')
+                    snapshot = {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                    real_open = builtins.open
+                    def open_evidence(path, *args, **kwargs):
+                        if failure == 'permission' and Path(path) == damaged:
+                            raise PermissionError('evidence access denied')
+                        return real_open(path, *args, **kwargs)
+                    diagnostics = io.StringIO()
+                    with patch.object(promote_adapters, 'MODELS', str(models)), \
+                         patch.object(promote_adapters, 'GATES', str(gates)), \
+                         patch.object(promote_adapters, 'BACKUPS', str(root / 'backups')), \
+                         patch.object(promote_adapters, 'GATE_PREFIX', prefix), \
+                         patch.object(promote_adapters, 'get_adapter_source', return_value=str(source)), \
+                         patch('builtins.open', side_effect=open_evidence), \
+                         contextlib.redirect_stderr(diagnostics):
+                        self.assertEqual(1, promote_adapters.promote(['voice'], 'refused', False))
+                    self.assertIn('evidence', diagnostics.getvalue())
+                    self.assertEqual({**snapshot, Path('models/manifest.json.lock'): b''},
+                                     {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+                    self.assertFalse((root / 'backups').exists())
+
+    def test_gate_documents_must_be_objects(self):
+        for invalid in ([], 'gate', 1, None):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as tmp:
+                gates = Path(tmp)
+                (gates / 'gate_promote__voice.json').write_text(json.dumps(invalid))
+                (gates / 'unseen_gate__voice__shipped.json').write_text(json.dumps(invalid))
+                with patch.object(promote_adapters, 'GATES', str(gates)), \
+                     patch.object(promote_adapters, 'GATE_PREFIX', 'gate_promote__'):
+                    self.assertIsNone(promote_adapters.gate_result('voice'))
+                    self.assertIsNone(promote_adapters.shipped_unseen_score('voice'))
+                    self.assertFalse(promote_adapters.check('voice', {'voice': 0.4})[0])
+
+
+class RollbackMissingMetadataTests(unittest.TestCase):
+    def test_revert_removes_promoted_fields_missing_from_original_metadata(self):
+        fields = ("epochs_run", "epoch_losses", "final_loss", "best_loss",
+                  "sample_count", "lora_r", "lr")
+        for original in ({}, {"epochs_run": 2, "lr": 0.001},
+                         {"num_samples": 17}, {"sample_count": 9, "num_samples": 17}):
+            with self.subTest(original=original), tempfile.TemporaryDirectory() as tmp:
+                models = Path(tmp, "models")
+                backups = Path(tmp, "backups")
+                models.mkdir()
+                backup = backups / "stamp" / "voice"
+                backup.mkdir(parents=True)
+                metadata = backup / "training_meta.json"
+                metadata.write_text(json.dumps(original))
+                prior_metadata = metadata.read_bytes()
+                receipt = backups / "stamp.json"
+                receipt.write_text(json.dumps({"adapters": [{"adapter": "voice", "shipped_ecapa": 0.6}]}))
+                prior_receipt = receipt.read_bytes()
+                promoted = {"id": "voice", "description": "keep", "retrained_at": "stamp", "gate_ecapa": 0.9,
+                            **{field: [9] if field == "epoch_losses" else 9 for field in fields}}
+                untouched = {"id": "other", "epochs_run": 77, "retrained_at": "other-stamp"}
+                manifest = models / "manifest.json"
+                manifest.write_text(json.dumps([promoted, untouched]))
+                with patch.object(promote_adapters, "MODELS", str(models)), \
+                     patch.object(promote_adapters, "BACKUPS", str(backups)):
+                    self.assertEqual(1, promote_adapters.revert_manifest({"voice"}, "stamp"))
+                entries = json.loads(manifest.read_text())
+                expected = {"id": "voice", "description": "keep", "gate_ecapa": 0.6}
+                expected.update({field: original[field] for field in fields if field in original})
+                if "num_samples" in original:
+                    expected["sample_count"] = original["num_samples"]
+                self.assertEqual(expected, entries[0])
+                self.assertEqual(untouched, entries[1])
+                self.assertEqual(prior_metadata, metadata.read_bytes())
+                self.assertEqual(prior_receipt, receipt.read_bytes())

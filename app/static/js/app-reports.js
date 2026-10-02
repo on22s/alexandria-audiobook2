@@ -12,7 +12,7 @@
                     const when = r.mtime ? new Date(r.mtime * 1000).toLocaleString() : '';
                     const icon = r.type === 'batch' ? 'fa-layer-group' : 'fa-file-lines';
                     const label = r.type === 'batch' ? 'Batch review' : 'Review';
-                    return `<a href="#" class="list-group-item list-group-item-action report-list-item" data-filename="${escapeHtml(r.filename)}" onclick="viewReport('${escapeHtml(r.filename)}'); return false;">
+                    return `<a href="#" class="list-group-item list-group-item-action report-list-item" data-filename="${escapeHtml(r.filename)}" onclick="viewReport(this.dataset.filename); return false;">
                         <div><i class="fas ${icon} me-2"></i>${label}</div>
                         <div class="text-muted small">${escapeHtml(when)}</div>
                     </a>`;
@@ -134,13 +134,34 @@
         }
 
         let _benchmarkPreflightId = null;
+        let _benchmarkPreflightManifest = null;
+        let _benchmarkPreflightGeneration = 0;
+        let _benchmarkStarting = false;
+        let _benchmarkRunning = false;
+        let _benchmarkRunRevision = 0;
         let _benchmarkPoll = null;
+        let _benchmarkStatusPending = false;
+
+        function _applyBenchmarkStartButton() {
+            const button = document.getElementById('btn-benchmark-start');
+            if (button) {
+                button.disabled = _benchmarkStarting || _benchmarkRunning || !_benchmarkPreflightId
+                    || _benchmarkPreflightManifest !== document.getElementById('benchmark-manifest')?.value;
+            }
+        }
+
+        function onBenchmarkManifestChange() {
+            _benchmarkPreflightGeneration++;
+            _benchmarkPreflightId = null;
+            _benchmarkPreflightManifest = null;
+            _applyBenchmarkStartButton();
+        }
 
         function readBenchmarkManifest() {
             const raw = document.getElementById('benchmark-manifest')?.value || '';
             try {
                 const manifest = JSON.parse(raw);
-                if (!manifest || typeof manifest !== 'object') { throw new Error('manifest must be a JSON object'); }
+                if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) { throw new Error('manifest must be a JSON object'); }
                 return manifest;
             } catch (e) {
                 showToast('Manifest is not valid JSON: ' + e.message, 'error');
@@ -149,29 +170,49 @@
         }
 
         async function onBenchmarkPreflight() {
+            if (_benchmarkStarting || _benchmarkRunning) { return; }
+            onBenchmarkManifestChange();
+            const generation = _benchmarkPreflightGeneration;
+            const raw = document.getElementById('benchmark-manifest').value;
             const manifest = readBenchmarkManifest();
             const out = document.getElementById('benchmark-output');
             if (!manifest) { return; }
-            _benchmarkPreflightId = null;
-            document.getElementById('btn-benchmark-start').disabled = true;
             try {
                 const res = await API.post('/api/benchmark/preflight', { manifest });
+                if (generation !== _benchmarkPreflightGeneration || raw !== document.getElementById('benchmark-manifest').value) { return; }
                 _benchmarkPreflightId = res.preflight_id || null;
+                _benchmarkPreflightManifest = raw;
                 out.textContent = JSON.stringify(res, null, 2);
-                document.getElementById('btn-benchmark-start').disabled = !_benchmarkPreflightId;
+                _applyBenchmarkStartButton();
             } catch (e) {
+                if (generation !== _benchmarkPreflightGeneration || raw !== document.getElementById('benchmark-manifest').value) { return; }
                 out.textContent = 'Preflight failed: ' + (e.message || String(e));
             }
         }
 
         async function onBenchmarkStart() {
+            if (_benchmarkStarting || _benchmarkRunning) { return; }
+            if (_benchmarkPreflightManifest !== document.getElementById('benchmark-manifest').value) {
+                onBenchmarkManifestChange();
+                return;
+            }
             const manifest = readBenchmarkManifest();
             if (!manifest || !_benchmarkPreflightId) { return; }
+            const preflightId = _benchmarkPreflightId;
+            _benchmarkStarting = true;
+            _benchmarkRunRevision++;
+            onBenchmarkManifestChange();
             try {
-                await API.post('/api/benchmark/start', { manifest, preflight_id: _benchmarkPreflightId });
+                await API.post('/api/benchmark/start', { manifest, preflight_id: preflightId });
+                _benchmarkRunning = true;
+                _benchmarkRunRevision++;
+                _startBenchmarkStatusPolling();
                 refreshBenchmarkStatus();
             } catch (e) {
                 showToast('Benchmark did not start: ' + (e.message || String(e)), 'error');
+            } finally {
+                _benchmarkStarting = false;
+                _applyBenchmarkStartButton();
             }
         }
 
@@ -183,14 +224,34 @@
             }
         }
 
-        async function refreshBenchmarkStatus() {
+        function _startBenchmarkStatusPolling() {
+            if (_benchmarkPoll) { return; }
+            _benchmarkPoll = _startPolling('benchmark', () => refreshBenchmarkStatus(true), {
+                intervalMs: 3000,
+                immediate: false,
+                pauseWhenHidden: true,
+                doneCheck: data => !!data && !data.running,
+                onDone: () => { _benchmarkPoll = null; }
+            });
+        }
+
+        async function refreshBenchmarkStatus(fromPoll = false) {
             const status = document.getElementById('benchmark-status');
             const out = document.getElementById('benchmark-output');
             const cancelBtn = document.getElementById('btn-benchmark-cancel');
-            if (!status) { return; }
+            if (!status || _benchmarkStatusPending) { return; }
+            if (document.hidden) {
+                _startBenchmarkStatusPolling();
+                return;
+            }
+            _benchmarkStatusPending = true;
+            const revision = _benchmarkRunRevision;
             try {
                 const s = await API.get('/api/benchmark/status');
-                const done = (s.tasks || []).filter(t => t.status && t.status !== 'pending').length;
+                if (revision !== _benchmarkRunRevision) { return; }
+                _benchmarkRunning = !!s.running;
+                _applyBenchmarkStartButton();
+                const done = (s.tasks || []).filter(t => t.status === 'done').length;
                 status.textContent = s.running
                     ? `running · ${done}/${(s.tasks || []).length} fixtures`
                     : (s.status && s.status !== 'idle' ? s.status : 'idle');
@@ -199,12 +260,18 @@
                     out.textContent = (s.logs || []).slice(-40).join('\n');
                 }
                 if (s.running && !_benchmarkPoll) {
-                    _benchmarkPoll = setInterval(refreshBenchmarkStatus, 3000);
+                    _startBenchmarkStatusPolling();
                 } else if (!s.running && _benchmarkPoll) {
-                    clearInterval(_benchmarkPoll);
+                    _benchmarkPoll();
                     _benchmarkPoll = null;
                 }
+                return s;
             } catch (e) {
-                status.textContent = '';
+                if (revision !== _benchmarkRunRevision) { return; }
+                status.textContent = 'Status unavailable: ' + (e.message || String(e));
+                _startBenchmarkStatusPolling();
+                if (fromPoll) { throw e; }
+            } finally {
+                _benchmarkStatusPending = false;
             }
         }

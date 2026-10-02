@@ -45,8 +45,8 @@
 # against Emma's 16 - so its prompts are larger; 32K context has ample room at
 # batch 25, and GOAL13_BATCH lowers it if a book ever refuses.
 #
-# One gpu_job per book, so an interrupted run resumes instead of restarting,
-# and ensure_llama_server keeps ONE model load across all of them.
+# One supervised GPU lease spans the campaign. Per-book stage limits and
+# artifacts preserve resume behavior while sharing one model load.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -74,8 +74,13 @@ DEVELOPMENT="ahandfulofdust thegambler themysteriousaffairatstyles"
 for stem in $HELDOUT $DEVELOPMENT; do
     fx="$REPO/app/fixtures/attribution_gold_pdnc_${stem}.json"
     [ -s "$fx" ] || { echo "REFUSING: missing fixture $fx" >&2; exit 1; }
+    "$python" "$REPO/app/experiments/pdnc_results.py" fixture --fixture "$fx" --limit "$LIMIT" || exit 1
 done
 [ -s "$ADAPTER" ] || { echo "REFUSING: missing adapter $ADAPTER" >&2; exit 1; }
+
+# Keep server lifetime and dependent requests within one supervised lease.
+source "$REPO/run_chains/lib/llm_campaign.sh" || exit 4
+ensure_llm_campaign_lease "goal13mm_confirmation" "$REPO/run_chains/goal_13_mixed_multin_20260912.sh" "$@" || exit $?
 
 # The adapter must be LOADED by the server: pdnc_eval switches arms with
 # POST /lora-adapters, which can only scale an adapter that is already there.
@@ -83,18 +88,20 @@ LLAMA_PORT="$PORT" "$REPO/ensure_llama_server.sh" "$ADAPTER" \
     > "$STAGE_LOG_DIR/server.log" 2>&1 \
     && echo "llama-server up with $(basename "$ADAPTER")" \
     || { echo "REFUSING: llama-server failed to start" >&2; exit 1; }
+LLM_CAMPAIGN_SERVER_READY=1
 
 run_book() {
     local half=$1 stem=$2
     local name="goal13mm_${half}_${stem}"
     local out="$runtime/experiments/pdnc_eval__${name}.json"
-    if [ -s "$out" ]; then
+    if [ -s "$out" ] && "$python" "$REPO/app/experiments/pdnc_results.py" validate \
+        --artifact "$out" --fixture "$REPO/app/fixtures/attribution_gold_pdnc_${stem}.json" --limit "$LIMIT"; then
         stage_note "SKIP $name (already complete)"
         return
     fi
     run_stage "$name" 3h -- \
         env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
-        "$REPO/gpu_job.sh" "$name" \
+        bash "$REPO/run_chains/lib/llm_job.sh" "$name" \
         "$python" -u "$REPO/app/experiments/pdnc_eval.py" \
         --fixtures "$REPO/app/fixtures/attribution_gold_pdnc_${stem}.json" \
         --base_url "http://127.0.0.1:$PORT/v1" \
@@ -102,7 +109,7 @@ run_book() {
         --limit "$LIMIT" \
         --batch "$BATCH" \
         --out "$out"
-    stage_commit_artifacts "$name" "$REPO"
+    stage_commit_artifacts "$name" "$REPO" "$out"
 }
 
 # Held-out first: if the night is cut short, the half that answers the goal is
@@ -110,39 +117,9 @@ run_book() {
 for stem in $HELDOUT;     do run_book heldout "$stem"; done
 for stem in $DEVELOPMENT; do run_book development "$stem"; done
 
-"$python" - "$runtime" "$HELDOUT" "$DEVELOPMENT" <<'PYEOF'
-import json, os, sys
-runtime, halves = sys.argv[1], (("heldout", sys.argv[2]), ("development", sys.argv[3]))
-print("\n%-13s %-24s %7s %8s %8s %7s" % ("half", "book", "n", "base", "lora", "delta"))
-totals = {}
-for half, stems in halves:
-    agg = [0, 0, 0]
-    for stem in stems.split():
-        p = os.path.join(runtime, "experiments", "pdnc_eval__goal13mm_%s_%s.json" % (half, stem))
-        try:
-            d = json.load(open(p))
-        except Exception as exc:
-            print("%-13s %-24s no artifact (%s)" % (half, stem, type(exc).__name__)); continue
-        for book, arms in d.items():
-            if not isinstance(arms, dict) or "base" not in arms:
-                continue
-            b, l = arms["base"], arms["lora"]
-            n = b.get("n") or len(b.get("rows") or [])
-            bc = b.get("correct", sum(1 for r in b.get("rows", []) if r.get("ok")))
-            lc = l.get("correct", sum(1 for r in l.get("rows", []) if r.get("ok")))
-            agg[0] += n; agg[1] += bc; agg[2] += lc
-            print("%-13s %-24s %7d %7.1f%% %7.1f%% %+6.1f"
-                  % (half, book, n, 100*bc/n, 100*lc/n, 100*(lc-bc)/n))
-    if agg[0]:
-        totals[half] = (100*agg[1]/agg[0], 100*agg[2]/agg[0], agg[0])
-        print("%-13s %-24s %7d %7.1f%% %7.1f%% %+6.1f  <-- pooled"
-              % (half, "ALL", agg[0], totals[half][0], totals[half][1],
-                 totals[half][1]-totals[half][0]))
-if len(totals) == 2:
-    gap = totals["development"][1] - totals["heldout"][1]
-    print("\nDEV MINUS HELD-OUT (lora arm): %+.1f points" % gap)
-    print("A large positive gap is memorisation; a small one is transfer.")
-    print("All five held-out books are Austen: this does not test register transfer.")
-PYEOF
+run_stage goal13mm_summary 20m -- "$python" "$REPO/app/experiments/pdnc_results.py" summary \
+    --repo "$REPO" --runtime "$runtime" --heldout "$HELDOUT" --development "$DEVELOPMENT" --limit "$LIMIT" --result-prefix goal13mm
+# Preserve the campaign comparison on stdout as well as its stage log.
+cat "$STAGE_LOG_DIR/goal13mm_summary.log"
 
 stage_summary goal_13_mixed_multin_20260912

@@ -138,6 +138,7 @@
             "items": {
               "type": "integer"
             },
+            "minItems": 1,
             "title": "Indices",
             "type": "array"
           }
@@ -192,6 +193,7 @@
             "items": {
               "$ref": "#/components/schemas/BatchPreparerTask"
             },
+            "minItems": 1,
             "title": "Tasks",
             "type": "array"
           }
@@ -246,6 +248,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 1000,
             "title": "Script Names",
             "type": "array"
           }
@@ -277,6 +280,7 @@
             "items": {
               "$ref": "#/components/schemas/BatchScriptTask"
             },
+            "maxItems": 1000,
             "title": "Tasks",
             "type": "array"
           }
@@ -395,6 +399,28 @@
           "file"
         ],
         "title": "Body_lora_upload_dataset_api_lora_upload_dataset_post",
+        "type": "object"
+      },
+      "Body_preparer_batch_upload_start_api_preparer_batch_upload_start_post": {
+        "properties": {
+          "audio_files": {
+            "items": {
+              "format": "binary",
+              "type": "string"
+            },
+            "title": "Audio Files",
+            "type": "array"
+          },
+          "config_json": {
+            "title": "Config Json",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config_json",
+          "audio_files"
+        ],
+        "title": "Body_preparer_batch_upload_start_api_preparer_batch_upload_start_post",
         "type": "object"
       },
       "Body_preparer_start_api_preparer_start_post": {
@@ -677,6 +703,7 @@
           },
           "global_seed": {
             "default": -1,
+            "minimum": -1.0,
             "title": "Global Seed",
             "type": "integer"
           },
@@ -709,6 +736,7 @@
             "anyOf": [
               {
                 "items": {
+                  "minimum": -1.0,
                   "type": "integer"
                 },
                 "type": "array"
@@ -739,6 +767,60 @@
           "name"
         ],
         "title": "DatasetBuilderCreateRequest",
+        "type": "object"
+      },
+      "DatasetBuilderEditRowsRequest": {
+        "properties": {
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetBuilderRowEdit"
+            },
+            "minItems": 1,
+            "title": "Edits",
+            "type": "array"
+          },
+          "expected_count": {
+            "minimum": 0.0,
+            "title": "Expected Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "expected_count",
+          "edits"
+        ],
+        "title": "DatasetBuilderEditRowsRequest",
+        "type": "object"
+      },
+      "DatasetBuilderRowEdit": {
+        "properties": {
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "row": {
+            "additionalProperties": true,
+            "title": "Row",
+            "type": "object"
+          }
+        },
+        "required": [
+          "index",
+          "expected_revision",
+          "row"
+        ],
+        "title": "DatasetBuilderRowEdit",
         "type": "object"
       },
       "DatasetBuilderUpdateMetaRequest": {
@@ -804,6 +886,7 @@
           },
           "seed": {
             "default": -1,
+            "minimum": -1.0,
             "title": "Seed",
             "type": "integer"
           },
@@ -830,6 +913,7 @@
           "ref_index": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -1173,6 +1257,34 @@
         "title": "GenerationConfig",
         "type": "object"
       },
+      "GuardedVoiceSaveRequest": {
+        "properties": {
+          "book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Book Token",
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          },
+          "voices": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VoiceConfigItem"
+            },
+            "title": "Voices",
+            "type": "object"
+          }
+        },
+        "required": [
+          "revision",
+          "book_token",
+          "voices"
+        ],
+        "title": "GuardedVoiceSaveRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1501,8 +1613,157 @@
             "title": "Api Key",
             "type": "string"
           },
+          "api_retry_limit": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Retry Limit"
+          },
           "base_url": {
             "title": "Base Url",
+            "type": "string"
+          },
+          "connect_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 300.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connect Timeout Seconds"
+          },
+          "model_name": {
+            "default": "",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "on_api_exhaustion": {
+            "default": "fail",
+            "enum": [
+              "fail",
+              "pause"
+            ],
+            "title": "On Api Exhaustion",
+            "type": "string"
+          },
+          "on_this_gpu": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On This Gpu"
+          },
+          "provider_extra_body": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provider Extra Body",
+            "type": "object"
+          },
+          "provider_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Provider Headers",
+            "type": "object"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort"
+          },
+          "request_interval_seconds": {
+            "default": 0,
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Request Interval Seconds",
+            "type": "number"
+          },
+          "request_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Timeout Seconds"
+          },
+          "retry_initial_delay_seconds": {
+            "default": 1,
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Retry Initial Delay Seconds",
+            "type": "number"
+          },
+          "retry_jitter": {
+            "default": 0.2,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Retry Jitter",
+            "type": "number"
+          },
+          "retry_max_delay_seconds": {
+            "default": 30,
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Retry Max Delay Seconds",
+            "type": "number"
+          },
+          "retry_multiplier": {
+            "default": 2,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Retry Multiplier",
+            "type": "number"
+          },
+          "structured_output": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "off"
+            ],
+            "title": "Structured Output",
+            "type": "string"
+          },
+          "transport": {
+            "default": "http",
+            "enum": [
+              "http",
+              "manual"
+            ],
+            "title": "Transport",
             "type": "string"
           }
         },
@@ -1530,6 +1791,24 @@
         "title": "LoraDatasetSample",
         "type": "object"
       },
+      "LoraPromotionRequest": {
+        "properties": {
+          "expected_candidate_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Candidate Id"
+          }
+        },
+        "title": "LoraPromotionRequest",
+        "type": "object"
+      },
       "LoraTestRequest": {
         "properties": {
           "adapter_id": {
@@ -1538,10 +1817,13 @@
           },
           "instruct": {
             "default": "",
+            "maxLength": 400,
             "title": "Instruct",
             "type": "string"
           },
           "text": {
+            "maxLength": 5000,
+            "minLength": 1,
             "title": "Text",
             "type": "string"
           }
@@ -1662,6 +1944,7 @@
       "ManualReply": {
         "properties": {
           "content": {
+            "maxLength": 2097152,
             "title": "Content",
             "type": "string"
           },
@@ -1704,7 +1987,18 @@
             "title": "Narrator Version"
           },
           "strategy": {
-            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
+            "enum": [
+              "global",
+              "focus",
+              "chapter",
+              "character",
+              "gender",
+              "age",
+              "gender_age",
+              "character_gender",
+              "character_age",
+              "character_gender_age"
+            ],
             "title": "Strategy",
             "type": "string"
           }
@@ -1718,7 +2012,18 @@
       "NarratorStrategyRequest": {
         "properties": {
           "strategy": {
-            "pattern": "^(global|focus|chapter|character|gender|age|gender_age|character_gender|character_age|character_gender_age)$",
+            "enum": [
+              "global",
+              "focus",
+              "chapter",
+              "character",
+              "gender",
+              "age",
+              "gender_age",
+              "character_gender",
+              "character_age",
+              "character_gender_age"
+            ],
             "title": "Strategy",
             "type": "string"
           }
@@ -2005,17 +2310,21 @@
       "ReviewSubmitRequest": {
         "properties": {
           "choice": {
+            "pattern": "^(?:A|B|tie)$",
             "title": "Choice",
             "type": "string"
           },
           "notes": {
             "default": "",
+            "maxLength": 1000,
             "title": "Notes",
             "type": "string"
           },
           "rating": {
             "anyOf": [
               {
+                "maximum": 5.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -2177,6 +2486,7 @@
         "type": "object"
       },
       "StylePointRequest": {
+        "additionalProperties": true,
         "properties": {
           "character_style": {
             "maxLength": 400,
@@ -2697,6 +3007,18 @@
           "narrator_strategy": {
             "anyOf": [
               {
+                "enum": [
+                  "global",
+                  "focus",
+                  "chapter",
+                  "character",
+                  "gender",
+                  "age",
+                  "gender_age",
+                  "character_gender",
+                  "character_age",
+                  "character_gender_age"
+                ],
                 "type": "string"
               },
               {
@@ -2751,8 +3073,7 @@
           },
           "style_timeline": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/VoiceStylePoint"
             },
             "title": "Style Timeline",
             "type": "array"
@@ -3022,6 +3343,30 @@
           }
         },
         "title": "VoiceLabRequest",
+        "type": "object"
+      },
+      "VoiceStylePoint": {
+        "additionalProperties": true,
+        "properties": {
+          "character_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Character Style"
+          },
+          "from_index": {
+            "default": 0,
+            "title": "From Index",
+            "type": "integer"
+          }
+        },
+        "title": "VoiceStylePoint",
         "type": "object"
       },
       "VoiceSuggestionApplyBulkRequest": {
@@ -3304,7 +3649,6 @@
     },
     "/api/cancel_audio": {
       "post": {
-        "description": "Cancel ongoing audio generation and reset in-progress chunks.",
         "operationId": "cancel_audio_api_cancel_audio_post",
         "responses": {
           "200": {
@@ -3390,7 +3734,6 @@
     },
     "/api/chapter_exports/zip": {
       "get": {
-        "description": "All exported chapters, or the comma-separated `names`, in one zip.",
         "operationId": "download_chapters_zip_api_chapter_exports_zip_get",
         "parameters": [
           {
@@ -3881,8 +4224,26 @@
     },
     "/api/dataset_builder/cancel": {
       "post": {
-        "description": "Cancel ongoing batch dataset generation.",
+        "description": "Cancel the requested project's worker; unnamed callers target the active job.",
         "operationId": "dataset_builder_cancel_api_dataset_builder_cancel_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3891,6 +4252,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Dataset Builder Cancel"
@@ -3933,6 +4304,42 @@
         "summary": "Dataset Builder Create"
       }
     },
+    "/api/dataset_builder/edit_rows": {
+      "post": {
+        "operationId": "dataset_builder_edit_rows_api_dataset_builder_edit_rows_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetBuilderEditRowsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Edit Rows"
+      }
+    },
     "/api/dataset_builder/generate_batch": {
       "post": {
         "description": "Batch generate dataset samples as a background task.",
@@ -3972,7 +4379,7 @@
     },
     "/api/dataset_builder/generate_sample": {
       "post": {
-        "description": "Generate a single dataset sample using VoiceDesign.",
+        "description": "Generate a sample without blocking the API loop; worker owns its claim.",
         "operationId": "dataset_builder_generate_sample_api_dataset_builder_generate_sample_post",
         "requestBody": {
           "content": {
@@ -4026,7 +4433,6 @@
     },
     "/api/dataset_builder/save": {
       "post": {
-        "description": "Finalize dataset builder project as a training dataset.",
         "operationId": "dataset_builder_save_api_dataset_builder_save_post",
         "requestBody": {
           "content": {
@@ -4101,7 +4507,6 @@
     },
     "/api/dataset_builder/update_meta": {
       "post": {
-        "description": "Update project description and global seed without touching samples.",
         "operationId": "dataset_builder_update_meta_api_dataset_builder_update_meta_post",
         "requestBody": {
           "content": {
@@ -4138,7 +4543,6 @@
     },
     "/api/dataset_builder/update_rows": {
       "post": {
-        "description": "Update row definitions, preserving existing generation status/audio.",
         "operationId": "dataset_builder_update_rows_api_dataset_builder_update_rows_post",
         "requestBody": {
           "content": {
@@ -4175,7 +4579,6 @@
     },
     "/api/dataset_builder/{name}": {
       "delete": {
-        "description": "Discard a dataset builder working project.",
         "operationId": "dataset_builder_delete_api_dataset_builder__name__delete",
         "parameters": [
           {
@@ -4312,7 +4715,7 @@
     },
     "/api/export_chapters/preview": {
       "get": {
-        "description": "The filenames an export would produce, without decoding any audio.",
+        "description": "The selected filenames an export would write after existing-file reuse.",
         "operationId": "preview_chapter_filenames_api_export_chapters_preview_get",
         "parameters": [
           {
@@ -4384,6 +4787,45 @@
               "title": "Volume Number",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "chapters",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapters"
+            }
+          },
+          {
+            "in": "query",
+            "name": "changed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Changed Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_ready",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Require Ready",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -4411,7 +4853,6 @@
     },
     "/api/export_zip": {
       "get": {
-        "description": "One zip of whatever exported audio exists (MP3, M4B); 404 when nothing does.",
         "operationId": "export_zip_api_export_zip_get",
         "responses": {
           "200": {
@@ -5210,7 +5651,7 @@
     },
     "/api/lora/datasets": {
       "get": {
-        "description": "List uploaded LoRA training datasets.",
+        "description": "List uploaded LoRA training datasets without blocking request handling.",
         "operationId": "lora_list_datasets_api_lora_datasets_get",
         "responses": {
           "200": {
@@ -5303,7 +5744,7 @@
     },
     "/api/lora/models": {
       "get": {
-        "description": "List all LoRA adapters (built-in + user-trained).",
+        "description": "List all LoRA adapters without blocking request handling.",
         "operationId": "lora_list_models_api_lora_models_get",
         "responses": {
           "200": {
@@ -5409,6 +5850,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LoraPromotionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -5784,7 +6242,7 @@
     },
     "/api/lora/preview/{adapter_id}": {
       "post": {
-        "description": "Generate or return cached preview audio for a LoRA adapter.",
+        "description": "Generate or return cached preview audio without blocking request handling.",
         "operationId": "lora_preview_api_lora_preview__adapter_id__post",
         "parameters": [
           {
@@ -5822,7 +6280,7 @@
     },
     "/api/lora/test": {
       "post": {
-        "description": "Generate test audio using a LoRA adapter (built-in or user-trained).",
+        "description": "Generate test audio without blocking request handling.",
         "operationId": "lora_test_model_api_lora_test_post",
         "requestBody": {
           "content": {
@@ -6233,7 +6691,7 @@
     },
     "/api/preparer/batch/start": {
       "post": {
-        "description": "Process multiple audio files sequentially through the preparer script.",
+        "description": "Process previously uploaded audio files sequentially.",
         "operationId": "preparer_batch_start_api_preparer_batch_start_post",
         "requestBody": {
           "content": {
@@ -6266,6 +6724,43 @@
           }
         },
         "summary": "Preparer Batch Start"
+      }
+    },
+    "/api/preparer/batch/upload_start": {
+      "post": {
+        "description": "Reserve the batch before staging and publishing selected files.",
+        "operationId": "preparer_batch_upload_start_api_preparer_batch_upload_start_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preparer_batch_upload_start_api_preparer_batch_upload_start_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preparer Batch Upload Start"
       }
     },
     "/api/preparer/cancel": {
@@ -6415,7 +6910,6 @@
     },
     "/api/reports": {
       "get": {
-        "description": "List all generated review reports in the reports/ directory, newest first.",
         "operationId": "list_reports_api_reports_get",
         "responses": {
           "200": {
@@ -6432,7 +6926,6 @@
     },
     "/api/reports/{filename}": {
       "get": {
-        "description": "Return the raw Markdown contents of a generated report.",
         "operationId": "get_report_api_reports__filename__get",
         "parameters": [
           {
@@ -7254,6 +7747,23 @@
         "summary": "Preview Speaker Repair"
       }
     },
+    "/api/status": {
+      "get": {
+        "description": "Discover registered tasks without serializing logs or live process handles.",
+        "operationId": "get_task_statuses_api_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Task Statuses"
+      }
+    },
     "/api/status/eta": {
       "get": {
         "description": "Return progress/ETA for the most relevant currently-running task, if any.",
@@ -7273,7 +7783,7 @@
     },
     "/api/status/version": {
       "get": {
-        "description": "What git commit is this running process actually executing.\n\nA server started before a code change lands keeps running the old code\nwith no visible sign of it - this makes that checkable directly instead\nof discovering it indirectly (e.g. an expected new response field just\nnot showing up).",
+        "description": "Current checkout/build identity, including observed uncommitted edits.\n\nLoaded Python modules can predate checkout changes; this is not a\nguarantee that a running process has reloaded every modified module.",
         "operationId": "get_version_api_status_version_get",
         "responses": {
           "200": {
@@ -7299,6 +7809,16 @@
             "schema": {
               "title": "Task Name",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_health",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Health",
+              "type": "boolean"
             }
           }
         ],
@@ -7540,6 +8060,58 @@
           }
         },
         "summary": "Select Existing Upload"
+      }
+    },
+    "/api/voice_config/save": {
+      "post": {
+        "operationId": "save_guarded_voice_config_api_voice_config_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuardedVoiceSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Guarded Voice Config"
+      }
+    },
+    "/api/voice_config/snapshot": {
+      "get": {
+        "operationId": "get_guarded_voice_snapshot_api_voice_config_snapshot_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Guarded Voice Snapshot"
       }
     },
     "/api/voice_design/list": {

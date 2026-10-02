@@ -44,37 +44,58 @@ source "$REPO/run_chains/lib/stage.sh"
 
 [ -s "$corpus/metadata.csv" ] || { stage_note "REFUSING: no corpus at $corpus - run hifitts_fetch.py first"; exit 1; }
 
-# Each stage is skipped when its output exists, so a failed later stage can
-# be rerun without retraining (a retrained adapter is not the same adapter).
-[ -s "$corpus/split.json" ] || \
-run_stage prepare 10m -- \
+# Reuse only complete stage outputs; keep failed producer evidence for resume.
+run_validated_stage() {
+    local name="$1" cap="$2" artifact="$3"
+    shift 3
+    run_validated_cached_stage "$name" "$cap" \
+        "$python" "$REPO/app/experiments/ljspeech_completion.py" \
+        "$name" "$artifact" --repo "$REPO" --corpus "$corpus" \
+        --split "$corpus/split.json" --test-books antoinetteromances4 celebratedcrimesv1 \
+        -- "$@"
+}
+run_validated_stage prepare 10m "$corpus/split.json" -- \
     "$python" -u "$REPO/app/experiments/ljspeech_prepare.py" \
     --root "$corpus" --out "$corpus/split.json" \
     --test-books antoinetteromances4 celebratedcrimesv1
 
-[ -s "$work/build.json" ] || \
-run_stage build 30m -- \
+run_validated_stage build 30m "$work/build.json" --requires-ok prepare -- \
     "$python" -u "$REPO/app/experiments/ljspeech_build.py" \
     --split "$corpus/split.json" --out "$work"
 
-[ -s "$work/adapter/adapter_model.safetensors" ] || \
-run_stage train 1h --needs-vram -- \
+run_validated_stage train 1h "$work/adapter" --needs-vram --requires-ok build -- \
     "$REPO/gpu_job.sh" "hifitts_9017_train" \
     "$python" -u "$REPO/app/train_lora.py" \
     --data_dir "$work/train" --output_dir "$work/adapter" \
     --epochs 6 --lr 1e-6 --lora_r 32 --lora_alpha 128 --seed 1234
 
+is_stop_gate_passed() {
+    "$python" "$REPO/app/experiments/stop_gate_completion.py" "$1"
+}
+
 # Goal 2.3 gate: a runaway adapter burns ~140 s per line and produces nothing
 # scoreable, so refuse it here rather than 150 lines later.
-[ -s "$work/stop_check/verify_adapter_stops.json" ] || \
-run_stage stop_gate 30m --needs-vram -- \
-    "$REPO/gpu_job.sh" "hifitts_9017_stop_gate" \
-    "$python" -u "$REPO/app/experiments/verify_adapter_stops.py" \
-    --build "$work/build.json" --adapter "$work/adapter" --config "$config" \
-    --lines 5 --seed 1234 --max-ratio 3.0 --out "$work/stop_check/verify_adapter_stops.json"
+if ! is_stop_gate_passed "$work/stop_check/verify_adapter_stops.json"; then
+    run_stage stop_gate 30m --needs-vram --requires-ok train -- \
+        "$REPO/gpu_job.sh" "hifitts_9017_stop_gate" \
+        "$python" -u "$REPO/app/experiments/verify_adapter_stops.py" \
+        --build "$work/build.json" --adapter "$work/adapter" --config "$config" \
+        --lines 5 --seed 1234 --max-ratio 3.0 --out "$work/stop_check/verify_adapter_stops.json"
+    if [ "${STAGE_RESULT[stop_gate]:-missing}" != ok ]; then
+        stage_note "REFUSING: stop gate rerun failed; retaining its evidence"
+        exit 1
+    fi
+else
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result stop_gate 0
+fi
+if ! is_stop_gate_passed "$work/stop_check/verify_adapter_stops.json"; then
+    stage_note "REFUSING: stop gate did not record a valid passing verdict"
+    exit 1
+fi
 
 [ -s "$runtime/experiments/hifitts_9017_generate.json" ] || \
-run_stage generate 3h --needs-vram -- \
+run_stage generate 3h --needs-vram --requires-ok train --requires-ok stop_gate -- \
     "$REPO/gpu_job.sh" "hifitts_9017_generate" \
     "$python" -u "$REPO/app/experiments/ljspeech_generate.py" \
     --build "$work/build.json" --adapter "$work/adapter" --config "$config" \
@@ -91,5 +112,5 @@ run_stage score 1h -- \
     --generated "$runtime/experiments/hifitts_9017_generate.json" --limit 0 \
     --out "$runtime/experiments/hifitts_9017_score.json"
 
-stage_commit_artifacts hifitts_9017 "$REPO"
+stage_commit_artifacts hifitts_9017 "$REPO" "$runtime/experiments/hifitts_9017_generate.json" "$runtime/experiments/prosody_hifitts_9017.json" "$runtime/experiments/hifitts_9017_score.json"
 stage_summary hifitts_9017_20260913

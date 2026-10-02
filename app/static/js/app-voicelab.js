@@ -39,7 +39,12 @@
                 } else {
                     document.getElementById('voicelab-readiness').removeAttribute('title');
                 }
-            } catch (e) { console.error('Failed to load Voice Lab config:', e); }
+            } catch (e) {
+                console.error('Failed to load Voice Lab config:', e);
+                const readiness = document.getElementById('voicelab-readiness');
+                readiness.innerHTML = '<span class="badge bg-secondary">config unavailable</span>';
+                readiness.title = 'Displayed settings could not be verified: ' + (e.message || String(e));
+            }
         }
 
         window.saveVoicelabConfig = async () => {
@@ -56,12 +61,17 @@
             } catch (e) { showToast('Save failed: ' + (e.message || 'unknown'), 'error'); }
         };
 
-        window.voicelabInspect = async () => {
+        let _voicelabInspectRequest = 0;
+        window.voicelabInspect = async (runDir = null) => {
+            const request = ++_voicelabInspectRequest;
             const el = document.getElementById('vl-inspect');
-            const dir = document.getElementById('vl-zips_dir').value.trim();
+            const dir = runDir === null ? document.getElementById('vl-zips_dir').value.trim() : runDir;
+            const isCurrent = () => request === _voicelabInspectRequest &&
+                (runDir !== null || document.getElementById('vl-zips_dir').value.trim() === dir);
             el.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Inspecting…';
             try {
                 const r = await API.get('/api/voicelab/inspect' + (dir ? `?zips_dir=${encodeURIComponent(dir)}` : ''));
+                if (!isCurrent()) { return; }
                 const m = r.manifest || {};
                 const q = r.quality || {};
                 el.innerHTML =
@@ -75,15 +85,25 @@
                     + `<span class="badge bg-primary me-1">${m.profiled||0} profiled</span>`
                     + `<span class="badge bg-warning text-dark me-1">${m.unnamed||0} unnamed</span>`;
             } catch (e) {
+                if (!isCurrent()) { return; }
                 el.innerHTML = `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
             }
         };
 
-        function _vlSetRunning(running) {
-            document.getElementById('btn-vl-start').disabled = running;
+        function _vlSetRunning(running, starting = false) {
+            document.getElementById('btn-vl-start').disabled = running || starting;
             document.getElementById('btn-vl-pause').style.display = running ? 'inline-block' : 'none';
             document.getElementById('btn-vl-cancel').style.display = running ? 'inline-block' : 'none';
             if (running) { _resetPauseBtn('btn-vl-pause'); }
+        }
+
+        function getVoicelabNumber(id, label, integer = false) {
+            const raw = document.getElementById(id).value.trim();
+            const value = Number(raw);
+            if (!raw || !Number.isFinite(value) || (integer && !Number.isInteger(value))) {
+                throw new Error(`${label} must be ${integer ? 'an integer' : 'a finite number'}.`);
+            }
+            return value;
         }
 
         function getVoicelabRequest() {
@@ -92,10 +112,10 @@
                 zips_dir: document.getElementById('vl-zips_dir').value.trim() || undefined,
                 stages,
                 device: document.getElementById('vl-device').value || undefined,
-                target_loss: parseFloat(document.getElementById('vl-target-loss').value) || 4.15,
-                max_epochs: parseInt(document.getElementById('vl-max-epochs').value, 10) || 6,
-                lora_r: parseInt(document.getElementById('vl-lora-r').value, 10) || 64,
-                candidate_checkpoints: Math.max(0, Math.min(2, parseInt(document.getElementById('vl-candidate-checkpoints').value, 10) || 0)),
+                target_loss: getVoicelabNumber('vl-target-loss', 'Target loss'),
+                max_epochs: getVoicelabNumber('vl-max-epochs', 'Max epochs', true),
+                lora_r: getVoicelabNumber('vl-lora-r', 'LoRA rank', true),
+                candidate_checkpoints: getVoicelabNumber('vl-candidate-checkpoints', 'Candidate checkpoints', true),
                 name_apply: document.getElementById('vl-name-apply').checked,
                 name_overwrite: document.getElementById('vl-name-overwrite').checked,
             };
@@ -118,32 +138,46 @@
                 + (findings ? `<ul class="mb-0 mt-1">${findings}</ul>` : '');
         }
 
+        let _vlStarting = false;
         window.startVoicelab = async () => {
-            const body = getVoicelabRequest();
-            if (!body.stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
-            let preflight;
+            if (_vlStarting) { return; }
+            let body;
             try {
-                preflight = await API.post('/api/voicelab/preflight', body);
-                renderVoicelabPreflight(preflight);
+                body = getVoicelabRequest();
             } catch (e) {
-                showToast('Preflight failed: ' + (e.message || 'unknown'), 'error');
+                showToast(e.message || String(e), 'warning');
                 return;
             }
-            if (!preflight.ready) { return; }
-            const warningText = (preflight.warnings || []).map(item => item.message).join('\n');
-            const prompt = `${warningText ? warningText + '\n\n' : ''}Preflight is ready. Run ${preflight.stages.join(' → ')}?`;
-            if (!confirm(prompt)) { return; }
-            body.preflight_id = preflight.preflight_id;
-            _vlSetRunning(true);
-            document.getElementById('voicelab-status').innerHTML =
-                '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting…</span>';
+            if (!body.stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
+            _vlStarting = true;
+            _vlSetRunning(false, true);
+            let started = false;
+            let phase = 'Preflight';
             try {
-                await API.post('/api/voicelab/start', body);
-                pollVoicelab();
-            } catch (e) {
-                _vlSetRunning(false);
+                const preflight = await API.post('/api/voicelab/preflight', body);
+                renderVoicelabPreflight(preflight);
+                if (!preflight.ready) { return; }
+                const warningText = (preflight.warnings || []).map(item => item.message).join('\n');
+                const prompt = `${warningText ? warningText + '\n\n' : ''}Preflight is ready. Run ${preflight.stages.join(' → ')}?`;
+                if (!confirm(prompt)) { return; }
+                body.preflight_id = preflight.preflight_id;
+                phase = 'Start';
                 document.getElementById('voicelab-status').innerHTML =
-                    `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+                    '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting…</span>';
+                const result = await API.post('/api/voicelab/start', body);
+                started = true;
+                _vlSetRunning(true);
+                pollVoicelab(result.zips_dir);
+            } catch (e) {
+                if (phase === 'Preflight') {
+                    showToast('Preflight failed: ' + (e.message || 'unknown'), 'error');
+                } else {
+                    document.getElementById('voicelab-status').innerHTML =
+                        `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+                }
+            } finally {
+                _vlStarting = false;
+                if (!started) { _vlSetRunning(false); }
             }
         };
 
@@ -232,15 +266,29 @@
             if (link) { link.click(); }
         };
 
-        async function refreshVoicelabHealth() {
+        let _vlHealthRequest = null;
+        let _vlHealthGeneration = 0;
+        async function refreshVoicelabHealth(force = false) {
             const el = document.getElementById('vl-health-body');
             if (!el) { return; }
-            try {
-                const health = await API.get('/api/voicelab/health');
-                renderVoicelabHealth(health);
-            } catch (e) {
-                el.innerHTML = `<span class="text-muted">Pipeline health unavailable.</span>`;
+            while (_vlHealthRequest) {
+                await _vlHealthRequest;
+                if (!force) { return; }
             }
+            const generation = _vlHealthGeneration;
+            _vlHealthRequest = Promise.resolve().then(async () => {
+                try {
+                    const health = await API.get('/api/voicelab/health');
+                    if (generation === _vlHealthGeneration) { renderVoicelabHealth(health); }
+                } catch (e) {
+                    if (generation === _vlHealthGeneration) {
+                        el.innerHTML = `<span class="text-muted">Pipeline health unavailable.</span>`;
+                    }
+                } finally {
+                    _vlHealthRequest = null;
+                }
+            });
+            await _vlHealthRequest;
         }
 
         // Sanitized, bounded diagnostics bundle (secrets/home paths redacted
@@ -280,20 +328,44 @@
             }
         };
 
-        function pollVoicelab() {
+        function pollVoicelab(runDir = null) {
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-            _startPolling('voicelab', () => API.get('/api/status/voicelab'), {
+            let renderedLogs = null;
+            let logRunId = null;
+            _startPolling('voicelab', () => API.get('/api/status/voicelab?include_health=true'), {
                 doneCheck: s => !s.running,
                 onTick: s => {
-                    if (logEl) { logEl.innerText = (s.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+                    if (s.health) {
+                        _vlHealthGeneration++;
+                        renderVoicelabHealth(s.health);
+                    }
+                    if (s.zips_dir) { runDir = s.zips_dir; }
+                    if (logEl) {
+                        const logs = s.logs || [];
+                        const runId = s.run_id || null;
+                        const update = getTaskLogUpdate(renderedLogs, logRunId, logs, runId);
+                        if (update.changed) {
+                            if (update.reset) {
+                                logEl.innerText = update.text;
+                            } else {
+                                logEl.appendChild(document.createTextNode(update.text));
+                            }
+                            renderedLogs = update.logs;
+                            logRunId = update.runId;
+                            logEl.scrollTop = logEl.scrollHeight;
+                        }
+                    }
                     if (s.tasks && s.tasks.length) {
                         progEl.style.display = 'flex';
                         progEl.innerHTML = s.tasks.map(t =>
                             `<span class="badge bg-${colours[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
                     }
-                    refreshVoicelabHealth();  // reuse this poll tick; no extra timer
+                    else {
+                        progEl.style.display = 'none';
+                        progEl.innerHTML = '';
+                    }
                 },
                 onDone: s => {
                     _vlSetRunning(false);
@@ -302,9 +374,7 @@
                               : s.status === 'cancelled' ? 'text-warning' : 'text-danger';
                     document.getElementById('voicelab-status').innerHTML =
                         `<span class="${cls}">Pipeline ${escapeHtml(s.status || 'finished')}.</span>`;
-                    voicelabInspect();  // refresh manifest counts
-                    refreshVoicelabHealth();
+                    if (runDir !== null) { voicelabInspect(runDir); }
                 }
             });
         }
-

@@ -56,7 +56,7 @@ attempt asr_ja_largev3_readings "$runtime/experiments/asr_ja_largev3_readings.js
 #    that holds in another language is the cheapest test of whether it is real.
 attempt alignment_diagnosis_zh "$runtime/experiments/alignment_diagnosis_zh.json" \
     timeout 1800 "$python" -u "$repo/app/experiments/alignment_diagnosis.py" \
-    --builds "$runtime/kokoro_ja_asr_eval/build.json" \
+    --builds "$runtime/aishell3_eval/build.json" --language zh \
     --out "$runtime/experiments/alignment_diagnosis_zh.json"
 
 note "BUFFER QUEUE COMPLETE"

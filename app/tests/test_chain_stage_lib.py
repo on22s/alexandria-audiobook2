@@ -133,7 +133,7 @@ class StageRunnerTest(unittest.TestCase):
             handle.write("unrelated\n")
         subprocess.run(["git", "-C", repo, "add", "unrelated.txt"], check=True)
         command = (f'source "{LIB}"; STAGE_LOG_DIR="{self.tmp.name}/logs"; '
-                   f'stage_commit_artifacts probe "{repo}"')
+                   f'stage_commit_artifacts probe "{repo}" "{artifact}"')
         result = subprocess.run(["bash", "-c", command], capture_output=True,
                                 text=True, timeout=60)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -172,3 +172,37 @@ class StageRunnerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StageDependencyAccountingTests(unittest.TestCase):
+    def test_missing_failed_and_skipped_dependencies_make_summary_incomplete(self):
+        import shlex
+        from pathlib import Path
+        for predecessor in (None, "failed:7", "skipped"):
+            with self.subTest(predecessor=predecessor), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                initial = '' if predecessor is None else f'STAGE_RESULT[first]={shlex.quote(predecessor)}'
+                script = f"""
+set -uo pipefail
+source {shlex.quote(LIB)}
+STAGE_LOG_DIR={shlex.quote(str(root / 'logs'))}
+{initial}
+# Dependency failure must still precede server inspection and VRAM reclamation.
+pgrep() {{ touch {shlex.quote(str(root / 'unexpected_probe'))}; return 0; }}
+pkill() {{ touch {shlex.quote(str(root / 'unexpected_kill'))}; }}
+run_stage child 2s --needs-vram --requires-ok first -- touch {shlex.quote(str(root / 'child'))}
+run_stage grandchild 2s --requires-ok child -- touch {shlex.quote(str(root / 'grandchild'))}
+run_stage independent 2s -- touch {shlex.quote(str(root / 'independent'))}
+printf '%s %s %s %s\\n' "$STAGE_TOTAL" "$STAGE_FAILURES" "${{STAGE_RESULT[child]}}" "${{STAGE_RESULT[grandchild]}}" > {shlex.quote(str(root / 'state'))}
+stage_summary dependency_probe
+"""
+                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=10)
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertEqual("3 2 skipped skipped\n", (root / 'state').read_text())
+                self.assertIn("1/3 stages ok", result.stdout)
+                self.assertIn("SKIP  child", result.stdout)
+                self.assertIn("SKIP  grandchild", result.stdout)
+                self.assertTrue((root / 'independent').is_file())
+                for name in ('child', 'grandchild', 'unexpected_probe', 'unexpected_kill'):
+                    self.assertFalse((root / name).exists())
+                self.assertEqual(['independent.log'], sorted(p.name for p in (root / 'logs').iterdir()))

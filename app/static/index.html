@@ -1495,6 +1495,7 @@
                 </div>
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
+                    <div id="voice-save-drafts" aria-live="polite"></div>
                     <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                         <div class="input-group input-group-sm" style="width: 240px;">
                             <span class="input-group-text">Narrator mode</span>
@@ -1944,7 +1945,7 @@
                                         <div class="col-md-6">
                                             <label class="form-label small mb-0">ROCm Python <span id="chk-rocm_python" class="vl-chk"></span></label>
                                             <input type="text" class="form-control form-control-sm" id="vl-rocm_python" placeholder="/path/to/ml-env/bin/python">
-                                            <div class="form-text small">Interpreter with torch/librosa/speechbrain (not the web app's env).</div>
+                                            <div class="form-text small">Interpreter with torch/librosa/speechbrain. The web app’s environment can be used if it has these dependencies.</div>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label small mb-0">Profiler model (GGUF, optional) <span id="chk-profiler_model" class="vl-chk"></span></label>
@@ -2149,12 +2150,12 @@
                     </div>
 
                     <!-- Settings Info Panel -->
-                    <div class="card mb-3 border-info">
-                        <div class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="this.parentElement.querySelector('.card-body').classList.toggle('d-none')">
+                    <details class="card mb-3 border-info">
+                        <summary class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between align-items-center" style="cursor:pointer;">
                             <strong><i class="fas fa-info-circle me-1"></i>How Settings Affect LoRA Voice Quality</strong>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                        <div class="card-body d-none small">
+                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </summary>
+                        <div class="card-body small">
                             <dl class="row mb-0">
                                 <dt class="col-sm-3">LoRA Rank</dt>
                                 <dd class="col-sm-9">Controls adapter capacity. <strong>High rank (64+)</strong> captures voice identity strongly but can override the model's ability to follow instruct/style prompts, producing flat delivery. <strong>Low rank (8-16)</strong> preserves expressiveness and instruct-following but captures less voice detail. Start with 16-32 for a balance.</dd>
@@ -2163,7 +2164,7 @@
                                 <dt class="col-sm-3">Epochs</dt>
                                 <dd class="col-sm-9">Number of full passes over the dataset. Too many can overfit; too few can underfit, but the experiments did not establish a universal range. Use retained checkpoint evaluation and blind listening rather than sample count or training loss alone.</dd>
                                 <dt class="col-sm-3">Learning Rate</dt>
-                                <dd class="col-sm-9">Step size for weight updates. Default 5e-6 is conservative. Higher (1e-5) trains faster but risks instability. Lower (1e-6) is safer for longer training runs.</dd>
+                                <dd class="col-sm-9">Step size for weight updates. Default 1e-6 is conservative. Higher rates (5e-6 or 1e-5) train faster but risk instability.</dd>
                                 <dt class="col-sm-3">Batch Size</dt>
                                 <dd class="col-sm-9">Samples processed per step. Limited by VRAM. Batch 1 with gradient accumulation is typical for 24GB cards.</dd>
                                 <dt class="col-sm-3">Grad Accum Steps</dt>
@@ -2174,7 +2175,7 @@
                             <hr class="my-2">
                             <p class="mb-0"><strong>Training data:</strong> Sample count is inventory, not a quality score. Inspect recording consistency and the retained evaluation probes; compare Clone and LoRA by listening because neither mode won consistently across tested voices.</p>
                         </div>
-                    </div>
+                    </details>
 
                     <!-- Training Progress -->
                     <div id="lora-progress-section" style="display:none;">
@@ -2406,7 +2407,7 @@
                         <a id="download-link" href="#" class="btn btn-outline-dark mt-3" download="audiobook.mp3">
                             <i class="fas fa-download me-2"></i>Download MP3
                         </a>
-                        <button class="btn btn-outline-primary mt-3 ms-2" onclick="exportAudacity()">
+                        <button class="btn btn-outline-primary mt-3 ms-2" id="btn-export-audacity" onclick="exportAudacity()">
                             <i class="fas fa-headphones me-2"></i>Export to Audacity
                         </button>
                         <span id="audacity-status" class="ms-2 mt-3 d-inline-block"></span>
@@ -2456,7 +2457,7 @@
                                         </div>
                                     </div>
                                     <div class="mt-2">
-                                        <button class="btn btn-outline-success btn-sm" onclick="exportM4B()">
+                                        <button class="btn btn-outline-success btn-sm" id="btn-export-m4b" onclick="exportM4B()">
                                             <i class="fas fa-book-reader me-1"></i>Export M4B
                                         </button>
                                         <label class="form-check d-inline-flex align-items-center ms-2 small" title="Refuse export until every speaker is marked ready">
@@ -2594,7 +2595,7 @@
                         </div>
                         <div class="card-body">
                             <label class="form-label small mb-1" for="benchmark-manifest">Manifest (JSON: stage, targets, fixtures, settings)</label>
-                            <textarea class="form-control font-monospace" id="benchmark-manifest" rows="6" style="font-size: 0.8em;" placeholder='{"schema_version": 1, "stage": "script_generation", "targets": ["local"], "fixtures": [{"id": "chunk-1", "sha256": "..."}]}'></textarea>
+                            <textarea class="form-control font-monospace" id="benchmark-manifest" oninput="onBenchmarkManifestChange()" rows="6" style="font-size: 0.8em;" placeholder='{"schema_version": 1, "stage": "script_generation", "targets": ["local"], "fixtures": [{"id": "chunk-1", "sha256": "..."}]}'></textarea>
                             <div class="d-flex flex-wrap gap-2 mt-2">
                                 <button class="btn btn-sm btn-outline-primary" onclick="onBenchmarkPreflight()"><i class="fas fa-clipboard-check me-1"></i>Preflight</button>
                                 <button class="btn btn-sm btn-primary" id="btn-benchmark-start" onclick="onBenchmarkStart()" disabled><i class="fas fa-play me-1"></i>Start</button>
@@ -2681,9 +2682,9 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked@12/lib/marked.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/lib/marked.umd.min.js" integrity="sha384-g+bkfjJw18BIw5cMo99rClhgmX+PThUSSYYevb6sk76sliU2l+O7/cj5q1Nbl3Cw" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous"></script>
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>

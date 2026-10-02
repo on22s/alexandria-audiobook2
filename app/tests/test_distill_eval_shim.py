@@ -140,7 +140,7 @@ class DistillEvalShimTest(unittest.TestCase):
         client = self.module.LocalClient(_Model(), _Tok(reply))
         out = attribute_batch(client, "stub", BATCH, self._params(),
                               ["HARUHIRO", "RANTA"], neighbor_contexts=[{}, {}],
-                              source_text=" ".join(e["text"] for e in BATCH))
+                              source_text="Haruhiro and Ranta spoke. " + " ".join(e["text"] for e in BATCH))
 
         self.assertEqual([o["speaker"] for o in out], ["HARUHIRO", "RANTA"])
         # The text freeze is the whole reason attribution returns only n/head/

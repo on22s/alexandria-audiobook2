@@ -27,19 +27,9 @@ DEADLINE=$(date -d "2026-08-18 11:30" +%s)
 
 note() { echo "[$(date -u +%FT%TZ)] $*"; }
 
-commit_artifacts() {
-    # Stage by path: this tree is shared with other sessions, and `git add -A`
-    # would sweep in whatever they are mid-edit.
-    git -C "$REPO" add ab_test_runtime/experiments/ >/dev/null 2>&1
-    if ! git -C "$REPO" diff --cached --quiet; then
-        git -C "$REPO" commit -q -m "Artifacts from the $1 stage
-
-Committed by the morning chain so the dirty-tree gate does not refuse
-the next stage on this stage's own output.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" && note "committed $1 artifacts"
-    fi
-}
+STAGE_LOG_DIR="$LOG"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
+mkdir -p "$runtime/reports/overnight_20260818"
 
 time_left() { echo $(( DEADLINE - $(date +%s) )); }
 
@@ -50,12 +40,7 @@ for limit in 800 1200 1600; do
     # EXISTENCE IS NOT COMPLETION. The artifact is checkpointed every five
     # terms, so a killed run leaves a file that looks finished; n1200 was
     # committed at 1129 of 1200 terms this way. Skip only what is complete.
-    if [ -e "$out" ] && "$python" -c "
-import json,sys
-d=json.load(open(sys.argv[1]))
-sys.exit(0 if d.get('status')=='complete'
-         or len(d.get('results',[]))>=d.get('candidates_considered',0) else 1)
-" "$out" 2>/dev/null; then
+    if [ -e "$out" ] && "$python" "$REPO/app/experiments/respelling_completion.py" "$out" "$limit"; then
         note "SKIP $limit (complete)"; continue
     fi
     [ -e "$out" ] && note "REDO $limit (artifact exists but is partial)"
@@ -65,10 +50,25 @@ sys.exit(0 if d.get('status')=='complete'
         "$python" -u "$REPO/app/experiments/measure_respellings.py" \
         --min-books 5 --only-e-row --e-spelling ay --limit "$limit" \
         --work "$runtime/respelling_e_row_ay" --out "$out" \
-        > "$LOG/ay_n$limit.log" 2>&1 && note "OK $limit" || note "FAIL $limit"
-    [ -f "$out" ] && "$python" "$REPO/app/experiments/pair_e_row.py" "$out" \
-        >> "$runtime/reports/overnight_20260818/e_row_paired.txt" 2>&1
-    commit_artifacts "e_row_ay_n$limit"
+        > "$LOG/ay_n$limit.log" 2>&1
+    rc=$?
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result "e_row_ay_n$limit" "$rc"
+    if [ "$rc" -eq 0 ] && "$python" "$REPO/app/experiments/respelling_completion.py" "$out" "$limit"; then
+        note "OK $limit"
+        "$python" "$REPO/app/experiments/pair_e_row.py" "$out" \
+            >> "$runtime/reports/overnight_20260818/e_row_paired.txt" 2>&1
+        rc=$?
+        STAGE_TOTAL=$((STAGE_TOTAL + 1))
+        record_stage_result "pair_e_row_ay_n$limit" "$rc"
+    else
+        note "FAIL $limit (generation or completion check failed)"
+        if [ "$rc" -eq 0 ]; then
+            STAGE_TOTAL=$((STAGE_TOTAL + 1))
+            record_stage_result "completion_e_row_ay_n$limit" 1
+        fi
+    fi
+    stage_commit_artifacts "e_row_ay_n$limit" "$REPO" "$out"
 done
 
 # ---- 2. unseen_books, this time with the server it needs ------------------
@@ -78,14 +78,17 @@ if [ "$(time_left)" -gt 5400 ]; then
     # with exactly that message and gave the slot back to nobody. Same path
     # the pdnc chain uses.
     LLAMA_MODEL="${ALEXANDRIA_QWEN3_MODEL:-/home/fakemitch/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf}" \
-        "$REPO/ensure_llama_server.sh" > "$LOG/server.log" 2>&1 || note "server start failed"
-    note "START unseen_books"
-    timeout --signal=INT --kill-after=120s "$(time_left)" \
-        "$REPO/run_chains/unseen_books.sh" > "$LOG/unseen_books_retry.log" 2>&1 \
-        && note "OK unseen_books" || note "FAIL unseen_books rc=$?"
-    commit_artifacts unseen_books
+        "$REPO/ensure_llama_server.sh" > "$LOG/server.log" 2>&1
+    rc=$?
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result server "$rc"
+    run_stage unseen_books 0 --requires-ok server -- \
+        timeout --signal=INT --kill-after=120s "$(time_left)" \
+        "$REPO/run_chains/unseen_books.sh"
+
 else
     note "SKIP unseen_books: only $(time_left)s left"
 fi
 
+stage_summary morning_20260818 || exit 1
 note "MORNING CHAIN COMPLETE"

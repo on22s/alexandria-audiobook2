@@ -239,9 +239,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                          paths["output_csv"])
 
     def make_adapter(self, path, meta=None):
-        os.makedirs(path)
-        Path(path, "adapter_config.json").write_text("{}", encoding="utf-8")
-        Path(path, "adapter_model.safetensors").write_bytes(b"weights")
+        from tests.test_support import write_test_adapter
+        write_test_adapter(path)
         Path(path, "training_meta.json").write_text(
             json.dumps(meta or {"best_loss": 1.0}), encoding="utf-8")
 
@@ -281,10 +280,13 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             class FailedProcess:
                 def __init__(self, command, **kwargs):
                     os.makedirs(command[command.index("--output_dir") + 1])
-                    self.stdout = []
+                    self.stdout = io.StringIO("")
                     self.returncode = 2
 
                 def wait(self):
+                    return self.returncode
+
+                def poll(self):
                     return self.returncode
 
             with patch.object(batch_train.subprocess, "Popen", FailedProcess):
@@ -330,10 +332,13 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             class IncompleteProcess:
                 def __init__(self, command, **kwargs):
                     os.makedirs(command[command.index("--output_dir") + 1])
-                    self.stdout = []
+                    self.stdout = io.StringIO("")
                     self.returncode = 0
 
                 def wait(self):
+                    return self.returncode
+
+                def poll(self):
                     return self.returncode
 
             with patch.object(batch_train.subprocess, "Popen", IncompleteProcess):
@@ -503,3 +508,349 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfilerEmptyResponseTests(unittest.TestCase):
+    def test_empty_provider_responses_leave_profile_pending_and_fail_actual_cli(self):
+        for content in ("", "  \n", '\"\"', "''", '\"  \"', "'  '", None):
+            with self.subTest(content=content):
+                self.run_profile(content, expected_failure=True)
+
+    def test_real_describer_cleans_valid_content_and_cli_publishes_both_profiles(self):
+        self.run_profile('  \"Warm measured baritone.\"  ', expected_failure=False)
+
+    def run_profile(self, content, expected_failure):
+        from unittest.mock import Mock
+        features = {"mean_f0": 120.0, "std_f0": 10.0, "mean_rms": 0.04,
+                    "speaking_rate": 3.0, "mean_centroid": 2000.0, "mean_rolloff": 3000.0,
+                    "smoothness": 0.4, "flatness": 0.03, "duration": 5.0}
+        existing = {"id": "old", "dataset_id": "narrator_old_voice_book",
+                    "zip_source": "old.zip", "voice_profile": "existing profile",
+                    "voice_features": copy.deepcopy(features), "custom": {"keep": True}}
+        pending = {"id": "new", "dataset_id": "narrator_new_voice_book",
+                   "zip_source": "new.zip", "custom": {"keep": 7}}
+        provider = Mock()
+        provider.create_chat_completion.return_value = {
+            "choices": [{"message": {"content": content}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest, model, output = [root / name for name in ("manifest.json", "model.gguf", "profiles.csv")]
+            manifest.write_text(json.dumps([existing, pending]), encoding="utf-8")
+            model.write_bytes(b"not loaded")
+            argv = ["voice_profiler.py", "--manifest", str(manifest), "--model", str(model),
+                    "--output_csv", str(output)]
+            fake_llama = SimpleNamespace(Llama=lambda **_kwargs: provider)
+            with patch.object(sys, "argv", argv), \
+                 patch.dict(sys.modules, {"llama_cpp": fake_llama}), \
+                 patch.object(voice_profiler, "get_ref_wav", return_value=b"mocked decode"), \
+                 patch.object(voice_profiler, "analyze_ref_wav", return_value=features), \
+                 patch.object(voice_profiler, "find_epub", return_value=None), \
+                 redirect_stdout(io.StringIO()) as logs:
+                code = voice_profiler.main()
+            self.assertEqual(1 if expected_failure else 0, code)
+            saved = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(existing, saved[0])
+            self.assertEqual(pending["custom"], saved[1]["custom"])
+            self.assertIn("voice_features", saved[1])
+            with output.open(encoding="utf-8", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            if expected_failure:
+                self.assertNotIn("voice_profile", saved[1])
+                self.assertIn("leaving profile pending", logs.getvalue())
+                self.assertEqual(["old"], [row["id"] for row in rows])
+            else:
+                self.assertEqual("Warm measured baritone.", saved[1]["voice_profile"])
+                self.assertEqual(["old", "new"], [row["id"] for row in rows])
+                self.assertEqual(saved[1]["voice_profile"], rows[1]["voice_profile"])
+            provider.create_chat_completion.assert_called_once()
+            request = provider.create_chat_completion.call_args.kwargs
+            self.assertEqual(80, request["max_tokens"])
+            self.assertEqual(["\n"], request["stop"])
+            self.assertEqual(["system", "user"], [message["role"] for message in request["messages"]])
+            self.assertEqual(b"not loaded", model.read_bytes())
+
+
+class ProfilerCsvParentPreflightTests(unittest.TestCase):
+    def _preflight(self, root, output):
+        manifest = root / "manifest.json"
+        model = root / "model.gguf"
+        manifest.write_text("[]", encoding="utf-8")
+        model.write_bytes(b"model fixture")
+        with patch.object(voice_profiler, "DEPENDENCY_ERROR", None), \
+             patch.dict(sys.modules, {"llama_cpp": SimpleNamespace(Llama=object())}):
+            return voice_profiler.get_preflight_report(str(manifest), str(model), str(output), [])
+
+    def test_missing_nested_csv_parent_passes_without_creating_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "new" / "nested" / "profiles.csv"
+            report = self._preflight(root, output)
+            self.assertEqual("passed", report["status"], report)
+            self.assertFalse(output.parent.exists())
+            self.assertEqual({"manifest.json", "model.gguf"}, {p.name for p in root.iterdir()})
+            voice_profiler.atomic_csv_write([{"id": "known", "voice_profile": "verified"}], str(output))
+            with output.open(encoding="utf-8", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual("known", rows[0]["id"])
+            self.assertEqual("verified", rows[0]["voice_profile"])
+            self.assertEqual("[]", (root / "manifest.json").read_text())
+            self.assertEqual(b"model fixture", (root / "model.gguf").read_bytes())
+
+    def test_file_ancestor_is_rejected_and_existing_output_stays_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            obstacle = root / "file"
+            obstacle.write_bytes(b"must not overwrite")
+            report = self._preflight(root, obstacle / "nested" / "profiles.csv")
+            self.assertEqual("failed", report["status"])
+            self.assertTrue(any("output directory" in error for error in report["errors"]))
+            self.assertEqual(b"must not overwrite", obstacle.read_bytes())
+            existing = root / "profiles.csv"
+            existing.write_bytes(b"prior CSV")
+            self.assertEqual("passed", self._preflight(root, existing)["status"])
+            self.assertEqual(b"prior CSV", existing.read_bytes())
+            self.assertFalse(list(root.glob(".voice_profiler_check_*")))
+
+    def test_unwritable_existing_ancestor_fails_without_loading_a_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "new" / "profiles.csv"
+            with patch.object(voice_profiler.tempfile, "mkstemp", side_effect=PermissionError("denied")) as probe:
+                report = self._preflight(root, output)
+            self.assertEqual("failed", report["status"])
+            self.assertTrue(any("output directory" in error for error in report["errors"]))
+            self.assertEqual(str(root), probe.call_args.kwargs["dir"])
+            self.assertFalse(output.parent.exists())
+
+
+class LegacyProfilerIdTests(unittest.TestCase):
+    def test_legacy_entry_without_id_does_not_stop_actual_cli_or_drop_later_profiles(self):
+        import array
+        import wave
+        from unittest.mock import Mock
+        features = {"mean_f0": 120.0, "std_f0": 10.0, "mean_rms": 0.04,
+                    "speaking_rate": 3.0, "mean_centroid": 2000.0, "mean_rolloff": 3000.0,
+                    "smoothness": 0.4, "flatness": 0.03, "duration": 0.1}
+        for dry_run in (False, True):
+            with self.subTest(dry_run=dry_run), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                wav = io.BytesIO()
+                with wave.open(wav, "wb") as audio:
+                    audio.setnchannels(1)
+                    audio.setsampwidth(2)
+                    audio.setframerate(24000)
+                    audio.writeframes(array.array('h', [4096] * 2400).tobytes())
+                manifest = []
+                zip_bytes = {}
+                for name in ("legacy", "current"):
+                    archive = root / (name + ".zip")
+                    with zipfile.ZipFile(archive, "w") as zipped:
+                        zipped.writestr("ref.wav", wav.getvalue())
+                        zipped.writestr("ref_text.txt", "A matching reference passage.")
+                    zip_bytes[archive] = archive.read_bytes()
+                    entry = {"dataset_id": "narrator_" + name + "_voice_book", "zip_source": str(archive), "custom": {"keep": name}}
+                    if name == "current":
+                        entry["id"] = "current"
+                    manifest.append(entry)
+                manifest_path, model, output = [root / name for name in ("manifest.json", "model.gguf", "profiles.csv")]
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                original = manifest_path.read_bytes()
+                model.write_bytes(b"model stand-in")
+                output.write_bytes(b"prior CSV")
+                provider = Mock()
+                provider.create_chat_completion.return_value = {"choices": [{"message": {"content": "Warm measured baritone."}}]}
+                argv = ["voice_profiler.py", "--manifest", str(manifest_path), "--model", str(model), "--output_csv", str(output)]
+                if dry_run:
+                    argv.append("--dry_run")
+                with patch.object(sys, "argv", argv), \
+                     patch.dict(sys.modules, {"llama_cpp": SimpleNamespace(Llama=lambda **kwargs: provider)}), \
+                     patch.object(voice_profiler, "analyze_ref_wav", return_value=features) as analyze, \
+                     patch.object(voice_profiler, "find_epub", return_value=None), \
+                     redirect_stdout(io.StringIO()) as logs:
+                    self.assertEqual(0, voice_profiler.main())
+                self.assertEqual(2, analyze.call_count)
+                self.assertTrue(all(call.args[0] == wav.getvalue() for call in analyze.call_args_list))
+                self.assertIn("Done: 2 profiles processed, 0 errors", logs.getvalue())
+                if dry_run:
+                    self.assertEqual(original, manifest_path.read_bytes())
+                    self.assertEqual(b"prior CSV", output.read_bytes())
+                    provider.create_chat_completion.assert_not_called()
+                else:
+                    saved = json.loads(manifest_path.read_text())
+                    self.assertNotIn("id", saved[0])
+                    self.assertEqual(["legacy", "current"], [entry["custom"]["keep"] for entry in saved])
+                    self.assertTrue(all(entry["voice_profile"] == "Warm measured baritone." for entry in saved))
+                    with output.open(newline="", encoding="utf-8") as handle:
+                        rows = list(csv.DictReader(handle))
+                    self.assertEqual(["", "current"], [row["id"] for row in rows])
+                    self.assertEqual(2, provider.create_chat_completion.call_count)
+                for archive, before in zip_bytes.items():
+                    self.assertEqual(before, archive.read_bytes())
+                self.assertEqual(b"model stand-in", model.read_bytes())
+
+
+class BatchMetadataFailureTests(unittest.TestCase):
+    def test_actual_cli_cleans_bad_encoding_and_continues_to_next_zip(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            zips = root/'zips'
+            zips.mkdir()
+            for name, data in (('a_bad.zip',b'\xffinvalid utf8'),('b_good.zip',b'{"text":"CPU fixture"}\n')):
+                with zipfile.ZipFile(zips/name,'w') as archive:
+                    archive.writestr('metadata.jsonl',data)
+            child = root/'cpu_training_fixture.py'
+            child.write_text("\n".join([
+                'import argparse,json,pathlib',
+                'parser=argparse.ArgumentParser()',
+                'parser.add_argument("--output_dir");parser.add_argument("--data_dir")',
+                'args,_=parser.parse_known_args()',
+                'root=pathlib.Path(args.output_dir);root.mkdir(parents=True,exist_ok=True)',
+                '(root/"training_meta.json").write_text(json.dumps({"epochs":1,"final_loss":3.0,"best_loss":3.0}))',
+                'from safetensors.numpy import save_file;import numpy as np',
+                '(root/"adapter_config.json").write_text(json.dumps({"peft_type":"LORA","r":2,"lora_alpha":4,"target_modules":["q_proj"]}))',
+                'save_file({"layer.lora_A.weight":np.ones((2,3),dtype=np.float32)},str(root/"adapter_model.safetensors"))',
+                'print("[DONE] CPU fixture completed",flush=True)',
+            ])+'\n')
+            datasets,models,manifest = root/'datasets',root/'models',root/'manifest.json'
+            result = subprocess.run([sys.executable,str(ROOT/'tools/voice_lab/batch_train_lora.py'),
+                '--zips_dir',str(zips),'--datasets_dir',str(datasets),'--models_dir',str(models),
+                '--manifest',str(manifest),'--train_script',str(child),'--python',sys.executable],
+                capture_output=True,text=True,timeout=10)
+            self.assertEqual(1,result.returncode,result.stdout+result.stderr)
+            self.assertIn('Done: 1 trained, 0 skipped, 1 errors',result.stdout)
+            self.assertIn('ERROR reading metadata',result.stdout)
+            self.assertNotIn('Traceback',result.stderr)
+            self.assertEqual([],list(datasets.iterdir()))
+            rows=json.loads(manifest.read_text())
+            self.assertEqual(1,len(rows))
+            self.assertEqual('b_good',rows[0]['dataset_id'])
+            self.assertEqual(1,rows[0]['sample_count'])
+            self.assertEqual({rows[0]['id'], 'manifest.json.lock'},
+                             {p.name for p in models.iterdir()})
+            self.assertTrue((models/'manifest.json.lock').is_file())
+            self.assertEqual(3.0,json.loads((models/rows[0]['id']/'training_meta.json').read_text())['best_loss'])
+            with zipfile.ZipFile(zips/'a_bad.zip') as archive:
+                self.assertEqual(b'\xffinvalid utf8',archive.read('metadata.jsonl'))
+
+    def test_metadata_read_failure_cleans_dataset_but_preserves_existing_output(self):
+        for as_directory in (False,True):
+            with self.subTest(directory=as_directory),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)
+                archive=root/'bad.zip'
+                with zipfile.ZipFile(archive,'w') as zipped:
+                    zipped.writestr('metadata.jsonl/' if as_directory else 'metadata.jsonl',
+                                    b'' if as_directory else b'\xffbad')
+                args=SimpleNamespace(datasets_dir=str(root/'datasets'),models_dir=str(root/'models'))
+                output=Path(args.models_dir,'existing')
+                output.mkdir(parents=True)
+                sentinel=output/'keep.bin'
+                sentinel.write_bytes(b'prior adapter bytes')
+                with patch.object(batch_train.subprocess,'Popen') as process,redirect_stdout(io.StringIO()) as log:
+                    result=batch_train.train_one(str(archive),'bad','existing',args)
+                self.assertIsNone(result)
+                process.assert_not_called()
+                self.assertFalse((Path(args.datasets_dir)/'bad').exists())
+                self.assertEqual(b'prior adapter bytes',sentinel.read_bytes())
+                self.assertIn('ERROR reading metadata',log.getvalue())
+
+
+class BatchTrainingEtaTests(unittest.TestCase):
+    def test_eta_counts_attempted_training_instead_of_cached_zip_ordinals(self):
+        for fail_first in (False,True):
+            with self.subTest(fail_first=fail_first),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)
+                zips=root/'zips'
+                zips.mkdir()
+                for index in range(12):
+                    (zips/('%02d.zip' % index)).touch()
+                clock=[0.0]
+                cache_checks=[]
+                attempted=[]
+                def cached(models,dataset_id,manifest):
+                    cache_checks.append(dataset_id)
+                    return 'cached' if len(cache_checks)<=9 else None
+                def train(zip_path,dataset_id,adapter_id,args):
+                    attempted.append(dataset_id)
+                    clock[0]+=300.0  # Controlled fixture duration, not a GPU measurement.
+                    if fail_first and len(attempted)==1:
+                        return None
+                    return {'id':adapter_id,'dataset_id':dataset_id}
+                argv=['batch_train_lora.py','--zips_dir',str(zips),
+                    '--datasets_dir',str(root/'datasets'),'--models_dir',str(root/'models'),
+                    '--manifest',str(root/'manifest.json')]
+                with patch.object(sys,'argv',argv), \
+                     patch.object(batch_train,'adapter_exists',side_effect=cached), \
+                     patch.object(batch_train,'train_one',side_effect=train), \
+                     patch.object(batch_train.time,'time',side_effect=lambda:clock[0]), \
+                     redirect_stdout(io.StringIO()) as log:
+                    code=batch_train.main()
+                self.assertEqual(int(fail_first),code)
+                self.assertEqual(3,len(attempted))
+                progress=[line.strip() for line in log.getvalue().splitlines() if 'Progress:' in line]
+                if fail_first:
+                    self.assertEqual('Progress: 1 done, 9 skipped, 1 errors — ETA: 5 min for 1 remaining',progress[0])
+                else:
+                    self.assertEqual('Progress: 1 done, 9 skipped, 0 errors — ETA: 10 min for 2 remaining',progress[0])
+                    self.assertEqual('Progress: 2 done, 9 skipped, 0 errors — ETA: 5 min for 1 remaining',progress[1])
+                self.assertIn('ETA: 0 min for 0 remaining',progress[-1])
+                self.assertEqual(2 if fail_first else 3,len(json.loads((root/'manifest.json').read_text())))
+
+
+class ProfilerEpubNavigationTests(unittest.TestCase):
+    paragraph = "This is the expected book passage. " + "The narrator read these ordinary words aloud. " * 6
+
+    def build_epub(self, path, quote='"', href="chapter.xhtml", member="OEBPS/chapter.xhtml",
+                   reordered=False, namespace=False, full_path="OEBPS/content.opf",
+                   malformed_container=False, malformed_opf=False, missing=False):
+        q = quote
+        ns = ' xmlns="urn:oasis:names:tc:opendocument:xmlns:container"' if namespace else ''
+        container = f'<container{ns}><rootfiles><rootfile full-path={q}{full_path}{q}/></rootfiles></container>'
+        item = (f'<item href={q}{href}{q} id={q}chapter{q}/>' if reordered else
+                f'<item id={q}chapter{q} href={q}{href}{q}/>')
+        ref = (f'<itemref linear={q}yes{q} idref={q}chapter{q}/>' if reordered else
+               f'<itemref idref={q}chapter{q}/>')
+        ns = ' xmlns="http://www.idpf.org/2007/opf"' if namespace else ''
+        opf = f'<package{ns}><manifest>{item}</manifest><spine>{ref * 4}</spine></package>'
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("META-INF/container.xml", "<broken" if malformed_container else container)
+            archive.writestr("OEBPS/content.opf", "<broken" if malformed_opf else opf)
+            if not missing:
+                archive.writestr(member, "<html><body><p>" + self.paragraph + "</p></body></html>")
+
+    def test_valid_xml_and_local_uri_variants_return_exact_passage_without_zip_changes(self):
+        cases = [{}, {"quote": "'"}, {"reordered": True}, {"namespace": True},
+                 {"quote": "'", "reordered": True, "namespace": True},
+                 {"href": "../Text/chapter.xhtml", "member": "Text/chapter.xhtml"},
+                 {"href": "./Text/../chapter.xhtml"},
+                 {"href": "chapter%20one.xhtml", "member": "OEBPS/chapter one.xhtml"},
+                 {"href": "chapter%20%E5%A3%B0.xhtml#paragraph?ignored", "member": "OEBPS/chapter 声.xhtml"},
+                 {"href": "chapter.xhtml?query=yes#paragraph"},
+                 {"member": "chapter.xhtml"},
+                 {"full_path": "./OEBPS/../OEBPS/content.opf#package"},
+                 {"full_path": "OEBPS/content%2Eopf"}]
+        for options in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "book.epub")
+                self.build_epub(path, **options)
+                before = path.read_bytes()
+                expected = ((self.paragraph.strip() + " ") * 3)[:600].strip()
+                self.assertEqual(expected, voice_profiler.extract_epub_passage(str(path)))
+                self.assertEqual(expected[:100].strip(), voice_profiler.extract_epub_passage(str(path), 100))
+                self.assertEqual(before, path.read_bytes())
+
+    def test_invalid_or_external_navigation_returns_empty_without_reading_unrelated_member(self):
+        cases = [{"malformed_container": True}, {"malformed_opf": True}, {"missing": True},
+                 {"href": "https://example.test/chapter.xhtml", "member": "chapter.xhtml"},
+                 {"href": "//example.test/chapter.xhtml", "member": "chapter.xhtml"},
+                 {"href": "../../chapter.xhtml", "member": "chapter.xhtml"},
+                 {"href": "%2E%2E/%2E%2E/chapter.xhtml", "member": "chapter.xhtml"},
+                 {"full_path": "../OEBPS/content.opf"},
+                 {"full_path": "https://example.test/OEBPS/content.opf"}]
+        for options in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "book.epub")
+                self.build_epub(path, **options)
+                before = path.read_bytes()
+                self.assertEqual("", voice_profiler.extract_epub_passage(str(path)))
+                self.assertEqual(before, path.read_bytes())

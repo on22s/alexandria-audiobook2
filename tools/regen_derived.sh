@@ -62,6 +62,12 @@ fi
 # the --check pass, and resolving it in a second place is how the worktree
 # fallback above would end up existing twice and drifting once.
 if [ "${1:-}" = "--python" ]; then echo "$python"; exit 0; fi
+# Combined query for callers that need both shared answers. No generators run.
+if [ "${1:-}" = "--metadata" ]; then
+    printf '%s\n' "$python"
+    derived_paths
+    exit 0
+fi
 
 quiet=0
 [ "${1:-}" = "--quiet" ] && quiet=1

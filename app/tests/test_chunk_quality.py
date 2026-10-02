@@ -223,21 +223,23 @@ class ChunkQualityTests(unittest.TestCase):
                             for attempt in attempts))
 
     def test_known_source_corruption_normalizes_with_location_evidence(self):
-        original = "First line.\nTake саге now."
+        padding = "The narrator continued speaking calmly for a while. " * 40
+        original = padding + "\nTake саге now."
 
         normalized, changes = normalize_known_source_corruptions(original)
 
-        self.assertEqual("First line.\nTake care now.", normalized)
-        self.assertEqual("First line.\nTake саге now.", original)
+        self.assertEqual(padding + "\nTake care now.", normalized)
+        self.assertEqual(padding + "\nTake саге now.", original)
         self.assertEqual((2, 6, "саге", "care"),
                          (changes[0]["line"], changes[0]["column"],
                           changes[0]["before"], changes[0]["after"]))
 
     def test_known_source_nap_corruption_is_normalized(self):
+        padding = "The narrator continued speaking calmly for a while. " * 40
         normalized, changes = normalize_known_source_corruptions(
-            "She intended to пар until their arrival.")
+            padding + "She intended to пар until their arrival.")
 
-        self.assertEqual("She intended to nap until their arrival.", normalized)
+        self.assertEqual(padding + "She intended to nap until their arrival.", normalized)
         self.assertEqual("пар", changes[0]["before"])
         self.assertEqual("nap", changes[0]["after"])
 
@@ -559,6 +561,37 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
         self.assertFalse(is_trigram_only_near_miss(
             report(False, ["low_ordered_trigram_recall", "low_source_token_recall"], 0.88)))
 
+    def test_near_miss_floor_uses_exact_recall_in_the_saved_report(self):
+        import json
+        from pathlib import Path
+        import tempfile
+        from chunk_quality import is_trigram_only_near_miss
+        from utils import atomic_json_write
+        for token_count, rotate, accepted in ((20003, True, False),
+                                               (20002, False, True),
+                                               (20003, False, True)):
+            with self.subTest(token_count=token_count, rotate=rotate):
+                words = [f"word{i}" for i in range(token_count)]
+                output = words[1:] + words[:1] if rotate else words.copy()
+                for index in range(4, 4 + 900 * 6, 6):
+                    output[index], output[index + 1] = output[index + 1], output[index]
+                expected = ((token_count - 2 - 3600 - int(rotate)) / (token_count - 2))
+                from pass_quality import validate_segment_quality
+                reports = [validate_chunk_quality(" ".join(words), [_entry(" ".join(output))]),
+                           validate_segment_quality(" ".join(words),
+                               [{"type": "NARRATOR", "text": " ".join(output)}])]
+                for report in reports:
+                    self.assertEqual({"low_ordered_trigram_recall"},
+                                     {finding["code"] for finding in report["findings"]})
+                    self.assertEqual(accepted, is_trigram_only_near_miss(report))
+                    self.assertEqual(expected, report["metrics"]["ordered_trigram_recall"])
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path = str(Path(tmp, "quality.json"))
+                        atomic_json_write(report, path)
+                        saved = json.loads(Path(path).read_text())
+                    self.assertEqual(accepted, is_trigram_only_near_miss(saved))
+                    self.assertEqual(expected, saved["metrics"]["ordered_trigram_recall"])
+
     def test_real_validator_produces_a_trigram_only_near_miss(self):
         from chunk_quality import is_trigram_only_near_miss
         source, near_miss = _trigram_near_miss_text()
@@ -743,3 +776,118 @@ def _call_real_adaptive(source):
 
 
 _ORIGINAL_ADAPTIVE = generate_script.process_chunk_adaptively
+
+
+class AcceptedNearMissResumeTests(unittest.TestCase):
+    def fixture(self, output):
+        source, reordered = _trigram_near_miss_text()
+        chunks = [source, " ".join("nextword" + str(i) for i in range(100))]
+        params = generate_script.LLMGenParams("system", "{chunk}")
+        book = "\n\n".join(chunks)
+        fingerprint = generate_script.get_generation_fingerprint(book, chunks, "fixture", "http://fixture", params, 6000)
+        entries = [_entry(reordered)]
+        quality = validate_chunk_quality(chunks[0], entries)
+        from chunk_quality import is_trigram_only_near_miss
+        self.assertFalse(quality["passed"])
+        self.assertTrue(is_trigram_only_near_miss(quality))
+        accepted = [{"chunk_number": 1, "source_sha256": fingerprint["chunk_sha256"][0],
+                     "entries": entries, "quality": quality, "near_miss_accepted": True,
+                     "adaptively_split": True, "attempts": [{"outcome": "response_rejected"}]}]
+        generate_script.save_generation_checkpoint(output, fingerprint, accepted)
+        return book, chunks, params, fingerprint, accepted
+
+    def test_roundtrip_keeps_explicitly_accepted_real_near_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / "book.json")
+            book, chunks, params, fingerprint, accepted = self.fixture(output)
+            checkpoint = Path(generate_script.get_generation_checkpoint_path(output))
+            before = checkpoint.read_bytes()
+            self.assertEqual(accepted, generate_script.load_generation_checkpoint(output, fingerprint))
+            self.assertEqual(before, checkpoint.read_bytes())
+
+    def test_actual_generation_resume_dispatches_only_remaining_chunk_and_preserves_failed_retry(self):
+        import ast
+        import io
+        import json
+        import time
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        from script_preflight import audit_unicode_text
+        tree = ast.parse(Path(generate_script.__file__).read_text())
+        main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main")
+        start = next(i for i, node in enumerate(main.body) if isinstance(node, ast.Assign)
+                     and any(isinstance(target, ast.Name) and target.id == "fingerprint" for target in node.targets))
+        resume = compile(ast.Module(body=main.body[start:], type_ignores=[]), generate_script.__file__, "exec")
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / "book.json")
+            book, chunks, params, fingerprint, accepted = self.fixture(output)
+            source_path = Path(tmp) / "source.txt"
+            source_path.write_text(book)
+            source_hash = generate_script.get_file_sha256(str(source_path))
+            checkpoint = Path(generate_script.get_generation_checkpoint_path(output))
+            before = checkpoint.read_bytes()
+            Path(output).write_bytes(b'[{"prior": true}]')
+            def execute(process):
+                namespace = dict(vars(generate_script), book_content=book, chunks=chunks, model_name="fixture",
+                    base_url="http://fixture", gen_params=params, chunk_size=6000,
+                    output_path=output, all_entries=[], chunk_times=[], start_time=time.monotonic(),
+                    total_chunks=2, client=object(), source_normalizations=[], response_log="fixture.log",
+                    data_dir=tmp, args=SimpleNamespace(output=output), source_unicode=audit_unicode_text(book),
+                    input_file_path=str(source_path), input_sha256=source_hash,
+                    request_preflight={})
+                with patch.object(generate_script, "process_chunk_adaptively", side_effect=process) as calls, \
+                     redirect_stdout(io.StringIO()):
+                    namespace["process_chunk_adaptively"] = generate_script.process_chunk_adaptively
+                    exec(resume, namespace)
+                return calls
+            seen = []
+            def fail(client, model, chunk, number, total, params, **kwargs):
+                seen.append(number)
+                self.assertEqual(accepted[0]["entries"], kwargs["previous_entries"])
+                return [], False
+            with self.assertRaises(SystemExit) as stopped:
+                execute(fail)
+            self.assertEqual(1, stopped.exception.code)
+            self.assertEqual([2], seen)
+            self.assertEqual(before, checkpoint.read_bytes())
+            self.assertEqual(b'[{"prior": true}]', Path(output).read_bytes())
+            seen.clear()
+            def finish(client, model, chunk, number, total, params, **kwargs):
+                seen.append(number)
+                self.assertEqual(accepted[0]["entries"], kwargs["previous_entries"])
+                return [_entry(chunks[1])], False
+            execute(finish)
+            self.assertEqual([2], seen)
+            result = json.loads(Path(output).read_text())
+            self.assertEqual([accepted[0]["entries"][0]["text"], chunks[1]], [entry["text"] for entry in result])
+            manifest = json.loads(Path(generate_script.get_generation_quality_path(output)).read_text())
+            self.assertEqual("complete", manifest["status"])
+            self.assertEqual(1, manifest["near_miss_accepted_count"])
+            self.assertFalse(checkpoint.exists())
+
+    def test_marker_cannot_resume_hard_failures_wrong_source_or_malformed_quality(self):
+        import copy
+        from chunk_quality import ACCEPT_TRIGRAM_NEAR_MISS_FLOOR
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / "book.json")
+            book, chunks, params, fingerprint, accepted = self.fixture(output)
+            variants = [{"near_miss_accepted": False}, {"near_miss_accepted": "true"},
+                        {"source_sha256": "other-source"}, {"quality": None},
+                        {"quality": {"passed": "true"}},
+                        {"quality": {"passed": False, "findings": [None]}},
+                        {"quality": {"passed": False, "findings": [{"code": "low_ordered_trigram_recall"}], "metrics": []}}]
+            for metric in (ACCEPT_TRIGRAM_NEAR_MISS_FLOOR - 0.01, float('nan'), "0.88"):
+                quality = copy.deepcopy(accepted[0]["quality"])
+                quality["metrics"]["ordered_trigram_recall"] = metric
+                variants.append({"quality": quality})
+            hard = copy.deepcopy(accepted[0]["quality"])
+            hard["findings"].append({"code": "low_source_token_recall"})
+            variants.append({"quality": hard})
+            for changed in variants:
+                with self.subTest(changed=changed):
+                    rows = [{**copy.deepcopy(accepted[0]), **changed}]
+                    generate_script.save_generation_checkpoint(output, fingerprint, rows)
+                    checkpoint = Path(generate_script.get_generation_checkpoint_path(output))
+                    before = checkpoint.read_bytes()
+                    self.assertEqual([], generate_script.load_generation_checkpoint(output, fingerprint))
+                    self.assertEqual(before, checkpoint.read_bytes())

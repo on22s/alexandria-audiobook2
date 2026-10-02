@@ -15,7 +15,7 @@ check, and it had also gone stale - `test_third_party_findings.py` still says
 requirements.txt and IS installed in CI.
 
 SCOPE, stated honestly. This checks the packages the repository EXPLICITLY
-declares unavailable: the two the workflow greps out of its install line, and
+declares unavailable: any exclusions in workflow install lines, and
 the ones requirements-test.txt carries commented out. Both are parsed from
 those files, so neither can rot the way the comment did. It deliberately does
 NOT try to decide availability in general - `httpx` and `starlette` reach CI as
@@ -92,8 +92,8 @@ class SuiteImportsAreCIInstallableTest(unittest.TestCase):
         """Guards the derivation, so a changed workflow changes the check."""
         unavailable = declared_unavailable()
         self.assertIn("pytest", unavailable)        # commented out in reqs-test
-        self.assertIn("transformers", unavailable)  # greped out by the workflow
-        self.assertIn("peft", unavailable)          # greped out by the workflow
+        self.assertNotIn("transformers", unavailable)  # real CPU parser dependency
+        self.assertNotIn("peft", unavailable)          # real CPU parser dependency
         self.assertNotIn("soundfile", unavailable)  # installed; 8 modules use it
         self.assertNotIn("openai", unavailable)     # what the stale comment got wrong
 

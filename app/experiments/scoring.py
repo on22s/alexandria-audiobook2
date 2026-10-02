@@ -18,15 +18,12 @@ that wrote the honorific with its full stop was marked wrong for it. That is a
 defect in the instrument, not a finding about models, and it is folded into the
 primary comparison here.
 
-THE 106 ARE DELIBERATELY NOT. `attribution_accuracy.romaji_key` documents why
-and the reasoning still holds: exact spelling measures whether a name is usable
-downstream, because a misspelled speaker fragments the cast list and breaks
-voice assignment, while phonetic matching measures whether the model identified
-the right character. Those are different questions, and the penalty is
-model-specific - magistral-small loses 7.9 points of oracle accuracy to
-romanization where three other models lose nothing. Folding it into the primary
-metric would hide a real, unevenly-distributed weakness. `same_speaker` reports
-it separately so a caller can have both numbers.
+THE 106 ARE DELIBERATELY NOT folded into the primary comparison. Exact spelling
+measures whether a name is usable downstream, because a misspelled speaker
+fragments the cast list and breaks voice assignment. The separate variant
+metric accepts only fixture-declared spelling equivalences; a consonant-key
+collision is not evidence that the model identified the right character.
+`same_speaker` therefore requires explicit `phonetic_groups` when requested.
 """
 import re
 
@@ -73,10 +70,10 @@ def alias_groups(*sources):
     return groups
 
 
-def same_speaker(expected, actual, groups=(), phonetic=False):
+def same_speaker(expected, actual, groups=(), phonetic=False, phonetic_groups=()):
     """Is `actual` the speaker `expected` names?
 
-    `phonetic=True` additionally accepts romanization variants. Leave it False
+    `phonetic=True` accepts explicitly declared `phonetic_groups`. Leave it False
     for the headline number and call it twice if you want both - see the module
     docstring for why the two are not the same question.
     """
@@ -91,9 +88,10 @@ def same_speaker(expected, actual, groups=(), phonetic=False):
     if phonetic:
         # Imported lazily: this module is used by offline analyses that have no
         # reason to pull in the accuracy module's dependencies.
-        from attribution_accuracy import romaji_key
-        key = romaji_key(b)
-        return bool(key) and key == romaji_key(a)
+        from attribution_accuracy import same_person_phonetic
+        normalized_groups = [{normalize(name) for name in group}
+                             for group in phonetic_groups]
+        return same_person_phonetic(a, b, (), normalized_groups)
     return False
 
 

@@ -5,6 +5,7 @@ set -u
 : "${HF_TOKEN:?Set HF_TOKEN in the environment before running this corpus test}"
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+source "$SCRIPT_DIR/../lib/stage.sh" || exit 1
 AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
 SOURCE_DIR=${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}
 OUT_DIR="$SCRIPT_DIR/random_test_output"
@@ -48,8 +49,11 @@ for pair in "${PAIRS[@]}"; do
     if (( rc == 130 )); then
         exit 130
     fi
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result "corpus_$i" "$rc"
 done
 
+stage_summary random_corpus || exit "$?"
 elapsed=$(( $(date +%s) - start_epoch ))
 echo ""
 echo "Random corpus test complete in $(( elapsed / 60 ))m."

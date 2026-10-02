@@ -23,7 +23,6 @@ set -uo pipefail
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
-BACKUP="$L/config.json.pre_fallback_backup"
 # NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
 # third lock file that serialised against neither the repo lock the other
 # chains use nor gpu_job.sh's own - and it sat BELOW the self-re-exec above,
@@ -31,12 +30,6 @@ BACKUP="$L/config.json.pre_fallback_backup"
 # gpu_job.sh now defaults to the repo lock; letting it decide is the point.
 export GPU_QLOG="$L/gpu_jobq.log"
 cd "$REPO/app"
-
-restore_config() {
-    [ -f "$BACKUP" ] && cp -f "$BACKUP" "$REPO/app/config.json" && \
-        echo "restored app/config.json"
-}
-trap restore_config EXIT INT TERM
 
 if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
     echo "ABORT: no qwen3 server on 8090"; exit 1

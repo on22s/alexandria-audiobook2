@@ -10,10 +10,8 @@
 # qwen3-14b, which is exactly what 3.1 is missing.
 #
 # THE MODEL SETUP, AND WHY IT IS NOT THE DEFAULT ONE.
-#   - app/config.json pointed at qwen2.5-14b, the model 3.1 explicitly says is
-#     not the shipped path. It now names qwen3-14b; the original is backed up
-#     at ab_test_runtime/logs/config.json.pre_qwen3_backup and RESTORED at the
-#     end of this script, including on failure.
+#   - Both generation arms explicitly request qwen3-14b for this run.
+#     The user's config.json and any existing backup remain untouched.
 #   - llama-server runs with --chat-template-kwargs '{"enable_thinking":false}'.
 #     Qwen3 is a thinking model: asked for 16 tokens it spent all of them on
 #     reasoning and returned empty content, which the pipeline would see as a
@@ -29,7 +27,6 @@ set -uo pipefail
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
-BACKUP="$L/config.json.pre_qwen3_backup"
 # NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
 # third lock file that serialised against neither the repo lock the other
 # chains use nor gpu_job.sh's own - and it sat BELOW the self-re-exec above,
@@ -39,20 +36,21 @@ export GPU_QLOG="$L/gpu_jobq.log"
 mkdir -p "$L"
 cd "$REPO/app"
 
-restore_config() {
-    if [ -f "$BACKUP" ]; then
-        cp "$BACKUP" "$REPO/app/config.json"
-        echo "restored app/config.json from backup"
-    fi
-}
-# Runs on normal exit, on error, and on Ctrl-C. Leaving the config pointing at
-# a model whose server is gone would break the app for the next person to open
-# it, which is a worse outcome than the run not finishing.
-trap restore_config EXIT INT TERM
-
 echo "=== endpoint check $(date -u +%FT%TZ) ==="
-if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
-    echo "ABORT: no qwen3 server on 8090 - a run without it measures nothing"
+if ! curl -fsS -m 20 http://127.0.0.1:8090/v1/models | "$PY" -c '
+import json, sys
+try:
+    response = json.load(sys.stdin)
+    models = response.get("data") if isinstance(response, dict) else None
+    valid = (isinstance(models, list) and
+             all(isinstance(model, dict) and isinstance(model.get("id"), str)
+                 for model in models) and
+             any(model["id"] == "qwen3-14b" for model in models))
+except (ValueError, OSError):
+    valid = False
+sys.exit(0 if valid else 1)
+'; then
+    echo "ABORT: endpoint does not advertise exact model qwen3-14b on8090"
     exit 1
 fi
 echo "  qwen3-14b responding"
@@ -63,7 +61,7 @@ echo "  qwen3-14b responding"
 echo ""
 echo "=== three_pass_vs_single  $(date -u +%FT%TZ) ==="
 "$REPO/gpu_job.sh" three_pass_qwen3 timeout 72000 "$PY" -u experiments/three_pass_vs_single.py \
-    --books grimgar03 index18 mushoku16 owarimonogatari3 \
+    --books grimgar03 index18 mushoku16 owarimonogatari3 --model qwen3-14b \
     --out "$REPO/ab_test_runtime/experiments/three_pass_vs_single_qwen3.json" \
     > "$L/three_pass_qwen3.log" 2>&1
 echo "  rc=$?"

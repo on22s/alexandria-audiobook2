@@ -13,7 +13,8 @@ derives the canonical name
 
 from the prose + acoustic features, then renames the adapter directory and updates
 the manifest ``id``/``name`` (with ``_1/_2`` suffixes on collisions). A backup of the
-manifest is written before any change.
+manifest is written before any change. A durable journal restores pending
+renames after interruption; --recover repairs them before other writers proceed.
 
 This replaces the manual renaming step that was previously done by hand.
 
@@ -29,15 +30,24 @@ Pure standard library — no ML dependencies — so it runs under any interprete
 """
 
 import argparse
-import json
+import copy
 import os
 import re
-import shutil
 import sys
 import time
-import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+APP_DIR = os.path.join(SCRIPT_DIR, "app")
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
+from adapter_naming_transaction import (
+    apply_adapter_naming_locked, lock_adapter_naming,
+    recover_adapter_naming_locked, validate_naming_manifest,
+)
+from adapter_publication import get_adapter_publication_recovery_command, get_adapter_publication_owner
+from voice_manifest import get_voice_manifest, get_adapter_alias_registry, get_reserved_adapter_ids, get_resolved_adapter_manifest_rows_locked
+from voice_acoustics import get_pitch_gender_estimate
+
 DEFAULT_MODELS_DIR = os.path.join(SCRIPT_DIR, "lora_models")
 DEFAULT_MANIFEST = os.path.join(DEFAULT_MODELS_DIR, "manifest.json")
 
@@ -96,7 +106,7 @@ def derive_base_slug(voice_profile: str, mean_f0=None) -> str:
     elif register:
         gender = "m"
     else:
-        gender = "f" if (mean_f0 and mean_f0 >= 165) else "m"
+        gender = {"female": "f", "male": "m", "unknown": "unknown"}[get_pitch_gender_estimate(mean_f0)]
 
     tail = p.split("best for", 1)[1] if "best for" in p else ""
     genre = next((tok for tok, kws in GENRE_RULES if any(k in tail for k in kws)), "")
@@ -190,16 +200,34 @@ def main():
                     help="Also re-name adapters that already have a descriptive slug")
     ap.add_argument("--verify", action="store_true",
                     help="Re-derive names for already-named adapters and confirm they match")
+    ap.add_argument("--recover", action="store_true", help="recover an interrupted naming transaction")
     args = ap.parse_args()
 
+    args.models_dir = os.path.abspath(args.models_dir)
+    args.manifest = os.path.abspath(args.manifest)
+    try:
+        with lock_adapter_naming(args.models_dir, args.manifest):
+            pending = get_adapter_publication_recovery_command(args.models_dir)
+            if args.recover:
+                recover_adapter_naming_locked(args.models_dir, args.manifest)
+                return 0
+            if pending:
+                if not args.apply or get_adapter_publication_owner(args.models_dir) != "naming":
+                    raise ValueError(f"publication recovery is required: run {pending}")
+                recover_adapter_naming_locked(args.models_dir, args.manifest)
+            return _run_naming(args)
+    except (OSError, ValueError) as error:
+        print(f"ERROR: naming refused: {error}", file=sys.stderr)
+        return 1
+
+
+def _run_naming(args):
     if not os.path.exists(args.manifest):
         print(f"ERROR: manifest not found: {args.manifest}")
         return 1
-    with open(args.manifest, encoding="utf-8") as f:
-        manifest = json.load(f)
-    if not isinstance(manifest, list):
-        print("ERROR: manifest is not a list of entries.")
-        return 1
+    manifest = get_resolved_adapter_manifest_rows_locked(
+        args.models_dir, get_voice_manifest(args.manifest))
+    validate_naming_manifest(manifest)
 
     if args.verify:
         return cmd_verify(manifest)
@@ -218,7 +246,10 @@ def main():
     candidate_ids = {id(e) for e in candidates}
     untouched_ids = {e.get("id") for e in manifest
                      if id(e) not in candidate_ids and e.get("id")}
-    plan = assign_unique_names(candidates, reserved=untouched_ids)
+    historical_ids = {old for entry in manifest for old in entry.get('previous_ids', [])}
+    registry = get_adapter_alias_registry(args.models_dir)
+    historical_ids.update(get_reserved_adapter_ids(registry) - {os.path.normcase(entry['id']) for entry in candidates})
+    plan = assign_unique_names(candidates, reserved=untouched_ids | historical_ids)
 
     renames = [(e, new) for e, new in plan if e["id"] != new]
     print(f"{len(candidates)} candidate(s); {len(renames)} would be renamed "
@@ -237,43 +268,15 @@ def main():
         print("\nNothing to rename.")
         return 0
 
-    # Backup manifest before touching anything
-    backup = args.manifest + ".bak"
-    shutil.copy2(args.manifest, backup)
-    print(f"\nBacked up manifest → {backup}")
-
-    renamed = 0
-    for e, new in renames:
-        old_dir = os.path.join(args.models_dir, e["id"])
-        new_dir = os.path.join(args.models_dir, new)
-        if os.path.isdir(old_dir):
-            if os.path.exists(new_dir):
-                print(f"  SKIP {e['id']} → {new}: target dir already exists")
-                continue
-            try:
-                os.rename(old_dir, new_dir)
-            except OSError as exc:
-                print(f"  SKIP {e['id']} → {new}: rename failed ({exc}); manifest entry left unchanged so a re-run can retry it")
-                continue
-        else:
-            print(f"  NOTE: adapter dir missing for {e['id']} (updating manifest only)")
-        e["id"] = new
-        e["name"] = new
-        renamed += 1
-        print(f"  renamed → {new}")
-
-    manifest_dir = os.path.dirname(os.path.abspath(args.manifest))
-    fd, tmp_manifest = tempfile.mkstemp(prefix=".manifest_", suffix=".json", dir=manifest_dir)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_manifest, args.manifest)
-    finally:
-        if os.path.exists(tmp_manifest):
-            os.remove(tmp_manifest)
-    print(f"\n✓ Renamed {renamed} adapter(s); manifest updated ({time.strftime('%H:%M:%S')}).")
+    renamed_manifest = copy.deepcopy(manifest)
+    mapping = {entry["id"]: new for entry, new in renames}
+    for entry in renamed_manifest:
+        if entry["id"] in mapping:
+            entry["id"] = mapping[entry["id"]]
+            entry["name"] = entry["id"]
+    apply_adapter_naming_locked(args.models_dir, args.manifest, renamed_manifest,
+                                [(entry["id"], new) for entry, new in renames])
+    print(f"\n✓ Renamed {len(renames)} adapter(s); manifest updated ({time.strftime('%H:%M:%S')}).")
     return 0
 
 

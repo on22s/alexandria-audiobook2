@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from experiments import pair_e_row
 
@@ -134,7 +135,13 @@ class SharedCompletenessTest(unittest.TestCase):
                 fh.write("[]")
             with open(os.path.join(tmp, "part.json"), "w") as fh:
                 json.dump({"results": [1], "candidates_considered": 9}, fh)
-            rows = audit.build_audit(tmp)["artifacts"]
+            subprocess.run(["git", "init", "-q", tmp], check=True,
+                           capture_output=True, timeout=10)
+            subprocess.run(["git", "-C", tmp, "add", "--", "broken.json",
+                            "listy.json", "part.json"], check=True,
+                           capture_output=True, timeout=10)
+            with patch.object(audit, "REPO", tmp):
+                rows = audit.build_audit(tmp)["artifacts"]
         by_name = {r["artifact"]: r for r in rows}
         self.assertEqual("unknown", by_name["broken.json"]["completeness"])
         self.assertEqual("unknown", by_name["listy.json"]["completeness"])

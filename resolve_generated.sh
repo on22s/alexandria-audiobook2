@@ -67,9 +67,17 @@ if [ -n "$(printf '%s' "$real" | tr -d '[:space:]')" ]; then
     exit 2
 fi
 
+# Resolve the shared interpreter and derived set once, after conflict refusal.
+metadata=$("$REPO/tools/regen_derived.sh" --metadata) || exit 1
+python=${metadata%%$'\n'*}
+generated_paths=()
+while IFS= read -r generated_path; do
+    generated_paths+=("$generated_path")
+done <<< "${metadata#*$'\n'}"
+
 if [ "$goals_only_pointer" = 1 ]; then
     echo "resolving GOALS.md's line pointer (recomputed below)"
-    "$("$REPO/tools/regen_derived.sh" --python)" - "$REPO/GOALS.md" <<'PYEOF'
+    "$python" - "$REPO/GOALS.md" <<'PYEOF' || exit 1
 import re, sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
@@ -85,8 +93,7 @@ fi
 echo "regenerating"
 "$REPO/tools/regen_derived.sh" || exit 1
 
-# shellcheck disable=SC2046
-git -C "$REPO" add -- $("$REPO/tools/regen_derived.sh" --paths) 2>/dev/null || true
+git -C "$REPO" add -- "${generated_paths[@]}" 2>/dev/null || true
 
 still=$(git -C "$REPO" diff --name-only --diff-filter=U)
 if [ -n "$still" ]; then

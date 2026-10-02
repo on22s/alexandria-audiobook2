@@ -2,19 +2,56 @@
 
 import copy
 import re
+import unicodedata
 from difflib import SequenceMatcher
+
+
+MAX_ALIAS_COUNT = 10000
+MAX_ALIAS_NAME_LENGTH = 1024
+
+
+def get_validated_alias_map(value):
+    """Return a normalized copy of a string-to-string alias registry."""
+    if not isinstance(value, dict):
+        raise ValueError("alias registry must be an object of string-to-string mappings")
+    if len(value) > MAX_ALIAS_COUNT:
+        raise ValueError(f"alias registry count exceeds {MAX_ALIAS_COUNT}")
+    result = {}
+    targets = {}
+    for variant, canonical in value.items():
+        if not isinstance(variant, str) or not isinstance(canonical, str):
+            raise ValueError("alias registry keys and targets must be strings")
+        variant, canonical = variant.strip(), canonical.strip()
+        if max(len(variant), len(canonical)) > MAX_ALIAS_NAME_LENGTH:
+            raise ValueError(f"alias registry name length exceeds {MAX_ALIAS_NAME_LENGTH}")
+        if not variant or not canonical:
+            raise ValueError("alias registry keys and targets must be nonempty")
+        if variant in result and result[variant] != canonical:
+            raise ValueError(f"alias registry has conflicting targets for '{variant}'")
+        key = _identity_key(variant)
+        target = _identity_key(canonical)
+        if key in targets and targets[key] != target:
+            raise ValueError(f"alias registry has conflicting normalized targets for '{variant}'")
+        targets[key] = target
+        result[variant] = canonical
+    return result
 
 
 def stabilize_speaker_identities(entries, established_speakers=None):
     """Return copied entries with only exact normalized variants canonicalized."""
     repaired = copy.deepcopy(entries)
     canonicals = []
+    canonical_keys = {}
+    identity_index = {}
     changes = []
     review = []
     for speaker in established_speakers or []:
         value = str(speaker or "").strip()
-        if value and value not in canonicals:
+        if value and value not in canonical_keys:
             canonicals.append(value)
+            key = _identity_key(value)
+            canonical_keys[value] = key
+            identity_index.setdefault(key, value)
 
     # Every spelling AS WRITTEN, before canonicalization rewrites it. The
     # first loop collapses variants onto whichever arrived first, so by the
@@ -28,18 +65,20 @@ def stabilize_speaker_identities(entries, established_speakers=None):
         stripped = " ".join(original.split())
         if stripped:
             seen.append(stripped)
-        exact = next((name for name in canonicals
-                      if _identity_key(name) == _identity_key(stripped)), None)
+        exact = identity_index.get(_identity_key(stripped))
         if exact:
             canonical = exact
         else:
             canonical = stripped
             if canonical:
-                candidates = _uncertain_candidates(canonical, canonicals)
+                candidates = _uncertain_candidates(canonical, canonicals, canonical_keys)
                 if candidates:
                     review.append({"entry_number": index, "speaker": canonical,
                                    "candidates": candidates})
                 canonicals.append(canonical)
+                key = _identity_key(canonical)
+                canonical_keys[canonical] = key
+                identity_index.setdefault(key, canonical)
         if canonical and canonical != original:
             entry["speaker"] = canonical
             changes.append({"type": "speaker_identity", "entry_number": index,
@@ -93,10 +132,10 @@ def stabilize_speaker_identities(entries, established_speakers=None):
         if not isinstance(entry, dict):
             continue
         name = " ".join(str(entry.get("speaker") or "").split())
-        if not re.fullmatch(r"[A-Za-z]\s[A-Za-z]{2,}", name):
+        if _identity_key(name) in roster or not re.fullmatch(r"[A-Za-z]\s[A-Za-z]{2,}", name):
             continue
         joined = name.replace(" ", "")
-        if joined.casefold() in prose:
+        if re.search(r"(?<!\w)" + re.escape(joined.casefold()) + r"(?!\w)", prose):
             entry["speaker"] = joined
             changes.append({"type": "speaker_split_repair",
                             "before": name, "after": joined})
@@ -104,9 +143,21 @@ def stabilize_speaker_identities(entries, established_speakers=None):
     canonicals = [n for n in canonicals
                   if _identity_key(n) in roster
                   or best.get(_identity_key(n), (None, None))[1] == n]
+    canonical_names = set(canonicals)
     for _, name in best.values():
-        if name not in canonicals:
+        if name not in canonical_names:
             canonicals.append(name)
+            canonical_names.add(name)
+    final_speakers = [str(entry.get("speaker") or "") for entry in repaired
+                      if isinstance(entry, dict) and entry.get("speaker")]
+    final_names = set(final_speakers)
+    canonicals = [name for name in canonicals
+                  if _identity_key(name) in roster or name in final_names]
+    canonical_names = set(canonicals)
+    for name in final_speakers:
+        if name not in canonical_names:
+            canonicals.append(name)
+            canonical_names.add(name)
     return {"entries": repaired, "changes": changes, "review": review,
             "speakers": canonicals}
 
@@ -142,28 +193,31 @@ def build_speaker_consistency_report(entries, identity_review=None):
 
 
 def _identity_key(value):
-    return re.sub(r"[^\w]+", "", str(value or "").casefold(), flags=re.UNICODE)
+    normalized = unicodedata.normalize("NFC", str(value or ""))
+    return re.sub(r"[^\w]+", "", normalized.casefold(), flags=re.UNICODE)
+
+
+def get_speaker_label_index(labels):
+    """Index normalized identities, retaining the sorted first matching label."""
+    index = {}
+    for label in sorted(labels):
+        key = _identity_key(label)
+        if key:
+            index.setdefault(key, label)
+    return index
 
 
 def resolve_speaker_label(name, labels):
-    """Return the label in `labels` that `name` refers to under the same
-    normalization generation uses (_identity_key: casefold + strip all
-    non-word characters), or None if none match. Deterministic on duplicate
-    keys: labels are considered in sorted order, first match wins."""
-    key = _identity_key(name)
-    if not key:
-        return None
-    for label in sorted(labels):
-        if _identity_key(label) == key:
-            return label
-    return None
+    """Resolve a label using generation's NFC/casefold/word identity rules."""
+    return get_speaker_label_index(labels).get(_identity_key(name))
 
 
-def _uncertain_candidates(speaker, canonicals):
+def _uncertain_candidates(speaker, canonicals, identity_keys=None):
     key = _identity_key(speaker)
     results = []
     for canonical in canonicals:
-        candidate_key = _identity_key(canonical)
+        candidate_key = (identity_keys[canonical] if identity_keys is not None
+                         else _identity_key(canonical))
         ratio = SequenceMatcher(None, key, candidate_key).ratio()
         if ratio >= 0.90 or _is_extended_person_name(speaker, canonical):
             results.append({"speaker": canonical, "similarity": round(ratio, 4)})
@@ -177,3 +231,122 @@ def _is_extended_person_name(first, second):
     shorter, longer = sorted((first_words, second_words), key=len)
     return (len(shorter) == 1 and len(longer) == 2 and shorter[0] == longer[0]
             and not any(word.isdigit() or word in relation_words for word in longer))
+
+
+def is_group_speaker_label(name):
+    """True if a speaker label denotes multiple characters speaking together
+    (e.g. 'RAM AND REM', 'EMILIA/PUCK (DUAL)', 'TWINS', 'CROWD'). Such labels must
+    never be merged into a single character — that would collapse two voices into one."""
+    n = (name or "").upper()
+    if "/" in n or "&" in n or "+" in n:
+        return True
+    if re.search(r"\bAND\b", n):
+        return True
+    if re.search(r"\b(DUAL|CHORUS|TWINS|CROWD|GROUP|UNISON|BOTH|EVERYONE|TOGETHER|VOICES)\b", n):
+        return True
+    return False
+
+
+def is_speaker_merge_allowed(variant, canonical):
+    """Protect narration and groups, allowing the same group's spelling."""
+    narrator_labels = {"NARRATOR", "NARRATION", "NARRATIVE"}
+    if (variant.strip().upper() in narrator_labels
+            or canonical.strip().upper() in narrator_labels | {"UNKNOWN"}):
+        return False
+    if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
+        first = " ".join(unicodedata.normalize("NFC", variant).casefold().split())
+        second = " ".join(unicodedata.normalize("NFC", canonical).casefold().split())
+        return first == second
+    return True
+
+
+def _get_alias_roots(mapping):
+    """Return terminal labels and variants whose paths reach a cycle."""
+    index = {}
+    for variant in sorted(mapping):
+        index.setdefault(_identity_key(variant), variant)
+    roots, cyclic = {}, set()
+    for variant in mapping:
+        current, seen = variant, set()
+        while current not in seen:
+            if current in roots:
+                roots.update((alias, roots[current]) for alias in seen)
+                break
+            if current in cyclic:
+                cyclic.update(seen)
+                break
+            seen.add(current)
+            canonical = mapping[current]
+            following = index.get(_identity_key(canonical))
+            if following is None or following == current:
+                roots.update((alias, canonical) for alias in seen)
+                break
+            current = following
+        else:
+            cyclic.update(seen)
+    return {variant: roots[variant] for variant in mapping if variant in roots}, cyclic
+
+
+def get_validated_alias_graph(value):
+    """Return a structurally valid alias map, refusing existing cycles."""
+    mapping = get_validated_alias_map(value)
+    _, cyclic = _get_alias_roots(mapping)
+    if cyclic:
+        raise ValueError("alias registry contains a cycle reached from " +
+                         ", ".join(sorted(cyclic)))
+    return mapping
+
+
+def get_resolved_speaker_merge_map(mapping):
+    """Flatten alias chains; omit cycles and every alias leading into one."""
+    mapping = get_validated_alias_map(mapping)
+    roots, cyclic = _get_alias_roots(mapping)
+    for variant in sorted(cyclic):
+        print(f"  [skip] alias cycle reached from '{variant}'")
+    return {variant: canonical for variant, canonical in roots.items()
+            if variant != canonical and is_speaker_merge_allowed(variant, canonical)}
+
+
+def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatten=True):
+    """Return safe proposals, protecting existing human keys and roots.
+
+    With flatten=False, retain proposed edges after validating their terminal
+    roots so a later locked check can follow intervening human root changes.
+    """
+    current = get_validated_alias_graph({} if existing_aliases is None else existing_aliases)
+    human_roots, _ = _get_alias_roots(current)
+    human_keys = {_identity_key(variant) for variant in current}
+    choices, conflicts = {}, set()
+    for proposals in proposal_maps:
+        for variant, canonical in get_validated_alias_map(proposals).items():
+            key = _identity_key(variant)
+            if key in human_keys or key in conflicts:
+                continue
+            if not is_speaker_merge_allowed(variant, canonical):
+                print(f"  [skip] protected speaker mapping '{variant}' -> '{canonical}'")
+                continue
+            previous = choices.get(key)
+            if previous and _identity_key(previous[1]) != _identity_key(canonical):
+                choices.pop(key)
+                conflicts.add(key)
+                print(f"  [skip] conflicting automatic alias targets for '{variant}'")
+                continue
+            choices.setdefault(key, (variant, canonical))
+    proposed = dict(choices.values())
+    combined = dict(proposed)
+    combined.update(current)
+    roots, cyclic = _get_alias_roots(combined)
+    allowed_roots = list(roster) + list(human_roots.values())
+    safe = {}
+    for variant in proposed:
+        if variant in cyclic:
+            print(f"  [skip] alias cycle reached from '{variant}'")
+            continue
+        canonical = roots[variant]
+        root = resolve_speaker_label(canonical, allowed_roots)
+        if root is None:
+            print(f"  [skip] alias target '{canonical}' is not a roster or human-approved root")
+            continue
+        if variant != root and is_speaker_merge_allowed(variant, root):
+            safe[variant] = root if flatten else proposed[variant]
+    return safe

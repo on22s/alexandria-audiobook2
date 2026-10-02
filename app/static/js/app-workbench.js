@@ -4,27 +4,48 @@
         let dsbRows = [];
         let dsbPolling = null;
         let dsbBatchRunning = false;
-        let dsbSaveMetaTimer = null;
-        let dsbSaveRowsTimer = null;
+        let dsbBatchStartSequence = 0;
+        let dsbPendingStart = null;
+        let dsbSaveMetaQueue = null;
+        let dsbSaveRowsQueue = null;
         let dsbCurrentProject = '';
+        let dsbProjectLoadSequence = 0;
+        let dsbProjectListSequence = 0;
 
         // Clean up legacy localStorage
         try { localStorage.removeItem('alexandria-dsb-form'); } catch (e) { /* storage blocked */ }
 
+        // Pending starts must block edits before the server reports running.
+        function applyDatasetBatchState(running, starting = false) {
+            dsbBatchRunning = running || starting || dsbPendingStart !== null;
+            document.getElementById('dsb-btn-gen-all').style.display = dsbBatchRunning ? 'none' : '';
+            document.getElementById('dsb-btn-regen-all').style.display = dsbBatchRunning ? 'none' : '';
+            document.getElementById('dsb-btn-cancel').style.display = running ? '' : 'none';
+        }
+
         async function dsbLoadProjects(selectName) {
+            const sequence = ++dsbProjectListSequence;
             try {
                 const projects = await API.get('/api/dataset_builder/list');
+                if (sequence !== dsbProjectListSequence) { return; }
                 const select = document.getElementById('dsb-project-select');
                 select.innerHTML = '<option value="">-- Select project --</option>' +
-                    projects.map(p => `<option value="${p.name}">${p.name} (${p.done_count}/${p.sample_count})</option>`).join('');
+                    projects.map(p => getEscapedHtml`<option value="${p.name}">${p.name} (${p.done_count}/${p.sample_count})</option>`).join('');
                 if (selectName) {
                     select.value = selectName;
-                    dsbOnProjectChange();
+                    await dsbOnProjectChange();
                 }
             } catch (e) { console.error('Failed to load projects:', e); }
         }
 
         window.dsbOnProjectChange = async () => {
+            try {
+                await Promise.all([dsbSaveMetaQueue?.flush(), dsbSaveRowsQueue?.flush()]);
+            } catch (error) {
+                document.getElementById('dsb-project-select').value = dsbCurrentProject;
+                return;
+            }
+            dsbStopBatch();
             const name = document.getElementById('dsb-project-select').value;
             const formArea = document.getElementById('dsb-form-area');
             const deleteBtn = document.getElementById('dsb-btn-delete-project');
@@ -42,11 +63,25 @@
             await dsbLoadProject(name);
         };
 
+        function isDatasetProjectSelected(name) {
+            return dsbCurrentProject === name;
+        }
+
         async function dsbLoadProject(name) {
+            const loadSequence = ++dsbProjectLoadSequence;
+            try {
+                if (dsbSaveRowsQueue?.isDirty()) { await dsbSaveRowsQueue.flush(); }
+            } catch (error) {
+                showToast('Save the pending row edits before reloading this project: ' + error.message, 'error');
+                return;
+            }
             try {
                 const result = await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
+                if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
+                applyDatasetBatchState(!!result.running);
+                applyDatasetRowRevisions(name, result.row_revisions, (result.samples || []).length);
                 document.getElementById('dsb-description').value = result.description || '';
-                document.getElementById('dsb-global-seed').value = result.global_seed || '';
+                document.getElementById('dsb-global-seed').value = result.global_seed ?? '';
                 dsbRows = (result.samples || []).map(s => ({
                     emotion: s.emotion || s.description || '',
                     text: s.text || '',
@@ -54,17 +89,15 @@
                     status: s.status || 'pending',
                     audio_url: s.audio_url || null,
                 }));
-                if (dsbRows.length === 0) { dsbAddRow(); }
+                if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
                 dsbRenderTable();
                 // Resume polling if batch is running
                 if (result.running) {
-                    dsbBatchRunning = true;
                     dsbStartPolling(name);
-                    document.getElementById('dsb-btn-gen-all').style.display = 'none';
-                    document.getElementById('dsb-btn-regen-all').style.display = 'none';
-                    document.getElementById('dsb-btn-cancel').style.display = '';
+
                 }
             } catch (e) {
+                if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
                 // A transient status-GET failure must NOT destroy the saved
                 // project. Disarm dsbSaveRows (guarded on dsbCurrentProject)
                 // BEFORE clearing rows so its debounced POST can't overwrite the
@@ -91,8 +124,9 @@
         };
 
         window.dsbDeleteProject = async () => {
-            if (!dsbCurrentProject) { return; }
+            if (!dsbCurrentProject || !ensureDatasetRowsEditable()) { return; }
             if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) { return; }
+            if (!ensureDatasetRowsEditable()) { return; }
             try {
                 const res = await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
                 await API._handleError(res);
@@ -107,38 +141,105 @@
             }
         };
 
-        function dsbSaveForm() {
-            if (!dsbCurrentProject) { return; }
-            clearTimeout(dsbSaveMetaTimer);
-            dsbSaveMetaTimer = setTimeout(async () => {
-                try {
-                    await API.post('/api/dataset_builder/update_meta', {
-                        name: dsbCurrentProject,
-                        description: document.getElementById('dsb-description').value,
-                        global_seed: document.getElementById('dsb-global-seed').value,
-                    });
-                } catch (e) {
-                    _toastSaveError('meta', e);
-                }
-            }, 500);
+        const dsbRowSaveStates = new Map();
+        function getDatasetRowDefinition(row) {
+            return { emotion: row.emotion || row.description || '', text: (row.text || '').trim(), seed: row.seed ?? '' };
         }
 
-        function dsbSaveRows() {
-            if (!dsbCurrentProject) { return; }
-            clearTimeout(dsbSaveRowsTimer);
-            dsbSaveRowsTimer = setTimeout(async () => {
-                try {
-                    await API.post('/api/dataset_builder/update_rows', {
-                        name: dsbCurrentProject,
-                        rows: dsbRows.map(r => ({ emotion: r.emotion || '', text: (r.text || '').trim(), seed: r.seed ?? '' })),
-                    });
-                } catch (e) {
-                    _toastSaveError('rows', e);
+        function ensureDatasetRowSaveState(name) {
+            if (!dsbRowSaveStates.has(name)) {
+                dsbRowSaveStates.set(name, { tokens: null, edits: new Map(), sequence: 0, fullRevision: null });
+            }
+            return dsbRowSaveStates.get(name);
+        }
+
+        function applyDatasetRowRevisions(name, revisions, count) {
+            const state = ensureDatasetRowSaveState(name);
+            state.tokens = Array.isArray(revisions) && revisions.length === count
+                && revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token)) ? revisions.slice() : null;
+        }
+
+        async function saveDatasetRows(value) {
+            const state = ensureDatasetRowSaveState(value.name);
+            if (value.rows) {
+                const result = await API.post('/api/dataset_builder/update_rows', { name: value.name, rows: value.rows });
+                applyDatasetRowRevisions(value.name, result.row_revisions, value.rows.length);
+                if (state.fullRevision === value.revision) { state.fullRevision = null; }
+                return;
+            }
+            const queuedEdits = value.edits.filter(edit => state.edits.has(edit.index));
+            if (!queuedEdits.length) { return; }
+            const edits = queuedEdits.map(edit => ({ index: edit.index, row: edit.row, expected_revision: state.tokens?.[edit.index] }));
+            let result;
+            try {
+                result = await API.post('/api/dataset_builder/edit_rows', { name: value.name, expected_count: value.count, edits });
+                if (!result.row_revisions || edits.some(edit => !/^[0-9a-f]{64}$/.test(result.row_revisions[edit.index] || ''))) {
+                    throw new Error('Row save returned no revision acknowledgement');
                 }
-            }, 500);
+            } catch (error) {
+                if (error.status && error.status < 500) { throw error; }
+                // A response can be lost after commit. A read may acknowledge
+                // the desired definitions; it never replays or overwrites them.
+                const saved = await API.get(`/api/dataset_builder/status/${encodeURIComponent(value.name)}`);
+                if (!Array.isArray(saved.samples) || saved.samples.length !== value.count
+                    || !Array.isArray(saved.row_revisions) || edits.some(edit =>
+                        JSON.stringify(getDatasetRowDefinition(saved.samples[edit.index] || {})) !== JSON.stringify(edit.row)
+                        || !/^[0-9a-f]{64}$/.test(saved.row_revisions[edit.index] || ''))) { throw error; }
+                result = { row_revisions: Object.fromEntries(edits.map(edit => [edit.index, saved.row_revisions[edit.index]])) };
+            }
+            queuedEdits.forEach(edit => {
+                state.tokens[edit.index] = result.row_revisions[edit.index];
+                if (state.edits.get(edit.index)?.revision === edit.revision) { state.edits.delete(edit.index); }
+            });
+        }
+
+        function dsbSaveForm() {
+            const name = dsbCurrentProject;
+            if (!name) { return; }
+            const description = document.getElementById('dsb-description').value;
+            const globalSeed = document.getElementById('dsb-global-seed').value;
+            if (!dsbSaveMetaQueue) {
+                dsbSaveMetaQueue = createSerializedSaveQueue({
+                    write: value => API.post('/api/dataset_builder/update_meta', value),
+                    onError: error => _toastSaveError('meta', error),
+                });
+            }
+            dsbSaveMetaQueue.enqueue({ name, description, global_seed: globalSeed });
+        }
+
+        function dsbSaveRows(index = null) {
+            const name = dsbCurrentProject;
+            if (!name) { return; }
+            const state = ensureDatasetRowSaveState(name);
+            const revision = ++state.sequence;
+            let value;
+            if (index !== null && state.tokens?.length === dsbRows.length && state.fullRevision === null) {
+                state.edits.set(index, { row: getDatasetRowDefinition(dsbRows[index]), revision });
+                value = { name, count: dsbRows.length, edits: Array.from(state.edits, ([index, edit]) => ({ index, ...edit })) };
+            } else {
+                state.fullRevision = revision;
+                state.edits.clear();
+                value = { name, revision, rows: dsbRows.map(getDatasetRowDefinition) };
+            }
+            if (!dsbSaveRowsQueue) {
+                dsbSaveRowsQueue = createSerializedSaveQueue({
+                    write: saveDatasetRows,
+                    onError: error => _toastSaveError('rows', error),
+                });
+            }
+            dsbSaveRowsQueue.enqueue(value);
+        }
+
+        function ensureDatasetRowsEditable() {
+            if (dsbBatchRunning) {
+                showToast('Wait for batch generation to finish before editing samples.', 'warning');
+                return false;
+            }
+            return true;
         }
 
         function dsbAddRow(emotion = '', text = '', seed = '') {
+            if (!ensureDatasetRowsEditable()) { return; }
             dsbRows.push({ emotion, text, seed, status: 'pending', audio_url: null });
             dsbRenderTable();
             dsbSaveRows();
@@ -151,6 +252,7 @@
         }
 
         function dsbRemoveRow(index) {
+            if (!ensureDatasetRowsEditable()) { return; }
             dsbRows.splice(index, 1);
             dsbRenderTable();
             dsbSaveRows();
@@ -158,6 +260,7 @@
         }
 
         function dsbBuildRowHtml(row, i) {
+            const disabled = dsbBatchRunning ? 'disabled' : '';
             const statusColor = row.status === 'done' ? 'success' :
                                 row.status === 'generating' ? 'warning' :
                                 row.status === 'error' ? 'danger' : 'secondary';
@@ -168,25 +271,24 @@
                 actionHtml = '<div class="progress" style="width:80px;height:20px;"><div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" style="width:100%"></div></div>';
             } else {
                 const genLabel = row.status === 'done' ? '<i class="fas fa-redo"></i>' : '<i class="fas fa-play"></i>';
-                actionHtml = `<button class="btn btn-sm btn-primary" onclick="dsbGenSample(${i})" title="${row.status === 'done' ? 'Regenerate' : 'Generate'}">${genLabel}</button>`;
+                actionHtml = getEscapedHtml`<button class="btn btn-sm btn-primary" ${disabled} onclick="dsbGenSample(${i})" title="${row.status === 'done' ? 'Regenerate' : 'Generate'}">` + genLabel + '</button>';
             }
 
             let audioHtml = '';
             if (row.status === 'done' && row.audio_url) {
-                audioHtml = `<audio controls src="${row.audio_url}" style="width:180px;height:28px;" onplay="dsbStopOthers(${i})"></audio>`;
+                audioHtml = getEscapedHtml`<audio controls src="${row.audio_url}" style="width:180px;height:28px;" onplay="dsbStopOthers(${i})"></audio>`;
             }
 
-            return `<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
+            return getEscapedHtml`<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
                 <td class="text-center align-middle">${i + 1}</td>
-                <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(row.emotion || '')}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
-                <td><textarea class="form-control form-control-sm" rows="2" onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${escapeHtml(row.text || '')}</textarea></td>
-                <td><input type="number" class="form-control form-control-sm" value="${escapeHtml(row.seed ?? '')}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
+                <td><input type="text" class="form-control form-control-sm" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
+                <td><textarea class="form-control form-control-sm" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${row.text || ''}</textarea></td>
+                <td><input type="number" class="form-control form-control-sm" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
                 <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span></td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
-                        ${actionHtml}
-                        ${audioHtml}
-                        <button class="btn btn-sm btn-outline-danger ms-auto" onclick="dsbRemoveRow(${i})" title="Delete row"><i class="fas fa-trash"></i></button>
+                    ` + actionHtml + audioHtml + getEscapedHtml`
+                        <button class="btn btn-sm btn-outline-danger ms-auto" ${disabled} onclick="dsbRemoveRow(${i})" title="Delete row"><i class="fas fa-trash"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -218,9 +320,16 @@
         }
 
         window.dsbUpdateRow = (index, field, value) => {
+            if (!ensureDatasetRowsEditable()) { return; }
             if (dsbRows[index]) {
+                const changed = dsbRows[index][field] !== value;
                 dsbRows[index][field] = value;
-                dsbSaveRows();
+                if (changed) {
+                    dsbRows[index].status = 'pending';
+                    dsbRows[index].audio_url = null;
+                    dsbRenderTable([index]);
+                    dsbSaveRows(index);
+                }
             }
         };
 
@@ -231,7 +340,7 @@
             });
         };
 
-        let dsbLastDoneCount = -1;
+        let dsbLastDoneIndicesKey = null;
 
         function dsbUpdateProgress() {
             const done = dsbRows.filter(r => r.status === 'done').length;
@@ -246,9 +355,11 @@
             } else {
                 wrap.style.display = 'none';
             }
-            // Only rebuild dropdown when done count actually changes
-            if (done !== dsbLastDoneCount) {
-                dsbLastDoneCount = done;
+            // Rebuild when the project or completed-row indices change.
+            const doneIndicesKey = JSON.stringify([dsbCurrentProject,
+                dsbRows.map((r, i) => r.status === 'done' ? i : null).filter(i => i !== null)]);
+            if (doneIndicesKey !== dsbLastDoneIndicesKey) {
+                dsbLastDoneIndicesKey = doneIndicesKey;
                 dsbUpdateRefDropdown();
             }
         }
@@ -291,9 +402,11 @@
                     sample_index: index,
                     seed,
                 });
+                if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
                 dsbRows[index].status = 'done';
                 dsbRows[index].audio_url = result.audio_url;
             } catch (e) {
+                if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
                 dsbRows[index].status = 'error';
                 console.error('Sample generation failed:', e);
             }
@@ -302,6 +415,8 @@
 
         // Batch generation
         window.dsbGenerateAll = async (regenAll = false) => {
+            if (dsbBatchRunning) { return; }
+            const rows = dsbRows;
             const name = dsbCurrentProject;
             const rootDesc = document.getElementById('dsb-description').value.trim();
             if (!name) { showToast('Select or create a project first.', 'warning'); return; }
@@ -315,21 +430,24 @@
                 : dsbRows.map((r, i) => i).filter(i => dsbRows[i].text.trim() && dsbRows[i].status !== 'done');
 
             if (indices.length === 0) { showToast('All samples are already generated.', 'warning'); return; }
-            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`)) return;
+            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`)) { return; }
+            if (dsbBatchRunning || !isDatasetProjectSelected(name) || dsbRows !== rows) { return; }
+            const sequence = ++dsbBatchStartSequence;
+            dsbPendingStart = sequence;
+            const previous = indices.map(index => ({ index, row: dsbRows[index], status: dsbRows[index].status }));
 
             // Mark as generating
             indices.forEach(i => { dsbRows[i].status = 'generating'; });
+            applyDatasetBatchState(false, true);
             dsbRenderTable();
-            dsbBatchRunning = true;
-            document.getElementById('dsb-btn-gen-all').style.display = 'none';
-            document.getElementById('dsb-btn-regen-all').style.display = 'none';
-            document.getElementById('dsb-btn-cancel').style.display = '';
             document.getElementById('dsb-logs').style.display = '';
 
             const globalSeed = parseInt(document.getElementById('dsb-global-seed').value);
             const perSeeds = dsbRows.map(r => r.seed !== '' && r.seed !== undefined ? parseInt(r.seed) : -1);
 
             try {
+                await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
+                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
                 await API.post('/api/dataset_builder/generate_batch', {
                     name,
                     description: rootDesc,
@@ -339,21 +457,37 @@
                     seeds: perSeeds,
                 });
 
-                // Start polling
+                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
+                dsbPendingStart = null;
+                applyDatasetBatchState(true);
                 dsbStartPolling(name);
             } catch (e) {
+                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
+                dsbPendingStart = null;
+                previous.forEach(({ index, row, status }) => {
+                    if (dsbRows[index] === row && row.status === 'generating') { row.status = status; }
+                });
                 showToast('Batch generation failed: ' + e.message, 'error');
-                dsbStopBatch();
+                applyDatasetBatchState(false, true);
+                dsbRenderTable();
+                // A lost response can follow accepted work. Keep edits blocked
+                // until the existing status poller reconciles the server state.
+                dsbStartPolling(name, false);
             }
         };
 
-        function dsbStartPolling(name) {
+        function dsbStartPolling(name, admitted = true) {
             if (dsbPolling) { dsbPolling(); }
             dsbPolling = _startPolling(`dataset_builder:${name}`, () => API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`), {
                 intervalMs: 2000,
                 doneCheck: result => !result.running,
                 onTick: result => {
+                    if (!isDatasetProjectSelected(name)) { return; }
+                    const wasBusy = dsbBatchRunning;
+                    applyDatasetBatchState(!!result.running);
+                    if (result.running) { admitted = true; }
                     const serverSamples = result.samples || [];
+                    applyDatasetRowRevisions(name, result.row_revisions, serverSamples.length);
 
                     // Merge server state into local rows, creating missing rows
                     const changed = [];
@@ -377,7 +511,7 @@
                         }
                     });
 
-                    if (added) {
+                    if (added || wasBusy !== dsbBatchRunning) {
                         dsbRenderTable();
                     } else if (changed.length > 0) {
                         dsbRenderTable(changed);
@@ -391,51 +525,60 @@
                         logsEl.scrollTop = logsEl.scrollHeight;
                     }
 
-                    // Resume polling if server is still running (e.g. after page reload)
-                    if (result.running && !dsbBatchRunning) {
-                        dsbBatchRunning = true;
-                        document.getElementById('dsb-btn-gen-all').style.display = 'none';
-                        document.getElementById('dsb-btn-regen-all').style.display = 'none';
-                        document.getElementById('dsb-btn-cancel').style.display = '';
-                    }
+
                 },
                 onDone: () => {
-                    // Check if batch is done
-                    if (dsbBatchRunning) {
-                        notifyJobDone('dataset_builder');
-                        dsbStopBatch();
-                    }
+                    if (!isDatasetProjectSelected(name)) { return; }
+                    if (admitted) { notifyJobDone('dataset_builder'); }
+                    dsbStopBatch();
                 }
             });
         }
 
         function dsbStopBatch() {
-            dsbBatchRunning = false;
+            dsbBatchStartSequence++;
+            dsbPendingStart = null;
+            applyDatasetBatchState(false);
             if (dsbPolling) { dsbPolling(); dsbPolling = null; }
-            document.getElementById('dsb-btn-gen-all').style.display = '';
-            document.getElementById('dsb-btn-regen-all').style.display = '';
-            document.getElementById('dsb-btn-cancel').style.display = 'none';
             dsbRenderTable();
         }
 
-        window.dsbCancel = () => cancelTask('/api/dataset_builder/cancel');
+        window.dsbCancel = () => {
+            if (!dsbCurrentProject) { return; }
+            return cancelTask(`/api/dataset_builder/cancel?name=${encodeURIComponent(dsbCurrentProject)}`);
+        };
 
         // Import / Export
         window.dsbImport = (event) => {
+            if (!ensureDatasetRowsEditable()) { return; }
             const file = event.target.files[0];
             if (!file) { return; }
             const reader = new FileReader();
             reader.onload = (e) => {
+                if (!ensureDatasetRowsEditable()) { return; }
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) { throw new Error('Expected JSON array'); }
-                    dsbRows = data.map(item => ({
-                        emotion: item.emotion || item.instruct || '',
-                        text: item.text || '',
-                        seed: item.seed ?? '',
-                        status: 'pending',
-                        audio_url: null,
-                    }));
+                    dsbRows = data.map((item, index) => {
+                        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                            throw new Error(`Sample ${index + 1} must be an object`);
+                        }
+                        for (const field of ['text', 'emotion', 'instruct']) {
+                            if (item[field] != null && typeof item[field] !== 'string') {
+                                throw new Error(`Sample ${index + 1} ${field} must be a string`);
+                            }
+                        }
+                        if (item.seed != null && typeof item.seed !== 'number' && typeof item.seed !== 'string') {
+                            throw new Error(`Sample ${index + 1} seed must be a number or string`);
+                        }
+                        return {
+                            emotion: item.emotion || item.instruct || '',
+                            text: item.text || '',
+                            seed: item.seed ?? '',
+                            status: 'pending',
+                            audio_url: null,
+                        };
+                    });
                     dsbRenderTable();
                     dsbSaveRows();
                 } catch (err) {
@@ -511,7 +654,10 @@
             }
         }
 
+        let _systemStatsPending = false;
         async function updateSystemStats() {
+            if (_systemStatsPending) { return; }
+            _systemStatsPending = true;
             try {
                 const stats = await API.get('/api/system/stats');
                 const gpuEl = document.getElementById('sys-gpu-val');
@@ -573,6 +719,7 @@
                     diskWrap.classList.add('text-light');
                 }
             } catch (e) { console.error('Failed to update system stats', e); }
+            finally { _systemStatsPending = false; }
         }
 
         // Format a duration in seconds as a short "1h 5m" / "5m 30s" / "30s" string.
@@ -588,9 +735,12 @@
 
         // Always-visible "what's running and how long until it's done" indicator,
         // shown next to the GPU/disk stats so it's visible from any tab.
+        let _etaStatusPending = false;
         async function updateEtaStatus() {
+            if (_etaStatusPending) { return; }
             const wrap = document.getElementById('sys-eta');
             const valEl = document.getElementById('sys-eta-val');
+            _etaStatusPending = true;
             try {
                 const eta = await API.get('/api/status/eta');
                 if (!eta.running) {
@@ -598,7 +748,7 @@
                     return;
                 }
                 let text = eta.label;
-                if (eta.progress) text += ` — ${eta.progress}`;
+                if (eta.progress) { text += ` — ${eta.progress}`; }
                 if (eta.eta_seconds != null) {
                     text += ` (ETA ${formatDuration(eta.eta_seconds)})`;
                 } else if (eta.elapsed_seconds != null) {
@@ -609,6 +759,8 @@
             } catch (e) {
                 console.error('Failed to update ETA status', e);
                 wrap.style.display = 'none';
+            } finally {
+                _etaStatusPending = false;
             }
         }
 
@@ -620,6 +772,7 @@
                 const status = await API.get('/api/lmstudio/status');
                 if (status.remote) {
                     badge.textContent = 'Remote (optimize via SSH)';
+                    toggle.checked = !!status.optimized;
                     badge.className = 'badge bg-info text-dark';
                     toggle.disabled = false;
                 } else if (!status.available) {
@@ -662,51 +815,98 @@
                 showToast('Failed to update LM Studio settings: ' + (e.message || 'unknown error'), 'error');
                 toggle.checked = !enable;
             } finally {
+                toggle.disabled = false;
                 await refreshLmStudioStatus();
             }
         }
 
-        // Re-attach the live #script-logs poller if a long task is still running
-        // after a page reload. The window is only fed while its poller is active,
-        // so without this a refresh mid-run leaves the window blank even though the
-        // job is healthy server-side. Only one task feeds this window at a time, so
-        // attach the first running one in priority order.
-        async function reattachRunningPollers() {
-            // Fetch all task statuses in parallel; each falls back to false on error.
-            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'persona', 'voicelab'];
-            const flags = await Promise.all(names.map(t =>
-                API.get(`/api/status/${t}`).then(r => r.running).catch(() => false)
-            ));
-            const running = Object.fromEntries(names.map((t, i) => [t, flags[i]]));
+        function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null) {
+            claimTaskStart(taskName);
+            const buttons = buttonIds.map(id => document.getElementById(id)).filter(Boolean);
+            const statusEl = statusId ? document.getElementById(statusId) : null;
+            const label = taskName.replaceAll('_', ' ');
+            buttons.forEach(button => { button.disabled = true; });
+            if (statusEl) { statusEl.textContent = `${label} running...`; }
+            else { showToast(`${label} is still running.`, 'info'); }
+            _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
+                doneCheck: state => !state.running,
+                onTick: state => {
+                    const last = (state.logs || []).slice(-1)[0];
+                    if (statusEl && last) { statusEl.textContent = last; }
+                },
+                onDone: async state => {
+                    releaseTaskStart(taskName);
+                    buttons.forEach(button => { button.disabled = false; });
+                    const message = (state.logs || []).slice(-1)[0] || `${label} finished; the original request result is unavailable after reload.`;
+                    if (statusEl) { statusEl.textContent = message; }
+                    else { showToast(message, 'info'); }
+                    notifyJobDone(taskName);
+                    if (afterDone) { await afterDone(); }
+                },
+            });
+        }
 
-            // Hydrate completed task logs as well as re-attaching live pollers.
-            // process_state keeps the last run's log after the task finishes,
-            // but previously the page only fetched logs when `running` was
-            // true, so a refresh (especially on mobile) made completed
-            // generation/voice logs appear to vanish.
-            const hydrate = async (taskName, elementId) => {
-                if (running[taskName]) { return; }
+        let _reattachGeneration = 0;
+        function getLogPollGeneration(taskNames) {
+            const polls = typeof _pollGen === 'undefined' ? {} : _pollGen;
+            return JSON.stringify(taskNames.map(name => [polls[name] || 0, polls[`logs:${name}`] || 0]));
+        }
+
+        function getLatestCompletedLog(taskNames, statuses) {
+            let latest = null;
+            for (const name of taskNames) {
+                const status = statuses[name];
+                if (!status || status.running || !Array.isArray(status.logs) || !status.logs.length) { continue; }
+                const start = Number.isFinite(status.start_time) ? status.start_time : 0;
+                if (!latest || start > latest.start) { latest = { name, start, logs: status.logs }; }
+            }
+            return latest;
+        }
+
+        // Restore each running task independently: remote LLM work can coexist
+        // with local training/Voice Lab and CPU exports.
+        async function reattachRunningPollers() {
+            const generation = ++_reattachGeneration;
+            let statuses;
+            try {
+                statuses = await API.get('/api/status');
+                if (generation !== _reattachGeneration) { return; }
+            } catch (e) {
+                if (generation !== _reattachGeneration) { return; }
+                showToast('Could not restore running task controls: ' + e.message, 'warning');
+                return;
+            }
+            let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running]));
+
+            const logGroups = [
+                { elementId: 'script-logs', tasks: ['script', 'batch_script', 'review', 'batch_review', 'nicknames'] },
+                { elementId: 'voices-logs', tasks: ['persona'] },
+                { elementId: 'audio-logs', tasks: ['audio'] },
+                { elementId: 'voicelab-logs', tasks: ['voicelab'] },
+            ];
+            const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
+            const fetched = await Promise.all(logGroups.flatMap(group => group.tasks).map(async taskName => {
+                if (running[taskName]) { return null; }
                 try {
-                    const status = await API.get(`/api/status/${taskName}`);
-                    const el = document.getElementById(elementId);
-                    if (el && status.logs) {
-                        el.innerText = status.logs.join('\n');
-                        el.scrollTop = el.scrollHeight;
-                    }
+                    return [taskName, await API.get(`/api/status/${taskName}`)];
                 } catch (e) {
                     console.debug(`${taskName} log hydration failed`, e);
+                    return null;
                 }
-            };
-            await Promise.all([
-                hydrate('script', 'script-logs'),
-                hydrate('batch_script', 'script-logs'),
-                hydrate('review', 'script-logs'),
-                hydrate('batch_review', 'script-logs'),
-                hydrate('nicknames', 'script-logs'),
-                hydrate('persona', 'voices-logs'),
-                hydrate('audio', 'audio-logs'),
-                hydrate('voicelab', 'voicelab-logs'),
-            ]);
+            }));
+            if (generation !== _reattachGeneration) { return; }
+            const hydrated = Object.fromEntries(fetched.filter(Boolean));
+            running = Object.fromEntries(Object.entries({ ...statuses, ...hydrated }).map(([name, state]) => [name, state.running]));
+            logGroups.forEach((group, index) => {
+                if (group.tasks.some(name => running[name]) || pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
+                const latest = getLatestCompletedLog(group.tasks, hydrated);
+                const el = document.getElementById(group.elementId);
+                if (el && latest) {
+                    el.innerText = latest.logs.join('\n');
+                    el.title = `Restored ${latest.name.replaceAll('_', ' ')} logs`;
+                    el.scrollTop = el.scrollHeight;
+                }
+            });
 
             const show = (id, disp = 'inline-block') => {
                 const el = document.getElementById(id); if (el) { el.style.display = disp; }
@@ -715,43 +915,89 @@
                 const el = document.getElementById(id); if (el) { el.disabled = true; }
             };
 
-            if (running.batch_script) {
-                disable('btn-gen-script');
-                show('btn-pause-batch-script'); show('btn-cancel-batch-script');
-                _pollScriptBatchLogs();
-            } else if (running.script) {
-                disable('btn-gen-script');
-                show('btn-cancel-script'); show('btn-pause-script');
-                pollScriptLogs('script', () => {
-                    if (!scriptBatchPoller) {
-                        const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
-                    }
-                    show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
-                });
-            } else if (running.batch_review) {
-                disable('btn-review-batch-start');
-                show('btn-pause-batch-review'); show('btn-cancel-batch-review');
-                await loadReviewBatchScripts();
-                pollReviewBatch();
-            } else if (running.review) {
-                _disableReviewButtons(true);
-                _showReviewControls(true);
-                pollScriptLogs('review', _onReviewDone);
-            } else if (running.nicknames) {
-                disable('btn-find-nicknames');
-                show('btn-pause-nick'); show('btn-cancel-nick');
-                pollScriptLogs('nicknames', async () => {
-                    const btn = document.getElementById('btn-find-nicknames');
-                    if (btn) { btn.disabled = false; }
-                    show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
-                    await loadCharacterAliases(true);
-                });
-            } else if (running.persona) {
-                pollPersonaStatus();
-            } else if (running.voicelab) {
-                _vlSetRunning(true);
-                refreshVoicelabHealth();
-                pollVoicelab();
+            const reattachers = {
+                batch_script: () => {
+                    disable('btn-gen-script');
+                    show('btn-pause-batch-script'); show('btn-cancel-batch-script');
+                    _pollScriptBatchLogs();
+                },
+                script: () => {
+                    disable('btn-gen-script');
+                    show('btn-cancel-script'); show('btn-pause-script');
+                    pollScriptLogs('script', () => {
+                        if (!scriptBatchPoller) {
+                            const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
+                        }
+                        show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
+                    });
+                },
+                batch_review: async () => {
+                    disable('btn-review-batch-start');
+                    show('btn-pause-batch-review'); show('btn-cancel-batch-review');
+                    await loadReviewBatchScripts();
+                    pollReviewBatch();
+                },
+                review: () => {
+                    _disableReviewButtons(true);
+                    _showReviewControls(true);
+                    pollScriptLogs('review', _onReviewDone);
+                },
+                nicknames: () => {
+                    disable('btn-find-nicknames');
+                    show('btn-pause-nick'); show('btn-cancel-nick');
+                    pollScriptLogs('nicknames', async () => {
+                        const btn = document.getElementById('btn-find-nicknames');
+                        if (btn) { btn.disabled = false; }
+                        show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
+                        await loadCharacterAliases(true);
+                    });
+                },
+                persona: () => {
+                    pollPersonaStatus();
+                },
+                voicelab: () => {
+                    _vlSetRunning(true);
+                    refreshVoicelabHealth();
+                    pollVoicelab();
+                },
+                lora_training: () => {
+                    disable('btn-lora-train');
+                    show('btn-lora-cancel');
+                    show('lora-progress-section', 'block');
+                    pollLoraTraining();
+                },
+                preparer: () => { _pollPreparerLogs('preparer'); },
+                batch_preparer: () => { _pollPreparerLogs('batch_preparer'); },
+                audio: () => {
+                    show('btn-cancel-merge');
+                    pollLogs('audio', 'audio-logs', () => { show('btn-cancel-merge', 'none'); });
+                },
+                benchmark: () => { refreshBenchmarkStatus(); },
+                audacity_export: () => { pollExport('audacity_export'); },
+                m4b_export: () => { pollExport('m4b_export'); },
+                chapter_export: () => { pollExport('chapter_export'); },
+                dataset_builder: async () => {
+                    const state = await API.get('/api/status/dataset_builder');
+                    if (!state.running) { return; }
+                    if (!state.dataset_name) { throw new Error('Active Dataset Builder project is unavailable'); }
+                    await dsbLoadProjects(state.dataset_name);
+                },
+                voices: () => { reattachTaskActivity('voices', ['btn-suggest-voices'], 'suggest-status', loadVoices); },
+                llm_test: () => { reattachTaskActivity('llm_test', ['llm-test-btn'], 'llm-test-result'); },
+                lmstudio_optimize: () => { reattachTaskActivity('lmstudio_optimize', ['lmstudio-optimize-toggle'], 'lmstudio-status-badge', refreshLmStudioStatus); },
+                voice_design: () => { reattachTaskActivity('voice_design', ['btn-design-preview'], 'design-status', loadDesignedVoices); },
+                lora_test: () => { reattachTaskActivity('lora_test', [], 'lora-test-status'); },
+                drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
+            };
+            for (const [name, isRunning] of Object.entries(running)) {
+                if (!isRunning) { continue; }
+                const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
+                    ? reattachers[name] : () => reattachTaskActivity(name);
+                try {
+                    await attach();
+                } catch (e) {
+                    showToast(`Could not restore ${name.replaceAll('_', ' ')} controls: ${e.message}`, 'warning');
+                }
             }
         }
 
@@ -797,9 +1043,42 @@
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
-                prepBatchQueue.push({ audio: file.name });
+                prepBatchQueue.push({ audio: file });
             });
         };
+
+        const PREPARER_TASKS = {
+            preparer: {start: '/api/preparer/start', cancel: '/api/preparer/cancel',
+                       starting: 'Starting…', failure: 'Failed to start: '},
+            batch_preparer: {start: '/api/preparer/batch/upload_start', cancel: '/api/preparer/batch/cancel',
+                             starting: 'Starting batch…', failure: 'Failed to start batch: '},
+        };
+        let prepActiveTask = null;
+        let prepSubmitting = false;
+
+        function _applyPreparerControls(taskName, submitting = false) {
+            prepActiveTask = taskName;
+            prepSubmitting = submitting;
+            document.getElementById('btn-prep-start').disabled = submitting || taskName !== null;
+            document.getElementById('btn-prep-cancel').style.display = taskName ? 'inline-block' : 'none';
+        }
+
+        async function _submitPreparer(taskName, formData) {
+            if (prepSubmitting || prepActiveTask) { return; }
+            const task = PREPARER_TASKS[taskName];
+            _applyPreparerControls(null, true);
+            document.getElementById('preparer-progress-section').style.display = 'block';
+            document.getElementById('prep-status-msg').innerHTML = `<span class="text-info">${task.starting}</span>`;
+            try {
+                const res = await fetch(task.start, {method: 'POST', body: formData});
+                await API._handleError(res);
+                _applyPreparerControls(taskName);
+                _pollPreparerLogs(taskName);
+            } catch (e) {
+                _applyPreparerControls(null);
+                showToast(task.failure + e.message, 'error');
+            }
+        }
 
         window.startPreparer = async () => {
             const isBatch = document.getElementById('prep-batch-mode').checked;
@@ -807,12 +1086,6 @@
 
             const audioFile = document.getElementById('prep-audio-file').files[0];
             if (!audioFile) { showToast('Audio file required', 'error'); return; }
-
-            const btn = document.getElementById('btn-prep-start');
-            btn.disabled = true;
-            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
-            document.getElementById('preparer-progress-section').style.display = 'block';
-            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
 
             const sourceFile = document.getElementById('prep-source-file').files[0];
             const diarizationMode = document.getElementById('prep-diarization-mode').value;
@@ -851,35 +1124,21 @@
             fd.append('audio_file', audioFile);
             if (sourceFile) { fd.append('source_file', sourceFile); }
 
-            try {
-                const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
-                if (!res.ok) { throw new Error((await res.json()).detail || res.statusText); }
-                _pollPreparerLogs('preparer');
-            } catch (e) {
-                showToast('Failed to start: ' + e.message, 'error');
-                btn.disabled = false;
-                document.getElementById('btn-prep-cancel').style.display = 'none';
-            }
+            return _submitPreparer('preparer', fd);
         };
 
         window.cancelPreparer = () => {
-            const isBatch = document.getElementById('prep-batch-mode').checked;
-            const url = isBatch ? '/api/preparer/batch/cancel' : '/api/preparer/cancel';
-            return cancelTask(url);
+            if (!prepActiveTask) { return; }
+            return cancelTask(PREPARER_TASKS[prepActiveTask].cancel);
         };
 
         async function _startBatchPreparer() {
             if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
-            const btn = document.getElementById('btn-prep-start');
-            btn.disabled = true;
-            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
-            document.getElementById('preparer-progress-section').style.display = 'block';
-            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting batch…</span>';
-
-            const tasks = prepBatchQueue.map(t => ({
-                audio_filename:  t.audio,
-                output_filename: `voice_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
+            const files = prepBatchQueue.map(t => t.audio);
+            const tasks = files.map(file => ({
+                audio_filename:  file.name,
+                output_filename: `voice_dataset_${file.name.replace(/\.[^.]+$/, '')}.zip`,
             }));
             const diarizationMode = document.getElementById('prep-diarization-mode').value;
             const body = {
@@ -892,23 +1151,21 @@
                 hf_token:       document.getElementById('prep-hf-token').value || null,
             };
 
-            try {
-                await API.post('/api/preparer/batch/start', body);
-                _pollPreparerLogs('batch_preparer');
-            } catch (e) {
-                showToast('Failed to start batch: ' + e.message, 'error');
-                btn.disabled = false;
-                document.getElementById('btn-prep-cancel').style.display = 'none';
-            }
+            const fd = new FormData();
+            fd.append('config_json', JSON.stringify(body));
+            files.forEach(file => { fd.append('audio_files', file); });
+            return _submitPreparer('batch_preparer', fd);
         }
 
         function _pollPreparerLogs(taskName) {
+            _applyPreparerControls(taskName);
             const logEl = document.getElementById('preparer-logs');
             let offset = 0;
 
             _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
                 doneCheck: state => !state.running,
                 onTick: state => {
+                    if (prepActiveTask !== taskName) { return; }
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -924,16 +1181,17 @@
                             const el = document.getElementById(`prep-batch-status-${i}`);
                             if (!el) { return; }
                             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                            const colour = Object.prototype.hasOwnProperty.call(colours, t.status) ? colours[t.status] : 'secondary';
+                            el.innerHTML = `<span class="badge bg-${colour}">${escapeHtml(t.status)}</span>`;
                         });
                     }
                 },
                 onDone: state => {
+                    if (prepActiveTask !== taskName) { return; }
                     notifyJobDone(taskName);
-                    document.getElementById('btn-prep-start').disabled = false;
-                    document.getElementById('btn-prep-cancel').style.display = 'none';
+                    _applyPreparerControls(null);
                     const msg = taskName === 'preparer' ? state.status : 'Batch finished';
-                    document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
+                    document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${escapeHtml(msg)}</span>`;
                     loadPreparerOutputs();  // refresh the download list with any new ZIPs
                 }
             });

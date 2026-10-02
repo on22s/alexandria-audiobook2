@@ -30,6 +30,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = REPO + "/app/"
 sys.path.insert(0, APP)
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from experiments.scoring import alias_groups, same_speaker
 from experiments.stats import clopper_pearson
 from three_pass_generate import get_deterministic_named_entry
@@ -132,7 +133,7 @@ def rule_analysis():
         cp_path = M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"
         if not want or not os.path.exists(cp_path):
             continue
-        seg = json.load(open(cp_path))["segmented"]
+        seg = load_generation_delta_checkpoint(cp_path)["segmented"]
         occ = collections.Counter(norm(e.get("text")) for e in seg)
         gold_doc = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
         by_line = {norm(g["line"]): g["expected_speaker"].upper()

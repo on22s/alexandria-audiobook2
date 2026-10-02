@@ -65,7 +65,9 @@ WIDTHS = [int(w) for w in os.environ.get("EXPERIMENT_WIDTHS", "1,4,15,40").split
 
 gold = json.load(open(GOLD_PATH))
 src = open(M + f"inputs/{BOOK}.txt", encoding="utf-8").read()
-cp = json.load(open(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json"))
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
+cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json")
 seg, named = cp["segmented"], [e for e in (cp.get("named") or []) if e]
 roster = [r.upper() for r in build_roster(named, src)]
 AL = [{n.upper() for n in g} for g in gold.get("aliases", [])]

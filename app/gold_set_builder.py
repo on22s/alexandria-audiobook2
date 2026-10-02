@@ -27,6 +27,7 @@ import json
 import os
 import random
 import re
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
 INSTRUCTIONS = (
     "For each row, read the passage and put the speaker's NAME in ANSWER "
@@ -58,8 +59,7 @@ def normalize(text):
 def load_run(root, run, book):
     """The whole checkpoint from a completed three-pass run."""
     path = os.path.join(root, run, book, "result.json.threepass_checkpoint.json")
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
+    return load_generation_delta_checkpoint(path)
 
 
 def eligible_indexes(segmented, min_chars=4):
@@ -163,12 +163,18 @@ def build(segmented, book, count, batch_size, seed=11, names=None):
     return batches, len(pool)
 
 
-def read_filled(paths):
-    """{id: {answer, reasoning}} from filled batches, ignoring blanks."""
-    answers = {}
+def read_batches(paths):
+    """Yield each existing batch format after closing its UTF-8 input file."""
     for path in paths:
         with open(path, encoding="utf-8") as handle:
             payload = json.load(handle)
+        yield payload
+
+
+def read_filled(paths):
+    """{id: {answer, reasoning}} from filled batches, ignoring blanks."""
+    answers = {}
+    for payload in read_batches(paths):
         for row in (payload["rows"] if isinstance(payload, dict) else payload):
             value = (row.get("ANSWER") or "").strip().upper()
             if value:
@@ -193,12 +199,14 @@ def support_for(answer, row, source_text=None):
     """
     if answer in ("NARRATOR", "AMBIGUOUS", "UNKNOWN"):
         return "not_a_name"
-    first = answer.split()[0]
+    parts = answer.split()
+    if not parts:
+        return "absent"
+    name_pattern = r"(?<!\w)" + r"\s+".join(re.escape(part) for part in parts) + r"(?!\w)"
     window = " ".join((row["passage_before"], row["line"], row["passage_after"]))
-    if re.search(r"\b" + re.escape(first) + r"\b", window, re.IGNORECASE):
+    if re.search(name_pattern, window, re.IGNORECASE):
         return "window"
-    if source_text and re.search(r"\b" + re.escape(first) + r"\b",
-                                 source_text, re.IGNORECASE):
+    if source_text and re.search(name_pattern, source_text, re.IGNORECASE):
         return "book"
     return "absent"
 
@@ -245,6 +253,23 @@ def support_summary(answers, batches, source_text=None):
     return counts, book_only
 
 
+def get_normalized_gold_alias_groups(aliases):
+    """Return sorted alias components without joining through empty names."""
+    components = []
+    for group in aliases or ():
+        names = {name.strip().upper() for name in group if name.strip()}
+        if not names:
+            continue
+        separate = []
+        for component in components:
+            if names & component:
+                names |= component
+            else:
+                separate.append(component)
+        components = separate + [names]
+    return sorted(sorted(component) for component in components)
+
+
 def merge(answers, batches, book, source_run, judged_by, aliases=None):
     expected = {row["id"]: row for batch in batches for row in batch["rows"]}
     entries = [{"id": gold_id, "book": book,
@@ -259,7 +284,7 @@ def merge(answers, batches, book, source_run, judged_by, aliases=None):
              "aligns to exactly one position."),
             "book": book, "source_run": source_run,
             "sampling": "random over SPOKEN entries with unique text",
-            "entries": entries, "aliases": aliases or []}
+            "entries": entries, "aliases": get_normalized_gold_alias_groups(aliases)}
 
 
 def rows_to_rejudge(old, new, answers, answer="AMBIGUOUS"):
@@ -283,10 +308,10 @@ def rows_to_rejudge(old, new, answers, answer="AMBIGUOUS"):
 
 def agreement(first, second, aliases=()):
     """(agreed, disagreements) between two judges over the ids they share."""
-    groups = [{name.upper() for name in group} for group in aliases]
+    groups = [set(group) for group in get_normalized_gold_alias_groups(aliases)]
 
     def same(a, b):
-        a, b = (a or "").upper(), (b or "").upper()
+        a, b = (a or "").strip().upper(), (b or "").strip().upper()
         return a == b or any(a in g and b in g for g in groups)
 
     shared = sorted(set(first) & set(second))
@@ -319,6 +344,10 @@ def main(argv=None):
     join.add_argument("filled", nargs="+")
     join.add_argument("--batches", nargs="+", required=True,
                       help="the unfilled batches, to check ids and passages")
+    join.add_argument("--source", help="UTF-8 book source for wider-book name validation")
+    join.add_argument("--root", default=DEFAULT_ROOT,
+                      help="experiment root containing inputs/<book>.txt")
+    join.add_argument("--run", help="source run for legacy batches without recorded provenance")
     join.add_argument("--judged-by", required=True)
     join.add_argument("--out", required=True)
     join.add_argument("--alias", action="append", default=[],
@@ -355,6 +384,7 @@ def main(argv=None):
                               args.batch_size, args.seed, names)
         os.makedirs(args.out, exist_ok=True)
         for number, batch in enumerate(batches, 1):
+            batch["source_run"] = args.run
             path = os.path.join(args.out, f"{args.book}_batch{number:02d}.json")
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(batch, handle, indent=1, ensure_ascii=False)
@@ -365,27 +395,40 @@ def main(argv=None):
         return 0
 
     if args.command == "merge":
-        batches = [json.load(open(p, encoding="utf-8")) for p in args.batches]
+        batches = list(read_batches(args.batches))
+        recorded_runs = {batch["source_run"] for batch in batches if batch.get("source_run")}
+        if len(recorded_runs) > 1:
+            parser.error("batches record different source runs; merge each run separately")
+        if args.run and recorded_runs and args.run not in recorded_runs:
+            parser.error("--run disagrees with the batches' recorded source run")
+        source_run = args.run or next(iter(recorded_runs), DEFAULT_RUN)
+        source_path = args.source or os.path.join(args.root, "inputs", f"{args.book}.txt")
+        source_text = None
+        if args.source or os.path.exists(source_path):
+            try:
+                with open(source_path, encoding="utf-8") as handle:
+                    source_text = handle.read()
+            except (OSError, UnicodeError) as exc:
+                parser.error(f"cannot read source {source_path}: {exc}")
         answers = read_filled(args.filled)
-        problems = validate(answers, batches)
+        problems = validate(answers, batches, source_text)
         for problem in problems:
             print(f"  ! {problem}")
         if problems and not args.force:
             print(f"\n{len(problems)} problems; not writing. Use --force to override.")
             return 1
         aliases = [group.split(",") for group in args.alias]
-        fixture = merge(answers, batches, args.book, args.run if hasattr(args, "run")
-                        else DEFAULT_RUN, args.judged_by, aliases)
+        fixture = merge(answers, batches, args.book, source_run, args.judged_by, aliases)
         with open(args.out, "w", encoding="utf-8") as handle:
             json.dump(fixture, handle, indent=1, ensure_ascii=False)
         print(f"wrote {args.out}: {len(fixture['entries'])} entries")
         return 0
 
     if args.command == "rejudge":
-        old = {r["id"]: r for p in args.old
-               for r in json.load(open(p, encoding="utf-8"))["rows"]}
-        new = {r["id"]: r for p in args.new
-               for r in json.load(open(p, encoding="utf-8"))["rows"]}
+        old = {r["id"]: r for batch in read_batches(args.old)
+               for r in batch["rows"]}
+        new = {r["id"]: r for batch in read_batches(args.new)
+               for r in batch["rows"]}
         answers = read_filled(args.filled)
         rows = rows_to_rejudge(old, new, answers, args.answer)
         payload = {"book": args.book, "batch": "rejudge 1 of 1",

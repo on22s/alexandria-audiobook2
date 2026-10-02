@@ -34,7 +34,7 @@ run_stage separator_none_allrows 5h --needs-vram -- \
     --min-books 5 --separator none --limit 800 \
     --work "$runtime/respelling_none_allrows" \
     --out "$runtime/experiments/respelling_none_allrows.json"
-stage_commit_artifacts separator_none_allrows "$REPO"
+stage_commit_artifacts separator_none_allrows "$REPO" "$runtime/experiments/respelling_none_allrows.json"
 
 # 2. The one PDNC intervention worth another look. Scored paired this morning,
 #    sequence-aware came out at p=0.054 against a 5.5% run-to-run floor - the
@@ -60,13 +60,13 @@ run_stage pdnc_sequence_repeat 4h -- \
     "$REPO/gpu_job.sh" pdnc_sequence_repeat \
     "$python" -u "$REPO/app/experiments/pdnc_context_evidence.py" \
     --phase pilot --intervention sequence --tag repeat2
-stage_commit_artifacts pdnc_sequence_repeat "$REPO"
+stage_commit_artifacts pdnc_sequence_repeat "$REPO" "$runtime/experiments/pdnc_sequence__pilot__repeat2.json" "$runtime/experiments/pdnc_sequence__pilot__repeat2.json.ckpt" "$runtime/experiments/pdnc_sequence__pilot__repeat2.json.ckpt.stale"
 
 # 3. The book that genuinely failed twice. Its three companions are on disk and
 #    skipped in seconds; this now exits non-zero if it produces nothing.
 run_stage grimgar06_retry 5h --needs-vram -- \
     env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books_20260819b.sh"
-stage_commit_artifacts grimgar06_retry "$REPO"
+# This generator writes under unseen_books, outside the experiment commit scope.
 
 # 4. Widen the no-separator arm if the night still has room. Same work
 #    directory, so the first 800 terms are skipped rather than regenerated.
@@ -76,7 +76,7 @@ run_stage separator_none_1600 5h --needs-vram -- \
     --min-books 5 --separator none --limit 1600 \
     --work "$runtime/respelling_none_allrows" \
     --out "$runtime/experiments/respelling_none_allrows_n1600.json"
-stage_commit_artifacts separator_none_1600 "$REPO"
+stage_commit_artifacts separator_none_1600 "$REPO" "$runtime/experiments/respelling_none_allrows_n1600.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary overnight_20260819b

@@ -20,10 +20,6 @@ _QUOTE_CHARS = {'"', '“', '”', '「', '」', '『', '』'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
 # chunk contain any" is the question the quotes-only refusal asks.
 QUOTE_MARKS = ('"', '“', '「', '『')
-# Set by _quote_region_findings when it declines to run, read by the report so
-# a caller can tell "checked and clean" from "did not check". A list rather
-# than a flag because one report covers many entries.
-_skipped = []
 _CURLY_AND_JAPANESE_OPEN = {'“', '「', '『'}
 # A finished sentence before a second opening quote marks a run-on quote (#624).
 _SENTENCE_END = set('.!?…。！？')
@@ -47,7 +43,7 @@ def _is_metadata_paragraph(current):
 
 
 def _pop_source_label(current):
-    value = "".join(current)
+    value = "".join(current).rstrip()
     match = _SOURCE_LABEL_TAIL.search(value)
     if not match:
         return None
@@ -90,6 +86,9 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             flush()
             current.append(char)
             continue
+        if char in _CURLY_AND_JAPANESE_OPEN or char == '"':
+            paragraph_start = text.rfind("\n\n", 0, index)
+            paragraph_start = paragraph_start + 2 if paragraph_start >= 0 else 0
         if char in _CURLY_AND_JAPANESE_OPEN:
             # Source credits sometimes quote a chapter title. It is metadata,
             # not unattributed dialogue, and must remain narrator material.
@@ -101,7 +100,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 flush()
                 depth = 1
                 saw_quote = True
-            elif not text[text.rfind("\n\n", 0, index) + 2:index].strip():
+            elif not text[paragraph_start:index].strip():
                 # Publishers repeat an opening quote at the start of each
                 # paragraph in one continuous, multi-paragraph speech.
                 saw_quote = True
@@ -159,9 +158,11 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char == '"':
-            if depth and not text[text.rfind("\n\n", 0, index) + 2:index].strip():
+            if depth and not text[paragraph_start:index].strip():
                 saw_quote = True
                 continue
+            if depth == 0:
+                pending_source_label = _pop_source_label(current)
             flush()
             depth = 0 if depth else 1
             saw_quote = True
@@ -291,7 +292,7 @@ def _region_contains_entry(regions, entry_text):
 def _quote_region_findings(source_text, entries, quote_analysis=None,
                            quoted_must_be_spoken=True,
                            unquoted_must_be_narrator=True):
-    """Findings, or ONE finding saying this gate does not apply to this book.
+    """Return (findings, quote_gate) with telemetry local to this validation.
 
     NOT A FINDING - TELEMETRY. A narration-only chunk legitimately contains no
     quotes and must still pass, so the skip cannot block. It is recorded in the
@@ -311,14 +312,15 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     disables itself without saying so is the shape that has already cost this
     project three separate measurements ([[Rule 8]]).
     """
+    if quote_analysis and not quote_analysis.get("regions"):
+        quote_analysis = None
     if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
         try:
             from dialogue_spans import detect_convention
             convention = detect_convention(source_text)
         except Exception:                                   # noqa: BLE001
             convention = None
-        _skipped.append(convention or "none_detected")
-        return []
+        return [], "skipped:" + (convention or "none_detected")
     if quote_analysis:
         source_regions = quote_analysis["regions"]
         outside = [entry["text"] for entry in source_regions
@@ -350,7 +352,7 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         elif not in_expected:
             findings.append({"code": "crosses_quote_boundary", "entry_number": number,
                              "message": "Entry text crosses a dialogue quote boundary; split narration and spoken text."})
-    return findings
+    return findings, "ran"
 
 
 def _introduced_character_findings(source_text, output_text, entries):
@@ -379,10 +381,10 @@ def _introduced_character_findings(source_text, output_text, entries):
     entry_texts = [" ".join(str(e.get("text") or "").split()).casefold()
                    if isinstance(e, dict) else "" for e in entries]
     for duplicate in find_adjacent_duplicate_blocks(entry_texts, source_text):
-        if duplicate.get("details", {}).get("source_occurrences") == 1:
+        if duplicate["severity"] == "blocking":
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
-                             "message": "An adjacent repeated block occurs only once in the source."})
+                             "message": "An adjacent repeated block is not repeated in the source."})
     return findings
 
 
@@ -414,10 +416,13 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         if not text.strip():
             findings.append({"code": "empty_text", "entry_number": number,
                              "message": "Entry contains no speakable text."})
-        source_label = str(entry.get("source_label") or "").strip()
-        output_parts.append(f"{source_label} {text}".strip())
+        output_parts.append(text)
 
     source_tokens = tokens(source_text)
+    if any(isinstance(entry, dict) and entry.get("source_label") for entry in entries):
+        source_regions = (quote_analysis or analyze_outer_quote_regions(source_text)).get("regions", [])
+        if any(region.get("source_label") for region in source_regions):
+            source_tokens = tokens(" ".join(region["text"] for region in source_regions))
     output_text = " ".join(output_parts)
     output_tokens = tokens(output_text)
     sc, oc = len(source_tokens), len(output_tokens)
@@ -436,14 +441,14 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         findings.append({"code": "output_source_ratio", "value": round(ratio, 4),
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
-    del _skipped[:]
-    findings.extend(_quote_region_findings(
+    quote_findings, quote_gate = _quote_region_findings(
         source_text, entries, quote_analysis,
         quoted_must_be_spoken=quoted_must_be_spoken,
-        unquoted_must_be_narrator=unquoted_must_be_narrator))
+        unquoted_must_be_narrator=unquoted_must_be_narrator)
+    findings.extend(quote_findings)
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
     return _report(sc, oc, recall, trigram, ratio, findings,
-                   quote_gate=("skipped:" + _skipped[0]) if _skipped else "ran")
+                   quote_gate=quote_gate)
 
 
 def _report(source_count, output_count, recall, trigram, ratio, findings,
@@ -457,7 +462,7 @@ def _report(source_count, output_count, recall, trigram, ratio, findings,
         "metrics": {
             "source_tokens": source_count, "output_tokens": output_count,
             "source_token_recall": round(recall, 4),
-            "ordered_trigram_recall": round(trigram, 4),
+            "ordered_trigram_recall": trigram,
             "output_source_ratio": round(ratio, 4),
         },
         "findings": findings,
@@ -511,7 +516,7 @@ _VALIDATION_EXPECTED = {
 
 # Entry-type tokens the model must never return as a speaker name. NARRATOR is
 # absent on purpose: it is both a type and a legitimate speaker.
-ENTRY_TYPE_NAMES = frozenset({"SPOKEN", "NARRATION", "DIALOGUE"})
+ENTRY_TYPE_NAMES = frozenset({"SPOKEN", "NARRATION", "NARRATIVE", "DIALOGUE"})
 
 # The roster line shows each character as "EMMA (also: EMMA WOODHOUSE, MISS
 # WOODHOUSE)" (attribution_prompt_variants.roster_line). Rule 6 of that prompt
@@ -533,9 +538,21 @@ def strip_roster_alias_echo(speaker):
 
 
 MIN_NAME_ATTESTATIONS = 2
-# Below this the source is a test fixture or a fragment, not a book, and a
-# real name may legitimately appear once. Books in this corpus are 250k+.
+# Short sources may legitimately write a real name once; they must still
+# supply that occurrence rather than admitting every proposed name.
 MIN_SOURCE_FOR_ATTESTATION = 5000
+NAME_TITLE_PREFIXES = frozenset({
+    "mr", "mrs", "ms", "miss", "dr", "doctor", "professor", "captain",
+    "king", "queen", "prince", "princess", "lord", "lady", "sir", "dame",
+    "duke", "duchess", "count", "countess", "baron", "baroness", "father",
+    "mother", "brother", "sister", "officer", "sergeant", "general", "colonel",
+    "major", "lieutenant", "reverend", "pastor", "bishop", "saint", "the", "his", "her",
+})
+
+
+def get_name_attestation_threshold(source_text, min_attestations=MIN_NAME_ATTESTATIONS):
+    """Retain the long-source gate while requiring evidence in short sources."""
+    return 1 if len(source_text) < MIN_SOURCE_FOR_ATTESTATION else min_attestations
 
 
 def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
@@ -556,14 +573,13 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     """
     if not source_text or not name:
         return True
-    if len(source_text) < MIN_SOURCE_FOR_ATTESTATION:
-        return True
+    min_attestations = get_name_attestation_threshold(source_text, min_attestations)
     # Match case-insensitively and judge by the first letter, because str.title()
     # capitalises after every non-letter: "BRI-CHAN".title() is "Bri-Chan" but
     # the book writes "Bri-chan". That spelling mismatch rejected three real
     # grimgar03 characters - Bri-chan (55 mentions), Zodiac-kun, Barbara-sensei -
     # as inventions, which is every honorific-suffixed name in a translated work.
-    occurrences = re.findall(r"\b" + re.escape(name) + r"\b", source_text,
+    occurrences = re.findall(r"(?<!\w)" + re.escape(name) + r"(?!\w)", source_text,
                              re.IGNORECASE)
     capitalized = sum(1 for found in occurrences if found[:1].isupper())
     lowercase = len(occurrences) - capitalized
@@ -572,12 +588,15 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     # A full name the book writes once - "Ian Fairytale" at his introduction,
     # "Ian" on every later page - is that character, not an invention (#622:
     # IAN FAIRYTALE was rejected while IAN passed). The full form must be in
-    # the text and the first word must clear the gate on its own; an invented
+    # the text and the first personal component must clear the gate on its own;
+    # a shared title or role cannot supply that evidence. An invented
     # pairing of a real first name (IAN HUMPHREY) or a common word (FUTURE ME)
     # still fails.
     words = name.split()
     if len(words) > 1 and capitalized >= 1:
-        return is_attested_name(words[0], source_text, min_attestations)
+        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
+            words = words[1:]
+        return bool(words and is_attested_name(words[0], source_text, min_attestations))
     return False
 
 
@@ -624,8 +643,9 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                                  "message": "The speaker does not appear as a "
                                             "name in the source text (a name "
                                             "must be written capitalised at "
-                                            "least twice, or be a full name the "
-                                            "text writes whose first name is)."})
+                                            f"least {'once' if get_name_attestation_threshold(source_text) == 1 else 'twice'}, "
+                                            "or be a full name the text writes "
+                                            "whose personal name is)."})
                 continue
             if speaker.upper() in ENTRY_TYPE_NAMES:
                 findings.append({"code": "speaker_is_entry_type",

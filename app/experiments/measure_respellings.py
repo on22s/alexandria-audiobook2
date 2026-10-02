@@ -261,7 +261,7 @@ def build_run_identity(args):
         "rule": args.rule, "separator": args.separator,
         "e_spelling": args.e_spelling, "verdict": args.verdict,
         "min_books": args.min_books, "only_e_row": args.only_e_row,
-        "limit": args.limit,
+        "limit": args.limit, "offset": getattr(args, "offset", 0),
         "inputs": {os.path.abspath(path): file_sha256(path)
                    for path in paths if os.path.isfile(path)},
         "voice": "serena",
@@ -400,6 +400,8 @@ def main():
     ap.add_argument("--term-books", default=None,
                     help="a shipped_book_lexicon_coverage.json whose "
                          "term_to_books supplies the book count for --terms")
+    ap.add_argument("--offset", type=int, default=0,
+                    help="skip this many terms after filtering and sorting, before --limit")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--rule", choices=("a", "b"), default="a")
     ap.add_argument("--separator", choices=tuple(SEPARATORS), default="hyphen",
@@ -427,6 +429,8 @@ def main():
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "respelling_measure.json"))
     args = ap.parse_args()
+    if args.offset < 0:
+        ap.error("--offset must be nonnegative")
 
     with open(args.candidates, encoding="utf-8") as handle:
         candidates = json.load(handle)["candidates"]
@@ -471,6 +475,7 @@ def main():
         terms = [c for c in terms
                  if (p := prior.get(c["term"]))
                  and failed(p) and not p.get("helps")]
+    terms = terms[args.offset:]
     if args.limit:
         terms = terms[:args.limit]
     if not terms:
@@ -507,6 +512,9 @@ def main():
                                       encoding="utf-8")))
     voice = {"serena": {"type": "custom"}}
     started, done = time.time(), 0
+    from gpu_progress import record_gpu_progress
+    completed_terms = sum(candidate['term'] in results for candidate in terms)
+    record_gpu_progress('respelling terms', completed_terms, len(terms))
 
     for index, candidate in enumerate(terms, 1):
         term, kana = candidate["term"], candidate["kana"]
@@ -515,6 +523,8 @@ def main():
         spelled = respell_b(kana, table) if args.rule == 'b' else respell(kana, table)
         if not spelled:
             results[term] = {"term": term, "kana": kana, "skipped": "unmappable kana"}
+            completed_terms += 1
+            record_gpu_progress('respelling terms', completed_terms, len(terms))
             continue
         row = {"term": term, "kana": kana, "respelling": spelled,
                "books": candidate["books"], "series": candidate["series"]}
@@ -540,6 +550,8 @@ def main():
             row["closeness_delta"] = round(
                 row["respelled_closeness"] - row["plain_closeness"], 3)
         results[term] = row
+        completed_terms += 1
+        record_gpu_progress('respelling terms', completed_terms, len(terms))
         done += 1
         if done % 5 == 0:
             rate = (time.time() - started) / done

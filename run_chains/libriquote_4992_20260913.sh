@@ -31,7 +31,11 @@ corpus="$runtime/corpora/libriquote/4992"
 work="$runtime/libriquote_4992_eval"
 TEST_BOOK="${TEST_BOOK:-6056}"
 mkdir -p "$STAGE_LOG_DIR" "$work"
-source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
+
+is_stop_gate_passed() {
+    "$python" "$REPO/app/experiments/stop_gate_completion.py" "$1"
+}
 
 for arm in quotes narration; do
     [ -s "$corpus/$arm/metadata.csv" ] || { stage_note "REFUSING: no corpus at $corpus/$arm - run libriquote_fetch.py first"; exit 1; }
@@ -52,12 +56,21 @@ for arm in quotes narration; do
         "$python" -u "$REPO/app/train_lora.py" \
         --data_dir "$work/$arm/train" --output_dir "$work/$arm/adapter" \
         --epochs 6 --lr 1e-6 --lora_r 32 --lora_alpha 128 --seed 1234
-    [ -s "$work/$arm/stop_check/verify_adapter_stops.json" ] || \
-    run_stage stop_gate_$arm 30m --needs-vram -- \
-        "$REPO/gpu_job.sh" "libriquote_4992_stop_gate_$arm" \
-        "$python" -u "$REPO/app/experiments/verify_adapter_stops.py" \
-        --build "$work/$arm/build.json" --adapter "$work/$arm/adapter" --config "$config" \
-        --lines 5 --seed 1234 --max-ratio 3.0 --out "$work/$arm/stop_check/verify_adapter_stops.json"
+    if ! is_stop_gate_passed "$work/$arm/stop_check/verify_adapter_stops.json"; then
+        run_stage stop_gate_$arm 30m --needs-vram -- \
+            "$REPO/gpu_job.sh" "libriquote_4992_stop_gate_$arm" \
+            "$python" -u "$REPO/app/experiments/verify_adapter_stops.py" \
+            --build "$work/$arm/build.json" --adapter "$work/$arm/adapter" --config "$config" \
+            --lines 5 --seed 1234 --max-ratio 3.0 --out "$work/$arm/stop_check/verify_adapter_stops.json"
+        if [ "${STAGE_RESULT[stop_gate_$arm]:-missing}" != ok ]; then
+            stage_note "REFUSING: $arm stop gate rerun failed; retaining its evidence"
+            exit 1
+        fi
+    fi
+    if ! is_stop_gate_passed "$work/$arm/stop_check/verify_adapter_stops.json"; then
+        stage_note "REFUSING: $arm stop gate did not record a valid passing verdict"
+        exit 1
+    fi
 done
 
 # Cross-generate: adapter A on held-out set H, for A and H in {quotes, narration}.
@@ -79,7 +92,7 @@ for adapter in quotes narration; do
             "$python" -u "$REPO/app/experiments/ljspeech_score.py" \
             --generated "$runtime/experiments/${tag}_generate.json" --limit 0 \
             --out "$runtime/experiments/${tag}_score.json"
+        stage_commit_artifacts libriquote_4992 "$REPO" "$runtime/experiments/${tag}_generate.json" "$runtime/experiments/prosody_${tag}.json" "$runtime/experiments/${tag}_score.json"
     done
 done
-stage_commit_artifacts libriquote_4992 "$REPO"
 stage_summary libriquote_4992_20260913

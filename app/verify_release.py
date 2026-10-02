@@ -3,11 +3,14 @@
 
 import argparse
 from collections import Counter
+from contextlib import ExitStack
+import io
 import json
 import os
 import py_compile
+import queue
+import threading
 import re
-import signal
 import subprocess
 import sys
 import tempfile
@@ -15,51 +18,21 @@ import time
 from pathlib import Path
 
 from utils import atomic_json_write
+from diagnostics import get_redacted_credentials
+from subprocess_ownership import (get_owned_exit_result, is_subprocess_tree_running,
+                                 start_owned_subprocess, stop_owned_subprocess)
 
 
 def is_process_group_running(process):
-    if os.name != "posix":
-        return process.poll() is None
-    try:
-        os.killpg(process.pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
+    return is_subprocess_tree_running(process)
 
 
 def stop_process_group(process, interrupt=False, timeout=5):
-    """Stop a verifier child and all descendants, escalating after a bounded wait."""
-    graceful_signal = signal.SIGINT if interrupt else signal.SIGTERM
-    try:
-        if os.name == "posix":
-            os.killpg(process.pid, graceful_signal)
-        elif process.poll() is None:
-            process.terminate()
-    except ProcessLookupError:
-        return
-    deadline = time.monotonic() + timeout
-    while is_process_group_running(process) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    if not is_process_group_running(process):
-        return
-    if os.name == "posix":
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            return
-    else:
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-        )
-    if process.poll() is None:
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            pass
+    """Retain the verifier grace while using shared descendant ownership."""
+    return stop_owned_subprocess(process, interrupt=interrupt, timeout=timeout)
 
 
-def run_command(label, command, cwd, reject_unittest_skips=False):
+def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True):
     print(f"\n== {label} ==", flush=True)
     # errors="backslashreplace": this stream is displayed and searched for
     # text markers, never parsed as data, so a stray non-UTF-8 byte from a
@@ -68,38 +41,84 @@ def run_command(label, command, cwd, reject_unittest_skips=False):
     # the unit-test gate died at "byte 0xa1 in position 3793" with every
     # test passing, and the strict decoder left no trace of which child
     # wrote it).
-    process = subprocess.Popen(
-        command, cwd=cwd, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, errors="backslashreplace",
-        start_new_session=(os.name == "posix"),
-        creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
-    )
-    output = []
-    try:
-        for line in process.stdout:
-            print(line, end="")
-            output.append(line)
-        return_code = process.wait()
-    except KeyboardInterrupt:
-        stop_process_group(process, interrupt=True)
-        raise
-    except BaseException:
-        stop_process_group(process)
-        raise
-    finally:
-        process.stdout.close()
-    if return_code:
-        stop_process_group(process)
-        raise RuntimeError(f"{label} failed with exit status {return_code}")
-    combined = "".join(output)
-    if reject_unittest_skips:
-        validate_unittest_output(combined)
-    return combined
+    with tempfile.TemporaryDirectory(prefix='alexandria-verifier-owner-') as directory, ExitStack() as stack:
+        notice = Path(directory) / 'root-exit.json'
+        process = start_owned_subprocess(
+            command, cwd=cwd, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, errors="backslashreplace",
+            start_new_session=(os.name == "posix"),
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+            exit_notice_path=notice, termination_grace=5,
+        )
+        output = [] if capture_output else None
+        summary_stream = (stack.enter_context(tempfile.TemporaryFile(mode="w+", encoding="utf-8"))
+                          if reject_unittest_skips and not capture_output else None)
+        events = queue.Queue()
+        def read_output():
+            try:
+                for line in process.stdout:
+                    events.put(('line', line))
+            except BaseException as error:
+                events.put(('error', error))
+            finally:
+                events.put(('done', None))
+        reader = threading.Thread(target=read_output, daemon=True)
+        try:
+            reader.start()
+            failure_stopped = False
+            while True:
+                root_result = get_owned_exit_result(notice)
+                if root_result is not None and root_result != 0 and not failure_stopped:
+                    stop_process_group(process)
+                    failure_stopped = True
+                try:
+                    kind, value = events.get(timeout=.05)
+                except queue.Empty:
+                    continue
+                if kind == 'done':
+                    break
+                if kind == 'error':
+                    raise value
+                print(value, end="")
+                if output is not None:
+                    output.append(value)
+                if summary_stream is not None:
+                    summary_stream.write(value)
+            return_code = process.wait()
+            if return_code and not failure_stopped:
+                stop_process_group(process)
+            root_result = get_owned_exit_result(notice)
+            if root_result is not None and root_result != 0:
+                return_code = root_result
+        except KeyboardInterrupt:
+            stop_process_group(process, interrupt=True)
+            raise
+        except BaseException:
+            stop_process_group(process)
+            raise
+        finally:
+            control = getattr(process, '_alexandria_control', None)
+            if control is not None:
+                control.close()
+            if reader.ident is not None:
+                reader.join(timeout=5)
+            process.stdout.close()
+
+        if return_code:
+            raise RuntimeError(f"{label} failed with exit status {return_code}")
+        combined = "".join(output) if output is not None else None
+        if reject_unittest_skips:
+            if summary_stream is not None:
+                summary_stream.seek(0)
+                validate_unittest_output(summary_stream)
+            else:
+                validate_unittest_output(combined)
+        return combined
 
 
 def run_report_command(*args, **kwargs):
     """Run a streamed command without retaining its console output in reports."""
-    run_command(*args, **kwargs)
+    run_command(*args, **kwargs, capture_output=False)
 
 
 def get_python_paths(repo_dir):
@@ -116,20 +135,26 @@ def get_python_paths(repo_dir):
 def compile_python_files(repo_dir):
     print("\n== Compile Python files ==", flush=True)
     paths = get_python_paths(repo_dir)
-    for path in paths:
-        py_compile.compile(str(path), doraise=True)
+    with tempfile.TemporaryDirectory(prefix="alexandria-compile-") as directory:
+        for index, path in enumerate(paths):
+            py_compile.compile(str(path), cfile=str(Path(directory) / f"{index}.pyc"),
+                               doraise=True)
     print(f"Compiled {len(paths)} tracked or non-ignored untracked Python files.")
 
 
 def validate_api_summary(summary, full):
     """Validate API results using the suite-owned inventory and full-only flags."""
     expected_mode = "full" if full else "quick"
+    if not isinstance(summary, dict):
+        raise ValueError("API summary must be an object")
     if summary.get("schema_version") != 1 or summary.get("mode") != expected_mode:
         raise ValueError(f"Invalid API summary schema or mode for {expected_mode} verification")
     tests = summary.get("tests")
     counts = summary.get("counts")
     if not isinstance(tests, list) or not isinstance(counts, dict):
         raise ValueError("API summary is missing tests or counts")
+    if not tests:
+        raise ValueError("API summary contains no tests")
     names = [test.get("name") for test in tests if isinstance(test, dict)]
     if len(names) != len(tests) or any(not name for name in names) or len(set(names)) != len(names):
         raise ValueError("API summary test names must be non-empty and unique")
@@ -171,11 +196,26 @@ MINIMUM_UNIT_TESTS = 500
 
 
 def validate_unittest_output(output):
-    skipped = re.search(r"\bskipped=(\d+)", output)
+    lines = io.StringIO(output) if isinstance(output, str) else output
+    skipped = ran = None
+    successful = False
+    for line in lines:
+        current = re.match(r"^Ran (\d+) tests? in ", line)
+        if current is not None:
+            # Fixtures can print nested unittest summaries. Only the final
+            # count and its verdict describe this discovery process.
+            ran = current
+            skipped = None
+            successful = False
+        elif ran is not None and re.fullmatch(r"OK(?: \(.*\))?\s*", line):
+            skipped = re.search(r"\bskipped=(\d+)", line)
+            successful = True
+        elif re.match(r"^FAILED\b", line):
+            skipped = re.search(r"\bskipped=(\d+)", line)
+            successful = False
     if skipped and int(skipped.group(1)):
         raise ValueError(f"Unit tests reported {skipped.group(1)} skipped test(s)")
-    ran = re.search(r"Ran (\d+) tests? in ", output)
-    if not ran or not re.search(r"^OK", output, re.MULTILINE):
+    if not ran or not successful:
         raise ValueError("Unit tests did not print a successful summary")
     if int(ran.group(1)) < MINIMUM_UNIT_TESTS:
         raise ValueError(
@@ -193,7 +233,7 @@ def run_api_suite(app_dir, full):
         ]
         if full:
             command.append("--full")
-        run_command(label, command, app_dir)
+        run_report_command(label, command, app_dir)
         try:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -210,13 +250,9 @@ def run_api_suite(app_dir, full):
 
 def get_concise_error(exc):
     """Return a bounded one-line error with common credential values redacted."""
-    lines = str(exc).splitlines()
+    lines = get_redacted_credentials(str(exc)).splitlines()
     message = (lines[0] if lines else type(exc).__name__)[:500]
-    message = re.sub(
-        r"(?i)\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)\S+",
-        r"\1\2[REDACTED]", message,
-    )
-    return re.sub(r"(https?://)[^/@\s:]+:[^/@\s]+@", r"\1[REDACTED]@", message)
+    return message
 
 
 def run_report_gate(report, name, callback):
@@ -269,10 +305,8 @@ def main(argv=None):
         )
         run_report_gate(
             report, "unit_tests", lambda: run_report_command(
-                # Run through ci_env so the ML libraries CI lacks are hidden
-                # here too. Without this the gate only tests the developer's
-                # machine, and a test touching torch passes locally then fails
-                # in CI (see ci_env.BLOCKED_MODULES).
+                # ci_env keeps local import exclusions aligned with CI.
+                # CI supplies CPU Torch/PEFT for structural artifact checks.
                 "Unit test discovery (CI-equivalent env)",
                 [sys.executable, "-m", "ci_env", "discover", "-s", ".", "-p", "test_*.py", "-v"],
                 app_dir, reject_unittest_skips=True,
@@ -300,7 +334,7 @@ def main(argv=None):
             ),
         )
         run_report_gate(report, "api_tests", lambda: run_api_suite(app_dir, args.full))
-    except (OSError, py_compile.PyCompileError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
+    except BaseException as exc:
         failure = exc
         report["status"] = "failed"
         report["failure"] = {

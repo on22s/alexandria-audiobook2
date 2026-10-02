@@ -55,35 +55,30 @@ run_stage anchor_ssb0748 1h -- \
     "$python" -u "$REPO/app/experiments/ljspeech_score.py" \
     --generated "$runtime/experiments/aishell3_SSB0748_generate.json" \
     --limit 0 --out "$runtime/experiments/aishell3_SSB0748_score.json"
-stage_commit_artifacts anchor_ssb0748 "$REPO"
+stage_commit_artifacts anchor_ssb0748 "$REPO" "$runtime/experiments/aishell3_SSB0748_score.json"
 
 # THE DOT ARM MUST BE FINISHED. It was interrupted at 487 of 1600 once already,
 # and a partial arm here does not make the table smaller, it makes it wrong.
 dot="$runtime/experiments/respelling_dot_allrows_n1600.json"
-if ! "$python" - "$dot" <<'PYEOF'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-sys.exit(0 if d.get("status") == "complete" else 1)
-PYEOF
+if ! "$python" "$REPO/app/experiments/respelling_completion.py" "$dot" 1600
 then
     stage_note "SKIP pauses_four_arms: the dot arm is not complete"
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result pauses_four_arms 1
 else
     run_stage pauses_four_arms 1h -- \
-        "$python" -u "$REPO/app/experiments/measure_pauses.py" --limit 800 \
+        "$python" -u "$REPO/app/experiments/measure_pauses.py" --limit 1600 \
         --arm none=respelling_none_allrows \
         --arm space=respelling_space_allrows \
         --arm dot=respelling_dot_allrows \
         --arm hyphen_wide=respelling_hyphen_allrows \
         --out "$runtime/experiments/respelling_pauses_allrows_4arm.json"
-    stage_commit_artifacts pauses_four_arms "$REPO"
+    stage_commit_artifacts pauses_four_arms "$REPO" "$runtime/experiments/respelling_pauses_allrows_4arm.json"
 
     run_stage selectivity_all 30m -- \
         "$python" -u "$REPO/app/experiments/respelling_selectivity.py" \
         --out "$runtime/experiments/respelling_selectivity_allrows.json"
-    stage_commit_artifacts selectivity_all "$REPO"
+    stage_commit_artifacts selectivity_all "$REPO" "$runtime/experiments/respelling_selectivity_allrows.json"
 fi
 
 for lang in en ja zh; do
@@ -96,11 +91,10 @@ for lang in en ja zh; do
         "$python" -u "$REPO/app/experiments/ljspeech_score.py" \
         --generated "$gen" --limit 0 \
         --out "$runtime/experiments/longref__${lang}_score.json"
-    stage_commit_artifacts "longref_ecapa_$lang" "$REPO"
+    stage_commit_artifacts "longref_ecapa_$lang" "$REPO" "$runtime/experiments/longref__${lang}_score.json"
 done
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
-stage_summary anchor_and_separator_table_20260826
 
 echo
 echo "HOW TO READ IT."
@@ -110,3 +104,5 @@ echo "     first time. If no, 4.48s is still too short and the goal needs a"
 echo "     longer Chinese corpus - a requirement, not an open question."
 echo "  2. the four-arm table decides which separator ships for 5.5."
 echo "  3. longref scores say whether a 10-12s reference moves 2.1's 93%."
+
+stage_summary anchor_and_separator_table_20260826

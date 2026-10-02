@@ -4,7 +4,7 @@
 # gates would compete for VRAM and invalidate the safety assumptions.
 set -uo pipefail
 
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="$REPO/app/env/bin/python"
 EXP="$REPO/ab_test_runtime/experiments"
 WORK="$REPO/ab_test_runtime/decontaminate"
@@ -13,9 +13,11 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP="$EXP/gate_reference_text_backup_$STAMP"
 QUEUE="$REPO/ab_test_runtime/regate_reference_text.tsv"
 mkdir -p "$LOG" "$BACKUP"
+STAGE_LOG_DIR="$LOG"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
 
 cd "$REPO"
-"$PY" - "$QUEUE" <<'PYEOF'
+if ! "$PY" - "$QUEUE" <<'PYEOF'
 import glob, json, os, re, sys
 repo = os.getcwd()
 remaining = {row["id"] for row in json.load(open("lora_models/manifest.json"))
@@ -39,6 +41,10 @@ print(f"queue={len(found)} missing_candidates={len(missing)}")
 for name in missing:
     print(f"MISSING {name}")
 PYEOF
+then
+    echo "REGATE FAILED: could not build adapter queue" >&2
+    exit 1
+fi
 
 while IFS=$'\t' read -r name adapter data; do
     old="$EXP/gate_promote__$name.json"
@@ -46,12 +52,14 @@ while IFS=$'\t' read -r name adapter data; do
         cp "$old" "$BACKUP/"
     fi
     echo "=== $name $(date -u +%FT%TZ) ==="
-    ./gpu_job.sh "regate_reference_text: $name" "$PY" -u app/experiments/verify_adapter_identity.py \
-        --adapter "$adapter" --dataset "$data" --lines 6 \
-        --out "$old" > "$LOG/$name.log" 2>&1
-    rc=$?
-    echo "rc=$rc $(tail -2 "$LOG/$name.log" | head -1)"
+    run_stage "regate_$name" 0 -- \
+        ./gpu_job.sh "regate_reference_text: $name" "$PY" -u app/experiments/verify_adapter_identity.py \
+        --adapter "$adapter" --dataset "$data" --lines 6 --out "$old"
+    if [ "${STAGE_RESULT[regate_$name]:-missing}" = failed:3 ]; then
+        echo "REJECTED $name (measured identity verdict)"
+    fi
 done < "$QUEUE"
 
+run_stage promotion_preview 0 -- "$PY" promote_adapters.py --dry-run
+stage_summary regate_reference_text || exit 1
 echo "REGATE COMPLETE $(date -u +%FT%TZ)"
-"$PY" promote_adapters.py --dry-run

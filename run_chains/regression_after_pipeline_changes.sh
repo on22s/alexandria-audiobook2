@@ -34,6 +34,8 @@ REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     exec "$REPO/gpu_job.sh" "regression_after_pipeline_changes" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+else
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
@@ -71,7 +73,8 @@ echo "=== grimgar03 on the current pipeline  $(date -u +%FT%TZ) ==="
 "$PY" -u generate_script.py \
     "$REPO/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar03.txt" \
     --output "$OUT/grimgar03_regression.json" > "$L/regression_grimgar03.log" 2>&1
-echo "  rc=$?"
+rc=$?
+echo "  rc=$rc"
 grep -E "Stripped publisher|Split into" "$L/regression_grimgar03.log" | sed 's/^/  /'
 echo "  chunks completed : $(grep -c 'Got .* entries' "$L/regression_grimgar03.log")"
 echo "  retries          : $(grep -c 'failed quality validation' "$L/regression_grimgar03.log")"
@@ -79,3 +82,4 @@ echo "  book written     : $([ -f "$OUT/grimgar03_regression.json" ] && echo yes
 echo ""
 echo "  BASELINE 2026-08-09 (pipeline before the changes): 49/49 chunks, 100%"
 echo "REGRESSION RUN DONE $(date -u +%FT%TZ)"
+exit "$rc"

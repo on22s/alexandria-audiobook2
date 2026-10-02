@@ -4,18 +4,39 @@ import json
 import os
 from pathlib import Path
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
 import time
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
+from api_test_auth import get_api_test_headers
 
 
-def get_free_port():
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+SERVER_CODE = "from run_isolated_api_tests import run_isolated_server; run_isolated_server()"
+
+
+def run_isolated_server():
+    """Bind once and serve on the same socket, publishing its assigned port."""
+    import uvicorn
+    from app import app
+    from utils import atomic_json_write
+    config = uvicorn.Config(app, host="127.0.0.1", port=0, access_log=False)
+    with config.bind_socket() as listener:
+        atomic_json_write({"port": listener.getsockname()[1]},
+                          Path(os.environ["ALEXANDRIA_DATA_DIR"]) / "server_port.json")
+        uvicorn.Server(config).run(sockets=[listener])
+
+
+def get_isolated_server_port(data_path):
+    try:
+        with open(data_path / "server_port.json", encoding="utf-8") as handle:
+            metadata = json.load(handle)
+    except FileNotFoundError:
+        return None
+    port = metadata.get("port") if isinstance(metadata, dict) else None
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise ValueError("Isolated server published an invalid port")
+    return port
 
 
 def main():
@@ -33,17 +54,17 @@ def main():
         # an unvoiced speaker. builtin_lora ships at the repo root (not the data
         # dir), so it's reachable by the isolated server. Harmless when absent.
         builtin_dir = app_dir.parent / "builtin_lora"
-        voice = next((p.parent.name for p in builtin_dir.glob("*/adapter_model.safetensors")), None)
+        voice = next((p.parent.name for p in sorted(builtin_dir.glob("*/adapter_model.safetensors"))), None)
         if voice:
             entry = {"type": "builtin_lora", "adapter_id": voice,
                      "adapter_path": f"builtin_lora/{voice}", "seed": "-1"}
             (data_path / "voice_config.json").write_text(
                 json.dumps({"NARRATOR": entry, "Hero": entry}), encoding="utf-8")
-        port = get_free_port()
         env = dict(os.environ, ALEXANDRIA_DATA_DIR=data_dir,
-                   ALEXANDRIA_PORT=str(port))
+                   ALEXANDRIA_PORT="0", ALEXANDRIA_HOST="127.0.0.1")
+        headers = get_api_test_headers(environ=env)
         server = subprocess.Popen(
-            [sys.executable, "app.py"], cwd=app_dir, env=env,
+            [sys.executable, "-c", SERVER_CODE], cwd=app_dir, env=env,
             start_new_session=True,
         )
         try:
@@ -51,8 +72,14 @@ def main():
             while time.monotonic() < deadline:
                 if server.poll() is not None:
                     raise RuntimeError(f"Server exited with status {server.returncode}")
+                port = get_isolated_server_port(data_path)
+                if port is None:
+                    time.sleep(0.1)
+                    continue
+                readiness_url = f"http://127.0.0.1:{port}/api/config"
+                readiness_request = Request(readiness_url, headers=headers) if headers else readiness_url
                 try:
-                    with urlopen(f"http://127.0.0.1:{port}/api/config", timeout=1):
+                    with urlopen(readiness_request, timeout=1):
                         break
                 except OSError:
                     time.sleep(0.1)
@@ -69,7 +96,7 @@ def main():
             result = subprocess.run(
                 [sys.executable, "-m", "tests.test_api", "--url", f"http://127.0.0.1:{port}",
                  *sys.argv[1:]],
-                cwd=app_dir,
+                cwd=app_dir, env=env,
             )
             return result.returncode
         finally:

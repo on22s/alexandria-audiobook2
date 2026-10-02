@@ -7,6 +7,7 @@ import argparse
 from dataclasses import replace
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -18,16 +19,10 @@ RUNTIME_ROOT = os.environ.get(
     "ALEXANDRIA_RUNTIME_ROOT", os.path.join(REPO, "ab_test_runtime"))
 sys.path.insert(0, APP)
 
-from default_prompts import load_attribute_prompts  # noqa: E402
-from experiments.manifest import ExperimentRecord  # noqa: E402
+from experiments.manifest import ExperimentRecord, validate_stored_summary  # noqa: E402
 from experiments.pdnc_fixture import build as build_fixture  # noqa: E402
-from experiments.pdnc_narrator_prior import get_llama_server_environment  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 from experiments.stats import paired  # noqa: E402
-from generate_script import LLMGenParams  # noqa: E402
-from openai import OpenAI  # noqa: E402
-from three_pass_generate import PassExhausted, attribute_batch  # noqa: E402
-from utils import atomic_json_write  # noqa: E402
 
 
 PILOT_BOOKS = ("AnneOfGreenGables", "MansfieldPark", "Persuasion",
@@ -42,10 +37,117 @@ CONFIRMATORY_BOOKS = (
     "WhereAngelsFearToTread", "WinnieThePooh")
 TARGETED_PILOT_BOOKS = CONFIRMATORY_BOOKS[:5]
 TARGETED_CONFIRMATORY_BOOKS = CONFIRMATORY_BOOKS[5:]
+DEFAULT_LIMIT = 120
 BATCH = 25
 PILOT_MIN_DELTA = 3.0
 PILOT_MAX_P = 0.05
 CONFIRMATORY_TARGET = 78.6
+
+
+def get_context_books(phase, intervention):
+    if phase not in ("pilot", "confirmatory") or intervention not in ("evidence", "sequence", "targeted_sequence"):
+        raise ValueError("unknown context experiment phase or intervention")
+    if intervention == "targeted_sequence":
+        return TARGETED_PILOT_BOOKS if phase == "pilot" else TARGETED_CONFIRMATORY_BOOKS
+    return PILOT_BOOKS if phase == "pilot" else CONFIRMATORY_BOOKS
+
+
+def get_context_arm_names(intervention):
+    if intervention == "targeted_sequence":
+        return ("baseline", "sequence", "targeted_sequence")
+    if intervention not in ("evidence", "sequence"):
+        raise ValueError("unknown context intervention")
+    return ("baseline", intervention)
+
+
+def get_completed_context_result(path, bundle_path, phase, intervention, limit):
+    """Read only a finalized result covering its exact declared input bundle."""
+    books = get_context_books(phase, intervention)
+    arms = get_context_arm_names(intervention)
+    if type(limit) is not int or limit < 1:
+        raise ValueError("sample limit must be a positive integer")
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    if not isinstance(document, dict) or not isinstance(document.get("meta"), dict):
+        raise ValueError("context result must contain metadata")
+    meta = document["meta"]
+    finished = meta.get("finished")
+    if (meta.get("validation") != "ok" or type(finished) not in (int, float)
+            or finished <= 0 or (type(finished) is float and not math.isfinite(finished))):
+        raise ValueError("context result lacks successful final completion")
+    if meta.get("phase") != phase or meta.get("intervention") != intervention:
+        raise ValueError("context result is from another phase or intervention")
+    decoding = meta.get("decoding")
+    if (not isinstance(decoding, dict) or decoding.get("books") != list(books)
+            or type(decoding.get("limit")) is not int or decoding["limit"] != limit):
+        raise ValueError("context result declares another book sample")
+    with open(bundle_path, "rb") as handle:
+        raw = handle.read()
+    if meta.get("gold_sha256") != hashlib.sha256(raw).hexdigest():
+        raise ValueError("context result does not match its input bundle")
+    bundle = json.loads(raw)
+    if (not isinstance(bundle, dict) or bundle.get("books") != list(books)
+            or type(bundle.get("limit")) is not int or bundle["limit"] != limit
+            or not isinstance(bundle.get("entries"), list)):
+        raise ValueError("context input bundle declares another sample")
+    expected, counts = {}, {book: 0 for book in books}
+    for entry in bundle["entries"]:
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+            raise ValueError("context bundle entry requires an id")
+        matches = [book for book in books if entry["id"].startswith(book + "-")]
+        if len(matches) != 1:
+            raise ValueError("context bundle entry is from another book")
+        identifier = matches[0] + ":" + entry["id"]
+        if (identifier in expected or not isinstance(entry.get("line"), str)
+                or not isinstance(entry.get("expected_speaker"), str) or not entry["expected_speaker"]):
+            raise ValueError("context bundle has duplicate or invalid gold evidence")
+        expected[identifier] = (entry["line"], entry["expected_speaker"])
+        counts[matches[0]] += 1
+    if any(not 1 <= count <= limit for count in counts.values()):
+        raise ValueError("context bundle has an empty or oversized book sample")
+    rows = document.get("rows")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("context result has no rows")
+    seen = {arm: set() for arm in arms}
+    for row in rows:
+        if (not isinstance(row, dict) or not isinstance(row.get("arm"), str)
+                or row["arm"] not in seen or not isinstance(row.get("id"), str)):
+            raise ValueError("context row has an invalid arm or id")
+        arm, identifier = row["arm"], row["id"]
+        if identifier not in expected or identifier in seen[arm]:
+            raise ValueError("context row has duplicate or unexpected identity")
+        if (row.get("line"), row.get("expected")) != expected[identifier]:
+            raise ValueError("context row disagrees with input gold evidence")
+        if (type(row.get("correct")) is not bool or "predicted" not in row
+                or (row["predicted"] is not None and not isinstance(row["predicted"], str))):
+            raise ValueError("context row has malformed prediction or correctness")
+        seen[arm].add(identifier)
+    if any(ids != set(expected) for ids in seen.values()):
+        raise ValueError("context result does not cover the complete paired sample")
+    summary = document.get("summary")
+    if not isinstance(summary, dict) or set(summary) != set(arms):
+        raise ValueError("context result summary has missing or unexpected arms")
+    for bucket in summary.values():
+        if not isinstance(bucket, dict) or any(type(bucket.get(k)) is not int for k in ("n", "correct")):
+            raise ValueError("context summary counts must be integers")
+    problems = validate_stored_summary(document)
+    if problems:
+        raise ValueError("; ".join(problems))
+    if phase == "pilot":
+        decision = meta.get("decision")
+        if (not isinstance(decision, dict) or type(decision.get("advance")) is not bool
+                or decision != get_pilot_decision(rows, intervention)):
+            raise ValueError("pilot decision does not match the completed paired measurements")
+    return document
+
+
+def get_context_pilot_state(path, bundle_path, intervention, limit=DEFAULT_LIMIT):
+    """Return a scientific verdict only for a complete, input-bound pilot."""
+    try:
+        document = get_completed_context_result(path, bundle_path, "pilot", intervention, limit)
+    except (OSError, ValueError):
+        return "missing"
+    return "pass" if document["meta"]["decision"]["advance"] else "fail"
 
 
 def add_context_evidence_guidance(system_prompt):
@@ -121,6 +223,8 @@ def select_targeted_sequence(entries, baseline, sequence):
 
 def isolate_failed_attribution(attribute, frozen, contexts):
     """Split quality-exhausted batches; mark only irreducible rows UNKNOWN."""
+    from three_pass_generate import PassExhausted
+
     try:
         return attribute(frozen, contexts), set()
     except PassExhausted:
@@ -160,7 +264,7 @@ def get_pilot_decision(rows, candidate_arm="evidence"):
     return result
 
 
-def require_passing_pilot(path):
+def require_passing_pilot(path, bundle_path=None, intervention=None, limit=DEFAULT_LIMIT):
     with open(path, encoding="utf-8") as handle:
         artifact = json.load(handle)
     decision = (artifact.get("meta") or {}).get("decision") or {}
@@ -170,7 +274,11 @@ def require_passing_pilot(path):
         raise ValueError("pilot artifact did not pass structural validation")
     if decision.get("advance") is not True:
         raise ValueError("pilot gate did not pass; confirmatory run is forbidden")
-    return decision
+    intervention = intervention or artifact["meta"].get("intervention")
+    bundle_path = bundle_path or os.path.join(
+        RUNTIME_ROOT, "pdnc_inputs", f"pdnc_{intervention}__pilot.json")
+    completed = get_completed_context_result(path, bundle_path, "pilot", intervention, limit)
+    return completed["meta"]["decision"]
 
 
 def main():
@@ -178,24 +286,37 @@ def main():
     parser.add_argument("--phase", choices=("pilot", "confirmatory"),
                         default="pilot")
     parser.add_argument("--pilot-artifact")
+    parser.add_argument("--check-artifact", help="validate a saved final result without inference")
     parser.add_argument("--intervention",
                         choices=("evidence", "sequence", "targeted_sequence"),
                         default="evidence")
     parser.add_argument("--model", default="qwen3-14b")
     parser.add_argument("--base-url", default="http://127.0.0.1:8090/v1")
-    parser.add_argument("--limit", type=int, default=120)
+    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
     parser.add_argument("--tag", default="local-llamacpp")
     args = parser.parse_args()
+    if args.check_artifact:
+        bundle_path = os.path.join(RUNTIME_ROOT, "pdnc_inputs", f"pdnc_{args.intervention}__{args.phase}.json")
+        try:
+            get_completed_context_result(args.check_artifact, bundle_path, args.phase, args.intervention, args.limit)
+        except (OSError, ValueError) as error:
+            parser.exit(1, f"REFUSING incomplete context result: {error}\n")
+        return
+
+    from default_prompts import load_attribute_prompts
+    from experiments.pdnc_narrator_prior import get_llama_server_environment
+    from generate_script import LLMGenParams
+    from openai import OpenAI
+    from three_pass_generate import attribute_batch
+    from utils import atomic_json_write
 
     if args.phase == "confirmatory":
         if not args.pilot_artifact:
             parser.error("--pilot-artifact is required for confirmatory phase")
-        require_passing_pilot(args.pilot_artifact)
-    if args.intervention == "targeted_sequence":
-        books = (TARGETED_PILOT_BOOKS if args.phase == "pilot"
-                 else TARGETED_CONFIRMATORY_BOOKS)
-    else:
-        books = PILOT_BOOKS if args.phase == "pilot" else CONFIRMATORY_BOOKS
+        require_passing_pilot(args.pilot_artifact, os.path.join(
+            RUNTIME_ROOT, "pdnc_inputs", f"pdnc_{args.intervention}__pilot.json"),
+            args.intervention, args.limit)
+    books = get_context_books(args.phase, args.intervention)
     data = os.path.join(RUNTIME_ROOT, "pdnc", "data")
     fixtures = {book: build_fixture(data, book) for book in books}
     bundle_path = os.path.join(
@@ -212,8 +333,7 @@ def main():
                           top_p=0.8, reasoning_effort="none")
     guidance = (add_context_evidence_guidance if args.intervention == "evidence"
                 else add_sequence_guidance)
-    candidate_arm = ("sequence" if args.intervention == "targeted_sequence"
-                     else args.intervention)
+    candidate_arm = get_context_arm_names(args.intervention)[1]
     arms = {"baseline": params,
             candidate_arm: replace(
                 params, system_prompt=guidance(base_system))}
@@ -231,11 +351,8 @@ def main():
     record.meta["phase"] = args.phase
     record.meta["intervention"] = args.intervention
     record.meta["book_split"] = {
-        "pilot": list(TARGETED_PILOT_BOOKS if
-                      args.intervention == "targeted_sequence" else PILOT_BOOKS),
-        "confirmatory": list(TARGETED_CONFIRMATORY_BOOKS if
-                             args.intervention == "targeted_sequence"
-                             else CONFIRMATORY_BOOKS)}
+        "pilot": list(get_context_books("pilot", args.intervention)),
+        "confirmatory": list(get_context_books("confirmatory", args.intervention))}
     record.meta["system_prompt_sha256"] = {
         arm: hashlib.sha256((arm_params.system_prompt or base_system).encode(
             "utf-8")).hexdigest()
@@ -343,9 +460,7 @@ def main():
     record.meta["isolated_failures"] = isolated_failures
     expected_ids = {f"{book}:{entry['id']}" for book in books
                     for entry in fixtures[book]["entries"][:args.limit]}
-    expected_arms = tuple(arms) + (("targeted_sequence",)
-                                   if args.intervention == "targeted_sequence"
-                                   else ())
+    expected_arms = get_context_arm_names(args.intervention)
     out = record.write(os.path.join(
         RUNTIME_ROOT, "experiments", stem + ".json"),
         contract={"expected_arms": expected_arms,

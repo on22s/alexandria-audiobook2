@@ -6,22 +6,36 @@ BASE=/home/ubuntu/tts_comparison_20260824
 SRC="$BASE/src/index-tts"
 OUT="$BASE/indextts2"
 MODEL="$BASE/models/IndexTTS-2"
+SOURCE_COMMIT=ee40fa7d6c6b8a2c7f06105f9f1e65775b74868c
 mkdir -p "$BASE/src" "$BASE/models" "$OUT"
 
 if [[ ! -d "$SRC/.git" ]]; then
-    git clone --depth 1 https://github.com/index-tts/index-tts.git "$SRC"
+    git init "$SRC"
+    git -C "$SRC" fetch --depth 1 https://github.com/index-tts/index-tts.git "$SOURCE_COMMIT"
+    git -C "$SRC" checkout --detach FETCH_HEAD
 fi
-git -C "$SRC" rev-parse HEAD > "$OUT/source_commit.txt"
+SOURCE_ACTUAL=$(ROOT="$ROOT" SRC="$SRC" SOURCE_COMMIT="$SOURCE_COMMIT" python3 - <<'PY'
+import os
+import sys
+sys.path.insert(0, os.path.join(os.environ["ROOT"], "run_chains"))
+from cloud_comparison_provenance import get_comparison_source_commit
+commit = get_comparison_source_commit(os.environ["SRC"])
+if commit != os.environ["SOURCE_COMMIT"]:
+    raise ValueError("IndexTTS source does not match the pinned commit; use a fresh source directory")
+print(commit)
+PY
+)
+printf '%s\n' "$SOURCE_ACTUAL" > "$OUT/source_commit.txt"
 cd "$SRC"
-uv sync --all-extras
-uv run indextts2 download --source huggingface --model-dir "$MODEL"
-uv run indextts2 check --model-dir "$MODEL" --device cuda:0 | tee "$OUT/check.txt"
+uv sync --locked --all-extras
+uv run --locked indextts2 download --source huggingface --model-dir "$MODEL"
+uv run --locked indextts2 check --model-dir "$MODEL" --device cuda:0 | tee "$OUT/check.txt"
 uv pip freeze > "$OUT/pip_freeze.txt"
 
 REFERENCE="$ROOT/ab_test_runtime/reference_spread/ref_spread3.wav"
 TEXT="The rain had stopped before dawn, leaving the narrow streets bright and silver. At the end of the lane, a single lamp still burned beside the old library door."
 START=$(date +%s.%N)
-uv run indextts2 synth \
+uv run --locked indextts2 synth \
     --model-dir "$MODEL" \
     --device cuda:0 \
     --fp16 \

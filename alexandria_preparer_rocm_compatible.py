@@ -87,18 +87,25 @@ import re
 import subprocess
 import difflib
 from numbers import Real
+from pathlib import Path
 
 # Shared alignment primitives (load_source, lexicon, find_best_match, ...).
 # Only used when --source is passed; preparer remains zero-dep on this module
 # for the legacy ASR-only workflow because nothing in the chunker calls into
 # it unless source_state is populated.
 import alexandria_alignment as alignment
+from alexandria_run_manifest import (
+    LOCK_ENV, RunStateError, acquire_run_lock, cleanup_run_artifacts, ensure_run_manifest,
+    get_run_identity, get_sample_path, is_verified_artifact, mark_artifact_complete,
+    validate_scratch_path, write_json_atomic, get_file_identity,
+)
 import zipfile
 import shutil
 import soundfile as sf
 import numpy as np
 import traceback
 from collections import deque, Counter
+from itertools import chain
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -129,28 +136,40 @@ def _lazy_import_intervaltree():
     return IntervalTree, Interval
 
 
-# Setup logging
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, f"alexandria_preparer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
-
 logger = logging.getLogger("alexandria")
-logger.setLevel(logging.DEBUG)
 
-# File handler (detailed)
-fh = logging.FileHandler(log_file)
-fh.setLevel(logging.DEBUG)
-file_format = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s')
-fh.setFormatter(file_format)
 
-# Console handler (info and above)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-console_format = logging.Formatter('[%(levelname)s] %(message)s')
-ch.setFormatter(console_format)
+def ensure_preparer_logging():
+    """Configure CLI logging once, preserving handlers owned by other callers."""
+    for handler in logger.handlers:
+        if getattr(handler, '_alexandria_preparer_file', False):
+            return handler.baseFilename
 
-logger.addHandler(fh)
-logger.addHandler(ch)
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"alexandria_preparer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    handlers = []
+    try:
+        fh = logging.FileHandler(log_file)
+        handlers.append(fh)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s'))
+        fh._alexandria_preparer_file = True
+
+        ch = logging.StreamHandler()
+        handlers.append(ch)
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    except Exception:
+        for handler in handlers:
+            handler.close()
+        raise
+
+    logger.setLevel(logging.DEBUG)
+    for handler in handlers:
+        logger.addHandler(handler)
+    return fh.baseFilename
+
 
 # Progress tracker
 class ProgressTracker:
@@ -162,7 +181,9 @@ class ProgressTracker:
         self.steps.append(name)
 
     def start(self, step_name):
-        self.current_step = next((i for i, s in enumerate(self.steps) if s == step_name), 0)
+        if step_name not in self.steps:
+            self.steps.insert(min(self.current_step + 1, len(self.steps)), step_name)
+        self.current_step = self.steps.index(step_name)
         progress = f"[{self.current_step + 1}/{len(self.steps)}]"
         logger.info(f"▶ {progress} {step_name}...")
 
@@ -176,9 +197,6 @@ progress.add_step("Transcribe audio")
 progress.add_step("Annotate chunks")
 progress.add_step("Create output dataset")
 
-logger.info(f"=== Alexandria Master Preparer Started ===")
-logger.info(f"Log file: {log_file}")
-logger.info(f"Python version: {sys.version}")
 
 def log_torch_info():
     t = _lazy_import_torch()
@@ -388,25 +406,44 @@ def _ffmpeg_decode_to_wav(src_path, dst_wav_path, target_sr, mono=True):
     return os.path.getsize(dst_wav_path)
 
 
-def _ffmpeg_decode_to_numpy(src_path, target_sr, mono=True):
-    """Decode an audio file to a float32 numpy array via ffmpeg piped to
-    s16le PCM. Bypasses soundfile entirely, so it works on >4 GiB WAVs
-    whose data-chunk header has overflowed. Returns a 1-D float32 array
-    normalised to [-1.0, 1.0].
-    """
+def decode_audio_to_memmap(src_path, target_sr, output_path, mono=True):
+    """Decode to a file-backed float32 array without capturing the full PCM."""
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-ignore_length", "1",
         "-i", src_path,
         "-ac", "1" if mono else "2",
         "-ar", str(target_sr),
-        "-f", "s16le",
+        "-f", "f32le", "-acodec", "pcm_f32le",
         "-",
     ]
-    logger.debug(f"  ffmpeg decode → numpy ({target_sr}Hz, {'mono' if mono else 'stereo'})")
-    proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
-    pcm = np.frombuffer(proc.stdout, dtype=np.int16)
-    return (pcm.astype(np.float32) / 32768.0)
+    logger.debug(f"  ffmpeg decode → {output_path} ({target_sr}Hz)")
+    with open(output_path, "wb") as stream:
+        subprocess.run(cmd, check=True, stdout=stream)
+    return get_decoded_audio_memmap(output_path)
+
+
+def get_decoded_audio_memmap(output_path):
+    """Read a complete, nonempty float32 PCM file as a read-only mapping."""
+    size = os.path.getsize(output_path)
+    if not size or size % np.dtype(np.float32).itemsize:
+        raise ValueError(f"Invalid decoded PCM length: {size} bytes")
+    return np.memmap(output_path, dtype=np.float32, mode="r")
+
+
+def decode_audio_to_asr_streams(src_path, scratch_path, asr_path):
+    """Decode once into independently resampled scratch and ASR streams."""
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-ignore_length", "1", "-i", src_path,
+        "-ac", "1", "-ar", "24000",
+        "-c:a", "pcm_s16le", scratch_path,
+        "-ac", "1", "-ar", "16000",
+        "-f", "f32le", "-acodec", "pcm_f32le", asr_path,
+    ]
+    logger.debug(f"  ffmpeg decode → {scratch_path} (24kHz) and {asr_path} (16kHz)")
+    subprocess.run(cmd, check=True)
+    return get_decoded_audio_memmap(asr_path)
 
 
 def validate_inputs(args):
@@ -547,8 +584,41 @@ def transcribe_with_whisperx_cpu(audio_16k: np.ndarray, language: str = "en") ->
         logger.debug(traceback.format_exc())
         raise
 
+def is_english_language(language: str) -> bool:
+    """Use the existing English-only provider's accepted language codes."""
+    return language.lower().split("-", 1)[0] == "en"
+
+
+ASR_CHUNK_SECONDS = 30
+ASR_OVERLAP_SECONDS = 3
+
+
+def get_asr_sample_count(total_samples, sample_rate, limit):
+    """Bound every ASR/diarization backend to the requested chunk prefix."""
+    if limit is None:
+        return total_samples
+    if type(limit) is not int or limit <= 0:
+        raise ValueError("ASR limit must be a positive integer")
+    seconds = ASR_CHUNK_SECONDS + (limit - 1) * (ASR_CHUNK_SECONDS - ASR_OVERLAP_SECONDS)
+    return min(total_samples, seconds * sample_rate)
+
+
+def get_ctc_frame_confidence(logits, torch_module):
+    """Return peak frame probabilities without a full-chunk probability tensor."""
+    peaks = [
+        torch_module.max(torch_module.nn.functional.softmax(block, dim=-1), dim=-1).values
+        for block in logits.split(256, dim=1)
+    ]
+    return torch_module.cat(peaks, dim=1)
+
+
 def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit: int = None) -> tuple:
     """Use Wav2Vec2 for continuous context-aware transcription with CTC word alignment."""
+    audio_16k = audio_16k[:get_asr_sample_count(len(audio_16k), 16000, limit)]
+    if not is_english_language(language):
+        raise ValueError(
+            "Wav2Vec2 large-960h only supports English; "
+            "falling back instead of silently using the wrong model")
     if not TRANSFORMERS_WHISPER_AVAILABLE:
         raise ImportError("Transformers not available")
 
@@ -582,9 +652,9 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         inputs_to_logits_ratio = getattr(model.config, "inputs_to_logits_ratio", 320)
         time_per_frame = inputs_to_logits_ratio / 16000.0  # seconds per logit frame (~0.02s)
 
-        chunk_length_secs = 30
+        chunk_length_secs = ASR_CHUNK_SECONDS
         chunk_length = chunk_length_secs * 16000
-        overlap_secs = 3
+        overlap_secs = ASR_OVERLAP_SECONDS
         overlap = overlap_secs * 16000
         stride = chunk_length - overlap
         half_overlap_secs = overlap_secs / 2.0
@@ -608,7 +678,7 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         chunk_times = deque(maxlen=10)  # rolling avg for ETA
 
         for chunk_idx, sample_start in enumerate(chunk_starts):
-            if limit and chunk_idx >= limit:
+            if limit is not None and chunk_idx >= limit:
                 logger.info(f"Limit of {limit} chunks reached for transcription.")
                 break
             chunk_t0 = time.monotonic()
@@ -624,8 +694,7 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
                 predicted_ids = torch_module.argmax(logits, dim=-1)
                 
                 # Get probabilities and confidence scores
-                probs = torch_module.nn.functional.softmax(logits, dim=-1)
-                confidence = torch_module.max(probs, dim=-1).values.squeeze().cpu().numpy()
+                confidence = get_ctc_frame_confidence(logits, torch_module).squeeze(0).cpu().numpy()
 
             # CTC decode with word-level frame offsets
             decoded = processor.batch_decode(predicted_ids, output_word_offsets=True)
@@ -743,12 +812,12 @@ def get_coalesced_whisper_cpp_segments(transcription):
 def transcribe_with_whisper_cpp(audio_16k: np.ndarray,
                                 language: str = "en") -> tuple:
     """Transcribe with the persistent whisper.cpp Small.en installation."""
-    if not WHISPER_CPP_AVAILABLE:
-        raise ImportError("whisper.cpp binary or Small.en model is unavailable")
-    if language.lower().split("-", 1)[0] != "en":
+    if not is_english_language(language):
         raise ValueError(
             "whisper.cpp Small.en only supports English; "
             "falling back instead of silently using the wrong model")
+    if not WHISPER_CPP_AVAILABLE:
+        raise ImportError("whisper.cpp binary or Small.en model is unavailable")
 
     audio_duration = len(audio_16k) / 16000.0
     logger.info("▶ Initializing whisper.cpp Small.en...")
@@ -775,7 +844,8 @@ def transcribe_with_whisper_cpp(audio_16k: np.ndarray,
         ]
         started = time.monotonic()
         result = subprocess.run(
-            command, capture_output=True, text=True, timeout=3600,
+            command, capture_output=True, text=True,
+            timeout=max(3600, math.ceil(audio_duration * 2)),
             check=False)
         elapsed = time.monotonic() - started
         if result.returncode:
@@ -839,7 +909,7 @@ def get_speaker_diarization(output, prefer_exclusive: bool = False):
 
 
 def get_diarization_audio_input(audio_path: str) -> dict:
-    """Decode audio without TorchCodec and return pyannote's in-memory input.
+    """Decode audio without TorchCodec and return a file-backed waveform.
 
     PyPI's TorchCodec wheels link CUDA libraries and cannot load with a ROCm
     torch build. SoundFile is already part of the preparer runtime and avoids
@@ -847,9 +917,18 @@ def get_diarization_audio_input(audio_path: str) -> dict:
     """
     import torch as torch_module
 
-    audio, sample_rate = sf.read(
-        audio_path, dtype="float32", always_2d=True)
-    waveform = torch_module.from_numpy(audio.T.copy())
+    with sf.SoundFile(audio_path) as audio:
+        sample_rate = audio.samplerate
+        with tempfile.TemporaryFile(dir=os.path.dirname(os.path.abspath(audio_path))) as backing:
+            samples = np.memmap(backing, dtype=np.float32, mode="w+",
+                                shape=(audio.frames, audio.channels))
+            position = 0
+            for block in audio.blocks(blocksize=sample_rate * 60,
+                                      dtype="float32", always_2d=True):
+                samples[position:position + len(block)] = block
+                position += len(block)
+            samples.flush()
+            waveform = torch_module.from_numpy(samples.T)
     return {"waveform": waveform, "sample_rate": sample_rate}
 
 
@@ -862,7 +941,7 @@ def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
         if pipeline is None:
             pipeline = _load_diarization_pipeline(hf_token, device)
         if pipeline is None:
-            return []
+            raise RuntimeError('Diarization pipeline is unavailable')
 
         logger.info(f"Running diarization on {audio_path}...")
         t0 = time.monotonic()
@@ -887,7 +966,7 @@ def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
     except Exception as e:
         logger.error(f"✗ Diarization failed: {e}")
         logger.debug(traceback.format_exc())
-        return []
+        raise
 
 
 DETECTION_WINDOW_SECS = 120
@@ -1070,6 +1149,8 @@ def get_validated_word_segments(word_segments, audio_duration):
 def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, limit: int = None) -> tuple:
     """Transcribe using Wav2Vec2 (continuous context-aware) as primary with fallbacks."""
 
+    audio_16k = audio_16k[:get_asr_sample_count(len(audio_16k), 16000, limit)]
+
     logger.info("=" * 70)
     logger.info("ASR Method Selection")
     logger.info("=" * 70)
@@ -1092,7 +1173,7 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
             logger.info(f"✓ SUCCESS with Wav2Vec2")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  ├─ Context preservation: Full audio (30s overlapping chunks)")
-            logger.info(f"  └─ Detected language: {detected_lang}")
+            logger.info(f"  └─ Language: {detected_lang} (English-only model)")
             return word_segments, detected_lang
         except Exception as e:
             logger.warning(f"✗ Wav2Vec2 failed: {e}")
@@ -1111,7 +1192,7 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
                 word_segments, len(audio_16k) / 16000.0)
             logger.info("✓ SUCCESS with whisper.cpp Small.en")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
-            logger.info(f"  └─ Detected language: {detected_lang}")
+            logger.info(f"  └─ Language: {detected_lang} (English-only model)")
             return word_segments, detected_lang
         except Exception as e:
             logger.warning(f"✗ whisper.cpp failed: {e}")
@@ -1347,21 +1428,13 @@ def _build_source_state(source_path: str,
     # capitalised terms). Used by alignment._step_threshold to relax the
     # boundary acceptance bar for ASR-mangled Japanese romanisations like
     # 'coodo'↔'kudou' that sit far below the default 0.55 fuzzy bar.
-    alignment._PROPER_NOUNS = alignment._build_proper_nouns(source_text)
-    if alignment._PROPER_NOUNS:
-        sample = ', '.join(sorted(alignment._PROPER_NOUNS)[:8])
-        more = f' +{len(alignment._PROPER_NOUNS) - 8} more' if len(alignment._PROPER_NOUNS) > 8 else ''
-        logger.info(f"  ├─ {len(alignment._PROPER_NOUNS)} recurring proper nouns ({sample}{more})")
+    proper_nouns = alignment._build_proper_nouns(source_text)
+    if proper_nouns:
+        sample = ', '.join(sorted(proper_nouns)[:8])
+        more = f' +{len(proper_nouns) - 8} more' if len(proper_nouns) > 8 else ''
+        logger.info(f"  ├─ {len(proper_nouns)} recurring proper nouns ({sample}{more})")
 
-    # Same shared split_compounds() compare.py's main() also uses.
-    tokens = alignment.split_compounds(source_text)
-    orig_display, orig_match = [], []
-    for w in tokens:
-        m = alignment.normalize(w)
-        if not m:
-            continue
-        orig_display.append(w)
-        orig_match.append(m)
+    orig_display, orig_match = alignment.get_source_word_lists(source_text)
     logger.info(f"  ├─ {len(orig_display):,} source words")
 
     # Pick initial cursor
@@ -1408,6 +1481,7 @@ def _build_source_state(source_path: str,
         'orig_match':   orig_match,
         'cursor':       cursor,
         'anchor_entry_idx': anchor_entry_idx,
+        'proper_nouns': proper_nouns,
     }
 
 
@@ -1432,6 +1506,72 @@ def _read_audio_segment(audio_24k_source, start_s, end_s):
         return slice_view
 
 
+def get_annotation_word_pairs(word_segments, resume_point):
+    """Yield qualifying words with lookahead across blank/incomplete ASR rows."""
+    previous = None
+    for index, word in enumerate(word_segments):
+        if ('start' not in word or 'end' not in word
+                or word['start'] < resume_point or not word.get('word', '').strip()):
+            continue
+        if previous is not None:
+            yield previous[0], previous[1], word
+        previous = (index, word)
+    if previous is not None:
+        yield previous[0], previous[1], None
+
+
+def get_source_checkpoint_identity(source_state):
+    """Bind saved indices to the exact normalized word sequence."""
+    if source_state is None:
+        return None
+    import hashlib
+    words = source_state['orig_match']
+    digest = hashlib.sha256(json.dumps(words, ensure_ascii=False,
+                                      separators=(',', ':')).encode('utf-8')).hexdigest()
+    return {'version': 1, 'word_count': len(words), 'words_sha256': digest}
+
+
+def get_resumed_source_cursor(entries, source_state, source_identity, keep_unaligned=False):
+    """Validate durable positions before restoring the final saved cursor."""
+    if not entries or source_state is None:
+        return None
+    cursor = None
+    for entry in entries:
+        saved = entry.get('source_position')
+        if 'source_position' not in entry:
+            cursor = None
+            continue
+        if (not isinstance(saved, dict) or saved.get('identity') != source_identity
+                or not isinstance(saved.get('identity'), dict)
+                or type(saved['identity'].get('version')) is not int
+                or type(saved['identity'].get('word_count')) is not int):
+            raise RunStateError('Source checkpoint word sequence does not match this source')
+        cursor = saved.get('cursor')
+        if type(cursor) is not int or not 0 <= cursor <= source_identity['word_count']:
+            raise RunStateError('Source checkpoint cursor is outside the source word sequence')
+    if cursor is None:
+        # In strict source mode every saved text came from an accepted source
+        # span. A unique exact match can recover its end without fuzzy guesses.
+        # keep-unaligned permits ASR-only text, so this proof does not apply.
+        words = alignment.to_words(entries[-1]['text'])
+        source = source_state['orig_match']
+        matches = []
+        if words and not keep_unaligned:
+            for start in range(len(source) - len(words) + 1):
+                if source[start:start + len(words)] == words:
+                    matches.append(start + len(words))
+                    if len(matches) > 1:
+                        break
+        if len(matches) != 1:
+            raise RunStateError(
+                'Legacy source checkpoint has no unique exact source position; '
+                'preserve dataset_temp and recover its source cursor explicitly '
+                'before resuming, or run without --resume to restart annotation')
+        cursor = matches[0]
+        logger.warning('Recovered legacy source cursor from a unique exact saved source span')
+    return cursor
+
+
 def _load_existing_checkpoint(temp_dir):
     """Read existing metadata.jsonl checkpoint and return (entries, resume_time, next_segment_idx).
 
@@ -1453,6 +1593,7 @@ def _load_existing_checkpoint(temp_dir):
 
     good_lines = []
     truncated = False
+    previous_idx = -1
     try:
         with open(checkpoint_path, "r", encoding="utf-8") as f:
             for line_no, raw in enumerate(f, start=1):
@@ -1460,7 +1601,28 @@ def _load_existing_checkpoint(temp_dir):
                 if not line:
                     continue
                 try:
-                    entries.append(json.loads(line))
+                    entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        raise RunStateError('entry is not an object')
+                    name = entry.get('audio_filepath')
+                    wav_path = get_sample_path(temp_dir, name)
+                    segment_idx = int(name[len('sample_'):-len('.wav')])
+                    if segment_idx <= previous_idx:
+                        raise RunStateError('sample indices are not increasing')
+                    for field in ('start', 'end', 'duration'):
+                        value = entry.get(field)
+                        if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value):
+                            raise RunStateError(f'{field} is not finite numeric data')
+                    if entry['start'] < 0 or entry['end'] < entry['start'] or entry['duration'] < 0:
+                        raise RunStateError('invalid sample timeline')
+                    if not isinstance(entry.get('text'), str):
+                        raise RunStateError('sample text is not a string')
+                    if not wav_path.is_file():
+                        raise RunStateError(f'referenced sample WAV is missing: {wav_path}')
+                    entry = dict(entry)
+                    entry['wav_path'] = str(wav_path)
+                    entries.append(entry)
+                    previous_idx = segment_idx
                     good_lines.append(raw if raw.endswith("\n") else raw + "\n")
                 except json.JSONDecodeError as e:
                     logger.warning(
@@ -1469,9 +1631,12 @@ def _load_existing_checkpoint(temp_dir):
                     )
                     truncated = True
                     break
+                except (RunStateError, KeyError, TypeError, ValueError, OverflowError) as e:
+                    raise RunStateError(f'Checkpoint line {line_no} is unsafe: {e}') from e
+    except RunStateError:
+        raise
     except Exception as e:
-        logger.warning(f"Could not read checkpoint {checkpoint_path}: {e}")
-        return [], 0.0, 0
+        raise RunStateError(f'Could not read checkpoint {checkpoint_path}: {e}') from e
 
     if truncated:
         try:
@@ -1481,21 +1646,14 @@ def _load_existing_checkpoint(temp_dir):
                 os.fsync(f.fileno())
             logger.info(f"  Checkpoint rewritten to {len(entries)} good entries (corrupt tail removed)")
         except Exception as e:
-            logger.warning(f"Could not rewrite checkpoint after truncation ({e}); "
-                           f"future resumes may re-truncate at the same line")
+            raise RunStateError(
+                f'Could not rewrite checkpoint after truncation: {e}') from e
 
     if not entries:
         return [], 0.0, 0
 
-    try:
-        resume_time = max(e.get("end", 0.0) for e in entries)
-        next_idx = max(
-            int(os.path.splitext(e["audio_filepath"])[0].split("_")[-1])
-            for e in entries
-        ) + 1
-    except Exception as e:
-        logger.warning(f"Could not compute resume state from checkpoint ({e}); forcing fresh start")
-        return [], 0.0, 0
+    resume_time = max(e['end'] for e in entries)
+    next_idx = previous_idx + 1
 
     return entries, resume_time, next_idx
 
@@ -1533,63 +1691,11 @@ def _sweep_orphan_wavs(temp_dir, next_segment_idx):
     return removed
 
 
-def _wipe_temp_dir(temp_dir):
-    """Remove all preparer-generated files from temp_dir but keep the directory itself.
-
-    Returns a list of (path, error) tuples for anything that failed to be
-    removed (empty list = fully clean). Callers must check this rather than
-    assume the wipe succeeded - a partial wipe is exactly the cross-book
-    dataset_temp/ corruption this function exists to prevent. See FIXED.md F-119.
-    """
-    if not os.path.exists(temp_dir):
-        return []
-    # Protect intermediate files used across phases
-    protected = {
-        "asr_segments.json",       # ASR phase output
-        "audio_24k_scratch.wav",   # Audio scratch file
-        "enriched_segments.json",  # LLM enrichment output
-        "asr_chunks_for_enrich.json",  # Enrichment input chunks
-        "diarization.json",        # Speaker diarization output
-    }
-    failures = []
-    for name in os.listdir(temp_dir):
-        if name in protected:
-            continue
-        full_path = os.path.join(temp_dir, name)
-        try:
-            if os.path.isfile(full_path) or os.path.islink(full_path):
-                os.remove(full_path)
-            elif os.path.isdir(full_path):
-                shutil.rmtree(full_path)
-        except Exception as e:
-            logger.warning(f"Failed to remove {full_path}: {e}")
-            failures.append((full_path, str(e)))
-    return failures
-
-
-def _check_source_marker(temp_dir, audio_source_path):
-    """Return True if temp_dir's .source marker matches audio_source_path."""
-    marker_path = os.path.join(temp_dir, ".source")
-    if not os.path.exists(marker_path):
-        return False
-    try:
-        with open(marker_path, "r", encoding="utf-8") as f:
-            stored = f.read().strip()
-        return stored == os.path.abspath(audio_source_path)
-    except Exception as e:
-        logger.warning(f"Failed to read source marker at {marker_path}: {e}")
-        return False
-
-
-def _write_source_marker(temp_dir, audio_source_path):
-    """Write the .source marker so future runs can verify this temp_dir's owner."""
-    marker_path = os.path.join(temp_dir, ".source")
-    with open(marker_path, "w", encoding="utf-8") as f:
-        f.write(os.path.abspath(audio_source_path))
+LLM_REQUESTED_GPU_LAYERS = 99
 
 
 def _load_llm(model_path):
-    """Load a GGUF LLM via llama-cpp-python, all layers on GPU.
+    """Load a GGUF LLM via llama-cpp-python, requesting GPU offload.
 
     `verbose=True` surfaces llama-cpp's own offload count
     (e.g. `offloaded 65/65 layers to GPU`) into stderr so we can verify
@@ -1608,7 +1714,7 @@ def _load_llm(model_path):
     try:
         llm = Llama(
             model_path=model_path,
-            n_gpu_layers=99,   # explicit count > total; -1 was misinterpreted on some HIP builds
+            n_gpu_layers=LLM_REQUESTED_GPU_LAYERS,   # explicit count > total; -1 was misinterpreted on some HIP builds
             n_ctx=8192,
             verbose=True,      # let llama-cpp's own "offloaded N/M layers" line into the log
         )
@@ -1619,22 +1725,22 @@ def _load_llm(model_path):
         logger.debug("BrokenPipeError during Llama init (stderr pipe closed); retrying with verbose=False")
         llm = Llama(
             model_path=model_path,
-            n_gpu_layers=99,
+            n_gpu_layers=LLM_REQUESTED_GPU_LAYERS,
             n_ctx=8192,
             verbose=False,
         )
     logger.info(f"✓ LLM loaded: {os.path.basename(model_path)}")
     if hasattr(llm, 'n_gpu_layers'):
-        logger.info(f"  ├─ GPU Layers Loaded: {llm.n_gpu_layers}")
-    logger.info(f"  └─ Model device: {llm.metadata.get('device', 'cuda (via n_gpu_layers=-1)')}")
+        logger.info(f"  ├─ Requested GPU layers: {llm.n_gpu_layers}")
+    logger.info(f"  └─ Reported model device: {llm.metadata.get('device', 'unknown')}")
 
-    # Verify GPU usage with a tiny test inference
-    logger.debug("Verifying GPU inference capability with test prompt...")
+    # Verify model responsiveness; completion alone does not prove GPU offload.
+    logger.debug("Verifying model responsiveness with test prompt...")
     llm.create_chat_completion(
         messages=[{"role": "user", "content": "test"}],
         max_tokens=1
     )
-    logger.info(f"✓ GPU inference verified - model responding on GPU")
+    logger.info(f"✓ Model responsiveness verified")
     return llm
 
 
@@ -1748,23 +1854,29 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
         # If JSON parsing failed, try numbered format as fallback
         if not annotations:
             lines = raw_output.split("\n")
+            numbered = {}
             for line in lines:
                 match = re.match(r"^\s*(\d+)[\.\)]\s*(.+)$", line)
                 if match:
                     num = int(match.group(1))
                     text = match.group(2).strip()
-                    if 1 <= num <= len(batch_data):
-                        annotations.append(text)
+                    if not 1 <= num <= len(batch_data) or num in numbered:
+                        raise ValueError(f"Invalid or duplicate annotation number: {num}")
+                    numbered[num] = text
+            if set(numbered) == set(range(1, len(batch_data) + 1)):
+                annotations = [numbered[num] for num in range(1, len(batch_data) + 1)]
 
         if len(annotations) != len(batch_data):
             raise ValueError(f"Expected {len(batch_data)} annotations, got {len(annotations)}. Output: {raw_output[:200]}")
 
-        # Process each annotation
-        results = []
-        for item, annotated_raw in zip(batch_data, annotations):
-            if not isinstance(annotated_raw, str):
-                annotated_raw = str(annotated_raw)
+        if any(not isinstance(annotation, str) or not annotation.strip()
+               for annotation in annotations):
+            raise ValueError("Batch annotations must be nonempty strings")
 
+        # Process each annotation only after the whole response is validated.
+        results = []
+        sanitize_changed = 0
+        for item, annotated_raw in zip(batch_data, annotations):
             t0_sanitize = time.monotonic()
             if item.get("source_words_for_merge") is not None:
                 annotated = alignment.merge_annotations_with_source(
@@ -1775,15 +1887,15 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
             timing['sanitize'] += time.monotonic() - t0_sanitize
 
             results.append((item["segment_idx"], annotated))
-            stats['llm_success'] += 1
             if annotated != annotated_raw:
-                stats['sanitize_changed'] += 1
+                sanitize_changed += 1
 
+        stats['llm_success'] += len(results)
+        stats['sanitize_changed'] += sanitize_changed
         return results
 
     except Exception as e:
-        stats['llm_fail'] += 1
-        _check_llm_fail_rate(stats)
+        stats['llm_batch_fail'] = stats.get('llm_batch_fail', 0) + 1
         logger.warning(f"Batch annotation failed ({len(batch_data)} chunks), falling back to per-chunk: {e}")
         logger.debug(f"llm-batch-fail: {traceback.format_exc()}")
         return None  # Signal caller to use per-chunk fallback
@@ -1821,6 +1933,11 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
             os.fsync(wav_fd)
         finally:
             os.close(wav_fd)
+        directory_fd = os.open(temp_dir, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
         timing['wav_write'] += time.monotonic() - t0_wav
 
         entry = {
@@ -1830,8 +1947,11 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
             "start": current_start,
             "end": chunk_end_time,
             "speaker": Counter(w.get("speaker", "UNKNOWN") for w in chunk_word_data).most_common(1)[0][0],
+            "speaker_labels": sorted({w.get("speaker", "UNKNOWN") for w in chunk_word_data}, key=str),
             "wav_path": wav_path,
         }
+        if item.get('source_position') is not None:
+            entry['source_position'] = item['source_position']
         # Enrichment is chunk-level metadata copied onto each reconstructed
         # word. Collapse it back to one value per saved audio chunk.
         for key in ("speaker_attribution", "emotional_tone"):
@@ -1854,6 +1974,28 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
         checkpoint_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
         checkpoint_file.flush()
         os.fsync(checkpoint_file.fileno())
+
+
+def apply_wave_tags(wav_path, entry):
+    """Set one value per ID3 frame so resumed tagging is idempotent."""
+    import mutagen.wave
+    import mutagen.id3
+
+    audio_tags = mutagen.wave.WAVE(wav_path)
+    if audio_tags.tags is None:
+        audio_tags.add_tags()
+    if entry.get('book_title'):
+        audio_tags.tags.setall('TALB', [mutagen.id3.TALB(
+            encoding=3, text=entry['book_title'])])
+    if entry.get('character'):
+        audio_tags.tags.setall('TPE1', [mutagen.id3.TPE1(
+            encoding=3, text=entry['character'])])
+    if entry.get('narrator_style'):
+        audio_tags.tags.setall('COMM', [mutagen.id3.COMM(
+            encoding=3, text=entry['narrator_style'], lang='eng', desc='')])
+    audio_tags.tags.setall('TIT2', [mutagen.id3.TIT2(
+        encoding=3, text=entry['audio_filepath'])])
+    audio_tags.save()
 
 
 def _calculate_chunk_snr(chunk_audio: np.ndarray) -> float:
@@ -1912,7 +2054,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     source_state=None, source_threshold=0.65, keep_unaligned=False,
                     min_chunk_duration=2.0, min_confidence=0.85, min_snr=15,
                     book_title=None, character=None, narrator_style=None,
-                    batch_size=1):
+                    batch_size=1, run_identity=None, summary_output=None):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
@@ -1931,17 +2073,19 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     os.makedirs(temp_dir, exist_ok=True)
     checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
 
-    # Determine if existing dataset_temp/ belongs to this audio file
-    marker_matches = (
-        audio_source_path is not None
-        and _check_source_marker(temp_dir, audio_source_path)
-    )
+    if run_identity is None:
+        raise RunStateError('Annotation requires a validated run identity')
+    ensure_run_manifest(temp_dir, run_identity, fresh=False)
 
-    if resume and marker_matches:
+    source_identity = get_source_checkpoint_identity(source_state)
+    if resume:
         existing_entries, resume_time, next_segment_idx = _load_existing_checkpoint(temp_dir)
+        restored_cursor = get_resumed_source_cursor(existing_entries, source_state, source_identity, keep_unaligned)
+        if restored_cursor is not None:
+            source_state['cursor'] = restored_cursor
         if existing_entries:
             logger.info(f"▶ Resuming from checkpoint: {len(existing_entries)} segments already processed")
-            logger.info(f"  ├─ Source verified: {audio_source_path}")
+            logger.info(f"  ├─ Run identity verified: {audio_source_path}")
             logger.info(f"  ├─ Resume time: {resume_time:.2f}s")
             logger.info(f"  ├─ Next segment index: {next_segment_idx}")
             _sweep_orphan_wavs(temp_dir, next_segment_idx)
@@ -1951,67 +2095,56 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             _sweep_orphan_wavs(temp_dir, 0)  # wipe any stale WAVs from a prior run
             existing_entries, resume_time, next_segment_idx = [], 0.0, 0
     else:
-        if resume and not marker_matches:
+        if os.path.exists(checkpoint_path):
             logger.warning(
-                "▶ --resume specified, but dataset_temp/ belongs to a different source file "
-                "(or has no marker). Wiping and starting fresh to avoid corrupting another run."
+                f"▶ Discarding unfinished annotation checkpoint for {audio_source_path}; "
+                "pass --resume to continue it."
             )
-        elif not resume and marker_matches and os.listdir(temp_dir):
-            # Distinct from the generic "stale contents" case below: this is
-            # unfinished progress on THIS exact source, about to be discarded
-            # only because --resume wasn't passed - not foreign/garbage data.
-            existing_entries, _, _ = _load_existing_checkpoint(temp_dir)
-            logger.warning(
-                f"▶ dataset_temp/ contains {len(existing_entries)} segment(s) of unfinished "
-                f"progress on THIS source ({audio_source_path}) - pass --resume to continue, "
-                f"or this run will discard them."
-            )
-        elif os.listdir(temp_dir):
-            logger.info("▶ Wiping stale dataset_temp/ contents for fresh start")
-        wipe_failures = _wipe_temp_dir(temp_dir)
-        if wipe_failures:
-            logger.error(
-                f"▶ Could not fully wipe {temp_dir} - {len(wipe_failures)} item(s) "
-                f"could not be removed, so a fresh run cannot be guaranteed not to "
-                f"mix leftover files from a different source:"
-            )
-            for path, err in wipe_failures:
-                logger.error(f"  ├─ {path}: {err}")
-            logger.error(f"  └─ Manually clear {temp_dir} and re-run.")
-            sys.exit(1)
+        for name in os.listdir(temp_dir):
+            if name == 'metadata.jsonl' or re.fullmatch(r'sample_[0-9]+\.wav', name):
+                path = os.path.join(temp_dir, name)
+                if os.path.isdir(path) and not os.path.islink(path):
+                    raise RunStateError(f'Generated path is unexpectedly a directory: {path}')
+                os.remove(path)
         existing_entries, resume_time, next_segment_idx = [], 0.0, 0
 
-    # Always (re)write the source marker for the current run
-    if audio_source_path is not None:
-        _write_source_marker(temp_dir, audio_source_path)
-
-    logger.info("▶ Loading LLM for annotations...")
-    logger.info(f"  ├─ Primary model: {os.path.basename(model_path)}")
-    if fallback_model_path:
-        logger.info(f"  ├─ Fallback model: {os.path.basename(fallback_model_path)}")
-    logger.info("  ├─ Device: GPU (CUDA/ROCm acceleration)")
-    logger.info("  ├─ GPU Layers: All (-1 = fully loaded to GPU)")
-    logger.info("  └─ Checkpoint: fsync per chunk (durable across power loss)")
-
+    remaining_word_pairs = get_annotation_word_pairs(word_segments, resume_time)
+    first_word_pair = next(remaining_word_pairs, None)
+    annotation_word_pairs = chain(
+        (first_word_pair,) if first_word_pair is not None else (),
+        remaining_word_pairs,
+    )
+    llm = None
     active_model_path = model_path
-    try:
-        llm = _load_llm(model_path)
-    except Exception as primary_err:
-        logger.error(f"✗ Failed to load primary model {model_path}: {primary_err}")
-        logger.debug(traceback.format_exc())
-        if fallback_model_path and os.path.exists(fallback_model_path):
-            logger.warning(f"▶ Falling back to: {fallback_model_path}")
-            try:
-                llm = _load_llm(fallback_model_path)
-                active_model_path = fallback_model_path
-            except Exception as fallback_err:
-                logger.error(f"✗ Fallback model also failed: {fallback_err}")
-                logger.debug(traceback.format_exc())
-                raise
-        else:
-            raise
+    if first_word_pair is not None:
+        logger.info("▶ Loading LLM for annotations...")
+        logger.info(f"  ├─ Primary model: {os.path.basename(model_path)}")
+        if fallback_model_path:
+            logger.info(f"  ├─ Fallback model: {os.path.basename(fallback_model_path)}")
+        logger.info(f"  ├─ Requested GPU layers: {LLM_REQUESTED_GPU_LAYERS} (actual offload reported by llama-cpp)")
+        logger.info("  └─ Checkpoint: fsync per chunk (durable across power loss)")
 
-    log_gpu_stats(f"after LLM load ({os.path.basename(active_model_path)})")
+        try:
+            llm = _load_llm(model_path)
+        except Exception as primary_err:
+            logger.error(f"✗ Failed to load primary model {model_path}: {primary_err}")
+            logger.debug(traceback.format_exc())
+            if fallback_model_path and os.path.exists(fallback_model_path):
+                logger.warning(f"▶ Falling back to: {fallback_model_path}")
+                try:
+                    llm = _load_llm(fallback_model_path)
+                    active_model_path = fallback_model_path
+                except Exception as fallback_err:
+                    logger.error(f"✗ Fallback model also failed: {fallback_err}")
+                    logger.debug(traceback.format_exc())
+                    raise
+            else:
+                raise
+
+        log_gpu_stats(f"after LLM load ({os.path.basename(active_model_path)})")
+
+    else:
+        logger.info("No annotation words remain; reusing validated checkpoint audio")
 
     # ── Detailed timing instrumentation ──────────────────────────────────────
     # Track where time is spent per chunk to identify optimization opportunities.
@@ -2032,6 +2165,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     # When batch_size > 1, collect chunks here and annotate them together.
     logger.info(f"  ├─ Batch size       : {batch_size} {'(batch mode)' if batch_size > 1 else '(per-chunk mode)'}")
     batch_buffer = [] if batch_size > 1 else None
+    batch_started_at = None
 
     # ── Pre-chunk diagnostic: word density, gap distribution ─────────────────
     # Lets the user see what kind of audio they're working with before the
@@ -2051,10 +2185,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped' / 'dropped_short' / 'deduplicated' / 'dropped_low_quality'
         'llm_success':     0,
         'llm_fail':        0,
+        'llm_batch_fail':  0,
         'sanitize_changed':0,           # times _sanitize_annotation altered text
         'chunk_durations': [],          # for end-of-run distribution stats
         'audio_short':     0,           # times audio slice was shorter than expected
         'reanchor_backward': 0,         # large backward re-anchor jumps (source/audio mismatch signal)
+        'realign_events':  0,
+        'reanchor_events': 0,
     }
 
     metadata = list(existing_entries)
@@ -2070,6 +2207,54 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         context.append(prior.get("text", ""))
 
     prev_raw_text = context[-1] if context else ""
+    prev_raw_speaker = existing_entries[-1].get("speaker", "UNKNOWN") if existing_entries else None
+
+    def apply_annotation_batch(start_index):
+        """Annotate and durably save one full or partial buffered batch."""
+        count = len(batch_buffer)
+        batch_results = _annotate_batch(
+            llm, batch_buffer, alignment, count, timing, stats
+        )
+        for i, item in enumerate(batch_buffer):
+            idx = start_index + i
+            annotated = None
+            if batch_results is not None and i < len(batch_results):
+                annotated = batch_results[i][1]
+            if annotated is None:
+                ctx_fallback = " ".join(list(context)[-2:]) if context else ""
+                user_prompt = f"Previous context: {ctx_fallback}\n\nAnnotate this segment:\n{item['text']}" if ctx_fallback else f"Annotate this segment:\n{item['text']}"
+                try:
+                    response = llm.create_chat_completion(
+                        messages=[
+                            {"role": "system", "content": TTS_ANNOTATION_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        max_tokens=512,
+                        temperature=0.3,
+                    )
+                    annotated_raw = response["choices"][0]["message"]["content"].strip()
+                    if not annotated_raw:
+                        raise RuntimeError("LLM returned an empty response")
+                    if item.get("source_words_for_merge") is not None:
+                        annotated = alignment.merge_annotations_with_source(
+                            annotated_raw, item["source_words_for_merge"]
+                        )
+                    else:
+                        annotated = _sanitize_annotation(annotated_raw)
+                    stats['llm_success'] += 1
+                except Exception as e:
+                    stats['llm_fail'] += 1
+                    _check_llm_fail_rate(stats)
+                    logger.warning(f"Batch fallback LLM failed for chunk {idx}: {e}")
+                    annotated = item["text"]
+
+            _save_chunk_metadata(
+                item, annotated, character, narrator_style, book_title,
+                metadata, checkpoint_file, stats, timing, idx, temp_dir,
+            )
+            context.append(item["text"])
+        batch_buffer.clear()
+        return count
 
     total_words = len(word_segments)
     logger.info(f"▶ Creating and annotating chunks (target: {chunk_size}s per chunk)...")
@@ -2095,22 +2280,12 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     # ~12s per chunk, so the overhead is <0.5%.
     checkpoint_file = open(checkpoint_path, "a", encoding="utf-8", buffering=1)
 
-    resume_point = current_start  # marker for "skip words before this"
     started = False  # True once we've consumed the first qualifying word
 
     try:
-        for idx, word_data in enumerate(word_segments):
-            if "start" not in word_data or "end" not in word_data:
-                continue
-
+        for idx, word_data, next_word_data in annotation_word_pairs:
             word_start_time = word_data["start"]
-            # Skip words before the resume point
-            if word_start_time < resume_point:
-                continue
-
-            word = word_data.get("word", "").strip()
-            if not word:
-                continue
+            word = word_data["word"].strip()
 
             # Pin chunk start to the first qualifying word so resumed runs
             # don't include leading silence between resume_point and the first word.
@@ -2124,7 +2299,10 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             current_end = word_data["end"]
             duration = current_end - current_start
 
-            is_final = (idx == len(word_segments) - 1)
+            is_final = next_word_data is None
+            is_speaker_turn = (next_word_data is not None
+                               and next_word_data.get('speaker', 'UNKNOWN')
+                               != word_data.get('speaker', 'UNKNOWN'))
             
             # ── Smart Clip Length ───────────────────────────────────────────────
             # Dynamically split on natural speech boundaries instead of rigid caps.
@@ -2147,10 +2325,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         is_good_break = True
                         cut_strategy = 'pause'
 
-            if is_final or is_good_break or duration >= max_dur:
+            if is_final or is_speaker_turn or is_good_break or duration >= max_dur:
                 if is_final:
                     cut_at = len(current_words) - 1
                     cut_strategy = 'is_final'
+                elif is_speaker_turn:
+                    cut_at = len(current_words) - 1
+                    cut_strategy = 'speaker_turn'
                 elif is_good_break:
                     cut_at = len(current_words) - 1
                 else:
@@ -2159,6 +2340,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         [w['word'] for w in current_words], current_start,
                     )
                 stats['cut_strategy'][cut_strategy] += 1
+                if is_speaker_turn:
+                    started = False
 
                 chunk_word_data = current_words[:cut_at + 1]
                 chunk_words    = [w['word'] for w in chunk_word_data]
@@ -2220,7 +2403,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                 logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s ({reason_rejected})")
 
                     # 2. Deduplication: Check for narrator retakes
-                    if not drop_chunk and prev_raw_text:
+                    if (not drop_chunk and prev_raw_text
+                            and prev_raw_speaker == chunk_word_data[0].get("speaker", "UNKNOWN")):
                         # Use SequenceMatcher for a fuzzy text similarity check.
                         # Narrator retakes often vary slightly in wording or ASR noise.
                         sm = difflib.SequenceMatcher(None, prev_raw_text.lower(), text.lower())
@@ -2241,6 +2425,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             chunk_match_words,
                             source_state['orig_match'],
                             cursor_before,
+                            proper_nouns=source_state['proper_nouns'],
                         )
                         # Three-tier recovery, mirroring compare's run() loop:
                         #
@@ -2269,8 +2454,10 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                 chunk_match_words,
                                 source_state['orig_match'],
                                 cursor_before,
+                                proper_nouns=source_state['proper_nouns'],
                             )
                             if r_ratio >= 0.55 and r_ratio > sa_ratio + 0.15:
+                                stats['realign_events'] += 1
                                 logger.debug(
                                     f"source-realign idx={segment_idx} "
                                     f"local {sa_ratio:.3f} → wide {r_ratio:.3f} "
@@ -2293,6 +2480,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                     overlap_ratio_hint=0.6,
                                 )
                                 if a_ratio >= 0.6 and a_ratio > sa_ratio + 0.4:
+                                    stats['reanchor_events'] += 1
                                     # Trim the wide-anchor window down to the
                                     # actual aligned region so the source span
                                     # we use is tight, not the full +slop window.
@@ -2300,6 +2488,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                         chunk_match_words,
                                         source_state['orig_match'],
                                         a_start, a_end,
+                                        source_state['proper_nouns'],
                                     )
                                     if t_end > t_start:
                                         a_start, a_end = t_start, t_end
@@ -2373,8 +2562,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     # Build context for continuity
                     ctx = " ".join(list(context)[-2:]) if context else ""
 
+                    source_position = ({'identity': source_identity,
+                                        'cursor': source_state['cursor']}
+                                       if source_state is not None else None)
                     if batch_size > 1:
                         # Collect into batch buffer
+                        if not batch_buffer:
+                            batch_started_at = chunk_t0
                         batch_buffer.append({
                             "segment_idx": segment_idx,
                             "text": text,
@@ -2385,79 +2579,33 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             "current_start": current_start,
                             "chunk_end_time": chunk_end_time,
                             "chunk_duration": chunk_duration,
+                            "source_position": source_position,
                         })
 
                         # Process batch when full
                         if len(batch_buffer) >= batch_size:
-                            batch_results = _annotate_batch(
-                                llm, batch_buffer, alignment, batch_size, timing, stats
-                            )
-                            # Process all chunks in this batch
-                            for i, item in enumerate(batch_buffer):
-                                # Update context for each batch chunk (BUG 3 fix)
-                                context.append(item["text"])
-                                # Get annotation from batch results or fallback to per-chunk LLM
-                                # Use positional indexing — batch results are in same order as input
-                                annotated = None
-                                if batch_results is not None and i < len(batch_results):
-                                    annotated = batch_results[i][1]
-                                if annotated is None:
-                                    # Fallback: run per-chunk LLM instead of using raw text
-                                    # Use live context (IMPROVEMENT A) instead of stale pre-batch ctx
-                                    ctx_fallback = " ".join(list(context)[-2:]) if context else ""
-                                    user_prompt = f"Previous context: {ctx_fallback}\n\nAnnotate this segment:\n{item['text']}" if ctx_fallback else f"Annotate this segment:\n{item['text']}"
-                                    try:
-                                        response = llm.create_chat_completion(
-                                            messages=[
-                                                {"role": "system", "content": TTS_ANNOTATION_SYSTEM_PROMPT},
-                                                {"role": "user", "content": user_prompt},
-                                            ],
-                                            max_tokens=512,
-                                            temperature=0.3,
-                                        )
-                                        annotated_raw = response["choices"][0]["message"]["content"].strip()
-                                        if not annotated_raw:
-                                            raise RuntimeError("LLM returned an empty response")
-                                        if item.get("source_words_for_merge") is not None:
-                                            annotated = alignment.merge_annotations_with_source(
-                                                annotated_raw, item["source_words_for_merge"]
-                                            )
-                                        else:
-                                            annotated = _sanitize_annotation(annotated_raw)
-                                        stats['llm_success'] += 1
-                                    except Exception as e:
-                                        stats['llm_fail'] += 1
-                                        _check_llm_fail_rate(stats)
-                                        logger.warning(f"Batch fallback LLM failed for chunk {segment_idx + i}: {e}")
-                                        annotated = item["text"]
-
-                                # Save audio and write metadata for this chunk
-                                _save_chunk_metadata(
-                                    item, annotated, character, narrator_style, book_title,
-                                    metadata, checkpoint_file, stats, timing,
-                                    segment_idx + i, temp_dir,
-                                )
-                            batch_buffer.clear()
+                            flushed_count = apply_annotation_batch(segment_idx)
                             # IMPROVEMENT 1: Add timing/ETA logging for batch mode
-                            completed = segment_idx + batch_size
+                            completed = segment_idx + flushed_count
                             # Divide by batch_size: this sample spans the whole
                             # batch's LLM call, but the ETA below multiplies the
                             # average by remaining CHUNKS — so store per-chunk time
                             # to avoid inflating the ETA ~batch_size×.
-                            chunk_times.append((time.monotonic() - chunk_t0) / max(1, batch_size))
-                            if (completed % 10) < batch_size:
+                            chunk_times.append((time.monotonic() - batch_started_at) / flushed_count)
+                            batch_started_at = None
+                            if completed // 10 > segment_idx // 10:
                                 avg_chunk_s = sum(chunk_times) / len(chunk_times)
                                 elapsed_s = time.monotonic() - annotation_start_time
-                                remaining_chunks = max(0, estimated_chunks_total - segment_idx - 1)
+                                remaining_chunks = max(0, estimated_chunks_total - completed)
                                 remaining_s = remaining_chunks * avg_chunk_s
                                 logger.info(
-                                    f"  ↳ Progress: {segment_idx + 1}/{estimated_chunks_total} chunks "
+                                    f"  ↳ Progress: {completed} chunks | Estimated total: ~{estimated_chunks_total} "
                                     f"| Avg: {avg_chunk_s:.1f}s/chunk "
                                     f"| Elapsed: {format_duration(elapsed_s)} "
-                                    f"| ETA: {format_duration(remaining_s)}"
+                                    f"| ETA: {format_duration(remaining_s) if remaining_chunks or next_word_data is None else 'unknown'}"
                                 )
-                                log_gpu_stats(f"annotation segment {segment_idx + 1}/{estimated_chunks_total}")
-                            if (completed % 100) < batch_size:
+                                log_gpu_stats(f"annotation segment {completed} (estimated total ~{estimated_chunks_total})")
+                            if completed // 100 > segment_idx // 100:
                                 total_timed = timing['audio_read'] + timing['snr_calc'] + timing['alignment'] + \
                                               timing['llm_infer'] + timing['sanitize'] + timing['wav_write']
                                 logger.info(
@@ -2475,6 +2623,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             # Skip per-chunk processing for batched chunks
                             segment_idx += batch_size
                             prev_raw_text = text
+                            prev_raw_speaker = chunk_word_data[0].get("speaker", "UNKNOWN")
                             chunk_t0 = time.monotonic()
                             # Carry-forward MUST happen before continue (BUG 1 fix)
                             current_words       = current_words[cut_at + 1:]
@@ -2525,7 +2674,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             stats['sanitize_changed'] += 1
 
                         if segment_idx == next_segment_idx:
-                            logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
+                            logger.info(f"✓ LLM annotation response received - {os.path.basename(active_model_path)}")
                     except Exception as e:
                         stats['llm_fail'] += 1
                         _check_llm_fail_rate(stats)
@@ -2540,6 +2689,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             "current_start": current_start,
                             "chunk_end_time": chunk_end_time,
                             "chunk_duration": chunk_duration,
+                            "source_position": source_position,
                         },
                         annotated, character, narrator_style, book_title,
                         metadata, checkpoint_file, stats, timing,
@@ -2581,6 +2731,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
 
                     segment_idx += 1
                     prev_raw_text = text  # Record for next chunk deduplication check
+                    prev_raw_speaker = chunk_word_data[0].get("speaker", "UNKNOWN")
 
                     context.append(text)
                 # Carry the post-cut tail forward as the start of the next chunk.
@@ -2595,55 +2746,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     # Any chunks left in the batch buffer need to be annotated and saved.
         if batch_buffer and len(batch_buffer) > 0:
             logger.info(f"▶ Processing remaining batch of {len(batch_buffer)} chunks...")
-            batch_results = _annotate_batch(
-                llm, batch_buffer, alignment, len(batch_buffer), timing, stats
-            )
-
-        # Save audio and write metadata for remaining batch chunks
-            tail_count = len(batch_buffer)
-            for i, item in enumerate(batch_buffer):
-                idx = segment_idx + i
-            # Get annotation from batch results or fallback
-                annotated = None
-                if batch_results is not None and i < len(batch_results):
-                    annotated = batch_results[i][1]
-                if annotated is None:
-                # BUG C fix: single-item tail batch — run per-chunk LLM fallback
-                    ctx_tail = " ".join(list(context)[-2:]) if context else ""
-                    user_prompt = f"Previous context: {ctx_tail}\n\nAnnotate this segment:\n{item['text']}" if ctx_tail else f"Annotate this segment:\n{item['text']}"
-                    try:
-                        response = llm.create_chat_completion(
-                            messages=[
-                                {"role": "system", "content": TTS_ANNOTATION_SYSTEM_PROMPT},
-                                {"role": "user", "content": user_prompt},
-                            ],
-                            max_tokens=512,
-                            temperature=0.3,
-                        )
-                        annotated_raw = response["choices"][0]["message"]["content"].strip()
-                        if not annotated_raw:
-                            raise RuntimeError("LLM returned an empty response")
-                        if item.get("source_words_for_merge") is not None:
-                            annotated = alignment.merge_annotations_with_source(
-                                annotated_raw, item["source_words_for_merge"]
-                            )
-                        else:
-                            annotated = _sanitize_annotation(annotated_raw)
-                        stats['llm_success'] += 1
-                    except Exception as e:
-                        stats['llm_fail'] += 1
-                        _check_llm_fail_rate(stats)
-                        logger.warning(f"Tail batch fallback LLM failed for chunk {idx}: {e}")
-                        annotated = item["text"]
-            # Update context after each tail item so subsequent items see it
-                context.append(item["text"])
-
-                _save_chunk_metadata(
-                    item, annotated, character, narrator_style, book_title,
-                    metadata, checkpoint_file, stats, timing, idx, temp_dir,
-                )
-
-            batch_buffer.clear()
+            tail_count = apply_annotation_batch(segment_idx)
         # BUG B fix: increment segment_idx for tail batch
             segment_idx += tail_count
 
@@ -2655,25 +2758,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     # ── Batch metadata tagging (avoids per-chunk WAV open/read/write) ─────────
     t0_tag = time.monotonic()
     try:
-        import mutagen.wave
-        import mutagen.id3
         taggable = [e for e in metadata if e.get("wav_path") and os.path.exists(e["wav_path"])]
         if taggable:
             logger.info(f"▶ Batch-writing ID3 tags to {len(taggable)} WAV files...")
             for entry in taggable:
                 try:
                     wav_path = entry["wav_path"]
-                    audio_tags = mutagen.wave.WAVE(wav_path)
-                    if audio_tags.tags is None:
-                        audio_tags.add_tags()
-                    if entry.get("book_title"):
-                        audio_tags.tags.add(mutagen.id3.TALB(encoding=3, text=entry["book_title"]))
-                    if entry.get("character"):
-                        audio_tags.tags.add(mutagen.id3.TPE1(encoding=3, text=entry["character"]))
-                    if entry.get("narrator_style"):
-                        audio_tags.tags.add(mutagen.id3.COMM(encoding=3, text=entry["narrator_style"], lang="eng", desc=""))
-                    audio_tags.tags.add(mutagen.id3.TIT2(encoding=3, text=entry["audio_filepath"]))
-                    audio_tags.save()
+                    apply_wave_tags(wav_path, entry)
                 except Exception as tag_e:
                     logger.warning(f"Failed to write metadata tags to {entry.get('audio_filepath', '?')}: {tag_e}")
             logger.info(f"  ✓ Batch tagging complete")
@@ -2723,7 +2814,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     if stats['cut_strategy']:
         total_cuts = sum(stats['cut_strategy'].values())
         logger.info(f"  Cut strategy distribution ({total_cuts} chunks):")
-        for strategy in ('sentence_end', 'pause', 'fallback', 'is_final',
+        for strategy in ('speaker_turn', 'sentence_end', 'pause', 'fallback', 'is_final',
                          'too_few_words', 'undersized'):
             count = stats['cut_strategy'].get(strategy, 0)
             if count:
@@ -2779,6 +2870,9 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 f"reformatted — review prompt template or model output format."
             )
 
+    if stats['llm_batch_fail']:
+        logger.info(f"  LLM batch attempts: {stats['llm_batch_fail']} failed; per-chunk fallback used")
+
     # Duration distribution of emitted chunks (audio-side, not source-side)
     durs = stats['chunk_durations']
     if durs:
@@ -2802,7 +2896,82 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     f"({total_duration/60:.1f} min)")
         logger.info(f"  Average segment duration  : {total_duration/len(metadata):.2f}s")
 
+    if summary_output:
+        save_annotation_summary(summary_output, run_identity, metadata,
+                                len(existing_entries), stats, source_state)
     return metadata
+
+
+def get_preparer_report_path(report_path, run_identity, asr_output=None, scratch_audio=None):
+    path = Path(report_path).resolve()
+    inputs = [run_identity['audio'], run_identity['source']]
+    if any(path == Path(item['path']).resolve() for item in inputs if item is not None):
+        raise RunStateError('Report cannot overwrite an audio/source input')
+    reserved = [asr_output or 'dataset_temp/asr_segments.json',
+                scratch_audio or 'dataset_temp/audio_24k_scratch.wav']
+    if (path.is_relative_to(Path('dataset_temp').resolve())
+            or any(path == Path(item).resolve() for item in reserved)):
+        raise RunStateError('Report cannot overwrite preparer phase artifacts')
+    return path
+
+
+def validate_preparer_report_inputs(run_identity):
+    for item in (run_identity['audio'], run_identity['source']):
+        if item is not None and get_file_identity(item['path']) != item:
+            raise RunStateError('Preparer report input changed')
+
+
+def save_annotation_summary(output, run_identity, metadata, resumed_segments, stats, source_state):
+    options = run_identity['options']
+    path = get_preparer_report_path(output, run_identity,
+        asr_output=options.get('asr_output'), scratch_audio=options.get('scratch_audio'))
+    validate_preparer_report_inputs(run_identity)
+    counters = {key: dict(value) if isinstance(value, Counter) else list(value) if isinstance(value, list) else value
+                for key, value in stats.items()}
+    report = {'version': 1, 'phase': 'annotation_complete', 'identity': run_identity,
+              'counter_scope': 'current_attempt',
+              'totals': {'segments_total': len(metadata),
+                         'segments_this_run': len(metadata) - resumed_segments,
+                         'resumed_segments': resumed_segments,
+                         'dataset_seconds': float(sum(item['duration'] for item in metadata))},
+              'counters': counters, 'source_cursor': None}
+    if source_state is not None:
+        report['source_cursor'] = {'word': source_state['cursor'],
+                                   'total_words': len(source_state['orig_match'])}
+    write_json_atomic(report, path)
+
+def get_source_alignment_prescan(word_segments, chunk_size, source_path, source_threshold,
+                                 source_start=None, source_start_text=None,
+                                 no_auto_anchor=False):
+    """Use the annotation path's provisional chunks, anchoring and thresholds."""
+    entries = _build_provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30)
+    state = _build_source_state(source_path, source_start=source_start,
+        source_start_text=source_start_text, no_auto_anchor=no_auto_anchor,
+        entries_for_anchor=entries)
+    quality = alignment.estimate_alignment_quality(entries, state['orig_match'], state['cursor'],
+        start_entry_idx=state['anchor_entry_idx'], threshold=source_threshold,
+        proper_nouns=state['proper_nouns'])
+    return state, quality
+
+
+def save_source_alignment_prescan(word_segments, args, run_identity):
+    """Publish an actual sampled estimate, bound to unchanged source/audio bytes."""
+    report_path = get_preparer_report_path(args.alignment_report, run_identity,
+        asr_output=args.asr_output, scratch_audio=args.scratch_audio)
+    validate_preparer_report_inputs(run_identity)
+    state, quality = get_source_alignment_prescan(word_segments, args.chunk_size, args.source,
+        source_start=args.source_start, source_start_text=args.source_start_text,
+        no_auto_anchor=args.no_auto_anchor, source_threshold=args.source_threshold)
+    average, sampled, below, review = quality
+    if not sampled:
+        raise RunStateError('Alignment pre-scan produced no evaluable samples')
+    validate_preparer_report_inputs(run_identity)
+    report = {'version': 1, 'identity': run_identity, 'scope': 'initial_provisional_chunks',
+              'quality': {'average_ratio': average, 'sampled': sampled,
+                          'below_60_percent': below, 'review_needed': review},
+              'anchor': {'source_word': state['cursor'], 'entry_index': state['anchor_entry_idx']}}
+    write_json_atomic(report, report_path)
+
 
 # ── Output zip naming from source metadata ────────────────────────────────────
 # When --output is left at the default (or another well-known placeholder), try
@@ -2970,14 +3139,45 @@ def _assign_speakers_to_words(word_segments, speaker_segments):
     return word_segments, unique_speakers
 
 
+def get_training_eligible_chunks(metadata):
+    """Return verified single-speaker rows and mixed/unverifiable counts."""
+    eligible = []
+    mixed = 0
+    unverifiable = 0
+    for entry in metadata:
+        labels = entry.get("speaker_labels")
+        if (not isinstance(labels, list) or not labels
+                or any(not isinstance(label, str) or not label.strip() for label in labels)):
+            unverifiable += 1
+        elif len(set(labels)) > 1:
+            mixed += 1
+        elif entry.get("speaker", "UNKNOWN") not in labels:
+            unverifiable += 1
+        else:
+            eligible.append(entry)
+    return eligible, mixed, unverifiable
+
+
 def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float = 0.10, zip_max_files: int = 200, unique_speakers: set = None):
     """Bundle annotated chunks and metadata into segmented ZIP files (volumes),
     grouped by speaker, character, and narrator style."""
     temp_dir = "dataset_temp"
     
     if not metadata:
-        logger.warning("No metadata to save to ZIP.")
-        return
+        raise RunStateError("No metadata to save to ZIP.")
+
+    for entry in metadata:
+        wav_path = get_sample_path(temp_dir, entry.get('audio_filepath'))
+        if not wav_path.is_file():
+            raise RunStateError(f'Missing sample WAV for ZIP: {wav_path}')
+
+    metadata, mixed, unverifiable = get_training_eligible_chunks(metadata)
+    logger.info(f"Training ZIP eligibility: {len(metadata)} single-speaker chunks; "
+                f"excluded {mixed} mixed and {unverifiable} unverifiable chunks. "
+                "Raw WAVs and checkpoint metadata are retained.")
+    if not metadata:
+        raise RunStateError("No eligible single-speaker chunks to save to ZIP; "
+                            "mixed or unverifiable chunks were excluded.")
 
     # 1. Group metadata by speaker, then (character, style)
     groups = {}
@@ -2993,105 +3193,139 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
 
     import random
     base, ext = os.path.splitext(output_path)
-    
+    manifest_path = output_path + '.volumes.json'
+    previous_volumes = []
+    if os.path.exists(manifest_path):
+        with open(manifest_path, encoding='utf-8') as stream:
+            previous_volumes = json.load(stream)['volumes']
+        output_name = os.path.basename(output_path)
+        output_stem = os.path.splitext(output_name)[0]
+        if not isinstance(previous_volumes, list) or any(
+                not isinstance(name, str) or os.path.dirname(name)
+                or not name.endswith(ext)
+                or not (name == output_name or name.startswith(output_stem + '_'))
+                for name in previous_volumes):
+            raise RunStateError(f'Invalid ZIP volume manifest: {manifest_path}')
+    planned = []
+    used_paths = set()
+    for (speaker, char, style), group_metadata in groups.items():
+        num_vols = (len(group_metadata) + zip_max_files - 1) // zip_max_files
+        safe_speaker = _sanitize_name_part(speaker)
+        safe_char = _sanitize_name_part(char)
+        safe_style = _sanitize_name_part(style)
+        for vol_idx in range(num_vols):
+            parts = [base]
+            if unique_speakers and len(unique_speakers) > 1:
+                parts.append(safe_speaker)
+            if safe_char != 'narrator':
+                parts.append(safe_char)
+            if safe_style != 'default':
+                parts.append(safe_style)
+            if num_vols > 1:
+                parts.append(f'vol{vol_idx + 1:02d}')
+            vol_path = '_'.join(parts) + ext if len(parts) > 1 else output_path
+            if vol_path in used_paths:
+                import hashlib
+                suffix = hashlib.sha256(repr((speaker, char, style)).encode('utf-8')).hexdigest()[:10]
+                stem, extension = os.path.splitext(vol_path)
+                vol_path = f'{stem}_{suffix}{extension}'
+                if vol_path in used_paths:
+                    raise RunStateError(f'ZIP volume filename collision: {vol_path}')
+            used_paths.add(vol_path)
+            planned.append((group_metadata[vol_idx * zip_max_files:(vol_idx + 1) * zip_max_files], vol_idx, vol_path))
+
+    # Older runs had no manifest. Refuse an ambiguous stale volume rather than
+    # claiming completion while training might pick it up as current output.
+    if not os.path.exists(manifest_path):
+        import glob
+        for candidate in glob.glob(glob.escape(base) + '_*' + glob.escape(ext)):
+            if candidate not in used_paths and re.search(r'_vol\d+' + re.escape(ext) + r'$', candidate):
+                raise RunStateError(f'Unmanaged old ZIP volume: {candidate}')
+
     total_train = 0
     total_val = 0
     total_vols = 0
 
-    for (speaker, char, style), group_metadata in groups.items():
-        num_vols = (len(group_metadata) + zip_max_files - 1) // zip_max_files
-        
-        # Sanitise for filenames
-        safe_speaker = _sanitize_name_part(speaker)
-        safe_char = _sanitize_name_part(char)
-        safe_style = _sanitize_name_part(style)
-        
-        for vol_idx in range(num_vols):
-            start_idx = vol_idx * zip_max_files
-            end_idx = min(start_idx + zip_max_files, len(group_metadata))
-            vol_metadata = group_metadata[start_idx:end_idx]
-            
-            # Generate volume path: base_Speaker_Character_Style_volNN.zip
-            parts = [base]
-            if unique_speakers and len(unique_speakers) > 1:
-                parts.append(safe_speaker)
-            if safe_char != "narrator":
-                parts.append(safe_char)
-            if safe_style != "default":
-                parts.append(safe_style)
-            if num_vols > 1:
-                parts.append(f"vol{vol_idx + 1:02d}")
-            
-            if len(parts) == 1:
-                vol_path = output_path
-            else:
-                vol_path = "_".join(parts) + ext
+    for vol_metadata, vol_idx, vol_path in planned:
 
-            # Partition this volume into train/val
-            indices = list(range(len(vol_metadata)))
-            random.seed(42 + vol_idx) # stable per volume
-            random.shuffle(indices)
-            
-            v_count = int(len(vol_metadata) * val_split)
-            v_indices = set(indices[:v_count])
-            
-            train_meta = []
-            val_meta = []
+        # Partition this volume into train/val
+        indices = list(range(len(vol_metadata)))
+        random.seed(42 + vol_idx) # stable per volume
+        random.shuffle(indices)
 
-            # Write to a temp path and atomically replace vol_path only once the
-            # zip is fully written, so a crash mid-write never leaves a
-            # truncated/corrupt file at the permanent path, and a re-run never
-            # destroys the prior good volume before the new one is confirmed
-            # good. See FIXED.md F-115.
-            tmp_vol_path = vol_path + ".tmp"
-            try:
-                with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
-                    for i, entry in enumerate(vol_metadata):
-                        wav_name = entry["audio_filepath"]
-                        src_path = os.path.join(temp_dir, wav_name)
+        v_count = int(len(vol_metadata) * val_split)
+        v_indices = set(indices[:v_count])
 
-                        if not os.path.exists(src_path):
-                            logger.warning(f"  ⚠ Audio file not found for ZIP {vol_path}: {wav_name}")
-                            continue
+        train_meta = []
+        val_meta = []
 
-                        is_val = (i in v_indices)
-                        folder = "val" if is_val else "train"
-                        zip_wav_path = f"{folder}/{wav_name}"
+        # Write to a temp path and atomically replace vol_path only once the
+        # zip is fully written, so a crash mid-write never leaves a
+        # truncated/corrupt file at the permanent path, and a re-run never
+        # destroys the prior good volume before the new one is confirmed
+        # good. See FIXED.md F-115.
+        tmp_vol_path = vol_path + ".tmp"
+        try:
+            with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
+                for i, entry in enumerate(vol_metadata):
+                    wav_name = entry["audio_filepath"]
+                    src_path = str(get_sample_path(temp_dir, wav_name))
+                    if not os.path.isfile(src_path):
+                        raise RunStateError(f'Missing sample WAV for ZIP: {src_path}')
 
-                        zip_entry = entry.copy()
-                        zip_entry["audio_filepath"] = zip_wav_path
+                    is_val = (i in v_indices)
+                    folder = "val" if is_val else "train"
+                    zip_wav_path = f"{folder}/{wav_name}"
 
-                        if is_val:
-                            val_meta.append(zip_entry)
-                            total_val += 1
-                        else:
-                            train_meta.append(zip_entry)
-                            total_train += 1
+                    zip_entry = entry.copy()
+                    zip_entry["audio_filepath"] = zip_wav_path
 
-                        z.write(src_path, zip_wav_path)
+                    if is_val:
+                        val_meta.append(zip_entry)
+                        total_val += 1
+                    else:
+                        train_meta.append(zip_entry)
+                        total_train += 1
 
-                    # Write partitioned metadata.jsonl files
-                    if train_meta:
-                        train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
-                        z.writestr("train/metadata.jsonl", train_jsonl)
-                    if val_meta:
-                        val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
-                        z.writestr("val/metadata.jsonl", val_jsonl)
+                    z.write(src_path, zip_wav_path)
 
-                    # Volume manifest
-                    vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
-                    if vol_manifest:
-                        manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
-                        z.writestr("metadata.jsonl", manifest_jsonl)
-                os.replace(tmp_vol_path, vol_path)
-            except Exception:
-                if os.path.exists(tmp_vol_path):
-                    os.remove(tmp_vol_path)
-                raise
+                # Write partitioned metadata.jsonl files
+                if train_meta:
+                    train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
+                    z.writestr("train/metadata.jsonl", train_jsonl)
+                if val_meta:
+                    val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
+                    z.writestr("val/metadata.jsonl", val_jsonl)
 
-            total_vols += 1
-            logger.info(f"  ✓ Volume {total_vols} saved: {vol_path} ({len(vol_metadata)} segments)")
+                # Volume manifest
+                vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
+                if vol_manifest:
+                    manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
+                    z.writestr("metadata.jsonl", manifest_jsonl)
+            os.replace(tmp_vol_path, vol_path)
+        except Exception:
+            if os.path.exists(tmp_vol_path):
+                os.remove(tmp_vol_path)
+            raise
 
+        total_vols += 1
+        logger.info(f"  ✓ Volume {total_vols} saved: {vol_path} ({len(vol_metadata)} segments)")
+
+    new_names = [os.path.basename(path) for _, _, path in planned]
+    for name in previous_volumes:
+        stale_path = os.path.join(os.path.dirname(output_path), name)
+        if name not in new_names and os.path.exists(stale_path):
+            os.remove(stale_path)
+    manifest_tmp = manifest_path + '.tmp'
+    try:
+        with open(manifest_tmp, 'w', encoding='utf-8') as stream:
+            json.dump({'volumes': new_names}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(manifest_tmp, manifest_path)
+    finally:
+        if os.path.exists(manifest_tmp):
+            os.remove(manifest_tmp)
     durations = [m["duration"] for m in metadata]
     logger.info("=" * 70)
     logger.info(f"Total segments across {total_vols} volume(s): {len(metadata)}")
@@ -3102,6 +3336,27 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
         logger.info(f"  └─ Total audio: {sum(durations)/60:.1f} minutes")
     logger.info("=" * 70)
     logger.info(f"✓ ALL VOLUMES COMPLETED.")
+
+
+def build_phase_command(phase: str, argv: List[str], *, output: Optional[str] = None) -> List[str]:
+    """Forward user arguments while replacing only the internal phase option."""
+    forwarded = []
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == '--phase':
+            index += 2
+            continue
+        if arg.startswith('--phase='):
+            index += 1
+            continue
+        forwarded.append(arg)
+        index += 1
+    if output is not None:
+        forwarded.extend(['--output', output])
+    return [sys.executable, __file__, '--phase', phase, *forwarded]
+
+
 def main():
     global WAV2VEC2_MODEL_REVISION
     parser = argparse.ArgumentParser(
@@ -3129,6 +3384,8 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of chunks to process")
     parser.add_argument("--phase", choices=["asr", "enrich", "annotate"], help="Run only a specific phase (internal use for ROCm isolation)")
     parser.add_argument("--asr-output", help="Path to save/load ASR word segments (default: dataset_temp/asr_segments.json)")
+    parser.add_argument("--alignment-report", help="Sampled source-alignment JSON report; requires --phase asr and --source")
+    parser.add_argument("--summary-output", help="Structured annotation-attempt summary JSON destination")
     parser.add_argument("--scratch-audio", help="Path to 24k scratch WAV (default: dataset_temp/audio_24k.wav)")
     parser.add_argument("--output", default="alexandria_dataset.zip",
                         help="Output ZIP path. If left at the default — or set to "
@@ -3187,12 +3444,28 @@ def main():
     parser.add_argument("--enrich-emotional-tone", action="store_true", help="Instruct LLM to extract emotional tone.")
 
     args = parser.parse_args()
+    log_file = ensure_preparer_logging()
+    logger.info("=== Alexandria Master Preparer Started ===")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Python version: {sys.version}")
     WAV2VEC2_MODEL_REVISION = args.asr_model_revision
+
+    # The API validates the same values before staging large uploads.
+    sys.path.append(os.path.join(script_dir, "app"))
+    from preparer_numeric_settings import validate_preparer_numeric_settings
+    try:
+        validate_preparer_numeric_settings(vars(args))
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.limit is not None and args.limit <= 0:
+        parser.error('--limit must be positive')
 
     if args.skip_annotation:
         parser.error("--skip-annotation is not implemented; omit it and provide --model")
-    if args.auto_detect_speakers and not args.hf_token:
-        parser.error("--auto-detect-speakers requires --hf-token or the HF_TOKEN environment variable")
+    if args.alignment_report and (args.phase != 'asr' or not args.source):
+        parser.error('--alignment-report requires --phase asr and --source')
+    if (args.auto_detect_speakers or args.diarize) and not args.hf_token:
+        parser.error("Speaker diarization requires --hf-token or the HF_TOKEN environment variable")
 
     needs_annotation_model = args.phase != "asr"
     if needs_annotation_model and not args.model:
@@ -3205,13 +3478,29 @@ def main():
 
     # Auto-derive --output filename from --source metadata when the caller left
     # the default (or another generic placeholder). Pinned names pass through.
-    epub_title, epub_author = extract_metadata_for_naming(args.source) if args.source else (None, None)
+    needs_metadata = (os.path.basename(args.output) in _NAME_GENERIC_OUTPUTS
+                      or (args.phase == 'annotate' and not args.book_title))
+    epub_title, epub_author = (extract_metadata_for_naming(args.source)
+                              if args.source and needs_metadata else (None, None))
     book_title = args.book_title or epub_title
     derived_output = maybe_autoname_output(args.output, args.source, epub_title, epub_author)
     if derived_output != args.output:
         logger.info(f"Auto-derived output filename: {derived_output} "
                     f"(was: {args.output})")
         args.output = derived_output
+
+    try:
+        run_lock_fd = acquire_run_lock('dataset_temp')
+        run_identity = get_run_identity(args)
+        start_fresh = (args.phase is None or args.phase == 'asr') and not args.resume
+        ensure_run_manifest('dataset_temp', run_identity, fresh=start_fresh)
+    except (RunStateError, OSError) as error:
+        parser.error(str(error))
+
+    def run_phase(command):
+        environment = os.environ.copy()
+        environment[LOCK_ENV] = str(run_lock_fd)
+        return subprocess.run(command, pass_fds=(run_lock_fd,), env=environment)
 
     # ── Phase Orchestration ──────────────────────────────────────────────────
     # ROCm HIP contexts from PyTorch (Wav2Vec2) and llama-cpp often conflict
@@ -3224,19 +3513,16 @@ def main():
         # 1. Run ASR Phase (if not already completed and resuming)
         asr_output_path = args.asr_output or os.path.join("dataset_temp", "asr_segments.json")
         should_run_asr = True
-        if args.resume and os.path.exists(asr_output_path):
+        if args.resume and is_verified_artifact(
+                'dataset_temp', run_identity, 'asr', asr_output_path):
             logger.info(f"▶ ASR output found at {asr_output_path}, skipping ASR phase due to --resume")
             should_run_asr = False
 
         if should_run_asr:
-            asr_cmd = [sys.executable, __file__, "--phase", "asr"]
-            # Pass all original arguments except potentially conflicting ones
-            for arg in sys.argv[1:]:
-                if arg not in ["--phase", "asr", "enrich", "annotate"] and not arg.startswith("--phase="):
-                    asr_cmd.append(arg)
+            asr_cmd = build_phase_command('asr', sys.argv[1:], output=args.output)
 
             logger.info("▶ Launching ASR Phase...")
-            res = subprocess.run(asr_cmd)
+            res = run_phase(asr_cmd)
             if res.returncode != 0:
                 logger.error(f"ASR Phase failed with exit code {res.returncode}")
                 sys.exit(res.returncode)
@@ -3244,7 +3530,8 @@ def main():
         # 2. Run LLM Enrichment Phase (if requested)
         enriched_output_path = os.path.join("dataset_temp", "enriched_segments.json")
         should_run_enrich = args.enrich_with_llm
-        if should_run_enrich and args.resume and os.path.exists(enriched_output_path):
+        if should_run_enrich and args.resume and is_verified_artifact(
+                'dataset_temp', run_identity, 'enriched', enriched_output_path):
             logger.info(f"▶ Enriched output found at {enriched_output_path}, skipping enrichment phase due to --resume")
             should_run_enrich = False
 
@@ -3254,40 +3541,34 @@ def main():
                 sys.exit(1)
 
             # Run enrichment as a subprocess to reuse the same chunking logic
-            enrich_cmd = [sys.executable, __file__, "--phase", "enrich"]
-            for arg in sys.argv[1:]:
-                if arg not in ["--phase", "asr", "enrich", "annotate"] and not arg.startswith("--phase="):
-                    enrich_cmd.append(arg)
+            enrich_cmd = build_phase_command('enrich', sys.argv[1:], output=args.output)
 
             logger.info("▶ Launching LLM Enrichment Phase...")
-            res = subprocess.run(enrich_cmd)
+            res = run_phase(enrich_cmd)
             if res.returncode != 0:
                 logger.error(f"LLM Enrichment Phase failed with exit code {res.returncode}")
                 sys.exit(res.returncode)
 
         # 3. Run Annotation Phase
-        ann_cmd = [sys.executable, __file__, "--phase", "annotate"]
-        for arg in sys.argv[1:]:
-            if arg not in ["--phase", "asr", "enrich", "annotate"] and not arg.startswith("--phase="):
-                ann_cmd.append(arg)
+        ann_cmd = build_phase_command('annotate', sys.argv[1:], output=args.output)
 
         logger.info("▶ Launching Annotation Phase...")
-        res = subprocess.run(ann_cmd)
+        res = run_phase(ann_cmd)
         if res.returncode == 0:
             # Clean up scratch audio and temp dir on success
             audio_24k_scratch = args.scratch_audio or os.path.join("dataset_temp", "audio_24k_scratch.wav")
-            if os.path.exists(audio_24k_scratch):
+            if args.scratch_audio is None and os.path.exists(audio_24k_scratch):
                 try:
                     os.remove(audio_24k_scratch)
                     logger.debug(f"Removed scratch audio: {audio_24k_scratch}")
                 except Exception:
                     pass
-            if os.path.exists("dataset_temp"):
-                try:
-                    shutil.rmtree("dataset_temp")
-                    logger.debug("Cleaned up dataset_temp/")
-                except Exception:
-                    pass
+            try:
+                cleanup_run_artifacts('dataset_temp', run_identity)
+                logger.debug("Cleaned up this run's dataset_temp artifacts")
+            except Exception as error:
+                logger.error(f'Could not safely clean run artifacts: {error}')
+                sys.exit(1)
             logger.info(f"Log file saved to: {log_file}")
         sys.exit(res.returncode)
 
@@ -3301,6 +3582,8 @@ def main():
 
     audio_24k_scratch = audio_24k_path  # for the finally block cleanup
 
+    decode_temp_dir = None
+    diarization_temp_dir = None
     try:
         if args.phase == "asr":
             t = _lazy_import_torch()
@@ -3316,18 +3599,21 @@ def main():
             progress.complete()
 
             progress.start("Load audio")
+            validate_scratch_path(temp_dir, run_identity, audio_24k_path)
             logger.debug(f"Loading audio from {args.audio} (single read)...")
             load_t0 = time.monotonic()
-            is_oversized, _, _ = _wav_overflow_info(args.audio)
+            is_oversized, input_duration, _ = _wav_overflow_info(args.audio)
 
-            if is_oversized:
-                logger.info("  Using ffmpeg loader (oversized WAV)")
-                _ffmpeg_decode_to_wav(args.audio, audio_24k_path, 24000, mono=True)
+            if is_oversized or input_duration > 600:
+                logger.info("  Using file-backed ffmpeg loader for long audio")
+                decode_temp_dir = tempfile.TemporaryDirectory(
+                    prefix="alexandria_asr_", dir=temp_dir)
+                audio_16k = decode_audio_to_asr_streams(
+                    args.audio, audio_24k_path,
+                    os.path.join(decode_temp_dir.name, "audio_16k.f32"))
                 sf_info_24k = sf.info(audio_24k_path)
                 duration_secs = sf_info_24k.duration
                 logger.info(f"  Audio: {duration_secs:.1f}s @ {sf_info_24k.frames} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
-                logger.debug(f"  Decoding 16 kHz stream for ASR via ffmpeg...")
-                audio_16k = _ffmpeg_decode_to_numpy(args.audio, 16000, mono=True)
             else:
                 l = _lazy_import_librosa()
                 audio_native, native_sr = l.load(args.audio, sr=None, mono=True)
@@ -3360,7 +3646,29 @@ def main():
                 scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)
                 logger.info(f"  ├─ Scratch audio: {audio_24k_scratch} ({scratch_size_mb:.1f} MB, PCM_16) - freed from RAM")
 
+            mark_artifact_complete(temp_dir, run_identity, 'scratch', audio_24k_path)
             progress.complete()
+
+            original_samples = len(audio_16k)
+            audio_16k = audio_16k[:get_asr_sample_count(original_samples, 16000, args.limit)]
+            diarization_audio_path = audio_24k_path
+            diarization_duration = len(audio_16k) / 16000.0
+            if len(audio_16k) < original_samples:
+                logger.info(f"ASR limit bounds every backend to {diarization_duration:.1f}s.")
+                if args.diarize or args.auto_detect_speakers:
+                    diarization_temp_dir = tempfile.TemporaryDirectory(
+                        prefix="alexandria_diarization_prefix_", dir=temp_dir)
+                    diarization_audio_path = os.path.join(diarization_temp_dir.name, "prefix.wav")
+                    with sf.SoundFile(audio_24k_path) as source:
+                        remaining = min(source.frames, round(diarization_duration * source.samplerate))
+                        with sf.SoundFile(diarization_audio_path, mode="w", samplerate=source.samplerate,
+                                          channels=source.channels, subtype="PCM_16") as destination:
+                            while remaining:
+                                block = source.read(min(65536, remaining), always_2d=True)
+                                if not len(block):
+                                    raise ValueError("Scratch audio ended before the bounded prefix")
+                                destination.write(block)
+                                remaining -= len(block)
 
             # Diarize speakers if requested. --auto-detect-speakers first runs a
             # cheap sampled pre-check to decide whether the full pass is needed;
@@ -3371,8 +3679,8 @@ def main():
                 progress.start("Detect speakers")
                 device_str = resolve_cuda_device(_lazy_import_torch())
                 verdict, evidence, detection_pipeline = detect_speaker_count(
-                    audio_24k_path, args.hf_token, device=device_str,
-                    duration_secs=duration_secs)
+                    diarization_audio_path, args.hf_token, device=device_str,
+                    duration_secs=diarization_duration)
                 if verdict is False:
                     logger.info(f"  ✓ Single narrator detected across {len(evidence)} sampled "
                                 "window(s); skipping full diarization.")
@@ -3387,12 +3695,13 @@ def main():
             if run_diarization:
                 progress.start("Diarize speakers")
                 device_str = resolve_cuda_device(_lazy_import_torch())
-                speaker_segments = diarize_audio(audio_24k_path, args.hf_token, device=device_str,
+                speaker_segments = diarize_audio(diarization_audio_path, args.hf_token, device=device_str,
                                                  pipeline=detection_pipeline)
+                diarization_path = os.path.join(temp_dir, "diarization.json")
+                write_json_atomic(speaker_segments, diarization_path)
+                mark_artifact_complete(temp_dir, run_identity, 'diarization',
+                                       diarization_path)
                 if speaker_segments:
-                    diarization_path = os.path.join(temp_dir, "diarization.json")
-                    with open(diarization_path, "w") as f:
-                        json.dump(speaker_segments, f, indent=2)
                     logger.info(f"  ✓ Found {len(speaker_segments)} speaker segments. Saved to {diarization_path}")
                 else:
                     logger.warning("  ⚠ Diarization produced no segments. Continuing without speaker data.")
@@ -3408,16 +3717,18 @@ def main():
 
             # Save ASR results for next phase
             logger.info(f"▶ Saving ASR segments to {asr_output_path}...")
-            with open(asr_output_path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "detected_lang": detected_lang,
-                    "word_segments": word_segments,
-                    "audio_duration": duration_secs
-                }, f)
+            write_json_atomic({
+                "detected_lang": detected_lang,
+                "word_segments": word_segments,
+                "audio_duration": duration_secs
+            }, asr_output_path)
+            mark_artifact_complete(temp_dir, run_identity, 'asr', asr_output_path)
 
             del audio_16k
             clear_vram()
             progress.complete()
+            if args.alignment_report:
+                save_source_alignment_prescan(word_segments, args, run_identity)
             logger.info("✓ ASR Phase completed successfully.")
             return 0
 
@@ -3426,8 +3737,8 @@ def main():
             logger.info("PHASE: LLM Enrichment")
             logger.info("-" * 70)
 
-            if not os.path.exists(asr_output_path):
-                logger.error(f"ASR results not found at {asr_output_path}. Run ASR phase first.")
+            if not is_verified_artifact(temp_dir, run_identity, 'asr', asr_output_path):
+                logger.error(f"ASR results are not complete for this run at {asr_output_path}.")
                 sys.exit(1)
 
             if not args.llm_model_path:
@@ -3444,7 +3755,7 @@ def main():
             word_segments = asr_data.get("word_segments", [])
             
             # Group words into chunks (e.g., 10 seconds per chunk)
-            chunk_duration = 10.0  # seconds
+            chunk_duration = args.chunk_size
             chunks = []
             current_chunk_words = []
             chunk_start = None
@@ -3491,7 +3802,7 @@ def main():
                 json.dump(chunks, f, indent=2)
 
             # Build command for llm_enricher.py
-            enrich_cmd = [sys.executable, "llm_enricher.py",
+            enrich_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "llm_enricher.py"),
                          "--model-path", args.llm_model_path,
                          "--input-file", asr_chunks_path,
                          "--output-file", enriched_output_path]
@@ -3535,8 +3846,9 @@ def main():
                 "word_segments": enriched_word_segments,
                 "detected_lang": asr_data.get("detected_lang", "en"),
             }
-            with open(enriched_output_path, "w", encoding="utf-8") as f:
-                json.dump(enriched_asr_data, f, indent=2)
+            write_json_atomic(enriched_asr_data, enriched_output_path)
+            mark_artifact_complete(temp_dir, run_identity, 'enriched',
+                                   enriched_output_path)
 
             logger.info(f"  Reconstructed {len(enriched_word_segments)} word segments from {len(enriched_chunks)} enriched chunks")
             logger.info("✓ LLM Enrichment Phase completed successfully.")
@@ -3547,16 +3859,17 @@ def main():
             logger.info(f"PHASE: Annotation")
             logger.info("-" * 70)
 
-            if not os.path.exists(asr_output_path):
-                logger.error(f"ASR results not found at {asr_output_path}. Run ASR phase first.")
+            if not is_verified_artifact(temp_dir, run_identity, 'asr', asr_output_path):
+                logger.error(f"ASR results are not complete for this run at {asr_output_path}.")
                 sys.exit(1)
 
-            # Ensure scratch audio exists — recreate if missing (e.g., after phase subprocess restart)
+            # Reuse only scratch owned by this exact run; recreate if absent.
+            validate_scratch_path(temp_dir, run_identity, audio_24k_path)
             if not os.path.exists(audio_24k_path):
                 logger.info(f"▶ Scratch audio not found at {audio_24k_path}, recreating from source...")
-                is_oversized, _, _ = _wav_overflow_info(args.audio)
-                if is_oversized:
-                    logger.info("  Using ffmpeg loader (oversized WAV)")
+                is_oversized, input_duration, _ = _wav_overflow_info(args.audio)
+                if is_oversized or input_duration > 600:
+                    logger.info("  Using file-backed ffmpeg loader for long audio")
                     _ffmpeg_decode_to_wav(args.audio, audio_24k_path, 24000, mono=True)
                 else:
                     l = _lazy_import_librosa()
@@ -3569,26 +3882,21 @@ def main():
                     sf.write(audio_24k_path, audio_24k, 24000, subtype="PCM_16")
                     del audio_native, audio_24k
                 logger.info(f"  Scratch audio recreated: {audio_24k_path}")
+                mark_artifact_complete(temp_dir, run_identity, 'scratch', audio_24k_path)
 
-            # Check if enriched data exists (from LLM enrichment phase)
+            # Only a completed enrichment phase for this run may supply words.
             enriched_output_path = os.path.join("dataset_temp", "enriched_segments.json")
-            use_enriched = os.path.exists(enriched_output_path)
+            use_enriched = args.enrich_with_llm and is_verified_artifact(
+                temp_dir, run_identity, 'enriched', enriched_output_path)
+            if args.enrich_with_llm and not use_enriched:
+                raise RunStateError('Requested enrichment artifact is incomplete or stale')
 
             if use_enriched:
                 logger.info(f"▶ Loading enriched results from {enriched_output_path}...")
                 with open(enriched_output_path, "r", encoding="utf-8") as f:
                     enriched_data = json.load(f)
-                # The enriched data should contain word_segments with additional metadata
-                if isinstance(enriched_data, dict) and "word_segments" in enriched_data:
-                    word_segments = enriched_data["word_segments"]
-                    detected_lang = enriched_data.get("detected_lang", "en")
-                else:
-                    # Assume it's a list of enriched segments
-                    word_segments = enriched_data
-                    # Try to load detected_lang from original ASR output
-                    with open(asr_output_path, "r", encoding="utf-8") as f:
-                        asr_data = json.load(f)
-                        detected_lang = asr_data.get("detected_lang", "en")
+                word_segments = enriched_data["word_segments"]
+                detected_lang = enriched_data.get("detected_lang", "en")
                 logger.info("  Using LLM-enriched transcript data")
             else:
                 logger.info(f"▶ Loading ASR results from {asr_output_path}...")
@@ -3600,14 +3908,25 @@ def main():
             # Load diarization results if they exist
             diarization_path = os.path.join(temp_dir, "diarization.json")
             speaker_segments = []
-            if os.path.exists(diarization_path):
+            diarization_verified = ((args.diarize or args.auto_detect_speakers)
+                                     and is_verified_artifact(
+                                         temp_dir, run_identity, 'diarization',
+                                         diarization_path))
+            if args.diarize and not diarization_verified:
+                raise RunStateError('Requested diarization artifact is incomplete or stale')
+            if diarization_verified:
                 logger.info(f"▶ Loading diarization results from {diarization_path}...")
                 with open(diarization_path, "r") as f:
                     speaker_segments = json.load(f)
-                if not INTERVALTREE_AVAILABLE:
+                if speaker_segments and not INTERVALTREE_AVAILABLE:
                     logger.error("✗ 'intervaltree' package required for speaker diarization assignment. Install with: pip install intervaltree")
                     sys.exit(1)
-                word_segments, unique_speakers = _assign_speakers_to_words(word_segments, speaker_segments)
+                if speaker_segments:
+                    word_segments, unique_speakers = _assign_speakers_to_words(word_segments, speaker_segments)
+                else:
+                    unique_speakers = {"UNKNOWN"}
+                    for word in word_segments:
+                        word["speaker"] = "UNKNOWN"
             else:
                 unique_speakers = {"UNKNOWN"}
                 for word in word_segments:
@@ -3616,24 +3935,14 @@ def main():
             # ── Optional: source-guided chunking ──────────────────────────────────
             source_state = None
             if args.source:
-                entries_for_anchor = _build_provisional_entries_for_anchor(
-                    word_segments, args.chunk_size, max_entries=30
-                )
-                source_state = _build_source_state(
-                    args.source,
-                    source_start=args.source_start,
-                    source_start_text=args.source_start_text,
-                    no_auto_anchor=args.no_auto_anchor,
-                    entries_for_anchor=entries_for_anchor,
-                )
-                avg, n_sampled, low_ct, _ = alignment.estimate_alignment_quality(
-                    entries_for_anchor, source_state['orig_match'], source_state['cursor'],
-                    start_entry_idx=source_state['anchor_entry_idx'],
-                    threshold=args.source_threshold
-                )
+                source_state, quality = get_source_alignment_prescan(
+                    word_segments, args.chunk_size, args.source,
+                    source_start=args.source_start, source_start_text=args.source_start_text,
+                    no_auto_anchor=args.no_auto_anchor, source_threshold=args.source_threshold)
+                avg, n_sampled, low_ct, _ = quality
                 if n_sampled >= 10:
                     pct_low = low_ct / n_sampled
-                    if avg < 0.50 or pct_low > 0.40:
+                    if (avg < 0.50 or pct_low > 0.40) and not args.keep_unaligned:
                         sys.exit(
                             f"\n⚠ Source/audio divergence too high to proceed:\n"
                             f"  Sampled {n_sampled} chunks — avg alignment {avg:.0%}, "
@@ -3662,6 +3971,8 @@ def main():
                 character=args.character,
                 narrator_style=args.narrator_style,
                 batch_size=args.batch_size,
+                run_identity=run_identity,
+                summary_output=args.summary_output,
             )
             logger.info(f"  Chunks annotated: {len(metadata)}")
             progress.complete()
@@ -3683,6 +3994,10 @@ def main():
         logger.info(f"Partial results preserved in dataset_temp/ - rerun with --resume to continue")
         return 1
     finally:
+        if diarization_temp_dir is not None:
+            diarization_temp_dir.cleanup()
+        if decode_temp_dir is not None:
+            decode_temp_dir.cleanup()
         # Only clean up the scratch audio file after the final phase (annotation)
         # or if we are not using the phase orchestration.
         # Preserve it during the 'asr' and 'enrich' phases so 'annotate' can use
@@ -3691,7 +4006,8 @@ def main():
         # original source (it has a recreate-if-missing fallback, so this was
         # never a correctness bug, just wasted work whenever --enrich-with-llm
         # is combined with the phase orchestrator).
-        if args.phase not in ("asr", "enrich") and os.path.exists(audio_24k_scratch):
+        if (args.scratch_audio is None and args.phase not in ("asr", "enrich")
+                and os.path.exists(audio_24k_scratch)):
             try:
                 os.remove(audio_24k_scratch)
                 logger.debug(f"Removed scratch audio: {audio_24k_scratch}")

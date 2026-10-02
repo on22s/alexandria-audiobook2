@@ -1,6 +1,5 @@
 """Merge cancel, export progress, export zip, and the LLM model picker."""
 import asyncio
-import io
 import os
 import sys
 import tempfile
@@ -99,14 +98,13 @@ class ExportZipRouteTests(unittest.TestCase):
             with patch.object(editor_module, "AUDIOBOOK_PATH", mp3), \
                  patch.object(editor_module, "M4B_PATH", os.path.join(tmp, "b.m4b")):
                 resp = asyncio.run(editor_module.export_zip())
-            async def drain():
-                return b"".join([c async for c in resp.body_iterator])
-            body = asyncio.run(drain())
+            with zipfile.ZipFile(resp.path) as zf:
+                self.assertEqual(["audiobook.mp3"], zf.namelist())
+                self.assertEqual(b"MP3BYTES", zf.read("audiobook.mp3"))
+            asyncio.run(resp.background())
+            self.assertFalse(os.path.exists(resp.path))
         self.assertEqual("application/zip", resp.media_type)
         self.assertIn("alexandria_export.zip", resp.headers["content-disposition"])
-        with zipfile.ZipFile(io.BytesIO(body)) as zf:
-            self.assertEqual(["audiobook.mp3"], zf.namelist())
-            self.assertEqual(b"MP3BYTES", zf.read("audiobook.mp3"))
 
 
 class _FakeModels:
@@ -136,9 +134,9 @@ class LlmModelsRouteTests(unittest.TestCase):
         _FakeClient.made.clear()
         with patch("llm_provider.make_llm_client", _FakeClient):
             result = asyncio.run(system_module.llm_models(
-                system_module.LlmModelsRequest(base_url="http://h:1234/", api_key="k")))
+                system_module.LlmModelsRequest(base_url="http://127.0.0.1:1234/", api_key="k")))
         self.assertEqual({"models": ["alpha", "zeta"]}, result)
-        self.assertEqual("http://h:1234/v1", _FakeClient.made[0][0]["base_url"])
+        self.assertEqual("http://127.0.0.1:1234/v1", _FakeClient.made[0][0]["base_url"])
         self.assertEqual("k", _FakeClient.made[0][0]["api_key"])
 
     def test_unreachable_endpoint_is_reported_not_raised(self):
@@ -146,7 +144,7 @@ class LlmModelsRouteTests(unittest.TestCase):
             raise ConnectionError("refused")
         with patch("llm_provider.make_llm_client", boom):
             result = asyncio.run(system_module.llm_models(
-                system_module.LlmModelsRequest(base_url="http://h:1234/v1")))
+                system_module.LlmModelsRequest(base_url="http://127.0.0.1:1234/v1")))
         self.assertEqual([], result["models"])
         self.assertIn("refused", result["error"])
 

@@ -49,14 +49,15 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def book_context(book):
     """Scored lines in reading order, with their gold speakers."""
     path = APP + f"fixtures/attribution_gold_{book}.json"
     if not os.path.exists(path):
         return None
     gold = json.load(open(path))
-    seg = json.load(open(
-        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))["segmented"]
+    seg = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")["segmented"]
     occ = collections.Counter(norm(e.get("text")) for e in seg)
     pos = {}
     for index, entry in enumerate(seg):

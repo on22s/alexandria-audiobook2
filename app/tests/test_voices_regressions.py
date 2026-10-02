@@ -1,5 +1,6 @@
 import importlib.util
 import asyncio
+import copy
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,23 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
+    def setUp(self):
+        state = copy.deepcopy(core_module.process_state)
+        for value in state.values():
+            value['running'] = False
+        for owner, name, value in ((core_module, 'process_state', state),
+                                  (voices_module, 'process_state', state),
+                                  (core_module, '_task_claims', {}),
+                                  (core_module, '_gpu_leases', {})):
+            context = patch.object(owner, name, value)
+            context.start()
+            self.addCleanup(context.stop)
+        for context in (patch.object(core_module, 'acquire_gpu_lock', return_value=None),
+                        patch.object(core_module, 'llm_is_on_this_gpu', return_value=True)):
+            context.start()
+            self.addCleanup(context.stop)
+        self.addCleanup(core_module.release_pending_task_claims)
+
     def test_persona_recovery_requires_integrity_fields(self):
         with self.assertRaises(voices_module.HTTPException) as missing:
             voices_module._validate_persona_recovery('{"description":"only"}')
@@ -62,14 +80,14 @@ class VoicesTests(unittest.TestCase):
             with patch.object(voices_module, "SCRIPT_PATH", script_path), \
                  patch.object(voices_module, "VOICE_CONFIG_PATH", config_path), \
                  patch.object(voices_module, "check_global_gpu_lock"), \
-                 patch.object(voices_module, "claim_gpu_task"), \
+                 patch.object(core_module, "claim_gpu_task", wraps=core_module.claim_gpu_task), \
                  patch.object(voices_module, "run_process"):
                 result = asyncio.run(voices_module.recover_persona(tasks, voices_module.PersonaRecoveryRequest(
                     speaker="Hero", resume=True,
                     persona_json='{"description":"steady", "ref_text":"I am ready."}')))
             self.assertEqual("resuming", result["status"])
             self.assertEqual(1, len(tasks.tasks))
-            self.assertIn("--recovered-speaker", tasks.tasks[0].args[0])
+            self.assertIn("--recovered-speaker", tasks.tasks[0].args[2].args[0])
 
     def test_dynamic_narrator_strategy_resolves_focus_voice(self):
         narrator = {"type": "custom", "voice": "Ryan", "narrator_strategy": "focus"}
@@ -181,16 +199,16 @@ class VoicesTests(unittest.TestCase):
             with patch.object(voices_module, "SCRIPT_PATH", script_path), \
                  patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "voices.json")), \
                  patch.object(voices_module, "check_global_gpu_lock"), \
-                 patch.object(voices_module, "claim_gpu_task"), \
+                 patch.object(core_module, "claim_gpu_task", wraps=core_module.claim_gpu_task), \
                  patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)), \
                  patch.object(voices_module, "run_process"):
                 result = asyncio.run(voices_module.generate_personas(
                     tasks, voices_module.GeneratePersonasRequest(speaker="Hero", age_group="teen")))
             self.assertEqual("started", result["status"])
-            self.assertIn("--speakers", tasks.tasks[0].args[0])
-            self.assertIn("Hero", tasks.tasks[0].args[0])
-            self.assertIn("--age-group", tasks.tasks[0].args[0])
-            self.assertIn("teen", tasks.tasks[0].args[0])
+            self.assertIn("--speakers", tasks.tasks[0].args[2].args[0])
+            self.assertIn("Hero", tasks.tasks[0].args[2].args[0])
+            self.assertIn("--age-group", tasks.tasks[0].args[2].args[0])
+            self.assertIn("teen", tasks.tasks[0].args[2].args[0])
 
     def test_has_a_voice_means_a_persona_or_an_assigned_voice_not_a_bare_entry(self):
         """The Voices tab writes a default custom entry for every character on
@@ -226,12 +244,15 @@ class VoicesTests(unittest.TestCase):
                 with patch.object(voices_module, "SCRIPT_PATH", script_path), \
                      patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "voices.json")), \
                      patch.object(voices_module, "check_global_gpu_lock"), \
-                     patch.object(voices_module, "claim_gpu_task"), \
+                     patch.object(core_module, "claim_gpu_task", wraps=core_module.claim_gpu_task), \
                      patch.object(voices_module, "project_manager", SimpleNamespace(engine=None)), \
                      patch.object(voices_module, "run_process"):
                     asyncio.run(voices_module.generate_personas(
                         tasks, voices_module.GeneratePersonasRequest(new_only=new_only)))
-                commands.append(tasks.tasks[0].args[0])
+                commands.append(tasks.tasks[0].args[2].args[0])
+                self.assertTrue(core_module.is_task_running("persona"))
+                core_module.release_pending_task_claims()
+                self.assertFalse(core_module.is_task_running("persona"))
             self.assertIn("--new-only", commands[0])
             self.assertNotIn("--new-only", commands[1])
             self.assertFalse(voices_module.GeneratePersonasRequest().new_only)
@@ -853,6 +874,39 @@ class VoicesTests(unittest.TestCase):
             self.assertEqual("old", result["persona_voice_audit"]["voice_adapter_id"])
             self.assertEqual("p1", result["persona_voice_audit"]["persona_ref"])
 
+    def test_prompt_construction_errors_return_marked_copy_without_calling_model(self):
+        from unittest.mock import Mock
+        fake_llama = SimpleNamespace(Llama=object, llama_supports_gpu_offload=lambda: True)
+        path = Path(__file__).resolve().parent.parent.parent / "llm_enricher.py"
+        with patch.dict(sys.modules, {"llama_cpp": fake_llama}):
+            spec = importlib.util.spec_from_file_location("test_llm_enricher_prompt_errors", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        enricher = module.LLMEnricher.__new__(module.LLMEnricher)
+        enricher.fields = ["emotional_tone"]
+        enricher.llm = Mock(return_value={"choices": [{"text": '{"emotional_tone":"calm"}'}]})
+        for field in ("start", "end"):
+            for value in (None, "bad timestamp", [], {}):
+                with self.subTest(field=field, value=value):
+                    chunk = {"text": "Keep this original.", "speaker": "Alice",
+                             "start": 0.0, "end": 1.0, "user_metadata": {"keep": True}}
+                    chunk[field] = value
+                    original = json.loads(json.dumps(chunk))
+                    with self.assertLogs(module.logger, level="ERROR") as logs:
+                        result = enricher.enrich_transcript_chunk(chunk)
+                    self.assertEqual({**original, "_enrichment_failed": True}, result)
+                    self.assertIsNot(chunk, result)
+                    self.assertEqual(original, chunk)
+                    self.assertTrue(any("Error during LLM enrichment" in line for line in logs.output))
+                    enricher.llm.assert_not_called()
+        chunk = {"text": "A valid line.", "speaker": "Alice", "start": 0.0, "end": 1.0}
+        result = enricher.enrich_transcript_chunk(chunk)
+        self.assertEqual({**chunk, "emotional_tone": "calm"}, result)
+        enricher.llm.assert_called_once()
+        self.assertIn("Start Time: 0.00s", enricher.llm.call_args.args[0])
+        self.assertEqual({"max_tokens": 150, "stop": ["</s>"], "temperature": 0.7}, enricher.llm.call_args.kwargs)
+        self.assertNotIn("emotional_tone", chunk)
+
     def test_selective_enrichment_prompt(self):
         fake_llama = SimpleNamespace(Llama=object, llama_supports_gpu_offload=lambda: True)
         path = Path(__file__).resolve().parent.parent.parent / "llm_enricher.py"
@@ -870,3 +924,413 @@ class VoicesTests(unittest.TestCase):
             enricher._parse_llm_output('{"emotional_tone": "calm"}')["emotional_tone"],
             "calm",
         )
+
+    def test_enrichment_write_failure_preserves_previous_output(self):
+        fake_llama = SimpleNamespace(Llama=object, llama_supports_gpu_offload=lambda: True)
+        path = Path(__file__).resolve().parent.parent.parent / "llm_enricher.py"
+        with patch.dict(sys.modules, {"llama_cpp": fake_llama}):
+            spec = importlib.util.spec_from_file_location("test_llm_enricher_atomic", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp, "enriched.json")
+            output.write_text('[{"old": true}]')
+            with patch.object(module.os, "replace", side_effect=OSError("rename failed")):
+                with self.assertRaisesRegex(OSError, "rename failed"):
+                    module.save_enriched_transcript([{"new": True}], str(output))
+            self.assertEqual('[{"old": true}]', output.read_text())
+            self.assertEqual(["enriched.json"], sorted(p.name for p in Path(tmp).iterdir()))
+
+
+class VoiceMetadataIdentityTests(unittest.TestCase):
+    def setUp(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.script = Path(directory.name)/'script.json'
+        self.config = Path(directory.name)/'voices.json'
+        self.script.write_text(json.dumps([{'speaker': 'Hero', 'text': 'Hello.'}]), encoding='utf-8')
+        self.config.write_text(json.dumps({'Hero': {'type': 'custom', 'voice': 'Ryan',
+            'candidates': [{'candidate_id': 'other', 'type': 'custom', 'voice': 'Serena'}]},
+            'Unrelated': {'voice': 'Dylan'}}), encoding='utf-8')
+        self.script_bytes = self.script.read_bytes()
+        for field, path in (('SCRIPT_PATH', self.script), ('VOICE_CONFIG_PATH', self.config)):
+            patcher = patch.object(voices_module, field, str(path))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        api = FastAPI()
+        api.include_router(voices_module.router)
+        self.client = TestClient(api)
+        self.addCleanup(self.client.close)
+
+    def test_explicit_version_age_wins_nested_config_on_save_and_select(self):
+        for index, nested_age in enumerate((None, 7, [], {}, '', 'elderly')):
+            with self.subTest(nested_age=nested_age):
+                version = 'v' + str(index)
+                payload = {'version_id': version, 'age_group': 'teen',
+                           'config': {'type': 'custom', 'voice': 'Serena', 'age_group': nested_age}}
+                before = json.dumps(payload)
+                response = self.client.post('/api/voices/Hero/versions', json=payload)
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual('teen', response.json()['versions'][version]['age_group'])
+                selected = self.client.post('/api/voices/Hero/versions/'+version+'/select')
+                self.assertEqual(200, selected.status_code, selected.text)
+                self.assertEqual('teen', selected.json()['config']['age_group'])
+                stored = json.loads(self.config.read_text())
+                self.assertEqual('teen', stored['Hero']['versions'][version]['age_group'])
+                self.assertEqual('Serena', stored['Hero']['voice'])
+                self.assertEqual({'voice': 'Dylan'}, stored['Unrelated'])
+                self.assertEqual(before, json.dumps(payload))
+        self.assertEqual(self.script_bytes, self.script.read_bytes())
+        before = self.config.read_bytes()
+        rejected = self.client.post('/api/voices/Hero/versions',
+                                    json={'version_id': 'bad', 'age_group': None, 'config': {}})
+        self.assertEqual(422, rejected.status_code)
+        self.assertEqual(before, self.config.read_bytes())
+
+    def test_explicit_candidate_id_supports_replace_select_favorite_and_delete(self):
+        for index, nested_id in enumerate(('other', None, [], {}, 7)):
+            with self.subTest(nested_id=nested_id):
+                payload = {'candidate_id': 'wanted', 'config': {
+                    'candidate_id': nested_id, 'type': 'custom', 'voice': 'Dylan',
+                    'character_style': 'variant '+str(index)}}
+                before = json.dumps(payload)
+                response = self.client.post('/api/voices/Hero/candidates', json=payload)
+                self.assertEqual(200, response.status_code, response.text)
+                candidates = response.json()['candidates']
+                self.assertEqual(1, len([c for c in candidates if c['candidate_id']=='wanted']))
+                self.assertEqual({'candidate_id': 'other', 'type': 'custom', 'voice': 'Serena'},
+                                 next(c for c in candidates if c['candidate_id']=='other'))
+                selected = self.client.post('/api/voices/Hero/candidates/wanted/select')
+                self.assertEqual(200, selected.status_code, selected.text)
+                self.assertEqual('wanted', selected.json()['config']['active_candidate'])
+                self.assertEqual('variant '+str(index), selected.json()['config']['character_style'])
+                favorite = self.client.post('/api/voices/Hero/candidates/wanted/favorite', json={'favorite': True})
+                self.assertEqual(200, favorite.status_code, favorite.text)
+                self.assertTrue(favorite.json()['favorite'])
+                stored = json.loads(self.config.read_text())
+                self.assertTrue(next(c for c in stored['Hero']['candidates'] if c['candidate_id']=='wanted')['favorite'])
+                self.assertEqual(before, json.dumps(payload))
+        deleted = self.client.delete('/api/voices/Hero/candidates/wanted')
+        self.assertEqual(200, deleted.status_code, deleted.text)
+        stored = json.loads(self.config.read_text())
+        self.assertEqual(['other'], [c['candidate_id'] for c in stored['Hero']['candidates']])
+        self.assertNotIn('active_candidate', stored['Hero'])
+        self.assertEqual({'voice': 'Dylan'}, stored['Unrelated'])
+        self.assertEqual(self.script_bytes, self.script.read_bytes())
+
+
+class VoiceListShapeTests(unittest.TestCase):
+    def test_wrong_top_level_script_shapes_return_empty_list_without_writes(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(voices_module.router)
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            script = Path(tmp) / 'script.json'
+            config = Path(tmp) / 'voices.json'
+            config.write_text('{"Hero":{"type":"lora","adapter_id":"a"}}')
+            original_config = config.read_bytes()
+            with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
+                 patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
+                for value in ({'speaker': 'Hero'}, 'Hero', 7, True, None):
+                    with self.subTest(value=value):
+                        script.write_text(json.dumps(value))
+                        original_script = script.read_bytes()
+                        response = client.get('/api/voices')
+                        self.assertEqual(200, response.status_code)
+                        self.assertEqual([], response.json())
+                        self.assertEqual(original_script, script.read_bytes())
+                        self.assertEqual(original_config, config.read_bytes())
+
+    def test_non_object_rows_do_not_hide_valid_speakers_or_change_source(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(voices_module.router)
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            script = Path(tmp) / 'script.json'
+            config = Path(tmp) / 'voices.json'
+            script.write_text(json.dumps([None, 'bad', 7, True, [],
+                {'speaker': 'Hero'}, {'type': 'Narrator'}, {'speaker': 'Hero'}]))
+            original_script = script.read_bytes()
+            voice = {'type': 'lora', 'adapter_id': 'a', 'extra': {'preserve': 1}}
+            config.write_text(json.dumps({'Hero': voice}))
+            original_config = config.read_bytes()
+            with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
+                 patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
+                response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code)
+            self.assertEqual([{'name': 'Hero', 'config': voice, 'persona_pending': False},
+                {'name': 'Narrator', 'config': {}, 'persona_pending': True}], response.json())
+            self.assertEqual(original_script, script.read_bytes())
+            self.assertEqual(original_config, config.read_bytes())
+
+    def test_wrong_config_shapes_use_empty_config_without_overwriting_file(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(voices_module.router)
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            script = Path(tmp) / 'script.json'
+            config = Path(tmp) / 'voices.json'
+            script.write_text('[{"speaker":"Hero"}]')
+            original_script = script.read_bytes()
+            with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
+                 patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
+                for value in ([], ['bad'], 'bad', 7, True, None):
+                    with self.subTest(value=value):
+                        config.write_text(json.dumps(value))
+                        original_config = config.read_bytes()
+                        response = client.get('/api/voices')
+                        self.assertEqual(200, response.status_code)
+                        self.assertEqual([{'name': 'Hero', 'config': {},
+                            'persona_pending': True}], response.json())
+                        self.assertEqual(original_script, script.read_bytes())
+                        self.assertEqual(original_config, config.read_bytes())
+
+
+class LibraryConfigShapeTests(unittest.TestCase):
+    def test_unusable_config_is_not_saved_to_cast_or_changed(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(voice_library_module.router)
+        library = {'favorites': [], 'shared': {}, 'casts': {'series': {'members': {'existing': {
+            'name': 'Existing', 'config': {'type': 'custom', 'voice': 'Ryan'}}}}}}
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            config = Path(tmp) / 'voices.json'
+            library_path = Path(tmp) / 'library.json'
+            library_path.write_text(json.dumps(library))
+            with patch.object(voice_library_module, 'VOICE_CONFIG_PATH', str(config)), \
+                 patch.object(voice_library_module, 'SCRIPT_PATH', str(Path(tmp) / 'script.json')), \
+                 patch.object(voice_library_module, 'VOICE_LIBRARY_PATH', str(library_path)), \
+                 patch.object(core_module, 'VOICE_LIBRARY_PATH', str(library_path)), \
+                 patch.object(voice_library_module, '_script_line_counts', return_value={'Hero': 1}), \
+                 patch.object(voice_library_module, 'get_active_book_id', return_value='book'):
+                for value in ([], ['bad'], 'bad', 7, True, None):
+                    with self.subTest(value=value):
+                        config.write_text(json.dumps(value))
+                        original = config.read_bytes()
+                        response = client.post('/api/voice_library/save', json={
+                            'cast': 'series', 'characters': ['Hero']})
+                        self.assertEqual(200, response.status_code)
+                        self.assertEqual({'cast': [], 'shared': []}, response.json()['saved'])
+                        self.assertEqual(original, config.read_bytes())
+                        self.assertEqual(library, json.loads(library_path.read_bytes()))
+                voice = {'type': 'custom', 'voice': 'Ryan', 'description': 'steady'}
+                config.write_text(json.dumps({'Hero': voice}))
+                original = config.read_bytes()
+                response = client.post('/api/voice_library/save', json={
+                    'cast': 'series', 'characters': ['Hero']})
+                self.assertEqual(200, response.status_code)
+                self.assertEqual({'cast': ['Hero'], 'shared': []}, response.json()['saved'])
+                saved = json.loads(library_path.read_bytes())
+                self.assertEqual(voice, saved['casts']['series']['members']['hero']['config'])
+                self.assertEqual(library['casts']['series']['members']['existing'],
+                    saved['casts']['series']['members']['existing'])
+                self.assertEqual(original, config.read_bytes())
+
+
+class SuggestionSelectionMetadataTests(unittest.TestCase):
+    def test_new_adapter_clears_active_markers_and_preserves_history(self):
+        candidate = {'adapter_id': 'new', 'type': 'lora', 'name': 'New'}
+        suggestion = {'adapter_id': 'new', 'character_style': 'calm', 'book_id': 'book'}
+        for cast in (None, 'series'):
+            with self.subTest(cast=cast), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / 'voices.json'
+                library_path = Path(tmp) / 'library.json'
+                history = {'old-version': {'type': 'lora', 'adapter_id': 'old'}}
+                candidates = [{'candidate_id': 'old-candidate', 'config': {'adapter_id': 'old'}}]
+                old_voice = {'type': 'lora', 'adapter_id': 'old',
+                    'active_candidate': 'old-candidate', 'active_version': 'old-version',
+                    'versions': history, 'candidates': candidates, 'description': 'steady'}
+                other = {'type': 'custom', 'voice': 'Ryan'}
+                config.write_text(json.dumps({'Hero': old_voice, 'Other': other}))
+                library_path.write_text(json.dumps({'shared': {}, 'casts': {'series': {'members': {}}}}))
+                with patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)), \
+                     patch.object(voices_module, 'VOICE_LIBRARY_PATH', str(library_path)), \
+                     patch.object(core_module, 'VOICE_LIBRARY_PATH', str(library_path)), \
+                     patch.object(voices_module, '_script_line_counts', return_value={'Hero': 1}), \
+                     patch.object(voices_module, 'get_active_book_id', return_value='book'), \
+                     patch.object(voices_module, '_build_lora_candidates', return_value=[candidate]):
+                    result = voices_module._apply_voice_suggestions({'Hero': suggestion}, cast)
+                self.assertEqual(['Hero'], result['applied'])
+                saved = json.loads(config.read_bytes())
+                voice = saved['Hero']
+                self.assertEqual('new', voice['adapter_id'])
+                self.assertEqual('lora_models/new', voice['adapter_path'])
+                self.assertEqual('calm', voice['character_style'])
+                self.assertNotIn('active_candidate', voice)
+                self.assertNotIn('active_version', voice)
+                self.assertEqual(history, voice['versions'])
+                self.assertEqual(candidates, voice['candidates'])
+                self.assertEqual('steady', voice['description'])
+                self.assertEqual(other, saved['Other'])
+                if cast:
+                    member = json.loads(library_path.read_bytes())['casts']['series']['members']['hero']
+                    self.assertEqual('new', member['config']['adapter_id'])
+                    self.assertNotIn('active_candidate', member['config'])
+                    self.assertNotIn('active_version', member['config'])
+
+
+class DialogueCollectionWorkTests(unittest.TestCase):
+    def test_per_character_uniqueness_is_linear_and_keeps_first_seen_order(self):
+        class StopBeforeInference(Exception):
+            pass
+
+        class CountedText(str):
+            comparisons = 0
+            __hash__ = str.__hash__
+
+            def strip(self):
+                return self
+
+            def __eq__(self, other):
+                type(self).comparisons += 1
+                return super().__eq__(other)
+
+        for count in (128, 512):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
+                lines = [CountedText('line-%04d' % index) for index in range(count)]
+                repeated = [CountedText(str(line)) for line in lines]
+                rows = [{'speaker': 'Hero', 'text': line} for line in lines + repeated]
+                rows += [{'speaker': 'Other', 'text': CountedText('line-0000')}]
+                script = Path(tmp) / 'script.json'
+                script.write_text('[]')
+                before = script.read_bytes()
+                collected = {}
+
+                def capture(speaker, _profile, dialogue):
+                    collected[speaker] = [str(line) for line in dialogue]
+                    if speaker == 'Other':
+                        raise StopBeforeInference()
+                    return {'gender': 'unknown', 'age_group': 'unknown',
+                        'gender_confidence': 'unknown', 'age_confidence': 'unknown'}
+
+                CountedText.comparisons = 0
+                with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
+                     patch.object(voices_module, 'VOICE_CONFIG_PATH', str(Path(tmp) / 'missing.json')), \
+                     patch.object(voices_module.json, 'load', return_value=rows), \
+                     patch.object(voices_module, '_build_lora_candidates', return_value=[{'adapter_id': 'a'}]), \
+                     patch.object(voices_module, '_load_voice_library', return_value={'shared': {}, 'casts': {}}), \
+                     patch.object(voices_module, '_script_line_counts', return_value={}), \
+                     patch.object(voices_module, 'get_active_book_id', return_value='book'), \
+                     patch.object(voices_module, '_infer_character_traits', side_effect=capture), \
+                     patch.object(voices_module, '_make_llm_client') as client:
+                    with self.assertRaises(StopBeforeInference):
+                        voices_module._suggest_voices_impl(voices_module.SuggestVoicesRequest())
+                self.assertEqual([str(line) for line in lines], collected['Hero'])
+                self.assertEqual(['line-0000'], collected['Other'])
+                self.assertLessEqual(CountedText.comparisons, 3 * count)
+                self.assertEqual(before, script.read_bytes())
+                client.assert_not_called()
+
+
+class MissingBulkBookTests(unittest.TestCase):
+    def test_missing_selected_books_report_errors_without_blocking_valid_books(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(voice_library_module.router)
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
+            root = Path(tmp)
+            scripts = root / 'scripts'
+            scripts.mkdir()
+            (scripts / 'directory.json').mkdir()
+            (scripts / 'missing.voice_config.json').write_text('{"Orphan":{"preserve":true}}')
+            (scripts / 'directory.voice_config.json').write_text('{"Other":{"preserve":true}}')
+            (scripts / 'valid.json').write_text('[{"speaker":"Hero","text":"A line."}]')
+            (scripts / 'empty.json').write_text('[{"speaker":"Other","text":"Other line."}]')
+            (scripts / 'valid.voice_config.json').write_text('{"Other":{"type":"custom","voice":"Ryan"}}')
+            voice = {'type': 'lora', 'adapter_id': 'new', 'adapter_path': 'lora_models/new'}
+            library = root / 'library.json'
+            library.write_text(json.dumps({'favorites': [], 'shared': {}, 'casts': {'series': {
+                'members': {'hero': {'name': 'Hero', 'config': voice}}}}}))
+            preserved = {p.name: p.read_bytes() for p in scripts.iterdir()
+                         if p.is_file() and p.name != 'valid.voice_config.json'}
+            with patch.object(voice_library_module, 'SCRIPTS_DIR', str(scripts)), \
+                 patch.object(core_module, 'SCRIPTS_DIR', str(scripts)), \
+                 patch.object(voice_library_module, 'VOICE_LIBRARY_PATH', str(library)), \
+                 patch.object(core_module, 'VOICE_LIBRARY_PATH', str(library)):
+                response = client.post('/api/voice_library/apply_bulk', json={
+                    'cast': 'series', 'mapping': {'Hero': 'hero'},
+                    'script_names': ['missing', 'valid', 'directory', 'empty']})
+            self.assertEqual(200, response.status_code, response.text)
+            results = response.json()['results']
+            self.assertEqual(['missing', 'valid', 'directory', 'empty'], [r['name'] for r in results])
+            for index in (0, 2):
+                self.assertEqual([], results[index]['applied'])
+                self.assertEqual(0, results[index]['count'])
+                self.assertIn('not found', results[index]['error'])
+            self.assertEqual({'name': 'valid', 'applied': ['Hero'], 'count': 1}, results[1])
+            self.assertEqual({'name': 'empty', 'applied': [], 'count': 0}, results[3])
+            saved = json.loads((scripts / 'valid.voice_config.json').read_bytes())
+            self.assertEqual(voice, saved['Hero'])
+            self.assertEqual({'type': 'custom', 'voice': 'Ryan'}, saved['Other'])
+            self.assertEqual(preserved, {p.name: p.read_bytes() for p in scripts.iterdir()
+                if p.is_file() and p.name not in {'valid.voice_config.json',
+                    'valid.voice_config.json.lock', 'empty.voice_config.json.lock',
+                    'missing.json.lock', 'valid.json.lock', 'directory.json.lock', 'empty.json.lock',
+                    '.active_book_transaction.json.lock'}})
+            self.assertEqual(b'', (scripts / '.active_book_transaction.json.lock').read_bytes())
+            for name in ('missing', 'valid', 'directory', 'empty'):
+                self.assertEqual(b'', (scripts / f'{name}.json.lock').read_bytes())
+            from tests.test_support import assert_file_lock_released
+            for name in ('valid.voice_config.json', 'empty.voice_config.json'):
+                assert_file_lock_released(str(scripts / name))
+            self.assertTrue((scripts / 'directory.json').is_dir())
+            self.assertFalse((scripts / 'empty.voice_config.json').exists())
+
+
+class TranscriptContainerValidationTests(unittest.TestCase):
+    def test_actual_enricher_cli_refuses_bad_shapes_and_preserves_prior_output(self):
+        from unittest.mock import Mock
+        fake_llama = SimpleNamespace(Llama=object, llama_supports_gpu_offload=lambda: True)
+        path = Path(__file__).resolve().parent.parent.parent / "llm_enricher.py"
+        with patch.dict(sys.modules, {"llama_cpp": fake_llama}):
+            spec = importlib.util.spec_from_file_location("test_llm_enricher_shape", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        enricher = module.LLMEnricher.__new__(module.LLMEnricher)
+        enricher._gpu_lease = None
+        enricher.fields = ["emotional_tone"]
+        enricher.llm = Mock(return_value={"choices": [{"text": '{"emotional_tone":"calm"}'}]})
+        valid = {"text": "Keep this text.", "speaker": "Alice", "start": 0.0, "end": 1.0}
+        cases = (None, True, 7, "text", {}, {"chunks": [valid]}, [None], ["text"], [7], [valid, None])
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "input.json", Path(tmp) / "output.json"
+            prior = b'[{"old": true}]'
+            for payload in cases:
+                with self.subTest(payload=payload):
+                    source.write_text(json.dumps(payload))
+                    original = source.read_bytes()
+                    output.write_bytes(prior)
+                    enricher.llm = Mock(return_value={"choices": [{"text": '{"emotional_tone":"calm"}'}]})
+                    model = enricher.llm
+                    with patch.object(sys, "argv", ["llm_enricher.py", "--model-path", "unused.gguf", "--input-file", str(source), "--output-file", str(output)]), \
+                         patch.object(module, "LLMEnricher", return_value=enricher), \
+                         self.assertLogs(module.logger, level="ERROR") as logs:
+                        with self.assertRaises(SystemExit) as raised:
+                            module.main()
+                    self.assertEqual(1, raised.exception.code)
+                    self.assertTrue(any("list of transcript objects" in line for line in logs.output))
+                    enricher.llm.assert_not_called()
+                    self.assertEqual(prior, output.read_bytes())
+                    self.assertEqual(original, source.read_bytes())
+            for payload in ([], [valid]):
+                with self.subTest(valid_payload=payload):
+                    source.write_text(json.dumps(payload))
+                    original = source.read_bytes()
+                    enricher.llm = Mock(return_value={"choices": [{"text": '{"emotional_tone":"calm"}'}]})
+                    model = enricher.llm
+                    with patch.object(sys, "argv", ["llm_enricher.py", "--model-path", "unused.gguf", "--input-file", str(source), "--output-file", str(output)]), \
+                         patch.object(module, "LLMEnricher", return_value=enricher):
+                        module.main()
+                    expected = [] if not payload else [{**valid, "emotional_tone": "calm"}]
+                    self.assertEqual(expected, json.loads(output.read_text()))
+                    self.assertEqual(len(payload), model.call_count)
+                    model.close.assert_called_once()
+                    self.assertIsNone(enricher.llm)
+                    self.assertEqual(original, source.read_bytes())

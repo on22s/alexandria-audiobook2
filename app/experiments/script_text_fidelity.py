@@ -27,11 +27,11 @@ assumed - `speech_text.normalize_for_speech` is what the engine receives:
   "   SURVIVES to the engine. Not in SPEECH_BREAKS. So single-pass sends quote
       characters to TTS and three-pass sends none: a real difference in what is
       synthesised, not only in what is readable.
-  _   REMOVED, and replaced by a SENTENCE BREAK. `He said _hello_ softly.`
-      reaches the engine as `He said. hello. softly.` - three sentences where
-      the author wrote one. It is in SPEECH_BREAKS, so this happens for BOTH
-      arms and is not a differentiator between them; it is a separate finding
-      about emphasis markup, and a prosody change rather than a deletion.
+  _   Historically replaced by a SENTENCE BREAK, so `He said _hello_ softly.`
+      became `He said. hello. softly.` for BOTH arms. Finding #429 now preserves
+      inline underscores and asterisks; standalone scene markers still break.
+      Re-running this probe measures the current normalizer rather than
+      reproducing that historical defect.
   -   SURVIVES unchanged. Not a differentiator and not altered.
 
 WHAT THIS PROBE REPORTS. Per book and per arm: how many entries carry each

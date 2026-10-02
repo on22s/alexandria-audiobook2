@@ -8,12 +8,24 @@
 # branch; it has been restored, and they are retried here.
 set -uo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+source "$repo/run_chains/lib/stage.sh" || exit 1
 runtime="$repo/ab_test_runtime"; python="$repo/app/env/bin/python"
 export GPU_LOCK="$runtime/logs/alexandria_gpu.lock" GPU_QLOG="$runtime/logs/gpu_jobq.log"
 note() { echo "[$(date -u +%FT%TZ)] $*"; }
 attempt() { local n="$1" a="$2"; shift 2
     [ -e "$a" ] && { note "SKIP $n"; return 0; }
-    note "START $n"; "$@" && note "OK $n" || note "FAIL $n (continuing)"; }
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    note "START $n"
+    "$@"
+    local rc=$?
+    record_stage_result "$n" "$rc"
+    if [ "${STAGE_RESULT[$n]}" = "ok" ]; then
+        note "OK $n"
+    else
+        note "FAIL $n (continuing)"
+    fi
+    return "$rc"
+}
 
 # 1. THE CAUSAL TEST for goal 5.4's alignment axis. The diagnosis found error
 #    tracking silence at 0.51 across four readers - a correlation over four
@@ -74,3 +86,4 @@ echo "  272 ms was the untrimmed alignment median. If the trimmed run comes in"
 echo "  materially lower on the SAME clips, edge silence was the mechanism and"
 echo "  goal 5.4's last open axis has an answer. If it does not move, the 0.51"
 echo "  correlation was recording style, not cause."
+stage_summary overnight_tail

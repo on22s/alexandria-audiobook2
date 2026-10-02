@@ -89,3 +89,74 @@ class TextAlignmentTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ComparisonArtifactSafetyTests(unittest.TestCase):
+    def test_ambiguous_and_blank_lines_do_not_create_false_disagreements(self):
+        from compare_attribution_arms import align_arms
+        left = [{'text': 'Sorry.', 'speaker': 'ANN'},
+                {'text': 'Unique middle.', 'speaker': 'ANN'},
+                {'text': 'Sorry.', 'speaker': 'BOB'},
+                {'text': '  ', 'speaker': 'ANN'},
+                {'text': 'Unique ending.', 'speaker': 'ANN'}]
+        right = [{'text': 'Sorry.', 'speaker': 'BOB'},
+                 {'text': 'Unique middle.', 'speaker': 'ANN'},
+                 {'text': 'Sorry.', 'speaker': 'ANN'},
+                 {'text': '', 'speaker': 'BOB'},
+                 {'text': 'Unique ending.', 'speaker': 'BOB'}]
+        pairs, coverage = align_arms(left, right)
+        self.assertEqual([1, 4], [p[0] for p in pairs])
+        self.assertEqual(2 / 5, coverage)
+        found = find_disagreements(left, right)
+        self.assertEqual([(4, 'Unique ending.')], [(r['index'], r['text']) for r in found])
+        shorter = [right[0], right[1], right[4]]
+        pairs, coverage = align_arms(left, shorter)
+        self.assertEqual([1, 4], [p[0] for p in pairs])
+        self.assertEqual(2 / 5, coverage)
+        self.assertEqual(2 / 5, align_arms(shorter, left)[1])
+
+    def test_interrupted_comparison_save_preserves_existing_human_artifact(self):
+        import json, tempfile, sys
+        from pathlib import Path
+        from unittest.mock import patch
+        import compare_attribution_arms as compare
+        import utils
+        with tempfile.TemporaryDirectory() as tmp:
+            left, right, output = [Path(tmp) / name for name in ('a.json', 'b.json', 'out.json')]
+            left.write_text(json.dumps([{'speaker': 'ANN', 'text': 'Hi there.'}]))
+            right.write_text(json.dumps([{'speaker': 'BOB', 'text': 'Hi there.'}]))
+            original = b'{"checked": "Keep previous scoring"}'
+            output.write_bytes(original)
+            argv = ['compare_attribution_arms.py', str(left), str(right), '--output', str(output)]
+            def interrupted(_value, handle, **_kwargs):
+                handle.write('{"partial":')
+                raise OSError('disk failure')
+            with patch.object(sys, 'argv', argv), patch.object(utils.json, 'dump', side_effect=interrupted):
+                with self.assertRaises(OSError):
+                    compare.main()
+            self.assertEqual(original, output.read_bytes())
+            self.assertEqual(['a.json', 'b.json', 'out.json'], sorted(p.name for p in Path(tmp).iterdir()))
+            with patch.object(sys, 'argv', argv):
+                compare.main()
+            result = json.loads(output.read_text())
+            self.assertEqual(1, result['aligned'])
+            self.assertEqual(1, result['disagreement_count'])
+            self.assertEqual('ANN', result['sample'][0]['arm_a'])
+            self.assertEqual('BOB', result['sample'][0]['arm_b'])
+
+    def test_cli_negative_sample_size_is_rejected_before_opening_inputs(self):
+        import sys, io
+        from unittest.mock import patch
+        from contextlib import redirect_stderr
+        import compare_attribution_arms as compare
+        errors = io.StringIO()
+        with patch.object(sys, 'argv', ['compare_attribution_arms.py', 'missing-a.json', 'missing-b.json', '--size=-1']), \
+             patch('builtins.open', side_effect=AssertionError('invalid size must be rejected before reads')), redirect_stderr(errors):
+            with self.assertRaises(SystemExit) as caught:
+                compare.main()
+        self.assertEqual(2, caught.exception.code)
+        self.assertIn('--size must be nonnegative', errors.getvalue())
+        for rows in ([], [{'index': 1}]):
+            with self.assertRaises(ValueError):
+                sample_disagreements(rows, -1)
+        self.assertEqual([], sample_disagreements([{'index': 1}], 0))

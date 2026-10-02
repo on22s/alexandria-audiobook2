@@ -48,7 +48,7 @@ sys.path.insert(0, APP)
 sys.path.insert(0, os.path.join(APP, "experiments"))
 
 
-def rank_clips(paths):
+def rank_clips(paths, dataset_root):
     """-> (best_index, worst_index, scores) by median similarity to the rest."""
     from voice_reference import _speaker_similarities
     pairs, index = [], []
@@ -56,7 +56,7 @@ def rank_clips(paths):
         for b in range(a + 1, len(paths)):
             pairs.append((paths[a], paths[b]))
             index.append((a, b))
-    sims = _speaker_similarities(pairs, timeout=1800)
+    sims = _speaker_similarities(pairs, timeout=1800, dataset_root=dataset_root)
     if not sims or len(sims) != len(pairs):
         return None, None, None
     scores = {a: [] for a in range(len(paths))}
@@ -119,7 +119,7 @@ def main():
     candidates = [os.path.join(ddir, r["audio_filepath"])
                   for r in rows[:args.rank_clips]
                   if os.path.exists(os.path.join(ddir, r["audio_filepath"]))]
-    best, worst, med = rank_clips(candidates)
+    best, worst, med = rank_clips(candidates, dataset_root=ddir)
     if best is None:
         sys.exit("could not rank clips; is the speaker model available?")
     print(f"{args.adapter}\n  dataset {dataset}")

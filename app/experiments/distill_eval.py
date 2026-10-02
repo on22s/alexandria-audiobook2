@@ -41,6 +41,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = REPO + "/app/"
 sys.path.insert(0, APP)
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
 from experiments.manifest import ExperimentRecord
 from experiments.scoring import alias_groups, same_speaker, roster_membership_names
@@ -373,7 +374,7 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     source_path, checkpoint_path = get_book_paths(
         book, input_dir, checkpoint_dir)
     src = open(source_path, encoding="utf-8").read()
-    cp = json.load(open(checkpoint_path))
+    cp = load_generation_delta_checkpoint(checkpoint_path)
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]

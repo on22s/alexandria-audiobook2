@@ -234,6 +234,58 @@ class ReasoningModelRequestShapeTests(unittest.TestCase):
         self.assertNotIn("top_p", sent)
         self.assertEqual("medium", sent["extra_body"]["reasoning_effort"])
 
+    def test_explicit_completion_budget_wins_and_obsolete_limit_is_removed(self):
+        from llm_provider import adapt_request_for_reasoning_model
+        original = {"model": "o3", "messages": [], "max_tokens": 4096,
+                    "max_completion_tokens": 1024}
+        sent = self._create({"base_url": "https://api.openai.com/v1"}, **original)
+        self.assertNotIn("max_tokens", sent)
+        self.assertEqual(1024, sent["max_completion_tokens"])
+        adapted = adapt_request_for_reasoning_model(original)
+        self.assertNotIn("max_tokens", adapted)
+        self.assertEqual(1024, adapted["max_completion_tokens"])
+        self.assertEqual(4096, original["max_tokens"])
+        self.assertEqual(1024, original["max_completion_tokens"])
+        local = self._create({"base_url": "http://localhost:8090/v1"},
+                             **dict(original, model="qwen3-14b"))
+        self.assertEqual(4096, local["max_tokens"])
+        self.assertEqual(1024, local["max_completion_tokens"])
+
+    def test_omitted_effort_drops_sampling_for_reasoning_defaults(self):
+        for model in ("gpt-5", "gpt-5-mini", "gpt-5.5", "gpt-5.6", "o3", "o4-mini"):
+            with self.subTest(model=model):
+                sent = self._create({"base_url": "https://api.openai.com/v1"},
+                                    model=model, max_tokens=64, temperature=0.1,
+                                    top_p=0.9, presence_penalty=0.2,
+                                    frequency_penalty=0.3, messages=[])
+                for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
+                    self.assertNotIn(key, sent)
+                self.assertEqual(64, sent["max_completion_tokens"])
+                self.assertNotIn("reasoning_effort", sent["extra_body"])
+
+    def test_omitted_effort_preserves_sampling_for_documented_none_defaults(self):
+        for model in ("gpt-5.1", "gpt-5.1-2025-11-13", "gpt-5.2",
+                      "gpt-5.2-2025-12-11", "gpt-5.4", "gpt-5.4-2026-03-05"):
+            with self.subTest(model=model):
+                sent = self._create({"base_url": "https://api.openai.com/v1"},
+                                    model=model, temperature=0.2, top_p=0.8, messages=[])
+                self.assertEqual(0.2, sent["temperature"])
+                self.assertEqual(0.8, sent["top_p"])
+                self.assertNotIn("reasoning_effort", sent["extra_body"])
+
+    def test_top_level_effort_and_extra_body_override_control_sampling(self):
+        for effort, extra, keep in (("high", {}, False), ("none", {}, True),
+                                    ("high", {"reasoning_effort": "none"}, True),
+                                    ("none", {"reasoning_effort": "high"}, False)):
+            with self.subTest(effort=effort, extra=extra):
+                sent = self._create({"base_url": "https://api.openai.com/v1",
+                                     "reasoning_effort": "medium"},
+                                    model="gpt-5.1", reasoning_effort=effort,
+                                    extra_body=extra, temperature=0.2, messages=[])
+                self.assertEqual(keep, "temperature" in sent)
+                self.assertEqual(effort, sent["reasoning_effort"])
+                self.assertEqual(extra, sent["extra_body"])
+
     def test_gpt5_with_reasoning_off_keeps_sampling(self):
         sent = self._create({"base_url": "https://api.openai.com/v1", "model_name": "gpt-5.6",
                              "reasoning_effort": "none"},

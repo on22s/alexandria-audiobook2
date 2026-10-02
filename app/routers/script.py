@@ -1,19 +1,27 @@
+from book_state_transaction import (ensure_book_state, apply_book_input_selection,
+                                    apply_book_state_locked)
 import asyncio
+import contextlib
+import copy
 import difflib
 import hashlib
 import json
+import io
 import logging
 import os
 import posixpath
 import re
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
 import zipfile
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
+from pathlib import Path
 import xml.etree.ElementTree as ET
 from math import ceil
 from typing import Dict, List, Literal, Optional
@@ -21,9 +29,13 @@ from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from speaker_identity import get_validated_alias_graph
 from llm_provider import manual_llm_dir
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
+                                           remove_generation_shard_checkpoint)
 from config_settings import load_app_config
 from generate_script import fix_mojibake
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -47,9 +59,11 @@ from pass_quality import (split_outer_quote_regions, validate_attribution,
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock
+from alexandria_alignment import validate_epub_archive
 
 from core import (
     _saved_book_meta_path,
+    is_task_running,
     get_active_book_id,
     BASE_DIR,
     _compute_eta,
@@ -90,7 +104,7 @@ from core import (
     _task_log_path,
     _warn_corrupted_json,
     check_global_gpu_lock,
-    claim_gpu_task,
+    claim_gpu_task, schedule_claimed_background_task,
     process_state,
     run_process,
 )
@@ -100,7 +114,12 @@ from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json,
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
-_upload_hash_cache = {}
+MAX_SCRIPT_BATCH_ITEMS = 1000
+MAX_MANUAL_REPLY_CHARACTERS = 2 * 1024 * 1024
+MAX_UPLOAD_STORAGE_BYTES = 8 * 1024**3
+MAX_SCRIPT_UPLOAD_BYTES = 512 * 1024**2
+MAX_UPLOAD_HASH_CACHE_ENTRIES = 512
+_upload_hash_cache = OrderedDict()
 _upload_hash_lock = threading.Lock()
 _upload_dedupe_lock = threading.Lock()
 
@@ -113,13 +132,45 @@ class ContextualReviewRequest(BaseModel):
     dedupe_speakers: bool = True
 
 class BatchReviewRequest(BaseModel):
-    script_names: List[str]            # names from the Scripts library (without .json)
+    script_names: List[str] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)  # library names without .json
     context_window: int = 0            # >0 enables contextual review
     dedupe_speakers: bool = True       # merge same-character aliases, consistent across the batch
     find_nicknames: bool = True        # run nickname discovery per book first, into the shared series alias file
     bidirectional: bool = False        # after the forward pass, re-scan in reverse so early books get
                                        # discovery seeded with full-series hindsight (requires find_nicknames)
 
+
+
+def get_batch_review_highlights(pool: dict) -> dict:
+    """Select stable top-five rewrites and first-five speaker changes."""
+    return {
+        "text": sorted(pool["text"], key=lambda h: h["magnitude"], reverse=True)[:5],
+        "speaker": pool["speaker"][:5],
+    }
+
+
+def get_batch_review_task_snapshot(task, bidirectional):
+    """Derive display fields from pass results without changing live task state."""
+    snapshot = copy.deepcopy(task)
+    passes = ("fwd", "bwd") if bidirectional else ("fwd",)
+    if not any(f"{field}_{key}" in snapshot
+               for key in ("fwd", "bwd") for field in ("stats", "diffs", "failures")):
+        return snapshot  # Retain generic-only historical status records.
+    for field in ("stats", "diffs", "failures"):
+        snapshot.pop(field, None)
+    if any(snapshot.get(f"stats_{key}") for key in passes):
+        snapshot["stats"] = _combine_pass_stats(
+            *(snapshot.get(f"stats_{key}") for key in passes))
+    diffs = [snapshot[f"diffs_{key}"] for key in passes if snapshot.get(f"diffs_{key}")]
+    if diffs:
+        snapshot["diffs"] = {
+            field: [item for diff in diffs for item in diff.get(field, [])]
+            for field in ("text_rewrites", "speaker_changes")}
+    for key in passes:
+        failures = snapshot.get(f"failures_{key}")
+        if failures and failures.get("sections"):
+            snapshot["failures"] = failures
+    return snapshot
 
 
 def _write_batch_review_report(state: dict, names: List[str], bidirectional: bool, discover: bool) -> Optional[str]:
@@ -132,13 +183,12 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     path = os.path.join(REPORTS_DIR, f"batch_review_{timestamp}.md")
 
-    tasks = state.get("tasks", [])
+    tasks = [get_batch_review_task_snapshot(task, bidirectional)
+             for task in state.get("tasks", [])]
     total_books = len(names)
     if bidirectional:
-        # The bare "stats"/"diffs" keys hold whichever pass ran last, so a book
-        # that only completed the forward pass before cancellation would still
-        # look "done" via the bare key. Require both passes' stats and a
-        # "done" status (not "incomplete", which means VRAM cut a pass short).
+        # Require both passes' stats and a "done" status; a forward-only
+        # result cannot establish completion of the backward pass.
         done = [t for t in tasks if t.get("stats_fwd") and t.get("stats_bwd") and t.get("status") == "done"]
     else:
         done = [t for t in tasks if t.get("stats_fwd") and t.get("status") == "done"]
@@ -193,10 +243,10 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
         lines += ["", "### Second pass (hindsight)", ""]
         lines += _markdown_stats_table(state["totals_bwd"])
 
-    diff_pool = state.get("diff_pool", {"text": [], "speaker": []})
+    diff_pool = get_batch_review_highlights(state.get("diff_pool", {"text": [], "speaker": []}))
     overall_highlights = {
-        "text_rewrites": sorted(diff_pool["text"], key=lambda h: h["magnitude"], reverse=True)[:5],
-        "speaker_changes": diff_pool["speaker"][:5],
+        "text_rewrites": diff_pool["text"],
+        "speaker_changes": diff_pool["speaker"],
     }
     hl_lines = _markdown_diff_highlights_lines(overall_highlights, max_each=5)
     if hl_lines:
@@ -265,11 +315,23 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
                     lines.append("- Not reviewed.")
             lines.append("")
 
+    staged_path = None
     try:
-        with open(path, "w", encoding="utf-8") as f:
+        fd, staged_path = tempfile.mkstemp(prefix=".batch_review_", suffix=".md",
+                                           dir=REPORTS_DIR)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(staged_path, path)
     except OSError:
         return None
+    finally:
+        if staged_path and os.path.exists(staged_path):
+            try:
+                os.unlink(staged_path)
+            except OSError as exc:
+                logger.warning("Could not remove staged batch review report: %s", exc)
     return path
 
 
@@ -528,13 +590,32 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
     return text
 
 
-def extract_epub_text(epub_path: str) -> str:
+def get_epub_xhtml_text(data: bytes) -> str:
+    """Decode XHTML using its Unicode byte order or XML encoding declaration."""
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        encoding = "utf-16"
+    elif data.startswith(b"<\0"):
+        encoding = "utf-16-le"
+    elif data.startswith(b"\0<"):
+        encoding = "utf-16-be"
+    else:
+        declaration = re.match(br"\s*<\?xml\b[^>]*\bencoding\s*=\s*['\"]([^'\"]+)['\"]", data[:256])
+        encoding = declaration.group(1).decode("ascii") if declaration else "utf-8-sig"
+    return data.decode(encoding, errors="replace")
+
+
+def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> str:
     """Extract plain text from an EPUB file, ordered by spine (reading order).
 
     Parses the EPUB ZIP structure directly using stdlib only:
     META-INF/container.xml -> .opf manifest+spine -> XHTML content files.
     """
-    with zipfile.ZipFile(epub_path, 'r') as zf:
+    if archive_bytes is None:
+        validate_epub_archive(epub_path)
+    else:
+        validate_epub_archive(epub_path, archive_bytes=archive_bytes)
+    source = io.BytesIO(archive_bytes) if archive_bytes is not None else epub_path
+    with zipfile.ZipFile(source, 'r') as zf:
         # 1. Find the OPF file path from container.xml
         container_xml = zf.read('META-INF/container.xml')
         container = ET.fromstring(container_xml)
@@ -599,7 +680,7 @@ def extract_epub_text(epub_path: str) -> str:
                 html_bytes = zf.read(href)
             except KeyError:
                 continue
-            html_content = html_bytes.decode('utf-8', errors='replace')
+            html_content = get_epub_xhtml_text(html_bytes)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             extractor = _HTMLTextExtractor(anchor_ids)
@@ -642,20 +723,24 @@ def _claim_unique_path(directory: str, filename: str) -> str:
 
 
 def _get_upload_hash(path: str) -> str:
-    """Return a cached SHA-256 keyed by path, size, and modification time."""
+    """Return SHA-256 from a bounded cache of current upload versions."""
     stat = os.stat(path)
-    key = (path, stat.st_size, stat.st_mtime_ns)
+    version = (stat.st_size, stat.st_mtime_ns)
     with _upload_hash_lock:
-        cached = _upload_hash_cache.get(key)
-    if cached:
-        return cached
+        cached = _upload_hash_cache.get(path)
+        if cached is not None and cached[0] == version:
+            _upload_hash_cache.move_to_end(path)
+            return cached[1]
     digest = hashlib.sha256()
     with open(path, "rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     value = digest.hexdigest()
     with _upload_hash_lock:
-        _upload_hash_cache[key] = value
+        _upload_hash_cache[path] = (version, value)
+        _upload_hash_cache.move_to_end(path)
+        while len(_upload_hash_cache) > MAX_UPLOAD_HASH_CACHE_ENTRIES:
+            _upload_hash_cache.popitem(last=False)
     return value
 
 
@@ -699,11 +784,7 @@ def _select_upload(filename: str) -> str:
     path = os.path.join(UPLOADS_DIR, safe_name)
     if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
-    state_path = os.path.join(DATA_DIR, "state.json")
-    state = safe_load_json(state_path, default={})
-    state["input_file_path"] = path
-    state["active_book_id"] = secure_filename(os.path.splitext(safe_name)[0])
-    atomic_json_write(state, state_path)
+    apply_book_input_selection(DATA_DIR, path, secure_filename(os.path.splitext(safe_name)[0]))
     return path
 
 
@@ -730,53 +811,104 @@ async def select_existing_upload(request: ExistingUploadRequest):
 
 
 
+def get_upload_storage_bytes():
+    """Count regular files retained in the flat source-upload directory."""
+    with os.scandir(UPLOADS_DIR) as entries:
+        return sum(entry.stat(follow_symlinks=False).st_size for entry in entries
+                   if entry.is_file(follow_symlinks=False))
+
+
+async def await_upload_operation(operation):
+    """Finish admitted I/O before reporting cancellation to its owner."""
+    task = asyncio.create_task(operation)
+    cancelled = None
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError as error:
+            cancelled = error
+        except Exception:
+            break
+    try:
+        result = task.result()
+    except BaseException:
+        if cancelled is not None:
+            raise cancelled
+        raise
+    return result, cancelled
+
+
 @router.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    # Validate and sanitize filename to prevent path traversal
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
-    file_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name)
-    await _save_upload_limited(file, file_path, 512 * 1024**2)
-
-    # Convert EPUB to plain text
-    if file_path.lower().endswith('.epub'):
-        try:
-            text = extract_epub_text(file_path)
-        except Exception as e:
-            os.remove(file_path)
-            raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {e}")
-        if not text.strip():
-            os.remove(file_path)
-            raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
-        txt_name = os.path.basename(file_path).rsplit('.', 1)[0] + '.txt'
-        txt_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name)
-        with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write(text)
-        # The original .epub is no longer needed once its text is extracted;
-        # leaving it behind leaks disk space as books accumulate.
-        try:
-            os.remove(file_path)
-        except OSError:
-            pass
-        file_path = txt_path
-
-    file_path, reused = await asyncio.to_thread(_reuse_duplicate_upload, file_path)
-
-    # Save input path to state.json to be compatible with original scripts if needed
-    state_path = os.path.join(DATA_DIR, "state.json")
-    state = {}
-    if os.path.exists(state_path):
-        with open(state_path, "r", encoding="utf-8") as f:
+    if os.path.splitext(safe_name)[1].lower() not in {".txt", ".md", ".epub"}:
+        raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown and EPUB.")
+    await asyncio.to_thread(os.makedirs, UPLOADS_DIR, exist_ok=True)
+    # The lease is outside uploads so it is neither listed nor quota-counted.
+    # Acquire in a worker; waiting for another upload must not block the loop.
+    storage_lock = file_lock(UPLOADS_DIR + ".quota")
+    try:
+        _, cancelled = await await_upload_operation(asyncio.to_thread(storage_lock.__enter__))
+    except TimeoutError as error:
+        raise HTTPException(status_code=503, detail="Upload storage is busy; retry shortly.") from error
+    if cancelled is not None:
+        storage_lock.__exit__(None, None, None)
+        raise cancelled
+    owned_paths = set()
+    try:
+        available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+        if available <= 0:
+            raise HTTPException(status_code=413, detail="Source upload storage limit reached.")
+        file_path, cancelled = await await_upload_operation(
+            asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name))
+        owned_paths.add(file_path)
+        if cancelled is not None:
+            raise cancelled
+        _, cancelled = await await_upload_operation(
+            _save_upload_limited(file, file_path, min(MAX_SCRIPT_UPLOAD_BYTES, available)))
+        if cancelled is not None:
+            raise cancelled
+        if file_path.lower().endswith('.epub'):
             try:
-                state = json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                _warn_corrupted_json("state", state_path, "overwriting with new data", e)
-
-    state["input_file_path"] = file_path
-    state["active_book_id"] = secure_filename(os.path.splitext(os.path.basename(file_path))[0])
-    atomic_json_write(state, state_path)
-
-    return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
-            "path": file_path, "reused": reused}
+                text, cancelled = await await_upload_operation(asyncio.to_thread(extract_epub_text, file_path))
+                if cancelled is not None:
+                    raise cancelled
+            except Exception as error:
+                raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {error}") from error
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
+            text_bytes = text.encode('utf-8')
+            available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+            if len(text_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, available):
+                raise HTTPException(status_code=413, detail="Extracted EPUB text exceeds source upload storage limits.")
+            txt_name = os.path.basename(file_path).rsplit('.', 1)[0] + '.txt'
+            txt_path, cancelled = await await_upload_operation(
+                asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name))
+            owned_paths.add(txt_path)
+            if cancelled is not None:
+                raise cancelled
+            _, cancelled = await await_upload_operation(asyncio.to_thread(Path(txt_path).write_bytes, text_bytes))
+            if cancelled is not None:
+                raise cancelled
+            os.remove(file_path)
+            file_path = txt_path
+        result, cancelled = await await_upload_operation(asyncio.to_thread(_reuse_duplicate_upload, file_path))
+        file_path, reused = result
+        if cancelled is not None:
+            raise cancelled
+        apply_book_input_selection(DATA_DIR, file_path,
+                                  secure_filename(os.path.splitext(os.path.basename(file_path))[0]))
+        return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
+                "path": file_path, "reused": reused}
+    except BaseException:
+        for path in owned_paths:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+        raise
+    finally:
+        storage_lock.__exit__(None, None, None)
 
 class GenerateScriptRequest(BaseModel):
     strip_front_matter: bool = True
@@ -835,6 +967,12 @@ def get_script_recovery_manifest() -> Optional[dict]:
     return manifest
 
 
+def ensure_script_recovery_manifest():
+    """Recover interrupted book publication before reading recovery metadata."""
+    with ensure_book_state(DATA_DIR):
+        return get_script_recovery_manifest()
+
+
 def completed_script_prefix(checkpoint):
     """The entries a running three-pass has fully finished (all three passes),
     in order, stopping at the first one that has not - the snapshot #600
@@ -856,6 +994,18 @@ class SnapshotRequest(BaseModel):
     name: str
 
 
+def get_current_generation_checkpoint(*, locked=False):
+    """Read the committed checkpoint prefix, including durable indexed changes."""
+    try:
+        return load_generation_delta_checkpoint(three_pass_checkpoint_path(SCRIPT_PATH),
+                                                locked=locked)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise HTTPException(status_code=409,
+                            detail=f"Cannot read generation checkpoint: {exc}") from exc
+
+
 @router.post("/api/generate_script/snapshot")
 async def snapshot_script(request: SnapshotRequest):
     """Save the finished part of the running generation to the library
@@ -867,7 +1017,7 @@ async def snapshot_script(request: SnapshotRequest):
     in the library."""
     if not process_state["script"].get("running"):
         raise HTTPException(status_code=409, detail="No script generation is running; use Save script instead.")
-    checkpoint = safe_load_json(three_pass_checkpoint_path(SCRIPT_PATH), None)
+    checkpoint = get_current_generation_checkpoint()
     if not isinstance(checkpoint, dict):
         raise HTTPException(status_code=409, detail="The run has not written a checkpoint yet.")
     entries = completed_script_prefix(checkpoint)
@@ -876,25 +1026,35 @@ async def snapshot_script(request: SnapshotRequest):
     safe_name = _require_safe_filename(request.name, "Invalid snapshot name.")
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
-    atomic_json_write(entries, dest)
-    if os.path.exists(VOICE_CONFIG_PATH):
-        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json"))
-    atomic_json_write({"book_id": get_active_book_id() or safe_name,
-                       "snapshot": {"entries": len(entries),
-                                    "segmented": len(checkpoint.get("segmented") or []),
-                                    "chunks_done": checkpoint.get("chunks_done"),
-                                    "stage": checkpoint.get("stage"), "taken": time.time()}},
-                      _saved_book_meta_path(safe_name))
+    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
+    metadata = _saved_book_meta_path(safe_name)
+    with file_lock(dest):
+        if any(os.path.exists(path) for path in (dest, companion, metadata)):
+            raise HTTPException(status_code=409,
+                                detail="A saved script already uses that snapshot name.")
+        atomic_json_write(entries, dest)
+        if os.path.exists(VOICE_CONFIG_PATH):
+            shutil.copy2(VOICE_CONFIG_PATH, companion)
+        atomic_json_write({"book_id": get_active_book_id() or safe_name,
+                           "snapshot": {"entries": len(entries),
+                                        "segmented": len(checkpoint.get("segmented") or []),
+                                        "chunks_done": checkpoint.get("chunks_done"),
+                                        "stage": checkpoint.get("stage"), "taken": time.time()}},
+                          metadata)
     return {"status": "saved", "name": safe_name, "entries": len(entries),
             "segmented": len(checkpoint.get("segmented") or []),
             "chunks_done": checkpoint.get("chunks_done")}
 
 
-def discard_script_progress():
+def discard_script_progress(*, locked=False):
     """Remove the single-book run's checkpoint and manifest so the next run
     starts at chunk 1. -> the paths that existed."""
     removed = []
-    for path in (three_pass_checkpoint_path(SCRIPT_PATH), three_pass_manifest_path(SCRIPT_PATH)):
+    checkpoint_path = three_pass_checkpoint_path(SCRIPT_PATH)
+    if os.path.exists(checkpoint_path):
+        removed.append(checkpoint_path)
+    remove_generation_shard_checkpoint(checkpoint_path, locked=locked)
+    for path in (three_pass_manifest_path(SCRIPT_PATH),):
         try:
             os.remove(path)
             removed.append(path)
@@ -907,27 +1067,35 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             request: Optional[GenerateScriptRequest],
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
-    if require_recovery and get_script_recovery_manifest() is None:
+    if require_recovery and ensure_script_recovery_manifest() is None:
         raise HTTPException(
             status_code=409,
             detail="No failed or incomplete three-pass generation is available to resume.")
     check_global_gpu_lock("script")
+    try:
+        options = {
+            "strip_front_matter": request is None or request.strip_front_matter,
+            "first_person_narrator": get_valid_narrator_name(
+                request.first_person_narrator if request is not None else None),
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if require_recovery and options["first_person_narrator"]:
+        try:
+            _read_and_validate_batch_script_source({
+                "filename": os.path.basename(input_file), "input_path": input_file,
+                "first_person_narrator": options["first_person_narrator"]})
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not require_recovery:
         try:
             refusal = three_pass_refusal([{
                 "filename": os.path.basename(input_file), "input_path": input_file,
-                "first_person_narrator": None}])
+                "first_person_narrator": options["first_person_narrator"]}])
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
-    options = {
-        "strip_front_matter": request is None or request.strip_front_matter,
-        "first_person_narrator": (request.first_person_narrator
-                                  if request is not None else None),
-    }
-    if request is not None and request.start_over and not require_recovery:
-        discard_script_progress()
     try:
         command = build_generate_script_command(
             input_file,
@@ -937,17 +1105,20 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    state_path = os.path.join(DATA_DIR, "state.json")
-    state = safe_load_json(state_path, {})
-    if isinstance(state, dict):
-        # Retry reads these instead of the current form.  Otherwise changing a
-        # checkbox after a failure changes the fingerprint and silently starts
-        # a new run instead of resuming the checkpoint.
-        state["script_generation_options"] = options
-        state["script_generation_input_file"] = input_file
-        atomic_json_write(state, state_path)
-    claim_gpu_task("script")
-    background_tasks.add_task(run_process, command, "script")
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        if require_recovery and get_script_recovery_manifest() is None:
+            raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
+        if request is not None and request.start_over and not require_recovery:
+            discard_script_progress(locked=True)
+        state_path = os.path.join(DATA_DIR, "state.json")
+        state = safe_load_json(state_path, {})
+        if isinstance(state, dict):
+            # Retry reads these instead of the current form. Otherwise a
+            # changed checkbox would invalidate the resume fingerprint.
+            state["script_generation_options"] = options
+            state["script_generation_input_file"] = input_file
+            atomic_json_write(state, state_path)
+        schedule_claimed_background_task(background_tasks, "script", run_process, command, "script")
     return {"status": "resuming" if require_recovery else "started"}
 
 
@@ -959,20 +1130,19 @@ async def generate_script(background_tasks: BackgroundTasks,
     if not os.path.exists(state_path):
         raise HTTPException(status_code=400, detail="No input file selected")
 
-    with open(state_path, "r", encoding="utf-8") as f:
-        state = json.load(f)
-        input_file = state.get("input_file_path")
+    state = safe_load_json(state_path, default={})
+    input_file = state.get("input_file_path")
 
     if not input_file:
          raise HTTPException(status_code=400, detail="No input file found in state")
 
-    return start_script_generation(background_tasks, input_file, request)
+    return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
 
 
 @router.get("/api/generate_script/recovery")
 async def generate_script_recovery():
     """Expose only recovery metadata; source text remains in the local checkpoint."""
-    manifest = get_script_recovery_manifest()
+    manifest = await asyncio.to_thread(ensure_script_recovery_manifest)
     if manifest is None:
         return {"recoverable": False}
     failures = manifest.get("diagnostic_failures") or []
@@ -985,12 +1155,12 @@ async def generate_script_recovery():
     }
 
 
-def _load_failed_checkpoint():
+def _load_failed_checkpoint(*, locked=False):
     """The checkpoint of a pass-1 fail-fast, or None. The `failed` block is
     written only on that path (three_pass_generate._save_three_pass_checkpoint)."""
     if get_script_recovery_manifest() is None:
         return None
-    checkpoint = safe_load_json(three_pass_checkpoint_path(SCRIPT_PATH), None)
+    checkpoint = get_current_generation_checkpoint(locked=locked)
     if not isinstance(checkpoint, dict) or checkpoint.get("stage") not in (
             "segment_failed", "attribute_failed", "instruct_failed"):
         return None
@@ -998,6 +1168,18 @@ def _load_failed_checkpoint():
     if not isinstance(failed, dict) or not (failed.get("source") or failed.get("entries")):
         return None
     return checkpoint
+
+
+def ensure_failed_checkpoint():
+    """Read a failed unit only after recovering its complete artifact pair."""
+    with ensure_book_state(DATA_DIR):
+        return _load_failed_checkpoint()
+
+
+def get_script_recovery_token(checkpoint):
+    """Bind a decision to the checkpoint that its validation actually read."""
+    return hashlib.sha256(json.dumps(checkpoint, sort_keys=True, ensure_ascii=False,
+                                     allow_nan=False).encode("utf-8")).hexdigest()
 
 
 def build_recovery_detail(checkpoint):
@@ -1058,19 +1240,23 @@ def build_recovery_detail(checkpoint):
     }
 
 
-def apply_manual_recovery(entries, resolution):
+def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None):
     """Accept hand-supplied output for the failed unit through the SAME gate
     the pass uses - pass 1: a [{type, text}] segmentation of the chunk;
     pass 2: [{n, speaker}] for the batch - and advance the checkpoint past it
     so Retry resumes at the next unit. Returns the gate report on refusal
     (caller -> 422)."""
-    if process_state["script"]["running"]:
-        raise HTTPException(status_code=409, detail="Script generation is running.")
-    with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        checkpoint = _load_failed_checkpoint()
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        if is_task_running("script", process_state):
+            raise HTTPException(status_code=409, detail="Script generation is running.")
+        checkpoint = _load_failed_checkpoint(locked=True)
         if checkpoint is None:
             raise HTTPException(status_code=409,
                                 detail="No failed generation unit is waiting for recovery.")
+        if (expected_checkpoint_token is not None
+                and get_script_recovery_token(checkpoint) != expected_checkpoint_token):
+            raise HTTPException(status_code=409,
+                                detail="The failed generation unit changed; reload recovery before applying a decision.")
         failed = checkpoint["failed"]
         if failed.get("pass") == "attribute":
             frozen = failed.get("entries") or []
@@ -1124,15 +1310,22 @@ def apply_manual_recovery(entries, resolution):
             checkpoint["stage"] = "segment"
             unit = {"chunk": failed["chunk"]}
         checkpoint["failed"] = None
-        atomic_json_write(checkpoint, three_pass_checkpoint_path(SCRIPT_PATH))
-    manifest_path = three_pass_manifest_path(SCRIPT_PATH)
-    manifest = safe_load_json(manifest_path, {})
-    if isinstance(manifest, dict) and manifest:
+        manifest_path = three_pass_manifest_path(SCRIPT_PATH)
+        manifest = get_script_recovery_manifest()
+        if manifest is None:
+            raise HTTPException(status_code=409, detail="Recovery manifest changed; reload recovery.")
         manifest["status"] = "incomplete"
         manifest.pop("failed_chunk", None)
         manifest["recovered_units"] = (manifest.get("recovered_units") or []) + [
             {**unit, "pass": failed.get("pass"), "resolution": resolution}]
-        atomic_json_write(manifest, manifest_path)
+        replacements = {
+            os.path.relpath(path, DATA_DIR): json.dumps(value, ensure_ascii=False,
+                                                       indent=2, allow_nan=False).encode("utf-8")
+            for path, value in ((three_pass_checkpoint_path(SCRIPT_PATH), checkpoint),
+                                (manifest_path, manifest))}
+        removals = [os.path.relpath(path, DATA_DIR) for path in
+                    get_generation_checkpoint_artifacts(three_pass_checkpoint_path(SCRIPT_PATH))[1:]]
+        apply_book_state_locked(DATA_DIR, replacements, removals)
     return {"accepted": True, **unit, "chunks_done": checkpoint["chunks_done"],
             "resolution": resolution}
 
@@ -1148,7 +1341,7 @@ class SkipChunkRequest(BaseModel):
 
 
 def _require_failed_unit(chunk):
-    checkpoint = _load_failed_checkpoint()
+    checkpoint = ensure_failed_checkpoint()
     if checkpoint is None:
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
@@ -1162,7 +1355,7 @@ def _require_failed_unit(chunk):
 @router.get("/api/generate_script/recovery/detail")
 async def generate_script_recovery_detail():
     """The failed chunk in full: attempts, source, prompt, retry profile."""
-    checkpoint = _load_failed_checkpoint()
+    checkpoint = await asyncio.to_thread(ensure_failed_checkpoint)
     if checkpoint is None:
         return {"recoverable": False}
     return {"recoverable": True, **build_recovery_detail(checkpoint)}
@@ -1173,7 +1366,7 @@ async def generate_script_inject(request: InjectSegmentationRequest):
     """Manual output injection (#522 s4.4): a pasted [{type, text}]
     segmentation for a failed pass-1 chunk, or [{n, speaker}] for a failed
     pass-2 batch, validated by the pass's own gate."""
-    checkpoint = _require_failed_unit(request.chunk)
+    checkpoint = await asyncio.to_thread(_require_failed_unit, request.chunk)
     entries = []
     failed_pass = checkpoint["failed"].get("pass")
     if failed_pass in ("attribute", "instruct"):
@@ -1194,7 +1387,8 @@ async def generate_script_inject(request: InjectSegmentationRequest):
             entries.append({"type": kind, "text": text})
     if not entries:
         raise HTTPException(status_code=422, detail="No entries supplied.")
-    result = await asyncio.to_thread(apply_manual_recovery, entries, "manual")
+    result = await asyncio.to_thread(apply_manual_recovery, entries, "manual",
+                                     get_script_recovery_token(checkpoint))
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "The segmentation does not pass the fidelity gate.",
@@ -1210,7 +1404,7 @@ async def generate_script_skip(request: SkipChunkRequest):
     so every word stays and quoted lines are still SPOKEN. Pass 2: the batch's
     spoken lines are labelled UNKNOWN - the fallback the run refused to apply
     on its own because the LLM was unavailable, now applied by the user."""
-    checkpoint = _require_failed_unit(request.chunk)
+    checkpoint = await asyncio.to_thread(_require_failed_unit, request.chunk)
     failed = checkpoint["failed"]
     if failed.get("pass") == "attribute":
         entries = [{"n": i, "speaker": "NARRATOR" if e.get("type") == "NARRATOR" else "UNKNOWN"}
@@ -1223,7 +1417,8 @@ async def generate_script_skip(request: SkipChunkRequest):
         entries = [{"type": r["type"], "text": r["text"].strip()}
                    for r in split_outer_quote_regions(failed["source"])
                    if r.get("text", "").strip()]
-    result = await asyncio.to_thread(apply_manual_recovery, entries, "narrated_as_is")
+    result = await asyncio.to_thread(apply_manual_recovery, entries, "narrated_as_is",
+                                     get_script_recovery_token(checkpoint))
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "Even the deterministic split does not pass the fidelity gate; "
@@ -1247,7 +1442,7 @@ async def retry_generate_script(background_tasks: BackgroundTasks,
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=409,
                                 detail="Saved recovery settings are invalid; start a new run.") from exc
-    return start_script_generation(background_tasks, input_file, request,
+    return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request,
                                    require_recovery=True)
 
 @router.post("/api/generate_script/cancel")
@@ -1282,8 +1477,7 @@ async def review_script(background_tasks: BackgroundTasks, request: Optional[Rev
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    claim_gpu_task("review")
-    background_tasks.add_task(run_process, cmd, "review")
+    schedule_claimed_background_task(background_tasks, "review", run_process, cmd, "review")
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 @router.post("/api/review_script_contextual")
@@ -1315,8 +1509,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    claim_gpu_task("review")
-    background_tasks.add_task(
+    schedule_claimed_background_task(background_tasks, "review",
         run_process,
         cmd,
         "review"
@@ -1357,10 +1550,9 @@ async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
     # nicknames runs the LLM, so it must claim the GPU lock (this also guards
     # against a duplicate start, replacing the old running-flag check).
-    claim_gpu_task("nicknames")
     cmd = [sys.executable, "-u", "find_nicknames.py",
            "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
-    background_tasks.add_task(run_process, cmd, "nicknames")
+    schedule_claimed_background_task(background_tasks, "nicknames", run_process, cmd, "nicknames")
     return {"status": "started"}
 
 
@@ -1397,8 +1589,13 @@ async def get_character_aliases():
 @router.post("/api/character_aliases")
 async def save_character_aliases(aliases: Dict[str, str]):
     """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
-    cleaned = {k.strip(): v.strip() for k, v in aliases.items() if k.strip() and v.strip()}
-    atomic_json_write(cleaned, CHARACTER_ALIASES_PATH)
+    cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
+    try:
+        cleaned = get_validated_alias_graph(cleaned)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    with file_lock(CHARACTER_ALIASES_PATH):
+        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH)
     return {"status": "saved", "count": len(cleaned)}
 
 
@@ -1421,6 +1618,8 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     total = len(names)
 
     def _run():
+        with ensure_book_state(SCRIPTS_DIR):
+            pass
         state = process_state["batch_review"]
         prefix = "bidirectional " if bidirectional else ""
         _init_batch_state(state,
@@ -1437,7 +1636,8 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         log_path = _init_task_log("batch_review")
 
         # One shared registry for the whole batch so canonical names align across books
-        registry_path = os.path.join(SCRIPTS_DIR, ".series_aliases.json") if dedupe else None
+        registry_path = CHARACTER_ALIASES_PATH if dedupe else None
+        source_paths = []
 
         def _process_book(i: int, name: str, tag: str = "") -> bool:
             """Discover + review one book in place. Returns False to stop the batch (cancel)."""
@@ -1457,6 +1657,8 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 return True
 
             state["logs"].append(f"--- [{i+1}/{total}]{tag} Reviewing '{name}' ---")
+            if script_path not in source_paths:
+                source_paths.append(script_path)
 
             # Optional nickname discovery first, accumulating into the shared series registry
             if discover and registry_path:
@@ -1468,10 +1670,14 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     "--aliases-file", registry_path,
                     "--append",
                 ]
-                _, nick_lines = _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+                nick_rc, nick_lines = _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
                 if state.get("cancel"):
                     state["tasks"][i]["status"] = "cancelled"
                     return False
+                if nick_rc != 0:
+                    state["tasks"][i]["status"] = "failed"
+                    state["logs"].append(f"[{i+1}]{tag} Nickname discovery failed (exit {nick_rc}): {name}")
+                    return True
                 new_aliases = _extract_new_aliases(nick_lines)
                 if new_aliases:
                     state["tasks"][i]["aliases_found"] = new_aliases
@@ -1537,22 +1743,12 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # abort point or failed batches were left unreviewed, and a checkpoint
                     # may remain on disk for a future resume. Don't report this book as done.
                     state["tasks"][i]["status"] = "incomplete"
+                elif tag == " [bwd]" and orig_status != "done":
+                    state["tasks"][i]["status"] = orig_status
                 else:
                     state["tasks"][i]["status"] = "done"
                 if stats:
                     state["tasks"][i][f"stats_{pass_key}"] = stats
-                    # "stats" is the combined fwd+bwd total used by the per-book
-                    # badge tooltip — recompute it from whichever pass(es) have
-                    # run so far rather than letting the last pass overwrite it.
-                    # Only combine stats_bwd in if this run is actually
-                    # bidirectional - otherwise stats_bwd is never populated
-                    # by design (no backward pass ever runs), and combining
-                    # it in would mark every single-pass book "partial" even
-                    # when that book's one-and-only pass succeeded cleanly.
-                    pass_stats = [state["tasks"][i].get("stats_fwd")]
-                    if state.get("bidirectional"):
-                        pass_stats.append(state["tasks"][i].get("stats_bwd"))
-                    state["tasks"][i]["stats"] = _combine_pass_stats(*pass_stats)
                     totals = state["totals_bwd"] if tag == " [bwd]" else state["totals_fwd"]
                     for key in totals:
                         if key != "books_done":
@@ -1571,20 +1767,14 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 failures = _extract_failed_sections(own_lines)
                 if failures["sections"]:
                     state["tasks"][i][f"failures_{pass_key}"] = failures
-                    state["tasks"][i]["failures"] = failures
                 if highlights["text_rewrites"] or highlights["speaker_changes"]:
                     state["tasks"][i][f"diffs_{pass_key}"] = highlights
-                    # Combine diffs from both passes for the UI badge tooltip
-                    existing_diffs = state["tasks"][i].get("diffs", {})
-                    combined = {
-                        "text_rewrites": existing_diffs.get("text_rewrites", []) + highlights["text_rewrites"],
-                        "speaker_changes": existing_diffs.get("speaker_changes", []) + highlights["speaker_changes"],
-                    }
-                    state["tasks"][i]["diffs"] = combined
-                    for item in highlights["text_rewrites"]:
-                        state["diff_pool"]["text"].append({**item, "book": name})
-                    for item in highlights["speaker_changes"]:
-                        state["diff_pool"]["speaker"].append({**item, "book": name})
+                    state["diff_pool"] = get_batch_review_highlights({
+                        "text": state["diff_pool"]["text"] + [
+                            {**item, "book": name} for item in highlights["text_rewrites"]],
+                        "speaker": state["diff_pool"]["speaker"] + [
+                            {**item, "book": name} for item in highlights["speaker_changes"]],
+                    })
             else:
                 state["tasks"][i]["status"] = "failed"
                 state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
@@ -1629,7 +1819,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             state["artifacts"].append({
                 "artifact_path": report_path,
                 "kind": "batch_review_report",
-                "source_paths": [os.path.join(SCRIPTS_DIR, f"{name}.json") for name in names],
+                "source_paths": source_paths,
                 "config_path": CONFIG_PATH,
             })
             state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
@@ -1637,8 +1827,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         state["running"] = False
         state["logs"].append("Batch review finished.")
 
-    claim_gpu_task("batch_review")
-    background_tasks.add_task(_run_claimed_background_task, "batch_review", _run)
+    schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task, "batch_review", _run)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 
@@ -1667,7 +1856,7 @@ class BatchScriptTask(BaseModel):
     first_person_narrator: Optional[str] = None
 
 class BatchScriptRequest(BaseModel):
-    tasks: List[BatchScriptTask]
+    tasks: List[BatchScriptTask] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)
     collision_policy: Literal["cancel", "version", "replace"] = "cancel"
     strip_front_matter: bool = True
 
@@ -1698,16 +1887,16 @@ def _resolve_batch_output_path(output_path, policy, reserved_outputs):
     the explicit "version" policy.
     """
     is_reserved = output_path in reserved_outputs
-    exists_on_disk = os.path.exists(output_path)
+    exists_on_disk = os.path.lexists(output_path)
     if not is_reserved and not exists_on_disk:
         return output_path, "ok"
     if policy == "cancel":
         return output_path, "skip"
     if policy == "version" or is_reserved:
-        candidate = _get_versioned_script_path(output_path) if exists_on_disk else output_path
-        base, extension = os.path.splitext(candidate)
+        candidate = output_path
+        base, extension = os.path.splitext(output_path)
         counter = 2
-        while candidate in reserved_outputs:
+        while candidate in reserved_outputs or os.path.lexists(candidate):
             candidate = f"{base}_{counter}{extension}"
             counter += 1
         return candidate, "version"
@@ -1717,13 +1906,13 @@ def _resolve_batch_output_path(output_path, policy, reserved_outputs):
 
 def _resolve_batch_script_input(filename: str) -> str:
     safe_filename = secure_filename(filename)
-    if not safe_filename:
+    if not safe_filename or safe_filename != filename:
         raise ValueError(f"Invalid filename: {filename}")
     input_path = os.path.join(UPLOADS_DIR, safe_filename)
     if not os.path.exists(input_path) and os.path.splitext(safe_filename)[1].lower() == ".epub":
         input_path = os.path.join(UPLOADS_DIR, os.path.splitext(safe_filename)[0] + ".txt")
-    if not os.path.exists(input_path):
-        raise ValueError(f"File not found: {filename}")
+    if not os.path.isfile(input_path):
+        raise ValueError(f"Source is not a regular file: {filename}")
     return input_path
 
 
@@ -1740,13 +1929,26 @@ def _read_and_validate_batch_script_source(job):
     return text, normalization_count
 
 
+def get_batch_script_source_identity(path):
+    stat = os.stat(path)
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def get_validated_batch_script_source(job):
+    """Reuse this request's validated source only while file identity matches."""
+    cached = job.get("prepared_source")
+    if cached and get_batch_script_source_identity(job["input_path"]) == cached["identity"]:
+        return cached["text"], cached["normalizations"]
+    return _read_and_validate_batch_script_source(job)
+
+
 def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
     llm = get_active_llm_config(config)
     status = get_planned_ideal_settings(
         config.get("llm_mode", "local"), llm.get("base_url", ""),
-        llm.get("model_name", ""), config.get("llm_remote_ssh"))
+        llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     parallel = max(1, int(status.get("parallel") or 1))
     context = int(status.get("context_length") or 0)
     generation = config.get("generation") or {}
@@ -1754,7 +1956,7 @@ def build_batch_script_preflight(jobs):
     context_windows = generation.get("context_rescue_windows")
     books = []
     for job in jobs:
-        text, normalization_count = _read_and_validate_batch_script_source(job)
+        text, normalization_count = get_validated_batch_script_source(job)
         report = build_three_pass_request_preflight(
             text, settings, context, 1, context_windows=context_windows)
         unicode_report = audit_unicode_text(text)
@@ -1805,7 +2007,7 @@ def three_pass_refusal(jobs):
     settings = resolve_three_pass_generation_settings(config)
     reports = []
     for job in jobs:
-        text, _ = _read_and_validate_batch_script_source(job)
+        text, _ = get_validated_batch_script_source(job)
         reports.append((job["filename"], build_three_pass_request_preflight(text, settings, 0, 1)))
     return (output_ceiling_refusal(settings, reports)
             or unquoted_book_refusal(settings, reports))
@@ -1865,7 +2067,47 @@ async def generate_script_batch_preflight(request: BatchScriptRequest):
     return await asyncio.to_thread(build_batch_script_preflight, jobs)
 
 
+@contextlib.contextmanager
+def ensure_batch_script_output(job, state):
+    """Recheck collision policy while holding the library writer's claim."""
+    candidate = job["output_path"]
+    while True:
+        with file_lock(candidate):
+            if state.get("cancel"):
+                yield None
+                return
+            resolved, action = _resolve_batch_output_path(
+                candidate, job.get("collision_policy", "cancel"),
+                job.get("other_outputs", ()))
+            if action == "skip":
+                state["logs"].append(
+                    f"[{job['index'] + 1}] Skipping — saved script "
+                    f"'{os.path.basename(candidate)}' now exists.")
+                yield None
+                return
+            if resolved == candidate:
+                if action == "backup":
+                    backup = backup_file_with_timestamp(candidate)
+                    state["logs"].append(
+                        f"[{job['index'] + 1}] Backed up existing script as "
+                        f"'{os.path.basename(backup)}'.")
+                yield {**job, "output_path": candidate,
+                       "safe_stem": os.path.splitext(os.path.basename(candidate))[0]}
+                return
+        # Acquire the new name's own lock before trusting its availability.
+        candidate = resolved
+
+
 def _run_batch_script_job(job, state, log_path, total):
+    with ensure_batch_script_output(job, state) as prepared:
+        if prepared is None:
+            state["tasks"][job["index"]]["status"] = (
+                "cancelled" if state.get("cancel") else "failed")
+            return
+        _run_claimed_batch_script_job(prepared, state, log_path, total)
+
+
+def _run_claimed_batch_script_job(job, state, log_path, total):
     index = job["index"]
     if state.get("cancel"):
         state["tasks"][index]["status"] = "cancelled"
@@ -1894,32 +2136,47 @@ def _run_batch_script_job(job, state, log_path, total):
         state["logs"].append(f"[{index + 1}] Failed (exit {rc}): {job['filename']}")
 
 
-@router.post("/api/generate_script/batch/start")
-async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
-    """Process multiple text/EPUB files through three_pass_generate.py - the
-    same command single-book generation runs (build_generate_script_command)."""
+def get_prepared_batch_script_jobs(request):
+    """Validate source identities, narrator evidence and sizing off the event loop."""
     if not request.tasks:
         raise HTTPException(status_code=400, detail="No files provided.")
     try:
         narrators = [get_valid_narrator_name(task.first_person_narrator)
                      for task in request.tasks]
-        for task, narrator in zip(request.tasks, narrators):
-            _read_and_validate_batch_script_source({
-                "filename": task.filename,
-                "input_path": _resolve_batch_script_input(task.filename),
-                "first_person_narrator": narrator,
-            })
-    except ValueError as exc:
+        jobs = [{"filename": task.filename,
+                 "input_path": _resolve_batch_script_input(task.filename),
+                 "first_person_narrator": narrator}
+                for task, narrator in zip(request.tasks, narrators)]
+        prepared = []
+        for job in jobs:
+            identity = get_batch_script_source_identity(job["input_path"])
+            text, normalizations = _read_and_validate_batch_script_source(job)
+            if get_batch_script_source_identity(job["input_path"]) != identity:
+                raise ValueError(f"Source changed while preparing: {job['filename']}")
+            prepared.append({**job, "prepared_source": {
+                "identity": identity, "text": text, "normalizations": normalizations}})
+        refusal = three_pass_refusal(prepared)
+    except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    refusal = three_pass_refusal([
-        {"filename": task.filename, "input_path": _resolve_batch_script_input(task.filename),
-         "first_person_narrator": narrator}
-        for task, narrator in zip(request.tasks, narrators)])
     if refusal:
         raise HTTPException(status_code=400, detail=refusal)
+    return prepared
+
+
+def get_validated_batch_script_narrators(request):
+    return [job["first_person_narrator"] for job in get_prepared_batch_script_jobs(request)]
+
+
+@router.post("/api/generate_script/batch/start")
+async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
+    """Process multiple text/EPUB files through three_pass_generate.py - the
+    same command single-book generation runs (build_generate_script_command)."""
+    prepared_jobs = await asyncio.to_thread(get_prepared_batch_script_jobs, request)
     check_global_gpu_lock("batch_script")
 
     def _run():
+        with ensure_book_state(SCRIPTS_DIR):
+            pass
         state = process_state["batch_script"]
         _init_batch_state(state,
                           [f"Starting batch of {len(request.tasks)} file(s)..."],
@@ -1960,23 +2217,24 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                         "produced by this batch — writing "
                         f"'{os.path.basename(output_path)}' instead of replacing.")
                 safe_stem = os.path.splitext(os.path.basename(output_path))[0]
-            elif action == "backup":
-                backup = backup_file_with_timestamp(output_path)
-                state["logs"].append(
-                    f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
 
             reserved_outputs.add(output_path)
             jobs.append({"index": i, "filename": task.filename, "input_path": input_path,
                          "output_path": output_path, "safe_stem": safe_stem,
                          "strip_front_matter": request.strip_front_matter,
-                         "first_person_narrator": narrators[i]})
+                         "first_person_narrator": prepared_jobs[i]["first_person_narrator"],
+                         "prepared_source": prepared_jobs[i]["prepared_source"],
+                         "collision_policy": "version" if was_reserved else request.collision_policy})
 
+        jobs = [{**job, "other_outputs": tuple(
+                    path for path in reserved_outputs if path != job["output_path"])}
+                for job in jobs]
         if jobs and not state.get("cancel"):
             config = load_app_config(CONFIG_PATH)
             llm = get_active_llm_config(config)
             _, _, settings_message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", ""),
-                llm.get("model_name", ""), config.get("llm_remote_ssh"))
+                llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
             state["logs"].append(f"Batch LM Studio preflight: {settings_message}")
             workers, worst, context = _get_batch_script_workers(jobs)
             state["workers"] = workers
@@ -1991,8 +2249,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state["running"] = False
         state["logs"].append("Batch script generation finished.")
 
-    claim_gpu_task("batch_script")
-    background_tasks.add_task(_run_claimed_background_task, "batch_script", _run)
+    schedule_claimed_background_task(background_tasks, "batch_script", _run_claimed_background_task, "batch_script", _run)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
@@ -2021,10 +2278,11 @@ async def get_annotated_script():
     No SPA caller - intentionally kept as a programmatic/curl-accessible
     read endpoint (exercised by test_api.py's test_get_annotated_script).
     """
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=404, detail="No annotated script found")
-    with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    with ensure_book_state(DATA_DIR):
+        if not os.path.exists(SCRIPT_PATH):
+            raise HTTPException(status_code=404, detail="No annotated script found")
+        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
 
 @router.get("/api/annotated_script/diff")
 async def get_annotated_script_diff():
@@ -2045,22 +2303,37 @@ async def get_annotated_script_diff():
     return await asyncio.to_thread(word_diff, source, entries)
 
 
+@router.get("/api/status")
+async def get_task_statuses():
+    """Discover registered tasks without serializing logs or live process handles."""
+    return {name: {"running": bool(state.get("running"))}
+            for name, state in process_state.items()}
+
+
 @router.get("/api/status/{task_name}")
-async def get_status(task_name: str):
+async def get_status(task_name: str, include_health: bool = False):
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
     state = dict(process_state[task_name])
     state.pop("process", None)
     state.pop("processes", None)
+    if task_name == "batch_review":
+        state["tasks"] = [get_batch_review_task_snapshot(task, bool(state.get("bidirectional")))
+                          for task in state.get("tasks", [])]
+    if include_health and task_name == "voicelab":
+        state = copy.deepcopy(state)
     # the same estimate /api/status/eta serves, so the polling page needs no
     # second request to show "about 4m left"
-    state["eta"] = _compute_eta(process_state[task_name]) if state.get("running") else None
+    state["eta"] = _compute_eta(state) if state.get("running") else None
     # a manual-transport run waiting on the user: id + where it is, so the
     # page fetches the full prompt only when the request changes
     pending = read_manual_pending() if state.get("running") else None
     state["manual_request"] = ({"id": pending["id"], "sequence": pending["sequence"],
                                 "stage_hint": _stage_hint(state.get("logs") or [])}
                                if pending else None)
+    if include_health and task_name == "voicelab":
+        from routers.voicelab import _build_voicelab_health
+        state["health"] = await asyncio.to_thread(_build_voicelab_health, state=state)
     return state
 
 
@@ -2089,7 +2362,7 @@ def read_manual_pending():
 
 class ManualReply(BaseModel):
     id: str
-    content: str
+    content: str = Field(max_length=MAX_MANUAL_REPLY_CHARACTERS)
 
 
 @router.get("/api/manual_llm/pending")

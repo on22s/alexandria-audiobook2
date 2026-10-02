@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import difflib
 import json
 import logging
@@ -9,9 +10,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core import (
+    LORA_MODELS_DIR,
     CAST_MAJOR_LINE_THRESHOLD,
     CHARACTER_ALIASES_PATH,
     SCRIPTS_DIR,
+    SCRIPT_PATH,
     SHARED_DEFAULT_NAMES,
     VOICE_CONFIG_PATH,
     VOICE_LIBRARY_PATH,
@@ -29,6 +32,8 @@ from core import (
     get_member_labels,
     get_trait_assignment_metadata,
 )
+from voice_manifest import get_resolved_adapter_id_mapping
+from book_state_transaction import ensure_book_state
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
 
 
@@ -76,10 +81,12 @@ def _name_similarity(a: str, b: str) -> float:
     return max(ratio, jaccard, contain * 0.9)
 
 
-def _mutate_voice_library(mutator):
-    """Apply one read-modify-write transaction under the library lock."""
+def _mutate_voice_library(mutator, companion_paths=()):
+    """Mutate and publish under the library lock and ordered companion locks."""
     try:
-        with file_lock(VOICE_LIBRARY_PATH):
+        with file_lock(VOICE_LIBRARY_PATH), contextlib.ExitStack() as locks:
+            for path in companion_paths:
+                locks.enter_context(file_lock(path))
             lib = _load_voice_library()
             result = mutator(lib)
             atomic_json_write(lib, VOICE_LIBRARY_PATH)
@@ -234,7 +241,8 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
 
 def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
                                 mapping: Dict[str, str], chars: Optional[dict] = None,
-                                book_id: Optional[str] = None) -> List[str]:
+                                book_id: Optional[str] = None,
+                                require_members: bool = False) -> List[str]:
     """Load a voice_config.json (if present), apply the cast mapping under a file
     lock, write it back atomically if anything changed, and return the list of
     characters that were applied.
@@ -248,13 +256,57 @@ def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
         current_config, applied = _apply_cast_mapping(
             lib, cast_name, mapping, current_config, chars=chars, book_id=book_id)
 
+        if require_members:
+            missing = sorted(char for char in mapping
+                             if (chars is None or char in chars) and char not in applied)
+            if missing:
+                raise HTTPException(status_code=409, detail=(
+                    "Mapped cast members are unavailable for: " + ", ".join(missing)))
+
         if applied:
             atomic_json_write(current_config, config_path)
     return applied
 
 
+def _get_cast_library(cast_name):
+    """Read a cast; mutation callers hold the library lock until publication."""
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+    return lib
+
+
+def _is_safe_saved_script_name(name):
+    return bool(name) and secure_filename(name) == name
+
+
+def _apply_cast_to_saved_book(name, cast_name, mapping):
+    script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+    with file_lock(VOICE_LIBRARY_PATH), ensure_book_state(SCRIPTS_DIR), file_lock(script_path):
+        lib = _get_cast_library(cast_name)
+        if not os.path.isfile(script_path):
+            raise HTTPException(status_code=404, detail="Saved script not found")
+        book_id = _get_saved_book_id(name)
+        chars = _script_line_counts(script_path)
+        return _apply_cast_to_config_file(
+            os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json"),
+            lib, cast_name, mapping, chars=chars, book_id=book_id, require_members=True)
+
+
+def _apply_cast_to_current_book(cast_name, mapping):
+    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_LIBRARY_PATH):
+        lib = _get_cast_library(cast_name)
+        return _apply_cast_to_config_file(
+            VOICE_CONFIG_PATH, lib, cast_name, mapping, book_id=get_active_book_id())
+
+
 @router.get("/api/voice_library")
 async def voice_library_get():
+    """Return the full library plus the current book's characters with line counts."""
+    return await asyncio.to_thread(_build_voice_library_response)
+
+
+def _build_voice_library_response():
     """Return the full library plus the current book's characters with line counts."""
     lib = _load_voice_library()
     counts = _script_line_counts()
@@ -319,12 +371,18 @@ async def voice_library_toggle_favorite(adapter_id: str):
         raise HTTPException(status_code=400, detail="Adapter id is required.")
 
     def toggle(lib):
-        favorites = list(lib.get("favorites") or [])
-        if adapter_id in favorites:
-            favorites.remove(adapter_id)
+        try:
+            stored = lib.get("favorites") or []
+            identities = get_resolved_adapter_id_mapping(LORA_MODELS_DIR, [*stored, adapter_id])
+            favorites = sorted({identities[name] for name in stored})
+            current_id = identities[adapter_id]
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        if current_id in favorites:
+            favorites.remove(current_id)
             starred = False
         else:
-            favorites.append(adapter_id)
+            favorites.append(current_id)
             starred = True
         lib["favorites"] = favorites
         return {"favorite": starred, "favorites": favorites}
@@ -360,25 +418,22 @@ async def voice_library_delete_member(cast: str, key: str):
     return {"status": "deleted", "cast": cast, "key": key}
 
 
-@router.post("/api/voice_library/save")
-async def voice_library_save(request: LibrarySaveRequest):
-    """Save selected current-book characters into a cast (NARRATOR -> shared by default)."""
+def _save_voice_library_sync(request):
     cast_name = request.cast.strip()
-    voice_config = {}
-    if os.path.exists(VOICE_CONFIG_PATH):
-        try:
-            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError) as e:
-            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
-            voice_config = {}
-
-    counts = _script_line_counts()
-    book_id = get_active_book_id()
     shared_override = {_norm_name(n) for n in (request.shared or [])}
     cast_specific = {_norm_name(n) for n in (request.cast_specific or [])}
 
     def save(lib):
+        voice_config = {}
+        if os.path.exists(VOICE_CONFIG_PATH):
+            try:
+                voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
+            except (json.JSONDecodeError, ValueError) as e:
+                _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
+                voice_config = {}
+
+        counts = _script_line_counts()
+        book_id = get_active_book_id()
         if cast_name not in lib["casts"]:
             raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found. Create it first.")
         saved = {"cast": [], "shared": []}
@@ -405,18 +460,32 @@ async def voice_library_save(request: LibrarySaveRequest):
                 saved["cast"].append(char)
         return saved
 
-    saved = await _mutate_voice_library_async(save)
+    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
+        saved = _mutate_voice_library(save, companion_paths=(SCRIPT_PATH, VOICE_CONFIG_PATH))
     return {"status": "saved", "cast": cast_name, "saved": saved}
+
+
+@router.post("/api/voice_library/save")
+async def voice_library_save(request: LibrarySaveRequest):
+    """Save selected current-book characters into a cast (NARRATOR -> shared by default)."""
+    try:
+        return await asyncio.to_thread(_save_voice_library_sync, request)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Voice library or current book is busy; please try again.")
 
 
 @router.post("/api/voice_library/match")
 async def voice_library_match(request: CastCreateRequest):
     """Fuzzy-match the current book's characters against a cast (+shared pool).
     Returns proposals for the user to confirm before applying. `name` = cast name."""
+    return await asyncio.to_thread(_build_cast_match_response, request)
+
+
+def _build_cast_match_response(request: CastCreateRequest):
+    """Fuzzy-match the current book's characters against a cast (+shared pool).
+    Returns proposals for the user to confirm before applying. `name` = cast name."""
     cast_name = request.name.strip()
-    lib = _load_voice_library()
-    if cast_name not in lib["casts"]:
-        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+    lib = _get_cast_library(cast_name)
 
     pool = _cast_match_pool(lib, cast_name, get_active_book_id())
 
@@ -434,51 +503,52 @@ async def voice_library_match_bulk(request: CastMatchBulkRequest):
     """Fuzzy-match the union of characters across several saved books against a
     cast (+shared pool). Same proposal shape as /api/voice_library/match, but
     `line_count` is the sum across all selected books."""
+    return await asyncio.to_thread(_build_bulk_cast_match_response, request)
+
+
+def _build_bulk_cast_match_response(request: CastMatchBulkRequest):
+    """Fuzzy-match the union of characters across several saved books against a
+    cast (+shared pool). Same proposal shape as /api/voice_library/match, but
+    `line_count` is the sum across all selected books."""
     cast_name = request.name.strip()
-    lib = _load_voice_library()
-    if cast_name not in lib["casts"]:
-        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+    lib = _get_cast_library(cast_name)
 
     pool = _cast_match_pool(lib, cast_name, include_all_generic=True)
 
     def _collect_counts():
         counts = {}
-        for name in request.script_names:
-            safe_name = secure_filename(name)
-            if not safe_name:
-                continue
+        for name in dict.fromkeys(request.script_names):
+            if not _is_safe_saved_script_name(name):
+                raise HTTPException(status_code=400, detail="Invalid script name")
+            safe_name = name
             script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
             for char, n in _script_line_counts(script_path).items():
                 counts[char] = counts.get(char, 0) + n
         return counts
 
-    # Offload the per-book file reads to a worker thread so reading a large
-    # series doesn't block the event loop (and other in-flight requests).
-    counts = await asyncio.to_thread(_collect_counts)
+    # The complete response, including matching, runs in the route's worker.
+    with ensure_book_state(SCRIPTS_DIR):
+        counts = _collect_counts()
 
     if not counts:
         raise HTTPException(status_code=400, detail="No characters found in the selected books.")
 
     proposals = _build_match_proposals(counts, pool)
 
-    return {"cast": cast_name, "proposals": proposals, "book_count": len(request.script_names)}
+    return {"cast": cast_name, "proposals": proposals, "book_count": len(set(request.script_names))}
 
 
 @router.post("/api/voice_library/apply")
 async def voice_library_apply(request: LibraryApplyRequest):
     """Apply confirmed cast members onto the current voice_config by the given mapping."""
     cast_name = request.cast.strip()
-    lib = _load_voice_library()
-    if cast_name not in lib["casts"]:
-        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
 
     # Offload to a worker thread so file_lock's wait loop can't block the event loop.
     # Hold the lock across the read-modify-write so this can't race a batch
     # review's concurrent speaker-rename remap of the same file.
     try:
         applied = await asyncio.to_thread(
-            _apply_cast_to_config_file, VOICE_CONFIG_PATH, lib, cast_name, request.mapping,
-            None, get_active_book_id())
+            _apply_cast_to_current_book, cast_name, request.mapping)
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
     try:
@@ -495,28 +565,24 @@ async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
     files at once. Each book only receives entries for characters that actually
     appear in that book."""
     cast_name = request.cast.strip()
-    lib = _load_voice_library()
-    if cast_name not in lib["casts"]:
-        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
 
     def _apply_all():
+        # Preserve the existing request-level error for an initially absent cast.
+        with file_lock(VOICE_LIBRARY_PATH):
+            _get_cast_library(cast_name)
         results = []
+        seen = set()
         for name in request.script_names:
-            safe_name = secure_filename(name)
-            if not safe_name:
-                results.append({"name": name, "applied": [], "count": 0, "error": "Invalid script name"})
+            if not _is_safe_saved_script_name(name) or name in seen:
+                error = "Duplicate script name" if name in seen else "Invalid script name"
+                results.append({"name": name, "applied": [], "count": 0, "error": error})
                 continue
-            book_id = _get_saved_book_id(safe_name)
-            chars = _script_line_counts(os.path.join(SCRIPTS_DIR, f"{safe_name}.json"))
-
-            config_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
-            # Hold the lock across the read-modify-write so this can't race a batch
-            # review's concurrent speaker-rename remap of the same companion file.
+            seen.add(name)
             try:
-                applied = _apply_cast_to_config_file(
-                    config_path, lib, cast_name, request.mapping, chars=chars, book_id=book_id)
-            except TimeoutError as e:
-                results.append({"name": name, "applied": [], "count": 0, "error": str(e)})
+                applied = _apply_cast_to_saved_book(name, cast_name, request.mapping)
+            except (TimeoutError, HTTPException) as error:
+                detail = error.detail if isinstance(error, HTTPException) else str(error)
+                results.append({"name": name, "applied": [], "count": 0, "error": detail})
                 continue
 
             results.append({"name": name, "applied": applied, "count": len(applied)})

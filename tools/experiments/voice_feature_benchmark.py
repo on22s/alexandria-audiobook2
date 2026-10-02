@@ -11,9 +11,15 @@ import json
 import os
 import statistics
 import time
+import sys
 
 import librosa
 import numpy as np
+
+APP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "app")
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
+from voice_acoustics import get_profiler_acoustic_operations
 
 
 FEATURE_TOLERANCES = {
@@ -107,16 +113,7 @@ def _median_runtime(function, repeats: int, device: str) -> float:
 
 def get_librosa_operation_times(y: np.ndarray, sr: int, repeats: int) -> dict[str, float]:
     """Time each acoustic operation used by production ``analyze_ref_wav``."""
-    operations = {
-        "yin": lambda: librosa.yin(y, fmin=50, fmax=400, sr=sr),
-        "rms": lambda: librosa.feature.rms(y=y),
-        "centroid": lambda: librosa.feature.spectral_centroid(y=y, sr=sr),
-        "rolloff": lambda: librosa.feature.spectral_rolloff(
-            y=y, sr=sr, roll_percent=0.85),
-        "harmonic": lambda: librosa.effects.harmonic(y, margin=2.0),
-        "flatness": lambda: librosa.feature.spectral_flatness(y=y),
-        "onset": lambda: librosa.onset.onset_detect(y=y, sr=sr, units="time"),
-    }
+    operations = get_profiler_acoustic_operations(y, sr)
     for operation in operations.values():
         operation()
     return {
@@ -170,7 +167,7 @@ def main() -> int:
     results = [benchmark_clip(path, args.device, args.repeats) for path in args.clips]
     report = {
         "device": args.device,
-        "device_name": (torch.cuda.get_device_name(0)
+        "device_name": (torch.cuda.get_device_name(args.device)
                         if args.device.startswith("cuda") and torch.cuda.is_available()
                         else "CPU"),
         "scope": "profiler acoustic operations; speedup covers spectral subset only and excludes load and LLM",

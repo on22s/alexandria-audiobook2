@@ -548,3 +548,28 @@ class ThreePassKnobBoundsTests(unittest.TestCase):
             loaded = cs.load_app_config_result(path).data
         self.assertEqual([{"name": "mine", "variant": "michel2"}],
                          [{"name": p["name"], "variant": p["variant"]} for p in loaded["prompt_presets"]])
+
+
+class StoredFailoverValidationTests(unittest.TestCase):
+    def test_stored_failover_bool_is_validated_before_profile_dispatch(self):
+        from lmstudio_settings import get_failover_llm_config
+        cases = ((False, False), (True, True), ('false', False), ('true', True),
+                 (0, False), (1, True), ('broken', None), ([], None), ({}, None))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'config.json'
+            for stored, expected in cases:
+                with self.subTest(stored=stored):
+                    document = json.dumps({'llm_mode': 'local', 'llm_failover': stored,
+                        'llm_remote': {'base_url': 'http://remote:1/v1', 'model_name': 'm', 'api_key': 'k'},
+                        'custom': {'keep': 9}})
+                    path.write_text(document, encoding='utf-8')
+                    result = config_settings.load_app_config_result(str(path))
+                    if expected is None:
+                        self.assertNotIn('llm_failover', result.data)
+                        self.assertIn('llm_failover', {w.field for w in result.warnings})
+                    else:
+                        self.assertIs(expected, result.data['llm_failover'])
+                        self.assertNotIn('llm_failover', {w.field for w in result.warnings})
+                    self.assertEqual(bool(expected), bool(get_failover_llm_config(result.data)))
+                    self.assertEqual({'keep': 9}, result.data['custom'])
+                    self.assertEqual(document, path.read_text(encoding='utf-8'))

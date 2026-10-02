@@ -36,12 +36,12 @@ class SourceSpanCoverageTests(unittest.TestCase):
     def test_missing_unknown_and_malformed_declarations_fail_loudly(self):
         spans = get_source_spans("First. Second. Third.")
         entries = [
-            {"source_span_ids": ["S001", "S999"]},
-            {"source_span_ids": "S002"},
+            {"text":"First.","source_span_ids": ["S001", "S999"]},
+            {"text":"Second. Third.","source_span_ids": "S002"},
         ]
         findings = get_span_coverage_findings(spans, entries)
         self.assertEqual(
-            {"invalid_source_span_ids", "unknown_source_span_ids", "uncovered_source_spans"},
+            {"invalid_source_span_ids", "unknown_source_span_ids", "uncovered_source_spans", "misassigned_source_span_ids"},
             {finding["code"] for finding in findings})
         missing = next(item for item in findings if item["code"] == "uncovered_source_spans")
         self.assertEqual(["S002", "S003"], missing["span_ids"])
@@ -49,3 +49,23 @@ class SourceSpanCoverageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QuotedSentenceSpanTests(unittest.TestCase):
+    def test_closing_quotes_and_brackets_stay_with_the_preceding_sentence(self):
+        for quoted in ('"Stop."', '“Stop.”', "‘Stop!’", "(Stop.)", "[Stop?]", "{Stop!}",
+                       '“Stop!”)]', '«Stop!»', '‹Stop?›'):
+            for whitespace in (' ', '  ', '\n', '\t'):
+                with self.subTest(quoted=quoted, whitespace=repr(whitespace)):
+                    raw = quoted + whitespace + "Then she left."
+                    spans = get_source_spans(raw)
+                    self.assertEqual([{"id": "S001", "text": quoted},
+                                      {"id": "S002", "text": "Then she left."}], spans)
+                    self.assertEqual(f"[S001] {quoted}\n[S002] Then she left.", format_tagged_source(spans))
+                    declarations = [{"text":span["text"],"source_span_ids": [span["id"]]} for span in spans]
+                    self.assertEqual([], get_span_coverage_findings(spans, declarations))
+
+    def test_nonterminal_quotes_do_not_create_a_boundary_and_paragraphs_survive(self):
+        raw = 'He called her "friend" and waited.\n\n"Go." Then he left!'
+        self.assertEqual(['He called her "friend" and waited.', '"Go."', 'Then he left!'],
+                         [span['text'] for span in get_source_spans(raw)])

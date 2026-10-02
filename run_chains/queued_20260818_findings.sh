@@ -64,16 +64,15 @@ run_stage mushoku18_narrator 5h -- \
 # its existing flags changes that. Testing a second voice needs a --voice flag
 # on the runner first.
 #
-# What it does test is a different 200-term sample, which is worth having and
-# is not the same claim.
+# What it tests is ranks 201-400 after the same filters and sorting. This
+# expands term coverage with the same voice; it is not a random replicate.
 run_stage e_row_second_sample 2h -- \
-    "$REPO/gpu_job.sh" e_row_second_voice \
+    "$REPO/gpu_job.sh" e_row_second_sample \
     "$python" -u "$REPO/app/experiments/measure_respellings.py" \
-    --min-books 5 --only-e-row --e-spelling ay --limit 200 \
-    --work "$runtime/respelling_voice2" \
-    --out "$runtime/experiments/respelling_e_row__ay_sample2.json"
+    --min-books 5 --only-e-row --e-spelling ay --offset 200 --limit 200 \
+    --work "$runtime/respelling_sample2_terms201_400" \
+    --out "$runtime/experiments/respelling_e_row__ay_terms201_400.json"
 
-stage_summary queued_20260818
 
 echo
 echo "WHAT IS NOT HERE, deliberately:"
@@ -83,3 +82,5 @@ echo "    them measures an encoding bug more precisely."
 echo "  - the second listening test. It needs the separator arms to finish"
 echo "    first, and then a person: the ear is the only instrument that has"
 echo "    been right about respellings so far."
+
+stage_summary queued_20260818

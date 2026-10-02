@@ -29,6 +29,7 @@ Manifest shape recap (verified against real manifests in scripts/):
 
 import argparse
 import json
+import math
 import os
 import sys
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -61,10 +62,51 @@ KNOWN_LIMITATIONS = [
 ]
 
 
+def validate_recall(recall, location="source_token_recall"):
+    if isinstance(recall, bool) or not isinstance(recall, (int, float)) or not 0 <= recall <= 1 or not math.isfinite(recall):
+        raise ValueError(f"{location}: expected a finite number between 0 and 1")
+
+
+def validate_attempts(attempts, location):
+    if attempts is None:
+        return
+    if not isinstance(attempts, list):
+        raise ValueError(f"{location}: expected a list")
+    for index, attempt in enumerate(attempts):
+        path = f"{location}[{index}]"
+        if not isinstance(attempt, dict):
+            raise ValueError(f"{path}: expected an object")
+        metrics = attempt.get("quality_metrics")
+        if metrics is not None:
+            if not isinstance(metrics, dict):
+                raise ValueError(f"{path}.quality_metrics: expected an object")
+            recall = metrics.get("source_token_recall")
+            if recall is not None:
+                validate_recall(recall, f"{path}.quality_metrics.source_token_recall")
+
+
+def validate_analysis_chunks(chunks, location="chunks"):
+    if not isinstance(chunks, list):
+        raise ValueError(f"{location}: expected a list")
+    for index, chunk in enumerate(chunks):
+        path = f"{location}[{index}]"
+        if not isinstance(chunk, dict):
+            raise ValueError(f"{path}: expected an object")
+        validate_attempts(chunk.get("attempts"), f"{path}.attempts")
+
+
+def validate_analysis_manifest(manifest):
+    if not isinstance(manifest, dict):
+        raise ValueError("expected a manifest object")
+    validate_analysis_chunks(manifest.get("chunks"))
+    validate_attempts(manifest.get("failed_chunk_attempts"), "failed_chunk_attempts")
+
+
 def recall_band(recall: float) -> str:
     """Return which RECALL_BANDS bucket `recall` falls in. Band edges are
     inclusive on the lower bound, exclusive on the upper (0.75 falls in
     "0.75-0.90", 0.90 falls in ">=0.90")."""
+    validate_recall(recall)
     for label, lo, hi in RECALL_BANDS:
         if lo is not None and recall < lo:
             continue
@@ -94,11 +136,16 @@ def load_manifests(scripts_dir: str) -> Tuple[List[dict], List[str]]:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
             warnings.append(f"skipped {name}: unreadable/invalid JSON ({e})")
             continue
         if not isinstance(data, dict) or not isinstance(data.get("chunks"), list):
             warnings.append(f"skipped {name}: not a manifest object (missing 'chunks')")
+            continue
+        try:
+            validate_analysis_manifest(data)
+        except ValueError as e:
+            warnings.append(f"skipped {name}: malformed telemetry ({e})")
             continue
         manifests.append(data)
     return manifests, warnings
@@ -114,6 +161,7 @@ def extract_chunk_records(manifest: dict) -> List[dict]:
     its adaptively_split is derived from whether any recorded attempt has
     phase == "split", since the failed path never stores that flag itself.
     """
+    validate_analysis_manifest(manifest)
     records = []
     for item in manifest.get("chunks", []):
         records.append({
@@ -145,6 +193,7 @@ def all_chunk_records(manifests: Iterable[dict]) -> List[dict]:
 def recall_histogram(records: List[dict]) -> Dict[str, int]:
     """Aggregation 1: histogram of source_token_recall across
     quality-rejected attempts, bucketed by RECALL_BANDS."""
+    validate_analysis_chunks(records, "records")
     counts = {label: 0 for label, _, _ in RECALL_BANDS}
     for record in records:
         for attempt in record["attempts"]:
@@ -161,6 +210,7 @@ def recovery_by_band(records: List[dict]) -> Dict[str, Dict[str, int]]:
     """Aggregation 2: for each quality-rejected attempt with a recall value,
     did any LATER attempt in the same chunk record end up "accepted"?
     Returns {band: {"rejected": n, "recovered": n}}."""
+    validate_analysis_chunks(records, "records")
     result = {label: {"rejected": 0, "recovered": 0} for label, _, _ in RECALL_BANDS}
     for record in records:
         attempts = record["attempts"]
@@ -181,6 +231,7 @@ def attempt_count_distribution(records: List[dict]) -> Dict[str, Dict[int, int]]
     """Aggregation 3: {"accepted": {n_attempts: chunk_count}, "failed": {...}}
     - how many attempts each chunk record took, split by whether the chunk
     was eventually accepted or ultimately failed the whole book."""
+    validate_analysis_chunks(records, "records")
     dist = {"accepted": {}, "failed": {}}
     for record in records:
         key = "accepted" if record["accepted"] else "failed"
@@ -192,6 +243,7 @@ def attempt_count_distribution(records: List[dict]) -> Dict[str, Dict[int, int]]
 def split_outcomes(records: List[dict]) -> Dict[str, int]:
     """Aggregation 4: among chunk records with adaptively_split True, how
     many ended up accepted vs failed."""
+    validate_analysis_chunks(records, "records")
     counts = {"accepted": 0, "failed": 0}
     for record in records:
         if not record["adaptively_split"]:

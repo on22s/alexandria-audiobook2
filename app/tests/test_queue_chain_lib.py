@@ -25,11 +25,10 @@ class LibraryTest(unittest.TestCase):
         self.src = LIB.read_text(encoding="utf-8")
 
     def test_it_excludes_itself_from_its_own_process_match(self):
-        """`pgrep -f` matches the command line of whatever is doing the
-        matching, so a waiter looking for its own name finds itself and waits
-        forever. This has killed a shell in this repo four times."""
-        self.assertRegex(self.src, r'grep -qv[^\n]*\$\$')
-        self.assertRegex(self.src, r'grep -qv[^\n]*\$PPID')
+        # Native identity and decoy cases are exercised by QueueProcessTests.
+        self.assertNotIn("pgrep -f", self.src[self.src.index('chain_running() {'):])
+        for owner in ("$$", "$PPID", "$BASHPID"):
+            self.assertIn(owner, self.src[self.src.index('chain_running() {'):])
 
     def test_it_can_wait_for_a_chain_that_has_not_started(self):
         """Waiting for a chain that is not running YET returns immediately and
@@ -41,15 +40,10 @@ class LibraryTest(unittest.TestCase):
         self.assertIn("resolve_python", self.src)
         self.assertIn("main_checkout", self.src)
 
-    def test_the_dirty_tree_refusal_excludes_generated_artifacts(self):
-        """gpu_job.sh's own exclusion list. A run rewriting its outputs is not
-        a run whose code changed, and without these a chain refuses itself
-        halfway through."""
-        for pattern in ("ab_test_runtime/experiments/*.json",
-                        "ab_test_runtime/audit/*.json",
-                        "RESULTS_INDEX.md", "results_index.csv"):
-            with self.subTest(pattern=pattern):
-                self.assertIn(pattern, self.src)
+    def test_dirty_tree_preflight_uses_canonical_source_policy(self):
+        self.assertIn("--print-source-state", self.src)
+        self.assertNotIn("git -C \"$repo\" status", self.src)
+
 
 
 class ChainTest(unittest.TestCase):
@@ -89,7 +83,8 @@ class ChainTest(unittest.TestCase):
         src = CHAINS[1].read_text(encoding="utf-8")
         self.assertIn("REFUSING: could not determine", src)
         # the refusal branch must exit, not fall through to the work
-        branch = src[src.index("case \"$state\""):src.index("esac")]
+        start = src.index("case \"$state\"")
+        branch = src[start:src.index("esac", start)]
         self.assertIn("exit 1", branch)
 
     def test_the_table_chain_refuses_a_partial_arm(self):
@@ -98,7 +93,7 @@ class ChainTest(unittest.TestCase):
         words only."""
         src = CHAINS[0].read_text(encoding="utf-8")
         self.assertIn("the dot arm is not complete", src)
-        self.assertLess(src.index("status\") == \"complete\""),
+        self.assertLess(src.index('respelling_completion.py" "$dot" 1600'),
                         src.index("pauses_four_arms 1h"))
 
 

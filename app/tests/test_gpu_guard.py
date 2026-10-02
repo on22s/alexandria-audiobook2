@@ -15,8 +15,10 @@ import tempfile
 import textwrap
 import time
 import unittest
+from unittest.mock import patch
 
-from experiments.gpu_guard import gpu_is_busy, require_free_gpu
+from experiments.gpu_guard import (acquire_gpu_lock, gpu_is_busy,
+                                   release_gpu_lock, require_free_gpu)
 
 
 class GpuGuardTest(unittest.TestCase):
@@ -60,6 +62,63 @@ class GpuGuardTest(unittest.TestCase):
         self._hold()
         self.assertTrue(gpu_is_busy(self.lock))
 
+    def test_acquired_lease_excludes_other_processes_until_release(self):
+        lease = acquire_gpu_lock(self.lock)
+        try:
+            self.assertTrue(gpu_is_busy(self.lock))
+            with self.assertRaisesRegex(RuntimeError, 'held by another job'):
+                acquire_gpu_lock(self.lock)
+        finally:
+            release_gpu_lock(lease)
+        self.assertFalse(gpu_is_busy(self.lock))
+
+    def test_api_claim_holds_queue_lock_until_task_finishes(self):
+        import core
+        key = '_test_api_gpu_lease'
+        core.process_state[key] = {'running': False, 'logs': []}
+        core.GPU_TASKS.add(key)
+        self.addCleanup(core.GPU_TASKS.discard, key)
+        self.addCleanup(core.process_state.pop, key, None)
+        with patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
+             patch.object(core, 'acquire_gpu_lock', side_effect=lambda: acquire_gpu_lock(self.lock)):
+            core.claim_gpu_task(key)
+        self.assertTrue(gpu_is_busy(self.lock))
+        core.process_state[key]['running'] = False
+        deadline = time.monotonic() + 2
+        while gpu_is_busy(self.lock) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertFalse(gpu_is_busy(self.lock))
+
+    def test_failed_worker_start_releases_claim_immediately(self):
+        import core
+        key = '_test_failed_gpu_worker_start'
+        core.process_state[key] = {'running': False, 'logs': []}
+        core.GPU_TASKS.add(key)
+        self.addCleanup(core.GPU_TASKS.discard, key)
+        self.addCleanup(core.process_state.pop, key, None)
+        with patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
+             patch.object(core, 'acquire_gpu_lock', side_effect=lambda: acquire_gpu_lock(self.lock)):
+            core.claim_gpu_task(key)
+        self.assertTrue(gpu_is_busy(self.lock))
+        core.release_gpu_task_claim(key)
+        self.assertFalse(core.process_state[key]['running'])
+        self.assertFalse(gpu_is_busy(self.lock))
+
+    def test_api_claim_refuses_a_queued_job_without_reserving_task(self):
+        import core
+        self._hold()
+        key = '_test_api_gpu_collision'
+        core.process_state[key] = {'running': False, 'logs': []}
+        core.GPU_TASKS.add(key)
+        self.addCleanup(core.GPU_TASKS.discard, key)
+        self.addCleanup(core.process_state.pop, key, None)
+        with patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
+             patch.object(core, 'acquire_gpu_lock', side_effect=lambda: acquire_gpu_lock(self.lock)):
+            with self.assertRaises(core.HTTPException) as caught:
+                core.claim_gpu_task(key)
+        self.assertEqual(400, caught.exception.status_code)
+        self.assertFalse(core.process_state[key]['running'])
+
     def test_a_hand_run_call_is_refused_while_a_job_runs(self):
         """THE DEFECT, in one line."""
         self._hold()
@@ -69,12 +128,16 @@ class GpuGuardTest(unittest.TestCase):
         self.assertIn("gpu_job.sh", message, "the refusal must say how to queue it")
 
     def test_the_queued_job_itself_is_allowed_through(self):
-        # gpu_job.sh exports this into everything it starts; without the
-        # exemption the guard would refuse the very jobs it protects.
-        self._hold()
-        os.environ["ALEXANDRIA_GPU_LOCK_HELD"] = "1"
-        self.addCleanup(os.environ.pop, "ALEXANDRIA_GPU_LOCK_HELD", None)
-        require_free_gpu("a queued job", self.lock)
+        from tests.test_gpu_lock_owner import OWNER_WORKER, ROOT
+        import json
+        result = subprocess.run([sys.executable, "-c", OWNER_WORKER, str(ROOT),
+                                 self.tmp.name, "exclusive", "yes"],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        observed = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(0, observed[0]["rc"], observed)
+        self.assertEqual(0, observed[1]["guard_rc"], observed)
+        self.assertIn("GUARD_ACCEPTED_FD9_CLOSED", observed[1]["stdout"])
 
     def test_the_override_exists_for_a_deliberate_exception(self):
         self._hold()
@@ -291,12 +354,16 @@ class StaleSentinelTest(unittest.TestCase):
         dead.wait()
         os.environ["ALEXANDRIA_GPU_LOCK_HELD"] = "1"
         os.environ["ALEXANDRIA_GPU_LOCK_PID"] = str(dead.pid)
-        with self.assertRaises(SystemExit):
+        with self.assertRaisesRegex(RuntimeError, "inherited GPU lock"):
             require_free_gpu("a shell that outlived its chain", self.lock)
 
     def test_a_live_job_is_still_exempt(self):
-        from experiments.gpu_guard import require_free_gpu
-        self._hold()
-        os.environ["ALEXANDRIA_GPU_LOCK_HELD"] = "1"
-        os.environ["ALEXANDRIA_GPU_LOCK_PID"] = str(os.getpid())
-        require_free_gpu("the queued job itself", self.lock)
+        from tests.test_gpu_lock_owner import OWNER_WORKER, ROOT
+        import json
+        result = subprocess.run([sys.executable, "-c", OWNER_WORKER, str(ROOT),
+                                 self.tmp.name, "exclusive", "no"],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        observed = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(0, observed[1]["guard_rc"], observed)
+        self.assertIn("GUARD_ACCEPTED_FD9_CLOSED", observed[1]["stdout"])

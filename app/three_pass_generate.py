@@ -5,27 +5,28 @@ import argparse
 import hashlib
 import json
 import math
+from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_delta_checkpoint
+from chunk_status_journal import remove_chunk_snapshot
 import os
 import re
 import sys
 import time
+from pathlib import Path
 from collections import Counter
 from dataclasses import replace
+from types import MappingProxyType
 
 from core import llm_timeout_seconds
-from llm_provider import make_llm_client, make_run_client
+from source_encoding import read_source_text
+from llm_provider import make_llm_client, make_run_client, get_run_model_binding, get_run_fingerprint_identity
 
+from judge_reason_log import record_judge_run
 from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
-                             fix_mojibake, LLMGenParams,
-                             split_failed_chunk, is_trigram_only_near_miss)
+                             get_preprocessed_source, LLMGenParams,
+                             split_failed_chunk, is_trigram_only_near_miss,
+                             ensure_run_request_params)
 from dialogue_spans import apply_dialogue_map
-from source_normalization import (neutralize_lossy_residue,
-                                  normalize_extreme_phrase_repetitions,
-                                  normalize_known_source_corruptions,
-                                  repair_lossy_replacements,
-                                  strip_known_front_matter,
-                                  strip_publisher_matter)
 from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
@@ -43,7 +44,7 @@ from pass_quality import (is_attested_name, strip_roster_alias_echo,
                           analyze_outer_quote_regions, split_outer_quote_regions,
                           QUOTE_MARKS)
 from review_script import normalize_text
-from config_settings import load_app_config
+from config_settings import load_app_config, get_generation_config
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, TokenBudgetError)
 from utils import (get_runtime_data_dir, get_app_config_path,
@@ -89,12 +90,16 @@ def load_default_model_profiles(path=None):
     there would not reproduce on another machine. These defaults ship with the
     code; config.json still wins per key for local experiments.
     """
+    path = path or DEFAULT_MODEL_PROFILES_PATH
     try:
-        with open(path or DEFAULT_MODEL_PROFILES_PATH, encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             loaded = json.load(handle)
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Cannot load three-pass model profiles from {path}: {exc}") from exc
+    if not isinstance(loaded, dict) or any(not isinstance(profile, dict)
+                                           for profile in loaded.values()):
+        raise ValueError(f"Invalid three-pass model profiles in {path}: expected model-to-profile objects")
+    return loaded
 
 
 def resolve_model_profile(model_name, config_profiles, defaults):
@@ -110,7 +115,7 @@ def resolve_chunk_size(cli_value, config_value, model_value=None):
     through because only the CLI value was checked. Raises ValueError on < 1."""
     chunk_size = (cli_value if cli_value is not None else
                   model_value if model_value is not None else config_value)
-    if not isinstance(chunk_size, int) or chunk_size < 1:
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, int) or chunk_size < 1:
         raise ValueError(f"chunk_size must be an integer >= 1 (got {chunk_size!r})")
     return chunk_size
 
@@ -193,7 +198,7 @@ def build_window_surround(segmented, window_indices, chars):
             if entry.get("type") == "SPOKEN":
                 text = f"\u201c{text}\u201d"
             if total + len(text) > chars:
-                break
+                continue
             out.append(text)
             total += len(text) + 1
         return " ".join(reversed(out) if take_from_end else out)
@@ -228,6 +233,24 @@ def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
             yield batch
 
 
+def get_missing_attribute_contexts(entries, indices, batch_size):
+    """Read-only adjacent evidence omitted from the current source-window batch."""
+    if not indices:
+        return []
+    included = set(indices)
+    start = indices[0] // batch_size * batch_size
+    end = min(start + batch_size, len(entries))
+    contexts = []
+    for index in indices:
+        context = {}
+        for key, neighbor in (("previous_context", index - 1),
+                              ("next_context", index + 1)):
+            if start <= neighbor < end and neighbor not in included:
+                context[key] = entries[neighbor]
+        contexts.append(context)
+    return contexts
+
+
 MIN_ROSTER_ATTESTATIONS = 3
 
 
@@ -241,18 +264,7 @@ def build_roster(entries, source_text=None):
     On mushoku16 a single invention at entry 11 spread to entry 1,106. Gating
     admission contains the damage to the one entry that produced it.
     """
-    roster = []
-    for entry in entries:
-        speaker = (entry.get("speaker") or "").strip().upper()
-        if not speaker or speaker in ("NARRATOR", "UNKNOWN") or speaker in roster:
-            continue
-        if entry.get("attribution_unchecked"):
-            continue
-        if not is_attested_name(speaker, source_text,
-                                MIN_ROSTER_ATTESTATIONS):
-            continue
-        roster.append(speaker)
-    return roster
+    return attested_new_speakers(entries, set(), source_text)
 
 
 def attested_new_speakers(entries, roster_seen, source_text):
@@ -333,6 +345,14 @@ def get_deterministic_named_entry(entry):
         return {"speaker": (label.upper() if label.strip("?") else "UNKNOWN"),
                 "text": entry["text"]}
     return None
+
+
+def get_attribute_pending_entries(indexed_batch, named, deterministic, diagnostic_failures):
+    """Return the exact still-pending attribution targets and narrator context."""
+    return [(index, entry) for index, entry in indexed_batch
+            if (named[index] is None or index in deterministic)
+            and not any(failure["pass"] == "attribute" and failure.get("entry") == index
+                        for failure in diagnostic_failures)]
 
 
 class PassExhausted(Exception):
@@ -439,6 +459,16 @@ def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster):
             stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]]
 
 
+def get_exhausted_runtime_batch_ranges(client, batch, attempts):
+    """Return bounded halves when the fallback runtime cannot serve this batch."""
+    if (len(batch) > 1 and getattr(client, "switched", False)
+            and any(attempt.get("error_category") == "context_budget"
+                    or attempt.get("finish_reason") == "length" for attempt in attempts)):
+        middle = len(batch) // 2
+        return [(0, middle), (middle, len(batch))]
+    return []
+
+
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
@@ -450,9 +480,16 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities; 'keep'
     raises for a multi-entry batch (so the caller subdivides) and, at one
     entry, returns keep_exhausted_answer instead of aborting the book."""
+    params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
     validated = {}
+    attempts = []
+
+    def observe(attempt):
+        attempts.append(attempt)
+        if attempt_observer:
+            attempt_observer(attempt)
 
     def validate(entries):
         validated["last"] = entries
@@ -477,7 +514,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=attempt_observer)
+            attempt_observer=observe)
     else:
         # A provider also receives frozen_batch, because a strategy that
         # serialises WITHOUT a second model has to build {n, head, speaker}
@@ -486,7 +523,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=attempt_observer, frozen_batch=frozen_batch,
+            attempt_observer=observe, frozen_batch=frozen_batch,
             # what a provider that rebuilds the prompt its own way needs: the
             # roster and contexts the canonical prompt was built from, and the
             # surrounding text when the user asked for it
@@ -507,6 +544,18 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 speaker = alias_to_name.get(speaker.strip().upper(), speaker)
             out.append({**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker})
         return out
+    ranges = get_exhausted_runtime_batch_ranges(client, frozen_batch, attempts)
+    if ranges:
+        combined = []
+        for start, end in ranges:
+            combined.extend(attribute_batch(
+                client, model_name, frozen_batch[start:end], params, roster,
+                max_retries=max_retries, on_exhaustion=on_exhaustion,
+                neighbor_contexts=(neighbor_contexts[start:end] if neighbor_contexts else None),
+                attempt_observer=attempt_observer, source_text=source_text,
+                exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
+                surround=surround, cast=cast))
+        return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
     if on_exhaustion == "keep" and len(frozen_batch) == 1:
@@ -545,6 +594,7 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
+    params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_instruct_request(
         prior_batch, params, neighbor_contexts)
     validated = {}
@@ -558,10 +608,17 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     call_params = replace(params, temperature=(params.instruct_temperature
                                                if params.instruct_temperature is not None
                                                else params.temperature))
+    attempts = []
+
+    def observe(attempt):
+        attempts.append(attempt)
+        if attempt_observer:
+            attempt_observer(attempt)
+
     annotated = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
-        validate_entries=validate, attempt_observer=attempt_observer)
+        validate_entries=validate, attempt_observer=observe)
     if annotated:
         # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
         # from prior (bound by validated index order); take only the instruct.
@@ -570,6 +627,16 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
             raise RuntimeError("validated instruct response lost its index binding")
         return [{**p, "instruct": item.get("instruct")}
                 for p, item in zip(prior_batch, ordered)]
+    ranges = get_exhausted_runtime_batch_ranges(client, prior_batch, attempts)
+    if ranges:
+        combined = []
+        for start, end in ranges:
+            combined.extend(instruct_batch(
+                client, model_name, prior_batch[start:end], params,
+                max_retries=max_retries,
+                neighbor_contexts=(neighbor_contexts[start:end] if neighbor_contexts else None),
+                exhaustion_sink=exhaustion_sink, attempt_observer=attempt_observer))
+        return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
@@ -885,6 +952,8 @@ class RunProgress:
     the only thing that knows the plan, the actual counts as each pass
     starts, and when the first call went out. Average seconds per call so
     far, over the calls left - an estimate, and the line says "about".
+    Restored work counts toward completion, but only newly completed work is
+    paired with this run's elapsed interval to estimate its rate.
 
     `planned` = {step: predicted calls} from the preflight; each step's actual
     total replaces its estimate when known (set_total). Quote-mark chunks are
@@ -894,10 +963,15 @@ class RunProgress:
         self.planned = dict(planned)
         self.totals = {}
         self.done = {1: 0, 2: 0, 3: 0}
+        self.restored_done = {1: 0, 2: 0, 3: 0}
         self.started = None
 
     def set_total(self, step, total):
         self.totals[step] = total
+
+    def restore_done(self, step, count):
+        self.done[step] = count
+        self.restored_done[step] = count
 
     def note_call_started(self):
         if self.started is None:
@@ -913,8 +987,10 @@ class RunProgress:
         done = sum(self.done.values())
         total = max(self.total_calls(), done)
         fraction = done / total if total else 1.0
-        elapsed = ((now or time.time()) - self.started) if self.started else 0.0
-        remaining = (elapsed / done) * (total - done) if done else 0.0
+        elapsed = ((now if now is not None else time.time()) - self.started
+                   if self.started is not None else 0.0)
+        measured_done = done - sum(self.restored_done.values())
+        remaining = (elapsed / measured_done) * (total - done) if measured_done else 0.0
         return (f"ETA: about {format_duration(remaining)} left "
                 f"(Step {step} of 3, {done} of {total} model calls done) "
                 f"[eta_seconds={int(round(remaining))} fraction={fraction:.3f}]")
@@ -922,7 +998,8 @@ class RunProgress:
 
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
-                             attempt_sink=None, quote_analysis=None):
+                             attempt_sink=None, quote_analysis=None,
+                             quote_decision=None):
     """Pass 1 with the full safety net: full-chunk attempt, then a
     natural-boundary split whose halves each recurse, and exhaustion-only
     trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
@@ -932,10 +1009,11 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     near_miss / fail). Only the top-level call should pass a sink; recursive
     part-calls do not, so inner resolutions don't pollute the record."""
     if params.segmentation != "llm":
-        regions, resolution = quote_regions_decision(
-            params.segmentation, chunk,
-            quote_analysis or analyze_outer_quote_regions(chunk),
-            params.quoted_must_be_spoken, params.unquoted_must_be_narrator)
+        regions, resolution = (quote_decision if quote_decision is not None else
+            quote_regions_decision(
+                params.segmentation, chunk,
+                quote_analysis or analyze_outer_quote_regions(chunk),
+                params.quoted_must_be_spoken, params.unquoted_must_be_narrator))
         if regions is not None:
             _record_resolution(resolution_sink, resolution)
             return regions
@@ -1038,21 +1116,29 @@ _CONTEXT_SEGMENT_USER = (
 )
 
 
-def build_three_pass_request_preflight(source_text, settings, context_length,
-                                       parallel, context_windows=None,
-                                       reserve=512):
-    """Estimate the real three-pass prompt shapes for context-slot planning."""
+def get_context_rescue_windows(windows=None):
+    """Return positive source-context widths; only None selects defaults."""
+    if windows is None:
+        return _CONTEXT_RESCUE_WINDOWS
+    if (not isinstance(windows, (list, tuple)) or not windows
+            or any(isinstance(window, bool) or not isinstance(window, int)
+                   or window < 1 for window in windows)):
+        raise ValueError("context rescue windows must be a nonempty list of positive integers")
+    return tuple(windows)
+
+
+def validate_attribution_vote_settings(votes, temperature):
+    """Reject invalid sampling controls before planning or dispatching calls."""
+    if isinstance(votes, bool) or not isinstance(votes, int) or votes < 1:
+        raise ValueError("attribution votes must be a positive integer")
+    if (isinstance(temperature, bool) or not isinstance(temperature, (int, float))
+            or not math.isfinite(temperature) or not 0 <= temperature <= 2):
+        raise ValueError("vote temperature must be a finite number between 0 and 2")
+
+
+def get_three_pass_planning_entries(source_text, settings, params):
+    """Predict entries once using the execution quote-boundary policy."""
     chunk_size = settings["chunk_size"]
-    params = LLMGenParams(
-        max_tokens=settings["max_tokens"], context_length=context_length,
-        segment_output_ratio=settings["segment_output_ratio"],
-        segmentation=settings["segmentation"],
-        quoted_must_be_spoken=settings.get("quoted_must_be_spoken", True),
-        unquoted_must_be_narrator=settings.get("unquoted_must_be_narrator", True),
-        segment_system_prompt=settings.get("segment_system_prompt"),
-        segment_user_prompt_template=settings.get("segment_user_prompt_template"),
-        instruct_system_prompt=settings.get("instruct_system_prompt"),
-        instruct_user_prompt_template=settings.get("instruct_user_prompt_template"))
     records = split_into_chunk_records(source_text, max_size=chunk_size)
     chunks = [record["text"] for record in records]
     predicted_entries = []
@@ -1075,6 +1161,46 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             # is more conservative than assuming deterministic narration.
             predicted_entries.append({"type": "SPOKEN", "text": chunk})
             unresolved_chunks.append(chunk)
+
+    return chunks, predicted_entries, unresolved_chunks, chunks_without_quote_marks
+
+
+def get_three_pass_planned_calls(source_text, settings, params):
+    """Count predicted calls without formatting request prompts or token reports."""
+    validate_attribution_vote_settings(settings.get("attribution_votes", 1),
+                                       settings.get("vote_temperature", 0.3))
+    _, predicted, unresolved, _ = get_three_pass_planning_entries(source_text, settings, params)
+    batch_size = int(settings.get("attribute_batch_size") or BATCH_SIZE)
+    attribute_calls = sum(
+        any(entry.get("type") == "SPOKEN" for _, entry in batch)
+        for batch in iter_unique_entry_batches(predicted, batch_size))
+    named = [{"speaker": ("UNKNOWN" if entry.get("type") == "SPOKEN" else "NARRATOR"),
+              "text": entry["text"]} for entry in predicted]
+    return {1: len(unresolved),
+            2: attribute_calls * settings.get("attribution_votes", 1),
+            3: sum(1 for _ in iter_unique_entry_batches(named))}
+
+
+def build_three_pass_request_preflight(source_text, settings, context_length,
+                                       parallel, context_windows=None,
+                                       reserve=512, params=None):
+    """Estimate the real three-pass prompt shapes for context-slot planning."""
+    context_windows = get_context_rescue_windows(context_windows)
+    validate_attribution_vote_settings(settings.get("attribution_votes", 1),
+                                       settings.get("vote_temperature", 0.3))
+    chunk_size = settings["chunk_size"]
+    params = params or LLMGenParams(
+        max_tokens=settings["max_tokens"], context_length=context_length,
+        segment_output_ratio=settings["segment_output_ratio"],
+        segmentation=settings["segmentation"],
+        quoted_must_be_spoken=settings.get("quoted_must_be_spoken", True),
+        unquoted_must_be_narrator=settings.get("unquoted_must_be_narrator", True),
+        segment_system_prompt=settings.get("segment_system_prompt"),
+        segment_user_prompt_template=settings.get("segment_user_prompt_template"),
+        instruct_system_prompt=settings.get("instruct_system_prompt"),
+        instruct_user_prompt_template=settings.get("instruct_user_prompt_template"))
+    chunks, predicted_entries, unresolved_chunks, chunks_without_quote_marks = (
+        get_three_pass_planning_entries(source_text, settings, params))
 
     requests = []
 
@@ -1107,7 +1233,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                 max(1, len(chunk.split())), params))
         add_request("segment", segment_system,
                     segment_template.format(chunk=chunk), completion)
-        windows = tuple(context_windows or _CONTEXT_RESCUE_WINDOWS)
+        windows = context_windows
         if windows:
             window = max(windows)
             rescue_user = _CONTEXT_SEGMENT_USER.format(
@@ -1126,17 +1252,23 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         if not pending:
             continue
         batch = [entry for _, entry in pending]
-        contexts = [{
-            "previous_context": predicted_entries[index - 1] if index else None,
-            "next_context": (predicted_entries[index + 1]
-                             if index + 1 < len(predicted_entries) else None),
-        } for index, _ in pending]
-        surround = ({"before": "x" * context_chars, "after": "x" * context_chars}
-                    if context_chars else None)
-        system_prompt, user_prompt = build_attribute_request(
-            batch, params, estimated_roster, contexts, surround)
-        add_request("attribute", system_prompt, user_prompt,
-                    max(256, 24 * len(batch)))
+        contexts = get_missing_attribute_contexts(
+            predicted_entries, [index for index, _ in pending], attribute_batch_size)
+        surround = {"before": "x" * context_chars, "after": "x" * context_chars}
+        variant = settings.get("attribute_prompt_variant") or "default"
+        texts = settings.get("attribute_prompt_texts")
+        if variant != "default" or texts:
+            from attribution_prompt_variants import build_variant_request
+            system_prompt, user_prompt = build_variant_request(
+                variant, batch, params, estimated_roster,
+                alias_groups=(settings.get("cast") or {}).get("alias_groups"),
+                neighbor_contexts=contexts, surround=surround, texts=texts)
+        else:
+            system_prompt, user_prompt = build_attribute_request(
+                batch, params, estimated_roster, contexts, surround)
+        for _ in range(settings.get("attribution_votes", 1)):
+            add_request("attribute", system_prompt, user_prompt,
+                        max(256, 24 * len(batch)))
 
     named_entries = [{"speaker": ("UNKNOWN" if entry.get("type") == "SPOKEN"
                                    else "NARRATOR"),
@@ -1218,7 +1350,8 @@ def _output_has_context_bleed(entries, chunk, before, after):
 
 
 def segment_chunk_with_context(client, model_name, chunk, before, after, params,
-                               max_retries=2, near_miss_sink=None):
+                               max_retries=2, near_miss_sink=None,
+                               quote_analysis=None, attempt_observer=None):
     """Last-resort pass-1 retry: give the model surrounding SOURCE text (before /
     after the failing chunk, reference-only) for narrative flow, but validate that
     the output still covers ONLY the target chunk. Captures a trigram-only
@@ -1239,11 +1372,12 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         # also pastes a reference-context sentence can otherwise pass recall /
         # trigram / ratio (the leaked sentence adds output but doesn't drop source
         # recall), so reject clear context-only entries as a validation failure.
-        quote_analysis = (classify_lexical_quote_regions(
-            chunk, analyze_outer_quote_regions(chunk))
+        lexical_analysis = (classify_lexical_quote_regions(
+            chunk, quote_analysis if quote_analysis is not None
+            else analyze_outer_quote_regions(chunk))
             if params.segmentation == "lexical" else None)
         report = validate_segment_for_params(
-            chunk, entries, params, quote_analysis=quote_analysis)
+            chunk, entries, params, quote_analysis=lexical_analysis)
         if _output_has_context_bleed(entries, chunk, before, after):
             report = dict(report)
             report["passed"] = False
@@ -1254,7 +1388,7 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
 
     return _call_segment(client, model_name, chunk, sys_prompt, user_prompt,
                          params, "SEGMENT+CTX", max_retries, near_miss_sink,
-                         validate=validate)
+                         validate=validate, attempt_observer=attempt_observer)
 
 
 def _tail_join(parts, limit):
@@ -1296,7 +1430,8 @@ def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
 
 
 def rescue_chunk_with_context(client, model_name, chunks, index, params,
-                              resolution_sink=None, windows=None, max_retries=None):
+                              resolution_sink=None, windows=None, max_retries=None,
+                              quote_analysis=None, attempt_observer=None):
     """When chunk `index` fails normal segmentation, retry it with escalating
     surrounding-source context. Accepts a clean pass, else the best trigram-only
     near-miss any window produced. Returns entries or []. When resolution_sink is
@@ -1304,7 +1439,7 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     context_rescue_near_miss / fail). Windows whose prompt would exceed the
     model's context budget are skipped (finding #4). `windows` and `max_retries`
     default to the module constants when None (finding #12: config-tunable)."""
-    windows = windows or _CONTEXT_RESCUE_WINDOWS
+    windows = get_context_rescue_windows(windows)
     if max_retries is None:
         max_retries = _CONTEXT_RESCUE_MAX_RETRIES
     max_window = max(windows)
@@ -1320,14 +1455,16 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in windows:
         before, after = before_all[-window:], after_all[:window]
-        if not _rescue_prompt_fits(chunks[index], before, after, overhead_chars, params):
+        request_params = ensure_run_request_params(client, params)
+        if not _rescue_prompt_fits(chunks[index], before, after, overhead_chars, request_params):
             print(f"  context rescue {window}-char window skipped "
                   "(prompt would exceed context budget)")
             continue
         near_miss = []
         seg = segment_chunk_with_context(
             client, model_name, chunks[index],
-            before, after, params, max_retries=max_retries, near_miss_sink=near_miss)
+            before, after, request_params, max_retries=max_retries, near_miss_sink=near_miss,
+            quote_analysis=quote_analysis, attempt_observer=attempt_observer)
         if seg:
             print(f"  chunk {index + 1}/{len(chunks)} rescued with "
                   f"{window}-char surrounding context (clean pass)")
@@ -1379,7 +1516,8 @@ def _resolution_counts(resolutions):
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
-                    progress=None, diagnostic_failures=None, telemetry=None):
+                    progress=None, diagnostic_failures=None, telemetry=None,
+                    model_binding=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -1395,6 +1533,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "progress": progress or {},
         "diagnostic_failures": diagnostic_failures or [],
         "telemetry": telemetry or {},
+        "model_binding": model_binding,
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -1408,7 +1547,9 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            context_rescue_retries=None, endpoint=None,
                            collect_all_failures=False, attribute_batch_size=BATCH_SIZE,
                            attribute_context_chars=0, attribute_prompt_variant="default",
-                           attribute_prompt_texts=None, cast_sha256=None):
+                           attribute_prompt_texts=None, cast_sha256=None,
+                           attribution_votes=1, vote_temperature=0.3,
+                           first_person_narrator=None):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -1421,7 +1562,11 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
-        "pipeline_version": 8,
+        # Older checkpoints cannot prove the voting/seed/reasoning controls.
+        "pipeline_version": 9,
+        "attribution_votes": attribution_votes,
+        "vote_temperature": vote_temperature,
+        "first_person_narrator": normalize_narrator_name(first_person_narrator),
         # Only present when moved off the default, so every checkpoint written
         # before these knobs existed keeps its identity and resumes.
         **({"attribute_batch_size": attribute_batch_size}
@@ -1441,7 +1586,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
     if params is not None:
         settings.update({name: getattr(params, name, None) for name in (
             "system_prompt", "attribute_system_prompt", "user_prompt_template",
-            "max_tokens", "temperature",
+            "max_tokens", "temperature", "seed", "reasoning_effort",
+            "reasoning_allowance", "output_format", "provider_extra_body",
             "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
             "context_length", "hard_max_tokens", "segment_temperature",
             "attribute_temperature", "instruct_temperature",
@@ -1472,31 +1618,118 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "model_name": model_name, "pipeline": "three_pass"}
 
 
-def _load_three_pass_checkpoint(output_path, fingerprint):
-    data = safe_load_json(three_pass_checkpoint_path(output_path), None)
-    if not isinstance(data, dict) or data.get("fingerprint") != fingerprint:
+def validate_three_pass_checkpoint(data, chunk_count=None):
+    """Validate persisted resume shapes and cursors before consuming state."""
+    def require(condition, field):
+        if not condition:
+            raise ValueError(f"invalid {field}")
+
+    def is_cursor(value, maximum=None):
+        return (isinstance(value, int) and not isinstance(value, bool)
+                and value >= 0 and (maximum is None or value <= maximum))
+
+    require(isinstance(data.get("stage"), str) and data["stage"] in {
+        "segment", "segment_failed", "segment_incomplete", "attribute",
+        "attribute_failed", "attribute_incomplete", "attribute_unavailable", "instruct",
+        "instruct_failed", "instruct_unavailable", "done"}, "stage")
+    require(is_cursor(data.get("chunks_done"), chunk_count), "chunks_done")
+    segmented, named, annotated = (data.get(key) for key in ("segmented", "named", "annotated"))
+    require(isinstance(segmented, list), "segmented")
+    for index, entry in enumerate(segmented):
+        require(isinstance(entry, dict) and isinstance(entry.get("type"), str)
+                and entry["type"] in {"SPOKEN", "NARRATOR"}
+                and isinstance(entry.get("text"), str), f"segmented[{index}]")
+    require(data["chunks_done"] > 0 or not segmented, "segmented with zero chunks_done")
+    require(isinstance(named, list) and len(named) <= len(segmented), "named length")
+    for index, entry in enumerate(named):
+        require(entry is None or (isinstance(entry, dict)
+                and isinstance(entry.get("speaker"), str)
+                and entry.get("text") == segmented[index]["text"]), f"named[{index}]")
+    require(isinstance(annotated, list) and len(annotated) <= len(named), "annotated length")
+    for index, entry in enumerate(annotated):
+        require(entry is None or (isinstance(entry, dict) and isinstance(named[index], dict)
+                and isinstance(entry.get("speaker"), str) and isinstance(entry.get("instruct"), str)
+                and entry.get("text") == named[index]["text"]), f"annotated[{index}]")
+    resolutions = data.get("resolutions", [])
+    require(isinstance(resolutions, list) and len(resolutions) <= data["chunks_done"] + 1
+            and all(isinstance(value, str) for value in resolutions), "resolutions")
+    elapsed = data.get("elapsed_s", {})
+    require(isinstance(elapsed, dict) and all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        and (isinstance(value, int) or math.isfinite(value))
+        and value >= 0 for value in elapsed.values()), "elapsed_s")
+    failures = data.get("diagnostic_failures", [])
+    require(isinstance(failures, list), "diagnostic_failures")
+    for index, failure in enumerate(failures):
+        require(isinstance(failure, dict) and isinstance(failure.get("pass"), str),
+                f"diagnostic_failures[{index}]")
+        if failure["pass"] == "segment":
+            require(is_cursor(failure.get("chunk"), data["chunks_done"])
+                    and failure["chunk"] > 0, f"diagnostic_failures[{index}].chunk")
+    for field in ("failed", "model_binding"):
+        require(data.get(field) is None or isinstance(data[field], dict), field)
+    resume = data.get("diagnostic_segment_resume")
+    if resume is not None:
+        require(isinstance(resume, dict), "diagnostic_segment_resume")
+        require(is_cursor(resume.get("chunks_done"), data["chunks_done"])
+                and is_cursor(resume.get("segmented_entries"), len(segmented)),
+                "diagnostic_segment_resume cursors")
+        failed_chunks = [failure["chunk"] for failure in failures if failure["pass"] == "segment"]
+        require(failed_chunks and min(failed_chunks) == resume["chunks_done"] + 1,
+                "diagnostic_segment_resume first failed chunk")
+
+
+def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None):
+    path = three_pass_checkpoint_path(output_path)
+    if not os.path.exists(path):
         return None
+    try:
+        data = load_generation_delta_checkpoint(path)
+        if not isinstance(data, dict):
+            raise ValueError("expected an object")
+        if (get_run_fingerprint_identity(data.get("fingerprint"))
+                != get_run_fingerprint_identity(fingerprint)):
+            return None
+        validate_three_pass_checkpoint(data, chunk_count)
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise RuntimeError(f"Invalid three-pass checkpoint {path}: {exc}") from exc
     return data
 
 
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
                                 elapsed_s=None, diagnostic_failures=None,
-                                failed=None):
+                                failed=None, model_binding=None,
+                                diagnostic_segment_resume=None, checkpoint_writer=None):
     """`failed` (only on a pass-1 fail-fast) carries what the recovery panel
     needs to show and to validate a hand-supplied segmentation: the failed
     chunk's number, its exact source text, how many chunks there are, and the
     attempt records for that chunk (issue #522 s23 / s4.4)."""
-    atomic_json_write({"fingerprint": fingerprint, "stage": stage,
+    data = {"fingerprint": fingerprint, "stage": stage,
                        "chunks_done": chunks_done, "segmented": segmented,
                        "named": named, "annotated": annotated,
                        "resolutions": resolutions or [],
                        "elapsed_s": elapsed_s or {},
                        "diagnostic_failures": diagnostic_failures or [],
-                       "failed": failed or None},
-                      three_pass_checkpoint_path(output_path))
+                       "failed": failed or None,
+                       "model_binding": model_binding,
+                       "diagnostic_segment_resume": diagnostic_segment_resume}
+    path = three_pass_checkpoint_path(output_path)
+    if checkpoint_writer is None:
+        atomic_json_write(data, path)
+    else:
+        if checkpoint_writer.path.absolute() != Path(path).absolute():
+            raise ValueError("Checkpoint writer belongs to a different output")
+        checkpoint_writer.save_checkpoint(data, compact=stage not in (
+            "segment", "segment_incomplete", "attribute", "attribute_incomplete", "instruct"))
 
 
+def require_nonempty_source(source_text):
+    if not source_text or not source_text.strip():
+        raise ValueError("prepared source contains no text to generate")
+
+
+@record_judge_run()
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
                    context_windows=None, context_rescue_retries=None, endpoint=None,
@@ -1520,6 +1753,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     "example"} (None = the variant's builtin texts). A preset with edited
     text is sent through the variant provider for every variant, default
     included, so what Setup shows is what the model gets."""
+    require_nonempty_source(source_text)
+    # Preserve None in checkpoint identity while validating explicit controls.
+    get_context_rescue_windows(context_windows)
+    validate_attribution_vote_settings(attribution_votes, vote_temperature)
     unavailable_passes = set()
     entries_provider = None
     if (attribute_prompt_variant and attribute_prompt_variant != "default") or attribute_prompt_texts:
@@ -1549,8 +1786,16 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         attribute_context_chars=attribute_context_chars,
         attribute_prompt_variant=attribute_prompt_variant,
         attribute_prompt_texts=attribute_prompt_texts,
-        cast_sha256=(cast or {}).get("sha256"))
-    state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
+        cast_sha256=(cast or {}).get("sha256"),
+        attribution_votes=attribution_votes, vote_temperature=vote_temperature,
+        first_person_narrator=narrator)
+    initial_binding = get_run_model_binding(client, model_name)
+    if initial_binding["failover_model"] is not None:
+        fingerprint["model_binding"] = initial_binding
+    state = _load_three_pass_checkpoint(output_path, fingerprint, len(chunks)) if output_path else None
+    checkpoint_writer = (GenerationCheckpointDeltas(three_pass_checkpoint_path(output_path))
+                         if output_path else None)
+    resumed_binding = (state or {}).get("model_binding")
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
     if state:
@@ -1572,23 +1817,42 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
     diagnostic_failures = list(state.get("diagnostic_failures", [])) if state else []
+    diagnostic_segment_resume = None
+    if any(failure.get("pass") == "segment" for failure in diagnostic_failures):
+        resume = state.get("diagnostic_segment_resume")
+        if resume is None:
+            print("Incomplete legacy checkpoint cannot identify an accepted segmentation prefix; "
+                  "retrying segmentation from chunk 1.", flush=True)
+            chunks_done, segmented = 0, []
+        else:
+            chunks_done = resume["chunks_done"]
+            segmented = segmented[:resume["segmented_entries"]]
+            print(f"Retrying diagnostic segmentation from failed chunk {chunks_done + 1}; "
+                  f"retaining {chunks_done} accepted source chunks.", flush=True)
+        # Repairing missing source changes downstream batch context and indices.
+        named, annotated = [], []
+        resolutions = resolutions[:chunks_done]
+        diagnostic_failures = []
     # Latest attempt seen by call_llm_for_entries, so a failure record can say
     # why the batch failed instead of only which entry it was.
     last_attempts = {}
     attempts = []
+    attempt_passes = {}
 
     reasoning_allowance = ReasoningAllowance()
 
     def record_attempt(pass_name, attempt):
-        recorded = {**attempt, "pass": pass_name}
-        attempts.append(recorded)
-        last_attempts["latest"] = recorded
+        # The shared helper completes this record after notifying observers.
+        # Keep its reference so final outcomes reach diagnostics and manifests.
+        attempts.append(attempt)
+        attempt_passes[id(attempt)] = pass_name
+        last_attempts["latest"] = attempt
         # Size the next call from what this model has actually shown. Stays at
         # zero for a model that never reports reasoning_tokens, so a
         # non-reasoning model keeps exactly today's ceiling.
         reasoning_allowance.observe(
-            recorded.get("reasoning_tokens"),
-            truncated=recorded.get("finish_reason") == "length")
+            attempt.get("reasoning_tokens"),
+            truncated=attempt.get("finish_reason") == "length")
         params.reasoning_allowance = reasoning_allowance.current()
 
     def last_attempt_for(_index):
@@ -1598,7 +1862,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             _save_three_pass_checkpoint(output_path, fingerprint, stage,
                                         segmented, chunks_done, named, annotated,
                                         resolutions, elapsed_s, diagnostic_failures,
-                                        failed=failed)
+                                        failed=failed,
+                                        model_binding=get_run_model_binding(
+                                            client, model_name, resumed_binding),
+                                        diagnostic_segment_resume=diagnostic_segment_resume,
+                                        checkpoint_writer=checkpoint_writer)
     passes = {}
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
@@ -1606,6 +1874,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             code for attempt in attempts
             for code in (attempt.get("failure_codes") or []))
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                        model_binding=get_run_model_binding(client, model_name, resumed_binding),
                         telemetry={
                             "model_name": model_name,
                             "first_person_narrator": narrator or None,
@@ -1655,13 +1924,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # room for reasoning at all.
     observed_attempts = 0
     progress = RunProgress(planned_calls) if planned_calls else None
-    needs_model = [quote_regions_decision(
+    quote_decisions = [quote_regions_decision(
         params.segmentation, chunk, analysis,
-        params.quoted_must_be_spoken, params.unquoted_must_be_narrator)[0] is None
-                   for chunk, analysis in zip(chunks, quote_analyses)]
+        params.quoted_must_be_spoken, params.unquoted_must_be_narrator)
+                       for chunk, analysis in zip(chunks, quote_analyses)]
+    needs_model = [regions is None for regions, _ in quote_decisions]
     if progress:
         progress.set_total(1, sum(needs_model))
-        progress.done[1] = sum(needs_model[:chunks_done])
+        progress.restore_done(1, sum(needs_model[:chunks_done]))
     for i in range(chunks_done, len(chunks)):
         sink = []
         failures = []
@@ -1674,7 +1944,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
                                        resolution_sink=sink, failure_sink=failures,
                                        attempt_sink=attempts,
-                                       quote_analysis=quote_analyses[i])
+                                       quote_analysis=quote_analyses[i],
+                                       quote_decision=quote_decisions[i])
         finish_step(1, "chunk", i + 1, len(chunks),
                     "from quote marks" if by_marks else "from the model")
         if progress and not by_marks:
@@ -1694,10 +1965,18 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             seg = rescue_chunk_with_context(client, model_name, chunks, i, params,
                                             resolution_sink=sink,
                                             windows=context_windows,
-                                            max_retries=context_rescue_retries)
+                                            max_retries=context_rescue_retries,
+                                            quote_analysis=quote_analyses[i],
+                                            attempt_observer=lambda attempt: record_attempt(
+                                                "segment_context_rescue", attempt))
+            # Rescue observers already updated the reasoning allowance live.
+            observed_attempts = len(attempts)
         resolutions.append(sink[-1] if sink else ("clean" if seg else "fail"))
         if not seg:
             if collect_all_failures:
+                if diagnostic_segment_resume is None:
+                    diagnostic_segment_resume = {
+                        "chunks_done": i, "segmented_entries": len(segmented)}
                 diagnostic_failures.append(build_segment_failure_record(
                     i + 1, chunks[i], failures[0] if failures else []))
                 chunks_done = i + 1
@@ -1713,7 +1992,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 "quoted_must_be_spoken": params.quoted_must_be_spoken,
                 "unquoted_must_be_narrator": params.unquoted_must_be_narrator,
                 "failure_codes": sorted(failures[0]) if failures else [],
-                "attempts": attempts[attempts_before:][-20:]})
+                "attempts": [{**attempt, "pass": attempt_passes.get(
+                    id(attempt), attempt.get("pass", "segment"))}
+                    for attempt in attempts[attempts_before:][-20:]]})
             emit_manifest("failed", failed_pass="segment", failed_chunk=i + 1)
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)
@@ -1749,9 +2030,18 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         if named[index] is None:
             named[index] = resolved
 
+    eligible = set(build_roster(
+        (entry for entry in named if isinstance(entry, dict)), source_text))
+    roster_positions = {}
+    for index, entry in enumerate(named):
+        if not isinstance(entry, dict) or entry.get("attribution_unchecked"):
+            continue
+        speaker = (entry.get("speaker") or "").strip().upper()
+        if speaker in eligible:
+            roster_positions.setdefault(speaker, index)
+
     def get_attribution_roster():
-        current = build_roster(
-            (entry for entry in named if isinstance(entry, dict)), source_text)
+        current = sorted(roster_positions, key=roster_positions.get)
         if cast:
             current = list(cast["names"]) + [n for n in current if n not in cast["names"]]
         if narrator and narrator not in current:
@@ -1768,15 +2058,21 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size))
     window_number = 0
     if progress:
-        progress.set_total(2, window_total)
+        model_total, model_done = 0, 0
+        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
+            if not any(get_deterministic_named_entry(entry) is None for _, entry in indexed_batch):
+                continue
+            model_total += 1
+            pending = get_attribute_pending_entries(
+                indexed_batch, named, deterministic, diagnostic_failures)
+            model_done += not any(index not in deterministic for index, _ in pending)
+        progress.set_total(2, model_total)
+        progress.restore_done(2, model_done)
     try:
         for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
             window_number += 1
-            pending = [(index, entry) for index, entry in indexed_batch
-                       if (named[index] is None or index in deterministic)
-                       and not any(
-                           f["pass"] == "attribute" and f.get("entry") == index
-                           for f in diagnostic_failures)]
+            pending = get_attribute_pending_entries(
+                indexed_batch, named, deterministic, diagnostic_failures)
             # Narration alone is not work - without a line to attribute there is
             # nothing to give it context for.
             if not any(index not in deterministic for index, _ in pending):
@@ -1785,12 +2081,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             while work:
                 current = work.pop(0)
                 batch = [entry for _, entry in current]
-                # No neighbour contexts here: the batch is now the contiguous
-                # window including its narration, so previous_context and
-                # next_context would restate lines already present. Left in, they
-                # took the prompt from ~1.5k to ~8.4k tokens for the same content.
-                # What CAN be added is text from outside the window, as evidence
-                # blocks, when the user asks for it (attribute_context_chars).
+                # Duplicate coloring, resume and subdivision can omit adjacent
+                # entries. Include only missing neighbors inside this source
+                # window; outer evidence remains controlled by the context knob.
+                contexts = get_missing_attribute_contexts(
+                    segmented, [index for index, _ in current], attribute_batch_size)
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
                 announce_step(2, "window", window_number, window_total)
@@ -1809,6 +2104,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
                         source_text=source_text, surround=surround,
+                        neighbor_contexts=contexts,
                         entries_provider=entries_provider, cast=cast)
                 except PassExhausted:
                     if len(current) == 1:
@@ -1845,6 +2141,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     # without asking, so the model's answer never overwrites it.
                     named[index] = deterministic.get(index, entry)
                 if on_exhaustion == "fallback":
+                    admitted = set(attested_new_speakers(
+                        (named[index] for index, _ in current), set(), source_text))
+                    for index, _ in current:
+                        speaker = (named[index].get("speaker") or "").strip().upper()
+                        if speaker in admitted and not named[index].get("attribution_unchecked"):
+                            roster_positions[speaker] = min(index, roster_positions.get(speaker, index))
                     roster = get_attribution_roster()
                     roster_seen = set(roster)
                 else:
@@ -1898,8 +2200,18 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     inst_base = elapsed_s.get("instruct", 0)
     window_total = sum(1 for _ in iter_unique_entry_batches(named))
     window_number = 0
+    instruction_progress_reported = False
     if progress:
-        progress.set_total(3, window_total)
+        model_total, model_done = 0, 0
+        for indexed_batch in iter_unique_entry_batches(named):
+            model_indices = [index for index, entry in indexed_batch
+                             if not is_nonverbal_text(entry.get("text"))]
+            if not model_indices:
+                continue
+            model_total += 1
+            model_done += all(annotated[index] is not None for index in model_indices)
+        progress.set_total(3, model_total)
+        progress.restore_done(3, model_done)
     for indexed_batch in iter_unique_entry_batches(named):
         window_number += 1
         pending = [(index, entry) for index, entry in indexed_batch
@@ -1914,8 +2226,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                          "next_context": named[index + 1]
                          if index + 1 < len(named) else None}
                         for index, _ in current]
+            request_params = ensure_run_request_params(client, params)
             if (len(current) > 1
-                    and not does_instruct_batch_fit_context(batch, params, contexts)):
+                    and not does_instruct_batch_fit_context(batch, request_params, contexts)):
                 midpoint = len(current) // 2
                 print(f"  Instruction batch exceeds context budget; subdividing "
                       f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
@@ -1927,7 +2240,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             if progress:
                 progress.note_call_started()
             new_annotated = instruct_batch(
-                client, model_name, batch, params, neighbor_contexts=contexts,
+                client, model_name, batch, request_params, neighbor_contexts=contexts,
                 exhaustion_sink=exhausted,
                 attempt_observer=lambda attempt: record_attempt(
                     "instruct", attempt))
@@ -1969,6 +2282,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         if progress:
             progress.note_done(3)
             print(progress.eta_line(3), flush=True)
+            instruction_progress_reported = True
+    if progress and not instruction_progress_reported:
+        print(progress.eta_line(3), flush=True)
     elapsed_s["instruct"] = inst_base + time.time() - inst_start
     passes["instruct"] = {"elapsed_s": round(elapsed_s["instruct"], 3),
                           "status": ("incomplete" if any(
@@ -2076,21 +2392,33 @@ def attribute_batch_voted(client, model_name, frozen_batch, params, roster,
     Returns (entries, confidences). Each confidence is the winning share, so a
     caller can flag contested lines - a signal greedy cannot produce.
     """
-    if votes <= 1:
+    validate_attribution_vote_settings(votes, vote_temperature)
+    if votes == 1:
         result = attribute_batch(client, model_name, frozen_batch, params,
                                  roster, **kwargs)
         return result, [1.0] * len(result or [])
 
     ballots = []
+    fallback = None
+    any_exhausted = False
     for seed in vote_seeds(votes):
         sampled = replace(params, seed=seed, temperature=vote_temperature,
                           attribute_temperature=vote_temperature)
+        sample_exhausted = []
+        sample_kwargs = {**kwargs, "exhaustion_sink": sample_exhausted}
         result = attribute_batch(client, model_name, frozen_batch, sampled,
-                                 roster, **kwargs)
+                                 roster, **sample_kwargs)
+        if sample_exhausted:
+            any_exhausted = True
+            if fallback is None and result and len(result) == len(frozen_batch):
+                fallback = result
+            continue
         if result and len(result) == len(frozen_batch):
             ballots.append(result)
     if not ballots:
-        return [], []
+        if any_exhausted and kwargs.get("exhaustion_sink") is not None:
+            kwargs["exhaustion_sink"].append(True)
+        return (fallback, [0.0] * len(fallback)) if fallback else ([], [])
     if len(ballots) == 1:
         return ballots[0], [1.0] * len(ballots[0])
 
@@ -2098,7 +2426,8 @@ def attribute_batch_voted(client, model_name, frozen_batch, params, roster,
     for position in range(len(ballots[0])):
         speakers = [ballot[position].get("speaker") for ballot in ballots]
         winner, confidence = majority_vote(speakers)
-        entry = dict(ballots[0][position])
+        entry = dict(next(ballot[position] for ballot in ballots
+                          if ballot[position].get("speaker") == winner))
         entry["speaker"] = winner
         entries.append(entry)
         confidences.append(confidence)
@@ -2184,28 +2513,10 @@ def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
 MAX_REPLACEMENT_DENSITY = 0.02
 
 
-def read_source_text(path):
-    """Read a book, detecting UTF-8 vs cp1252 rather than assuming.
-
-    Measured on this corpus: a large share of .txt sources are cp1252, where
-    smart quotes are single bytes (0x92, 0x93) that are not valid UTF-8.
-    Decoding those as UTF-8 with replacement manufactures thousands of U+FFFD
-    and would trip the damage gate on a file that is perfectly intact. Strict
-    UTF-8 first, then cp1252, and only then replacement - so genuinely damaged
-    sources (literal U+FFFD bytes, as in index18) still reach the gate.
-    """
-    with open(path, "rb") as handle:
-        raw = handle.read()
-    for encoding in ("utf-8", "cp1252"):
-        try:
-            return raw.decode(encoding), encoding
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("utf-8", errors="replace"), "utf-8/replace"
 
 
 def prepare_source_text(book):
-    """Repair, neutralize and audit source text before any LLM call.
+    """Apply the shared conservative source repair and audit before LLM calls.
 
     Mirrors production's gate in generate_script.main (audit_unicode_text then
     hard failure) so the diagnostic CLI cannot spend hours on a source that
@@ -2218,16 +2529,8 @@ def prepare_source_text(book):
             f"source replacement-character density "
             f"{damaged / len(book):.1%} exceeds the "
             f"{MAX_REPLACEMENT_DENSITY:.0%} ceiling; refusing to process it")
-    book, repairs = repair_lossy_replacements(book)
-    book, residual = neutralize_lossy_residue(book)
-    # Same preflight as the single-pass path, from one definition (Rule 15).
-    #
-    # AFTER the lossy repair, not before. This path already repairs U+FFFD and
-    # reports how many it fixed; running the preflight first fixed them itself
-    # and left that count at zero, which is a real regression in what the run
-    # reports about itself even though the text came out the same. The
-    # preflight's remaining value here is what this path never covered -
-    # stripped apostrophes, repetition traps, quote balance.
+    # Inspect destroyed characters with the same engine as single-pass before
+    # any fallback can consume the evidence and invent a different punctuation.
     preflight = preflight_source(book)
     for line in preflight["messages"]:
         print(line)
@@ -2245,7 +2548,10 @@ def prepare_source_text(book):
             f"source is {report['replacement_character_count'] / max(1, len(book)):.2%} "
             "replacement characters, above the shared limit.\n"
             + replacement_repair_hint())
-    return book, {"repaired": len(repairs), "residual": residual,
+    unresolved = report["replacement_character_count"]
+    residual = preflight["applied"].get("last_resort_dash", 0)
+    return book, {"repaired": max(0, damaged - unresolved - residual),
+                  "residual": residual, "unresolved": unresolved,
                   "scripts": report["scripts"], "is_nfc": report["is_nfc"]}
 
 
@@ -2261,6 +2567,7 @@ def main():
     parser = argparse.ArgumentParser(description="Three-pass annotated script generation.")
     parser.add_argument("input_file")
     parser.add_argument("--output", default=None)
+    parser.add_argument("--model", default=None, help="Generation model for this run; config.json is unchanged.")
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--attribute-batch-size", type=int, default=None,
                         help="Override generation.three_pass_attribute_batch_size "
@@ -2315,18 +2622,19 @@ def main():
     book, source_encoding = read_source_text(args.input_file)
     if source_encoding != "utf-8":
         print(f"Read {args.input_file} as {source_encoding} (not valid UTF-8)")
-    book = fix_mojibake(book)
-    book, _ = normalize_known_source_corruptions(book)
-    book, _ = normalize_extreme_phrase_repetitions(book)
-    if args.strip_front_matter:
-        book, _ = strip_known_front_matter(book)
-    book, publisher = strip_publisher_matter(book)
+    book, preprocessing = get_preprocessed_source(
+        book, strip_front_matter=args.strip_front_matter)
+    if preprocessing["source_normalizations"]:
+        print(f"Normalized {len(preprocessing['source_normalizations'])} known source "
+              "corruption(s) in memory; the upload was not modified.")
+    publisher = preprocessing["publisher_matter"]
     if publisher["front_paragraphs"] or publisher["back_paragraphs"]:
         print(f"Stripped publisher matter: {publisher['front_paragraphs']} "
               f"paragraph(s) from the front, {publisher['back_paragraphs']} "
               "from the back (copyright page / colophon, not narration)")
     try:
         book, unicode_report = prepare_source_text(book)
+        require_nonempty_source(book)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -2334,6 +2642,9 @@ def main():
         print(f"Repaired {unicode_report['repaired']} destroyed character(s); "
               f"neutralized {unicode_report['residual']} unrecoverable one(s). "
               "The source file was not modified.")
+    if unicode_report["unresolved"]:
+        print(f"Retained {unicode_report['unresolved']} unresolved replacement character(s); "
+              "the shared source gate admits this remaining load.")
     try:
         narrator = get_valid_narrator_name(args.first_person_narrator)
     except ValueError as exc:
@@ -2346,7 +2657,11 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
-    config = load_app_config(get_app_config_path(data_dir, root, app_dir))
+    try:
+        config = get_generation_config(
+            load_app_config(get_app_config_path(data_dir, root, app_dir)), args.model)
+    except ValueError as exc:
+        parser.error(str(exc))
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
@@ -2372,13 +2687,21 @@ def main():
                                else generation_settings["attribute_context_chars"])
     if attribute_batch_size < 1 or attribute_context_chars < 0:
         raise SystemExit("attribute batch size must be >= 1 and context chars >= 0")
+    try:
+        configured_windows = gen.get("context_rescue_windows")
+        validated_windows = get_context_rescue_windows(configured_windows)
+        context_windows = validated_windows if configured_windows is not None else None
+        validate_attribution_vote_settings(args.attribution_votes, args.vote_temperature)
+    except ValueError as exc:
+        parser.error(str(exc))
+    context_rescue_retries = gen.get("context_rescue_retries")
     base_url = llm.get("base_url", "http://localhost:1234/v1")
     llm_mode = config.get("llm_mode", "local")
     # Self-heal LM Studio: load model_name at its verified context if nothing is
     # loaded / settings are stale, mirroring generate_script.py. Without this a
     # fresh `lms unload` leaves no model loaded and every call 400s.
     _, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     print(heal_msg)
     params = LLMGenParams(
         max_tokens=generation_settings["max_tokens"],
@@ -2454,19 +2777,36 @@ def main():
         params.user_prompt_template = attribute_prompt_texts.get("user") or None
     client = make_run_client(config, llm, llm_timeout_seconds())
 
-    # Context-rescue tuning (finding #12): config-overridable, else defaults.
-    cfg_windows = gen.get("context_rescue_windows")
-    context_windows = tuple(cfg_windows) if cfg_windows else None
-    context_rescue_retries = gen.get("context_rescue_retries")
-
     output_path, chunks_path = get_output_paths(data_dir, args.output)
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"attribute_batch_size={attribute_batch_size}, "
           f"attribute_context_chars={attribute_context_chars}, "
           f"attribute_prompt_variant={attribute_prompt_variant}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
-    planned_calls = planned_calls_from_preflight(
-        build_three_pass_request_preflight(book, generation_settings, 0, 1))
+    # Resolve execution controls once; samples and full runs share this policy.
+    run_options = MappingProxyType({
+        "on_exhaustion": args.pass2_on_exhaustion,
+        "context_windows": context_windows,
+        "context_rescue_retries": context_rescue_retries,
+        "endpoint": base_url,
+        "collect_all_failures": args.collect_all_failures,
+        "unicode_report": unicode_report,
+        "thinking_mode": args.reasoning_effort,
+        "attribution_votes": args.attribution_votes,
+        "vote_temperature": args.vote_temperature,
+        "first_person_narrator": narrator,
+        "attribute_batch_size": attribute_batch_size,
+        "attribute_context_chars": attribute_context_chars,
+        "attribute_prompt_variant": attribute_prompt_variant,
+        "attribute_prompt_texts": attribute_prompt_texts,
+        "cast": cast,
+    })
+    planning_settings = MappingProxyType({**generation_settings, **run_options})
+
+    def get_planned_calls(source):
+        return get_three_pass_planned_calls(source, planning_settings, params)
+
+    planned_calls = get_planned_calls(book)
     print(plan_line(planned_calls), flush=True)
     if args.preflight:
         summary = {"status": "complete", "model_name": model_name, "samples": []}
@@ -2475,11 +2815,8 @@ def main():
             try:
                 sample_entries = run_three_pass(
                     client, model_name, sample, params, chunk_size,
-                    on_exhaustion=args.pass2_on_exhaustion, output_path=sample_out,
-                    context_windows=context_windows,
-                    context_rescue_retries=context_rescue_retries,
-                    endpoint=base_url,
-                    first_person_narrator=narrator, cast=cast)
+                    output_path=sample_out,
+                    planned_calls=get_planned_calls(sample), **run_options)
                 atomic_json_write(sample_entries, sample_out)
                 summary["samples"].append({"label": label, "chunk_index": index,
                                            "status": "complete",
@@ -2493,23 +2830,8 @@ def main():
         sys.exit(0 if summary["status"] == "complete" else 1)
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
-                                 on_exhaustion=args.pass2_on_exhaustion,
                                  output_path=output_path,
-                                 context_windows=context_windows,
-                                 context_rescue_retries=context_rescue_retries,
-                                 endpoint=base_url,
-                                 collect_all_failures=args.collect_all_failures,
-                                 unicode_report=unicode_report,
-                                 thinking_mode=args.reasoning_effort,
-                                 planned_calls=planned_calls,
-                                 attribution_votes=args.attribution_votes,
-                                 vote_temperature=args.vote_temperature,
-                                 first_person_narrator=narrator,
-                                 attribute_batch_size=attribute_batch_size,
-                                 attribute_context_chars=attribute_context_chars,
-                                 attribute_prompt_variant=attribute_prompt_variant,
-                                 attribute_prompt_texts=attribute_prompt_texts,
-                                 cast=cast)
+                                 planned_calls=planned_calls, **run_options)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -2525,8 +2847,7 @@ def main():
     # checkpoint and manifest were written.
     atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
-    if chunks_path is not None and os.path.exists(chunks_path):
-        os.remove(chunks_path)
+    if chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")
 
 

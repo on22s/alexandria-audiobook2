@@ -35,7 +35,7 @@ run_stage narrator_prior_current 3h --  \
     "$python" -u "$REPO/app/experiments/pdnc_narrator_prior.py" \
     --tag current-code --arms baseline narrator
 
-stage_commit_artifacts narrator_prior_current "$REPO"
+stage_commit_artifacts narrator_prior_current "$REPO" "$runtime/experiments/pdnc_narrator_prior__current-code.json" "$runtime/experiments/pdnc_narrator_prior__current-code.json.ckpt" "$runtime/experiments/pdnc_narrator_prior__current-code.json.ckpt.stale"
 stage_summary attribution_fix
 
 echo

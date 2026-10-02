@@ -29,7 +29,9 @@ shipped.
 """
 import argparse
 import json
+import math
 import os
+from pathlib import Path
 import statistics
 import subprocess
 import sys
@@ -67,20 +69,178 @@ def dataset_of(adapter, models_dir):
     p = os.path.join(models_dir, adapter, "training_meta.json")
     if not os.path.exists(p):
         return None, {}
-    meta = json.load(open(p, encoding="utf-8"))
+    with open(p, encoding="utf-8") as handle:
+        meta = json.load(handle)
     return os.path.basename(os.path.dirname(
         str(meta.get("ref_sample_audio") or ""))), meta
 
 
-def load_resumed_results(path, resume, seed, reference_rank):
+def is_completed_retrain_row(row, eval_lines=None):
+    """A failed or unmeasured attempt is not a completed adapter measurement."""
+    if (not isinstance(row, dict) or not isinstance(row.get("adapter"), str)
+            or not row["adapter"] or row.get("error") or row.get("ecapa_error")
+            or type(row.get("n")) is not int or row["n"] < 1
+            or (eval_lines is not None and row["n"] != eval_lines)):
+        return False
+    score, duration = row.get("new_ecapa_heldout"), row.get("dur_ratio")
+    return (type(score) in (int, float) and math.isfinite(score) and -1 <= score <= 1
+            and type(duration) in (int, float) and math.isfinite(duration) and duration > 0)
+
+
+def get_retrain_completion(results, adapters, controls, eval_lines):
+    requested = list(adapters) + list(controls)
+    names = [row.get("adapter") for row in results if isinstance(row, dict)]
+    if len(requested) != len(set(requested)) or len(names) != len(set(names)):
+        raise ValueError("retrain roster and results must name each adapter once")
+    completed = {row["adapter"] for row in results
+                 if is_completed_retrain_row(row, eval_lines)}
+    return {"requested": len(requested), "completed": len(completed & set(requested)),
+            "complete": completed.issuperset(requested)}
+
+
+def get_retrain_settings(args):
+    return {key: getattr(args, key) for key in ("epochs", "lora_r", "lora_alpha", "seed",
+            "reference_rank", "eval_lines", "use_medoid", "medoid_clips")}
+
+
+def is_matching_retrain_settings(settings, args):
+    expected = get_retrain_settings(args)
+    return (isinstance(settings, dict) and settings == expected
+            and all(type(settings.get(key)) is type(value) for key, value in expected.items()))
+
+
+def get_retrain_source_hashes(args, adapter):
+    from experiments.provenance import input_sha256
+
+    dataset, _ = dataset_of(adapter, args.models)
+    archive = find_zip(dataset, args.zips) if dataset else None
+    if not archive:
+        raise ValueError(f"source ZIP missing for {adapter}")
+    paths = [archive, os.path.join(args.models, adapter, "training_meta.json"),
+             os.path.join(APP, "config.json"), __file__, os.path.join(APP, "train_lora.py"),
+             os.path.join(APP, "tts.py"), os.path.join(APP, "voice_reference.py"),
+             os.path.join(APP, "experiments", "generation.py"),
+             os.path.join(APP, "experiments", "library_voice_fidelity.py")]
+    return input_sha256(paths)
+
+
+def get_retrain_input_hashes(args, adapter, include_generated=True):
+    from experiments.provenance import input_sha256
+
+    base = Path(args.work) / adapter
+    paths = [base / "adapter" / name for name in ("adapter_model.safetensors",
+             "adapter_config.json", "training_meta.json", "ref_sample.wav")]
+    data = base / "data"
+    if not (data / "metadata.jsonl").is_file() and not (data / "train/metadata.jsonl").is_file():
+        raise ValueError("retrain working dataset has no training metadata")
+    for folder in (data, base / "val"):
+        paths.extend(path for path in sorted(folder.rglob("*")) if path.is_file()
+                     and (path.suffix == ".wav" or path.name in ("metadata.jsonl", "ref_text.txt")))
+    if include_generated:
+        paths.extend(base / f"gen_{index}.wav" for index in range(args.eval_lines))
+    return {**get_retrain_source_hashes(args, adapter), **input_sha256(paths)}
+
+
+def get_validated_retrain_row(row, args):
+    """Verify measured vectors and current source/training/output identities."""
+    import soundfile as sf
+
+    if not is_completed_retrain_row(row, args.eval_lines):
+        raise ValueError("retrain row is not fully measured")
+    dataset, _ = dataset_of(row["adapter"], args.models)
+    if row.get("dataset") != dataset:
+        raise ValueError("retrain row identifies another source dataset")
+    scores, durations, pairs = row.get("ecapa_scores"), row.get("duration_ratios"), row.get("scored_pairs")
+    if (not isinstance(scores, list) or not isinstance(durations, list) or not isinstance(pairs, list)
+            or any(len(values) != args.eval_lines for values in (scores, durations, pairs))
+            or any(type(value) not in (int, float) or not math.isfinite(value) or not -1 <= value <= 1 for value in scores)
+            or any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0 for value in durations)
+            or row["new_ecapa_heldout"] != round(statistics.median(scores), 4)
+            or row["dur_ratio"] != round(statistics.median(durations), 3)):
+        raise ValueError("retrain row has incomplete or inconsistent measured vectors")
+    identity = {"schema_version": 1, "settings": get_retrain_settings(args),
+                "inputs": get_retrain_input_hashes(args, row["adapter"])}
+    evidence = row.get("measurement")
+    if (not isinstance(evidence, dict) or type(evidence.get("schema_version")) is not int
+            or evidence != identity or not is_matching_retrain_settings(evidence.get("settings"), args)):
+        raise ValueError("retrain inputs or training settings changed")
+    base = Path(args.work) / row["adapter"]
+    for index, pair in enumerate(pairs):
+        if (not isinstance(pair, list) or len(pair) != 2 or any(not isinstance(path, str) for path in pair)
+                or Path(pair[0]).parent != base / "val" or Path(pair[1]) != base / f"gen_{index}.wav"):
+            raise ValueError("retrain row names another held-out output pair")
+        human, generated = sf.info(pair[0]), sf.info(pair[1])
+        if human.frames <= 0 or generated.frames <= 0:
+            raise ValueError("retrain pair has no measured audio duration")
+        ratio = (generated.frames / generated.samplerate) / (human.frames / human.samplerate)
+        if durations[index] != ratio:
+            raise ValueError("retrain duration disagrees with its actual held-out WAVs")
+    return row
+
+
+def get_completed_retrain_result(path, args):
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    if (not isinstance(document, dict) or not is_matching_retrain_settings(document.get("settings"), args)
+            or any(type(document.get(key)) is not type(getattr(args, key))
+                   or document[key] != getattr(args, key)
+                   for key in ("epochs", "lora_r", "seed", "reference_rank", "eval_lines"))
+            or document.get("requested_adapters") != list(args.adapters)
+            or document.get("requested_controls") != list(args.controls)):
+        raise ValueError("retrain artifact declares another request or training settings")
+    rows = document.get("results")
+    if not isinstance(rows, list) or len(rows) != len(args.adapters + args.controls):
+        raise ValueError("retrain result does not cover the full requested roster")
+    expected_roles = {**{name: "failure" for name in args.adapters}, **{name: "control" for name in args.controls}}
+    if {row.get("adapter") for row in rows if isinstance(row, dict)} != set(expected_roles):
+        raise ValueError("retrain result has missing or unexpected adapters")
+    for row in rows:
+        if row.get("role") != expected_roles[row["adapter"]]:
+            raise ValueError("retrain result has another adapter role")
+        get_validated_retrain_row(row, args)
+    completion = get_retrain_completion(rows, args.adapters, args.controls, args.eval_lines)
+    if (not completion["complete"] or type(document.get("complete")) is not bool
+            or any(type(document.get(key)) is not int for key in ("requested", "completed"))
+            or any(document.get(key) != value for key, value in completion.items())):
+        raise ValueError("retrain completion summary disagrees with measured roster")
+    return document
+
+
+def load_resumed_results(path, resume, seed, reference_rank, eval_lines=None, args=None):
     if not resume or not os.path.exists(path):
         return []
-    with open(path, encoding="utf-8") as handle:
-        prior = json.load(handle)
-    if (prior.get("seed") != seed or
-            prior.get("reference_rank", 0) != reference_rank):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            prior = json.load(handle)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(prior, dict):
+        raise ValueError("resume artifact must be an object")
+    if (type(prior.get("seed")) is not int or prior["seed"] != seed
+            or type(prior.get("reference_rank", 0)) is not int
+            or prior.get("reference_rank", 0) != reference_rank):
         raise ValueError("resume artifact settings do not match this run")
-    return list(prior.get("results") or [])
+    rows = prior.get("results") or []
+    if not isinstance(rows, list):
+        raise ValueError("resume artifact results must be a list")
+    measured = [row for row in rows if is_completed_retrain_row(row, eval_lines)]
+    names = [row["adapter"] for row in measured]
+    if len(names) != len(set(names)):
+        raise ValueError("resume artifact repeats a completed adapter")
+    if args is not None:
+        current = []
+        for row in measured:
+            if row["adapter"] not in args.adapters + args.controls:
+                continue
+            try:
+                get_validated_retrain_row(row, args)
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+                continue
+            expected_role = "control" if row["adapter"] in args.controls else "failure"
+            if row.get("role") == expected_role:
+                current.append(row)
+        measured = current
+    return measured
 
 
 def main():
@@ -112,8 +272,19 @@ def main():
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "retrain_honest.json"))
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--check-artifact", help="validate a completed retrain without inference")
     args = ap.parse_args()
+    if args.eval_lines < 1:
+        ap.error("eval-lines must be positive")
+    if len(args.adapters + args.controls) != len(set(args.adapters + args.controls)):
+        ap.error("adapters and controls must name each adapter once")
 
+    if args.check_artifact:
+        try:
+            get_completed_retrain_result(args.check_artifact, args)
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
+            ap.exit(1, f"REFUSING incomplete or stale retrain result: {error}\n")
+        return
     py = os.path.join(APP, "env", "bin", "python")
     os.makedirs(args.work, exist_ok=True)
     import importlib.util
@@ -127,7 +298,7 @@ def main():
     jobs = [(a, "failure") for a in args.adapters] + \
            [(a, "control") for a in args.controls]
     results = load_resumed_results(
-        args.out, args.resume, args.seed, args.reference_rank)
+        args.out, args.resume, args.seed, args.reference_rank, args.eval_lines, args)
     completed = {row.get("adapter") for row in results}
 
     def build_doc():
@@ -147,15 +318,13 @@ def main():
         run is still going, which is the only one anybody reads mid-flight.
         One builder, so the checkpoint cannot drift from the result again.
         """
-        return {"epochs": args.epochs, "lora_r": args.lora_r,
+        return {"settings": get_retrain_settings(args), "epochs": args.epochs, "lora_r": args.lora_r,
                 "seed": args.seed,
                 "reference_rank": args.reference_rank,
                 "eval_lines": args.eval_lines,
                 "requested_adapters": list(args.adapters),
-                "requested": len(args.adapters),
-                "completed": len(results),
-                "complete": {row.get("adapter") for row in results}
-                            .issuperset(args.adapters),
+                "requested_controls": list(args.controls),
+                **get_retrain_completion(results, args.adapters, args.controls, args.eval_lines),
                 "results": results}
 
     def save_results():
@@ -176,6 +345,7 @@ def main():
             save_results()
             print(f"  {adapter[:34]:36} NO ZIP")
             continue
+        source_hashes = get_retrain_source_hashes(args, adapter)
         ddir = os.path.join(args.work, adapter, "data")
         odir = os.path.join(args.work, adapter, "adapter")
         if not os.path.exists(os.path.join(ddir, "metadata.jsonl")):
@@ -203,7 +373,7 @@ def main():
             cand = [path for path, _row in candidate_rows]
             pick, score = select_reference_sample(
                 cand, max_clips=args.medoid_clips,
-                reference_rank=args.reference_rank)
+                reference_rank=args.reference_rank, dataset_root=ddir)
             if pick is not None:
                 import shutil as _sh
                 _sh.copy2(cand[pick], os.path.join(ddir, "ref.wav"))
@@ -253,11 +423,13 @@ def main():
                             args.eval_lines)
         from tts import TTSEngine
         from experiments.generation import render, GenerationFailed
-        engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
-                                          encoding="utf-8")))
+        with open(os.path.join(APP, "config.json"), encoding="utf-8") as handle:
+            config = json.load(handle)
+        engine = TTSEngine(config)
         entry = {"type": "lora",
                  "adapter_path": os.path.relpath(odir, REPO),
                  "seed": str(args.seed)}
+        generation_inputs = get_retrain_input_hashes(args, adapter, include_generated=False)
         pairs, durs = [], []
         for i, (human_wav, text) in enumerate(clips):
             gen = os.path.join(args.work, adapter, f"gen_{i}.wav")
@@ -282,7 +454,20 @@ def main():
                "new_ecapa_heldout": round(statistics.median(vals), 4)
                if vals else None,
                "dur_ratio": round(statistics.median(durs), 3) if durs else None,
-               "n": len(vals), "ecapa_error": err}
+               "n": len(vals), "ecapa_error": err,
+               "ecapa_scores": vals, "duration_ratios": durs, "scored_pairs": pairs}
+        if len(clips) != args.eval_lines or len(pairs) != args.eval_lines or len(cos or []) != args.eval_lines:
+            rec["error"] = "not every requested held-out clip was measured"
+        elif (source_hashes != get_retrain_source_hashes(args, adapter)
+                or generation_inputs != get_retrain_input_hashes(args, adapter, include_generated=False)):
+            rec["error"] = "retrain inputs changed during measurement"
+        elif is_completed_retrain_row(rec, args.eval_lines):
+            rec["measurement"] = {"schema_version": 1, "settings": get_retrain_settings(args),
+                                  "inputs": get_retrain_input_hashes(args, adapter)}
+            try:
+                get_validated_retrain_row(rec, args)
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
+                rec["error"] = str(error)
         results.append(rec)
         save_results()
         print(f"  {adapter[:34]:36} {role:8} held-out ecapa "
@@ -320,7 +505,7 @@ def main():
     from utils import atomic_json_write
     atomic_json_write(doc, args.out)
     print(f"\nwrote {args.out}")
-    if not any(r.get("new_ecapa_heldout") is not None for r in results):
+    if not doc["complete"]:
         sys.exit(3)
 
 

@@ -46,25 +46,34 @@ def validate_benchmark_manifest(manifest):
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ValueError(f"unsupported benchmark manifest schema_version; expected {MANIFEST_SCHEMA_VERSION}")
     stage = manifest.get("stage")
-    if stage not in STAGES:
+    if not isinstance(stage, str) or stage not in STAGES:
         raise ValueError(f"unknown benchmark stage: {stage}")
     targets = manifest.get("targets")
     if not isinstance(targets, list) or not targets:
         raise ValueError("benchmark targets must be a non-empty list")
-    if any(target not in {"local", "thunder"} for target in targets):
+    if any(not isinstance(target, str) or target not in {"local", "thunder"}
+           for target in targets):
         raise ValueError("benchmark targets may contain only local and thunder")
     fixtures = manifest.get("fixtures")
     if not isinstance(fixtures, list) or not fixtures:
         raise ValueError("benchmark fixtures must be a non-empty list")
     normalized_fixtures = []
+    fixture_ids = set()
     for fixture in fixtures:
         if not isinstance(fixture, dict) or not fixture.get("id") or not fixture.get("sha256"):
             raise ValueError("each fixture requires id and sha256")
+        fixture_id = fixture["id"]
+        if not isinstance(fixture_id, str) or not fixture_id.strip():
+            raise ValueError("fixture id must be a non-empty string")
+        if fixture_id in fixture_ids:
+            raise ValueError(f"duplicate fixture id: {fixture_id}")
+        fixture_ids.add(fixture_id)
         normalized_fixtures.append(copy.deepcopy(fixture))
     repetitions = manifest.get("repetitions", 1)
-    if not isinstance(repetitions, int) or repetitions < 1:
+    if isinstance(repetitions, bool) or not isinstance(repetitions, int) or repetitions < 1:
         raise ValueError("benchmark repetitions must be a positive integer")
-    normalized = copy.deepcopy(manifest)
+    normalized = copy.deepcopy({key: value for key, value in manifest.items()
+                                if key != "fixtures"})
     normalized["targets"] = list(dict.fromkeys(targets))
     normalized["fixtures"] = normalized_fixtures
     normalized["repetitions"] = repetitions
@@ -82,9 +91,16 @@ def get_manifest_fingerprint(manifest):
 
 
 def get_benchmark_preflight_id(manifest, environments):
+    normalized = validate_benchmark_manifest(manifest)
+    if not isinstance(environments, dict):
+        raise ValueError("benchmark environments must be an object")
+    for target in normalized["targets"]:
+        environment = environments.get(target)
+        if not isinstance(environment, dict) or not environment.get("sha256"):
+            raise ValueError(f"verified environment fingerprint is required for {target}")
     identities = {target: environment.get("sha256")
                   for target, environment in sorted(environments.items())}
-    return _stable_hash({"manifest": get_manifest_fingerprint(manifest),
+    return _stable_hash({"manifest": _stable_hash(normalized),
                          "environments": identities})
 
 
@@ -109,7 +125,7 @@ def build_benchmark_report(manifest, environment):
         raise ValueError("verified environment fingerprint is required")
     return {"schema_version": RESULT_SCHEMA_VERSION,
             "manifest": normalized,
-            "manifest_sha256": get_manifest_fingerprint(normalized),
+            "manifest_sha256": _stable_hash(normalized),
             "environment": copy.deepcopy(environment), "cases": []}
 
 
@@ -126,8 +142,17 @@ def load_resumable_benchmark_report(path, manifest, environment):
         raise ValueError("benchmark report is unreadable")
     if report.get("schema_version") != RESULT_SCHEMA_VERSION:
         raise ValueError("benchmark report schema does not match")
-    if report.get("manifest_sha256") != get_manifest_fingerprint(manifest):
+    manifest_sha256 = get_manifest_fingerprint(manifest)
+    if (report.get("manifest_sha256") != manifest_sha256
+            or get_manifest_fingerprint(report.get("manifest")) != manifest_sha256):
         raise ValueError("benchmark manifest changed; refusing unsafe resume")
-    if report.get("environment", {}).get("sha256") != environment.get("sha256"):
+    stored_environment = report.get("environment")
+    for evidence in (environment, stored_environment):
+        if not isinstance(evidence, dict) or evidence.get("target") not in ("local", "thunder"):
+            raise ValueError("benchmark environment is invalid; refusing unsafe resume")
+        verified = build_environment_fingerprint(evidence["target"], evidence.get("details"))
+        if evidence.get("sha256") != verified["sha256"]:
+            raise ValueError("benchmark environment changed; refusing unsafe resume")
+    if stored_environment["sha256"] != environment["sha256"]:
         raise ValueError("benchmark environment changed; refusing unsafe resume")
     return report

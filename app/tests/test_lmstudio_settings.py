@@ -45,7 +45,7 @@ class DynamicLmStudioSettingsTests(unittest.TestCase):
         current.assert_called_once()
 
     def test_planned_remote_lmstudio_settings_use_remote_target(self):
-        status = {"runtime": "lmstudio"}
+        status = {"runtime": "lmstudio", "management_verified": True}
         with patch.object(lmstudio_settings, "get_current_status",
                           return_value=status) as current:
             planned = lmstudio_settings.get_planned_ideal_settings(
@@ -66,7 +66,7 @@ class DynamicLmStudioSettingsTests(unittest.TestCase):
                          (planned["context_length"], planned["parallel"]))
 
     def test_cached_remote_runtime_decision_skips_live_probe(self):
-        key = ("tnr-0", self.MODEL, "http://remote:8090/v1")
+        key = ("tnr-0", self.MODEL, "http://remote:8090/v1", None)
         cached = {"runtime": "llama.cpp", "context_length": 32768}
         with lmstudio_settings._remote_status_cache_lock:
             lmstudio_settings._remote_status_cache[key] = (

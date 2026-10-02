@@ -35,7 +35,7 @@ class GateWritesProvenanceTests(unittest.TestCase):
         """Attaching it after json.dump would look right and record nothing."""
         source = _source("verify_adapter_identity.py")
         attached = source.index('doc["provenance"] = provenance')
-        written = source.index("json.dump(doc")
+        written = source.index("atomic_json_write(doc")
         self.assertLess(attached, written)
 
     def test_a_provenance_failure_is_recorded_rather_than_swallowed(self):

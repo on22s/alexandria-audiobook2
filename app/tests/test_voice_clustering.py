@@ -62,3 +62,36 @@ class VoiceClusteringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SimilarityMatrixValidationTests(unittest.TestCase):
+    def test_nonfinite_or_asymmetric_matrices_are_rejected_before_clustering(self):
+        for value in (float("nan"), float("inf"), -float("inf")):
+            for position in ((0, 0), (0, 1)):
+                with self.subTest(value=value, position=position):
+                    matrix = np.array([[1, .8], [.8, 1]])
+                    matrix[position] = value
+                    with self.assertRaisesRegex(ValueError, "finite"):
+                        cluster_voices(["a", "b"], matrix, .45)
+        for matrix in (np.array([[1, .9], [.1, 1]]),
+                       np.array([[1, .450000001], [.449999999, 1]])):
+            with self.subTest(matrix=matrix):
+                with self.assertRaisesRegex(ValueError, "symmetric"):
+                    cluster_voices(["a", "b"], matrix, .45)
+
+    def test_one_split_member_can_merge_with_an_unrelated_label(self):
+        # Finding841 claims this valid override is rejected. Both controls
+        # exercise real decision generation and retained cannot-link edges.
+        labels = ["a", "b", "c"]
+        matrix = np.full((3, 3), .9)
+        np.fill_diagonal(matrix, 1)
+        before = matrix.copy()
+        clusters, decisions = cluster_voices(labels, matrix, .45,
+            {"merge": [["a", "c"]], "split": [["a", "b"]]})
+        actual = sorted(sorted(labels[index] for index in group) for group in clusters)
+        self.assertEqual([["a", "c"], ["b"]], actual)
+        self.assertEqual([{"type": "manual_merge", "labels": ["a", "c"]}], decisions)
+        np.testing.assert_array_equal(before, matrix)
+        with self.assertRaisesRegex(ValueError, "conflict"):
+            cluster_voices(labels, matrix, .45,
+                {"merge": [["a", "b"]], "split": [["a", "b"]]})

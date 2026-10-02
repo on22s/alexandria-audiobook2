@@ -35,7 +35,7 @@ run_stage separator_none_n400 4h --needs-vram -- \
     --min-books 5 --only-e-row --separator none --limit 400 \
     --work "$runtime/respelling_sep_none" \
     --out "$runtime/experiments/respelling_separator__none_n400.json"
-stage_commit_artifacts separator_none_n400 "$REPO"
+stage_commit_artifacts separator_none_n400 "$REPO" "$runtime/experiments/respelling_separator__none_n400.json"
 
 # Pauses over the widened `none` arm, against plain. Refuses rather than
 # writing an empty artifact if an arm has no clips.
@@ -44,13 +44,13 @@ run_stage separator_pauses_3arm 1h -- \
     --arm none=respelling_sep_none --arm space=respelling_sep_space \
     --arm dot=respelling_sep_dot \
     --out "$runtime/experiments/respelling_pauses_separators_3arm.json"
-stage_commit_artifacts separator_pauses_3arm "$REPO"
+stage_commit_artifacts separator_pauses_3arm "$REPO" "$runtime/experiments/respelling_pauses_separators_3arm.json"
 
 # The book that genuinely failed. Its three companions are already on disk and
 # are skipped in seconds by the corrected copy.
 run_stage grimgar06_retry 6h --needs-vram -- \
     env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books_20260819b.sh"
-stage_commit_artifacts grimgar06_retry "$REPO"
+# This generator writes under unseen_books, outside the experiment commit scope.
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary separator_scale_20260819

@@ -113,7 +113,8 @@ class UploadRouteTests(unittest.TestCase):
             self.assertEqual(24000, entry["sample_rate"])
             self.assertAlmostEqual(entry["duration_s"], 5.0, places=1)
             self.assertEqual(entry["sha256"], vri.measure_reference_audio(os.path.join(tmp, entry["filename"]))["sha256"])
-            self.assertEqual([entry["filename"], "manifest.json"], sorted(os.listdir(tmp)))  # no temp upload left
+            self.assertEqual([entry["filename"], "manifest.json", "manifest.json.lock"],
+                             sorted(os.listdir(tmp)))  # Stable kernel lock remains; no temp upload left.
 
     def test_refusals_leave_no_file_and_no_manifest_entry(self):
         from fastapi import HTTPException
@@ -134,3 +135,65 @@ class UploadRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReferenceImportFailureAndBoundaryTests(unittest.TestCase):
+    _upload = UploadRouteTests._upload
+    def test_partial_export_failure_is_reported_and_removed(self):
+        from pydub import AudioSegment
+        for failure in (OSError('disk full'), RuntimeError('export backend failed')):
+            with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as tmp:
+                src = Path(tmp, 'input.wav')
+                src.write_bytes(_wav_bytes(_tone(5.0)))
+                before = src.read_bytes()
+                dst = Path(tmp, 'reference.wav')
+                def fail_export(_audio, target, **kwargs):
+                    target.write(b'partial WAV')
+                    target.flush()
+                    raise failure
+                with patch.object(AudioSegment, 'export', fail_export):
+                    measures, problems = vri.import_reference_audio(str(src), str(dst))
+                self.assertEqual({}, measures)
+                self.assertTrue(any(str(failure) in problem for problem in problems))
+                self.assertFalse(dst.exists())
+                self.assertEqual(before, src.read_bytes())
+
+    def test_export_failure_refuses_upload_without_manifest_or_partial_audio(self):
+        from fastapi import HTTPException
+        from pydub import AudioSegment
+        def fail_export(_audio, target, **kwargs):
+            target.write(b'partial WAV')
+            raise OSError('disk full')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(AudioSegment, 'export', fail_export):
+            with self.assertRaises(HTTPException) as ctx:
+                self._upload(tmp, _wav_bytes(_tone(5.0)))
+            self.assertEqual(400, ctx.exception.status_code)
+            self.assertIn('disk full', ctx.exception.detail)
+            self.assertEqual([], os.listdir(tmp))
+
+    def test_real_pcm_duration_limits_use_exact_frame_count(self):
+        rate = vri.TARGET_RATE
+        for frames, expected in ((3*rate-1, 'too short'), (3*rate, None),
+                                 (30*rate, None), (30*rate+1, 'too long')):
+            with self.subTest(frames=frames), tempfile.TemporaryDirectory() as tmp:
+                samples = (0.5*np.sin(2*np.pi*220*np.arange(frames)/rate)).astype(np.float32)
+                content = _wav_bytes(samples)
+                src = Path(tmp, 'input.wav')
+                src.write_bytes(content)
+                measures = vri.measure_reference_audio(str(src))
+                self.assertEqual(frames/rate, measures['duration_s'])
+                problems = vri.check_reference_audio(measures)
+                if expected:
+                    self.assertTrue(any(expected in problem for problem in problems))
+                    from fastapi import HTTPException
+                    with self.assertRaises(HTTPException) as ctx:
+                        self._upload(tmp, content)
+                    self.assertIn(expected, ctx.exception.detail)
+                    self.assertEqual(['input.wav'], os.listdir(tmp))
+                else:
+                    self.assertEqual([], problems)
+                    result = self._upload(tmp, content)
+                    manifest = json.loads(Path(tmp, 'manifest.json').read_text())
+                    self.assertEqual(frames/rate, manifest[0]['duration_s'])
+                    self.assertEqual(result['measures'], vri.measure_reference_audio(
+                        str(Path(tmp, manifest[0]['filename']))))

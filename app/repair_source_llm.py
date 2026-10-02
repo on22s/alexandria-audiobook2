@@ -61,6 +61,7 @@ from core import llm_timeout_seconds
 import re
 import sys
 import unicodedata
+from source_repair_paths import validate_repair_paths
 
 APP = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP)
@@ -147,7 +148,13 @@ def main():
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
 
-    import json as _json
+    stem, extension = os.path.splitext(args.source)
+    out_path = args.out or f"{stem}.llm_repaired{extension}"
+    report_path = args.report or f"{stem}.llm_repair_report.json"
+    try:
+        validate_repair_paths(args.source, out_path, report_path)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     with open(args.source, encoding="utf-8") as handle:
         text = handle.read()
@@ -161,8 +168,11 @@ def main():
 
     # Read the same config the generator uses, rather than a second source of
     # truth for the endpoint (Rule 15).
-    with open(os.path.join(APP, "config.json"), encoding="utf-8") as handle:
-        config = _json.load(handle)
+    from utils import get_app_config_path, get_runtime_data_dir
+    root = os.path.dirname(APP)
+    config_path = get_app_config_path(get_runtime_data_dir(root), root, APP)
+    with open(config_path, encoding="utf-8") as handle:
+        config = json.load(handle)
     from lmstudio_settings import get_active_llm_config
     from llm_provider import make_llm_client
     llm = get_active_llm_config(config)
@@ -202,8 +212,10 @@ def main():
                 continue
             chars, reason = validate(entry.get("chars"), item["run_length"])
             if chars is None:
+                decisions.pop(item["n"], None)
                 refusals[item["n"]] = reason
             else:
+                refusals.pop(item["n"], None)
                 decisions[item["n"]] = chars
         print(f"    {offset + len(batch)}/{len(items)} "
               f"resolved={len(decisions)} refused={len(refusals)}", flush=True)
@@ -215,10 +227,6 @@ def main():
         start = item["start"]
         repaired = (repaired[:start] + decisions[index]
                     + repaired[start + item["run_length"]:])
-
-    stem, extension = os.path.splitext(args.source)
-    out_path = args.out or f"{stem}.llm_repaired{extension}"
-    report_path = args.report or f"{stem}.llm_repair_report.json"
 
     report = {
         "source": os.path.abspath(args.source),

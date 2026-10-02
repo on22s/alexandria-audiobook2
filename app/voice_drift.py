@@ -12,6 +12,7 @@ this repo: it never substitutes a weaker metric when ECAPA is unavailable
 (the run is reported as NOT MEASURED, like the identity gate's rc=2), and it
 never treats "no opinion" as "pass".
 """
+import math
 import os
 import tempfile
 import time
@@ -25,6 +26,7 @@ from utils import is_path_inside
 # is not the same voice", not "this could be a little closer".
 DRIFT_MIN_SIMILARITY = 0.45
 CONFIG_KEY = "voice_drift_min_similarity"
+DRIFT_BATCH_SIZE = 32
 
 
 def get_drift_threshold(app_config=None):
@@ -59,7 +61,8 @@ def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,
     if kind == "clone" and cfg.get("ref_audio"):
         return resolve_asset_path(cfg["ref_audio"]), f"clone:{canonical}"
     if kind in ("lora", "builtin_lora") and cfg.get("adapter_path"):
-        path = os.path.join(resolve_asset_path(cfg["adapter_path"]), "ref_sample.wav")
+        adapter_path = resolve_asset_path(cfg["adapter_path"])
+        path = os.path.join(adapter_path, "ref_sample.wav") if adapter_path else None
         return path, f"lora:{canonical}"
     for chunk in chunks:
         if (chunk.get("speaker") == speaker and chunk.get("status") == "done"
@@ -72,11 +75,56 @@ def _decode_to_wav(src, dest_dir, stem):
     """MP3/anything -> WAV the ECAPA worker's soundfile loader can read."""
     from pydub import AudioSegment
     out = os.path.join(dest_dir, f"{stem}.wav")
-    AudioSegment.from_file(src).export(out, format="wav")
+    with open(src, "rb") as handle:
+        with AudioSegment.from_file(handle).export(out, format="wav"):
+            pass
     return out
 
 
 def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
+                      indices=None, resolve_alias=None, resolve_asset_path=None,
+                      score_pairs=ecapa_pairs):
+    """Score bounded batches, discarding all results if any batch is unmeasured.
+
+    Each batch owns its decoded files and removes them before the next batch.
+    References still come from the full chunk list, including unselected rows.
+    """
+    if not python_bin:
+        return _check_voice_drift_batch(
+            chunks, voice_config, root_dir, python_bin, threshold,
+            indices=indices, resolve_alias=resolve_alias,
+            resolve_asset_path=resolve_asset_path, score_pairs=score_pairs)
+    if score_pairs is ecapa_pairs:
+        deadline = None
+
+        def score_with_deadline(pairs, python):
+            nonlocal deadline
+            if deadline is None:
+                deadline = time.monotonic() + 3600
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None, "speaker scoring deadline exceeded"
+            return ecapa_pairs(pairs, python, timeout=remaining)
+
+        score_pairs = score_with_deadline
+    wanted = set(indices) if indices is not None else None
+    targets = [i for i, chunk in enumerate(chunks)
+               if chunk.get("status") == "done" and chunk.get("audio_path")
+               and (wanted is None or i in wanted)]
+    results = []
+    for offset in range(0, len(targets), DRIFT_BATCH_SIZE):
+        report = _check_voice_drift_batch(
+            chunks, voice_config, root_dir, python_bin, threshold,
+            indices=targets[offset:offset + DRIFT_BATCH_SIZE],
+            resolve_alias=resolve_alias, resolve_asset_path=resolve_asset_path,
+            score_pairs=score_pairs)
+        if report["error"]:
+            return {"results": [], "error": report["error"]}
+        results.extend(report["results"])
+    return {"results": results, "error": None}
+
+
+def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, threshold,
                       indices=None, resolve_alias=None, resolve_asset_path=None,
                       score_pairs=ecapa_pairs):
     """Score chunks against their speaker's reference.
@@ -85,6 +133,8 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
              "error": None | "not measured: ..."}. On error `results` is empty:
     an unmeasured chunk is not an unflagged chunk.
     """
+    from pydub.exceptions import CouldntDecodeError
+
     resolve_asset_path = resolve_asset_path or (lambda p: p)
     if not python_bin:
         return {"results": [], "error": "not measured: no speechbrain interpreter "
@@ -118,12 +168,18 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
                 ref_uid = label.split(":", 1)[1]
                 if chunk.get("uid") == ref_uid:
                     results.append({"index": index, "uid": chunk.get("uid"), "score": None,
-                                    "flagged": False, "reference": "self"})
+                                    "flagged": False, "reference": "self",
+                                    "error": "not measured: chunk is its own reference"})
                     continue
                 ref_chunk = next((c for c in chunks if c.get("uid") == ref_uid), None)
                 ref_path = os.path.join(root_dir, ref_chunk["audio_path"]) if ref_chunk else None
-                if ref_path and not is_path_inside(ref_path, root_dir):
-                    ref_path = None
+            if ref_path:
+                ref_path = os.path.join(root_dir, ref_path)
+                if not is_path_inside(ref_path, root_dir):
+                    results.append({"index": index, "uid": chunk.get("uid"), "score": None,
+                                    "flagged": False, "reference": label,
+                                    "error": "reference audio path is outside project"})
+                    continue
             if not ref_path or not os.path.exists(ref_path):
                 results.append({"index": index, "uid": chunk.get("uid"), "score": None,
                                 "flagged": False, "reference": label,
@@ -143,33 +199,49 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
             try:
                 pairs.append([wav_for(chunk_path, f"chunk_{index}"),
                               wav_for(ref_path, f"ref_{len(decoded)}")])
-            except (OSError, ValueError, RuntimeError) as exc:
+                pair_owner.append((index, chunk.get("uid"), label))
+            except (OSError, ValueError, RuntimeError, CouldntDecodeError) as exc:
                 results.append({"index": index, "uid": chunk.get("uid"),
                                 "score": None, "flagged": False,
                                 "reference": label,
                                 "error": f"audio decode failed: {str(exc)[:160]}"})
-            pair_owner.append((index, chunk.get("uid"), label))
 
         if pairs:
             scores, err = score_pairs(pairs, python_bin)
             if err:
                 return {"results": [], "error": f"not measured: {err}"}
+            if not isinstance(scores, list) or len(scores) != len(pairs):
+                return {"results": [], "error": f"not measured: invalid scoring response; "
+                                                f"expected {len(pairs)} scores"}
             for (index, uid, label), score in zip(pair_owner, scores):
                 if score is None:
                     results.append({"index": index, "uid": uid, "score": None,
                                     "flagged": False, "reference": label,
                                     "error": "scoring failed"})
                     continue
-                results.append({"index": index, "uid": uid, "score": round(float(score), 4),
-                                "flagged": float(score) < threshold, "reference": label})
+                try:
+                    value = float(score)
+                    valid = not isinstance(score, bool) and math.isfinite(value)
+                except (TypeError, ValueError, OverflowError):
+                    valid = False
+                if not valid:
+                    results.append({"index": index, "uid": uid, "score": None,
+                                    "flagged": False, "reference": label,
+                                    "error": "invalid similarity score: not measured"})
+                    continue
+                results.append({"index": index, "uid": uid, "score": round(value, 4),
+                                "flagged": value < threshold, "reference": label})
     results.sort(key=lambda r: r["index"])
     return {"results": results, "error": None}
 
 
 def apply_drift_results(project_manager, results, threshold):
     """Write each result onto its chunk as `drift` (chunks.json). Returns the
-    number of flagged chunks."""
+    number of flagged chunks. Missing targets raise after the remaining
+    results are applied, so the caller cannot report a complete saved check."""
     flagged = 0
+    applied = 0
+    missing = []
     checked_at = time.time()
     for r in results:
         drift = {"score": r["score"], "flagged": bool(r["flagged"]),
@@ -179,8 +251,15 @@ def apply_drift_results(project_manager, results, threshold):
             drift["error"] = r["error"]
         uid = r.get("uid")
         if not uid:
+            missing.append(f"index {r.get('index', '?')} (no UID)")
             continue
         updated = project_manager._update_chunk_fields_by_uid(uid, drift=drift)
         if updated is not None:
+            applied += 1
             flagged += int(bool(r["flagged"]))
+        else:
+            missing.append(str(uid))
+    if missing:
+        raise ValueError(f"Voice-drift targets disappeared or have no UID: {', '.join(missing)}; "
+                         f"persisted {applied}/{len(results)} results ({flagged} flagged)")
     return flagged

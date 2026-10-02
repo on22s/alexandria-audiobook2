@@ -121,6 +121,8 @@ def oracle_strata():
 
 
 # ------------------------------------------------- 2. representativeness
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def representativeness():
     print("\n" + "=" * 72)
     print("2. FIXTURE REPRESENTATIVENESS - is the scored subset harder?")
@@ -128,7 +130,7 @@ def representativeness():
     for book, goldfile in (("grimgar03", "attribution_gold_grimgar03_provisional.json"),
                            ("mushoku16", "attribution_gold_random.json")):
         gold = json.load(open(REPO + "/app/fixtures/" + goldfile))
-        cp = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+        cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
         seg = cp["segmented"]
         spoken = [e for e in seg if e.get("type") != "NARRATOR"]
         occ = collections.Counter(norm(e.get("text")) for e in seg)
@@ -174,7 +176,7 @@ def routing_features():
         arms = {a: {r["id"]: r for r in rs} for a, rs in rows_by_arm(doc).items()}
         if "baseline" not in arms or "thinking" not in arms:
             continue
-        cp = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+        cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
         seg = cp["segmented"]
         pos = {norm(e["text"]): i for i, e in enumerate(seg)}
         b, t = arms["baseline"], arms["thinking"]

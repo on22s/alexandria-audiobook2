@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import signal
 import uuid
@@ -6,7 +7,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from core import (
     BASE_DIR,
@@ -24,13 +25,55 @@ from core import (
     _validate_voicelab_path,
     check_disk_space,
     check_global_gpu_lock,
-    claim_gpu_task,
+    claim_gpu_task, reserve_background_task, register_claimed_background_task,
+    release_gpu_task_claim,
     process_state,
 )
 from utils import secure_filename
+from preparer_numeric_settings import validate_preparer_numeric_settings
 
 
 router = APIRouter()
+logger = logging.getLogger("AlexandriaUI")
+
+
+def publish_preparer_uploads(staged, schedule):
+    """Publish claimed uploads together; restore prior files if scheduling fails."""
+    backups = {}
+    published = []
+    try:
+        for final_path, tmp_path in staged.items():
+            if os.path.exists(final_path):
+                backup = f"{final_path}.previous.{uuid.uuid4().hex}"
+                os.replace(final_path, backup)
+                backups[final_path] = backup
+            try:
+                os.replace(tmp_path, final_path)
+            except BaseException:
+                if final_path in backups:
+                    os.replace(backups.pop(final_path), final_path)
+                raise
+            published.append(final_path)
+        schedule()
+    except BaseException:
+        for final_path in reversed(published):
+            os.remove(final_path)
+            if final_path in backups:
+                os.replace(backups.pop(final_path), final_path)
+        raise
+    finally:
+        for tmp_path in staged.values():
+            try:
+                os.remove(tmp_path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.exception("Could not remove staged preparer upload %s", tmp_path)
+    for backup in backups.values():
+        try:
+            os.remove(backup)
+        except OSError:
+            logger.exception("Could not remove prior preparer upload %s", backup)
 
 PREPARER_ENV_PYTHON = os.path.join(
     ROOT_DIR,
@@ -40,7 +83,17 @@ PREPARER_ENV_PYTHON = os.path.join(
 )
 
 
-class PreparerConfig(BaseModel):
+class PreparerQualityConfig(BaseModel):
+    min_confidence: float = 0.85
+    min_snr: int = 25
+
+    @model_validator(mode="after")
+    def validate_numeric_settings(self):
+        validate_preparer_numeric_settings(self.model_dump())
+        return self
+
+
+class PreparerConfig(PreparerQualityConfig):
     audio_filename: str
     source_filename: Optional[str] = None
     output_filename: str = "alexandria_dataset.zip"
@@ -68,18 +121,14 @@ class PreparerConfig(BaseModel):
     hf_token: Optional[SecretStr] = None
     # Quality filtering
     min_chunk_duration: float = 2.0
-    min_confidence: float = 0.85
-    min_snr: int = 25
 
 class BatchPreparerTask(BaseModel):
     audio_filename: str
     output_filename: str
 
-class BatchPreparerRequest(BaseModel):
-    tasks: List[BatchPreparerTask]
+class BatchPreparerRequest(PreparerQualityConfig):
+    tasks: List[BatchPreparerTask] = Field(min_length=1)
     lang: str = "en"
-    min_confidence: float = 0.85
-    min_snr: int = 25
     diarize: bool = False
     auto_detect_speakers: bool = False
     hf_token: Optional[SecretStr] = None
@@ -185,27 +234,34 @@ async def preparer_start(
     output_filename = secure_filename(config.output_filename)
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
-    # Stage, claim, then publish. Two overlapping starts with the same filename
+    # Claim, stage, then publish. Two overlapping starts with the same filename
     # used to overwrite each other's upload before either held the task. The
     # published name stays `<filename>`: the batch route looks uploads up by
     # that name and a re-run of the same book replaces its previous copy
     # instead of leaving another 20 GB file behind.
     audio_path = os.path.join(UPLOADS_DIR, audio_filename)
-    staged = {audio_path: f"{audio_path}.upload.{uuid.uuid4().hex}"}
     source_path = None
+    if source_file is not None:
+        source_filename = secure_filename(config.source_filename or source_file.filename)
+        if not source_filename:
+            raise HTTPException(status_code=400, detail="Invalid source filename")
+        source_path = os.path.join(UPLOADS_DIR, source_filename)
+        if os.path.normcase(source_path) == os.path.normcase(audio_path):
+            raise HTTPException(status_code=400, detail="Audio and source uploads must use different filenames.")
+    staged = {audio_path: f"{audio_path}.upload.{uuid.uuid4().hex}"}
+    claim_id = reserve_background_task("preparer")
     try:
         await _save_upload_limited(audio_file, staged[audio_path], 20 * 1024**3)
         if source_file is not None:
-            source_filename = secure_filename(config.source_filename or source_file.filename)
-            if not source_filename:
-                raise HTTPException(status_code=400, detail="Invalid source filename")
-            source_path = os.path.join(UPLOADS_DIR, source_filename)
             staged[source_path] = f"{source_path}.upload.{uuid.uuid4().hex}"
             await _save_upload_limited(source_file, staged[source_path], 512 * 1024**2)
-    except Exception:
-        for tmp_path in staged.values():
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+    except BaseException:
+        try:
+            for tmp_path in staged.values():
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+        finally:
+            release_gpu_task_claim("preparer", claim_id, pending_only=True)
         raise
 
     def _run():
@@ -300,25 +356,19 @@ async def preparer_start(
         state["process"] = None
 
     try:
-        claim_gpu_task("preparer")
-    except Exception:
-        for tmp_path in staged.values():
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        publish_preparer_uploads(
+            staged, lambda: register_claimed_background_task(
+                background_tasks, "preparer", claim_id, _run_claimed_background_task, "preparer", _run))
+    except BaseException:
+        release_gpu_task_claim("preparer", claim_id, pending_only=True)
         raise
-    # Only the request that holds the task publishes; the loser's staged copy
-    # was just removed above, so the winner's bytes are the ones that land.
-    for final_path, tmp_path in staged.items():
-        os.replace(tmp_path, final_path)
-    background_tasks.add_task(_run_claimed_background_task, "preparer", _run)
     return {"status": "started"}
 
 
-@router.post("/api/preparer/cancel")
-async def preparer_cancel():
-    state = process_state["preparer"]
+def _apply_preparer_cancel(task_name, idle_detail):
+    state = process_state[task_name]
     if not state["running"]:
-        raise HTTPException(status_code=400, detail="No preparer is currently running.")
+        raise HTTPException(status_code=400, detail=idle_detail)
     state["cancel"] = True
     proc = state.get("process")
     if proc and proc.poll() is None:
@@ -327,6 +377,11 @@ async def preparer_cancel():
         except (ProcessLookupError, OSError):
             pass
     return {"status": "cancel_requested"}
+
+
+@router.post("/api/preparer/cancel")
+async def preparer_cancel():
+    return _apply_preparer_cancel("preparer", "No preparer is currently running.")
 
 
 @router.get("/api/preparer/list")
@@ -359,6 +414,8 @@ async def preparer_download(filename: str):
     file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
     if not file_path.startswith(root + os.sep) and file_path != root:
         raise HTTPException(status_code=400, detail="Invalid filename.")
+    if not file_path.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only dataset ZIP files can be downloaded.")
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found.")
     return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
@@ -366,7 +423,26 @@ async def preparer_download(filename: str):
 
 @router.post("/api/preparer/batch/start")
 async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
-    """Process multiple audio files sequentially through the preparer script."""
+    """Process previously uploaded audio files sequentially."""
+    return await _start_preparer_batch(request, background_tasks)
+
+
+@router.post("/api/preparer/batch/upload_start")
+async def preparer_batch_upload_start(
+    background_tasks: BackgroundTasks,
+    config_json: str = Form(...),
+    audio_files: List[UploadFile] = File(...),
+):
+    """Reserve the batch before staging and publishing selected files."""
+    try:
+        request = BatchPreparerRequest(**json.loads(config_json))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid config: {exc}") from exc
+    return await _start_preparer_batch(request, background_tasks, audio_files)
+
+
+async def _start_preparer_batch(request, background_tasks, audio_files=None):
+    """Use one admission, upload-publication and dispatch path for both clients."""
     ensure_preparer_diarization_token(
         request.diarize, request.auto_detect_speakers, request.hf_token)
     interpreter = _resolve_preparer_interpreter()
@@ -375,6 +451,35 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
     has_space, free_gb = check_disk_space(ROOT_DIR, 5.0)
     if not has_space:
         raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 5 GB recommended).")
+
+    staged = {}
+    if audio_files is not None:
+        if len(audio_files) != len(request.tasks):
+            raise HTTPException(status_code=400, detail="Each batch task requires one audio upload.")
+        names = set()
+        for task, upload in zip(request.tasks, audio_files):
+            filename = secure_filename(task.audio_filename)
+            if not filename or filename != secure_filename(upload.filename):
+                raise HTTPException(status_code=400, detail="Batch task and audio upload filenames must match.")
+            key = os.path.normcase(filename)
+            if key in names:
+                raise HTTPException(status_code=400, detail="Batch audio uploads must use distinct filenames.")
+            names.add(key)
+    claim_id = reserve_background_task("batch_preparer")
+    if audio_files is not None:
+        try:
+            for task, upload in zip(request.tasks, audio_files):
+                path = os.path.join(UPLOADS_DIR, secure_filename(task.audio_filename))
+                staged[path] = f"{path}.upload.{uuid.uuid4().hex}"
+                await _save_upload_limited(upload, staged[path], 20 * 1024**3)
+        except BaseException:
+            try:
+                for tmp_path in staged.values():
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+            finally:
+                release_gpu_task_claim("batch_preparer", claim_id, pending_only=True)
+            raise
 
     def _run():
         state = process_state["batch_preparer"]
@@ -435,8 +540,8 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
                     state["tasks"][i]["status"] = "failed"
                     candidate = None
                     break
-                counter += 1
                 candidate = f"{base}_{counter}{ext}"
+                counter += 1
             if candidate is None:
                 continue
             existing_outputs.add(candidate)
@@ -468,12 +573,24 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         state["running"] = False
         state["logs"].append("Batch processing finished.")
 
-    claim_gpu_task("batch_preparer")
-    background_tasks.add_task(_run_claimed_background_task, "batch_preparer", _run)
+    try:
+        schedule = lambda: register_claimed_background_task(
+            background_tasks, "batch_preparer", claim_id, _run_claimed_background_task, "batch_preparer", _run)
+        if staged:
+            publish_preparer_uploads(staged, schedule)
+        else:
+            schedule()
+    except BaseException:
+        if claim_id is not None:
+            release_gpu_task_claim("batch_preparer", claim_id, pending_only=True)
+        raise
+    finally:
+        for tmp_path in staged.values():
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
 @router.post("/api/preparer/batch/cancel")
 async def preparer_batch_cancel():
-    process_state["batch_preparer"]["cancel"] = True
-    return {"status": "cancel_requested"}
+    return _apply_preparer_cancel("batch_preparer", "No batch preparer is currently running.")

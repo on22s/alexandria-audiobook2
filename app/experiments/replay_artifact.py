@@ -27,6 +27,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -73,8 +74,16 @@ def replay_command(path, python):
     flags, reason = to_flags(args)
     if flags is None:
         return None, reason
-    script = os.path.join(REPO, "app", "experiments", prov["script"])
-    if not os.path.exists(script):
+    name = prov["script"]
+    if not isinstance(name, str):
+        raise ValueError("provenance script must be a filename")
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.py", name):
+        return None, "producer must name one experiment Python file"
+    folder = os.path.realpath(os.path.join(REPO, "app", "experiments"))
+    script = os.path.join(folder, name)
+    if os.path.dirname(os.path.realpath(script)) != folder:
+        return None, "producer resolves outside the experiment directory"
+    if not os.path.isfile(script):
         return None, f"script no longer exists: {prov['script']}"
     return [python, "-u", script] + flags, None
 
@@ -111,11 +120,69 @@ def added_commit(path):
         return None, None
     if not out:
         return None, None
-    date, _, sha = sorted(out.splitlines())[0].partition(" ")
+    return get_earliest_added_commit(line.partition(" ")[::2] for line in out.splitlines())
+
+
+def get_earliest_added_commit(records):
+    records = list(records)
+    if not records:
+        return None, None
+    date, sha = min(records)
     return sha.strip() or None, date.strip() or None
 
 
-def script_from_name(path):
+def get_added_commits(paths):
+    """Resolve exact paths in bounded Git batches; never infer family identity."""
+    paths = list(dict.fromkeys(paths))
+    records = {path: [] for path in paths}
+    for start in range(0, len(paths), 100):
+        batch = paths[start:start + 100]
+        try:
+            result = subprocess.run(
+                ["git", "log", "--full-history", "--diff-filter=A",
+                 "--format=%x00%as %H%x00", "--name-only", "-z", "--",
+                 *[":(literal)" + path for path in batch]],
+                cwd=REPO, capture_output=True, timeout=30)
+            if result.returncode:
+                raise ValueError("Git history query failed")
+            fields = result.stdout.split(b"\0")
+            index = 0
+            found = {path: [] for path in batch}
+            while index < len(fields) - 1:
+                if (fields[index] != b"" or index + 2 >= len(fields)
+                        or fields[index + 2] != b""):
+                    raise ValueError("Invalid Git history framing")
+                header = fields[index + 1].decode("ascii")
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2} [0-9a-f]{40,64}", header):
+                    raise ValueError("Invalid Git history header")
+                date, sha = header.split(" ")
+                index += 3
+                first = True
+                while index < len(fields) and fields[index]:
+                    name = fields[index]
+                    if first:
+                        if not name.startswith(b"\n"):
+                            raise ValueError("Invalid Git filename framing")
+                        name = name[1:]
+                        first = False
+                    path = os.fsdecode(name)
+                    if path in found:
+                        found[path].append((date, sha))
+                    index += 1
+            for path in batch:
+                records[path] = found[path]
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            print(f"Cannot resolve batched artifact history: {error}", file=sys.stderr)
+    return {path: get_earliest_added_commit(rows) for path, rows in records.items()}
+
+
+def get_producer_script_names():
+    return sorted((os.path.basename(p)[:-3]
+                   for p in glob.glob(os.path.join(REPO, "app", "experiments", "*.py"))),
+                  key=len, reverse=True)
+
+
+def script_from_name(path, names=None):
     """-> the experiment script an artifact is named after, or None.
 
     Artifacts here are conventionally named for their producer -
@@ -126,16 +193,14 @@ def script_from_name(path):
     if not stem.endswith(".json"):
         return None
     stem = stem[:-len(".json")]
-    names = sorted((os.path.basename(p)[:-3]
-                    for p in glob.glob(os.path.join(REPO, "app", "experiments", "*.py"))),
-                   key=len, reverse=True)
+    names = get_producer_script_names() if names is None else names
     for name in names:
         if stem == name or stem.startswith(name + "__") or stem.startswith(name + "_"):
             return name + ".py"
     return None
 
 
-def resolve_producer(path, python):
+def resolve_producer(path, python, history=None, script_names=None):
     """-> how confidently this artifact's origin can be established.
 
     THREE TIERS, AND THE MIDDLE ONE IS THE POINT. An earlier version of this
@@ -155,8 +220,9 @@ def resolve_producer(path, python):
     if argv is not None:
         return {"tier": "provenance", "argv": argv, "script": None,
                 "commit": None, "added": None, "note": None}
-    script = script_from_name(path)
-    sha, date = added_commit(os.path.relpath(path, REPO))
+    script = script_from_name(path, names=script_names)
+    relative = os.path.relpath(path, REPO)
+    sha, date = added_commit(relative) if history is None else history.get(relative, (None, None))
     if script:
         return {"tier": "git+naming", "argv": None, "script": script,
                 "commit": sha, "added": date,
@@ -166,16 +232,29 @@ def resolve_producer(path, python):
             "added": date, "note": reason}
 
 
+def resolve_producers(paths, python):
+    """Resolve distinct artifacts with shared history and script-name reads."""
+    paths = list(dict.fromkeys(paths))
+    history = get_added_commits([os.path.relpath(path, REPO) for path in paths])
+    names = get_producer_script_names()
+    return {path: resolve_producer(path, python, history=history, script_names=names)
+            for path in paths}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("artifacts", nargs="+")
     ap.add_argument("--python", default=os.path.join(REPO, "app", "env", "bin", "python"))
     ap.add_argument("--print-only", action="store_true",
                     help="emit the commands without running them (default)")
+    ap.add_argument("--argv0", action="store_true",
+                    help="emit one command as NUL-delimited argv, without shell syntax")
     ap.add_argument("--report", action="store_true",
                     help="classify each artifact by how confidently its origin "
                          "can be established, instead of emitting commands")
     args = ap.parse_args()
+    if args.argv0 and (len(args.artifacts) != 1 or args.report or args.print_only):
+        ap.error("--argv0 requires exactly one artifact and no other output mode")
 
     if args.report:
         import collections
@@ -200,7 +279,13 @@ def main():
             print(f"# SKIP {base}: {reason}", file=sys.stderr)
             skipped += 1
             continue
-        print(" ".join(shlex.quote(a) for a in argv))
+        if args.argv0:
+            encoded = [os.fsencode(a) for a in argv]
+            if any(b"\0" in value for value in encoded):
+                raise ValueError("replay arguments must not contain NUL")
+            sys.stdout.buffer.write(b"\0".join(encoded) + b"\0")
+        else:
+            print(" ".join(shlex.quote(a) for a in argv))
         ok += 1
     print(f"# {ok} replayable, {skipped} not", file=sys.stderr)
     return 0 if ok else 1

@@ -69,19 +69,36 @@ mkdir -p "$inputs"
 # --books TheGambler looked for attribution_gold_TheGambler.json, which has
 # never existed: the fixtures are attribution_gold_pdnc_thegambler.json. That
 # spelling killed the 10h stage in 0s on 2026-08-21.
+sources=()
+destinations=()
+gold_files=()
 for b in TheGambler TheSignOfTheFour TheMysteriousAffairAtStyles AHandfulOfDust; do
-    src="$runtime/pdnc/data/$b/novel_text.txt"
     dst="pdnc_$(printf '%s' "$b" | tr 'A-Z' 'a-z')"
-    [ -f "$src" ] && cp -f "$src" "$inputs/$dst.txt"
-    [ -f "$REPO/app/fixtures/attribution_gold_$dst.json" ] || {
-        echo "REFUSING to start: no gold fixture for $dst; the arm would die"
-        echo "  at load_gold after the stage slot was already claimed."
-        exit 1; }
+    sources+=("$runtime/pdnc/data/$b/novel_text.txt")
+    destinations+=("$inputs/$dst.txt")
+    gold_files+=("$REPO/app/fixtures/attribution_gold_$dst.json")
 done
 for b in index18 mushoku16 owarimonogatari3; do
+    src=""
     for d in "$runtime/results/collect_all_20260722-155801/inputs" "$runtime/tpvs_inputs"; do
-        [ -f "$d/$b.txt" ] && { cp -f "$d/$b.txt" "$inputs/$b.txt"; break; }
+        if [ -f "$d/$b.txt" ]; then
+            src="$d/$b.txt"
+            break
+        fi
     done
+    if [ -z "$src" ]; then
+        stage_note "REFUSING: no source for $b in either private input directory"
+        exit 1
+    fi
+    sources+=("$src")
+    destinations+=("$inputs/$b.txt")
+done
+validate_stage_files "${sources[@]}" "${gold_files[@]}" || exit 1
+for i in "${!sources[@]}"; do
+    if ! cp -f -- "${sources[$i]}" "${destinations[$i]}"; then
+        stage_note "REFUSING: could not stage ${sources[$i]}"
+        exit 1
+    fi
 done
 echo "staged $(ls "$inputs"/*.txt 2>/dev/null | wc -l) books"
 
@@ -96,7 +113,7 @@ run_stage generate_pdnc 10h -- \
     --inputs "$inputs" --work "$work" --reuse-complete \
     --pass2-on-exhaustion fallback \
     --out "$runtime/experiments/three_pass_vs_single_pdnc.json"
-stage_commit_artifacts generate_pdnc "$REPO"
+stage_commit_artifacts generate_pdnc "$REPO" "$runtime/experiments/three_pass_vs_single_pdnc.json"
 
 run_stage generate_light_novels 6h -- \
     env REQUIRE_LLM=1 "$REPO/gpu_job.sh" map_5_3_ln \
@@ -105,14 +122,14 @@ run_stage generate_light_novels 6h -- \
     --inputs "$inputs" --work "$work" --reuse-complete \
     --pass2-on-exhaustion fallback \
     --out "$runtime/experiments/three_pass_vs_single_mapped.json"
-stage_commit_artifacts generate_light_novels "$REPO"
+stage_commit_artifacts generate_light_novels "$REPO" "$runtime/experiments/three_pass_vs_single_mapped.json"
 
 # Both axes, one run. dialogue_map_compare asks "did the arm name anyone";
 # three_pass_vs_single above already scored "was the name right" against gold.
 run_stage dialogue_map_compare 30m -- \
     "$python" -u "$REPO/app/experiments/dialogue_map_compare.py" \
     --work "$work" --out "$runtime/experiments/dialogue_map_compare_fresh.json"
-stage_commit_artifacts dialogue_map_compare "$REPO"
+stage_commit_artifacts dialogue_map_compare "$REPO" "$runtime/experiments/dialogue_map_compare_fresh.json"
 
 run_stage text_fidelity 30m -- \
     "$python" -u "$REPO/app/experiments/script_text_fidelity.py" \
@@ -121,12 +138,13 @@ run_stage text_fidelity 30m -- \
     --source owarimonogatari3="$inputs/owarimonogatari3.txt" \
     --source index18="$inputs/index18.txt" \
     --source pdnc_thegambler="$inputs/pdnc_thegambler.txt" \
+    --source pdnc_thesignofthefour="$inputs/pdnc_thesignofthefour.txt" \
+    --source pdnc_themysteriousaffairatstyles="$inputs/pdnc_themysteriousaffairatstyles.txt" \
     --source pdnc_ahandfulofdust="$inputs/pdnc_ahandfulofdust.txt" \
     --out "$runtime/experiments/script_text_fidelity_fresh.json"
-stage_commit_artifacts text_fidelity "$REPO"
+stage_commit_artifacts text_fidelity "$REPO" "$runtime/experiments/script_text_fidelity_fresh.json"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
-stage_summary dialogue_map_5_3_20260826
 
 echo
 echo "HOW TO READ IT. Two axes, and they disagreed on the retrofitted run:"
@@ -139,3 +157,5 @@ echo
 echo "If the split persists on four hard public books, 5.3's target stops being"
 echo "'wire it in or delete it' and becomes a routing question. If one arm wins"
 echo "on both axes across seven books, that is the answer and the loser goes."
+
+stage_summary dialogue_map_5_3_20260826

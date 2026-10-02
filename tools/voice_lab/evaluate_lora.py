@@ -18,12 +18,14 @@ APP_DIR = ROOT / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
+from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
+from audio_validation import remove_stale_audio, validate_finite_audio_values
 from config_settings import load_app_config
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_evidence_error,
                            get_evaluation_spec_sha256, get_file_sha256)
 from device_utils import normalize_device, resolve_device
 from tts import TTSEngine
-from utils import atomic_json_write
+from utils import atomic_json_write, is_path_inside
 
 
 EVALUATION_VERSION = EVALUATION_EVIDENCE_VERSION
@@ -41,22 +43,61 @@ def apply_evaluation_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def get_evaluation_directory(root: str, name: str) -> str:
+    """Resolve one evaluation directory name inside its configured root."""
+    if (not isinstance(name, str) or not name or name in (".", "..") or
+            os.path.isabs(name) or "/" in name or "\\" in name):
+        raise ValueError("evaluation directory ID must be a directory name")
+    path = os.path.realpath(os.path.join(root, name))
+    if path == os.path.realpath(root) or not is_path_inside(path, root):
+        raise ValueError("evaluation directory is outside its root")
+    return path
+
+
 def get_checkpoint_sha256(checkpoint_dir: str) -> str:
     return get_file_sha256(os.path.join(checkpoint_dir, "adapter_model.safetensors"))
 
 
-def partition_unique_candidates(adapter_dir: str, candidates_root: str):
-    production_hash = get_checkpoint_sha256(adapter_dir)
+def get_checkpoint_file_identity(checkpoint_dir):
+    """Read the checkpoint version used to bound one evaluation's hash reuse."""
+    stat = os.stat(os.path.join(checkpoint_dir, "adapter_model.safetensors"))
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def partition_unique_candidates(adapter_dir: str, candidates_root: str, *, production_snapshot=None):
+    if not is_path_inside(candidates_root, adapter_dir):
+        raise ValueError("evaluation candidates are outside the adapter")
+    if (production_snapshot is not None
+            and production_snapshot[1] == get_checkpoint_file_identity(adapter_dir)):
+        production_hash = production_snapshot[0]
+    else:
+        production_hash = get_checkpoint_sha256(adapter_dir)
     checkpoint_hashes = {production_hash: "production"}
     unique = []
     duplicates = []
+    skipped = []
     if not os.path.isdir(candidates_root):
-        return production_hash, unique, duplicates
+        return production_hash, unique, duplicates, skipped
     for candidate_id in sorted(os.listdir(candidates_root)):
-        candidate_dir = os.path.join(candidates_root, candidate_id)
+        candidate_dir = get_evaluation_directory(candidates_root, candidate_id)
         if not os.path.isdir(candidate_dir):
             continue
-        candidate_hash = get_checkpoint_sha256(candidate_dir)
+        try:
+            validate_adapter_artifacts(candidate_dir)
+            reference = Path(candidate_dir, "ref_sample.wav")
+            if not reference.is_file():
+                raise AdapterValidationError("missing regular ref_sample.wav")
+            try:
+                info = sf.info(reference)
+            except RuntimeError as error:
+                raise AdapterValidationError(f"invalid ref_sample.wav: {error}") from error
+            if info.frames <= 0:
+                raise AdapterValidationError("ref_sample.wav contains no audio frames")
+            candidate_hash = get_checkpoint_sha256(candidate_dir)
+        except (AdapterValidationError, OSError) as error:
+            skipped.append({"id": candidate_id, "status": "skipped_incomplete",
+                            "reason": str(error)})
+            continue
         duplicate_of = checkpoint_hashes.get(candidate_hash)
         if duplicate_of:
             duplicates.append({"id": candidate_id, "duplicate_of": duplicate_of,
@@ -64,7 +105,7 @@ def partition_unique_candidates(adapter_dir: str, candidates_root: str):
         else:
             checkpoint_hashes[candidate_hash] = candidate_id
             unique.append((candidate_id, candidate_dir, candidate_hash))
-    return production_hash, unique, duplicates
+    return production_hash, unique, duplicates, skipped
 
 
 THRESHOLDS = {
@@ -76,20 +117,24 @@ THRESHOLDS = {
 
 def get_audio_metrics(path: str) -> dict[str, float]:
     audio, sample_rate = sf.read(path, dtype="float32", always_2d=False)
+    validate_finite_audio_values(audio, "decoded evaluation PCM")
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
     if not len(audio):
         raise ValueError("generated audio is empty")
     absolute = np.abs(audio)
-    return {
+    metrics = {
         "duration_seconds": len(audio) / sample_rate,
         "rms": float(np.sqrt(np.mean(np.square(audio)))),
         "silence_ratio": float(np.mean(absolute < 0.005)),
         "clipping_ratio": float(np.mean(absolute >= 0.99)),
     }
+    validate_finite_audio_values(list(metrics.values()), "evaluation metrics")
+    return metrics
 
 
 def get_warnings(metrics: dict) -> list[str]:
+    validate_finite_audio_values(list(metrics.values()), "evaluation metrics")
     warnings = []
     if metrics["speaker_similarity"] < THRESHOLDS["speaker_similarity_min"]:
         warnings.append("low_speaker_similarity")
@@ -123,13 +168,35 @@ def get_speaker_similarity(model, reference_path: str, probe_path: str,
 
 
 def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
+    if not isinstance(result, dict):
+        return False
+    probes = result.get("probes")
+    if not isinstance(probes, list):
+        return False
+    for probe in probes:
+        if not isinstance(probe, dict):
+            return False
+        if "metrics" in probe:
+            if not isinstance(probe["metrics"], dict):
+                return False
+            try:
+                validate_finite_audio_values(list(probe["metrics"].values()), "cached evaluation metrics")
+            except ValueError:
+                return False
+    if "candidate_recommendation" in result:
+        recommendation = result["candidate_recommendation"]
+        if not isinstance(recommendation, dict):
+            return False
+        cleanup = recommendation.get("cleanup")
+        if not isinstance(cleanup, dict) or cleanup.get("status") != "complete":
+            return False
     try:
         return (
-            [item.get("id") for item in result.get("probes", [])]
-            == [probe_id for probe_id, _text in PROBES]
-            and get_evidence_error(
+            get_evidence_error(
                 result, adapter_dir,
                 get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS)) is None
+            and [item.get("id") for item in result.get("probes", [])]
+            == [probe_id for probe_id, _text in PROBES]
         )
     except (OSError, ValueError):
         return False
@@ -138,7 +205,10 @@ def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
 def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
                      embedding_model, device: str, adapter_dir_override: str | None = None) -> dict:
     adapter_id = entry["id"]
-    adapter_dir = adapter_dir_override or os.path.join(models_dir, adapter_id)
+    production_dir = get_evaluation_directory(models_dir, adapter_id)
+    adapter_dir = os.path.realpath(adapter_dir_override) if adapter_dir_override else production_dir
+    if not is_path_inside(adapter_dir, production_dir):
+        raise ValueError("evaluation override is outside the adapter")
     reference_path = os.path.join(adapter_dir, "ref_sample.wav")
     if not os.path.isfile(reference_path):
         raise FileNotFoundError(f"missing ref_sample.wav for {adapter_id}")
@@ -149,6 +219,7 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
         apply_evaluation_seed(probe_seed)
         filename = f"evaluation_{probe_id}.wav"
         output_path = os.path.join(adapter_dir, filename)
+        remove_stale_audio(output_path)
         generated = engine.generate_voice(
             text=text, instruct_text="", speaker="_evaluation_",
             voice_config={"_evaluation_": {
@@ -213,23 +284,29 @@ def get_candidate_recommendation(evaluations: dict[str, dict]) -> dict:
     }
 
 
-def cleanup_candidates(adapter_dir: str, keep_candidate: str | None) -> list[str]:
-    candidates_root = os.path.join(adapter_dir, "candidates")
+def cleanup_candidates(adapter_dir: str, keep_candidate: str | None,
+                       admitted_candidates: list[str]) -> list[str]:
+    candidates_root = get_evaluation_directory(adapter_dir, "candidates")
+    paths = [(name, get_evaluation_directory(candidates_root, name))
+             for name in sorted(admitted_candidates)]
+    if any(os.path.islink(os.path.join(candidates_root, name)) for name, _path in paths):
+        raise ValueError("evaluation cleanup candidate must not be a symlink")
     removed = []
     if not os.path.isdir(candidates_root):
         return removed
-    for name in sorted(os.listdir(candidates_root)):
-        path = os.path.join(candidates_root, name)
+    for name, path in paths:
         if os.path.isdir(path) and name != keep_candidate:
             shutil.rmtree(path)
             removed.append(name)
     return removed
 
 
-def get_retained_candidate_records(records: list[dict], recommended: str) -> list[dict]:
-    if recommended == "production":
-        return []
-    return [record for record in records if record.get("id") == recommended]
+def get_retained_candidate_records(records: list[dict], recommended: str,
+                                   skipped_candidates: list[dict] = ()) -> list[dict]:
+    retained = {item["id"] for item in skipped_candidates}
+    if recommended != "production":
+        retained.add(recommended)
+    return [record for record in records if record.get("id") in retained]
 
 
 def main() -> int:
@@ -245,6 +322,9 @@ def main() -> int:
 
     with open(args.manifest, encoding="utf-8") as handle:
         manifest = json.load(handle)
+    for entry in manifest:
+        if entry.get("id") != "":
+            get_evaluation_directory(args.models_dir, entry.get("id"))
     device = resolve_device(args.device)
     from speechbrain.inference.speaker import EncoderClassifier
     embedding_model = EncoderClassifier.from_hparams(
@@ -256,11 +336,14 @@ def main() -> int:
     engine = TTSEngine(load_app_config(args.config))
 
     failures = 0
+    manifest_needs_save = True
     for entry in manifest:
         adapter_id = entry.get("id", "")
-        adapter_dir = os.path.join(args.models_dir, adapter_id)
+        if not adapter_id:
+            continue
+        adapter_dir = get_evaluation_directory(args.models_dir, adapter_id)
         result_path = os.path.join(adapter_dir, "evaluation.json")
-        if not adapter_id or not os.path.isdir(adapter_dir):
+        if not os.path.isdir(adapter_dir):
             continue
         existing = {}
         try:
@@ -276,19 +359,26 @@ def main() -> int:
             if recommendation.get("recommended"):
                 entry["evaluation"]["recommended_candidate"] = recommendation["recommended"]
                 entry["evaluation_candidates"] = get_retained_candidate_records(
-                    entry.get("evaluation_candidates", []), recommendation["recommended"])
+                    entry.get("evaluation_candidates", []), recommendation["recommended"],
+                    recommendation.get("skipped_candidates", []))
+            manifest_needs_save = True
             continue
         print(f"EVALUATE {adapter_id}", flush=True)
         try:
+            checkpoint_identity = get_checkpoint_file_identity(adapter_dir)
             result = evaluate_adapter(entry, args.models_dir, engine, embedding_model, device)
             evaluations = {"production": result}
             candidates_root = os.path.join(adapter_dir, "candidates")
-            production_hash, unique_candidates, duplicate_candidates = (
-                partition_unique_candidates(adapter_dir, candidates_root))
+            production_hash, unique_candidates, duplicate_candidates, skipped_candidates = (
+                partition_unique_candidates(adapter_dir, candidates_root,
+                    production_snapshot=(result["evidence"]["checkpoint_sha256"], checkpoint_identity)))
             result["checkpoint_sha256"] = production_hash
             available_candidates = [candidate_id for candidate_id, _path, _hash
                                     in unique_candidates]
             available_candidates.extend(item["id"] for item in duplicate_candidates)
+            for item in skipped_candidates:
+                print(f"  candidate {item['id']} — incomplete, preserved: {item['reason']}",
+                      flush=True)
             for item in duplicate_candidates:
                 print(f"  candidate {item['id']} — duplicate of {item['duplicate_of']}, skipped",
                       flush=True)
@@ -305,6 +395,7 @@ def main() -> int:
             keep = (recommendation["recommended"]
                     if recommendation["recommended"] != "production" else None)
             available_candidates = sorted(available_candidates)
+            recommendation["skipped_candidates"] = skipped_candidates
             recommendation["duplicate_candidates"] = duplicate_candidates
             recommendation["cleanup"] = {
                 "status": "pending",
@@ -328,14 +419,16 @@ def main() -> int:
             # generated candidate directory. A crash can then be diagnosed and
             # resumed without silently losing the selection evidence.
             atomic_json_write(result, result_path)
-            recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(adapter_dir, keep)
+            recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(
+                adapter_dir, keep, available_candidates)
             recommendation["cleanup"]["status"] = "complete"
             atomic_json_write(result, result_path)
             entry["evaluation"] = {key: result[key] for key in
                                    ("version", "status", "warnings", "evaluated_at")}
             entry["evaluation"]["recommended_candidate"] = recommendation["recommended"]
             entry["evaluation_candidates"] = get_retained_candidate_records(
-                entry.get("evaluation_candidates", []), recommendation["recommended"])
+                entry.get("evaluation_candidates", []), recommendation["recommended"],
+                recommendation.get("skipped_candidates", []))
             print(f"  {result['status'].upper()} — {', '.join(result['warnings']) or 'clean'}",
                   flush=True)
         except Exception as error:
@@ -344,7 +437,9 @@ def main() -> int:
                                    "warnings": [str(error)], "evaluated_at": time.time()}
             print(f"  FAILED — {error}", flush=True)
         atomic_json_write(manifest, args.manifest)
-    atomic_json_write(manifest, args.manifest)
+        manifest_needs_save = False
+    if manifest_needs_save:
+        atomic_json_write(manifest, args.manifest)
     return 1 if failures else 0
 
 

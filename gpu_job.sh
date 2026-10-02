@@ -30,12 +30,92 @@
 #     second invocation BLOCKS rather than racing.
 #   - start, end and exit code are appended to the queue log, so what ran and
 #     what it returned survives without terminal scrollback.
+#     Retention: 8 MiB per file, three archives, and the active START carried
+#     forward. A pre-existing oversized log is archived intact and ages out.
 #   - a non-zero exit is recorded with a FAILED marker and propagated, instead
 #     of being swallowed by the next command in a chain.
 #
-# It deliberately does NOT manage servers, retry, or interpret results. Those
-# belong to the job.
+# Reclamation is opt-in via GPU_RECLAIM_VRAM=1 and runs under the same
+# supervised lease as the job. This wrapper does not retry or interpret results.
 set -uo pipefail
+
+# Bash may search PATH while leaving a bare name in BASH_SOURCE. Resolve that
+# search and symlink aliases before deriving any repository state paths.
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [ ! -f "$SCRIPT_PATH" ]; then
+    SCRIPT_PATH=$(type -P -- "$SCRIPT_PATH") || {
+        echo "gpu_job: cannot locate its script" >&2
+        exit 4
+    }
+fi
+SCRIPT_PATH=$(readlink -f -- "$SCRIPT_PATH") || {
+    echo "gpu_job: cannot resolve its script path" >&2
+    exit 4
+}
+REPO=$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd -P) || exit 4
+
+# One source policy for the queue gate and the Python experiment manifest.
+# Only declared generated outputs are excluded; suffixes cannot tell an input
+# from a note, fixture, configuration file or extensionless executable.
+SOURCE_TRACKED_PATHS=(':(exclude)ab_test_runtime/experiments/*.json'
+    ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md'
+    ':(exclude)results_index.csv' ':(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md')
+SOURCE_UNTRACKED_PATHS=(':(exclude)ab_test_runtime/*')
+
+get_untracked_source_files() {
+    git -C "$1" ls-files --others --exclude-standard -z -- "${SOURCE_UNTRACKED_PATHS[@]}"
+}
+
+get_source_state() {
+    local root="$1" modified hash state list_fd list_pid
+    local -a untracked
+    if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+        printf 'unknown\0\0'
+        return
+    fi
+    modified=$(git -C "$root" status --porcelain --untracked-files=no -- "${SOURCE_TRACKED_PATHS[@]}") || {
+        printf 'unknown\0\0'
+        return
+    }
+    exec {list_fd}< <(get_untracked_source_files "$root")
+    list_pid=$!
+    mapfile -d '' -t untracked <&"$list_fd"
+    exec {list_fd}<&-
+    if ! wait "$list_pid"; then
+        printf 'dirty:unknown\0%s\0' "$modified"
+        return
+    fi
+    state=clean
+    if [ -n "$modified" ] || [ "${#untracked[@]}" -gt 0 ]; then
+        # Actual tracked changes plus untracked names, modes and bytes. NUL
+        # boundaries and sha256sum's escaped filenames preserve odd names.
+        if hash=$({
+            git -C "$root" diff --binary HEAD -- "${SOURCE_TRACKED_PATHS[@]}" || exit 1
+            printf '%s\0' "$modified"
+            if [ "${#untracked[@]}" -gt 0 ]; then
+                (cd -- "$root" && {
+                    stat -c '%a:%F:%N' -- "${untracked[@]}" &&
+                    sha256sum -- "${untracked[@]}"
+                }) || exit 1
+            fi
+        } | sha256sum | cut -c1-12); then
+            state="dirty:$hash"
+        else
+            state=dirty:unknown
+        fi
+    fi
+    printf '%s\0%s\0' "$state" "$modified"
+    if [ "${#untracked[@]}" -gt 0 ]; then
+        printf '%s\0' "${untracked[@]}"
+    fi
+}
+
+# NUL-delimited read-only interface: state, tracked status, untracked paths.
+if [ "${1:-}" = "--print-source-state" ]; then
+    [ "$#" -eq 2 ] || { echo "gpu_job: --print-source-state needs a repository" >&2; exit 2; }
+    get_source_state "$2"
+    exit $?
+fi
 
 # ONE LOCK, and it is the one the chains use. This defaulted to
 # $HOME/.gpu.lock while 21 chain lines export
@@ -54,9 +134,64 @@ else
     # ABSOLUTE. `dirname "$0"` is relative whenever the script is invoked as
     # ./gpu_job.sh, and a relative lock path is a DIFFERENT FILE for a caller
     # with a different working directory - the split this block exists to end.
-    LOCK="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/alexandria_gpu.lock"
-    mkdir -p "$(dirname "$LOCK")" 2>/dev/null   # fresh clone has no logs/ yet
+    LOCK="${REPO}/ab_test_runtime/logs/alexandria_gpu.lock"
+    if [ "${1:-}" != "--check-lock-owner" ]; then
+        mkdir -p "$(dirname "$LOCK")" 2>/dev/null   # fresh clone has no logs/ yet
+    fi
 fi
+# Read-only inheritance proof: the claimed owner must be a kernel-reported
+# ancestor holding an exclusive flock on fd9 for this exact lock inode.
+if [ "${1:-}" = "--check-lock-owner" ]; then
+    refuse_lock_owner() {
+        echo "gpu_job.sh: cannot verify inherited GPU lock: $*" >&2
+        exit 1
+    }
+    [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || refuse_lock_owner "expected owner PID and optional descriptor"
+    owner_fd="${3-9}"
+    case "$owner_fd" in
+        ''|0*|*[!0-9]*) refuse_lock_owner "invalid owner descriptor" ;;
+    esac
+    owner="$2"
+    case "$owner" in
+        ''|0*|*[!0-9]*) refuse_lock_owner "invalid owner PID" ;;
+    esac
+    cursor="$$"
+    owner_found=0
+    seen=" "
+    while [ "$cursor" -gt 0 ]; do
+        if [ "$cursor" = "$owner" ]; then
+            owner_found=1
+            break
+        fi
+        case "$seen" in
+            *" $cursor "*) refuse_lock_owner "cyclic or changing process ancestry" ;;
+        esac
+        seen="$seen$cursor "
+        parent=""
+        [ -r "/proc/$cursor/status" ] || refuse_lock_owner "process ancestry is unreadable"
+        while read -r field value; do
+            if [ "$field" = "PPid:" ]; then
+                parent="$value"
+                break
+            fi
+        done < "/proc/$cursor/status"
+        case "$parent" in
+            ''|*[!0-9]*) refuse_lock_owner "invalid kernel parent PID" ;;
+        esac
+        cursor="$parent"
+    done
+    [ "$owner_found" -eq 1 ] || refuse_lock_owner "owner PID is not an ancestor"
+    lock_identity=$(stat -Lc '%d:%i' -- "$LOCK") || refuse_lock_owner "authoritative lock is unreadable"
+    owner_identity=$(stat -Lc '%d:%i' -- "/proc/$owner/fd/$owner_fd") || refuse_lock_owner "owner fd$owner_fd is unreadable"
+    [ "$lock_identity" = "$owner_identity" ] || refuse_lock_owner "owner fd$owner_fd names another file"
+    awk '$1 == "lock:" && $3 == "FLOCK" && $4 == "ADVISORY" && $5 == "WRITE" { held=1 }
+         END { exit !held }' "/proc/$owner/fdinfo/$owner_fd" || refuse_lock_owner "owner fd$owner_fd has no acquired exclusive flock"
+    # A disappearing owner or replaced file during the probe must fail closed.
+    [ "$(stat -Lc '%d:%i' -- "/proc/$owner/fd/$owner_fd")" = "$lock_identity" ] || refuse_lock_owner "owner fd$owner_fd changed"
+    [ "$(stat -Lc '%d:%i' -- "$LOCK")" = "$lock_identity" ] || refuse_lock_owner "authoritative lock changed"
+    exit 0
+fi
+
 # ASK, DO NOT PARSE. app/experiments/gpu_guard.py used to recover this path by
 # regexing the assignment above, which meant reformatting one shell line
 # silently changed which file Python thought was the lock - and its fallback
@@ -79,7 +214,7 @@ fi
 if [ -n "${GPU_QLOG:-}" ]; then
     QLOG="$GPU_QLOG"
 else
-    QLOG="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/gpu_jobq.log"
+    QLOG="${REPO}/ab_test_runtime/logs/gpu_jobq.log"
     mkdir -p "$(dirname "$QLOG")" 2>/dev/null
 fi
 
@@ -88,31 +223,64 @@ if [ "${1:-}" = "--print-qlog" ]; then
     exit 0
 fi
 
+ACTION=run
+if [ "${1:-}" = "--check-llm" ]; then
+    ACTION=check_llm
+    shift
+fi
+if [ "${1:-}" = "--check-vram" ]; then
+    ACTION=check_vram
+    shift
+fi
+if [ "${1:-}" = "--write-owner-result" ]; then
+    ACTION=write_owner_result
+    shift
+fi
 NAME="${1:-}"
 [ -z "$NAME" ] && { echo "usage: gpu_job.sh <name> <command...>" >&2; exit 2; }
+if [[ "$NAME" == *"/"* || "$NAME" == *"\\"* || "$NAME" =~ [[:cntrl:]] ]]; then
+    echo "gpu_job: job name must not contain path separators or control characters" >&2
+    exit 2
+fi
 shift
-[ "$#" -eq 0 ] && { echo "gpu_job.sh: no command given" >&2; exit 2; }
+if [ "$ACTION" = check_vram ] || [ "$ACTION" = check_llm ]; then
+    [ "$#" -eq 0 ] || exit 2
+    bash "$SCRIPT_PATH" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-0}" "${ALEXANDRIA_GPU_LOCK_FD:-9}" || exit 4
+elif [ "$ACTION" = write_owner_result ]; then
+    [ "$#" -eq 2 ] || exit 2
+    case "$1" in ''|*[!0-9]*) exit 2;; esac
+    [ "${#1}" -le 3 ] && [ "$1" -le 255 ] || exit 2
+    case "$2" in ''|0*|*[!0-9]*) exit 2;; esac
+    RESULT_CODE="$1"
+    PENDING_OWNER="$2"
+    bash "$SCRIPT_PATH" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-0}" || exit 4
+else
+    [ "$#" -eq 0 ] && { echo "gpu_job.sh: no command given" >&2; exit 2; }
+fi
 
 stamp() { date -u +%FT%TZ; }
 
-echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
+# Queue records are required; an unrecorded run must never look successful.
+source "$REPO/run_chains/lib/gpu_queue_log.sh" || exit 4
+write_queue_log() {
+    append_queue_log "$@" || exit 8
+}
 
-# A PENDING MARKER, BECAUSE A WAITING JOB AND A DEAD CHAIN LOOK IDENTICAL.
-# Everything queued behind the lock is just a blocked process; nothing lists
-# it. Twice on 2026-08-18 a chain died leaving "QUEUED x" as the last word in
-# the log, and the queue looked busy while the card sat idle - 80 minutes once,
-# an hour the second time. task-spooler answers this with `ts -l`; this is the
-# poor relation of that, one file per waiting job, removed on exit however the
-# job ends. `gpu_pause.sh status` reads them.
-# OVERRIDABLE, LIKE EVERY OTHER PATH HERE. Hardcoding it meant the test suite
-# wrote markers into the REAL pending directory - four stale entries showed up
-# in `gpu_pause.sh status` within an hour, each claiming a chain had died. That
-# is the fourth variable to leak from the harness into live state after
-# GPU_LOCK, GPU_QLOG and GPU_PAUSE_FLAG; isolated_env pins this one too.
-PENDING_DIR="${GPU_PENDING_DIR:-$(dirname "$0")/ab_test_runtime/logs/pending}"
-mkdir -p "$PENDING_DIR" 2>/dev/null
-PENDING_FILE="$PENDING_DIR/$$.$NAME"
-printf '%s\t%s\t%s\n' "$NAME" "$$" "$(stamp)" > "$PENDING_FILE" 2>/dev/null
+if [ "$ACTION" = check_llm ]; then
+    source "$REPO/run_chains/lib/gpu_llm.sh" || exit 4
+    check_gpu_llm
+    exit 0
+fi
+
+if [ "$ACTION" = check_vram ]; then
+    source "$REPO/run_chains/lib/gpu_vram.sh" || exit 4
+    check_gpu_vram
+    exit 0
+fi
+
+PENDING_DIR="${GPU_PENDING_DIR:-${REPO}/ab_test_runtime/logs/pending}"
+PENDING_FILE="$PENDING_DIR/${PENDING_OWNER:-$$}.$NAME"
+source "$REPO/run_chains/lib/gpu_pending.sh" || exit 4
 # DEFINED HERE, ABOVE THE TRAP THAT CALLS THEM. bash defines a function when
 # it READS that line, and both of these used to sit below `wait`. A job
 # interrupted while waiting ran the TERM trap, which called log_result - a
@@ -130,8 +298,13 @@ printf '%s\t%s\t%s\n' "$NAME" "$$" "$(stamp)" > "$PENDING_FILE" 2>/dev/null
 notify_if_idle() {
     local outcome="$1"
     rm -f "$PENDING_FILE" 2>/dev/null
-    local waiting
-    waiting=$(ls "$PENDING_DIR" 2>/dev/null | wc -l)
+    local waiting=0 marker
+    for marker in "$PENDING_DIR"/*; do
+        [ -f "$marker" ] || continue
+        if is_pending_marker_live "$marker"; then
+            waiting=$((waiting + 1))
+        fi
+    done
     [ "${waiting:-0}" -gt 0 ] && return 0
     command -v pterm >/dev/null 2>&1 || return 0
 
@@ -176,20 +349,48 @@ log_result() {
     RESULT_LOGGED=1
     local code="$1"
     if [ "$code" -eq 0 ]; then
-        echo "$(stamp) OK       $NAME" >> "$QLOG"
+        write_queue_log "$(stamp) OK       $NAME"
         notify_if_idle "finished"
-    elif [ "$code" -eq 130 ] || [ "$code" -eq 143 ]; then
+    elif [ "$code" -eq 129 ] || [ "$code" -eq 130 ] || [ "$code" -eq 143 ]; then
         # Interrupted is not the same as failed: the job was told to stop, so
         # its absence of a result is expected rather than a defect to chase.
-        echo "$(stamp) INTERRUPTED $NAME rc=$code" >> "$QLOG"
+        write_queue_log "$(stamp) INTERRUPTED $NAME rc=$code"
         notify_if_idle "interrupted"
     else
         # Loud on purpose. A chained job that fails quietly gets read as a result.
-        echo "$(stamp) FAILED   $NAME rc=$code" >> "$QLOG"
+        write_queue_log "$(stamp) FAILED   $NAME rc=$code"
         echo "gpu_job: $NAME FAILED rc=$code" >&2
         notify_if_idle "FAILED rc=$code"
     fi
 }
+
+
+if [ "$ACTION" = write_owner_result ]; then
+    trap 'rm -f "$PENDING_FILE" 2>/dev/null' EXIT
+    log_result "$RESULT_CODE"
+    exit 0
+fi
+
+write_queue_log "$(stamp) QUEUED   $NAME"
+
+# A PENDING MARKER, BECAUSE A WAITING JOB AND A DEAD CHAIN LOOK IDENTICAL.
+# Everything queued behind the lock is just a blocked process; nothing lists
+# it. Twice on 2026-08-18 a chain died leaving "QUEUED x" as the last word in
+# the log, and the queue looked busy while the card sat idle - 80 minutes once,
+# an hour the second time. task-spooler answers this with `ts -l`; this is the
+# poor relation of that, one file per waiting job, removed on exit however the
+# job ends. `gpu_pause.sh status` reads them.
+# OVERRIDABLE, LIKE EVERY OTHER PATH HERE. Hardcoding it meant the test suite
+# wrote markers into the REAL pending directory - four stale entries showed up
+# in `gpu_pause.sh status` within an hour, each claiming a chain had died. That
+# is the fourth variable to leak from the harness into live state after
+# GPU_LOCK, GPU_QLOG and GPU_PAUSE_FLAG; isolated_env pins this one too.
+trap 'rm -f "$PENDING_FILE" 2>/dev/null' EXIT
+if ! mkdir -p "$PENDING_DIR" || ! save_pending_marker "$PENDING_FILE" "$NAME" "$$" "$(stamp)"; then
+    echo "gpu_job: cannot create pending marker $PENDING_FILE; refusing to queue $NAME" >&2
+    write_queue_log "$(stamp) PENDING_FAILED $NAME"
+    exit 8
+fi
 
 
 # The trap is set BEFORE the pause wait and the lock: a job interrupted while
@@ -206,17 +407,17 @@ trap 'ec=$?; rm -f "$PENDING_FILE" 2>/dev/null; \
 # the lock while waiting would block the queue AND look like it was working;
 # waiting first means a paused queue is simply idle, and `gpu_pause.sh status`
 # can tell the truth about what still holds the card.
-PAUSE_FLAG="${GPU_PAUSE_FLAG:-$(dirname "$0")/ab_test_runtime/logs/gpu_paused}"
+PAUSE_FLAG="${GPU_PAUSE_FLAG:-${REPO}/ab_test_runtime/logs/gpu_paused}"
 if [ -f "$PAUSE_FLAG" ]; then
-    echo "$(stamp) HELD     $NAME (queue paused)" >> "$QLOG"
+    write_queue_log "$(stamp) HELD     $NAME (queue paused)"
     echo "gpu_job: queue is paused; $NAME is waiting. Release with:" >&2
     echo "gpu_job:   ./gpu_pause.sh off" >&2
     while [ -f "$PAUSE_FLAG" ]; do sleep 20; done
-    echo "$(stamp) RELEASED $NAME" >> "$QLOG"
+    write_queue_log "$(stamp) RELEASED $NAME"
 fi
 
 exec 9>"$LOCK" || {
-    echo "$(stamp) LOCK_FAILED $NAME (cannot open $LOCK)" >> "$QLOG"
+    write_queue_log "$(stamp) LOCK_FAILED $NAME (cannot open $LOCK)"
     echo "gpu_job: cannot open lock file $LOCK" >&2
     exit 4
 }
@@ -226,7 +427,7 @@ exec 9>"$LOCK" || {
 # entire purpose of this script. A concurrent GPU job is exactly what cost 42
 # minutes of training on 2026-08-04.
 if ! flock 9; then
-    echo "$(stamp) LOCK_FAILED $NAME (flock failed)" >> "$QLOG"
+    write_queue_log "$(stamp) LOCK_FAILED $NAME (flock failed)"
     echo "gpu_job: failed to acquire GPU lock; refusing to run $NAME" >&2
     exit 4
 fi
@@ -244,84 +445,29 @@ fi
 # further down must never disagree about it - a gate that lets through what the
 # provenance line calls dirty is worse than no gate.
 tree_state() {
-    # "Cannot tell" is a THIRD answer and must not be spelled "dirty". Without
-    # this check an exported tree, a container without git, or any non-repo
-    # directory takes the failure branch below and gets reported - and, once
-    # the gate existed, refused - as though it had uncommitted changes.
-    if ! git -C "$(dirname "$0")" rev-parse --git-dir >/dev/null 2>&1; then
-        echo unknown
-        return
-    fi
-    local root modified untracked
-    root=$(dirname "$0")
-    # Artifacts a run WRITES are not evidence that its code changed. See the
-    # long note in app/experiments/manifest.py::_git_state - these two are one
-    # decision expressed twice and are kept in step by
-    # test_the_shell_gate_agrees_with_the_python_provenance.
-    # DERIVED INDEXES ARE OUTPUTS TOO, and leaving them out of this list
-    # deadlocked the queue on 2026-08-19. refresh_indexes.py rewrites
-    # RESULTS_INDEX.md, results_index.csv and ab_test_runtime/audit/*.json at
-    # the END of every chain; the tree was then dirty, and the six stages a
-    # CONCURRENT chain still had queued were refused in 0s each - two_stage_full,
-    # three separator arms, unseen_books_rest, plus a replay in a third chain.
-    # The card sat idle for two hours. These are regenerated from the artifacts,
-    # exactly like the experiment JSON: what a run writes, never evidence that
-    # its code changed.
-    modified=$(git -C "$root" status --porcelain --untracked-files=no \
-                   -- ':(exclude)ab_test_runtime/experiments/*.json' ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' ':(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md' \
-                   2>/dev/null)
-    # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
-    # modified TRACKED files only, so a brand-new experiment script - which is
-    # untracked for exactly as long as it takes to write and run it - was
-    # invisible. trim_silence_build.py produced goal 5.4's alignment result
-    # that way: reported as a headline while existing on one machine.
-    #
-    # Untracked .md and scratch files are deliberately NOT dirt. Counting them
-    # made an earlier version of this flag true on every run, which is the same
-    # as being false. This mirrors `app/experiments/manifest.py::_git_state`
-    # exactly, and `test_the_shell_gate_agrees_with_the_python_provenance`
-    # fails if the two ever disagree.
-    # run_chains/ counts too. Six chains sat untracked while being edited and
-    # run, and the gate could not see them because it only watched
-    # app/experiments for .py. A chain is as much "the code that produced this
-    # artifact" as the script it calls.
-    # ...but ab_test_runtime/ is EXCLUDED, because it is where runs write.
-    # Scanning it counted an untracked virtualenv
-    # (ab_test_runtime/envs/ctc-align/.../site-packages, thousands of .py),
-    # three cloud_backup_* trees and generated .html views, so on 2026-08-29
-    # this flag was true on every run - which, as the note above says, is the
-    # same as being false. It refused the night's first job in 0s. Harness code
-    # lives in app/, run_chains/ and the root; artifacts live there.
-    untracked=$(git -C "$root" ls-files --others --exclude-standard \
-                    -- ':(exclude)ab_test_runtime/*' 2>/dev/null \
-                | grep -cE '\.(py|sh|js|html)$')
-    if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
-        echo clean
-        return
-    fi
-    # A hash of the uncommitted state, so two runs from the same commit but
-    # different working trees are distinguishable.
-    local hash
-    hash=$(printf '%s\n%s\n' "$modified" "$untracked" \
-           | sha256sum 2>/dev/null | cut -c1-12)
-    echo "dirty:${hash:-unknown}"
+    get_source_state "$REPO" | {
+        local state
+        IFS= read -r -d '' state
+        printf '%s\n' "$state"
+    }
 }
 dirty_state=$(tree_state)
 
 identity() {
-    local commit script_sha gpu
-    commit=$(git -C "$(dirname "$0")" rev-parse --short HEAD 2>/dev/null) \
+    local commit script_sha gpu command_text
+    commit=$(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null) \
         || commit=unknown
     local dirty="$dirty_state"
-    script_sha=$(sha256sum "$0" 2>/dev/null | cut -c1-12)
+    script_sha=$(sha256sum "$SCRIPT_PATH" 2>/dev/null | cut -c1-12)
     gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
     [ -z "$gpu" ] && gpu=$(rocm-smi --showproductname 2>/dev/null \
         | grep -oPm1 '(?<=Card Series:).*' | xargs) 
+    printf -v command_text '%q ' "$@"
     echo "$(stamp) IDENT    $NAME commit=$commit tree=$dirty" \
          "gpu_job_sha=${script_sha:-unknown} host=$(hostname)" \
-         "gpu=${gpu:-unknown} cmd=$*"
+         "gpu=${gpu:-unknown} cmd=${command_text% }"
 }
-identity "$@" >> "$QLOG"
+write_queue_log "$(identity "$@")"
 
 # A DIRTY TREE IS NOW A GATE, NOT JUST A NOTE. The identity block above has
 # recorded `tree=dirty` since 2026-08-04 and nothing ever read it: 86 of 178
@@ -365,37 +511,34 @@ case "$dirty_state" in
         # this path on every dirty-tree test and left 202 patch files in
         # the working tree, untracked and unwanted. isolated_env pins it
         # like GPU_LOCK, GPU_QLOG, GPU_PAUSE_FLAG and GPU_PENDING_DIR.
-        patch_dir="${GPU_PATCH_DIR:-$(dirname "$0")/ab_test_runtime/logs/dirty_patches}"
+        patch_dir="${GPU_PATCH_DIR:-${REPO}/ab_test_runtime/logs/dirty_patches}"
         patch_file="$patch_dir/${NAME}-$(date -u +%Y%m%dT%H%M%SZ).patch"
         if mkdir -p "$patch_dir" 2>/dev/null; then
             {
-                git -C "$(dirname "$0")" diff HEAD 2>/dev/null
+                git -C "${REPO}" diff --binary HEAD 2>/dev/null
                 # Same exclusion as tree_state: ab_test_runtime/ is where
                 # runs write, and scanning it here walked 2,305 untracked
                 # files under 145 GB - 11s before every ALLOW_DIRTY_TREE START.
-                git -C "$(dirname "$0")" ls-files --others \
-                    --exclude-standard -- ':(exclude)ab_test_runtime/*' 2>/dev/null \
-                    | grep -E '\.(py|sh|js|html)$' \
-                    | while IFS= read -r f; do
-                    git -C "$(dirname "$0")" diff --no-index -- /dev/null "$f" 2>/dev/null
-                done
+                while IFS= read -r -d '' f; do
+                    git -C "$REPO" diff --no-index --binary -- /dev/null "$f" 2>/dev/null
+                done < <(get_untracked_source_files "$REPO")
             } > "$patch_file"
-            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=${patch_file##*/}" >> "$QLOG"
+            write_queue_log "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=${patch_file##*/}"
             echo "gpu_job: uncommitted state saved to $patch_file" >&2
-            echo "gpu_job: reproduce with: git checkout $(git -C "$(dirname "$0")" rev-parse --short HEAD 2>/dev/null) && git apply $patch_file" >&2
+            echo "gpu_job: reproduce with: git checkout $(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null) && git apply $patch_file" >&2
         else
             # Say so rather than proceeding silently: an override whose code
             # state was NOT captured is a different thing from one that was.
-            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=UNSAVED" >> "$QLOG"
+            write_queue_log "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=UNSAVED"
             echo "gpu_job: WARNING - could not write a patch to $patch_dir" >&2
         fi
         echo "gpu_job: WARNING - $NAME is running from uncommitted changes." >&2
         echo "gpu_job: its artifact will not be reproducible from any commit." >&2
     else
-        echo "$(stamp) REFUSED  $NAME (uncommitted changes)" >> "$QLOG"
+        write_queue_log "$(stamp) REFUSED  $NAME (uncommitted changes)"
         echo "gpu_job: refusing to run $NAME from a dirty tree." >&2
         echo "gpu_job: uncommitted changes:" >&2
-        git -C "$(dirname "$0")" diff --stat HEAD >&2 2>/dev/null
+        git -C "${REPO}" diff --stat HEAD >&2 2>/dev/null
         echo "gpu_job: commit them, or re-run with ALLOW_DIRTY_TREE=1 if this" >&2
         echo "gpu_job: is a throwaway whose output nobody will cite." >&2
         exit 5
@@ -414,26 +557,8 @@ esac
 # stayed undiagnosed for a day. The lock cannot catch that - it serialises the
 # card and propagates exit codes, it has no idea whether a server exists - so
 # the check lives here, next to the other gate, rather than in each chain.
-if [ "${REQUIRE_LLM:-0}" = "1" ]; then
-    preflight="$(dirname "$0")/app/experiments/llm_preflight.py"
-    # NOT $PYTHON. Pinokio exports PYTHON=<miniforge>/python, which does not
-    # exist on this box, so `${PYTHON:-default}` takes the broken value - the
-    # variable IS set, so the default never fires - and this check silently
-    # downgraded to "unchecked" the first time it ran.
-    preflight_py="${LLM_PREFLIGHT_PYTHON:-$(dirname "$0")/app/env/bin/python}"
-    if [ -x "$preflight_py" ] && [ -f "$preflight" ]; then
-        if ! "$preflight_py" "$preflight" --quiet; then
-            echo "$(stamp) NO_LLM   $NAME (preflight failed)" >> "$QLOG"
-            echo "gpu_job: refusing to run $NAME without a working LLM." >&2
-            exit 6
-        fi
-    else
-        # Cannot check is not the same as failed. Say so and continue rather
-        # than blocking a run on the absence of the checker.
-        echo "$(stamp) LLM_UNCHECKED $NAME (no preflight available)" >> "$QLOG"
-        echo "gpu_job: WARNING - REQUIRE_LLM set but preflight unavailable." >&2
-    fi
-fi
+source "$REPO/run_chains/lib/gpu_llm.sh" || exit 4
+check_gpu_llm
 
 # VRAM IS NOT COVERED BY THE LOCK, and on 2026-08-17 that cost 14 adapters.
 #
@@ -456,52 +581,14 @@ fi
 # where every GPU job already passes.
 #
 # UNKNOWN IS NOT ZERO. If rocm-smi cannot answer, this warns and continues -
-# the same third answer tree_state gives for a non-repo. A missing tool must
-# not block the card.
-vram_free_mib() {
-    local total used
-    total=$(rocm-smi --showmeminfo vram 2>/dev/null \
-            | grep -im1 'total memory' | grep -oE '[0-9]+' | tail -1)
-    used=$(rocm-smi --showmeminfo vram 2>/dev/null \
-           | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
-    if [ -n "$total" ] && [ -n "$used" ]; then
-        echo $(( (total - used) / 1048576 ))
-        return 0
-    fi
-    # Thunder cards are NVIDIA-only. Use the least-free visible card so a
-    # multi-GPU host cannot pass because an unrelated card is empty.
-    local selector="${CUDA_VISIBLE_DEVICES:-${NVIDIA_VISIBLE_DEVICES:-}}"
-    local -a nvidia_args
-    nvidia_args=(--query-gpu=memory.free --format=csv,noheader,nounits)
-    if [ -n "$selector" ] && [ "$selector" != "all" ]; then
-        nvidia_args=(-i "$selector" "${nvidia_args[@]}")
-    fi
-    nvidia-smi "${nvidia_args[@]}" \
-        2>/dev/null | awk '
-            /^[[:space:]]*[0-9]+/ {
-                value=$1+0; if (!seen || value < minimum) minimum=value; seen=1
-            }
-            END {if (seen) print minimum; else exit 1}'
-}
-
-REQUIRE_VRAM_MIB=$(( ${REQUIRE_VRAM_GB:-4} * 1024 ))
-if free_mib=$(vram_free_mib); then
-    if [ "$free_mib" -lt "$REQUIRE_VRAM_MIB" ]; then
-        echo "$(stamp) NO_VRAM  $NAME (${free_mib}MiB free, needs ${REQUIRE_VRAM_MIB}MiB)" >> "$QLOG"
-        echo "gpu_job: refusing to run $NAME - only ${free_mib} MiB of VRAM free," >&2
-        echo "gpu_job: and it needs ${REQUIRE_VRAM_MIB} MiB. Holding the card:" >&2
-        { rocm-smi --showpids 2>/dev/null \
-          || nvidia-smi --query-compute-apps=pid,used_memory \
-               --format=csv,noheader 2>/dev/null; } | head -4 >&2
-        echo "gpu_job: a persistent llama-server is the usual cause; it is" >&2
-        echo "gpu_job: started outside the lock and never stops on its own." >&2
-        echo "gpu_job: stop it with: pkill -x llama-server" >&2
-        echo "gpu_job: or override with REQUIRE_VRAM_GB=0 if this job is small." >&2
-        exit 7
-    fi
-else
-    echo "$(stamp) VRAM_UNKNOWN $NAME" >> "$QLOG"
-    echo "gpu_job: WARNING - cannot read VRAM; running $NAME unchecked." >&2
+# the same third answer tree_state gives for a non-repo. A missing memory
+# provider does not block the card. Detected ROCm memory with an unverified
+# selection is different: it must not pass on an unrelated card reading.
+source "$REPO/run_chains/lib/gpu_vram.sh" || exit 4
+# Reclaiming jobs check the same capacity policy inside their supervised
+# command, after cleanup. Ordinary jobs retain their pre-start admission.
+if [ "${GPU_RECLAIM_VRAM:-0}" != 1 ]; then
+    check_gpu_vram
 fi
 
 # TAKE THE WHOLE PROCESS GROUP DOWN, not just the wrapper. Borrowed from
@@ -515,29 +602,36 @@ fi
 # The job runs in its own process group so a signal reaches every descendant,
 # and the trap escalates INT -> KILL rather than trusting the first signal.
 cleanup_group() {
-    local sig="${1:-INT}"
+    local sig="${1:-INT}" started="$SECONDS" elapsed
+    # Only the owner may escalate/reap. Killing it would release FD9 over its
+    # children; it retains the full20s grace and the lease after wrapper loss.
+    trap '' INT TERM HUP
     if [ -n "${JOB_PGID:-}" ]; then
-        kill -"$sig" -"$JOB_PGID" 2>/dev/null
-        local waited=0
-        # 20s, not 5: a torch or whisper process unloading a model is not
-        # ignoring the signal, it is finishing a syscall. Killing it early
-        # loses the checkpoint it was about to write.
-        while [ "$waited" -lt 20 ]; do
-            kill -0 -"$JOB_PGID" 2>/dev/null || {
-                echo "$(stamp) STOPPED  $NAME (on $sig after ${waited}s)" >> "$QLOG"
-                return 0
-            }
-            sleep 1
-            waited=$((waited + 1))
+        kill -"$sig" "$JOB_PGID" 2>/dev/null
+        while kill -0 "$JOB_PGID" 2>/dev/null; do
+            wait "$JOB_PGID" || true
         done
-        kill -KILL -"$JOB_PGID" 2>/dev/null
-        echo "$(stamp) KILLED   $NAME (still alive ${waited}s after $sig)" >> "$QLOG"
+        elapsed=$((SECONDS-started))
+        if [ "$elapsed" -ge 20 ]; then
+            write_queue_log "$(stamp) KILLED   $NAME (owner reaped after ${elapsed}s on $sig)"
+        else
+            write_queue_log "$(stamp) STOPPED  $NAME (owner reaped on $sig after ${elapsed}s)"
+        fi
     fi
 }
 trap 'cleanup_group INT; exit 130' INT
 trap 'cleanup_group TERM; exit 143' TERM
+trap 'cleanup_group HUP; exit 129' HUP
 
-echo "$(stamp) START    $NAME" >> "$QLOG"
+OWNER_PYTHON="${GPU_OWNER_PYTHON:-$(command -v python3)}"
+OWNER_SCRIPT="$REPO/app/gpu_queue_owner.py"
+if [ ! -x "$OWNER_PYTHON" ] || [ ! -f "$OWNER_SCRIPT" ] || [ ! -f "$REPO/app/subprocess_ownership.py" ]; then
+    write_queue_log "$(stamp) FAILED   $NAME rc=4 (GPU owner unavailable)"
+    echo "gpu_job: refusing to run $NAME without the GPU command owner and Python3." >&2
+    exit 4
+fi
+
+write_queue_log "$(stamp) START    $NAME"
 STARTED=1
 
 # TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
@@ -552,6 +646,7 @@ export ALEXANDRIA_GPU_LOCK_HELD=1
 # sentinel from a chain cannot keep claiming to be a queued job after that job
 # has ended (see app/experiments/gpu_guard.py).
 export ALEXANDRIA_GPU_LOCK_PID=$$
+export ALEXANDRIA_GPU_LOCK_FD=9
 
 # JOB CONTROL OFF, EXPLICITLY. `setsid` only calls setsid(2) directly when it
 # is NOT already a process group leader; if it is, it forks first. With job
@@ -592,17 +687,14 @@ if command -v ionice >/dev/null 2>&1; then
     launcher+=(ionice -c3)
 fi
 
+if [ "${GPU_RECLAIM_VRAM:-0}" = 1 ]; then
+    set -- bash "$REPO/run_chains/lib/reclaim_vram.sh" "$SCRIPT_PATH" "$NAME" "$@"
+fi
+
 set +m
-# 9>&- CLOSES THE LOCK IN THE CHILD, and without it the queue can deadlock
-# behind a process nobody is tracking. A flock lives as long as ANY open
-# descriptor to the file, and `exec 9>"$LOCK"` above puts that descriptor into
-# every child this script starts. On 2026-08-19 a stage was stopped, its
-# wrapper died, and one orphaned `timeout`+python survived with FD 9 still
-# open: the lock stayed HELD with no gpu_job.sh alive to own it, two queued
-# jobs waited on it indefinitely, and `gpu_pause.sh status` had nothing to
-# name as the holder. The child never needs the lock - its parent holds it for
-# exactly as long as the child runs - so it should never have had it.
-"${launcher[@]}" "$@" 9>&- &
+# The reaper inherits FD9; its actual command closes descriptors. Parent
+# death therefore keeps the lease owned until every descendant is reaped.
+"${launcher[@]}" "$OWNER_PYTHON" -B "$OWNER_SCRIPT" "$$" "$SCRIPT_PATH" "$NAME" "$@" &
 JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?

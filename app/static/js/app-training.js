@@ -18,7 +18,7 @@
                 listEl.innerHTML = datasets.map(d => `
                     <div class="d-flex justify-content-between align-items-center py-1">
                         <span><strong>${escapeHtml(d.dataset_id)}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
-                        <button class="btn btn-sm btn-outline-danger" onclick='deleteLoraDataset(${JSON.stringify(d.dataset_id)})'><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" data-dataset-id="${escapeHtml(d.dataset_id)}" onclick="deleteLoraDataset(this.dataset.datasetId)"><i class="fas fa-trash"></i></button>
                     </div>
                 `).join('');
             } catch (e) {
@@ -31,7 +31,7 @@
             if (!fileInput.files.length) { showToast('Select a ZIP file first.', 'warning'); return; }
 
             const file = fileInput.files[0];
-            if (!file.name.endsWith('.zip')) { showToast('File must be a .zip archive.', 'warning'); return; }
+            if (!file.name.toLowerCase().endsWith('.zip')) { showToast('File must be a .zip archive.', 'warning'); return; }
 
             const formData = new FormData();
             formData.append('file', file);
@@ -56,7 +56,7 @@
             if (!await showConfirm(`Delete dataset "${datasetId}"?`)) { return; }
             try {
                 const res = await fetch(`/api/lora/datasets/${encodeURIComponent(datasetId)}`, { method: 'DELETE' });
-                if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
+                await API._handleError(res);
                 loadLoraDatasets();
             } catch (e) {
                 showToast('Error deleting dataset: ' + e.message, 'error');
@@ -73,12 +73,12 @@
             const request = {
                 name: name,
                 dataset_id: datasetId,
-                epochs: parseInt(document.getElementById('lora-epochs').value) || 5,
-                lr: parseFloat(document.getElementById('lora-lr').value) || 5e-6,
-                batch_size: parseInt(document.getElementById('lora-batch-size').value) || 1,
-                lora_r: parseInt(document.getElementById('lora-rank').value) || 32,
-                lora_alpha: parseInt(document.getElementById('lora-alpha').value) || 128,
-                gradient_accumulation_steps: parseInt(document.getElementById('lora-grad-accum').value) || 8,
+                epochs: Number(document.getElementById('lora-epochs').value),
+                lr: Number(document.getElementById('lora-lr').value),
+                batch_size: Number(document.getElementById('lora-batch-size').value),
+                lora_r: Number(document.getElementById('lora-rank').value),
+                lora_alpha: Number(document.getElementById('lora-alpha').value),
+                gradient_accumulation_steps: Number(document.getElementById('lora-grad-accum').value),
                 language: document.getElementById('lora-language').value || 'english'
             };
 
@@ -105,15 +105,30 @@
             const epochDisplay = document.getElementById('lora-epoch-display');
             const lossDisplay = document.getElementById('lora-loss-display');
 
+            let renderedLogs = null;
+            let logRunId = null;
+
             _startPolling('lora_training', () => API.get('/api/status/lora_training'), {
                 intervalMs: 2000,
                 doneCheck: status => !status.running,
                 onTick: status => {
-                    logsEl.innerText = status.logs.join('\n');
+                    const update = getTaskLogUpdate(renderedLogs, logRunId, status.logs, status.run_id || status.start_time || null);
+                    if (!update.changed) { return; }
+                    if (update.reset) {
+                        logsEl.innerText = update.text;
+                        epochDisplay.innerText = '';
+                        lossDisplay.innerText = '';
+                        progressBar.style.width = '0%';
+                        progressBar.innerText = '0%';
+                    } else {
+                        logsEl.appendChild(document.createTextNode(update.text));
+                    }
+                    renderedLogs = update.logs;
+                    logRunId = update.runId;
                     logsEl.scrollTop = logsEl.scrollHeight;
 
-                    // Parse latest metrics from log lines
-                    for (let i = status.logs.length - 1; i >= 0; i--) {
+                    // Parse latest metrics only from new lines, or all lines after a reset.
+                    for (let i = status.logs.length - 1; i >= update.startIndex; i--) {
                         const line = status.logs[i];
                         const epochMatch = line.match(/\[EPOCH\]\s*(\d+)\/(\d+)\s+avg_loss=([\d.]+)/);
                         if (epochMatch) {
@@ -182,28 +197,46 @@
             }
         };
 
-        async function onToggleFavoriteAdapter(adapterId) {
+        async function onToggleFavoriteAdapter(adapterId, button) {
+            if (button?.disabled) { return; }
+            if (button) { button.disabled = true; }
             try {
-                await API.post(`/api/voice_library/favorites/${encodeURIComponent(adapterId)}`, {});
-                await loadLoraModels();
+                const result = await API.post(`/api/voice_library/favorites/${encodeURIComponent(adapterId)}`, {});
+                window._loraModelsCache = (window._loraModelsCache || []).map(model =>
+                    model.id === adapterId ? { ...model, favorite: result.favorite } : model);
+                document.querySelectorAll('[data-lora-favorite]').forEach(star => {
+                    if (star.dataset.adapterId !== adapterId) { return; }
+                    star.classList.toggle('text-warning', result.favorite);
+                    star.classList.toggle('text-muted', !result.favorite);
+                    star.title = result.favorite ? 'Favorite — voice suggestions prefer it when compatible' : 'Mark as favorite';
+                    star.querySelector('i').className = `${result.favorite ? 'fas' : 'far'} fa-star`;
+                });
             } catch (e) {
                 showToast('Could not update favorite: ' + e.message, 'error');
+            } finally {
+                if (button) { button.disabled = false; }
             }
         }
 
         async function loadLoraModels() {
             try {
-                const models = await API.get('/api/lora/models');
-                let backupStatus = { backups: [], total_size_bytes: 0, free_bytes: 0, low_space_warning: false };
-                try {
-                    backupStatus = await API.get('/api/lora/backups');
-                } catch (e) {
-                    console.debug('LoRA backup status unavailable', e);
-                }
-                models.forEach(model => {
-                    model.rollback_backup = backupStatus.backups.find(
-                        backup => backup.adapter_id === model.id) || null;
+                const [loadedModels, backupStatus] = await Promise.all([
+                    API.get('/api/lora/models'),
+                    API.get('/api/lora/backups').catch(e => {
+                        console.debug('LoRA backup status unavailable', e);
+                        return { backups: [], total_size_bytes: 0, free_bytes: 0, low_space_warning: false };
+                    }),
+                ]);
+                const backupsByAdapter = new Map();
+                backupStatus.backups.forEach(backup => {
+                    const adapterId = backup.adapter_id;
+                    if (!backupsByAdapter.has(adapterId)) {
+                        backupsByAdapter.set(adapterId, backup);
+                    }
                 });
+                const models = loadedModels.map(model => ({
+                    ...model, rollback_backup: backupsByAdapter.get(model.id) || null,
+                }));
                 window._loraModelsCache = models;
                 const container = document.getElementById('lora-models-list');
                 const testForm = document.getElementById('lora-test-form');
@@ -263,7 +296,7 @@
                         <tbody>
                             ${models.map(m => `
                                 <tr${m.builtin ? ' class="table-light"' : ''}>
-                                    <td><button class="btn btn-sm btn-link p-0 me-1 ${m.favorite ? 'text-warning' : 'text-muted'}" data-adapter-id="${escapeHtml(m.id)}" onclick="onToggleFavoriteAdapter(this.dataset.adapterId)" title="${m.favorite ? 'Favorite — voice suggestions prefer it when compatible' : 'Mark as favorite'}"><i class="${m.favorite ? 'fas' : 'far'} fa-star"></i></button><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
+                                    <td><button class="btn btn-sm btn-link p-0 me-1 ${m.favorite ? 'text-warning' : 'text-muted'}" data-adapter-id="${escapeHtml(m.id)}" data-lora-favorite onclick="onToggleFavoriteAdapter(this.dataset.adapterId, this)" title="${m.favorite ? 'Favorite — voice suggestions prefer it when compatible' : 'Mark as favorite'}"><i class="${m.favorite ? 'fas' : 'far'} fa-star"></i></button><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
@@ -483,7 +516,7 @@
         }
 
         window.clearLoraReviewHistory = async (adapterId) => {
-            if (!confirm('Delete all human review history for this adapter?')) { return; }
+            if (!await showConfirm('Delete all human review history for this adapter?')) { return; }
             try {
                 const result = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews/cleanup`, {});
                 const freedKb = (result.freed_bytes / 1024).toFixed(1);
@@ -495,11 +528,15 @@
         };
 
         window.promoteLoraCandidate = async (adapterId, candidateId) => {
-            if (!confirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`)) {
+            if (typeof candidateId !== 'string' || !candidateId.trim()) {
+                showToast('Refresh the candidate list before promoting.', 'warning');
+                return;
+            }
+            if (!await showConfirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`)) {
                 return;
             }
             try {
-                await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/promote`, {});
+                await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/promote`, {expected_candidate_id: candidateId});
                 showToast(`Promoted ${candidateId}. Production backup retained.`, 'success');
                 await loadLoraModels();
             } catch (e) {
@@ -508,7 +545,7 @@
         };
 
         window.rollbackLoraPromotion = async (adapterId) => {
-            if (!confirm('Restore the production checkpoint saved before promotion?')) {
+            if (!await showConfirm('Restore the production checkpoint saved before promotion?')) {
                 return;
             }
             try {
@@ -521,7 +558,7 @@
         };
 
         window.recoverLoraCheckpointSwap = async (adapterId) => {
-            if (!confirm('Recover production from the checkpoint saved before the interrupted operation?')) {
+            if (!await showConfirm('Recover production from the checkpoint saved before the interrupted operation?')) {
                 return;
             }
             try {
@@ -534,15 +571,12 @@
         };
 
         window.deleteLoraRollbackBackup = async (adapterId) => {
-            if (!confirm('Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint.')) {
+            if (!await showConfirm('Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint.')) {
                 return;
             }
             try {
                 const response = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}/rollback-backup`, { method: 'DELETE' });
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({}));
-                    throw new Error(error.detail || `HTTP ${response.status}`);
-                }
+                await API._handleError(response);
                 showToast('Rollback backup deleted.', 'success');
                 await loadLoraModels();
             } catch (e) {
@@ -559,7 +593,7 @@
             try {
                 const result = await API.post(`/api/lora/preview/${encodeURIComponent(adapterId)}`, {});
                 const audio = new Audio(`${result.audio_url}?t=${Date.now()}`);
-                audio.play();
+                await audio.play();
                 // Update button now that preview is cached
                 btn.title = 'Play preview';
                 btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
@@ -596,7 +630,7 @@
 
                 statusEl.innerHTML = '';
                 const audioDiv = document.getElementById('lora-test-audio');
-                audioDiv.innerHTML = `<audio controls autoplay src="${result.audio_url}?t=${Date.now()}"></audio>`;
+                audioDiv.innerHTML = `<audio controls autoplay src="${escapeHtml(result.audio_url)}?t=${Date.now()}"></audio>`;
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger">Failed: ${escapeHtml(e.message)}</span>`;
             }
@@ -606,7 +640,7 @@
             if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) { return; }
             try {
                 const res = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}`, { method: 'DELETE' });
-                if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
+                await API._handleError(res);
                 loadLoraModels();
             } catch (e) {
                 showToast('Error deleting adapter: ' + e.message, 'error');

@@ -62,22 +62,44 @@ fi
     echo "$caller: could not regenerate derived files; run ./ready.sh before pushing" >&2
     exit 0; }
 
-paths=$("$REPO/tools/regen_derived.sh" --paths)
+paths=$("$REPO/tools/regen_derived.sh" --paths) || {
+    echo "$caller: could not read derived file paths; run ./ready.sh before pushing" >&2
+    exit 0; }
+if [ -z "${paths//[[:space:]]/}" ]; then
+    echo "$caller: derived file paths were empty; run ./ready.sh before pushing" >&2
+    exit 0
+fi
 # shellcheck disable=SC2086
-if git -C "$REPO" diff --quiet -- $paths; then exit 0; fi
+changes=$(git -C "$REPO" status --porcelain=v1 --untracked-files=all -- $paths) || {
+    echo "$caller: could not inspect derived changes; run ./ready.sh before pushing" >&2
+    exit 0; }
+if [ -z "$changes" ]; then exit 0; fi
 
 # REFUSE TO SWEEP UP ANYTHING ELSE. This commits the index, so anything else
 # already staged would ride along. After a clean auto-merge the index matches
 # the merge commit, so this is normally empty; if it is not, something else is
 # going on and a hook is the wrong place to guess.
-other=$(git -C "$REPO" diff --cached --name-only | grep -vFf <(printf '%s\n' $paths) || true)
+staged=$(git -C "$REPO" diff --cached --name-only) || {
+    echo "$caller: could not inspect staged files; run ./ready.sh before pushing" >&2
+    exit 0; }
+# shellcheck disable=SC2086
+other=$(printf '%s\n' "$staged" | awk '
+    NR == FNR { allowed[$0] = 1; next }
+    {
+        for (path in allowed) {
+            if ($0 == path || index($0, path "/") == 1) { next }
+        }
+        print
+    }' <(printf '%s\n' $paths) -)
 if [ -n "${other:-}" ]; then
     echo "$caller: derived files are stale but other changes are staged; run ./ready.sh" >&2
     exit 0
 fi
 
 # shellcheck disable=SC2086
-git -C "$REPO" add -- $paths
+git -C "$REPO" add -- $paths || {
+    echo "$caller: could not stage derived files; run ./ready.sh before pushing" >&2
+    exit 0; }
 
 # PLUMBING, NOT `git commit`. MEASURED 2026-08-20: git still holds MERGE_HEAD
 # while post-merge runs, so `git commit -- <paths>` dies with "cannot do a

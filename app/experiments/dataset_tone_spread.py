@@ -37,7 +37,6 @@ import argparse
 import collections
 import json
 import os
-import pickle
 import re
 import sys
 import zipfile
@@ -122,8 +121,10 @@ def main():
         REPO, "ab_test_runtime", "experiments", "dataset_tone_spread.json"))
     args = ap.parse_args()
 
-    with open(args.cache, "rb") as fh:
-        cache = pickle.load(fh)
+    from voice_analysis_cache import load_voice_analysis_pickle
+    cache = load_voice_analysis_pickle(args.cache, None)
+    if cache is None:
+        raise FileNotFoundError(args.cache)
     # Keys are "<book folder>/<volume stem>"; index by stem so a volume can be
     # found without reconstructing the folder name, which differs in
     # punctuation between the manifest and the filesystem.

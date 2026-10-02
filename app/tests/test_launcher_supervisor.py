@@ -83,8 +83,20 @@ class LauncherSupervisorTests(unittest.TestCase):
 
     def test_exactly_two_events_success_then_failure(self):
         # start.js must keep one URL-capture signal and one failure signal.
-        self.assertTrue(self.success_re.search("http://127.0.0.1:8000"))
+        self.assertTrue(self.success_re.search("INFO: Uvicorn running on http://127.0.0.1:8000"))
         self.assertTrue(self.failure_re.search("ModuleNotFoundError: x"))
+
+    def test_dependency_urls_before_bind_do_not_become_app_url(self):
+        lines = _run_fake_server(
+            "WARNING: documentation at http://docs.example.test/tts",
+            "Downloading from http://models.example.test/weights.bin",
+            *HEALTHY_STARTUP)
+        self.assertEqual(("url", "http://127.0.0.1:8000"), self._supervise(lines))
+
+    def test_documentation_url_before_startup_failure_is_not_ready(self):
+        lines = _run_fake_server("Help: http://docs.example.test/install",
+                                 "ERROR: Application startup failed. Exiting.", exit_code=3)
+        self.assertEqual("failed", self._supervise(lines)[0])
 
     def test_healthy_startup_captures_the_url(self):
         outcome, value = self._supervise(_run_fake_server(*HEALTHY_STARTUP))
@@ -95,6 +107,63 @@ class LauncherSupervisorTests(unittest.TestCase):
         # The launcher assigns {{port}}; whatever port is printed must be captured.
         lines = _run_fake_server("INFO:     Uvicorn running on http://127.0.0.1:53411")
         self.assertEqual(("url", "http://127.0.0.1:53411"), self._supervise(lines))
+
+    def test_real_uvicorn_bind_announcement_matches_actual_js_event(self):
+        import selectors
+        import time
+        from urllib.request import urlopen
+        script = """
+import uvicorn
+print('WARNING: help at http://docs.example.test/tts', flush=True)
+async def app(scope, receive, send):
+    await send({'type':'http.response.start','status':200,'headers':[]})
+    await send({'type':'http.response.body','body':b'fixture-ready'})
+uvicorn.run(app, host='127.0.0.1', port=0, lifespan='off', access_log=False, use_colors=False)
+"""
+        process = subprocess.Popen([sys.executable, '-u', '-c', script], stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True)
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        lines = []
+        try:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if not selector.select(timeout=0.1):
+                    continue
+                line = process.stdout.readline()
+                if not line:
+                    break
+                lines.append(line)
+                if 'Uvicorn running on ' in line:
+                    break
+            outcome, url = self._supervise(lines)
+            self.assertEqual('url', outcome, lines)
+            self.assertTrue(url.startswith('http://127.0.0.1:'), url)
+            with urlopen(url, timeout=3) as response:
+                self.assertEqual(b'fixture-ready', response.read())
+            node = r"""
+const launcher = require(process.argv[1]);
+const event = launcher.run.find(step => step.method === 'shell.run').params.on[0].event;
+const match = event.match(/^\/(.*)\/([a-z]*)$/);
+const expression = new RegExp(match[1], match[2]);
+for (const line of JSON.parse(process.argv[2])) {
+  const result = expression.exec(line);
+  if (result) { console.log(result[1]); break; }
+}
+"""
+            import json
+            captured = subprocess.check_output(['node', '-e', node, str(START_JS), json.dumps(lines)],
+                                               text=True, timeout=5).strip()
+            self.assertEqual(url, captured)
+        finally:
+            selector.close()
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+            process.stdout.close()
 
     def test_healthy_output_never_trips_the_failure_signal(self):
         # "Application startup complete." must not match "Application startup failed",
@@ -148,3 +217,56 @@ class LauncherSupervisorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+_RESET_ARTIFACT_FIXTURE = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const launcher = require(process.argv[1]);
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alexandria-reset-fixture-'));
+try {
+  const activeFiles = ['annotated_script.json', 'voice_config.json', 'character_aliases.json', 'chunks.json', 'state.json'];
+  for (const name of activeFiles) {
+    fs.writeFileSync(path.join(root, name), JSON.stringify({fromBook: 'old book'}));
+  }
+  fs.mkdirSync(path.join(root, 'scripts'));
+  const library = path.join(root, 'scripts', 'saved-book.json');
+  const libraryBytes = Buffer.from('{"keep":"saved book"}');
+  fs.writeFileSync(library, libraryBytes);
+  const cast = path.join(root, 'voice_library.json');
+  fs.writeFileSync(cast, '{"keep":"reusable cast"}');
+  const castBytes = fs.readFileSync(cast);
+  for (const step of launcher.run) {
+    if (step.method === 'script.stop' || (step.method === 'stop_writers' && step.uri === 'launcher_lifecycle.js')) {
+      // Lifecycle is stubbed; this fixture checks configured file cleanup.
+    } else {
+      assert.equal(step.method, 'fs.rm');
+      const target = path.resolve(root, step.params.path);
+      assert.ok(target.startsWith(root + path.sep));
+      fs.rmSync(target, {recursive: true, force: true});
+    }
+  }
+  for (const name of activeFiles) {
+    assert.equal(fs.existsSync(path.join(root, name)), false, name + ' survived reset');
+  }
+  assert.deepEqual(fs.readFileSync(library), libraryBytes);
+  assert.deepEqual(fs.readFileSync(cast), castBytes);
+  console.log(JSON.stringify({activeFilesRemoved: activeFiles, savedBookPreserved: true, castPreserved: true, note: 'Configured deletion steps executed with Node fs only in a temporary fixture; Shutdown step mocked in this artifact-only fixture; awaited lifecycle is exercised separately.'}));
+} finally {
+  fs.rmSync(root, {recursive: true, force: true});
+}
+"""
+
+class LauncherResetArtifactTests(unittest.TestCase):
+    def test_reset_removes_previous_book_aliases_and_preserves_saved_library(self):
+        import json
+        result = subprocess.run(
+            ["node", "-e", _RESET_ARTIFACT_FIXTURE, str(START_JS.with_name("reset.js"))],
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        artifact = json.loads(result.stdout)
+        self.assertIn("character_aliases.json", artifact["activeFilesRemoved"])
+        self.assertTrue(artifact["savedBookPreserved"])
+        self.assertTrue(artifact["castPreserved"])

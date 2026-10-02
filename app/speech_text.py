@@ -1,28 +1,15 @@
 """Conservative speech preparation and non-prose risk classification."""
 import re
-import unicodedata
 
 
-SPEECH_BREAKS = "•·▪◦‣∙■□◆●▲─━―*_~"
-SPEECH_WORDS = {
-    "©": "copyright", "®": "registered trademark", "™": "trademark",
-    "&": "and", "@": "at", "%": "percent", "°": "degrees",
-    "№": "number", "§": "section", "†": "", "‡": "",
-}
-
-# Symbols with a genuine spoken form. Kept apart from SPEECH_WORDS because
-# these are swept up by the catch-all below if they are not named here, and
-# the distinction matters: a named symbol is spoken, an unnamed one is
-# dropped. Goal 5.1.
-VERBALIZED_SYMBOLS = {
-    "∞": "infinity", "→": "to", "←": "from", "≈": "approximately",
-    "≠": "not equal to", "≤": "at most", "≥": "at least",
-    "±": "plus or minus", "×": "times", "÷": "divided by",
-    "√": "the square root of", "∑": "the sum of", "µ": "micro",
-}
+from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
+                           SPOKEN_SYMBOLS, get_spoken_symbol, get_scene_break_text,
+                           extract_delivery_cues, SCENE_BREAK_MARKER,
+                           is_unspeakable_character, UNSPEAKABLE_CATEGORIES,
+                           REPLACEMENT_CHARACTER)
 
 # Unicode categories with no spoken form at all: symbols, private use,
-# unassigned and surrogates. Currency (Sc) is deliberately excluded - "$" and
+# unassigned, surrogates and non-whitespace controls. Currency (Sc) is deliberately excluded - "$" and
 # "£" are speakable and belong in a table, not in a silent drop.
 #
 # WHY A CATCH-ALL AND NOT A LIST. The named tables above can only cover
@@ -32,15 +19,13 @@ VERBALIZED_SYMBOLS = {
 # or mispronounce the surrounding words. Dropping the unknown is the
 # conservative choice, because a dropped symbol is a symbol the listener was
 # never going to hear correctly anyway.
-_UNSPEAKABLE_CATEGORIES = frozenset({"So", "Sm", "Sk", "Co", "Cn", "Cs"})
-REPLACEMENT_CHARACTER = "�"
+_UNSPEAKABLE_CATEGORIES = UNSPEAKABLE_CATEGORIES
 
-_BREAK_RE = re.compile(f"\\s*[{re.escape(SPEECH_BREAKS)}]+\\s*")
 _SPACE_RE = re.compile(r"[ \t]{2,}")
 _ORPHAN_PUNCT_RE = re.compile(r"(?:\.\s*){2,}")
-_DUPE_WORD_RE = re.compile(r"\b(\w+)(\s+\1)+\b", re.IGNORECASE)
 _URL_RE = re.compile(
-    r"(?:https?://|https?//|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+"
+    r"(?:https?://|https?//|www\.)\S+|\b(?:[a-z0-9-]+\.)+"
+    r"(?:[a-z]{2,63}|xn--[a-z0-9-]+)(?![a-z0-9-])"
     r"(?:/[a-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?",
     re.IGNORECASE)
 _LABELLED_IDENTIFIER_RE = re.compile(
@@ -81,13 +66,11 @@ def verbalize_symbols(text):
     """
     spoken, dropped, out = [], [], []
     for ch in text:
-        word = VERBALIZED_SYMBOLS.get(ch)
+        word = get_spoken_symbol(ch)
         if word:
             out.append(f" {word} ")
             spoken.append(ch)
-        elif ch == REPLACEMENT_CHARACTER or (
-                not ch.isspace()
-                and unicodedata.category(ch) in _UNSPEAKABLE_CATEGORIES):
+        elif is_unspeakable_character(ch):
             out.append(" ")
             dropped.append(ch)
         else:
@@ -112,24 +95,37 @@ def get_speech_normalization(text):
         return {"text": text, "changed": False, "transformations": [],
                 "risk_categories": get_speech_risks(text)}
     original = str(text)
-    normalized = original
+    normalized, hints = extract_delivery_cues(original)
     transformations = []
-    for symbol, word in SPEECH_WORDS.items():
+    if hints:
+        transformations.append({"type": "delivery_cues", "hints": hints})
+    scene_text = get_scene_break_text(normalized)
+    if scene_text != normalized:
+        normalized = scene_text
+        transformations.append({"type": "structural_break"})
+    for symbol in SPEECH_WORDS:
+        word = get_spoken_symbol(symbol)
+        if symbol == "©":
+            # Avoid adding a second spoken "copyright" from its symbol,
+            # without deleting repeated words that were authored in the text.
+            normalized, redundant = re.subn(
+                r"(\bcopyright\s*)©", r"\1", normalized, flags=re.IGNORECASE)
+            if redundant:
+                transformations.append({"type": "dropped_redundant_symbol",
+                                        "symbol": symbol, "replacement": ""})
         if symbol in normalized:
             normalized = normalized.replace(symbol, f" {word} " if word else " ")
             transformations.append({"type": "spoken_symbol" if word else "dropped_reference_mark",
                                     "symbol": symbol, "replacement": word})
-    if _BREAK_RE.search(normalized):
-        normalized = _BREAK_RE.sub(". ", normalized)
-        transformations.append({"type": "structural_break"})
+    normalized = re.sub(r"\s*" + re.escape(SCENE_BREAK_MARKER) + r"\s*", ". ", normalized)
     normalized, symbol_transformations = verbalize_symbols(normalized)
     transformations.extend(symbol_transformations)
-    normalized = _ORPHAN_PUNCT_RE.sub(". ", normalized)
-    normalized = _SPACE_RE.sub(" ", normalized)
-    deduplicated = _DUPE_WORD_RE.sub(r"\1", normalized)
-    if deduplicated != normalized:
-        transformations.append({"type": "duplicate_spoken_word"})
-    normalized = deduplicated
+    normalized, count = _ORPHAN_PUNCT_RE.subn(". ", normalized)
+    if count:
+        transformations.append({"type": "collapsed_periods", "count": count})
+    normalized, count = _SPACE_RE.subn(" ", normalized)
+    if count:
+        transformations.append({"type": "collapsed_spacing", "count": count})
     # Proper-noun respellings, applied LAST so a lexicon entry is never
     # mangled by symbol or break handling. Recorded as a transformation like
     # everything else: a silent respelling would be untraceable, with the
@@ -145,7 +141,12 @@ def get_speech_normalization(text):
         # A broken lexicon must never stop a book generating.
         pass
     stripped = normalized.strip(" .\t\n")
-    normalized = stripped + "." if stripped else ""
+    bounded = stripped + "." if stripped else ""
+    if bounded != normalized:
+        transformations.append({"type": "normalized_sentence_boundary",
+                                "trimmed_characters": len(normalized) - len(stripped),
+                                "appended_period": bool(stripped)})
+    normalized = bounded
     return {"text": normalized, "changed": normalized != original,
             "transformations": transformations,
             "risk_categories": get_speech_risks(original)}
@@ -154,3 +155,16 @@ def get_speech_normalization(text):
 def normalize_for_speech(text):
     """Return only the prepared text for existing TTS callers."""
     return get_speech_normalization(text)["text"]
+
+
+def get_speech_preparation(text, instruct=None):
+    """Return new text/instruction values with shared, deduplicated cues."""
+    normalized = get_speech_normalization(text)
+    hints = [hint for change in normalized["transformations"]
+             if change["type"] == "delivery_cues" for hint in change["hints"]]
+    instruction = instruct
+    if hints:
+        existing = str(instruct or "").strip()
+        additions = [hint for hint in hints if hint not in existing]
+        instruction = " ".join(filter(None, [existing] + additions))
+    return {"text": normalized["text"], "instruct": instruction}

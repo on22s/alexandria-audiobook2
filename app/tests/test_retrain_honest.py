@@ -12,8 +12,8 @@ class RetrainResumeTests(unittest.TestCase):
             path = os.path.join(directory, "result.json")
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump({"seed": 1234, "reference_rank": 1,
-                           "results": [{"adapter": "done"}]}, handle)
-            self.assertEqual([{"adapter": "done"}],
+                           "results": [{"adapter": "done", "new_ecapa_heldout": 0.7, "dur_ratio": 1.0, "n": 8}]}, handle)
+            self.assertEqual([{"adapter": "done", "new_ecapa_heldout": 0.7, "dur_ratio": 1.0, "n": 8}],
                              load_resumed_results(path, True, 1234, 1))
 
     def test_resume_refuses_a_different_reference_strategy(self):

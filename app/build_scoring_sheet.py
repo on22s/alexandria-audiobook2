@@ -16,23 +16,27 @@ import json
 import os
 import random
 
+from utils import atomic_json_write, is_path_inside
 from attribution_accuracy import normalize_speaker
 
-from compare_attribution_arms import normalize
+from compare_attribution_arms import normalize, load_attribution_entries
 
 
 def load_named(checkpoint_path):
-    with open(checkpoint_path, encoding="utf-8") as handle:
-        data = json.load(handle)
-    return [entry for entry in (data.get("named") or []) if entry]
+    return [entry for entry in load_attribution_entries(checkpoint_path) if entry]
 
 
 def find_model_runs(results_dir, book_tag):
     """Return {model_name: entries} for every model that finished this book."""
+    if (not isinstance(book_tag, str) or not book_tag or book_tag in (".", "..")
+            or any(char in book_tag for char in ("/", "\\", "\x00"))):
+        raise ValueError("book_tag must be a single directory name")
     runs = {}
-    pattern = os.path.join(results_dir, "*", book_tag,
+    pattern = os.path.join(glob.escape(os.fspath(results_dir)), "*", glob.escape(book_tag),
                            "result.json.threepass_checkpoint.json")
     for path in sorted(glob.glob(pattern)):
+        if not is_path_inside(path, results_dir):
+            raise ValueError(f"checkpoint is outside the results directory: {path}")
         model = path.split(os.sep)[-3]
         entries = load_named(path)
         if entries:
@@ -41,16 +45,11 @@ def find_model_runs(results_dir, book_tag):
 
 
 def neighbour_context(entries, position, window=3):
-    """Return (before, after) neighbouring lines as context for one entry.
+    """Return text-only neighbours from the explicitly selected sequence.
 
-    Searching the source text for the line was tried and abandoned: 35 of 50
-    lines could not be located, and a short common line like "Huh, what is it?"
-    matched the wrong occurrence. The entry sequence already is the source in
-    order, so the neighbours are the context - no searching, no mismatches.
-
-    Neighbour speakers are deliberately omitted. They are model output and may
-    be wrong; showing them would bias the very judgement being asked for. The
-    narration around a line is what names the speaker.
+    Model sequences remain model-specific unless their contexts agree. An
+    authoritative source sequence must have one unique target occurrence.
+    Speakers are omitted so model guesses cannot bias the scoring decision.
     """
     before = []
     for entry in entries[max(0, position - window):position]:
@@ -65,7 +64,7 @@ def neighbour_context(entries, position, window=3):
     return before, after
 
 
-def build_sheet(runs, size=50, seed=7, window=3):
+def build_sheet(runs, size=50, seed=7, window=3, source_entries=None):
     """Sample spoken lines and collect every model's answer for each.
 
     Lines are keyed on normalized text, so a line only enters the sheet if it
@@ -80,6 +79,8 @@ def build_sheet(runs, size=50, seed=7, window=3):
         by_text, by_position, seen_twice = {}, {}, set()
         for position, entry in enumerate(runs[model]):
             key = normalize(entry.get("text"))
+            if not key:
+                continue
             if key in by_text:
                 # Keeping the first occurrence silently compares unrelated
                 # instances of a repeated line - "Sorry." and "Cough..." recur
@@ -111,15 +112,41 @@ def build_sheet(runs, size=50, seed=7, window=3):
     chosen = (candidates if len(candidates) <= size
               else random.Random(seed).sample(candidates, size))
 
+    source_positions = {}
+    if source_entries is not None:
+        if not isinstance(source_entries, list) or any(not isinstance(entry, dict) for entry in source_entries):
+            raise ValueError("Source entries must be a list of objects")
+        for position, entry in enumerate(source_entries):
+            source_positions.setdefault(normalize(entry.get("text")), []).append(position)
+
     spine = models[0]
     rows = []
     for key in chosen:
         answers = {model: indexed[model][key].get("speaker") for model in models}
-        before, after = neighbour_context(runs[spine], positions[spine][key], window)
+        contexts = {}
+        for model in models:
+            before, after = neighbour_context(runs[model], positions[model][key], window)
+            contexts[model] = {"before": before, "after": after}
+        conflict = any(context != contexts[models[0]] for context in contexts.values())
+        if source_entries is not None:
+            matches = source_positions.get(key, [])
+            if len(matches) != 1:
+                raise ValueError(f"Target does not have one unique source occurrence: {key[:80]}")
+            before, after = neighbour_context(source_entries, matches[0], window)
+            origin = "source_entries"
+        elif conflict:
+            before, after = [], []
+            origin = "model_specific"
+        else:
+            before, after = contexts[models[0]]["before"], contexts[models[0]]["after"]
+            origin = "model_consensus"
         rows.append({
             "text": indexed[spine][key].get("text", "")[:400],
             "context_before": before,
             "context_after": after,
+            "context_origin": origin,
+            "context_conflict": conflict,
+            "context_by_model": contexts,
             "answers": answers,
             # Normalized, so "RUDI" and "rudi " are not a disagreement. The
             # raw values stay in "answers" for display.
@@ -141,19 +168,24 @@ def main():
                         help="Neighbouring lines of context each side (default 3). "
                              "A line alone is often unanswerable; the narration "
                              "around it names the speaker.")
+    parser.add_argument("--source-entries", help="Authoritative ordered source entries JSON for context")
     args = parser.parse_args()
+    if args.size < 0:
+        parser.error("--size must be nonnegative")
+    if args.window < 0:
+        parser.error("--window must be nonnegative")
 
     runs = find_model_runs(args.results_dir, args.book_tag)
     if not runs:
         print(f"no completed runs for {args.book_tag} under {args.results_dir}")
         return
-    rows = build_sheet(runs, args.size, args.seed, args.window)
+    source_entries = load_named(args.source_entries) if args.source_entries else None
+    rows = build_sheet(runs, args.size, args.seed, args.window, source_entries=source_entries)
     disputed = [r for r in rows if not r["models_agree"]]
-    with open(args.output, "w", encoding="utf-8") as handle:
-        json.dump({"book": args.book_tag, "models": sorted(runs),
-                   "entries_per_model": {m: len(e) for m, e in runs.items()},
-                   "sampled": len(rows), "disputed": len(disputed),
-                   "rows": rows}, handle, indent=2, ensure_ascii=False)
+    atomic_json_write({"book": args.book_tag, "models": sorted(runs),
+                       "entries_per_model": {m: len(e) for m, e in runs.items()},
+                       "sampled": len(rows), "disputed": len(disputed),
+                       "rows": rows}, args.output)
     print(f"models: {', '.join(sorted(runs))}")
     print(f"entries per model: {[len(e) for e in runs.values()]}")
     print(f"sampled {len(rows)} shared lines; {len(disputed)} disputed "

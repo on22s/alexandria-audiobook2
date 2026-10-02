@@ -10,7 +10,25 @@ from generate_script import LLMGenParams
 from script_repair import build_deterministic_repair
 
 
+def _load_orchestration_fixture_cast(names=("ELENA",)):
+    """Explicit supplied identity for orchestration sources that omit names."""
+    with tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, "cast.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump([{"name": name, "aliases": []} for name in names], handle)
+        return tp.load_cast(path)
+
+
 class PassHelperTests(unittest.TestCase):
+    def test_empty_prepared_source_refuses_before_checkpoint_or_llm(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = os.path.join(tmp, "script.json")
+            for source in ("", " \n\t"):
+                with self.assertRaisesRegex(ValueError, "no text to generate"):
+                    tp.run_three_pass(None, "model", source, None, 3000,
+                                      output_path=output)
+            self.assertEqual([], os.listdir(tmp))
+
     def test_unique_batches_isolate_duplicates_without_collapsing_prefix(self):
         seg = [{"type": "SPOKEN", "text": "Yes."},
                {"type": "SPOKEN", "text": "Yes."},
@@ -37,6 +55,16 @@ class PassHelperTests(unittest.TestCase):
             tp.resolve_chunk_size(-5, 6000)     # bad CLI value still caught
         with self.assertRaises(ValueError):
             tp.resolve_chunk_size(None, "big")  # non-int config
+
+    def test_boolean_chunk_sizes_are_rejected_before_generation_settings_are_used(self):
+        for cli, config, model in ((True, 3000, None), (False, 3000, None),
+                                   (None, True, None), (None, False, None),
+                                   (None, 3000, True), (None, 3000, False)):
+            with self.subTest(cli=cli, config=config, model=model):
+                with self.assertRaisesRegex(ValueError, "integer >= 1"):
+                    tp.resolve_chunk_size(cli, config, model)
+        self.assertEqual(1, tp.resolve_chunk_size(1, True))
+        self.assertEqual(3000, tp.resolve_chunk_size(None, True, 3000))
 
     def test_roster_collects_uppercase_non_narrator_speakers(self):
         entries = [{"speaker": "NARRATOR"}, {"speaker": "ELENA"},
@@ -130,6 +158,22 @@ class PassHelperTests(unittest.TestCase):
              {"type": "SPOKEN", "text": "read this now"},
              {"type": "NARRATOR", "text": "quietly."}],
             tp.split_outer_quote_regions(source))
+
+    def test_straight_quote_source_labels_reach_deterministic_attribution(self):
+        for separator in (" ", "\n", "\n\n"):
+            for opening, closing in ((chr(34), chr(34)), ("“", "”")):
+                source = "Narration.\n\nALICE:" + separator + opening + "Hello" + closing
+                with self.subTest(separator=separator, opening=opening):
+                    entries = tp.split_outer_quote_regions(source)
+                    self.assertEqual([{"type": "NARRATOR", "text": "Narration."},
+                                      {"type": "SPOKEN", "text": "Hello", "source_label": "ALICE"}], entries)
+                    self.assertEqual("ALICE", tp.get_deterministic_named_entry(entries[1])["speaker"])
+                    self.assertTrue(tp.validate_segment_quality(source, entries)["passed"])
+        self.assertEqual([{ "type": "NARRATOR", "text": "She said,"},
+                          {"type": "SPOKEN", "text": "Go."}],
+                         tp.split_outer_quote_regions('She said, "Go."'))
+        self.assertEqual([{ "type": "SPOKEN", "text": "ALICE"}],
+                         tp.split_outer_quote_regions('"ALICE"'))
 
     def test_explicit_source_speaker_label_attaches_to_spoken_region(self):
         source = 'Narration.\n\nBeatrice “Took it? From the Witch Cult?”'
@@ -599,7 +643,7 @@ class EndToEndTests(unittest.TestCase):
                                    [first, second, instructed])
         entries = tp.run_three_pass(client, "m", source,
                                     LLMGenParams(max_tokens=500, temperature=0.1),
-                                    chunk_size=6000)
+                                    chunk_size=6000, cast=_load_orchestration_fixture_cast(("ALICE", "BOB")))
         self.assertEqual(["ALICE", "BOB"], [e["speaker"] for e in entries])
 
     def test_every_model_call_is_announced_and_every_unit_finished(self):
@@ -623,7 +667,7 @@ class EndToEndTests(unittest.TestCase):
                 with contextlib.redirect_stdout(out):
                     tp.run_three_pass(client, "m", source,
                                       LLMGenParams(max_tokens=500, temperature=0.1, segmentation=mode),
-                                      chunk_size=6000)
+                                      chunk_size=6000, cast=_load_orchestration_fixture_cast())
                 lines = out.getvalue().splitlines()
                 self.assertEqual(asked, "Step 1 (split): chunk 1 of 1 - asking the model" in lines)
                 self.assertIn(done, lines)
@@ -652,7 +696,7 @@ class EndToEndTests(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             tp.run_three_pass(_client_returning([seg, named, instructed]), "m", source,
                               LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
-                              chunk_size=6000, planned_calls={1: 1, 2: 9, 3: 9})
+                              chunk_size=6000, planned_calls={1: 1, 2: 9, 3: 9}, cast=_load_orchestration_fixture_cast())
         etas = [l for l in out.getvalue().splitlines() if l.startswith("ETA: ")]
         self.assertEqual(3, len(etas), etas)
         tails = [re.search(r"\[eta_seconds=(\d+) fraction=([0-9.]+)\]$", l) for l in etas]
@@ -669,7 +713,7 @@ class EndToEndTests(unittest.TestCase):
         with contextlib.redirect_stdout(no_plan):
             tp.run_three_pass(_client_returning([seg, named, instructed]), "m", source,
                               LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
-                              chunk_size=6000)
+                              chunk_size=6000, cast=_load_orchestration_fixture_cast())
         self.assertNotIn("ETA: ", no_plan.getvalue())
 
     def test_eta_line_is_what_the_endpoint_parses(self):
@@ -698,7 +742,7 @@ class EndToEndTests(unittest.TestCase):
                       {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
         client = _client_returning([seg, named, instructed])
         params = LLMGenParams(max_tokens=500, temperature=0.1)
-        entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000)
+        entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000, cast=_load_orchestration_fixture_cast())
         self.assertEqual(2, len(entries))
         self.assertEqual({"speaker", "text", "instruct"}, set(entries[0].keys()))
         self.assertEqual("ELENA", entries[1]["speaker"])
@@ -864,6 +908,35 @@ class CheckpointTests(unittest.TestCase):
                     if f["pass"] == "instruct"]
         self.assertEqual([0, 1], [f["entry"] for f in failures])
 
+    def test_output_controls_change_the_saved_checkpoint_identity(self):
+        from dataclasses import replace
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        source = 'The room was cold. "Tell me the truth."'
+        for changed_params, options in [
+                (replace(params, seed=0), {}),
+                (replace(params, reasoning_effort="low"), {}),
+                (replace(params, reasoning_allowance=100), {}),
+                (replace(params, provider_extra_body={"enable_thinking": False}), {}),
+                (params, {"attribution_votes": 3}),
+                (params, {"vote_temperature": 0.7, "attribution_votes": 3}),
+                (params, {"first_person_narrator": "ELENA"})]:
+            with self.subTest(params=changed_params, options=options), tempfile.TemporaryDirectory() as tmp:
+                out = os.path.join(tmp, "book.json")
+                with patch.object(tp, "_load_three_pass_checkpoint", return_value=None) as load, \
+                     patch.object(tp, "_save_three_pass_checkpoint"), \
+                     patch.object(tp, "_write_manifest"), \
+                     patch.object(tp, "segment_chunk", side_effect=RuntimeError("stop after fingerprint")):
+                    with self.assertRaises(RuntimeError):
+                        tp.run_three_pass(None, "m", source, params, 6000, output_path=out)
+                    original = load.call_args.args[1]
+                    with self.assertRaises(RuntimeError):
+                        tp.run_three_pass(None, "m", source, changed_params, 6000, output_path=out, **options)
+                    changed = load.call_args.args[1]
+                tp._save_three_pass_checkpoint(out, original, "segment", [], 0, [], [])
+                self.assertIsNone(tp._load_three_pass_checkpoint(out, changed))
+                self.assertNotEqual(original, changed)
+                self.assertIsNotNone(tp._load_three_pass_checkpoint(out, original))
+
     def test_fingerprint_changes_with_output_affecting_settings(self):
         first = LLMGenParams(max_tokens=500, temperature=0.1)
         second = LLMGenParams(max_tokens=500, temperature=0.9)
@@ -896,12 +969,12 @@ class CheckpointTests(unittest.TestCase):
             crashing = _client_returning([seg])  # only pass-1 payload; pass 2 exhausts retries
             with self.assertRaises(tp.PassExhausted):
                 tp.run_three_pass(crashing, "m", source, params, chunk_size=6000,
-                                  output_path=out)
+                                  output_path=out, cast=_load_orchestration_fixture_cast())
             cp = tp.three_pass_checkpoint_path(out)
             self.assertTrue(os.path.exists(cp))
             resume_client = _client_returning([named, instructed])
             entries = tp.run_three_pass(resume_client, "m", source, params,
-                                        chunk_size=6000, output_path=out)
+                                        chunk_size=6000, output_path=out, cast=_load_orchestration_fixture_cast())
             self.assertEqual(2, len(entries))
             self.assertEqual("ELENA", entries[1]["speaker"])
 
@@ -911,13 +984,14 @@ class CheckpointTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
-            fingerprint = tp.three_pass_fingerprint(source, "m", 6000, params)
+            cast = _load_orchestration_fixture_cast()
+            fingerprint = tp.three_pass_fingerprint(source, "m", 6000, params, cast_sha256=cast["sha256"])
             tp._save_three_pass_checkpoint(
                 out, fingerprint, "segment", seg, 1, [], [],
                 resolutions=["context_rescue:2000"],
                 elapsed_s={"segment": 12.5, "attribute": 3.25})
             tp.run_three_pass(_client_returning([named, instructed]), "m", source,
-                              params, chunk_size=6000, output_path=out)
+                              params, chunk_size=6000, output_path=out, cast=cast)
             with open(tp.three_pass_manifest_path(out)) as fh:
                 manifest = json.load(fh)
         self.assertEqual("context_rescue:2000", manifest["chunks"][0]["resolution"])
@@ -1188,7 +1262,7 @@ class ManifestTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
-            tp.run_three_pass(client, "m", source, params, chunk_size=6000, output_path=out)
+            tp.run_three_pass(client, "m", source, params, chunk_size=6000, output_path=out, cast=_load_orchestration_fixture_cast())
             with open(tp.three_pass_manifest_path(out)) as handle:
                 man = json.load(handle)
         self.assertEqual("complete", man["status"])
@@ -1498,7 +1572,7 @@ class AttributionContextKnobTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=500, temperature=0.1, structured_output="off")
         tp.run_three_pass(client, "m", source, params, chunk_size=6000,
                           attribute_batch_size=2, attribute_context_chars=200,
-                          attribute_prompt_variant="michel2")
+                          attribute_prompt_variant="michel2", cast=_load_orchestration_fixture_cast())
         attribute_calls = [(s, u) for s, u in seen if "PASSAGE" in u]
         self.assertTrue(attribute_calls, "no michel2 attribution request was made")
         system, user = attribute_calls[0]
@@ -1534,7 +1608,7 @@ class AttributionContextKnobTests(unittest.TestCase):
         texts = {"system": "MY RULE: answer NARRATOR for narration.",
                  "user": "ESTABLISHED ROSTER: {roster}\n\nName the speaker:\n\n{batch}", "example": ""}
         tp.run_three_pass(client, "m", source, params, chunk_size=6000,
-                          attribute_prompt_variant="default", attribute_prompt_texts=texts)
+                          attribute_prompt_variant="default", attribute_prompt_texts=texts, cast=_load_orchestration_fixture_cast())
         attribute_calls = [(s, u) for s, u in seen if "Name the speaker" in u]
         self.assertTrue(attribute_calls, "the edited default template was not used")
         self.assertEqual("MY RULE: answer NARRATOR for narration.", attribute_calls[0][0])
@@ -1543,3 +1617,154 @@ class AttributionContextKnobTests(unittest.TestCase):
                                                          attribute_prompt_texts=None))
         self.assertNotEqual(base, tp.three_pass_fingerprint("text", "m", 3000, params,
                                                             attribute_prompt_texts=texts))
+
+
+class AttributionSchemaTransportTests(unittest.TestCase):
+    def test_strict_and_freeform_transports_bind_indices_without_heads(self):
+        import copy
+        import httpx
+        from openai import OpenAI
+        import generate_script
+        frozen = [{"type": "NARRATOR", "text": "Alice said,", "pause_after": 0.2},
+                  {"type": "SPOKEN", "text": "Come home. — now!"}]
+        original = copy.deepcopy(frozen)
+        responses = [{"n": 1, "speaker": "ALICE"}, {"n": 0, "speaker": "NARRATOR"}]
+        for mode in ("auto", "off"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                requests = []
+                def handle(request):
+                    payload = json.loads(request.content)
+                    requests.append(payload)
+                    if mode == "auto":
+                        schema = payload["response_format"]["json_schema"]
+                        self.assertTrue(schema["strict"])
+                        item = schema["schema"]["items"]
+                        self.assertFalse(item["additionalProperties"])
+                        self.assertEqual({"n", "speaker"}, set(item["required"]))
+                        self.assertEqual({"n", "speaker"}, set(item["properties"]))
+                        for response in responses:
+                            self.assertEqual(set(item["required"]), set(response))
+                    else:
+                        self.assertNotIn("response_format", payload)
+                    return httpx.Response(200, json={
+                        "id": "fixture", "object": "chat.completion", "created": 0,
+                        "model": "fixture", "choices": [{"index": 0,
+                            "message": {"role": "assistant", "content": json.dumps(responses)},
+                            "finish_reason": "stop"}]})
+                with OpenAI(base_url="http://provider.test/v1", api_key="fixture",
+                            http_client=httpx.Client(transport=httpx.MockTransport(handle))) as client, \
+                     patch.object(generate_script, "get_response_log_path",
+                                  return_value=os.path.join(tmp, "responses.log")):
+                    result = tp.attribute_batch(client, "fixture", frozen,
+                        LLMGenParams(max_tokens=500, structured_output=mode), roster=["ALICE"],
+                        source_text="Alice said, come home.", max_retries=0)
+                self.assertEqual(1, len(requests))
+                self.assertIn('return {"n": <same index>, "speaker": "..."}',
+                              requests[0]["messages"][0]["content"])
+                self.assertEqual([{"text": frozen[0]["text"], "pause_after": 0.2,
+                                   "speaker": "NARRATOR"},
+                                  {"text": frozen[1]["text"], "speaker": "ALICE"}], result)
+                self.assertEqual(original, frozen)
+
+    def test_legacy_heads_are_ignored_but_bad_indices_and_speakers_are_rejected(self):
+        frozen = [{"type": "NARRATOR", "text": "Alice said,"},
+                  {"type": "SPOKEN", "text": "Come home."}]
+        good = [{"n": 1, "head": "wrong old anchor", "speaker": "ALICE"},
+                {"n": 0, "head": None, "speaker": "NARRATOR"}]
+        self.assertTrue(tp.validate_attribution(frozen, good, "Alice said.")["passed"])
+        for responses in ([{"n": 0, "speaker": "NARRATOR"}] * 2,
+                          [{"n": 1, "speaker": "NARRATOR"}, {"n": 0, "speaker": "NARRATOR"}],
+                          [{"n": 1, "speaker": "INVENTED"}, {"n": 0, "speaker": "NARRATOR"}]):
+            with self.subTest(responses=responses):
+                self.assertFalse(tp.validate_attribution(frozen, responses, "Alice said. " * 500)["passed"])
+
+
+class QuoteContextRescueTests(unittest.TestCase):
+    def test_rescue_uses_carried_analysis_without_mutation_and_rejects_wrong_labels(self):
+        import copy
+        chunk = 'still talking here." He walked away.'
+        analysis = tp.analyze_outer_quote_regions(chunk, initial_depth=1)
+        prior = copy.deepcopy(analysis)
+        correct = [{"type": "SPOKEN", "text": "still talking here."},
+                   {"type": "NARRATOR", "text": "He walked away."}]
+        swapped = [{**entry, "type": "NARRATOR" if entry["type"] == "SPOKEN" else "SPOKEN"}
+                   for entry in correct]
+        params = LLMGenParams(segmentation="lexical", max_tokens=500)
+        for entries, passes in ((correct, True), (swapped, False)):
+            with self.subTest(passes=passes):
+                reports = []
+                def call(*args, **kwargs):
+                    report = kwargs["validate"](entries)
+                    reports.append(report)
+                    return entries if report["passed"] else []
+                with patch.object(tp, "_call_segment", side_effect=call):
+                    out = tp.segment_chunk_with_context(None, "m", chunk, 'He said, "', "", params,
+                                                        quote_analysis=analysis)
+                self.assertEqual(passes, reports[0]["passed"], reports)
+                self.assertEqual(entries if passes else [], out)
+                self.assertEqual(prior, analysis)
+
+    def test_standalone_and_continuation_controls_keep_bleed_guard(self):
+        cases = (("still talking here.", 1, [{"type": "SPOKEN", "text": "still talking here."}]),
+                 ('The effect was known as a "Mana Trail".', 0, [{"type": "NARRATOR", "text": "The effect was known as a"},
+                                                       {"type": "NARRATOR", "text": "Mana Trail"},
+                                                       {"type": "NARRATOR", "text": "."}]))
+        context = "This reference sentence belongs exclusively to another paragraph and must stay there."
+        for chunk, depth, entries in cases:
+            for bleed in (False, True):
+                with self.subTest(depth=depth, bleed=bleed):
+                    analysis = tp.analyze_outer_quote_regions(chunk, initial_depth=depth, allow_open_end=True)
+                    candidate = entries + ([{"type": "NARRATOR", "text": context}] if bleed else [])
+                    reports = []
+                    def call(*args, **kwargs):
+                        report = kwargs["validate"](candidate)
+                        reports.append(report)
+                        return candidate if report["passed"] else []
+                    with patch.object(tp, "_call_segment", side_effect=call):
+                        tp.segment_chunk_with_context(None, "m", chunk, context, "", LLMGenParams(segmentation="lexical"),
+                                                      quote_analysis=analysis)
+                    self.assertEqual(not bleed, reports[0]["passed"], reports)
+                    if bleed:
+                        self.assertIn("context_bleed", [f["code"] for f in reports[0]["findings"]])
+        # Omitted analysis preserves standalone callers and their lexical gate.
+        chunk, _, entries = cases[1]
+        with patch.object(tp, "_call_segment", side_effect=lambda *a, **kw:
+                          entries if kw["validate"](entries)["passed"] else []):
+            self.assertEqual(entries, tp.segment_chunk_with_context(None, "m", chunk, "", "", LLMGenParams(segmentation="lexical")))
+
+    def test_rescue_forwards_analysis_through_every_window(self):
+        chunks = ['He said, "', 'still talking here." He walked away.', "Afterwards."]
+        analysis = tp.analyze_outer_quote_regions(chunks[1], initial_depth=1)
+        params = LLMGenParams(segmentation="lexical")
+        with patch.object(tp, "segment_chunk_with_context", return_value=[]) as segment:
+            self.assertEqual([], tp.rescue_chunk_with_context(None, "m", chunks, 1, params,
+                             windows=(10, 100), max_retries=3, quote_analysis=analysis))
+        self.assertEqual(2, segment.call_count)
+        for call in segment.call_args_list:
+            self.assertIs(analysis, call.kwargs["quote_analysis"])
+            self.assertEqual(3, call.kwargs["max_retries"])
+        self.assertEqual(chunks[0][-10:], segment.call_args_list[0].args[3])
+        self.assertEqual(chunks[0], segment.call_args_list[1].args[3])
+
+    def test_pipeline_passes_analysis_used_for_normal_chunk_into_rescue(self):
+        class ReachedRescue(Exception):
+            pass
+        chunks = ['He said, "', 'still talking here." He walked away.']
+        analyses = []
+        def normal(*args, **kwargs):
+            analyses.append(kwargs["quote_analysis"])
+            if len(analyses) == 1:
+                return [{"type": "NARRATOR", "text": "He said,"}]
+            kwargs["failure_sink"].append({"context_required"})
+            return []
+        def rescue(*args, **kwargs):
+            self.assertIs(analyses[1], kwargs["quote_analysis"])
+            self.assertEqual(1, kwargs["quote_analysis"]["initial_depth"])
+            self.assertEqual(0, kwargs["quote_analysis"]["final_depth"])
+            raise ReachedRescue()
+        records = [{"text": text, "start": 0, "end": len(text)} for text in chunks]
+        with patch.object(tp, "split_into_chunk_records", return_value=records), \
+             patch.object(tp, "segment_chunk_adaptively", side_effect=normal), \
+             patch.object(tp, "rescue_chunk_with_context", side_effect=rescue):
+            with self.assertRaises(ReachedRescue):
+                tp.run_three_pass(None, "m", "".join(chunks), LLMGenParams(segmentation="lexical"), 6000)

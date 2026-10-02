@@ -109,21 +109,21 @@ class DuplicateBlockAgreementTest(unittest.TestCase):
                          "unresolvable")
 
     def test_every_caller_keys_off_source_occurrences(self):
-        """Guards the two callers that were already correct.
-
-        chunk_quality and pass_quality flag only when the source contains the
-        block once. If either ever drops that condition it starts refusing
-        faithful repeats, which is defect 1 all over again.
-        """
-        for module in (chunk_quality, pass_quality):
-            with self.subTest(module=module.__name__):
-                source = inspect.getsource(module)
-                index = source.find("find_adjacent_duplicate_blocks(")
-                self.assertGreater(index, 0)
-                window = source[index:index + 400]
-                self.assertIn("source_occurrences", window,
-                              f"{module.__name__} must consider how often the "
-                              "source contains the block before flagging it")
+        """Both gates accept faithful repeats and reject invented repeats."""
+        sources = (("\n".join([self.TITLE] * 4), False),
+                   (self.TITLE, True))
+        for module, gate, entries in (
+                (chunk_quality, chunk_quality.validate_chunk_quality,
+                 [{"text": self.TITLE, "speaker": "NARRATOR", "instruct": "Neutral."}] * 4),
+                (pass_quality, pass_quality.validate_segment_quality,
+                 [{"text": self.TITLE, "type": "NARRATOR"}] * 4)):
+            for source, unsupported in sources:
+                with self.subTest(module=module.__name__, unsupported=unsupported):
+                    report = gate(source, entries)
+                    codes = {finding["code"] for finding in report["findings"]}
+                    self.assertEqual(unsupported, "source_unsupported_duplicate" in codes)
+                    if not unsupported:
+                        self.assertTrue(report["passed"], report)
 
 
 class GateOrderingTest(unittest.TestCase):
@@ -175,7 +175,7 @@ class SourcePreprocessingAgreementTest(unittest.TestCase):
         for name in self.PREPROCESSORS:
             for module in (generate_script, three_pass_generate):
                 with self.subTest(preprocessor=name, module=module.__name__):
-                    self.assertIn(name, inspect.getsource(module),
+                    self.assertIn(name, inspect.getsource(module.get_preprocessed_source),
                                   f"{module.__name__} must apply {name}; a "
                                   "cleaner that runs on one path only means "
                                   "the same book behaves differently "
@@ -251,3 +251,55 @@ class SourceHealthPreflightAgreementTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SourceRepairStructuralAcceptanceTests(unittest.TestCase):
+    def test_cli_rejected_repairs_are_not_published_by_shared_preflight(self):
+        import json
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+        import repair_source_encoding as repair
+        import generate_script
+        import three_pass_generate
+
+        for source, regression in (("““can t—", "open_quote_ended_with_dash"),
+                                   ("—can t””", "close_quote_started_with_dash")):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "source.txt"
+                path.write_text(source, encoding="utf-8")
+                original = path.read_bytes()
+                cli = subprocess.run([sys.executable, str(Path(repair.__file__)), str(path), "--apply"],
+                    capture_output=True, text=True, timeout=20)
+                self.assertEqual(1, cli.returncode, cli.stderr)
+                report = json.loads((Path(tmp) / "source.repair_report.json").read_text())
+                self.assertFalse(report["quote_balance"]["structurally_sound"])
+                self.assertEqual(1, report["quote_balance"]["structural_regressions"][regression])
+                self.assertFalse((Path(tmp) / "source.repaired.txt").exists())
+                self.assertEqual(original, path.read_bytes())
+                for module in (repair, generate_script, three_pass_generate):
+                    with self.subTest(caller=module.__name__):
+                        result = module.preflight_source(source)
+                        self.assertEqual(source, result["text"])
+                        self.assertFalse(result["healthy"])
+                        self.assertEqual({}, result["applied"])
+                        self.assertTrue(result["findings"])
+                        self.assertTrue(any("structure" in message.lower()
+                                            for message in result["messages"]))
+                self.assertEqual(original, path.read_bytes())
+
+    def test_sound_repairs_and_healthy_sources_keep_existing_behavior(self):
+        import repair_source_encoding as repair
+        source = "“She s here. I can t go.”"
+        result = repair.preflight_source(source)
+        self.assertEqual("“She’s here. I can’t go.”", result["text"])
+        self.assertTrue(result["healthy"])
+        self.assertEqual(2, sum(result["applied"].values()))
+        self.assertEqual([], result["findings"])
+        sound = "“All is well,” she said."
+        clean = repair.preflight_source(sound)
+        self.assertEqual(sound, clean["text"])
+        self.assertTrue(clean["healthy"])
+        self.assertEqual({}, clean["applied"])
+        self.assertEqual([], clean["messages"])

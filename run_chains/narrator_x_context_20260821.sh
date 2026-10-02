@@ -49,7 +49,7 @@ run_stage narrator_x_context 4h -- \
     --narrator "thesignofthefour=DR. WATSON" \
     --keep-prompts --tag narrator_w3200 \
     --out "$runtime/experiments/two_stage_attribution_narrator_w3200.json"
-stage_commit_artifacts narrator_x_context "$REPO"
+stage_commit_artifacts narrator_x_context "$REPO" "$runtime/experiments/two_stage_attribution_narrator_w3200.json" "$runtime/experiments/two_stage_attribution_narrator_w3200.json.ckpt" "$runtime/experiments/two_stage_attribution_narrator_w3200.json.ckpt.stale"
 
 run_stage indexes 20m -- "$python" -u "$REPO/refresh_indexes.py"
 stage_summary narrator_x_context_20260821

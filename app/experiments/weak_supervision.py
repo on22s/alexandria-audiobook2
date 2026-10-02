@@ -31,6 +31,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = REPO + "/app/"
 sys.path.insert(0, APP)
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
 M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
 INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
@@ -177,7 +178,7 @@ def main():
         cp = M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"
         if not os.path.exists(cp):
             continue
-        seg = json.load(open(cp))["segmented"]
+        seg = load_generation_delta_checkpoint(cp)["segmented"]
         for i, e in enumerate(seg):
             if e.get("type") == "NARRATOR":
                 continue

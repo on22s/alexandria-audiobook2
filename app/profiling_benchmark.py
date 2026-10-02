@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 """Isolated production-backed worker for Voice Lab profiling benchmarks."""
 
+from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
 import argparse
-import base64
 import json
 import os
 import sys
 import time
 from voicelab_settings import get_voice_lab_script_path
+from lora_evidence import get_file_sha256
 
+
+
+def validate_profiling_files(fixture, zip_path, model_path):
+    """Verify actual worker paths against the immutable fixture identities."""
+    for path, key in ((zip_path, "zip_sha256"), (model_path, "model_sha256")):
+        if get_file_sha256(path) != fixture[key]:
+            raise ValueError(f"profiling {key.removesuffix('_sha256')}_path hash changed at execution")
 
 def execute_payload(payload):
+    fixture = payload["fixture"]
+    validate_profiling_files(fixture, payload["zip_path"], payload["model_path"])
     root_dir = payload["root_dir"]
     sys.path.insert(0, root_dir)
     sys.path.insert(0, os.path.dirname(get_voice_lab_script_path(root_dir, "voice_profiler.py")))
@@ -19,7 +29,6 @@ def execute_payload(payload):
                                 parse_book_title, parse_narrator_name)
     from llama_cpp import Llama
 
-    fixture = payload["fixture"]
     started = time.monotonic()
     model_started = time.monotonic()
     llm = Llama(model_path=payload["model_path"], n_ctx=2048,
@@ -39,6 +48,7 @@ def execute_payload(payload):
         book_title=parse_book_title(dataset_id),
         ref_text=get_ref_text(payload["zip_path"]))
     llm_seconds = time.monotonic() - llm_started
+    validate_profiling_files(fixture, payload["zip_path"], payload["model_path"])
     selected = {key: round(features[key], 6) for key in
                 ("mean_f0", "std_f0", "mean_rms", "speaking_rate",
                  "mean_centroid", "smoothness", "flatness")}
@@ -54,9 +64,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload", required=True)
     args = parser.parse_args()
-    payload = json.loads(base64.b64decode(args.payload).decode("utf-8"))
-    result = execute_payload(payload)
-    print("PROFILING_BENCHMARK_RESULT=" + json.dumps(result, separators=(",", ":")))
+    emit_benchmark_worker_result('PROFILING_BENCHMARK_RESULT=',
+                                 lambda: execute_payload(get_decoded_worker_payload(args.payload)))
 
 
 if __name__ == "__main__":

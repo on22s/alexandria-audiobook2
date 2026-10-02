@@ -61,7 +61,6 @@ per-character one.
 import argparse
 import json
 import os
-import pickle
 import random
 import shutil
 import re
@@ -125,8 +124,10 @@ def volume_centroids(cache_path):
     filesystem does, while manifests spell them with different punctuation.
     """
     import numpy as np
-    with open(cache_path, "rb") as fh:
-        cache = pickle.load(fh)
+    from voice_analysis_cache import load_voice_analysis_pickle
+    cache = load_voice_analysis_pickle(cache_path, None)
+    if cache is None:
+        raise FileNotFoundError(cache_path)
     out = {}
     for k, v in cache.items():
         e = np.asarray(v[0], dtype=np.float64)

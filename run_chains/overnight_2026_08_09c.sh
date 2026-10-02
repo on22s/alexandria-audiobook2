@@ -30,7 +30,7 @@
 # a coin flip, and run 1 (49/49) versus run 2 (died at 11) already suggests it
 # is closer to a coin flip.
 set -uo pipefail
-REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
+REPO="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
 IN="$REPO/ab_test_runtime/results/collect_all_20260722-155801/inputs"
@@ -42,25 +42,26 @@ BACKUP="$L/config.json.overnight_backup"
 # so this chain's outer wrapper and its inner jobs took different locks.
 # gpu_job.sh now defaults to the repo lock; letting it decide is the point.
 export GPU_QLOG="$L/gpu_jobq.log"
-mkdir -p "$L" "$OUT"
-cd "$REPO/app"
-
-restore_config() {
-    [ -f "$BACKUP" ] && command cp -f "$BACKUP" "$REPO/app/config.json" && \
-        echo "restored app/config.json"
-    # Stop only the server this script started, by the PID it recorded.
-    if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
-        kill "$SERVER_PID" 2>/dev/null; sleep 5
-        kill -0 "$SERVER_PID" 2>/dev/null && kill -9 "$SERVER_PID" 2>/dev/null
-        echo "stopped llama-server $SERVER_PID"
-    fi
+source "$REPO/run_chains/lib/config_backup.sh" || exit 1
+restore_llm_campaign_state() {
+    restore_config_backup "$BACKUP" "$REPO/app/config.json"
 }
-trap restore_config EXIT INT TERM
+export OVERNIGHT_STARTUP_VRAM_GB="${OVERNIGHT_STARTUP_VRAM_GB:-${REQUIRE_VRAM_GB:-4}}"
+export LLAMA_PORT=8090
+source "$REPO/run_chains/lib/llm_campaign.sh" || exit 4
+ensure_llm_campaign_lease overnight_2026_08_09c "$REPO/run_chains/overnight_2026_08_09c.sh" "$@" || exit $?
+env REQUIRE_VRAM_GB="$OVERNIGHT_STARTUP_VRAM_GB" bash "$REPO/gpu_job.sh" \
+    --check-vram overnight_2026_08_09c.startup || exit $?
+mkdir -p "$L" "$OUT"
+cd "$REPO/app" || exit 1
+STAGE_LOG_DIR="$L"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
+restore_config_backup "$BACKUP" "$REPO/app/config.json" || exit 1
 
-command cp -f "$REPO/app/config.json" "$BACKUP"
-"$PY" - <<'PYEOF'
-import json
-p = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/config.json"
+save_config_backup "$REPO/app/config.json" "$BACKUP" || exit 1
+"$PY" - "$REPO/app/config.json" <<'PYEOF' || exit 1
+import json, sys
+p = sys.argv[1]
 d = json.load(open(p, encoding="utf-8"))
 for key in ("llm", "llm_local"):
     if isinstance(d.get(key), dict):
@@ -69,33 +70,25 @@ json.dump(d, open(p, "w", encoding="utf-8"), indent=2)
 print("config -> qwen3-14b")
 PYEOF
 
-MODEL=~/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf
-nohup llama-server -m "$MODEL" --port 8090 --host 127.0.0.1 -c 32768 -np 1 \
-    -ngl 999 --alias qwen3-14b \
-    --chat-template-kwargs '{"enable_thinking":false}' \
-    > "$L/llama_server_qwen3.log" 2>&1 &
-SERVER_PID=$!
-echo "llama-server $SERVER_PID starting"
-
-# A run against a dead endpoint reports 0% completion and reads like a model
-# result. Refuse instead.
-for i in $(seq 1 40); do
-    sleep 15
-    curl -s -m 5 http://127.0.0.1:8090/v1/models 2>/dev/null | grep -q qwen3 && break
-done
-if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
-    echo "ABORT: server never came up"; exit 1
-fi
+MODEL="${ALEXANDRIA_QWEN3_MODEL:-$HOME/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf}"
+LLAMA_MODEL="$MODEL" LLAMA_PORT=8090 LLAMA_CTX=32768 LLAMA_THINKING=0 \
+    LLAMA_ALIAS=qwen3-14b LLAMA_LOG="$L/llama_server_qwen3.log" \
+    "$REPO/ensure_llama_server.sh" > "$L/overnight_server_start.log" 2>&1 || {
+        echo "ABORT: canonical server not ready; see $L/overnight_server_start.log"
+        exit 1
+    }
+LLM_CAMPAIGN_SERVER_READY=1
 echo "endpoint ready $(date -u +%FT%TZ)"
 
 stage() {
     local name="$1"; shift
-    echo ""
-    echo "=== $name  $(date -u +%FT%TZ) ==="
-    "$REPO/gpu_job.sh" "$name" "$@" > "$L/$name.log" 2>&1
-    echo "  rc=$?"
+    if [ "$name" = g31_recount ]; then
+        run_stage "$name" 0 -- "$@"
+    else
+        run_stage "$name" 0 -- env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
+            bash "$REPO/run_chains/lib/llm_job.sh" "$name" "$@"
+    fi
     tail -4 "$L/$name.log" | sed 's/^/  /' | cut -c1-115
-    return 0        # one failed book must not strand the rest of the night
 }
 
 # 1. Chunk 11 in isolation, five times (~25m).
@@ -120,5 +113,4 @@ stage g31_recount "$PY" -u experiments/chunk_completion.py \
     --scripts "$OUT" \
     --out "$REPO/ab_test_runtime/experiments/chunk_completion_goal31.json"
 
-echo ""
-echo "OVERNIGHT DONE $(date -u +%FT%TZ)"
+stage_summary overnight_2026_08_09c

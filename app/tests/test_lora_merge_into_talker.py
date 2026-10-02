@@ -3,6 +3,10 @@ through PEFT's per-step forward hook (goal 4.1: 1.25x -> 0.835x realtime)."""
 import sys
 import types
 import unittest
+import tempfile
+from tests.test_support import write_test_adapter
+import numpy as np
+import soundfile as sf
 from pathlib import Path
 from unittest.mock import patch
 
@@ -54,13 +58,18 @@ def _fake_model():
 class LoraMergeTests(unittest.TestCase):
     def setUp(self):
         _PeftWrapper.instances.clear()
+        temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
+        self.adapter=str(Path(temporary.name)/"some_voice")
+        write_test_adapter(self.adapter)
+        sf.write(str(Path(self.adapter)/"ref_sample.wav"),np.full(2400,.1),24000)
         self.fake_qwen = types.SimpleNamespace(Qwen3TTSModel=object())
         self.fake_peft = types.SimpleNamespace(PeftModel=_PeftWrapper)
         # CI has no torch; and a real torch first imported inside patch.dict
         # would be evicted on restore and fail to re-initialise.
         self.fake_torch = types.SimpleNamespace(bfloat16="bf16", float32="f32")
 
-    def _load(self, adapter="lora_models/some_voice"):
+    def _load(self, adapter=None):
+        adapter = self.adapter if adapter is None else adapter
         engine = tts_module.TTSEngine({"tts": {"mode": "local"}})
         with patch.dict(sys.modules, {"torch": self.fake_torch, "qwen_tts": self.fake_qwen,
                                   "peft": self.fake_peft}), \
@@ -74,7 +83,9 @@ class LoraMergeTests(unittest.TestCase):
         engine, model = self._load()
         [wrapper] = _PeftWrapper.instances
         self.assertTrue(wrapper.merged)
-        self.assertEqual("lora_models/some_voice", wrapper.adapter_path)
+        self.assertEqual(self.adapter, engine._lora_adapter_path)
+        self.assertNotEqual(self.adapter, wrapper.adapter_path)
+        self.assertFalse(Path(wrapper.adapter_path).exists())
         self.assertIs(model.model.talker, wrapper.base)
         self.assertIsInstance(model.model.talker, _Talker)
         self.assertEqual(1, model.model.talker.eval_calls)

@@ -24,6 +24,8 @@ def tokens(text):
 
 
 def ngrams(token_list, size):
+    if type(size) is not int or size < 1:
+        raise ValueError("n-gram size must be a positive integer")
     return list(zip(*(token_list[offset:] for offset in range(size))))
 
 

@@ -38,11 +38,11 @@ from core import (
     _stream_subprocess_to_logs,
     _validate_voicelab_path,
     check_global_gpu_lock,
-    claim_gpu_task,
+    claim_gpu_task, schedule_claimed_background_task,
     process_state,
 )
 from device_utils import normalize_device
-from utils import atomic_json_write, safe_load_json
+from utils import atomic_json_write, file_lock, safe_load_json
 from voicelab_settings import get_profiler_paths, get_voice_lab_script_path
 from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
@@ -111,13 +111,14 @@ def _run_profiler_preflight(command: list[str], env: dict) -> dict:
 
 
 def _build_profiler_command(rocm_python: str, profiler_model: str,
-                            epub_dirs: List[str]) -> list[str]:
+                            epub_dirs: List[str], device: Optional[str] = None) -> list[str]:
     """Build the one canonical profile/preflight command."""
     paths = get_profiler_paths(ROOT_DIR, DATA_DIR)
     command = [rocm_python, "-u", get_voice_lab_script_path(ROOT_DIR, "voice_profiler.py"),
                "--manifest", paths["manifest"],
                "--model", profiler_model or paths["model"],
-               "--output_csv", paths["output_csv"]]
+               "--output_csv", paths["output_csv"],
+               "--device", normalize_device(device)]
     for epub_dir in epub_dirs:
         command += ["--epub-dir", epub_dir]
     return command
@@ -170,9 +171,48 @@ def _probe_voicelab_interpreter(rocm_python: str) -> dict:
         return {}
 
 
+def get_voicelab_stages(stages: list[str]) -> list[str]:
+    """Validate stage selection and return canonical pipeline order."""
+    bad = [stage for stage in stages if stage not in VOICELAB_STAGES]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"Unknown stage(s): {', '.join(bad)}")
+    ordered = [stage for stage in VOICELAB_STAGES if stage in stages]
+    if not ordered:
+        raise HTTPException(status_code=400, detail="No stages selected.")
+    return ordered
+
+
+def is_voicelab_cpu_only(stages: list[str]) -> bool:
+    """Only a canonical naming-only pipeline avoids GPU admission."""
+    return stages == ["name"]
+
+
+def get_voicelab_path_pairs(cfg: dict) -> list[tuple[str, str]]:
+    """Collect operator paths using the same ZIP-root resolution as the pipeline."""
+    pairs = [(cfg.get("rocm_python") or "", "rocm_python"),
+             (cfg.get("profiler_model") or "", "profiler_model")]
+    raw = (cfg.get("zips_dir") or "").strip()
+    if raw:
+        pairs.append((_resolve_zips_dir(raw), "zips_dir"))
+    pairs.extend((path, "epub_dirs") for path in cfg.get("epub_dirs") or [])
+    return pairs
+
+
+def _validate_voicelab_config_paths(cfg: dict) -> None:
+    for path, label in get_voicelab_path_pairs(cfg):
+        if path:
+            _validate_voicelab_path(path, label)
+
+
 def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     """Build the canonical read-only start decision and sanitized UI report."""
-    stages = [stage for stage in VOICELAB_STAGES if stage in request.stages]
+    stages = get_voicelab_stages(request.stages)
+    effective_cfg = {**cfg,
+                     "zips_dir": request.zips_dir or cfg.get("zips_dir"),
+                     "profiler_model": request.profiler_model or cfg.get("profiler_model") or
+                         (get_profiler_paths(ROOT_DIR, DATA_DIR)["model"]
+                          if "profile" in stages else "")}
+    _validate_voicelab_config_paths(effective_cfg)
     blockers, warnings = [], []
     def finding(target, code, message):
         target.append({"code": code, "message": message})
@@ -234,7 +274,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
             item["code"] in ("dependencies_missing", "profiler_model_missing") for item in blockers):
         try:
             _run_profiler_preflight(
-                _build_profiler_command(rocm, profiler_model, cfg.get("epub_dirs") or []),
+                _build_profiler_command(rocm, profiler_model, cfg.get("epub_dirs") or [], request.device),
                 _rocm_env(rocm))
         except HTTPException as exc:
             finding(blockers, "profiler_not_ready", str(exc.detail))
@@ -259,6 +299,9 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
               "zips": zip_count, "deduped": deduped_count, "interpreter_ok": interpreter_ok,
               "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
               "missing_deps": missing_deps, "blockers": [item["code"] for item in blockers],
+              "profiler_command": (_build_profiler_command(
+                  rocm, profiler_model, cfg.get("epub_dirs") or [], request.device)
+                  if "profile" in stages else None),
               "settings": [requested_device, request.target_loss, request.max_epochs,
                            request.lora_r, request.candidate_checkpoints, request.name_apply,
                            request.name_overwrite]}
@@ -360,7 +403,9 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
             stage_started = stage_records[idx].get("started_at")
         elapsed = _elapsed_seconds(stage_started or (active_record or {}).get("started_at"))
         # Reuse the shared progress/ETA estimator (no new logic, no new poll).
-        eta = _compute_eta(state)
+        eta = state.get("eta")
+        if eta is None:
+            eta = _compute_eta(state)
         active = {
             "run_id": run_id,
             "stage": stage_name,
@@ -495,6 +540,7 @@ async def voicelab_preflight(request: VoiceLabRequest):
 async def voicelab_get_config():
     """Return the pipeline paths plus whether each resolves on this machine."""
     cfg = _load_voicelab_config()
+    _validate_voicelab_config_paths(cfg)
     zips_dir_ok = False
     try:
         resolved_zips = _resolve_zips_dir(cfg["zips_dir"])
@@ -504,6 +550,7 @@ async def voicelab_get_config():
 
     profiler_paths = get_profiler_paths(ROOT_DIR, DATA_DIR)
     effective_profiler_model = cfg["profiler_model"] or profiler_paths["model"]
+    _validate_voicelab_path(effective_profiler_model, "profiler_model")
     profiler_ready = False
     profiler_errors = []
     if os.path.isfile(cfg["rocm_python"]):
@@ -536,27 +583,30 @@ async def voicelab_get_config():
 
 @router.post("/api/voicelab/config")
 async def voicelab_save_config(request: VoiceLabConfig):
-    cfg = _load_voicelab_config()
-    updates = {k: (v.strip() if isinstance(v, str) else v)
-               for k, v in request.model_dump(exclude_none=True).items()}
+    def _save():
+        with file_lock(VOICELAB_CONFIG_PATH):
+            cfg = _load_voicelab_config()
+            updates = {k: (v.strip() if isinstance(v, str) else v)
+                       for k, v in request.model_dump(exclude_none=True).items()}
 
-    if updates.get("rocm_python"):
-        path = updates["rocm_python"]
-        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
-            raise HTTPException(status_code=400,
-                                detail=f"rocm_python must be an existing, executable file: {path}")
-        _validate_voicelab_path(path, "rocm_python")
-    if updates.get("profiler_model"):
-        if not os.path.isfile(updates["profiler_model"]):
-            raise HTTPException(status_code=400,
-                                detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
-        _validate_voicelab_path(updates["profiler_model"], "profiler_model")
-    if "epub_dirs" in updates:
-        updates["epub_dirs"] = [path.strip() for path in updates["epub_dirs"] if path.strip()]
+            if updates.get("rocm_python"):
+                path = updates["rocm_python"]
+                if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+                    raise HTTPException(status_code=400,
+                                        detail=f"rocm_python must be an existing, executable file: {path}")
+            if updates.get("profiler_model"):
+                if not os.path.isfile(updates["profiler_model"]):
+                    raise HTTPException(status_code=400,
+                                        detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
+            if "epub_dirs" in updates:
+                updates["epub_dirs"] = [path.strip() for path in updates["epub_dirs"] if path.strip()]
 
-    cfg.update(updates)
-    atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
-    return {"status": "saved", "config": cfg}
+            cfg = {**cfg, **updates}
+            _validate_voicelab_config_paths(cfg)
+            atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
+            return {"status": "saved", "config": cfg}
+
+    return await asyncio.to_thread(_save)
 
 
 def _resolve_zips_dir(raw: str) -> str:
@@ -678,7 +728,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
             cmd += ["--device", req.device]
         steps.append(("evaluate", cmd, ROOT_DIR, rocm_env))
     if "profile" in req.stages:
-        cmd = _build_profiler_command(rocm, profiler_model, cfg["epub_dirs"])
+        cmd = _build_profiler_command(rocm, profiler_model, cfg["epub_dirs"], req.device)
         steps.append(("profile", cmd, ROOT_DIR, rocm_env))
     if "name" in req.stages:
         # Pure stdlib — safe to run under the web app's own interpreter/env
@@ -693,14 +743,16 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
 
 
 def _revalidate_voicelab_runtime(zips_dir: str, rocm_python: str,
-                                 profiler_model: str, stages: list[str]) -> Optional[HTTPException]:
+                                 profiler_model: str, stages: list[str],
+                                 epub_dirs: Optional[list[str]] = None) -> Optional[HTTPException]:
     """Recheck mutable filesystem prerequisites immediately before subprocess launch."""
-    error = _revalidate_voicelab_paths(
-        (zips_dir, "zips_dir"),
-        (rocm_python if any(stage in stages for stage in ("quality", "dedup", "train", "evaluate", "profile"))
-         else None, "rocm_python"),
-        (profiler_model if "profile" in stages else None, "profiler_model"),
-    )
+    error = _revalidate_voicelab_paths(*get_voicelab_path_pairs({
+        "zips_dir": zips_dir,
+        "rocm_python": rocm_python if any(stage in stages for stage in
+            ("quality", "dedup", "train", "evaluate", "profile")) else "",
+        "profiler_model": profiler_model if "profile" in stages else "",
+        "epub_dirs": epub_dirs if "profile" in stages else [],
+    }))
     if error:
         return error
     if any(stage in stages for stage in ("quality", "dedup", "train", "evaluate", "profile")) and not (
@@ -722,13 +774,8 @@ def _revalidate_voicelab_runtime(zips_dir: str, rocm_python: str,
 @router.post("/api/voicelab/start")
 async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
     """Run the selected pipeline stages in sequence as one cancel/pausable job."""
-    bad = [s for s in request.stages if s not in VOICELAB_STAGES]
-    if bad:
-        raise HTTPException(status_code=400, detail=f"Unknown stage(s): {', '.join(bad)}")
-    # Keep canonical pipeline order regardless of how the request listed them
-    request.stages = [s for s in VOICELAB_STAGES if s in request.stages]
-    if not request.stages:
-        raise HTTPException(status_code=400, detail="No stages selected.")
+    request = request.model_copy(update={"stages": get_voicelab_stages(request.stages)})
+    cpu_only = is_voicelab_cpu_only(request.stages)
 
     cfg = _load_voicelab_config()
     preflight = await asyncio.to_thread(_build_voicelab_preflight, request, cfg)
@@ -740,18 +787,24 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=400, detail="; ".join(
             finding["message"] for finding in preflight["blockers"]))
     zips_dir = preflight["_zips_dir"]
-    _validate_voicelab_path(zips_dir, "zips_dir")
-    if cfg.get("rocm_python"):
-        _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
     profiler_model = preflight["_profiler_model"]
-    if profiler_model:
-        _validate_voicelab_path(profiler_model, "profiler_model")
+    _validate_voicelab_config_paths({**cfg, "zips_dir": zips_dir,
+                                     "profiler_model": profiler_model})
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
     effective_profiler_model = next(
         (command[command.index("--model") + 1]
          for stage, command, _cwd, _env in steps if stage == "profile"), "")
-    check_global_gpu_lock("voicelab")
+    if cpu_only:
+        check_global_gpu_lock("voicelab", cpu_only=True)
+    else:
+        check_global_gpu_lock("voicelab")
+    pending_recovery = list_adapters_needing_recovery(
+        LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    if pending_recovery:
+        adapters = ", ".join(item["adapter_id"] for item in pending_recovery)
+        raise HTTPException(status_code=409,
+                            detail=f"Recover pending LoRA checkpoint swaps before Voice Lab starts: {adapters}")
 
     def _run():
         state = process_state["voicelab"]
@@ -798,7 +851,8 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             # Each earlier stage may run for hours. Recheck immediately before
             # this subprocess, not only when the background pipeline begins.
             error = _revalidate_voicelab_runtime(
-                zips_dir, cfg["rocm_python"], effective_profiler_model, [stage])
+                zips_dir, cfg["rocm_python"], effective_profiler_model, [stage],
+                cfg.get("epub_dirs") or [])
             if error:
                 state["logs"].append(f"[{stage}] aborted: {error.detail}")
                 state["tasks"][i]["status"] = "failed"
@@ -879,8 +933,9 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                 "next_action": "Review generated adapters and evaluation evidence.",
             })
 
-    claim_gpu_task("voicelab")
-    background_tasks.add_task(_run_claimed_background_task, "voicelab", _run)
+    schedule_claimed_background_task(background_tasks, "voicelab", _run_claimed_background_task, "voicelab", _run,
+                                     cpu_only=cpu_only)
+    process_state["voicelab"]["zips_dir"] = zips_dir
     return {"status": "started", "stages": request.stages, "zips_dir": zips_dir}
 
 

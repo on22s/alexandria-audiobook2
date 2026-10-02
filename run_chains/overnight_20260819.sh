@@ -18,11 +18,15 @@ export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 DEADLINE=$(date -d "2026-08-19 14:30" +%s)
 left() { echo $(( DEADLINE - $(date +%s) )); }
+if [ "$(left)" -le 0 ]; then
+    stage_note "REFUSING: the overnight deadline has expired"
+    exit 1
+fi
 
 reclaim_vram() {
-    # -x, never -f: Rule 22.
-    pgrep -x llama-server >/dev/null 2>&1 && { pkill -x llama-server; sleep 5; }
-    return 0
+    # Queue ownership serializes server cleanup with every active GPU job.
+    # Queue waiting stays unbounded; existing cleanup/VRAM bounds still apply.
+    run_stage "$1" 0 --needs-vram -- "$REPO/gpu_job.sh" "$1" true
 }
 
 start_server() {
@@ -46,7 +50,7 @@ run_stage two_stage_attribution 4h -- \
     env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
     "$REPO/gpu_job.sh" two_stage_attribution \
     "$python" -u "$REPO/app/experiments/two_stage_attribution.py" --limit 200
-stage_commit_artifacts two_stage_attribution "$REPO"
+stage_commit_artifacts two_stage_attribution "$REPO" "$runtime/experiments/two_stage_attribution__current.json" "$runtime/experiments/two_stage_attribution__current.json.ckpt" "$runtime/experiments/two_stage_attribution__current.json.ckpt.stale"
 
 # ---- 3. The narrator prior, on the book it was built for --------------------
 # mushoku18 is first person, its narrator speaks aloud, and 51% of its spoken
@@ -58,7 +62,7 @@ if [ "$(left)" -gt 7200 ]; then
         "$python" -u "$REPO/app/generate_script.py" "$inputs/mushoku18.txt" \
         --narrator RUDEUS \
         --output "$runtime/unseen_books/mushoku18_narrator.json"
-    stage_commit_artifacts mushoku18_narrator "$REPO"
+    # This generator writes under unseen_books, outside the experiment commit scope.
 fi
 
 # ---- 4. index18, now that its text is not corrupt ---------------------------
@@ -70,18 +74,18 @@ if [ "$(left)" -gt 7200 ]; then
         "$REPO/gpu_job.sh" index18_clean \
         "$python" -u "$REPO/app/generate_script.py" "$inputs/index18.txt" \
         --output "$runtime/unseen_books/index18_clean.json"
-    stage_commit_artifacts index18_clean "$REPO"
+    # This generator writes under unseen_books, outside the experiment commit scope.
 fi
 
 # ---- 5. The fourth unseen book, resumed from its checkpoint -----------------
 if [ "$(left)" -gt 5400 ]; then
     run_stage unseen_books_resume 3h -- \
         env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books.sh"
-    stage_commit_artifacts unseen_books_resume "$REPO"
+    # This generator writes under unseen_books, outside the experiment commit scope.
 fi
 
 # ---- 6. TTS work, which wants the card to itself ---------------------------
-reclaim_vram
+reclaim_vram reclaim_before_tts
 if [ "$(left)" -gt 3600 ]; then
     run_stage e_row_second_voice 2h -- \
         "$REPO/gpu_job.sh" e_row_second_voice \
@@ -89,17 +93,17 @@ if [ "$(left)" -gt 3600 ]; then
         --min-books 5 --only-e-row --e-spelling ay --limit 200 \
         --work "$runtime/respelling_voice2" \
         --out "$runtime/experiments/respelling_e_row__ay_voice2.json"
-    stage_commit_artifacts e_row_second_voice "$REPO"
+    stage_commit_artifacts e_row_second_voice "$REPO" "$runtime/experiments/respelling_e_row__ay_voice2.json"
 fi
 
 # ---- 7. Whatever the night has left ----------------------------------------
 if [ "$(left)" -gt 3600 ]; then
     run_stage replay_remaining "$(left)s" -- \
         "$REPO/run_chains/replay_dirty_evidence_20260817.sh"
-    stage_commit_artifacts replay_remaining "$REPO"
+    # The child commits each dispatched artifact by its exact path.
 fi
 
-reclaim_vram
+reclaim_vram reclaim_after_replay
 
 # CPU work, safe to run beside anything and independent of the card.
 run_stage dialogue_map_corpus 30m -- \

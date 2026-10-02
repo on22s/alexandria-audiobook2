@@ -1432,7 +1432,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -1474,7 +1474,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -1516,7 +1516,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -2966,7 +2966,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": true,
@@ -3011,7 +3011,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": true,
@@ -3439,7 +3439,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -3784,7 +3784,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": true,
@@ -3828,7 +3828,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": true,
@@ -4007,7 +4007,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": false,
@@ -4029,7 +4029,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": true,
@@ -4757,7 +4757,7 @@
       "problems": [],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
@@ -5192,7 +5192,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": false,
@@ -5236,7 +5236,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": false,
@@ -5324,7 +5324,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry could not be verified from local history"
       ],
       "current_gold": {
         "available": false,
@@ -7162,7 +7162,7 @@
       ],
       "current_gold": {
         "available": true,
-        "hash_changed": false,
+        "hash_changed": true,
         "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,

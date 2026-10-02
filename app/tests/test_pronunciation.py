@@ -21,12 +21,12 @@ class LexiconTest(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        pronunciation._cache.update({"path": None, "mtime": None,
+        pronunciation._cache.update({"path": None, "fingerprint": None,
                                      "entries": {}, "pattern": None})
 
     def tearDown(self):
         self.tmp.cleanup()
-        pronunciation._cache.update({"path": None, "mtime": None,
+        pronunciation._cache.update({"path": None, "fingerprint": None,
                                      "entries": {}, "pattern": None})
 
     def write(self, names):
@@ -126,7 +126,7 @@ class ShippedLexiconTest(unittest.TestCase):
         """Entries must be measured, not guessed. If this ever fails it means
         somebody added a respelling - which is fine, but it should be because
         proper_noun_pronunciation.py showed it helped."""
-        pronunciation._cache.update({"path": None, "mtime": None,
+        pronunciation._cache.update({"path": None, "fingerprint": None,
                                      "entries": {}, "pattern": None})
         entries = load_lexicon()
         for name, spoken in entries.items():
@@ -239,7 +239,7 @@ class NormalizationIntegrationTest(unittest.TestCase):
         with open(p, "w", encoding="utf-8") as fh:
             json.dump({"names": {"Subaru": "Soo-bah-roo"}}, fh)
         original, pr.DEFAULT_PATH = pr.DEFAULT_PATH, p
-        pr._cache.update({"path": None, "mtime": None, "entries": {},
+        pr._cache.update({"path": None, "fingerprint": None, "entries": {},
                           "pattern": None})
         try:
             out = get_speech_normalization("Subaru walked on.")
@@ -248,9 +248,86 @@ class NormalizationIntegrationTest(unittest.TestCase):
             self.assertIn("pronunciation_lexicon", kinds)
         finally:
             pr.DEFAULT_PATH = original
-            pr._cache.update({"path": None, "mtime": None, "entries": {},
+            pr._cache.update({"path": None, "fingerprint": None, "entries": {},
                               "pattern": None})
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LexiconFileFingerprintTests(unittest.TestCase):
+    def test_equal_mtime_and_size_edit_refreshes_actual_respelling_and_evidence(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "pronunciation.json")
+            path.write_text(json.dumps({"names": {"Subaru": "First"}}))
+            before_stat = path.stat()
+            self.assertEqual(("First arrived", [{"name": "Subaru", "spoken": "First"}]),
+                             apply_pronunciation("Subaru arrived", str(path)))
+            path.write_text(json.dumps({"names": {"Subaru": "Other"}}))
+            os.utime(path, ns=(before_stat.st_atime_ns, before_stat.st_mtime_ns))
+            self.assertEqual(before_stat.st_size, path.stat().st_size)
+            self.assertEqual(before_stat.st_mtime_ns, path.stat().st_mtime_ns)
+            self.assertEqual(("Other arrived", [{"name": "Subaru", "spoken": "Other"}]),
+                             apply_pronunciation("Subaru arrived", str(path)))
+            data = path.read_bytes()
+            with patch.object(pronunciation.json, "load", side_effect=AssertionError("cache miss")):
+                loaded = load_lexicon(str(path))
+                loaded["Subaru"] = "external mutation"
+                self.assertEqual("Other", load_lexicon(str(path))["Subaru"])
+            self.assertEqual(data, path.read_bytes())
+
+    def test_same_timestamp_atomic_replacement_and_malformed_recovery_are_observed(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "pronunciation.json")
+            path.write_text(json.dumps({"names": {"Subaru": "First"}}))
+            before_stat = path.stat()
+            self.assertEqual("First", apply_pronunciation("Subaru", str(path))[0])
+            replacement = Path(tmp, "replacement.json")
+            replacement.write_text(json.dumps({"names": {"Subaru": "Third"}}))
+            os.utime(replacement, ns=(before_stat.st_atime_ns, before_stat.st_mtime_ns))
+            os.replace(replacement, path)
+            self.assertEqual(before_stat.st_size, path.stat().st_size)
+            self.assertNotEqual(before_stat.st_ino, path.stat().st_ino)
+            self.assertEqual("Third", apply_pronunciation("Subaru", str(path))[0])
+            path.write_bytes(b"{bad")
+            malformed = path.stat()
+            self.assertEqual(("Subaru", []), apply_pronunciation("Subaru", str(path)))
+            path.write_text(json.dumps({"names": {"Subaru": "Valid"}}))
+            os.utime(path, ns=(malformed.st_atime_ns, malformed.st_mtime_ns))
+            self.assertEqual("Valid", apply_pronunciation("Subaru", str(path))[0])
+            path.unlink()
+            self.assertEqual(("Subaru", []), apply_pronunciation("Subaru", str(path)))
+
+
+class CharacterFormsRuntimeTests(unittest.TestCase):
+    def test_default_roster_paths_follow_runtime_root_and_explicit_paths_still_override(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            legacy = root / "legacy"
+            runtime = root / "runtime"
+            for folder, chunks, aliases, voices in (
+                    (legacy, [{"speaker": "LEGACY", "text": "Legacy waited."}], {}, {"LEGACY": {}}),
+                    (runtime, [{"speaker": "NARRATOR", "text": "Rina sees Mina."}], {"MINA": "RINA"}, {"RINA": {}})):
+                folder.mkdir()
+                for name, value in (("chunks.json", chunks), ("character_aliases.json", aliases), ("voice_config.json", voices)):
+                    (folder / name).write_text(json.dumps(value))
+            before = {p: p.read_bytes() for p in root.rglob("*.json")}
+            with patch.object(pronunciation, "REPO", str(legacy)), \
+                 patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": str(runtime)}):
+                forms = pronunciation.character_forms()
+                self.assertEqual({"Rina", "Mina"}, set(forms))
+                self.assertEqual(1, forms["Rina"]["occurrences"])
+                self.assertEqual(1, forms["Mina"]["occurrences"])
+                self.assertEqual({"Legacy"}, set(pronunciation.character_forms(
+                    script_path=str(legacy / "chunks.json"), aliases_path=str(legacy / "character_aliases.json"),
+                    voice_config_path=str(legacy / "voice_config.json"))))
+            with patch.object(pronunciation, "REPO", str(legacy)), patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": ""}):
+                self.assertEqual({"Legacy"}, set(pronunciation.character_forms()))
+            for path, data in before.items():
+                self.assertEqual(data, path.read_bytes())

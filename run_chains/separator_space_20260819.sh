@@ -27,7 +27,7 @@ run_stage separator_space 3h --needs-vram -- \
     --min-books 5 --only-e-row --separator space --limit 120 \
     --work "$runtime/respelling_sep_space" \
     --out "$runtime/experiments/respelling_separator__space.json"
-stage_commit_artifacts separator_space "$REPO"
+stage_commit_artifacts separator_space "$REPO" "$runtime/experiments/respelling_separator__space.json"
 
 # All three arms together. This now REFUSES rather than writing an empty
 # artifact if any arm has no clips, so a repeat of the silent zero is loud.
@@ -36,6 +36,6 @@ run_stage separator_pauses_all 1h -- \
     --arm none=respelling_sep_none --arm space=respelling_sep_space \
     --arm dot=respelling_sep_dot \
     --out "$runtime/experiments/respelling_pauses_separators.json"
-stage_commit_artifacts separator_pauses_all "$REPO"
+stage_commit_artifacts separator_pauses_all "$REPO" "$runtime/experiments/respelling_pauses_separators.json"
 
 stage_summary separator_space_20260819

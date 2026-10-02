@@ -1,23 +1,15 @@
-"""Make a local run see the same imports CI sees.
+"""Run the unit suite with the dependency visibility provided by CI.
 
-CI installs `requirements.txt` minus transformers/peft, and torch is not in
-requirements.txt at all (production gets it from torch.js, which install.js runs
-via the "ai" bundle). A dev machine therefore has torch/transformers/peft while
-CI does not, so a test that touches one of them passes locally and fails in CI.
-
-Blocking those imports here lets verify_release.py predict CI instead of just
-re-testing the developer's own machine.
-
-Keep BLOCKED_MODULES in step with .github/workflows/tests.yml — the drift test
-in test_release_verifier.py fails if they disagree.
+CI installs CPU Torch and all requirements, including PEFT/Transformers, so
+structural adapter tests use real config and tensor parsers. Explicit import
+blocking remains available to exercise missing-dependency failure paths.
+Keep BLOCKED_MODULES aligned with .github/workflows/tests.yml.
 """
 
 import sys
 
-# torch: never in requirements.txt (torch.js ships it in production).
-# transformers/peft: explicitly filtered out by the CI workflow's pip install.
-BLOCKED_MODULES = ("torch", "transformers", "peft")
-
+# CI now installs every ML import required for CPU structural checks.
+BLOCKED_MODULES = ()
 
 class _BlockedImportFinder:
     """Raise ImportError for BLOCKED_MODULES and anything under them."""
@@ -35,16 +27,22 @@ class _BlockedImportFinder:
 
 
 def block_ml_imports(blocked=BLOCKED_MODULES):
-    """Install the finder. Also drop already-imported modules so a module
+    """Apply the current policy with one finder. Drop already-imported modules so a module
     imported before this call cannot mask the block."""
+    blocked = tuple(dict.fromkeys(blocked))
+    finders = [finder for finder in sys.meta_path if isinstance(finder, _BlockedImportFinder)]
+    finder = finders[0] if finders else _BlockedImportFinder(blocked)
+    finder._blocked = blocked
+    sys.meta_path[:] = [item for item in sys.meta_path if not isinstance(item, _BlockedImportFinder)]
     for name in list(sys.modules):
         if name.split(".", 1)[0] in blocked:
             del sys.modules[name]
-    sys.meta_path.insert(0, _BlockedImportFinder(blocked))
+    if blocked:
+        sys.meta_path.insert(0, finder)
 
 
 def main(argv=None):
-    """Run unittest with the ML libraries blocked.
+    """Run unittest with the same import exclusions as CI.
 
     Usage: python -m ci_env discover -s . -p "test_*.py"
     """

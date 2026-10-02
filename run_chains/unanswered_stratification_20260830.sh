@@ -43,24 +43,27 @@ ADAPTER="$runtime/distill/gguf/new_20260824/adapter_author_heldout_balanced.gguf
 PORT="${LLAMA_PORT:-8090}"
 out="$runtime/experiments/lora_serving_eval__${TAG}.json"
 
-if [ -s "$out" ]; then
+if [ -s "$out" ] && "$python" "$REPO/app/experiments/serving_results.py" "$out"; then
     echo "[$(date -u +%FT%TZ)] SKIP $TAG (already complete)"; exit 0
 fi
 [ -s "$ADAPTER" ] || { echo "REFUSING: missing adapter $ADAPTER" >&2; exit 1; }
 
+# Keep server lifetime and dependent requests within one supervised lease.
+source "$REPO/run_chains/lib/llm_campaign.sh" || exit 4
+ensure_llm_campaign_lease "unanswered_campaign_$TAG" "$REPO/run_chains/unanswered_stratification_20260830.sh" "$@" || exit $?
+
 LLAMA_PORT="$PORT" "$REPO/ensure_llama_server.sh" "$ADAPTER" \
     > "$runtime/logs/${TAG}.server.log" 2>&1 \
     || { echo "REFUSING: llama-server failed to start" >&2; exit 1; }
+LLM_CAMPAIGN_SERVER_READY=1
 
-# ExperimentRecord queries LM Studio when no environment is supplied, and
-# refuses to write an artifact it cannot describe. This chain serves through
-# llama.cpp, so LM Studio is absent and the run aborted in one second with
-# EnvironmentCaptureError - correctly, before spending any GPU. Declare the
-# environment we actually have, the way the 2026-08-28 quant chain does.
-EXPERIMENT_ENV="$(printf '%s' "{\"loaded\":true,\"context_length\":32768,\"parallel\":1,\"optimized\":true,\"verified_model\":\"qwen3-14b+author_heldout_balanced\",\"host\":\"$(hostname)\",\"gpu\":\"AMD Radeon RX 9070 XT\",\"backend\":\"Vulkan\",\"server\":\"llama.cpp\"}")"
+# Capture actual server settings and local GPU diagnostics through shared probes.
+# A diagnostic platform does not establish llama.cpp's inference backend.
+EXPERIMENT_ENV="$("$python" "$REPO/app/experiments/serving_environment.py" \
+    --base-url "http://127.0.0.1:$PORT/v1" --model qwen/qwen3-14b)" || exit 1
 export EXPERIMENT_ENV
 
-env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 EXPERIMENT_ENV="$EXPERIMENT_ENV" "$REPO/gpu_job.sh" "$TAG" \
+env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 EXPERIMENT_ENV="$EXPERIMENT_ENV" bash "$REPO/run_chains/lib/llm_job.sh" "$TAG" \
     "$python" -u "$REPO/app/experiments/lora_serving_eval.py" \
     --books index18 \
     --input-dir "$runtime/dialogue_map_5_3_inputs" \
@@ -69,6 +72,12 @@ env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 EXPERIMENT_ENV="$EXPERIMENT_ENV" "$REPO/gpu_
     --model qwen/qwen3-14b --tag "$TAG" \
     > "$runtime/logs/${TAG}.out" 2>&1
 rc=$?
+if [ "$rc" -ne 0 ]; then
+    echo "[$(date -u +%FT%TZ)] FAILED $TAG (job rc=$rc)"
+    exit "$rc"
+fi
+
+"$python" "$REPO/app/experiments/serving_results.py" "$out" || exit 1
 
 # The point of the run: unanswered rate split by whether the answer was there.
 "$python" - "$out" <<'PYEOF'

@@ -1,12 +1,12 @@
 # Results index
 
-Generated 2026-10-01 from `ab_test_runtime/experiments/` — 1809 artifacts, 3123 arms.
+Generated 2026-10-02 from `ab_test_runtime/experiments/` — 1809 artifacts, 3123 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
-`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 108 of 883 rows are replayable.
+`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 988 of 4403 rows are replayable.
 
-`cited_by_goal` is populated on 10 rows of 883, and that is the finding rather than a gap in this column: only goals 2.4 and 5.4 name their evidence by filename. Every other claim in GOALS.md quotes a number no reader can follow back to a file.
+`cited_by_goal` is populated on 338 rows of 4403. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 

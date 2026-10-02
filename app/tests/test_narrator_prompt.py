@@ -31,3 +31,15 @@ class NarratorPromptTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NarratorPriorValidationTests(unittest.TestCase):
+    def test_invalid_narrator_never_reaches_prompt(self):
+        base = 'Assign each line.  '
+        for invalid in ('NARRATOR', ' unknown ', 'A' * 101):
+            with self.subTest(narrator=invalid), self.assertRaises(ValueError):
+                add_narrator_prior(base, invalid)
+        for blank in ('', '   ', None):
+            with self.subTest(narrator=blank):
+                self.assertEqual(base, add_narrator_prior(base, blank))
+        self.assertIn('first person by ALEXIS IVANOVITCH', add_narrator_prior(base, ' Alexis  Ivanovitch '))

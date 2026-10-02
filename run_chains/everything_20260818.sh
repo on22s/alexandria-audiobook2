@@ -24,12 +24,10 @@ export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 mkdir -p "$STAGE_LOG_DIR"
 
 reclaim_vram() {
-    # -x not -f: Rule 22, pkill -f matches this script's own command line.
-    if pgrep -x llama-server >/dev/null 2>&1; then
-        stage_note "stopping llama-server to return VRAM"
-        pkill -x llama-server
-        sleep 5
-    fi
+    # Reclamation is a supervised queued operation, including final cleanup.
+    # It must not disturb an experiment that currently holds the GPU lease.
+    # No extra cap on queue waiting; server-stop and VRAM polling stay bounded.
+    run_stage "$1" 0 --needs-vram -- "$REPO/gpu_job.sh" "$1" true
 }
 
 # ---- 1. Books the pipeline has never generated (LLM; server must be up) ----
@@ -41,7 +39,7 @@ LLAMA_MODEL="${ALEXANDRIA_QWEN3_MODEL:-/home/fakemitch/.lmstudio/models/lmstudio
 # REQUIRE_VRAM_GB=0 for this stage ONLY: the memory the gate is complaining
 # about is the server this job needs. TTS stages below still pass the gate.
 run_stage unseen_books 5h -- env REQUIRE_VRAM_GB=0 "$REPO/run_chains/unseen_books.sh"
-stage_commit_artifacts unseen_books "$REPO"
+# This generator writes under unseen_books, outside the experiment commit scope.
 
 # ---- 2. Do the eight failing adapters recover on a rerun? (TTS; no server) --
 #
@@ -49,7 +47,7 @@ stage_commit_artifacts unseen_books "$REPO"
 # to ~0.67 - so a rerun is the cheap test before anyone rebuilds a dataset. If
 # they fail twice, that is a different claim than failing once, and it is the
 # claim that justifies retraining.
-reclaim_vram
+reclaim_vram reclaim_before_recheck
 # The list is a committed file, not /tmp: a chain that reads /tmp depends on
 # whatever ran before it, and this one may be restarted tomorrow.
 FAILED_LIST="$runtime/failed_adapters.tsv"
@@ -66,11 +64,11 @@ FAILED_LIST="$runtime/failed_adapters.tsv"
 # concluded that eight adapters failed a retest, which is the kind of claim
 # that gets a dataset rebuilt.
 recheck_one() {
-    local name="$1" adapter="$2" data="$3"
+    local name="$1" adapter="$2" data="$3" out="$4"
     "$REPO/gpu_job.sh" "regate2_$name" \
         "$python" -u "$REPO/app/experiments/verify_adapter_identity.py" \
         --adapter "$REPO/$adapter" --dataset "$REPO/$data" --lines 6 \
-        --out "$runtime/experiments/gate_recheck__$name.json" \
+        --out "$out" \
         > "$STAGE_LOG_DIR/recheck_$name.log" 2>&1
 }
 
@@ -79,37 +77,48 @@ recheck_one() {
 # the recheck; printing it beside the word FAIL is what made the absent runs
 # unreadable.
 recheck_score() {
-    "$python" - "$runtime/experiments/gate_recheck__$1.json" "$2" <<'PYEOF' 2>/dev/null
-import json, os, sys
-path, started = sys.argv[1], float(sys.argv[2])
-# VERIFY BY ARTIFACT, NOT BY EXIT CODE (Rule 20). A stale file from an earlier
-# run would otherwise be reported as this run's measurement.
-if not os.path.exists(path) or os.path.getmtime(path) < started - 1:
-    sys.exit(1)
-with open(path, encoding="utf-8") as handle:
-    doc = json.load(handle)
-print("%.4f" % doc["median_ecapa"])
-PYEOF
+    "$python" "$REPO/app/experiments/recheck_result.py" "$1" "$2" "$3"
 }
 
 recheck_failures() {
-    local measured=0 below=0 never_ran=0 total=0 rc started score
+    local measured=0 below=0 never_ran=0 total=0 rc score attempt new
+    recheck_artifacts=()
+    if [ ! -f "$FAILED_LIST" ] || [ ! -r "$FAILED_LIST" ] || [ ! -s "$FAILED_LIST" ]; then
+        stage_note "  recheck NOT MEASURED: adapter roster is missing, unreadable or empty: $FAILED_LIST"
+        return 1
+    fi
     while IFS=$'\t' read -r name adapter data score; do
         [ -n "${adapter:-}" ] || continue
         total=$((total + 1))
-        started=$(date +%s)
-        recheck_one "$name" "$adapter" "$data"
+        # A new private output path cannot contain a previous run's verdict.
+        if ! attempt=$(mktemp -d "$STAGE_LOG_DIR/recheck.XXXXXXXX"); then
+            never_ran=$((never_ran + 1))
+            stage_note "  recheck NOT MEASURED $name (cannot isolate output)"
+            continue
+        fi
+        recheck_one "$name" "$adapter" "$data" "$attempt/result.json"
         rc=$?
-        new=$(recheck_score "$name" "$started")
+        if ! new=$(recheck_score "$attempt/result.json" "$adapter" "$rc") || \
+            ! mv -- "$attempt/result.json" "$runtime/experiments/gate_recheck__$name.json"; then
+            never_ran=$((never_ran + 1))
+            stage_note "  recheck NOT MEASURED $name (rc=$rc, no fresh valid verdict) - see $STAGE_LOG_DIR/recheck_$name.log and $attempt"
+            continue
+        fi
+        recheck_artifacts+=("$runtime/experiments/gate_recheck__$name.json")
+        rmdir -- "$attempt"
         case "$rc" in
             0)  measured=$((measured + 1))
-                stage_note "  recheck PASS  $name  was $score, now ${new:-?}" ;;
+                stage_note "  recheck PASS  $name  was $score, now $new" ;;
             3)  measured=$((measured + 1)); below=$((below + 1))
-                stage_note "  recheck BELOW $name  was $score, now ${new:-?}" ;;
+                stage_note "  recheck BELOW $name  was $score, now $new" ;;
             *)  never_ran=$((never_ran + 1))
                 stage_note "  recheck NOT MEASURED $name (rc=$rc, no run) - see $STAGE_LOG_DIR/recheck_$name.log" ;;
         esac
     done < "$FAILED_LIST"
+    if [ "$total" -eq 0 ]; then
+        stage_note "  recheck NOT MEASURED: adapter roster contains no adapter rows: $FAILED_LIST"
+        return 1
+    fi
     stage_note "  $measured of $total measured; $below below threshold; $never_ran never ran"
     # FAIL LOUD. A stage that measured nothing must not report success, or the
     # chain summary calls the night a pass (Rule 8).
@@ -131,11 +140,11 @@ else
     STAGE_RESULT[recheck_failures]=incomplete
     STAGE_FAILURES=$((STAGE_FAILURES + 1))
 fi
-stage_commit_artifacts recheck_failures "$REPO"
+stage_commit_artifacts recheck_failures "$REPO" "${recheck_artifacts[@]}"
 
 # ---- 3. Replay the evidence that cannot currently be reproduced ------------
 run_stage replay 4h -- "$REPO/run_chains/replay_dirty_evidence_20260817.sh"
-stage_commit_artifacts replay "$REPO"
+# The child commits each dispatched artifact by its exact path.
 
-reclaim_vram
+reclaim_vram reclaim_after_replay
 stage_summary everything

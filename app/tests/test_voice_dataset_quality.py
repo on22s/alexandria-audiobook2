@@ -30,7 +30,8 @@ class VoiceDatasetQualityTests(unittest.TestCase):
     def test_reuse_requires_matching_source_and_thresholds(self):
         fingerprint = {"size": 1, "mtime_ns": 2, "edge_sha256": "x"}
         report = {"version": quality.REPORT_VERSION, "source_fingerprint": fingerprint,
-                  "thresholds": quality.THRESHOLDS, "clips": []}
+                  "thresholds": quality.THRESHOLDS, "clips": [], "source": "one.zip",
+                  "clip_count": 0, "warning_clip_count": 0}
         self.assertTrue(quality.is_reusable_report(report, fingerprint))
         changed = dict(fingerprint, size=2)
         self.assertFalse(quality.is_reusable_report(report, changed))

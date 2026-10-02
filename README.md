@@ -94,6 +94,8 @@ You do not need to read any of the research sections to install or use the app.
    - builds llama-cpp-python and whisper.cpp for your GPU.
 4. Click **Start**, then **Open Web UI**.
 
+Fresh Pinokio installations use CPython 3.10 for the prebuilt NVIDIA SageAttention/FlashAttention wheels. Existing environments are preserved; requesting those optional wheels from a different Python version stops before package installation with a compatibility error.
+
 ### Option B: Google Colab (no install)
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)
@@ -293,7 +295,7 @@ running build, GPU memory in use, and a light/dark toggle.
 **TTS Settings**:
 
 - **TTS Mode** (`local` / `external`), **TTS Server URL**, and **Server pool** (one URL
-  per line, one client each), **External call timeout**.
+  per line, one locked client per configured worker), **External call timeout**.
 - **Device** (`auto` / `cuda` / `cpu` / `mps`), **TTS Language**.
 - **Parallel Workers**, **Batch Seed**, **Compile Codec**, **Optimize Batch Order**.
 - **Sub-batching** with **Min Sub-batch Size** and **Length Ratio**; **Max Items/Batch**;
@@ -479,7 +481,8 @@ See [lora.md](docs/guides/lora.md) and [BATCH_PROCESSOR_GUIDE.md](docs/guides/BA
 ### Voices
 
 - **Built-in Qwen3-TTS** — no separate server needed; a pool of external Gradio servers
-  is also supported.
+  is also supported for CustomVoice and Clone. Voice Design and LoRA require
+  local TTS mode; external mode reports an unsupported-voice error before model loading.
 - **Four voice types**:
   - **CustomVoice** — 9 presets that follow delivery instructions;
   - **Clone** — from a 5–15 second reference, with its rights recorded on import;

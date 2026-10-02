@@ -51,11 +51,12 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def book_context(book):
     """Segment position for every scored line, so adjacency is textual."""
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
-    seg = json.load(open(
-        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))["segmented"]
+    seg = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")["segmented"]
     occ = collections.Counter(norm(e.get("text")) for e in seg)
     position, by_id = {}, {}
     for index, entry in enumerate(seg):

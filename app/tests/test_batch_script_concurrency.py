@@ -2,6 +2,8 @@ import json
 import os
 import tempfile
 import asyncio
+import copy
+import core
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +12,20 @@ from routers import script
 import three_pass_generate as tp
 
 
-class BatchScriptConcurrencyTests(unittest.TestCase):
+class OwnedScriptTestCase(unittest.TestCase):
+    def setUp(self):
+        state=copy.deepcopy(core.process_state)
+        for value in state.values():value['running']=False
+        for owner,name,value in ((core,'process_state',state),(script,'process_state',state),
+                                 (core,'_task_claims',{}),(core,'_gpu_leases',{})):
+            context=patch.object(owner,name,value);context.start();self.addCleanup(context.stop)
+        for context in (patch.object(core,'acquire_gpu_lock',return_value=None),
+                        patch.object(core,'llm_is_on_this_gpu',return_value=True)):
+            context.start();self.addCleanup(context.stop)
+        self.addCleanup(core.release_pending_task_claims)
+
+
+class BatchScriptConcurrencyTests(OwnedScriptTestCase):
     def _preflight(self, context, parallel, worst):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "book.txt")
@@ -26,6 +41,40 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
                                   "p95_predicted_tokens": worst,
                                   "average_predicted_tokens": float(worst)}):
                 return script.build_batch_script_preflight(jobs)
+
+    def test_single_generation_validates_narrator_before_discarding_progress_or_claiming(self):
+        from fastapi import BackgroundTasks, HTTPException
+        for name, text, valid in (("ALEXIS", "Alexis entered. Alexis spoke.", False),
+                                  ("ALEXIS", "Alexis entered. Alexis spoke. Alexis left.", True),
+                                  (None, "A short story.", True)):
+            with self.subTest(name=name, valid=valid), tempfile.TemporaryDirectory() as tmp:
+                source = Path(tmp, "book.txt"); source.write_text(text)
+                state = Path(tmp, "state.json"); state.write_text("{}")
+                request = script.GenerateScriptRequest(first_person_narrator=name, start_over=True)
+                background = BackgroundTasks()
+                with patch.object(script, "DATA_DIR", tmp), \
+                     patch.object(script, "check_global_gpu_lock"), \
+                     patch.object(script, "load_app_config", return_value={}), \
+                     patch.object(script, "build_generate_script_command", return_value=["fake command"]), \
+                     patch.object(script, "discard_script_progress") as discard, \
+                     patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim:
+                    if valid:
+                        response = script.start_script_generation(background, str(source), request)
+                        self.assertEqual("started", response["status"])
+                        claim.assert_called_once_with("script")
+                        self.assertEqual(1, len(background.tasks))
+                        self.assertTrue(core.is_task_running("script"))
+                        core.release_pending_task_claims()
+                        self.assertFalse(core.is_task_running("script"))
+                    else:
+                        with self.assertRaises(HTTPException) as raised:
+                            script.start_script_generation(background, str(source), request)
+                        self.assertEqual(400, raised.exception.status_code)
+                        self.assertIn("at least three times", raised.exception.detail)
+                        discard.assert_not_called()
+                        claim.assert_not_called()
+                        self.assertEqual([], background.tasks)
+                        self.assertEqual("{}", state.read_text())
 
     def test_two_workers_when_every_book_fits(self):
         report = self._preflight(32768, 2, 9000)
@@ -221,7 +270,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class OutputCeilingRefusalTests(unittest.TestCase):
+class OutputCeilingRefusalTests(OwnedScriptTestCase):
     """A pass-1 chunk the model can never re-emit within its output ceiling is
     refused before the run starts, for single and batch alike, with the chunk
     size that would fit; a chunk that fits is not."""
@@ -314,6 +363,12 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                     self.assertEqual(["line 0", "line 1", "line 2"], [e["text"] for e in saved])
                     self.assertTrue(Path(scripts_dir, "first forty.voice_config.json").exists())
                     self.assertEqual(3, json.loads(Path(scripts_dir, "first forty.meta.json").read_text())["snapshot"]["entries"])
+                    saved_content = Path(scripts_dir, "first forty.json").read_bytes()
+                    with self.assertRaises(script.HTTPException) as duplicate:
+                        asyncio.run(script.snapshot_script(
+                            script.SnapshotRequest(name="first forty")))
+                    self.assertEqual(409, duplicate.exception.status_code)
+                    self.assertEqual(saved_content, Path(scripts_dir, "first forty.json").read_bytes())
                     # nothing finished yet
                     Path(script.three_pass_checkpoint_path(script_path)).write_text(json.dumps(
                         {"stage": "segment", "chunks_done": 1, "segmented": seg, "named": [], "annotated": []}), encoding="utf-8")
@@ -344,14 +399,37 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                          "generation": {"three_pass_chunk_size": 3000, "max_tokens": 4096},
                          "prompts": {}}), \
                      patch.object(script, "check_global_gpu_lock"), \
-                     patch.object(script, "claim_gpu_task"), \
+                     patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task), \
                      patch.object(script, "build_generate_script_command", return_value=["x"]):
                     tasks = script.BackgroundTasks()
                     script.start_script_generation(
                         tasks, str(path), script.GenerateScriptRequest(start_over=start_over))
+                    core.release_pending_task_claims()
                 with self.subTest(start_over=start_over):
                     self.assertEqual(kept, ckpt.exists())
                     self.assertEqual(kept, manifest.exists())
+
+    def test_invalid_start_over_keeps_recovery_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.txt")
+            path.write_text("Book text.", encoding="utf-8")
+            script_path = str(Path(tmp, "annotated_script.json"))
+            ckpt = Path(script.three_pass_checkpoint_path(script_path))
+            manifest = Path(script.three_pass_manifest_path(script_path))
+            ckpt.write_text("checkpoint")
+            manifest.write_text("manifest")
+            with patch.object(script, "SCRIPT_PATH", script_path), \
+                 patch.object(script, "check_global_gpu_lock"), \
+                 patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim, \
+                 patch.object(script, "build_generate_script_command",
+                              side_effect=ValueError("invalid narrator")):
+                with self.assertRaisesRegex(script.HTTPException, "invalid narrator"):
+                    script.start_script_generation(
+                        script.BackgroundTasks(), str(path),
+                        script.GenerateScriptRequest(start_over=True))
+            self.assertEqual("checkpoint", ckpt.read_text())
+            self.assertEqual("manifest", manifest.read_text())
+            claim.assert_not_called()
 
     def test_single_book_start_refuses_before_claiming_the_gpu(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -362,7 +440,7 @@ class OutputCeilingRefusalTests(unittest.TestCase):
                     "generation": {"three_pass_chunk_size": 30000, "max_tokens": 4096},
                     "prompts": {}}), \
                  patch.object(script, "check_global_gpu_lock"), \
-                 patch.object(script, "claim_gpu_task") as claim:
+                 patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim:
                 with self.assertRaises(script.HTTPException) as ctx:
                     script.start_script_generation(None, str(path), None)
         self.assertEqual(400, ctx.exception.status_code)

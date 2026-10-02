@@ -30,11 +30,30 @@ FLAG="${GPU_PAUSE_FLAG:-$REPO/ab_test_runtime/logs/gpu_paused}"
 QLOG="${GPU_QLOG:-$REPO/ab_test_runtime/logs/gpu_jobq.log}"
 
 stamp() { date -u +%FT%TZ; }
+source "$REPO/run_chains/lib/gpu_pending.sh" || exit 4
+source "$REPO/run_chains/lib/gpu_queue_log.sh" || exit 4
 
 vram_used_mib() {
-    rocm-smi --showmeminfo vram 2>/dev/null \
-        | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1 \
-        | awk '{printf "%d", $1/1048576}'
+    local output value selector
+    if output=$(timeout 5 rocm-smi --showmeminfo vram 2>/dev/null); then
+        value=$(printf '%s\n' "$output" | awk '
+            tolower($0) ~ /total used memory/ && $NF ~ /^[0-9]+$/ {sum+=$NF; seen=1}
+            END {if (seen) printf "%d", sum/1048576; else exit 1}')
+        if [ -n "$value" ]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    fi
+    selector="${CUDA_VISIBLE_DEVICES:-${NVIDIA_VISIBLE_DEVICES:-}}"
+    local -a args=(--query-gpu=memory.used --format=csv,noheader,nounits)
+    if [ -n "$selector" ] && [ "$selector" != "all" ]; then
+        args=(-i "$selector" "${args[@]}")
+    fi
+    output=$(timeout 5 nvidia-smi "${args[@]}" 2>/dev/null) || return 1
+    printf '%s\n' "$output" | awk '
+        /^[[:space:]]*[0-9]+[[:space:]]*$/ {sum+=$1; seen=1; next}
+        {invalid=1}
+        END {if (seen && !invalid) print sum; else exit 1}'
 }
 
 running_job() {
@@ -57,19 +76,7 @@ running_job() {
 }
 
 logged_job() {
-    tail -200 "$QLOG" 2>/dev/null | awk '
-        /START    / {name=$3}
-        # INTERRUPTED and STOPPED are terminal too. A marker set that lags the
-        # writer is how a finished job goes on looking busy.
-        #
-        # NO_LLM was added to gpu_job.sh and not here, so a preflight refusal
-        # (exit 6) left the job looking busy: on 2026-08-21 allrows_dot_tail
-        # was refused for a missing llama-server and `status` went on naming it
-        # as the running job. Terminal means THE JOB WILL NOT RUN - so NO_LLM
-        # belongs here, while DIRTY_RUN, LLM_UNCHECKED, VRAM_UNKNOWN and HELD
-        # deliberately do not: every one of those PROCEEDS to run the job.
-        /OK       |FAILED   |REFUSED  |NO_VRAM  |NO_LLM   |KILLED   |LOCK_FAILED|INTERRUPTED |STOPPED  / {name=""}
-        END {print name}'
+    get_logged_queue_job
 }
 
 job_is_live() {
@@ -98,7 +105,7 @@ case "${1:-status}" in
   on)
     mkdir -p "$(dirname "$FLAG")"
     date -u +%FT%TZ > "$FLAG"
-    echo "$(stamp) PAUSED   queue held by gpu_pause" >> "$QLOG"
+    append_queue_log "$(stamp) PAUSED   queue held by gpu_pause" || exit 8
     echo "queue paused: no further job will START until 'gpu_pause.sh off'."
     job=$(running_job)
     if [ -n "$job" ]; then
@@ -146,7 +153,7 @@ case "${1:-status}" in
     ;;
   off)
     rm -f "$FLAG"
-    echo "$(stamp) RESUMED  queue released by gpu_pause" >> "$QLOG"
+    append_queue_log "$(stamp) RESUMED  queue released by gpu_pause" || exit 8
     echo "queue released; waiting jobs will start on their next check."
     ;;
   status)
@@ -157,6 +164,21 @@ case "${1:-status}" in
     fi
     job=$(running_job)
     echo "running job: ${job:-none}"
+    if [ -n "$job" ]; then
+        progress_dir="${GPU_PROGRESS_DIR:-$(dirname "$QLOG")/progress}"
+        progress_python="${GPU_OWNER_PYTHON:-$(command -v python3)}"
+        progress_owners=()
+        while IFS= read -r pid; do
+            token=$(get_pending_process_token "$pid" 2>/dev/null) || continue
+            progress_owners+=("$pid=$token")
+        done < <(job_pids "$job")
+        if [ -x "$progress_python" ] && [ -f "$REPO/app/gpu_progress.py" ]; then
+            "$progress_python" "$REPO/app/gpu_progress.py" "$progress_dir" "$job" "${progress_owners[@]}" \
+                || echo "ETA: unavailable (progress reader failed)"
+        else
+            echo "ETA: unavailable (progress reader unavailable)"
+        fi
+    fi
     # WHAT IS WAITING, not just what is running. Until gpu_job.sh wrote pending
     # markers there was no way to ask this: queued jobs are blocked processes
     # and a chain that died left the same evidence as one patiently waiting -
@@ -170,10 +192,10 @@ case "${1:-status}" in
             marker_pid=$(cut -f2 "$marker" 2>/dev/null)
             # A marker whose process is gone is a LIE, and saying so is the
             # point: it means a chain died holding a place in the queue.
-            if kill -0 "$marker_pid" 2>/dev/null; then
+            if is_pending_marker_live "$marker"; then
                 [ "$marker_name" = "$job" ] || echo "  waiting: $marker_name (pid $marker_pid)"
             else
-                echo "  STALE:   $marker_name (pid $marker_pid is gone; chain died)"
+                echo "  STALE:   $marker_name (pid $marker_pid identity is stale or unverified; chain may have died)"
             fi
         done
     fi

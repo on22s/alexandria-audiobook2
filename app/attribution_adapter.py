@@ -26,9 +26,35 @@ because a server was restarted without its adapter, but the run must carry the
 fact.
 """
 import json
-import os
+import math
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
+from llama_server_identity import is_expected_adapter_path
+
+MAX_ADAPTER_RESPONSE_BYTES = 1024 * 1024
+
+
+class _AdapterRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        def get_origin(url):
+            parsed = urlsplit(url)
+            return parsed.scheme, parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80)
+        if req.has_header('Authorization') and get_origin(req.full_url) != get_origin(newurl):
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def get_finite_adapter_scale(value):
+    if isinstance(value, bool):
+        raise ValueError('adapter scale must be a finite number')
+    try:
+        scale = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError('adapter scale must be a finite number') from error
+    if not math.isfinite(scale):
+        raise ValueError('adapter scale must be a finite number')
+    return scale
 
 
 class AdapterError(RuntimeError):
@@ -41,10 +67,12 @@ def adapter_config(config):
     Read from the same `llm_local` / `llm_remote` block as base_url, so the
     adapter travels with the endpoint it belongs to rather than sitting in a
     second place that can disagree with it.
+    The path is the identity reported by that server, in its filesystem.
     """
     if not isinstance(config, dict):
         return None
     from lmstudio_settings import get_active_llm_config
+    from llm_provider import resolve_api_key
     block = get_active_llm_config(config)
     spec = block.get("attribution_adapter")
     if not isinstance(spec, dict):
@@ -53,11 +81,12 @@ def adapter_config(config):
     if not path:
         return None
     return {"path": path,
-            "scale": float(spec.get("scale", 1.0)),
+            "scale": spec.get("scale", 1.0),
+            "api_key": resolve_api_key(block.get("api_key", "local")),
             "expect": bool(spec.get("require", False))}
 
 
-def served_adapters(base_url, timeout=10):
+def served_adapters(base_url, timeout=10, api_key=None):
     """-> list of adapters llama.cpp reports, or None if it cannot be asked.
 
     None means UNKNOWN, not absent. An endpoint that does not implement
@@ -69,9 +98,14 @@ def served_adapters(base_url, timeout=10):
     if root.endswith("/v1"):
         root = root[:-3]
     try:
-        with urllib.request.urlopen(root + "/lora-adapters",
-                                    timeout=timeout) as fh:
-            data = json.loads(fh.read().decode("utf-8"))
+        headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+        request = urllib.request.Request(root + "/lora-adapters", headers=headers)
+        opener = urllib.request.build_opener(_AdapterRedirectHandler())
+        with opener.open(request, timeout=timeout) as fh:
+            body = fh.read(MAX_ADAPTER_RESPONSE_BYTES + 1)
+            if len(body) > MAX_ADAPTER_RESPONSE_BYTES:
+                return None
+            data = json.loads(body.decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return None
     if isinstance(data, dict):
@@ -91,23 +125,38 @@ def check_adapter(config, base_url, require=None):
         return True, "no attribution adapter configured"
     require = spec["expect"] if require is None else require
 
-    served = served_adapters(base_url)
+    try:
+        configured_scale = get_finite_adapter_scale(spec['scale'])
+        if configured_scale <= 0:
+            raise ValueError('configured scale must be positive')
+    except ValueError:
+        msg = f"cannot verify attribution adapter {spec['path']}: configured scale must be finite and positive"
+        if require:
+            raise AdapterError(msg)
+        return False, msg
+
+    served = served_adapters(base_url, api_key=spec['api_key'])
     if served is None:
         msg = (f"cannot verify the attribution adapter: {base_url} does not "
-               f"answer /lora-adapters. Expected {os.path.basename(spec['path'])} "
+               f"answer /lora-adapters. Expected {spec['path']} "
                f"at scale {spec['scale']}.")
         if require:
             raise AdapterError(msg)
         return False, msg
 
-    want = os.path.basename(spec["path"])
+    want = spec["path"]
     for entry in served:
         if not isinstance(entry, dict):
             continue
-        name = os.path.basename(str(entry.get("path") or entry.get("id") or ""))
-        if name != want:
+        if not is_expected_adapter_path(entry.get("path"), want):
             continue
-        scale = float(entry.get("scale", entry.get("weight", 0)) or 0)
+        try:
+            scale = get_finite_adapter_scale(entry.get("scale", entry.get("weight", 0)))
+        except ValueError:
+            msg = f"cannot verify attribution adapter {want}: server reported an invalid scale"
+            if require:
+                raise AdapterError(msg)
+            return False, msg
         if scale <= 0:
             msg = (f"attribution adapter {want} is loaded but at scale "
                    f"{scale} - generation will run at BASE quality, which "
@@ -117,7 +166,7 @@ def check_adapter(config, base_url, require=None):
             return False, msg
         return True, f"attribution adapter {want} serving at scale {scale}"
 
-    names = [os.path.basename(str(e.get("path") or e.get("id") or "?"))
+    names = [str(e.get("path") or e.get("id") or "?")
              for e in served if isinstance(e, dict)] or ["none"]
     msg = (f"attribution adapter {want} is NOT loaded; the server has "
            f"{', '.join(names)}. Generation would run at base quality.")
@@ -131,5 +180,5 @@ def describe(config):
     spec = adapter_config(config)
     if spec is None:
         return "attribution_adapter=none"
-    return (f"attribution_adapter={os.path.basename(spec['path'])} "
+    return (f"attribution_adapter={spec['path']} "
             f"scale={spec['scale']} require={spec['expect']}")

@@ -28,26 +28,14 @@ set -uo pipefail
 # at 1129 of 1200 terms - and a chain skipping on existence would skip it
 # forever, on a subset biased toward the commonest items. Ask the artifact.
 artifact_complete() {
-    "$1" - "$2" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if d.get("status") == "complete":
-    sys.exit(0)
-if d.get("status") == "partial":
-    sys.exit(1)
-r, c = d.get("results"), d.get("candidates_considered")
-sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
-PYEOF
+    "$1" "$REPO/app/experiments/respelling_completion.py" "$2" "$3"
 }
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
 LOG="$runtime/logs/overnight_20260818"
-mkdir -p "$LOG"
+mkdir -p "$LOG" "$runtime/reports/overnight_20260818" || exit 1
 export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
@@ -72,6 +60,7 @@ while queue_running; do
 done
 note "queue drained; starting replication blocks"
 
+failed_blocks=0
 for limit in 800 1200 1600; do
     remaining=$(( DEADLINE - $(date +%s) ))
     if [ "$remaining" -lt "$BLOCK_SECONDS" ]; then
@@ -79,25 +68,39 @@ for limit in 800 1200 1600; do
         break
     fi
     out="$runtime/experiments/respelling_e_row__ay_n${limit}.json"
-    if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+    if [ -e "$out" ] && artifact_complete "$python" "$out" "$limit"; then
         note "SKIP $limit (artifact exists)"; continue
     fi
     note "START ay block to $limit terms"
-    "$REPO/gpu_job.sh" "e_row_ay_n$limit" \
+    if "$REPO/gpu_job.sh" "e_row_ay_n$limit" \
         timeout --signal=INT --kill-after=60s "$BLOCK_SECONDS" \
         "$python" -u "$REPO/app/experiments/measure_respellings.py" \
         --min-books 5 --only-e-row --e-spelling ay --limit "$limit" \
         --work "$runtime/respelling_e_row_ay" --out "$out" \
-        > "$LOG/ay_n$limit.log" 2>&1 \
-        && note "OK    $limit" || note "FAIL  $limit (continuing)"
-
-    if [ -f "$out" ]; then
-        "$python" "$REPO/app/experiments/pair_e_row.py" "$out" \
-            >> "$runtime/reports/overnight_20260818/e_row_paired.txt" 2>&1 \
-            || note "scoring $limit failed"
+        > "$LOG/ay_n$limit.log" 2>&1; then
+        note "OK    $limit"
+    else
+        rc=$?
+        failed_blocks=$((failed_blocks + 1))
+        note "FAIL  $limit rc=$rc (continuing without scoring)"
+        continue
+    fi
+    if ! artifact_complete "$python" "$out" "$limit"; then
+        failed_blocks=$((failed_blocks + 1))
+        note "INCOMPLETE $limit (continuing without scoring)"
+        continue
+    fi
+    if ! "$python" "$REPO/app/experiments/pair_e_row.py" "$out" \
+            >> "$runtime/reports/overnight_20260818/e_row_paired.txt" 2>&1; then
+        failed_blocks=$((failed_blocks + 1))
+        note "scoring $limit failed"
     fi
 done
 
+if [ "$failed_blocks" -gt 0 ]; then
+    note "REPLICATION INCOMPLETE: $failed_blocks blocks failed"
+    exit 1
+fi
 note "REPLICATION COMPLETE"
 echo
 echo "HOW TO READ IT. Each block INCLUDES the terms before it, so the"

@@ -80,5 +80,5 @@ def restore_stripped_apostrophes(text):
     repaired = _CONTRACTION_RE.sub(
         lambda m: note(m, "%s't" % m.group(1)), text)
     repaired = _CLITIC_RE.sub(
-        lambda m: "%s'%s" % (m.group(1), m.group(2)), repaired)
+        lambda m: note(m, "%s'%s" % (m.group(1), m.group(2))), repaired)
     return repaired, changes

@@ -28,24 +28,12 @@ export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 artifact_complete() {
-    "$1" - "$2" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if d.get("status") == "complete":
-    sys.exit(0)
-if d.get("status") == "partial":
-    sys.exit(1)
-r, c = d.get("results"), d.get("candidates_considered")
-sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
-PYEOF
+    "$1" "$REPO/app/experiments/respelling_completion.py" "$2" "$3"
 }
 
 for sep in none space dot; do
     out="$runtime/experiments/respelling_separator__${sep}.json"
-    if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+    if [ -e "$out" ] && artifact_complete "$python" "$out" "120"; then
         stage_note "SKIP $sep (complete)"; continue
     fi
     run_stage "separator_$sep" 2h -- \
@@ -53,7 +41,7 @@ for sep in none space dot; do
         "$python" -u "$REPO/app/experiments/measure_respellings.py" \
         --min-books 5 --only-e-row --separator "$sep" --limit 120 \
         --work "$runtime/respelling_sep_$sep" --out "$out"
-    stage_commit_artifacts "separator_$sep" "$REPO"
+    stage_commit_artifacts "separator_$sep" "$REPO" "$out"
 done
 
 # Pauses on what was just produced. This is the measurement that answers the

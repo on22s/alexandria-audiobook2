@@ -32,11 +32,13 @@ raw WER would select for names that are easy to transcribe rather than right.
 import json
 import os
 import re
+import threading
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 
-_cache = {"path": None, "mtime": None, "entries": {}, "pattern": None}
+_cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}
+_cache_lock = threading.RLock()
 
 
 def _compile(entries):
@@ -54,15 +56,23 @@ def _compile(entries):
 
 
 def load_lexicon(path=None, force=False):
-    """-> {name: respelling}. Cached on mtime so an edit takes effect."""
+    """-> {name: respelling}. Cached on file identity, size and timestamps so edits take effect."""
+    with _cache_lock:
+        return _load_lexicon(path, force)
+
+
+def _load_lexicon(path=None, force=False):
+    """Load the cache while the caller holds its lock."""
     path = path or DEFAULT_PATH
     try:
-        mtime = os.path.getmtime(path)
+        stat = os.stat(path)
+        fingerprint = (stat.st_dev, stat.st_ino, stat.st_size,
+                       stat.st_mtime_ns, stat.st_ctime_ns)
     except OSError:
-        _cache.update({"path": path, "mtime": None, "entries": {},
+        _cache.update({"path": path, "fingerprint": None, "entries": {},
                        "pattern": None})
         return {}
-    if not force and _cache["path"] == path and _cache["mtime"] == mtime:
+    if not force and _cache["path"] == path and _cache["fingerprint"] == fingerprint:
         return dict(_cache["entries"])
     try:
         with open(path, encoding="utf-8") as fh:
@@ -70,7 +80,7 @@ def load_lexicon(path=None, force=False):
     except (ValueError, OSError):
         # A malformed lexicon must not stop a book from generating. It
         # degrades to "no substitutions", which is the previous behaviour.
-        _cache.update({"path": path, "mtime": mtime, "entries": {},
+        _cache.update({"path": path, "fingerprint": fingerprint, "entries": {},
                        "pattern": None})
         return {}
     if not isinstance(raw, dict):
@@ -79,7 +89,7 @@ def load_lexicon(path=None, force=False):
     entries = {str(k): str(v) for k, v in source.items()
                if isinstance(k, str) and isinstance(v, str)
                and k.strip() and v.strip()}
-    _cache.update({"path": path, "mtime": mtime, "entries": entries,
+    _cache.update({"path": path, "fingerprint": fingerprint, "entries": entries,
                    "pattern": _compile(entries)})
     return dict(entries)
 
@@ -93,8 +103,9 @@ def apply_pronunciation(text, path=None):
     """
     if not text:
         return text, []
-    load_lexicon(path)
-    pattern, entries = _cache["pattern"], _cache["entries"]
+    with _cache_lock:
+        load_lexicon(path)
+        pattern, entries = _cache["pattern"], _cache["entries"]
     if not pattern:
         return text, []
     applied = []
@@ -139,7 +150,8 @@ def character_forms(script_path=None, aliases_path=None, voice_config_path=None)
     returned.
     """
     import json as _json
-    root = REPO
+    from utils import get_runtime_data_dir
+    root = get_runtime_data_dir(REPO)
     script_path = script_path or os.path.join(root, "chunks.json")
     aliases_path = aliases_path or os.path.join(root, "character_aliases.json")
     voice_config_path = voice_config_path or os.path.join(root,

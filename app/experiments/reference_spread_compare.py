@@ -18,6 +18,7 @@ dominate a Pearson fit.
 """
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -67,10 +68,28 @@ def mean_metric(score_path, metric):
         return summary[metric], summary.get("n")
     values = [r["clone"][metric] for r in (doc.get("rows") or [])
               if isinstance(r.get("clone"), dict) and metric in r["clone"]]
+    if any(not isinstance(value, (int, float)) or isinstance(value, bool)
+           or not math.isfinite(value) for value in values):
+        raise ValueError("score rows contain invalid %s values" % metric)
     return (sum(values) / len(values), len(values)) if values else (None, 0)
 
 
+def get_usable_reference_score(score_path, metric="ecapa"):
+    value, n = mean_metric(score_path, metric)
+    if (not isinstance(value, (int, float)) or isinstance(value, bool)
+            or not math.isfinite(value) or not -1 <= value <= 1
+            or type(n) is not int or n <= 0):
+        raise ValueError("score needs a finite %s in [-1, 1] and a positive sample count" % metric)
+    return value, n
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--check-score":
+        try:
+            get_usable_reference_score(sys.argv[2])
+        except (OSError, ValueError, TypeError, AttributeError, KeyError) as exc:
+            raise SystemExit("unusable reference score %s: %s" % (sys.argv[2], exc))
+        return 0
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--spread", required=True,
                     help="the manifest reference_spread.py wrote")

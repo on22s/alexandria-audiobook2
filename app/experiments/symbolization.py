@@ -94,6 +94,8 @@ def symbolize(text, symbols):
     return out
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--book", default="grimgar03")
@@ -105,7 +107,7 @@ def main():
 
     gold = json.load(open(APP + f"fixtures/attribution_gold_{args.book}.json"))
     src = open(M + f"inputs/{args.book}.txt", encoding="utf-8").read()
-    cp = json.load(open(M + INPUT_RUN + f"/{args.book}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{args.book}/result.json.threepass_checkpoint.json")
     seg = cp["segmented"]
     groups = alias_groups(gold)
     roster = [r.upper() for r in build_roster([e for e in (cp.get("named") or []) if e], src)]

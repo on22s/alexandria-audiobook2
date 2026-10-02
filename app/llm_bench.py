@@ -14,7 +14,7 @@ import platform
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from openai import OpenAI
+from llm_provider import make_llm_client
 from core import llm_timeout_seconds
 
 import lmstudio_settings
@@ -64,11 +64,15 @@ def _one_call(client, model, max_tokens, timeout):
     )
     usage = getattr(resp, "usage", None)
     completion = getattr(usage, "completion_tokens", None) if usage else None
+    content = (resp.choices[0].message.content or "") if getattr(resp, "choices", None) else ""
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("benchmark response has no completion text")
     if completion is not None:
+        if not isinstance(completion, int) or isinstance(completion, bool) or completion <= 0:
+            raise ValueError("benchmark completion_tokens must be a positive integer")
         return completion, time.time() - t0
     # Some OpenAI-compatible servers omit `usage`; estimate from the reply length
     # so the benchmark doesn't silently settle on concurrency=1 with no signal.
-    content = (resp.choices[0].message.content or "") if getattr(resp, "choices", None) else ""
     return max(1, len(content) // 4), time.time() - t0
 
 
@@ -116,7 +120,7 @@ def _measure_robust(client, model, concurrency, trials=3):
 
 
 def find_optimal_concurrency(client, model, max_concurrency=16, trials=3,
-                              server_parallel_limit=None):
+                              server_parallel_limit=None, on_measurement=None):
     """Sweep concurrency 1, 2, 4, 8, 16... and return the level just before
     throughput improvement drops below 10% over the previous level, or before
     a level fails outright. Always returns at least 1.
@@ -128,25 +132,50 @@ def find_optimal_concurrency(client, model, max_concurrency=16, trials=3,
     sweep is skipped entirely and 1 is returned immediately: this is exactly
     what would have caught the parallel=1-server regression instead of
     measuring a noisy "improvement" that didn't hold up in production.
+    `on_measurement`, when supplied, reports each completed robust level
+    without issuing extra requests.
     """
     if server_parallel_limit is not None and server_parallel_limit <= 1:
         return 1
     if server_parallel_limit is not None:
         max_concurrency = min(max_concurrency, server_parallel_limit)
 
+    def measure_level(level):
+        started = time.time()
+        throughput = _measure_robust(client, model, level, trials)
+        if on_measurement is not None:
+            on_measurement(level, throughput, time.time() - started)
+        return throughput
+
     best_level = 1
-    best_throughput = _measure_robust(client, model, 1, trials)
-    if best_throughput is None:
+    best_throughput = measure_level(1)
+    if best_throughput is None or best_throughput <= 0:
         return 1
 
     level = 2
     while level <= max_concurrency:
-        throughput = _measure_robust(client, model, level, trials)
-        if throughput is None or throughput < best_throughput * 1.10:
+        throughput = measure_level(level)
+        if throughput is None or throughput <= 0 or throughput < best_throughput * 1.10:
             break
         best_level, best_throughput = level, throughput
         level *= 2
     return best_level
+
+
+def get_concurrency_environment(base_url, model_name, is_remote, ssh_alias,
+                                hostname, gpu_name, backend, status):
+    """Return the observed environment that a concurrency measurement belongs to."""
+    return {
+        "version": 1, "base_url": base_url, "model_name": model_name,
+        "remote": is_remote, "host": ssh_alias if is_remote else hostname,
+        "gpu_name": gpu_name, "backend": backend,
+        "runtime": status.get("runtime", "lmstudio"),
+        "loaded": status.get("loaded"), "parallel": status.get("parallel"),
+        "context_length": status.get("context_length"),
+        "model_path": status.get("model_path"), "model_ftype": status.get("model_ftype"),
+        "build": status.get("build"), "server_alias": status.get("server_alias"),
+        "reasoning_format": status.get("reasoning_format"),
+    }
 
 
 def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model_name,
@@ -156,8 +185,8 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
 
     Reuses the cached value from config.json's llm_local/llm_remote section
     (whichever `llm_mode` selects) if it was measured against this exact
-    base_url+model - logging just a one-line confirmation, no SSH/subprocess
-    calls, so re-checking the cache every book in a batch stays cheap.
+    observed environment, bounded by the caller's cap and current server limit.
+    Cached measurements are retained when a temporary limit reduces usage.
 
     On a cache miss, logs an environment fingerprint (hostname, GPU
     name/backend, LM Studio's actual loaded parallel/context) *before*
@@ -172,7 +201,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     `status`: an already-fetched get_lmstudio_status/get_remote_lmstudio_status
     result, if the caller already has one (e.g. from a just-run self-heal
     check via ensure_ideal_settings) - avoids a redundant SSH/subprocess
-    round-trip on a cache miss.
+    round-trip, including when a cached measurement is reused.
     """
     is_remote = lmstudio_settings.is_remote_llm(llm_mode, base_url)
     profile_key = "llm_remote" if is_remote else "llm_local"
@@ -180,38 +209,43 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
 
     config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
-    if profile.get("concurrency_for") == cache_key and profile.get("concurrency"):
-        concurrency = profile["concurrency"]
-        print(f"  Using cached concurrency={concurrency} for {base_url}::{model_name}")
-        return concurrency
+    if status is None:
+        status = lmstudio_settings.get_current_status(
+            llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"))
+    server_parallel = status.get("parallel") if status.get("available") else None
+    effective_max = max(1, min(max_concurrency, server_parallel)) if server_parallel else max(1, max_concurrency)
+    if not status.get("available"):
+        print("  Server status unknown (unreachable or no SSH alias configured) - "
+              "defaulting to concurrency=1 rather than guessing at a safe limit.")
+        return 1
 
     hostname = platform.node()
-    if status is None:
-        if is_remote:
-            status = lmstudio_settings.get_remote_lmstudio_status(ssh_alias, model_name)
-        else:
-            status = lmstudio_settings.get_lmstudio_status(model_name)
     if is_remote:
         gpu_name, backend = lmstudio_settings.get_remote_gpu_name_and_backend(ssh_alias)
         where = f"remote via '{ssh_alias}'" if ssh_alias else "remote (no SSH alias configured)"
     else:
         gpu_name, backend = lmstudio_settings.get_gpu_name_and_backend()
         where = f"local ({hostname})"
+    environment = get_concurrency_environment(
+        base_url, model_name, is_remote, ssh_alias, hostname, gpu_name, backend, status)
+    cached_concurrency = profile.get("concurrency")
+    if (profile.get("concurrency_for") == cache_key
+            and profile.get("concurrency_environment") == environment
+            and isinstance(cached_concurrency, int) and not isinstance(cached_concurrency, bool)
+            and cached_concurrency > 0):
+        concurrency = min(cached_concurrency, effective_max)
+        print(f"  Using cached concurrency={concurrency} (measured={cached_concurrency}, cap={effective_max}) "
+              f"for {base_url}::{model_name}")
+        return concurrency
     print(f"  Environment: {where} | GPU: {gpu_name or 'unknown'} ({backend or 'unknown backend'}) "
           f"| LM Studio: available={status.get('available')} loaded={status.get('loaded')} "
           f"parallel={status.get('parallel')} context={status.get('context_length')}")
 
-    server_parallel = status.get("parallel") if status.get("available") else None
-    if not status.get("available"):
-        print("  Server status unknown (unreachable or no SSH alias configured) - "
-              "defaulting to concurrency=1 rather than guessing at a safe limit.")
-        concurrency = 1
-    elif server_parallel is not None and server_parallel <= 1:
+    if server_parallel is not None and server_parallel <= 1:
         print(f"  Server reports parallel={server_parallel} - concurrency can't help here "
               f"(this is the local VRAM-safe default unless changed), skipping benchmark.")
         concurrency = 1
     else:
-        effective_max = min(max_concurrency, server_parallel) if server_parallel else max_concurrency
         print(f"  Benchmarking {model_name} at {base_url} to find optimal concurrency "
               f"(cap={effective_max})...")
         concurrency = find_optimal_concurrency(client, model_name, effective_max,
@@ -224,6 +258,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
             profile = dict(config.get(profile_key) or {})
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key
+            profile["concurrency_environment"] = environment
             config[profile_key] = profile
             atomic_json_write(config, config_path)
     except (OSError, TimeoutError, TypeError, ValueError):
@@ -244,22 +279,17 @@ def _main():
     parser.add_argument("--max-concurrency", type=int, default=16)
     args = parser.parse_args()
 
-    client = OpenAI(base_url=args.base_url, api_key=args.api_key,
-                    timeout=llm_timeout_seconds())
+    client = make_llm_client(
+        {"base_url": args.base_url, "api_key": args.api_key, "model_name": args.model},
+        llm_timeout_seconds())
     print(f"Benchmarking {args.model} at {args.base_url}\n")
 
-    level = 1
-    while level <= args.max_concurrency:
-        t0 = time.time()
-        throughput = measure_throughput(client, args.model, level)
-        dt = time.time() - t0
-        status = f"{throughput:.1f} tok/s" if throughput is not None else "FAILED"
-        print(f"  concurrency={level:3d}  {status:>12s}  ({dt:.1f}s)")
-        if throughput is None:
-            break
-        level *= 2
+    def report_measurement(level, throughput, elapsed):
+        status = f"{throughput:.1f} tok/s median" if throughput is not None else "FAILED"
+        print(f"  concurrency={level:3d}  {status:>19s}  ({elapsed:.1f}s)")
 
-    optimal = find_optimal_concurrency(client, args.model, args.max_concurrency)
+    optimal = find_optimal_concurrency(client, args.model, args.max_concurrency,
+                                       on_measurement=report_measurement)
     print(f"\nOptimal concurrency: {optimal}")
 
 

@@ -76,10 +76,12 @@ def rules(seg, index, text):
 
 
 rows = []
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 for book in BOOKS:
     try:
         b = json.load(open(REPO + f"/ab_test_runtime/fixtures_draft/labelling_bundle__{book}.json"))
-        seg = json.load(open(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))["segmented"]
+        seg = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")["segmented"]
     except FileNotFoundError:
         continue
     pos = {norm(e.get("text")): i for i, e in enumerate(seg)}

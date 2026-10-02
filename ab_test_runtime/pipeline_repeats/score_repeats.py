@@ -1,28 +1,19 @@
 """Score every pipeline repeat and report the run-level distribution."""
-import json, re, glob, collections, os, statistics
+import json, glob, os, statistics, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
+sys.path.insert(0, ROOT)
+from tools.audit.pipeline_repeat_scoring import get_pipeline_repeat_scores
+sys.path.insert(0, os.path.join(ROOT, "app"))
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 D = ROOT + "/ab_test_runtime/pipeline_repeats"
 gold = json.load(open(ROOT + "/app/fixtures/attribution_gold_grimgar03_provisional.json"))
-AL = [{n.upper() for n in g} for g in gold.get("aliases", [])]
-def same(a, b):
-    a, b = (a or "").upper(), (b or "").upper()
-    return a == b or any(a in g and b in g for g in AL)
-def norm(t): return re.sub(r"\W+", "", t or "").lower()
 
 runs = {}
 for f in sorted(glob.glob(D + "/run*.json.threepass_checkpoint.json")):
     tag = os.path.basename(f).split(".")[0]
-    d = json.load(open(f)); seg = d["segmented"]
-    occ = collections.Counter(norm(e.get("text")) for e in seg)
-    idx = {}
-    for e in (x for x in (d.get("named") or []) if x):
-        idx.setdefault(norm(e.get("text")), e.get("speaker"))
-    scored = {}
-    for g in gold["entries"]:
-        k = norm(g["line"])
-        if occ.get(k) == 1 and k in idx:
-            scored[g["id"]] = same(idx[k], g["expected_speaker"])
+    d = load_generation_delta_checkpoint(f); seg = d["segmented"]
+    scored = get_pipeline_repeat_scores(d, gold)["scored"]
     runs[tag] = (scored, len(seg))
 
 if not runs:

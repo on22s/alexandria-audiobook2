@@ -22,13 +22,20 @@ because both spellings resolved exactly through `voice_config.get(speaker)`.
                             than editing the config it was handed.
 """
 import os
+import contextlib
+import io
+import json
 import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from repair_voice_config import (apply_merges, canonical, find_splits,
                                  voice_signature)
+import repair_voice_config
 
 LORA = {"type": "lora", "voice": "Ryan", "seed": "-1",
         "adapter_id": "husky_tenor_30s_m_fantasy"}
@@ -137,6 +144,18 @@ class TestAdapterIdIsPartOfIdentity(unittest.TestCase):
                              {"Subaru": 244, "NATSUKI SUBARU": 168})
         self.assertTrue(splits[0]["ambiguous"])
 
+    def test_two_distinct_design_voices_require_explicit_merge_override(self):
+        config = {"Anna": {"type": "design", "seed": 10, "description": "Soft voice"},
+                  "ANNA": {"type": "design", "seed": 20, "description": "Strong voice"}}
+        splits = find_splits(config, {}, {"Anna": 20, "ANNA": 1})
+        self.assertEqual(1, len(splits))
+        self.assertTrue(splits[0]["ambiguous"])
+        self.assertEqual(config, apply_merges(config, splits))
+        forced = apply_merges(config, splits, force_ambiguous=True)
+        self.assertEqual(config["Anna"], forced["ANNA"])
+        self.assertEqual(20, config["ANNA"]["seed"])
+
+
     def test_ambiguous_splits_are_not_merged_by_default(self):
         config = {"Subaru": dict(LORA_OTHER), "NATSUKI SUBARU": dict(LORA)}
         splits = find_splits(config, {"SUBARU": "NATSUKI SUBARU"},
@@ -158,6 +177,66 @@ class TestAdapterIdIsPartOfIdentity(unittest.TestCase):
         config = {"Anna": dict(LORA), "ANNA": dict(CUSTOM)}
         splits = find_splits(config, {}, {"Anna": 68, "ANNA": 2})
         self.assertFalse(splits[0]["ambiguous"])
+
+    def test_fixed_seed_custom_choices_require_explicit_merge_override(self):
+        config = {"Anna": {"type": "custom", "voice": "Aiden", "seed": 0},
+                  "ANNA": {"type": "custom", "voice": "Aiden", "seed": "7"}}
+        for counts in ({"Anna": 50, "ANNA": 1}, {"Anna": 1, "ANNA": 50}):
+            with self.subTest(counts=counts):
+                splits = find_splits(config, {}, counts)
+                self.assertTrue(splits[0]["ambiguous"])
+                self.assertEqual(config, apply_merges(config, splits))
+                forced = apply_merges(config, splits, force_ambiguous=True)
+                winner = max(counts, key=counts.get)
+                self.assertEqual(config[winner], forced["Anna"])
+                self.assertEqual(config[winner], forced["ANNA"])
+                self.assertEqual(0, config["Anna"]["seed"])
+                self.assertEqual("7", config["ANNA"]["seed"])
+
+    def test_fixed_seed_custom_choice_outranks_unseeded_fallback(self):
+        config = {"Anna": {"type": "custom", "voice": "Aiden", "seed": "0"},
+                  "ANNA": {"type": "custom", "voice": "Aiden", "seed": "-1"}}
+        splits = find_splits(config, {}, {"Anna": 1, "ANNA": 99})
+        self.assertEqual("Anna", splits[0]["winner"])
+        self.assertFalse(splits[0]["ambiguous"])
+        self.assertEqual("0", apply_merges(config, splits)["ANNA"]["seed"])
+        self.assertEqual("-1", config["ANNA"]["seed"])
+
+    def test_fallback_variant_does_not_hide_conflicting_deliberate_choices(self):
+        for first, second in (({**CUSTOM, "seed": 10}, {**CUSTOM, "seed": 20}),
+                              (dict(LORA), dict(LORA_OTHER))):
+            with self.subTest(first=first, second=second):
+                config = {"Anna": first, "ANNA": second, "Ann": dict(CUSTOM)}
+                splits = find_splits(config, {"ANN": "ANNA"}, {"Ann": 99})
+                self.assertEqual(1, len(splits))
+                self.assertTrue(splits[0]["ambiguous"])
+                self.assertEqual(config, apply_merges(config, splits))
+
+    def test_cli_preserves_conflicting_fixed_seed_choices_unless_forced(self):
+        config = {"Anna": {"type": "custom", "voice": "Aiden", "seed": "0"},
+                  "ANNA": {"type": "custom", "voice": "Aiden", "seed": "7"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "voices.json")
+            aliases = Path(folder, "aliases.json")
+            script = Path(folder, "script.json")
+            original = json.dumps(config, indent=2).encode()
+            path.write_bytes(original)
+            aliases.write_text("{}")
+            script.write_text(json.dumps([{"speaker": "Anna"}] + [{"speaker": "ANNA"}] * 20))
+            argv = ["repair_voice_config.py", "--config", str(path), "--aliases", str(aliases),
+                    "--script", str(script), "--apply"]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(output):
+                repair_voice_config.main()
+            self.assertEqual(config, json.loads(path.read_bytes()))
+            self.assertIn("AMBIGUOUS", output.getvalue())
+            self.assertEqual(original, next(Path(folder).glob("voices.json.bak-*")).read_bytes())
+            with patch.object(sys, "argv", argv + ["--force-ambiguous"]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                repair_voice_config.main()
+            saved = json.loads(path.read_bytes())
+            self.assertEqual(config["ANNA"], saved["Anna"])
+            self.assertEqual(config["ANNA"], saved["ANNA"])
 
 
 class TestApplyMerges(unittest.TestCase):
@@ -200,5 +279,158 @@ class TestApplyMerges(unittest.TestCase):
                          voice_signature(DESIGN))
 
 
+class TestRepairPersistence(unittest.TestCase):
+    def test_apply_rejects_ui_change_after_report_without_writing_backup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "voice_config.json")
+            original = {"Anastasia": dict(LORA), "ANASTASIA": dict(CUSTOM)}
+            with open(path, "w", encoding="utf-8") as target:
+                json.dump(original, target)
+            real_find_splits = repair_voice_config.find_splits
+
+            def intervening_save(config, aliases, counts):
+                splits = real_find_splits(config, aliases, counts)
+                with open(path, "w", encoding="utf-8") as target:
+                    json.dump({**original, "NEW": dict(CLONE)}, target)
+                return splits
+
+            argv = ["repair_voice_config.py", "--config", path,
+                    "--aliases", os.path.join(directory, "missing.json"),
+                    "--script", os.path.join(directory, "missing_chunks.json"),
+                    "--apply"]
+            with patch.object(sys, "argv", argv), \
+                 patch.object(repair_voice_config, "find_splits",
+                              side_effect=intervening_save):
+                with self.assertRaisesRegex(RuntimeError, "changed since the repair report"):
+                    repair_voice_config.main()
+            with open(path, encoding="utf-8") as source:
+                saved = json.load(source)
+            self.assertEqual(dict(CLONE), saved["NEW"])
+            self.assertEqual(dict(CUSTOM), saved["ANASTASIA"])
+            self.assertEqual(["voice_config.json", "voice_config.json.lock"], sorted(os.listdir(directory)))
+            from tests.test_support import assert_file_lock_released
+            assert_file_lock_released(path)
+
+    def test_apply_uses_atomic_write_and_keeps_backup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "voice_config.json")
+            original = {"Anastasia": dict(LORA), "ANASTASIA": dict(CUSTOM)}
+            with open(path, "w", encoding="utf-8") as target:
+                json.dump(original, target)
+            argv = ["repair_voice_config.py", "--config", path,
+                    "--aliases", os.path.join(directory, "missing.json"),
+                    "--script", os.path.join(directory, "missing_chunks.json"),
+                    "--apply"]
+            with patch.object(sys, "argv", argv):
+                repair_voice_config.main()
+            with open(path, encoding="utf-8") as source:
+                saved = json.load(source)
+            self.assertEqual(dict(LORA), saved["ANASTASIA"])
+            backups = [name for name in os.listdir(directory) if ".bak-" in name]
+            self.assertEqual(1, len(backups))
+            with open(os.path.join(directory, backups[0]), encoding="utf-8") as source:
+                self.assertEqual(original, json.load(source))
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepairAliasShapeTests(unittest.TestCase):
+    def test_invalid_alias_shapes_raise_value_error_without_publishing_changes(self):
+        import repair_voice_config as repair
+        invalid_values = ([], ["BOB"], "BOB", 0, False,
+                          {"Bob": None}, {"Bob": 7}, {"Bob": []}, {"Bob": ""})
+        for aliases in invalid_values:
+            with self.subTest(aliases=aliases), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                config = root / "voices.json"
+                aliases_path = root / "aliases.json"
+                script = root / "script.json"
+                config.write_text(json.dumps({"Bob": {"type": "lora", "adapter_id": "deliberate"},
+                                              "BOB": {"type": "custom", "voice": "Ryan", "seed": -1}}))
+                aliases_path.write_text(json.dumps(aliases))
+                script.write_text("[]")
+                originals = {p.name: p.read_bytes() for p in (config, aliases_path, script)}
+                args = ["repair_voice_config", "--config", str(config), "--aliases", str(aliases_path),
+                        "--script", str(script), "--apply"]
+                with patch.object(sys, "argv", args), contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaisesRegex(ValueError, "alias registry"):
+                        repair.main()
+                self.assertEqual(set(originals), {p.name for p in root.iterdir()})
+                for path in (config, aliases_path, script):
+                    self.assertEqual(originals[path.name], path.read_bytes())
+
+    def test_valid_map_and_missing_aliases_keep_the_existing_case_contract(self):
+        import copy
+        aliases = {"Bob": "Robert"}
+        before = copy.deepcopy(aliases)
+        self.assertEqual("ROBERT", canonical("bOB", aliases))
+        self.assertEqual("ANN", canonical("Ann", {}))
+        self.assertEqual("ANN", canonical("Ann", None))
+        self.assertEqual("", canonical(None, None))
+        self.assertEqual(before, aliases)
+
+
+class SharedRepairIdentityTests(unittest.TestCase):
+    def test_generation_equivalent_identities_report_a_split_and_keep_voice_rules(self):
+        import copy
+        from speaker_identity import resolve_speaker_label
+        for names, aliases in ((['Bri-chan', 'Bri chan'], {}),
+                               (['José', 'José'], {}),
+                               (['BRI', 'Bri chan'], {'Bri-chan': 'BRI'})):
+            with self.subTest(names=names):
+                config = {names[0]: dict(LORA), names[1]: dict(CUSTOM), 'Other': dict(CLONE)}
+                prior = copy.deepcopy((config, aliases))
+                if not aliases:
+                    self.assertIsNotNone(resolve_speaker_label(names[1], [names[0]]))
+                else:
+                    self.assertEqual('BRI', canonical(names[1], aliases))
+                splits = find_splits(config, aliases, {names[0]: 1, names[1]: 4})
+                self.assertEqual(1, len(splits), splits)
+                split = splits[0]
+                self.assertEqual(set(names), set(split['keys']))
+                self.assertEqual(names[0], split['winner'])
+                self.assertEqual(min(canonical(name, aliases) for name in names), split['canonical'])
+                merged = apply_merges(config, splits)
+                self.assertEqual(LORA, merged[names[1]])
+                self.assertEqual(CLONE, merged['Other'])
+                self.assertEqual(prior, (config, aliases))
+                self.assertEqual(set(config), set(merged))
+                config[names[1]] = dict(LORA_OTHER)
+                ambiguous = find_splits(config, aliases, {})
+                self.assertTrue(ambiguous[0]['ambiguous'])
+                self.assertEqual(config, apply_merges(config, ambiguous))
+
+    def test_distinct_and_empty_normalized_identities_do_not_merge(self):
+        for names in (['Alice', 'Bob'], ['Alice', 'Alicia'], ['Bri_chan', 'Bri chan'], ['!', '?']):
+            with self.subTest(names=names):
+                self.assertEqual([], find_splits({names[0]: dict(LORA), names[1]: dict(CUSTOM)}, {}, {}))
+
+    def test_actual_cli_dry_run_and_apply_preserve_raw_keys_and_backup(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / 'voices.json'
+            aliases = root / 'aliases.json'
+            script = root / 'script.json'
+            original = {'Bri-chan': dict(LORA), 'Bri chan': dict(CUSTOM), 'Other': dict(CLONE)}
+            config.write_text(json.dumps(original))
+            aliases.write_text('{}')
+            script.write_text(json.dumps([{'speaker': 'Bri-chan'}, {'speaker': 'Bri chan'}]))
+            before = config.read_bytes()
+            args = [sys.executable, repair_voice_config.__file__, '--config', str(config),
+                    '--aliases', str(aliases), '--script', str(script)]
+            report = subprocess.run(args, capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, report.returncode, report.stderr)
+            self.assertIn('1 characters cast in more than one voice', report.stdout)
+            self.assertEqual(before, config.read_bytes())
+            self.assertEqual([], list(root.glob('voices.json.bak-*')))
+            applied = subprocess.run(args + ['--apply'], capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, applied.returncode, applied.stderr)
+            updated = json.loads(config.read_text())
+            self.assertEqual({**original, 'Bri chan': dict(LORA)}, updated)
+            backups = list(root.glob('voices.json.bak-*'))
+            self.assertEqual(1, len(backups))
+            self.assertEqual(before, backups[0].read_bytes())
+            self.assertEqual('{}', aliases.read_text())

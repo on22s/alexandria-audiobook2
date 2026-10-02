@@ -17,20 +17,22 @@ import json
 import re
 import time
 import argparse
+from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
-from llm_provider import make_llm_client
-from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
+from llm_provider import make_run_client
+from generate_script import LLMGenParams, call_llm_for_object, ensure_run_request_params
+from utils import safe_load_json, file_lock, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from llm_bench import get_cached_or_benchmarked_concurrency
-from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
-                               get_effective_max_tokens)
+from lmstudio_settings import ensure_ideal_settings, get_active_llm_config, TokenBudgetError
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
-from review_script import _is_group_label
+from speaker_identity import (is_speaker_merge_allowed, get_validated_alias_graph,
+                              get_safe_alias_proposals)
 
 # Reuse the codebase's one near-miss-label similarity check (Rule 15) — here it
 # only *reports* dropped near-misses; alias resolution itself stays exact-match.
-from speaker_identity import _uncertain_candidates, resolve_speaker_label
+from speaker_identity import _uncertain_candidates, resolve_speaker_label, get_validated_alias_map
 
 
 NICKNAME_SYSTEM_PROMPT = (
@@ -55,19 +57,13 @@ NICKNAME_SYSTEM_PROMPT = (
 )
 
 
-# Rough English chars-per-token, used only to budget the prompt so it fits the
-# model's context window (the VRAM-safe LM Studio default is 8192).
-_CHARS_PER_TOKEN = 3.5
-
-
 def _prompt_char_budget(context_length, max_tokens, system_chars):
-    """Char budget for the user prompt so system+user+reply fit context_length.
-
-    Reserves the reply (`max_tokens`) plus a margin, converts the remaining
-    token room to chars, and subtracts the (fixed) system prompt length.
-    """
-    input_tokens = max(512, context_length - max_tokens - 512)
-    return max(1000, int(input_tokens * _CHARS_PER_TOKEN) - system_chars)
+    """Match the shared call budget's three chars/token and 512-token reserve."""
+    budget = (context_length - max_tokens - 512) * 3 - system_chars
+    if budget < 1:
+        raise TokenBudgetError("Nickname system prompt and reply exceed the context; "
+                               "reduce max_tokens or increase model context.")
+    return budget
 
 
 def _entry_speaker(e):
@@ -81,8 +77,9 @@ def _entry_text(e):
 def _name_tokens(name):
     """Lowercased word tokens of a name, ignoring parenthetical qualifiers and short stopwords."""
     base = re.sub(r"\(.*?\)", " ", name)  # drop "(INTERNAL)" etc.
-    toks = re.findall(r"[A-Za-z']{3,}", base.lower())
-    return [t for t in toks if t not in {"the", "and", "voice", "echo"}]
+    toks = re.findall(r"[^\W\d_]+(?:'[^\W\d_]*)*", base.lower())
+    return [t for t in toks if (len(t) >= 3 or not t.isascii())
+            and t not in {"the", "and", "voice", "echo"}]
 
 
 def collect_context(entries, max_per_speaker=6, max_cooccur=300):
@@ -110,14 +107,15 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
         for tok in _name_tokens(sp):
             token_to_speaker.setdefault(tok, sp)
 
-    # Pre-compile one word-boundary pattern per token (once, not per entry) and
-    # test each independently. A combined alternation with findall would be
-    # faster but is NOT equivalent: findall consumes a match, so when one
-    # speaker's token is a prefix of another's at the same position (e.g. "beat"
-    # vs "beatrice"), only the longer would register and a real co-occurrence
-    # would be dropped. Independent searches credit every token that appears.
-    token_patterns = [(re.compile(rf"\b{re.escape(tok)}"), sp)
-                      for tok, sp in token_to_speaker.items()]
+    # Share prefixes across the cast, retaining every terminal for overlapping
+    # tokens such as James and James'. Start only at Unicode word boundaries.
+    token_tree = {}
+    for token, speaker in token_to_speaker.items():
+        node = token_tree
+        for char in token:
+            node = node.setdefault(char, {})
+        node[None] = speaker
+    word_starts = re.compile(r"\b(?=\w)")
 
     cooccur = []
     seen = set()
@@ -126,7 +124,18 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
         if not txt or len(txt) > 600:
             continue
         low = txt.lower()
-        hits = {sp for pat, sp in token_patterns if pat.search(low)}
+        hits = set()
+        for start in word_starts.finditer(low):
+            node = token_tree
+            for offset in range(start.start(), len(low)):
+                node = node.get(low[offset])
+                if node is None:
+                    break
+                following = low[offset + 1:offset + 2]
+                if None in node and (not following or not (following.isalnum() or following == "_")):
+                    hits.add(node[None])
+            if len(hits) >= 2:
+                break
         if len(hits) >= 2:
             key = txt[:120]
             if key not in seen:
@@ -150,7 +159,7 @@ def _warn_near_miss_label(role, label, speakers):
               f"not merged, exact matches only")
 
 
-def _parse_alias_response(raw, speakers):
+def _parse_alias_response(raw, speakers, existing_aliases=None):
     """Normalize one LLM response into (aliases, evidence) maps.
 
     Resolves model casing back to the real speaker label, drops self/NARRATOR/
@@ -161,9 +170,16 @@ def _parse_alias_response(raw, speakers):
         warn_unparseable_llm_json("alias", raw, "treating as no aliases found")
         data = {}
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
+    if not isinstance(raw_aliases, dict):
+        raise ValueError("nickname aliases must be an object")
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
+    if not isinstance(evidence, dict):
+        warn_unparseable_llm_json("alias evidence", json.dumps(evidence),
+                                 "dropping malformed evidence")
+        evidence = {}
 
     aliases = {}
+    proposals = []
     for variant, canonical in (raw_aliases or {}).items():
         if not isinstance(variant, str) or not isinstance(canonical, str):
             continue
@@ -176,30 +192,35 @@ def _parse_alias_response(raw, speakers):
             continue
         # Prefer an existing label spelling for the canonical when one matches
         resolved_canonical = resolve_speaker_label(canonical, speakers)
-        if resolved_canonical is None:
-            _warn_near_miss_label("canonical", canonical, speakers)
         canonical = resolved_canonical if resolved_canonical is not None else canonical
         if actual_variant == canonical:
             continue
-        if actual_variant.upper() == "NARRATOR" or canonical.upper() == "NARRATOR":
+        if not is_speaker_merge_allowed(actual_variant, canonical):
+            print("  [skip] protected speaker mapping")
             continue
-        if _is_group_label(actual_variant) and not _is_group_label(canonical):
-            print(f"  [skip] '{actual_variant}' is a combined/group label")
-            continue
+        proposals.append({actual_variant: canonical})
         aliases[actual_variant] = canonical
-    return aliases, evidence
+    safe = get_safe_alias_proposals(proposals, speakers, existing_aliases)
+    for variant, canonical in aliases.items():
+        if variant not in safe and resolve_speaker_label(canonical, speakers) is None:
+            _warn_near_miss_label("canonical", canonical, speakers)
+    return safe, evidence
 
 
 def _chunk_evidence(cooccur, evidence_budget):
     """Pack co-occurrence passages into char-budgeted chunks (>=1 chunk always)."""
+    if evidence_budget < 4 and cooccur:
+        raise TokenBudgetError("Nickname context has no room for evidence; increase model context.")
     chunks, cur, cur_len = [], [], 0
-    for c in cooccur:
-        line = f"- {c}"
-        if cur and cur_len + len(line) + 1 > evidence_budget:
-            chunks.append(cur)
-            cur, cur_len = [], 0
-        cur.append(line)
-        cur_len += len(line) + 1
+    for passage in cooccur:
+        # Preserve every character while splitting passages too large for one call.
+        for start in range(0, len(passage), max(1, evidence_budget - 3)):
+            line = "- " + passage[start:start + evidence_budget - 3]
+            if cur and cur_len + len(line) + 1 > evidence_budget:
+                chunks.append(cur)
+                cur, cur_len = [], 0
+            cur.append(line)
+            cur_len += len(line) + 1
     if cur:
         chunks.append(cur)
     return chunks or [[]]
@@ -207,7 +228,7 @@ def _chunk_evidence(cooccur, evidence_budget):
 
 def find_nicknames(client, model_name, entries, existing_aliases=None,
                    max_tokens=2000, temperature=0.2, context_length=8192,
-                   concurrency=1):
+                   concurrency=1, params=None):
     """Discover nickname/alias relationships. Returns (aliases, evidence).
 
     The full speaker roster is sent with every request, but the co-occurrence
@@ -223,6 +244,10 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
     see each other's results yet (fixed up once that wave finishes), all
     results are merged at the end.
     """
+    if not isinstance(concurrency, int) or concurrency < 1:
+        raise ValueError("Nickname concurrency must be a positive integer")
+    trusted_aliases = get_validated_alias_graph({} if existing_aliases is None else existing_aliases)
+    existing_aliases = trusted_aliases
     speakers, samples, cooccur = collect_context(entries)
     if len(speakers) < 2:
         return {}, {}
@@ -237,95 +262,155 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                         if k.strip().lower() in speaker_set}
     budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
 
-    # Roster block (every speaker + scaled sample lines) goes in every call, so
-    # cap it at ~half the budget and leave the rest for a chunk of evidence.
-    roster_budget = int(budget * 0.5)
-    per_speaker = max(1, min(6, roster_budget // max(1, len(speakers)) // 140))
-    roster_lines = ["SPEAKER LABELS + SAMPLE LINES:"]
-    for sp in speakers:
-        roster_lines.append(f'- "{sp}": ' + " | ".join(samples[sp][:per_speaker]))
-    roster_block = "\n".join(roster_lines)
-    if len(roster_block) > budget:  # extreme cast - truncate roster as last resort
-        roster_block = roster_block[:budget]
-
-    # Existing aliases are prepended to every chunk too (see loop below) - even
-    # filtered, count them against the budget as a backstop.
-    existing_block_chars = (len(json.dumps(existing_aliases, ensure_ascii=False)) + 40
-                            if existing_aliases else 0)
-
-    evidence_budget = max(500, budget - len(roster_block) - existing_block_chars)
-    chunks = _chunk_evidence(cooccur, evidence_budget)
-    if len(chunks) > 1:
-        print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
-              f"context-safe chunk(s) for {context_length}-token model.")
-
-    def _process_chunk(item):
-        ci, ev_lines, accumulated_snapshot = item
+    def get_prompt(roster, snapshot, ev_lines):
         parts = []
-        if accumulated_snapshot:
-            parts.append("EXISTING ALIASES (stay consistent):")
-            parts.append(json.dumps(accumulated_snapshot, ensure_ascii=False))
-            parts.append("")
-        parts.append(roster_block)
+        if snapshot:
+            parts.extend(["EXISTING ALIASES (stay consistent):",
+                          json.dumps(snapshot, ensure_ascii=False), ""])
+        parts.append(roster)
         if ev_lines:
             parts.append("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):")
             parts.extend(ev_lines)
         parts.append("\nReturn the JSON now.")
-        user_prompt = "\n".join(parts)
+        return "\n".join(parts)
 
-        if len(chunks) > 1:
-            print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
+    roster_lines = ["SPEAKER LABELS + SAMPLE LINES:"] + [
+        "- " + json.dumps(sp, ensure_ascii=False) for sp in speakers]
+    roster_block = "\n".join(roster_lines)
+    context_header_chars = len("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):\n")
+    fixed_chars = len(get_prompt(roster_block, existing_aliases, []))
+    if fixed_chars + context_header_chars + 4 > budget:
+        raise TokenBudgetError("Nickname full roster and existing aliases exceed the context; "
+                               "increase model context or reduce the reply allowance.")
+    # Retain all labels; use only the space available for optional sample text.
+    sample_room = max(0, min(budget // 2, budget - fixed_chars - context_header_chars - 4))
+    per_speaker_chars = sample_room // len(speakers)
+    if per_speaker_chars >= 3:
+        for index, sp in enumerate(speakers, 1):
+            roster_lines[index] += ": " + " | ".join(samples[sp])[:per_speaker_chars - 2]
+        roster_block = "\n".join(roster_lines)
+    evidence_budget = budget - len(get_prompt(roster_block, existing_aliases, [])) - context_header_chars
+    chunks = _chunk_evidence(cooccur, evidence_budget)
+    if len(chunks) > 1:
+        print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
+              f"context-safe chunk(s) for {context_length}-token model.")
+    call_params = replace(params or LLMGenParams(), max_tokens=max_tokens,
+                          temperature=temperature, context_length=context_length,
+                          hard_max_tokens=12000)
+
+    def _process_chunk(item):
+        ci, ev_lines, accumulated_snapshot, wave_roster, total_chunks = item
+        def request(roster, lines, request_params, attempts):
+            return call_llm_for_object(
+                client, model_name, NICKNAME_SYSTEM_PROMPT,
+                get_prompt(roster, accumulated_snapshot, lines), request_params,
+                label=f"NICKNAMES {ci + 1}/{total_chunks}",
+                attempt_observer=attempts.append)
+
+        def adapt_to_runtime(request_params):
+            # Keep every label and evidence character. Sample lines are optional
+            # roster decoration; the co-occurrence evidence is not optional.
+            minimal_roster = "\n".join(["SPEAKER LABELS + SAMPLE LINES:"] + [
+                "- " + json.dumps(sp, ensure_ascii=False) for sp in speakers])
+            active_budget = _prompt_char_budget(
+                request_params.context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
+            room = active_budget - len(get_prompt(minimal_roster, accumulated_snapshot, [])) - context_header_chars
+            if room < 4:
+                raise TokenBudgetError("Nickname full roster and aliases exceed the serving context")
+            parts = _chunk_evidence([line[2:] for line in ev_lines], room)
+            proposals, evidence = [], {}
+            for lines in parts:
+                parsed = request(minimal_roster, lines, request_params, [])
+                if not isinstance(parsed, dict):
+                    raise RuntimeError("Nickname adapted request failed; alias file was not updated")
+                aliases, observations = _parse_alias_response(
+                    json.dumps(parsed, ensure_ascii=False), speakers, trusted_aliases)
+                proposals.append(aliases)
+                evidence.update(observations)
+            return get_safe_alias_proposals(proposals, speakers, trusted_aliases), evidence
+
+        request_params = ensure_run_request_params(client, call_params)
+        user_prompt = get_prompt(wave_roster, accumulated_snapshot, ev_lines)
+        active_budget = _prompt_char_budget(
+            request_params.context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
+        if len(user_prompt) > active_budget:
+            if request_params.context_length != call_params.context_length:
+                return adapt_to_runtime(request_params)
+            raise TokenBudgetError("Nickname prompt exceeds the context; increase model context.")
+        if total_chunks > 1:
+            print(f"  Evidence chunk {ci + 1}/{total_chunks}...")
         t0 = time.time()
-        try:
-            messages = [
-                {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ]
-            effective_max = get_effective_max_tokens(
-                max_tokens, context_length, messages, hard_max=12000)
-            resp = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                max_tokens=effective_max,
-                temperature=temperature,
-            )
-            raw = resp.choices[0].message.content or ""
-            print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
-            return _parse_alias_response(raw, speakers)
-        except Exception as e:
-            # Broad on purpose, matching review_script.py's equivalent LLM-call
-            # site: a local/remote LLM endpoint can fail in ways a hand-picked
-            # exception list won't anticipate. More important here than there -
-            # this runs inside executor.map() below, so anything this doesn't
-            # catch propagates out when results are collected and crashes the
-            # whole wave's worth of chunks, not just this one.
-            print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
-                  f"after {time.time() - t0:.1f}s: {e}")
-            return {}, {}
+        attempts = []
+        result = request(wave_roster, ev_lines, request_params, attempts)
+        print(f"  Evidence chunk {ci + 1}/{total_chunks} took {time.time() - t0:.1f}s")
+        if not isinstance(result, dict):
+            active_params = ensure_run_request_params(client, call_params)
+            if (active_params.context_length != call_params.context_length
+                    and any(attempt.get("error_category") == "context_budget" for attempt in attempts)):
+                return adapt_to_runtime(active_params)
+            raise RuntimeError(f"Nickname discovery failed on chunk {ci + 1}/{total_chunks}; "
+                               "alias file was not updated")
+        return _parse_alias_response(json.dumps(result, ensure_ascii=False), speakers, trusted_aliases)
 
     all_aliases, all_evidence = {}, {}
-    indexed_chunks = list(enumerate(chunks))
-    for wave_start in range(0, len(indexed_chunks), concurrency):
-        wave = indexed_chunks[wave_start:wave_start + concurrency]
-        # Every chunk in this wave sees the same "aliases found so far" snapshot,
-        # taken before the wave starts - they can't see each other's results,
-        # only chunks from earlier, already-finished waves.
-        snapshot = {**existing_aliases, **all_aliases}
-        wave_items = [(ci, ev_lines, snapshot) for ci, ev_lines in wave]
-        with ThreadPoolExecutor(max_workers=len(wave_items)) as executor:
+    pending_chunks = list(chunks)
+    chunk_index = 0
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        while pending_chunks:
+            # Join each wave before snapshotting accumulated aliases for the next.
+            snapshot = {**existing_aliases, **all_aliases}
+            wave_roster = roster_block
+            remaining_budget = budget - len(get_prompt(wave_roster, snapshot, [])) - context_header_chars
+            if remaining_budget < 4:
+                wave_roster = "\n".join(["SPEAKER LABELS + SAMPLE LINES:"] + [
+                    "- " + json.dumps(sp, ensure_ascii=False) for sp in speakers])
+                remaining_budget = budget - len(get_prompt(wave_roster, snapshot, [])) - context_header_chars
+            if any(sum(len(line) + 1 for line in chunk) > remaining_budget for chunk in pending_chunks):
+                passages = [line[2:] for chunk in pending_chunks for line in chunk]
+                pending_chunks = _chunk_evidence(passages, remaining_budget)
+            if len(get_prompt(wave_roster, snapshot, [])) > budget:
+                raise TokenBudgetError("Nickname accumulated aliases exceed the context; increase model context.")
+            total_chunks = chunk_index + len(pending_chunks)
+            wave = pending_chunks[:concurrency]
+            pending_chunks = pending_chunks[concurrency:]
+            wave_items = [(chunk_index + ci, ev_lines, snapshot, wave_roster, total_chunks)
+                          for ci, ev_lines in enumerate(wave)]
             results = list(executor.map(_process_chunk, wave_items))
-        for aliases, evidence in results:
-            all_aliases.update(aliases)
-            all_evidence.update(evidence)
+            chunk_index += len(wave)
+            all_aliases = get_safe_alias_proposals(
+                [all_aliases] + [aliases for aliases, _ in results], speakers, trusted_aliases)
+            for _, evidence in results:
+                all_evidence.update(evidence)
 
     return all_aliases, all_evidence
+
+
+def get_existing_aliases(path):
+    if not os.path.exists(path):
+        return {}
+    current = safe_load_json(path, default=None)
+    if not isinstance(current, dict):
+        raise ValueError("Alias registry must contain a valid JSON object")
+    return current
+
+
+def save_discovered_aliases(path, aliases, roster=()):
+    """Merge discovery into the latest registry without replacing human edits."""
+    with file_lock(path):
+        current = get_existing_aliases(path)
+        safe = get_safe_alias_proposals([aliases], roster, current)
+        merged = dict(current)
+        merged.update(safe)
+        if safe or not os.path.exists(path):
+            atomic_json_write(merged, path)
+    return merged
 
 
 def main():
     parser = argparse.ArgumentParser(description="Discover character nickname/alias mappings")
     parser.add_argument("--input", help="Script JSON to scan (default: ../annotated_script.json)")
     parser.add_argument("--aliases-file", help="Where to write the alias map (default: ../character_aliases.json)")
-    parser.add_argument("--append", action="store_true", help="Merge into the existing aliases file instead of replacing")
+    parser.add_argument("--append", action="store_true", help="Compatibility flag; existing aliases are always preserved")
     args = parser.parse_args()
 
     base = os.path.dirname(os.path.abspath(__file__))
@@ -340,13 +425,24 @@ def main():
 
     with open(script_path, "r", encoding="utf-8") as f:
         entries = json.load(f)
+    if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+        print("Error: script must contain a JSON list of entry objects")
+        sys.exit(1)
     print(f"Scanning {len(entries)} entries for character nicknames...")
+    existing = {}
+    if args.append and os.path.exists(aliases_path):
+        try:
+            with open(aliases_path, "r", encoding="utf-8") as f:
+                existing = get_validated_alias_map(json.load(f))
+        except (OSError, ValueError) as error:
+            print(f"Error: invalid alias registry: {error}")
+            sys.exit(1)
 
     config_path = get_app_config_path(data_dir, root, base)
     config = load_app_config(config_path)
     llm = get_active_llm_config(config)
     base_url = llm.get("base_url", "")
-    client = make_llm_client(llm, llm_timeout_seconds())
+    client = make_run_client(config, llm, llm_timeout_seconds())
     model_name = llm.get("model_name", "local-model")
     llm_mode = config.get("llm_mode", "local")
     print(f"Using model: {model_name}")
@@ -358,7 +454,7 @@ def main():
     # context_length, so this replaces a previous hardcoded 8192 guess that
     # was disconnected from whatever was really loaded.
     _, status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     print(heal_msg)
 
     if status.get("loaded") and status.get("context_length"):
@@ -378,14 +474,21 @@ def main():
     if concurrency > 1:
         print(f"Using concurrency: {concurrency}")
 
-    existing = {}
-    if args.append:
-        existing = safe_load_json(aliases_path, default={}) or {}
+    params = LLMGenParams(
+        provider_extra_body=llm.get("provider_extra_body"),
+        structured_output=llm.get("structured_output", "auto"),
+        api_retry_limit=llm.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
+        retry_jitter=llm.get("retry_jitter", 0.2),
+        on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
+    existing = get_existing_aliases(aliases_path)
 
     aliases, evidence = find_nicknames(client, model_name, entries,
                                        existing_aliases=existing,
                                        context_length=context_length,
-                                       concurrency=concurrency)
+                                       concurrency=concurrency, params=params)
 
     if aliases:
         print(f"\nFound {len(aliases)} nickname/alias mapping(s):")
@@ -395,9 +498,8 @@ def main():
     else:
         print("\nNo new nicknames found.")
 
-    merged = dict(existing)
-    merged.update(aliases)
-    atomic_json_write(merged, aliases_path)
+    merged = save_discovered_aliases(aliases_path, aliases,
+                                     roster=collect_context(entries, max_cooccur=0)[0])
     print(f"\nAlias file saved to: {aliases_path} ({len(merged)} total entries)")
     print("Task find_nicknames completed successfully.")
 

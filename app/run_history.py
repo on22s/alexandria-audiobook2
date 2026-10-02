@@ -3,8 +3,10 @@
 import datetime
 import hashlib
 import os
+import threading
+from functools import lru_cache
 
-from utils import (atomic_json_write, get_unique_id, is_path_inside,
+from utils import (atomic_json_write, file_lock, get_unique_id, is_path_inside,
                    safe_load_json, secure_filename)
 
 
@@ -29,6 +31,31 @@ def start_run(history_dir, task_name):
     return run_id
 
 
+def _get_run_path(history_dir, run_id):
+    safe_id = secure_filename(run_id)
+    if not safe_id or safe_id != run_id:
+        raise FileNotFoundError(f"Run history record not found: {run_id}")
+    return os.path.join(history_dir, f"{run_id}.json")
+
+
+def _apply_run_update(history_dir, run_id, get_updates):
+    """Merge a callback's returned fields into the fresh record under its lock.
+
+    The callback reads the record without mutating it; None skips publication.
+    """
+    path = _get_run_path(history_dir, run_id)
+    with file_lock(path):
+        record = get_run(history_dir, run_id)
+        if record is None:
+            raise FileNotFoundError(f"Run history record not found: {run_id}")
+        updates = get_updates(record)
+        if updates is None:
+            return None
+        updated = {**record, **updates}
+        atomic_json_write(updated, path)
+        return updated
+
+
 def update_run(history_dir, run_id, updates):
     """Atomically merge bounded task-specific summary fields into one run."""
     if not isinstance(updates, dict):
@@ -38,24 +65,13 @@ def update_run(history_dir, run_id, updates):
     if forbidden:
         raise ValueError("Run identity fields cannot be updated: " +
                          ", ".join(sorted(forbidden)))
-    record = get_run(history_dir, run_id)
-    if record is None:
-        raise FileNotFoundError(f"Run history record not found: {run_id}")
-    record = {**record, **updates}
-    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
-    return record
+    return _apply_run_update(history_dir, run_id, lambda record: updates)
 
 
 def finish_run(history_dir, run_id, status, error=None):
     """Finish an existing task record without changing its identity/start time."""
-    safe_id = secure_filename(run_id)
-    path = os.path.join(history_dir, f"{safe_id}.json")
-    record = safe_load_json(path, default={})
-    if not record or record.get("id") != run_id:
-        raise FileNotFoundError(f"Run history record not found: {run_id}")
-    record = {**record, "status": status, "finished_at": _utc_now(), "error": error}
-    atomic_json_write(record, path)
-    return record
+    return update_run(history_dir, run_id, {
+        "status": status, "finished_at": _utc_now(), "error": error})
 
 
 def _sha256_file(path):
@@ -69,9 +85,7 @@ def _sha256_file(path):
 def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
                     source_paths=(), config_path=None):
     """Hash an output and its declared inputs, then append it to a run record."""
-    record = get_run(history_dir, run_id)
-    if record is None:
-        raise FileNotFoundError(f"Run history record not found: {run_id}")
+    _get_run_path(history_dir, run_id)
     data_dir = os.path.abspath(data_dir)
     artifact_path = os.path.abspath(artifact_path)
     if not is_path_inside(artifact_path, data_dir):
@@ -98,8 +112,8 @@ def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
         "sources": [describe(path) for path in source_paths],
         "config": describe(config_path) if config_path else None,
     }
-    record["artifacts"] = [*record.get("artifacts", []), artifact]
-    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
+    _apply_run_update(history_dir, run_id, lambda record: {
+        "artifacts": [*record.get("artifacts", []), artifact]})
     return artifact
 
 
@@ -112,38 +126,109 @@ def get_run(history_dir, run_id):
     return record or None
 
 
+@lru_cache(maxsize=16)
+def _get_run_sort_cache(history_dir):
+    # Intentionally shared, lock-protected metadata only; never full records.
+    return threading.Lock(), {}
+
+
+def _get_run_file_version(path):
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_size,
+            stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def _get_run_with_version(path):
+    before = _get_run_file_version(path)
+    record = safe_load_json(path, default={})
+    after = _get_run_file_version(path)
+    return record, after if before == after else None
+
+
+def _iter_run_records(history_dir):
+    """Read complete history for recovery, priming immutable sorting metadata."""
+    history_dir = os.path.abspath(history_dir)
+    if not os.path.isdir(history_dir):
+        return
+    lock, cache = _get_run_sort_cache(history_dir)
+    for name in os.listdir(history_dir):
+        if name.startswith("run_") and name.endswith(".json"):
+            record, version = _get_run_with_version(os.path.join(history_dir, name))
+            with lock:
+                if version is not None:
+                    cache[name] = (version, record.get("started_at", ""), bool(record))
+                else:
+                    cache.pop(name, None)
+            if record:
+                yield record
+
+
 def list_runs(history_dir, limit=100):
-    """Return newest run records first, bounded for API/UI callers."""
+    """Return newest complete records, reading only requested rows once indexed.
+
+    The first scan (or changed files) loads sorting metadata. Every listing
+    checks directory membership and file versions; JSON payloads are not cached.
+    """
     try:
         limit = int(limit)
     except (TypeError, ValueError) as exc:
         raise ValueError("limit must be an integer") from exc
     if limit < 1:
         raise ValueError("limit must be positive")
+    history_dir = os.path.abspath(history_dir)
     if not os.path.isdir(history_dir):
         return []
-    records = []
-    for name in os.listdir(history_dir):
-        if not name.startswith("run_") or not name.endswith(".json"):
-            continue
-        record = safe_load_json(os.path.join(history_dir, name), default={})
-        if record:
-            records.append(record)
-    records.sort(key=lambda item: item.get("started_at", ""), reverse=True)
-    return records[:min(limit, 500)]
+    lock, cache = _get_run_sort_cache(history_dir)
+    with lock:
+        names = [name for name in os.listdir(history_dir)
+                 if name.startswith("run_") and name.endswith(".json")]
+        live_names = set(names)
+        for removed in set(cache) - live_names:
+            cache.pop(removed)
+        ordered = []
+        for name in names:
+            path = os.path.join(history_dir, name)
+            version = _get_run_file_version(path)
+            if version is None:
+                cache.pop(name, None)
+                continue
+            metadata = cache.get(name)
+            if metadata is None or metadata[0] != version:
+                record, stable_version = _get_run_with_version(path)
+                metadata = (stable_version, record.get("started_at", ""), bool(record))
+                if stable_version is not None:
+                    cache[name] = metadata
+                else:
+                    cache.pop(name, None)
+            if metadata[2]:
+                ordered.append((name, metadata[1]))
+        ordered.sort(key=lambda item: item[1], reverse=True)
+        records = []
+        for name, _ in ordered:
+            record = safe_load_json(os.path.join(history_dir, name), default={})
+            if record:
+                records.append(record)
+            if len(records) >= min(limit, 500):
+                break
+        return records
 
 
 def mark_interrupted_runs(history_dir):
     """Mark records left running by a prior server process as interrupted."""
     changed = []
-    for record in list_runs(history_dir, limit=500):
+    for record in _iter_run_records(history_dir):
         if record.get("status") != "running":
             continue
-        changed.append(update_run(history_dir, record["id"], {
+        updated = _apply_run_update(history_dir, record["id"], lambda current: {
             "status": "interrupted", "finished_at": _utc_now(),
             "error": "Server stopped before the run completed.",
             "next_action": "Review the last completed stage and start a new run.",
-        }))
+        } if current.get("status") == "running" else None)
+        if updated is not None:
+            changed.append(updated)
     return changed
 
 
@@ -159,6 +244,8 @@ def prune_runs(history_dir, max_count=200, max_age_days=90):
         protected = record.get("status") == "running" or record.get("id") == newest_failed
         try:
             started = datetime.datetime.fromisoformat(record.get("started_at", ""))
+            if started.tzinfo is None:
+                raise ValueError("Run timestamp has no timezone")
         except (TypeError, ValueError):
             started = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
         expired = started < cutoff

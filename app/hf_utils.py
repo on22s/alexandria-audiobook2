@@ -3,8 +3,9 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 import time
-from utils import atomic_json_write as _atomic_json_write, safe_load_json
+from utils import atomic_json_write as _atomic_json_write, file_lock, safe_load_json
 
 logger = logging.getLogger("AlexandriaUI")
 
@@ -17,6 +18,7 @@ REQUIRED_ADAPTER_FILES = [
     "training_meta.json",
 ]
 OPTIONAL_ADAPTER_FILES = ["preview_sample.wav"]
+_DOWNLOAD_MARKER = ".download_complete.json"
 
 # In-memory manifest cache
 _manifest_cache = None
@@ -64,6 +66,15 @@ def builtin_hf_name(adapter_id):
     """
     prefix = "builtin_"
     return adapter_id[len(prefix):] if adapter_id.startswith(prefix) else adapter_id
+
+
+def get_builtin_manifest_entry(adapter_id, entries):
+    """Return the catalog entry admitting this local built-in adapter ID."""
+    if not _is_safe_adapter_id(adapter_id):
+        return None
+    hf_name = builtin_hf_name(adapter_id)
+    return next((entry for entry in entries
+                 if entry["id"] in (hf_name, adapter_id)), None)
 
 
 def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
@@ -120,41 +131,75 @@ def download_builtin_adapter(adapter_id, builtin_dir, hf_repo=BUILTIN_LORA_HF_RE
     """
     if not _is_safe_adapter_id(adapter_id):
         raise ValueError("Invalid built-in adapter ID")
+    manifest = fetch_builtin_manifest(builtin_dir, hf_repo=hf_repo)
+    if get_builtin_manifest_entry(adapter_id, manifest) is None:
+        raise ValueError(f"Unknown built-in adapter: {adapter_id}")
     from huggingface_hub import hf_hub_download
 
     # Strip builtin_ prefix to get HF subfolder name
     hf_name = builtin_hf_name(adapter_id)
     adapter_dir = os.path.join(builtin_dir, adapter_id)
     os.makedirs(adapter_dir, exist_ok=True)
-
-    for filename in REQUIRED_ADAPTER_FILES + OPTIONAL_ADAPTER_FILES:
-        local_path = os.path.join(adapter_dir, filename)
-        if os.path.exists(local_path):
-            continue
-        try:
-            cached = hf_hub_download(
-                repo_id=hf_repo,
-                filename=f"{hf_name}/{filename}",
-            )
-            shutil.copy2(cached, local_path)
-            logger.info(f"Downloaded {hf_name}/{filename} -> {local_path}")
-        except Exception as e:
+    marker_path = os.path.join(adapter_dir, _DOWNLOAD_MARKER)
+    with file_lock(marker_path):
+        recorded = safe_load_json(marker_path, default={})
+        if not isinstance(recorded, dict):
+            recorded = {}
+        sizes = {}
+        for filename in REQUIRED_ADAPTER_FILES + OPTIONAL_ADAPTER_FILES:
+            local_path = os.path.join(adapter_dir, filename)
             if filename in REQUIRED_ADAPTER_FILES:
-                raise RuntimeError(
-                    f"Failed to download {hf_name}/{filename} for {adapter_id}: {e}"
-                )
-            logger.warning(f"Optional file {hf_name}/{filename} not available: {e}")
+                expected_size = recorded.get(filename)
+                if (isinstance(expected_size, int) and expected_size > 0
+                        and os.path.isfile(local_path)
+                        and os.path.getsize(local_path) == expected_size):
+                    sizes[filename] = expected_size
+                    continue
+            elif os.path.isfile(local_path) and os.path.getsize(local_path) > 0:
+                continue
+            staged_path = None
+            try:
+                cached = hf_hub_download(
+                    repo_id=hf_repo, filename=f"{hf_name}/{filename}")
+                descriptor, staged_path = tempfile.mkstemp(
+                    prefix=f".{filename}.", suffix=".tmp", dir=adapter_dir)
+                os.close(descriptor)
+                shutil.copy2(cached, staged_path)
+                size = os.path.getsize(staged_path)
+                if size == 0:
+                    raise OSError("downloaded file is empty")
+                os.replace(staged_path, local_path)
+                staged_path = None
+                if filename in REQUIRED_ADAPTER_FILES:
+                    sizes[filename] = size
+                logger.info(f"Downloaded {hf_name}/{filename} -> {local_path}")
+            except Exception as e:
+                if filename in REQUIRED_ADAPTER_FILES:
+                    raise RuntimeError(
+                        f"Failed to download {hf_name}/{filename} for {adapter_id}: {e}"
+                    ) from e
+                logger.warning(f"Optional file {hf_name}/{filename} not available: {e}")
+            finally:
+                if staged_path and os.path.exists(staged_path):
+                    os.remove(staged_path)
+        _atomic_json_write(sizes, marker_path)
 
     return adapter_dir
 
 
 def is_adapter_downloaded(adapter_id, builtin_dir):
     """Check if all required files exist for a built-in adapter."""
+    if not _is_safe_adapter_id(adapter_id):
+        return False
     adapter_dir = os.path.join(builtin_dir, adapter_id)
+    marker = safe_load_json(os.path.join(adapter_dir, _DOWNLOAD_MARKER), default={})
     return (
         os.path.isdir(adapter_dir)
+        and isinstance(marker, dict)
         and all(
-            os.path.exists(os.path.join(adapter_dir, f))
+            isinstance(marker.get(f), int) and marker[f] > 0
+            and os.path.isfile(os.path.join(adapter_dir, f))
+            and os.path.getsize(os.path.join(adapter_dir, f)) == marker[f]
             for f in REQUIRED_ADAPTER_FILES
         )
     )

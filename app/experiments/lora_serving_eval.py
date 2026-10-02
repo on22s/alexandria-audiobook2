@@ -46,11 +46,13 @@ def _sha256_file(path):
 
 
 sys.path.insert(0, APP)
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord, strict_shared_summary
 from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
 from experiments.stats import clopper_pearson, paired
+from judge_reason_log import record_judge_run
 from generate_script import LLMGenParams
 # This module lives at app/attribution_prompt_variants.py in this tree; the
 # probe checkouts keep a copy under app/experiments/. Importing by bare name
@@ -184,7 +186,7 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
     source_path, checkpoint_path = get_book_paths(
         book, input_dir, checkpoint_dir)
     src = open(source_path, encoding="utf-8").read()
-    cp = json.load(open(checkpoint_path))
+    cp = load_generation_delta_checkpoint(checkpoint_path)
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
@@ -304,6 +306,7 @@ def get_eval_metadata(base_only=False, batch=BATCH, reasoning_effort="none",
     return decoding, notes
 
 
+@record_judge_run()
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--books", nargs="+",

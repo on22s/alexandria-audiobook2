@@ -31,14 +31,16 @@
 set -uo pipefail
 
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
-if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
-    exec "$REPO/gpu_job.sh" replay_dirty_evidence \
-        env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
+# Normal orchestration stays outside the lease; every replay queues below.
+# Explicit external owners retain their lease and must prove ownership.
+if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" = 1 ]; then
+    bash "$REPO/gpu_job.sh" --check-lock-owner "${ALEXANDRIA_GPU_LOCK_PID:-}" || exit 1
 fi
 
 PY="$REPO/app/env/bin/python"
 EXP="$REPO/ab_test_runtime/experiments"
 LOG="$REPO/ab_test_runtime/logs/replay_evidence"
+source "$REPO/run_chains/lib/stage.sh" || exit 1
 mkdir -p "$LOG"
 cd "$REPO"
 
@@ -51,19 +53,28 @@ PRIORITY="asr_ja_readings.json asr_ja_cutting_control.json
 
 replay_one() {
     local art="$1"
-    local cmd
-    cmd=$("$PY" "$REPO/app/experiments/replay_artifact.py" "$art" 2>/dev/null | head -1)
-    if [ -z "$cmd" ]; then
+    local rc
+    local argv=()
+    mapfile -d '' -t argv < <("$PY" "$REPO/app/experiments/replay_artifact.py" --argv0 "$art")
+    if [ "${#argv[@]}" -eq 0 ]; then
         echo "  SKIP $art (not replayable)"
         return 0
     fi
     echo "  REPLAY $art"
-    if eval timeout --signal=INT --kill-after=60s 5400 "$cmd" \
-            > "$LOG/${art%.json}.log" 2>&1; then
+    local worker=(timeout --signal=INT --kill-after=60s 5400 "${argv[@]}")
+    if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
+        worker=("$REPO/gpu_job.sh" "replay_${art%.json}" "${worker[@]}")
+    fi
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    if "${worker[@]}" > "$LOG/${art%.json}.log" 2>&1; then
+        rc=0
         echo "    ok"
     else
-        echo "    FAILED rc=$? (see $LOG/${art%.json}.log)"
+        rc=$?
+        echo "    FAILED rc=$rc (see $LOG/${art%.json}.log)"
     fi
+    record_stage_result "replay_$art" "$rc"
+    stage_commit_artifacts "replay_$art" "$REPO" "$EXP/$art" "$EXP/$art.ckpt" "$EXP/$art.ckpt.stale"
 }
 
 echo "REPLAY START $(date -u +%FT%TZ)"
@@ -73,7 +84,9 @@ for art in $PRIORITY; do
 done
 
 echo "== the remaining dirty, replayable artifacts =="
-"$PY" - <<'PYEOF' > /tmp/replay_rest.txt
+REST=$(mktemp "${TMPDIR:-/tmp}/alexandria-replay.XXXXXXXX") || exit 1
+trap 'rm -f -- "$REST"' EXIT
+if ! "$PY" - <<'PYEOF' > "$REST"
 import json, os, sys
 sys.path.insert(0, "app")
 from experiments.replay_artifact import replay_command
@@ -93,10 +106,15 @@ for row in audit["artifacts"]:
     if argv:
         print(name)
 PYEOF
-count=$(wc -l < /tmp/replay_rest.txt)
+then
+    echo "REPLAY INCOMPLETE: could not build the remaining replay list" >&2
+    exit 1
+fi
+count=$(wc -l < "$REST")
 echo "  $count remaining"
-while read -r art; do replay_one "$art"; done < /tmp/replay_rest.txt
+while read -r art; do replay_one "$art"; done < "$REST"
 
+stage_summary replay_artifacts || exit "$?"
 echo "REPLAY COMPLETE $(date -u +%FT%TZ)"
 echo
 echo "WHAT TO READ:"

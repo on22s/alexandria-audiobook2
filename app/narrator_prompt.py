@@ -31,7 +31,9 @@ def is_narrator_attested(name, source_text, minimum=3):
 
 def add_narrator_prior(base_system, narrator):
     """Return the attribution prompt with book-level narrator metadata."""
-    narrator = normalize_narrator_name(narrator)
+    narrator = get_valid_narrator_name(narrator)
+    if narrator is None:
+        return base_system
     return base_system.rstrip() + (
         f"\n\nThis book is narrated in the first person by {narrator}. The "
         f"narration is {narrator}'s own voice, so lines of interior thought or "

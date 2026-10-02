@@ -95,4 +95,4 @@ class StyleTimelineEndpointTests(unittest.TestCase):
                 self.assertEqual(1, len(saved["style_timeline"]))
                 # the save endpoint's model accepts the field, so a Voices-tab save keeps it
                 self.assertEqual([{"from_index": 3, "character_style": "x"}],
-                                 voices_module.VoiceConfigItem(style_timeline=[{"from_index": 3, "character_style": "x"}]).style_timeline)
+                                 voices_module.VoiceConfigItem(style_timeline=[{"from_index": 3, "character_style": "x"}]).model_dump()["style_timeline"])

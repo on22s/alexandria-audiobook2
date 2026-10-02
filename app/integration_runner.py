@@ -9,11 +9,14 @@ from collections import defaultdict
 
 from openai import OpenAI
 
+from attribution_adapter import check_adapter, describe
 from chunk_quality import validate_chunk_quality
 from config_settings import load_app_config
-from core import CONFIG_PATH, llm_timeout_seconds
+from core import (CONFIG_PATH, claim_gpu_task, llm_timeout_seconds,
+                  release_gpu_task_claim)
+from diagnostics import redact_text
 from generate_script import LLMGenParams, process_chunk
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import ensure_ideal_settings, get_active_llm_config
 from utils import atomic_json_write
 
 
@@ -53,53 +56,67 @@ def run_manifest(manifest, output_path, limit=None):
     if limit is not None and limit < 1:
         raise ValueError("limit must be at least 1")
     config = load_app_config(CONFIG_PATH)
-    llm = config.get("llm", {})
-    generation = config.get("generation") or {}
-    prompts = config.get("prompts") or {}
-    base_url = llm.get("base_url", "http://localhost:1234/v1")
-    model = llm.get("model_name", "local-model")
-    _, status, heal_message = ensure_ideal_settings(
-        config.get("llm_mode", "local"), base_url, model,
-        ssh_alias=config.get("llm_remote_ssh"))
-    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
-                    timeout=llm_timeout_seconds())
-    params = LLMGenParams(
-        system_prompt=prompts.get("system_prompt"),
-        user_prompt_template=prompts.get("user_prompt"),
-        max_tokens=generation.get("max_tokens", 4096),
-        temperature=generation.get("temperature", 0.6),
-        top_p=generation.get("top_p", 0.8),
-        top_k=generation.get("top_k"),
-        min_p=generation.get("min_p"),
-        presence_penalty=generation.get("presence_penalty", 0.0),
-        banned_tokens=generation.get("banned_tokens", []),
-        context_length=status.get("context_length"),
-    )
-    cases = [(book, passage) for book in manifest.get("books", [])
-             for passage in book.get("passages", [])]
-    if limit is not None:
-        cases = cases[:limit]
-    report = {"schema_version": 1, "model": model, "base_url": base_url,
-              "lmstudio_status": status, "settings_message": heal_message, "cases": []}
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    for index, (book, passage) in enumerate(cases, 1):
-        attempts = []
-        started = time.monotonic()
-        entries = process_chunk(
-            client, model, passage["text"], index, len(cases), params,
-            max_retries=2, attempt_observer=attempts.append)
-        quality = validate_chunk_quality(passage["text"], entries)
-        report["cases"].append({
-            "book": book["name"], "category": passage["category"],
-            "passage_sha256": passage["sha256"],
-            "status": "passed" if entries and quality["passed"] else "failed",
-            "elapsed_seconds": round(time.monotonic() - started, 3),
-            "attempts": attempts, "quality": quality,
-            "entry_count": len(entries),
-        })
-        report["summary"] = summarize_cases(report["cases"])
-        atomic_json_write(report, output_path)
-    return report
+    claim_id = claim_gpu_task("script", llm_config=config)
+    try:
+        llm = get_active_llm_config(config)
+        generation = config.get("generation") or {}
+        prompts = config.get("prompts") or {}
+        base_url = llm.get("base_url", "http://localhost:1234/v1")
+        model = llm.get("model_name", "local-model")
+        _, status, heal_message = ensure_ideal_settings(
+            config.get("llm_mode", "local"), base_url, model,
+            ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+        adapter_ok, adapter_message = check_adapter(config, base_url)
+        adapter_evidence = {"expected": describe(config), "verified": adapter_ok,
+                            "message": adapter_message}
+        if not adapter_ok:
+            print(f"WARNING: {adapter_message}", flush=True)
+        client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
+                        timeout=llm_timeout_seconds())
+        params = LLMGenParams(
+            system_prompt=prompts.get("system_prompt"),
+            user_prompt_template=prompts.get("user_prompt"),
+            max_tokens=generation.get("max_tokens", 4096),
+            temperature=generation.get("temperature", 0.6),
+            top_p=generation.get("top_p", 0.8),
+            top_k=generation.get("top_k"),
+            min_p=generation.get("min_p"),
+            presence_penalty=generation.get("presence_penalty", 0.0),
+            banned_tokens=generation.get("banned_tokens", []),
+            context_length=status.get("context_length"),
+        )
+        cases = [(book, passage) for book in manifest.get("books", [])
+                 for passage in book.get("passages", [])]
+        if limit is not None:
+            cases = cases[:limit]
+        report = {"schema_version": 1, "model": model, "base_url": redact_text(base_url),
+                  "attribution_adapter": adapter_evidence,
+                  "lmstudio_status": status, "settings_message": heal_message, "cases": [],
+                  "summary": summarize_cases([])}
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        if not cases:
+            atomic_json_write(report, output_path)
+        for index, (book, passage) in enumerate(cases, 1):
+            attempts = []
+            started = time.monotonic()
+            entries = process_chunk(
+                client, model, passage["text"], index, len(cases), params,
+                max_retries=2, attempt_observer=attempts.append)
+            quality = validate_chunk_quality(passage["text"], entries)
+            report["cases"].append({
+                "book": book["name"], "category": passage["category"],
+                "passage_sha256": passage["sha256"],
+                "status": "passed" if entries and quality["passed"] else "failed",
+                "elapsed_seconds": round(time.monotonic() - started, 3),
+                "attempts": attempts, "quality": quality,
+                "entry_count": len(entries),
+            })
+            report["summary"] = summarize_cases(report["cases"])
+            atomic_json_write(report, output_path)
+        return report
+
+    finally:
+        release_gpu_task_claim("script", claim_id)
 
 
 def main(argv=None):

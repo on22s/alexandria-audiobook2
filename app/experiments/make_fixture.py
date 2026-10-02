@@ -88,7 +88,9 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
-cp = json.load(open(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json"))
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
+cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json")
 seg = cp["segmented"]
 src = open(M + f"inputs/{BOOK}.txt", encoding="utf-8").read()
 roster = sorted({r.upper() for r in

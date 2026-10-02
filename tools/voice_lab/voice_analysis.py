@@ -22,7 +22,6 @@ import argparse
 import datetime
 import os
 import re
-import pickle
 import random
 import shutil
 import sys
@@ -52,6 +51,11 @@ from voicelab_settings import get_deduped_zip_name
 from voice_dataset_merge import merge_voice_datasets
 from voice_clustering import cluster_voices, load_cluster_overrides
 from utils import atomic_json_write
+from lora_evidence import get_file_sha256
+from voice_analysis_cache import (get_voice_analysis_model_state_sha256,
+                                 get_voice_analysis_model_files,
+                                 get_voice_analysis_dependency_versions,
+                                 get_voice_analysis_stage_identity)
 
 warnings.filterwarnings("ignore")
 
@@ -70,32 +74,14 @@ PROSODY_METRICS = [
 
 
 def _load_pickle_cache(path, default):
-    if not path.exists():
-        return default
-    try:
-        with open(path, "rb") as cache_file:
-            return pickle.load(cache_file)
-    except (EOFError, pickle.UnpicklingError, OSError, ValueError) as exc:
-        quarantined = path.with_suffix(path.suffix + ".corrupt")
-        print(f"Warning: unreadable cache {path}: {exc}; rebuilding")
-        try:
-            os.replace(path, quarantined)
-        except OSError:
-            pass
-        return default
+    from voice_analysis_cache import load_voice_analysis_pickle
+    return load_voice_analysis_pickle(path, default)
 
 
 def _atomic_pickle_dump(value, path):
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    try:
-        with open(temp_path, "wb") as cache_file:
-            pickle.dump(value, cache_file)
-            cache_file.flush()
-            os.fsync(cache_file.fileno())
-        os.replace(temp_path, path)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
+    from voice_analysis_cache import save_voice_analysis_pickle
+    save_voice_analysis_pickle(value, path)
+
 
 EXCLUDE_ZIPS = {
     "split_test.zip", "tag_test.zip",
@@ -117,6 +103,10 @@ def load_model(savedir, device):
         run_opts={"device": device},
     )
     model.eval()
+    model._alexandria_state_sha256 = get_voice_analysis_model_state_sha256(model)
+    model._alexandria_model_id = _EMBEDDING_MODEL_ID
+    model._alexandria_model_files = get_voice_analysis_model_files(model, savedir)
+    model._alexandria_dependency_versions = get_voice_analysis_dependency_versions()
     return model
 
 
@@ -161,10 +151,13 @@ def extract_prosody(wav, sr):
 
 # ─── ZIP helpers ─────────────────────────────────────────────────────────────
 
-def load_wav_from_zip(zip_path, wav_name, sr_target=16000):
-    with zipfile.ZipFile(zip_path) as zf:
-        with zf.open(wav_name) as f:
-            wav, sr = sf.read(f)
+def load_wav_from_zip(zip_path, wav_name, sr_target=16000, archive=None):
+    """Decode one member, borrowing an extraction loop's open archive when supplied."""
+    if archive is None:
+        with zipfile.ZipFile(zip_path) as opened:
+            return load_wav_from_zip(zip_path, wav_name, sr_target, archive=opened)
+    with archive.open(wav_name) as f:
+        wav, sr = sf.read(f)
     if wav.ndim > 1:
         wav = wav.mean(axis=1)
     if sr != sr_target:
@@ -182,7 +175,63 @@ def list_wavs_in_zip(zip_path):
 
 # ─── Phase 1: Dedup ─────────────────────────────────────────────────────────
 
-def run_dedup(model, device, zips2_root, output_dir):
+def get_analysis_file_hashes(paths):
+    from lora_evidence import get_file_sha256
+    return {Path(path).name: get_file_sha256(path) for path in paths}
+
+
+def get_dedup_narrator_evidence(source_zips, outputs, expected_sources):
+    sources = get_analysis_file_hashes(source_zips)
+    if sources != expected_sources:
+        raise RuntimeError("Dedup sources changed before completion; rerun the phase")
+    return {"sources": sources, "outputs": get_analysis_file_hashes(outputs)}
+
+
+def get_completed_analysis_phase(path):
+    import json
+    try:
+        document = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        if path.exists():
+            print(f"Warning: unreadable phase evidence {path}: {exc}")
+        return {}
+    return document if isinstance(document, dict) and document.get("status") == "complete" else {}
+
+
+def get_narrator_pipeline_completion(name, zips, deduped_root, dedup_state, analyze_state):
+    narrators = dedup_state.get("narrators")
+    if not isinstance(narrators, dict):
+        return False, False
+    record = narrators.get(name)
+    if not isinstance(record, dict) or not isinstance(record.get("outputs"), dict) or not record["outputs"]:
+        return False, False
+    if any(not isinstance(filename, str) or Path(filename).name != filename
+           for filename in record["outputs"]):
+        return False, False
+    outputs = [deduped_root / filename for filename in record["outputs"]]
+    try:
+        if (record.get("sources") != get_analysis_file_hashes(zips) or
+                record["outputs"] != get_analysis_file_hashes(outputs)):
+            return False, False
+        groups = analyze_state.get("groups")
+        if not isinstance(groups, dict):
+            return True, False
+        for output in outputs:
+            group = groups.get(normalize_group_key(output.stem))
+            current_inputs = get_analysis_file_hashes([
+                path for path in deduped_root.glob("*.zip")
+                if normalize_group_key(path.stem) == normalize_group_key(output.stem)])
+            if (not isinstance(group, dict) or group.get("inputs") != current_inputs
+                    or type(group.get("samples")) is not int
+                    or group["samples"] < 1 or
+                    (group.get("inputs") if isinstance(group.get("inputs"), dict) else {}).get(output.name) != record["outputs"][output.name]):
+                return True, False
+    except (OSError, ValueError):
+        return False, False
+    return True, bool(analyze_state)
+
+
+def run_dedup(model, device, zips2_root, output_dir, seed=42):
     """
     For each narrator subfolder of zips2_root, compute pairwise speaker
     similarity across its ZIP files, identify which are the same voice, and
@@ -190,8 +239,13 @@ def run_dedup(model, device, zips2_root, output_dir):
     train stage has exactly one provenance-preserving ZIP per distinct voice.
     """
     output_dir.mkdir(exist_ok=True)
+    from voice_analysis_cache import save_voice_analysis_checkpoint, compact_voice_analysis_checkpoints
     cache_file = output_dir / "embeddings_cache.pkl"
     cache = _load_pickle_cache(cache_file, {})
+    state_file = output_dir / "phase_state.json"
+    atomic_json_write({"status": "running", "narrators": {}}, str(state_file))
+    narrator_records = {}
+    incomplete = False
 
     deduped_dir = zips2_root / "_deduped"
     deduped_dir.mkdir(exist_ok=True)
@@ -220,51 +274,61 @@ def run_dedup(model, device, zips2_root, output_dir):
         zips = [z for z in sorted(ndir.iterdir())
                 if z.is_file() and z.name not in EXCLUDE_ZIPS and zipfile.is_zipfile(z)]
         if not zips:
-            print("  No zips found.")
-            continue
+            raise RuntimeError(f"Dedup incomplete: no readable ZIPs in {ndir}; preserving prior outputs")
         print(f"  Found {len(zips)} zips")
 
+        expected_sources = get_analysis_file_hashes(zips)
+        folder_updates = {}
+        folder_outputs = []
         zip_embeddings = {}
         zip_labels     = []
 
         for zp in zips:
             label     = zp.stem
-            # Including DEDUP_SAMPLES + the model id means a config/model
-            # change naturally invalidates old entries (a fresh cache_key
-            # that was never cached) instead of silently reusing embeddings
-            # extracted under a different sample count or model.
-            cache_key = f"{folder_name}/{label}::{DEDUP_SAMPLES}::{_EMBEDDING_MODEL_ID}"
+            source_sha256 = get_file_sha256(zp)
+            identity = get_voice_analysis_stage_identity(
+                model, device, [zp], Path(__file__), DEDUP_SAMPLES, seed)
+            cache_key = f"{folder_name}/{label}::{identity['sha256']}"
 
-            if cache_key in cache:
+            all_wavs = list_wavs_in_zip(str(zp))
+            if not all_wavs:
+                raise RuntimeError(f"Dedup incomplete: no WAVs in {zp}; preserving prior outputs")
+            selected = random.Random(seed).sample(all_wavs, min(DEDUP_SAMPLES, len(all_wavs)))
+            if (cache_key in cache and cache[cache_key][1] == selected
+                    and len(cache[cache_key][0]) == len(selected)):
                 zip_embeddings[label] = cache[cache_key]
                 print(f"  {label:35s} (cached, {len(cache[cache_key][0])} samples)")
                 zip_labels.append(label)
                 continue
 
-            all_wavs = list_wavs_in_zip(str(zp))
-            if not all_wavs:
-                print(f"  {label:35s} (no WAVs, skipping)")
-                continue
-
-            selected      = random.sample(all_wavs, min(DEDUP_SAMPLES, len(all_wavs)))
             embs, used    = [], []
-            for wn in tqdm(selected, desc=f"  {label}", leave=False):
-                try:
-                    wav, sr = load_wav_from_zip(str(zp), wn)
-                    embs.append(extract_embedding(wav, sr, model, device))
-                    used.append(wn)
-                except Exception as e:
-                    tqdm.write(f"  Warning: extraction failed for {wn}: {e}")
+            with zipfile.ZipFile(zp) as archive:
+                for wn in tqdm(selected, desc=f"  {label}", leave=False):
+                    try:
+                        wav, sr = load_wav_from_zip(str(zp), wn, archive=archive)
+                        embs.append(extract_embedding(wav, sr, model, device))
+                        used.append(wn)
+                    except Exception as e:
+                        incomplete = True
+                        tqdm.write(f"  Warning: extraction failed for {wn}: {e}")
 
             if embs:
+                if get_file_sha256(zp) != source_sha256:
+                    raise RuntimeError(f"ZIP changed during extraction: {zp}")
+                if identity != get_voice_analysis_stage_identity(
+                        model, device, [zp], Path(__file__), DEDUP_SAMPLES, seed):
+                    raise RuntimeError(f"Analysis identity changed during extraction: {zp}")
                 zip_embeddings[label] = (np.array(embs), used)
                 cache[cache_key]      = zip_embeddings[label]
+                folder_updates[cache_key] = zip_embeddings[label]
                 print(f"  {label:35s} {len(embs):4d} samples")
                 zip_labels.append(label)
             else:
-                print(f"  {label:35s} (extraction failed)")
+                raise RuntimeError(f"Dedup incomplete: every sampled WAV failed in {zp}; "
+                                   "preserving prior outputs")
 
-        _atomic_pickle_dump(cache, cache_file)
+        if folder_updates:
+            save_voice_analysis_checkpoint(folder_updates, cache_file)
 
         if len(zip_labels) < 2:
             print("  Need at least 2 zips to compare.")
@@ -275,10 +339,12 @@ def run_dedup(model, device, zips2_root, output_dir):
                 rep_path = next(zp for zp in zips if zp.stem == zip_labels[0])
                 dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
                 expected_outputs.add(dest_path)
+                folder_outputs.append(dest_path)
                 temporary = dest_path.with_suffix(dest_path.suffix + ".tmp")
                 shutil.copy2(rep_path, temporary)
                 os.replace(temporary, dest_path)
                 print(f"  [UNIQUE] kept {rep_path.name}")
+                narrator_records[folder_name] = get_dedup_narrator_evidence(zips, folder_outputs, expected_sources)
             continue
 
         # Pairwise similarity matrix
@@ -348,6 +414,7 @@ def run_dedup(model, device, zips2_root, output_dir):
             rep_path = label_to_path[zip_labels[rep_idx]]
             dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
             expected_outputs.add(dest_path)
+            folder_outputs.append(dest_path)
             if len(cluster) > 1:
                 cluster_paths = [label_to_path[zip_labels[idx]] for idx in cluster]
                 merge_result = merge_voice_datasets(cluster_paths, dest_path)
@@ -358,6 +425,8 @@ def run_dedup(model, device, zips2_root, output_dir):
                 shutil.copy2(rep_path, temporary)
                 os.replace(temporary, dest_path)
                 print(f"  [UNIQUE] kept {rep_path.name}")
+
+        narrator_records[folder_name] = get_dedup_narrator_evidence(zips, folder_outputs, expected_sources)
 
         # Heatmap
         fig, ax = plt.subplots(figsize=(max(8, n * 1.2), max(6, n * 0.9)))
@@ -377,10 +446,13 @@ def run_dedup(model, device, zips2_root, output_dir):
             "overrides": overrides, "decisions": cluster_decisions,
         }
 
-    for previous in deduped_dir.iterdir():
-        if (previous.is_file() and previous.suffix.lower() == ".zip"
-                and previous not in expected_outputs):
-            previous.unlink()
+    if not incomplete:
+        for previous in deduped_dir.iterdir():
+            if (previous.is_file() and previous.suffix.lower() == ".zip"
+                    and previous not in expected_outputs):
+                previous.unlink()
+    else:
+        print("Dedup incomplete: preserving prior outputs until sampled extraction succeeds")
 
     cluster_report = {
         "version": 1,
@@ -399,7 +471,9 @@ def run_dedup(model, device, zips2_root, output_dir):
             for narrator, result in results.items()
         },
     }
+    compact_voice_analysis_checkpoints(cache_file)
     atomic_json_write(cluster_report, str(output_dir / "dedup_clusters.json"))
+    atomic_json_write({"status": "partial" if incomplete else "complete", "narrators": narrator_records}, str(state_file))
 
     print(f"\n{'='*60}")
     print("DEDUP SUMMARY")
@@ -427,12 +501,53 @@ def normalize_group_key(name):
     return re.sub(r"[^a-z0-9]+", "_",
                   name.replace("-converted", "").strip().lower()).strip("_")
 
-def run_analyze(model, device, deduped_root, output_dir):
+def get_analysis_selected_wavs(zip_paths, seed):
+    sampling = np.random.RandomState(seed % (2 ** 32))
+    selected = []
+    for zp in zip_paths:
+        wav_names = list_wavs_in_zip(zp)
+        if ANALYZE_SAMPLES and len(wav_names) > ANALYZE_SAMPLES:
+            train = [name for name in wav_names if name.startswith("train/")]
+            val = [name for name in wav_names if name.startswith("val/")]
+            if train and val:
+                half = ANALYZE_SAMPLES // 2
+                wav_names = (sampling.choice(train, min(half, len(train)), replace=False).tolist()
+                             + sampling.choice(val, min(half, len(val)), replace=False).tolist())
+            else:
+                wav_names = sampling.choice(wav_names, ANALYZE_SAMPLES, replace=False).tolist()
+        selected.extend((zp, name) for name in wav_names)
+    return selected
+
+
+def get_embedding_projection(embeddings):
+    """Return finite plotting coordinates without requiring a tiny UMAP graph."""
+    count = len(embeddings)
+    if count == 1:
+        return np.zeros((1, 2)), "Single sample"
+    if count == 2:
+        centered = embeddings - embeddings.mean(axis=0)
+        left, singular, _ = np.linalg.svd(centered, full_matrices=False)
+        coordinates = np.zeros((2, 2))
+        # Two centered points have one component; pad the second axis with zero.
+        coordinates[:, 0] = left[:, 0] * singular[0]
+        return coordinates, "PCA"
+    import umap as umap_lib
+    options = {"n_neighbors": min(15, count - 1), "min_dist": 0.1, "random_state": 42}
+    if count == 3:
+        options["init"] = "random"
+    return umap_lib.UMAP(**options).fit_transform(embeddings), "UMAP"
+
+
+def run_analyze(model, device, deduped_root, output_dir, seed=42):
     """
     Cross-group speaker similarity, prosody divergence (EMD), and UMAP
     projection across all ZIPs in deduped_root.
     """
+    from utils import atomic_json_write
     output_dir.mkdir(exist_ok=True)
+    state_file = output_dir / "phase_state.json"
+    atomic_json_write({"status": "running", "groups": {}}, str(state_file))
+    incomplete = False
     cache_file = output_dir / "embeddings_cache.pkl"
 
     if not deduped_root.is_dir():
@@ -451,8 +566,9 @@ def run_analyze(model, device, deduped_root, output_dir):
         print(f"No ZIPs found in {deduped_root}")
         return
 
-    # Load cache
-    if cache_file.exists():
+    from voice_analysis_cache import save_voice_analysis_checkpoint, compact_voice_analysis_checkpoints
+    # Load both completed caches and interrupted extraction checkpoints.
+    if cache_file.exists() or cache_file.with_suffix(cache_file.suffix + ".parts").exists():
         print(f"Loading cached embeddings from {cache_file}")
         cache_data    = _load_pickle_cache(cache_file, {})
         all_embs      = cache_data.get("embeddings", {})
@@ -464,67 +580,72 @@ def run_analyze(model, device, deduped_root, output_dir):
             all_prosody = {}
             all_wav_names = {}
     else:
+        cache_data = {}
         all_embs = {}
         all_prosody = {}
         all_wav_names = {}
 
+    cached_embs, cached_prosody, cached_wavs = all_embs, all_prosody, all_wav_names
+    identities = cache_data.get("identities", {})
+    all_embs, all_prosody = {}, {}
+
     # Extract missing groups
     for group_name, zip_paths in zip_groups.items():
-        if group_name in all_embs:
+        identity = get_voice_analysis_stage_identity(
+            model, device, zip_paths, Path(__file__), ANALYZE_SAMPLES, seed)
+        selected_wavs = get_analysis_selected_wavs(zip_paths, seed)
+        if (identities.get(group_name) == identity and group_name in cached_embs
+                and group_name in cached_prosody and group_name in cached_wavs
+                and cached_wavs[group_name] == selected_wavs
+                and len(cached_embs[group_name]) == len(cached_prosody[group_name]) == len(selected_wavs)
+                and selected_wavs):
+            all_embs[group_name] = cached_embs[group_name]
+            all_prosody[group_name] = cached_prosody[group_name]
             continue
         print(f"\n─── Processing group: {group_name} ───")
         g_embs, g_pros, g_wavs = [], [], []
-
-        for zp in zip_paths:
-            if not os.path.exists(zp):
-                print(f"  Zip not found: {zp}, skipping")
-                continue
-            wav_names = list_wavs_in_zip(zp)
-            if ANALYZE_SAMPLES and len(wav_names) > ANALYZE_SAMPLES:
-                train = [n for n in wav_names if n.startswith("train/")]
-                val   = [n for n in wav_names if n.startswith("val/")]
-                if train and val:
-                    half      = ANALYZE_SAMPLES // 2
-                    wav_names = (
-                        np.random.choice(train, min(half, len(train)), replace=False).tolist()
-                        + np.random.choice(val,   min(half, len(val)),   replace=False).tolist()
-                    )
-                else:
-                    wav_names = np.random.choice(wav_names, ANALYZE_SAMPLES, replace=False).tolist()
-
-            print(f"  Extracting {len(wav_names)} samples from {os.path.basename(zp)}...")
-            for wname in tqdm(wav_names, desc=f"  {group_name}"):
-                try:
-                    wav, sr = load_wav_from_zip(zp, wname)
-                    g_embs.append(extract_embedding(wav, sr, model, device))
-                    g_pros.append(extract_prosody(wav, sr))
-                    g_wavs.append((zp, wname))
-                except Exception as e:
-                    tqdm.write(f"  Warning: extraction failed for {wname}: {e}")
+        if not selected_wavs:
+            incomplete = True
+        print(f"  Extracting {len(selected_wavs)} samples...")
+        from itertools import groupby
+        for zp, members in groupby(selected_wavs, key=lambda member: member[0]):
+            with zipfile.ZipFile(zp) as archive:
+                for _, wname in tqdm(members, desc=f"  {group_name}"):
+                    try:
+                        wav, sr = load_wav_from_zip(zp, wname, archive=archive)
+                        embedding = extract_embedding(wav, sr, model, device)
+                        prosody = extract_prosody(wav, sr)
+                        g_embs.append(embedding)
+                        g_pros.append(prosody)
+                        g_wavs.append((zp, wname))
+                    except Exception as e:
+                        incomplete = True
+                        tqdm.write(f"  Warning: extraction failed for {wname}: {e}")
 
         if g_embs:
+            if identity != get_voice_analysis_stage_identity(
+                    model, device, zip_paths, Path(__file__), ANALYZE_SAMPLES, seed):
+                raise RuntimeError(f"Analysis identity changed during extraction: {group_name}")
             all_embs[group_name]      = np.array(g_embs)
             all_prosody[group_name]   = g_pros
-            all_wav_names[group_name] = g_wavs
+            cached_embs[group_name] = all_embs[group_name]
+            cached_prosody[group_name] = g_pros
+            cached_wavs[group_name] = g_wavs
+            identities[group_name] = identity
             print(f"  → {len(g_embs)} embeddings extracted")
-            # Checkpoint after each group. This re-serializes every
-            # previously-finished group's embeddings too (same cumulative-I/O
-            # cost run_dedup's own per-folder checkpoint at line 216 already
-            # pays) - deliberately accepted because losing a crash/interrupt's
-            # GPU-extraction progress for every group done so far is worse
-            # than the extra I/O.
-            _atomic_pickle_dump(
-                {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
-                cache_file,
-            )
+            save_voice_analysis_checkpoint(
+                {"embeddings": {group_name: cached_embs[group_name]},
+                 "prosody": {group_name: cached_prosody[group_name]},
+                 "wav_names": {group_name: cached_wavs[group_name]},
+                 "identities": {group_name: identity}}, cache_file, nested=True)
+    compact_voice_analysis_checkpoints(cache_file)
     print(f"\nCache saved to {cache_file}")
 
     group_names = sorted(all_embs.keys())
     n_groups    = len(group_names)
     if n_groups == 0:
-        print("No embeddings extracted from any group — nothing to analyze "
-              "(check that the _deduped zips contain readable WAVs).")
-        return
+        raise ValueError("Analysis incomplete: empty extracted feature distribution "
+                         "(check that the _deduped ZIPs contain readable WAVs)")
     short_names = [n.replace("_", " ") for n in group_names]
     print(f"\n{'='*60}")
     print(f"Analyzing {n_groups} groups")
@@ -534,14 +655,15 @@ def run_analyze(model, device, deduped_root, output_dir):
     print("\n─── Computing speaker embedding similarity matrix ───")
     sim_matrix = np.zeros((n_groups, n_groups))
     for i, g1 in enumerate(group_names):
-        for j, g2 in enumerate(group_names):
+        for j in range(i, n_groups):
+            g2 = group_names[j]
             e1, e2 = all_embs[g1], all_embs[g2]
             if i == j:
                 sim_matrix[i, j] = (
                     np.mean(1 - squareform(pdist(e1, "cosine"))) if len(e1) > 1 else 1.0
                 )
             else:
-                sim_matrix[i, j] = np.mean(1 - cdist(e1, e2, "cosine"))
+                sim_matrix[i, j] = sim_matrix[j, i] = np.mean(1 - cdist(e1, e2, "cosine"))
 
     fig, ax = plt.subplots(figsize=(14, 12))
     sns.heatmap(sim_matrix, annot=True, fmt=".3f", xticklabels=short_names,
@@ -583,11 +705,14 @@ def run_analyze(model, device, deduped_root, output_dir):
     prosody_results = []
     for metric in PROSODY_METRICS:
         emd_mat = np.zeros((n_groups, n_groups))
-        for i, g1 in enumerate(group_names):
-            v1 = np.array([p[metric] for p in all_prosody[g1]])
-            for j, g2 in enumerate(group_names):
-                v2 = np.array([p[metric] for p in all_prosody[g2]])
-                emd_mat[i, j] = wasserstein_distance(v1, v2)
+        vectors = [np.array([p[metric] for p in all_prosody[group]])
+                   for group in group_names]
+        for i in range(n_groups):
+            # Preserve SciPy's empty/nonfinite behavior on the diagonal.
+            if not vectors[i].size or not np.isfinite(vectors[i]).all():
+                emd_mat[i, i] = wasserstein_distance(vectors[i], vectors[i])
+            for j in range(i + 1, n_groups):
+                emd_mat[i, j] = emd_mat[j, i] = wasserstein_distance(vectors[i], vectors[j])
         prosody_results.append((metric, emd_mat))
         max_idx = np.unravel_index(np.argmax(emd_mat), emd_mat.shape)
         print(f"  {metric:20s} max EMD={emd_mat[max_idx]:.2f}  "
@@ -619,8 +744,6 @@ def run_analyze(model, device, deduped_root, output_dir):
 
     # ── UMAP projection ──
     print("\n─── Computing UMAP projection ───")
-    import umap as umap_lib
-
     all_embs_list = [all_embs[g] for g in group_names]
     group_idx_arr = np.concatenate([np.full(len(e), i) for i, e in enumerate(all_embs_list)])
     combined      = np.vstack(all_embs_list)
@@ -631,7 +754,7 @@ def run_analyze(model, device, deduped_root, output_dir):
         combined      = combined[idxs]
         group_idx_arr = group_idx_arr[idxs]
 
-    umap_coords = umap_lib.UMAP(n_neighbors=15, min_dist=0.1, random_state=42).fit_transform(combined)
+    umap_coords, projection_name = get_embedding_projection(combined)
     palette     = sns.color_palette("husl", n_groups)
     fig, ax     = plt.subplots(figsize=(12, 10))
     for i in range(n_groups):
@@ -641,9 +764,9 @@ def run_analyze(model, device, deduped_root, output_dir):
         ax.scatter(umap_coords[mask, 0], umap_coords[mask, 1],
                    c=[palette[i]], label=short_names[i], alpha=0.6, s=5)
     ax.legend(markerscale=5, fontsize=8, loc="best")
-    ax.set_title("UMAP Projection of Speaker Embeddings", fontsize=14)
-    ax.set_xlabel("UMAP-1")
-    ax.set_ylabel("UMAP-2")
+    ax.set_title(f"{projection_name} Projection of Speaker Embeddings", fontsize=14)
+    ax.set_xlabel("UMAP-1" if projection_name == "UMAP" else "Component-1")
+    ax.set_ylabel("UMAP-2" if projection_name == "UMAP" else "Component-2")
     plt.tight_layout()
     plt.savefig(str(output_dir / "umap_embedding_projection.png"), dpi=150)
     plt.close()
@@ -660,7 +783,16 @@ def run_analyze(model, device, deduped_root, output_dir):
     for f in sorted(output_dir.glob("*")):
         if f.suffix in (".png", ".csv", ".pkl"):
             print(f"  {f.name}")
-    print("\nDone!")
+    groups = {}
+    for group_name in group_names:
+        if identities.get(group_name) != get_voice_analysis_stage_identity(
+                model, device, zip_groups[group_name], Path(__file__), ANALYZE_SAMPLES, seed):
+            raise RuntimeError(f"Analysis identity changed before completion: {group_name}")
+        groups[group_name] = {"inputs": get_analysis_file_hashes(zip_groups[group_name]),
+                              "samples": len(all_embs[group_name])}
+    complete = not incomplete and set(group_names) == set(zip_groups)
+    atomic_json_write({"status": "complete" if complete else "partial", "groups": groups}, str(state_file))
+    print("\nDone!" if complete else "\nAnalysis incomplete: failed groups or samples remain.")
 
 
 # ─── Pipeline summary ────────────────────────────────────────────────────────
@@ -669,22 +801,11 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
     """
     Write a snapshot of pipeline state to dedup_dir/pipeline_summary.log.
 
-    Categories:
-      DONE           – dedup PNG exists AND group key is in analyze cache
-      PENDING ANALYZE – dedup PNG exists but not yet in analyze cache
-      PENDING DEDUP  – narrator folder exists in zips2 but no dedup PNG yet
-      NO ZIPS        – narrator folder has no valid zip files (failed/empty)
+    Completion requires explicit phase evidence matching current source and
+    output ZIP bytes. Plots and extraction checkpoints alone are not completion.
     """
-    deduped_narrators = {
-        p.stem[len("dedup_"):]
-        for p in dedup_dir.glob("dedup_*.png")
-    }
-
-    analyze_cache_file = analyze_dir / "embeddings_cache.pkl"
-    analyzed_groups = set()
-    if analyze_cache_file.exists():
-        with open(analyze_cache_file, "rb") as cache_file:
-            analyzed_groups = set(pickle.load(cache_file).keys())
+    dedup_state = get_completed_analysis_phase(dedup_dir / "phase_state.json")
+    analyze_state = get_completed_analysis_phase(analyze_dir / "phase_state.json")
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
@@ -702,9 +823,8 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
             no_zips.append(name)
             continue
 
-        has_dedup = name in deduped_narrators
-        norm = normalize_group_key(name)
-        is_analyzed = norm in analyzed_groups
+        has_dedup, is_analyzed = get_narrator_pipeline_completion(
+            name, zips, zips2_root / "_deduped", dedup_state, analyze_state)
 
         if has_dedup and is_analyzed:
             done.append((name, len(zips)))
@@ -794,6 +914,7 @@ def main():
     )
     args = parser.parse_args()
     random.seed(args.seed)
+    np.random.seed(args.seed % (2 ** 32))
 
     device = resolve_device(args.device)
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")
@@ -806,7 +927,7 @@ def main():
         print(f"\n{'#'*60}")
         print("## PHASE 1: WITHIN-FOLDER DEDUP")
         print(f"{'#'*60}")
-        run_dedup(model, device, args.zips2, args.dedup_out)
+        run_dedup(model, device, args.zips2, args.dedup_out, seed=args.seed)
 
     run_analyze_phase = args.phase in ("analyze", "both") or (
         args.phase == "dedup" and args.then_analyze
@@ -815,7 +936,7 @@ def main():
         print(f"\n{'#'*60}")
         print("## PHASE 2: CROSS-GROUP ANALYSIS")
         print(f"{'#'*60}")
-        run_analyze(model, device, deduped_root, args.analyze_out)
+        run_analyze(model, device, deduped_root, args.analyze_out, seed=args.seed)
         write_pipeline_summary(args.zips2, args.dedup_out, args.analyze_out)
 
 

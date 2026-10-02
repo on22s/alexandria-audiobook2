@@ -40,8 +40,11 @@ _WORDS = (
 
 def _make_text(target_chars):
     words = []
-    while sum(len(w) + 1 for w in words) < target_chars:
-        words.append(random.choice(_WORDS))
+    total_chars = 0
+    while total_chars < target_chars:
+        word = random.choice(_WORDS)
+        words.append(word)
+        total_chars += len(word) + 1
     return " ".join(words)[:target_chars]
 
 def make_chunks(n, short_ratio=0.3, long_ratio=0.2):
@@ -214,10 +217,10 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
 
     print("\nTier table recommendation (paste into _computeAutoSettings):")
     print("-"*70)
-    # Find max_items that fit within 80% of free headroom without OOM
+    # Absolute peak includes the resident model; reserve 15% of batching headroom.
     headroom = total_gb - model_vram_gb
     for r in pre_results:
-        fits = r["peak_vram_gb"] <= headroom * 0.85
+        fits = r["peak_vram_gb"] <= model_vram_gb + headroom * 0.85
         status = "OK " if fits else "OOM-RISK"
         rtf_str = f"{r['rtf']:.2f}x RT" if r["rtf"] else "   N/A  "
         print(f"  max_items={r['sub_batch_max_items']:>3}  "
@@ -249,75 +252,84 @@ def main():
     parser.add_argument("--clone-ref-audio")
     parser.add_argument("--clone-ref-text")
     args = parser.parse_args()
-    if args.voice_type == "clone" and args.compile:
-        parser.error("--compile is not supported for clone sweeps")
-
-    # Load config
-    tts_cfg = load_app_config(CONFIG_PATH).get("tts", {})
-
-    # Force local mode and disable compile_codec for the baseline without
-    # changing the loaded application config dictionary.
-    engine_config = get_benchmark_engine_config(tts_cfg)
-    engine_config["tts"]["sub_batch_max_items"] = args.sizes[0]
-
-    from tts import TTSEngine
-    print("Initializing TTSEngine (local mode, compile_codec=False)...")
-    snap_pre = vram_state()
-    engine = TTSEngine(engine_config)
-
-    # Force model load and capture footprint
-    print("\nLoading model (this will show VRAM footprint)...")
-    if args.voice_type == "clone":
-        if not args.clone_ref_audio or not args.clone_ref_text:
-            parser.error("clone mode requires --clone-ref-audio and --clone-ref-text")
-        _ = engine._init_local_clone()
-    else:
-        _ = engine._init_local_custom()
-    snap_post = vram_state()
-    model_vram_gb = (snap_post["allocated_gb"] - snap_pre["allocated_gb"]) if (snap_pre and snap_post) else 0
-    total_gb = snap_post["total_gb"] if snap_post else 0
-    print(f"\nModel VRAM footprint: {model_vram_gb:.2f} GB  (total GPU: {total_gb:.1f} GB)")
-    if args.voice_type == "custom":
-        print("Warming model before timed sweeps...")
-        engine.ensure_custom_warmup(engine._local_custom_model)
-        voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
-    else:
-        voice_config = {"NARRATOR": {"type": "clone", "seed": 42,
-                        "ref_audio": args.clone_ref_audio,
-                        "ref_text": args.clone_ref_text}}
-
-    with tempfile.TemporaryDirectory() as output_dir:
-        print(f"\n--- Baseline sweep (compile_codec=False) ---")
-        pre_results = run_sweep(engine, voice_config, args.sizes, output_dir,
-                                args.chunks, args.voice_type)
-
-        post_results = []
-        if args.compile:
-            print(f"\n--- Compiling codec ---")
-            engine.enable_codec_compilation()
-            print(f"\n--- Post-compile sweep ---")
-            post_results = run_sweep(engine, voice_config, args.sizes, output_dir,
-                                     args.chunks, args.voice_type)
-
-    print_summary(pre_results, post_results, model_vram_gb, total_gb)
-
-    # Save raw results
-    output = {
-        "gpu": gpu_name(),
-        "total_vram_gb": total_gb,
-        "model_vram_gb": round(model_vram_gb, 2),
-        "compile_tested": args.compile,
-        "voice_type": args.voice_type,
-        "baseline": pre_results,
-        "compiled": post_results,
-    }
+    if any(size <= 0 for size in args.sizes):
+        parser.error("--sizes must contain positive integers")
+    if args.chunks <= 0:
+        parser.error("--chunks must be a positive integer")
     out_path = os.path.abspath(os.path.join(APP_DIR, args.out))
     if not is_path_inside(out_path, APP_DIR):
         parser.error("--out must remain inside the app directory")
     if os.path.isdir(out_path):
         parser.error("--out must be a file path")
-    save_benchmark_results(output, out_path)
-    print(f"\nRaw results saved to: {out_path}")
+    if args.voice_type == "clone" and args.compile:
+        parser.error("--compile is not supported for clone sweeps")
+
+    from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
+    lease = acquire_gpu_lock()
+    try:
+        # Load config
+        tts_cfg = load_app_config(CONFIG_PATH).get("tts", {})
+
+        # Force local mode and disable compile_codec for the baseline without
+        # changing the loaded application config dictionary.
+        engine_config = get_benchmark_engine_config(tts_cfg)
+        engine_config["tts"]["sub_batch_max_items"] = args.sizes[0]
+
+        from tts import TTSEngine
+        print("Initializing TTSEngine (local mode, compile_codec=False)...")
+        snap_pre = vram_state()
+        engine = TTSEngine(engine_config)
+
+        # Force model load and capture footprint
+        print("\nLoading model (this will show VRAM footprint)...")
+        if args.voice_type == "clone":
+            if not args.clone_ref_audio or not args.clone_ref_text:
+                parser.error("clone mode requires --clone-ref-audio and --clone-ref-text")
+            _ = engine._init_local_clone()
+        else:
+            _ = engine._init_local_custom()
+        snap_post = vram_state()
+        model_vram_gb = (snap_post["allocated_gb"] - snap_pre["allocated_gb"]) if (snap_pre and snap_post) else 0
+        total_gb = snap_post["total_gb"] if snap_post else 0
+        print(f"\nModel VRAM footprint: {model_vram_gb:.2f} GB  (total GPU: {total_gb:.1f} GB)")
+        if args.voice_type == "custom":
+            print("Warming model before timed sweeps...")
+            engine.ensure_custom_warmup(engine._local_custom_model)
+            voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
+        else:
+            voice_config = {"NARRATOR": {"type": "clone", "seed": 42,
+                            "ref_audio": args.clone_ref_audio,
+                            "ref_text": args.clone_ref_text}}
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            print(f"\n--- Baseline sweep (compile_codec=False) ---")
+            pre_results = run_sweep(engine, voice_config, args.sizes, output_dir,
+                                    args.chunks, args.voice_type)
+
+            post_results = []
+            if args.compile:
+                print(f"\n--- Compiling codec ---")
+                engine.enable_codec_compilation()
+                print(f"\n--- Post-compile sweep ---")
+                post_results = run_sweep(engine, voice_config, args.sizes, output_dir,
+                                         args.chunks, args.voice_type)
+
+        print_summary(pre_results, post_results, model_vram_gb, total_gb)
+
+        # Save raw results
+        output = {
+            "gpu": gpu_name(),
+            "total_vram_gb": total_gb,
+            "model_vram_gb": round(model_vram_gb, 2),
+            "compile_tested": args.compile,
+            "voice_type": args.voice_type,
+            "baseline": pre_results,
+            "compiled": post_results,
+        }
+        save_benchmark_results(output, out_path)
+        print(f"\nRaw results saved to: {out_path}")
+    finally:
+        release_gpu_lock(lease)
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ import collections
 import json
 import os
 import re
+from source_repair_paths import validate_repair_paths
 
 FFFD = "�"
 
@@ -120,13 +121,14 @@ PHRASES = {
     "d" + FFFD * 2 + "tats": "d\u2019\u00e9tats",
 }
 
-# Anything still marked after every rule above. These are all at word
+# Short sites still marked after every rule above are treated as word
 # boundaries - quotes, dashes, ellipses - where the original character cannot
 # be recovered and, crucially, cannot be heard: the TTS renders any of them as
 # a pause, and `verbalize_symbols` drops the replacement character outright.
 # Leaving them costs the whole book, because the per-chunk quality gate
 # refuses any chunk containing one. A recorded, uniform substitution is the
-# honest trade, and every instance is counted in the report.
+# honest trade, and every instance is counted in the report. Runs of three
+# or more lost characters remain visible: they may contain missing letters.
 LAST_RESORT = "\u2014"
 
 
@@ -143,20 +145,28 @@ _REPEATED_PAIR = re.compile(r"(?:" + FFFD + r"([?!]))(?:" + FFFD + r"[?!]){2,}")
 _LONG_RUN = re.compile(FFFD + r"{3,}")
 
 
+def is_ambiguous_replacement_site(text, start, end):
+    """Whether a matched site belongs to a run of at least three lost glyphs."""
+    while start > 0 and text[start - 1] == FFFD:
+        start -= 1
+    while end < len(text) and text[end] == FFFD:
+        end += 1
+    return _LONG_RUN.fullmatch(text[start:end]) is not None
+
+
 def collapse_repetitions(text):
     """Shorten repeated damaged patterns before anything is substituted."""
     collapsed = {}
 
     def _pair(match):
+        if is_ambiguous_replacement_site(text, match.start(), match.start() + 1):
+            return match.group(0)
         collapsed["repeated_pair"] = collapsed.get("repeated_pair", 0) + 1
         return ELLIPSIS + match.group(1)
 
-    def _run(match):
-        collapsed["long_run"] = collapsed.get("long_run", 0) + 1
-        return ELLIPSIS
-
     text = _REPEATED_PAIR.sub(_pair, text)
-    text = _LONG_RUN.sub(_run, text)
+    # Lost glyphs alone do not establish repetition or punctuation. Keep
+    # these runs for the residual-damage report rather than inventing prose.
 
     # Repetitions that were already in the file before this decode error -
     # index18 was damaged twice, and an earlier lossy conversion turned
@@ -385,6 +395,8 @@ def repair(text, last_resort=True):
     for name, pattern, replacement in RULES:
         def _sub(match, _name=name, _rep=replacement):
             start = match.start()
+            if is_ambiguous_replacement_site(text, start, match.end()):
+                return match.group(0)
             applied[_name] += 1
             if len(examples[_name]) < 5:
                 examples[_name].append(
@@ -430,6 +442,8 @@ def repair(text, last_resort=True):
                     and line.lstrip().startswith(FFFD)):
                 pad = line[:len(line) - len(line.lstrip())]
                 stripped = line.lstrip()
+                if is_ambiguous_replacement_site(stripped, 0, 1):
+                    continue
                 lines[index] = pad + OPEN_DOUBLE + stripped[1:]
                 opened += 1
         if opened:
@@ -440,6 +454,9 @@ def repair(text, last_resort=True):
                     and line.rstrip().endswith(FFFD)):
                 stripped = line.rstrip()
                 pad = line[len(stripped):]
+                if is_ambiguous_replacement_site(
+                        stripped, len(stripped) - 1, len(stripped)):
+                    continue
                 lines[index] = stripped[:-1] + CLOSE_DOUBLE + pad
                 closed += 1
         if closed:
@@ -451,10 +468,13 @@ def repair(text, last_resort=True):
         # reached the text.
         if paired or opened or closed:
             text = "\n".join(lines)
-        remaining = text.count(FFFD)
-        if remaining:
-            text = text.replace(FFFD, LAST_RESORT)
-            applied["last_resort_dash"] += remaining
+        def _replace_short_run(match):
+            run = match.group(0)
+            if len(run) >= 3:
+                return run
+            applied["last_resort_dash"] += len(run)
+            return LAST_RESORT * len(run)
+        text = re.sub(FFFD + "+", _replace_short_run, text)
     return text, applied, examples
 
 
@@ -476,6 +496,14 @@ def main():
                              "dry run that only reports what would change.")
     args = parser.parse_args()
 
+    stem, extension = os.path.splitext(args.source)
+    out_path = args.out or f"{stem}.repaired{extension}"
+    report_path = args.report or f"{stem}.repair_report.json"
+    try:
+        validate_repair_paths(args.source, out_path, report_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     with open(args.source, encoding="utf-8", errors="replace") as handle:
         original = handle.read()
 
@@ -484,10 +512,6 @@ def main():
         original, last_resort=not args.no_last_resort)
     after_count = repaired.count(FFFD)
     remaining, samples = classify_remaining(repaired)
-
-    stem, extension = os.path.splitext(args.source)
-    out_path = args.out or f"{stem}.repaired{extension}"
-    report_path = args.report or f"{stem}.repair_report.json"
 
     before_unbal, _bq, before_share = quote_balance(original)
     after_unbal, after_quoted, after_share = quote_balance(repaired)
@@ -613,6 +637,12 @@ def preflight_source(text):
             f"  - {finding['issue']}: {finding['detail']}{suffix}")
 
     repaired, applied, _examples = repair(text)
+    regressions = structural_regressions(repaired)
+    if any(regressions.values()):
+        result["messages"].append(
+            f"  repair rejected: unsafe source structure ({regressions}); "
+            "continuing with the original")
+        return result
     after = check_source_health(repaired)
     result["applied"] = applied
     if applied:
@@ -623,7 +653,7 @@ def preflight_source(text):
     if after["healthy"]:
         result.update(text=repaired, healthy=True, findings=[])
         result["messages"].append("  source is now clean")
-    elif len(after["findings"]) < len(before["findings"]):
+    elif repaired != text:
         result.update(text=repaired, findings=after["findings"])
         result["messages"].append(
             f"  {len(after['findings'])} issue(s) remain; continuing")

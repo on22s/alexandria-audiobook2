@@ -4,6 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
+from utils import atomic_json_write, file_lock
+from book_state_transaction import JOURNAL, ensure_book_state, apply_book_state_locked
+
 
 CONTRACT_DIR = Path(__file__).with_name("api_contract")
 OPENAPI_SNAPSHOT = CONTRACT_DIR / "openapi.json"
@@ -27,18 +30,24 @@ def get_route_manifest(application):
 def write_json_snapshot(path, data):
     """Write deterministic, reviewable JSON to a contract snapshot."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    atomic_json_write(data, path, sort_keys=True, trailing_newline=True)
 
 
 def write_snapshots(application, contract_dir=CONTRACT_DIR):
     """Write OpenAPI and ordered route snapshots for application."""
-    openapi_path = Path(contract_dir) / OPENAPI_SNAPSHOT.name
-    routes_path = Path(contract_dir) / ROUTES_SNAPSHOT.name
-    write_json_snapshot(openapi_path, application.openapi())
-    write_json_snapshot(routes_path, get_route_manifest(application))
+    contract_dir = Path(contract_dir)
+    openapi_path = contract_dir / OPENAPI_SNAPSHOT.name
+    routes_path = contract_dir / ROUTES_SNAPSHOT.name
+    replacements = {
+        openapi_path.name: (json.dumps(application.openapi(), indent=2, sort_keys=True,
+                                       ensure_ascii=False) + "\n").encode("utf-8"),
+        routes_path.name: (json.dumps(get_route_manifest(application), indent=2, sort_keys=True,
+                                      ensure_ascii=False) + "\n").encode("utf-8"),
+    }
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    # The existing flat-artifact transaction also covers this two-file contract.
+    with ensure_book_state(contract_dir):
+        apply_book_state_locked(contract_dir, replacements, [])
     return openapi_path, routes_path
 
 
@@ -139,10 +148,13 @@ def check_snapshots(application, contract_dir=CONTRACT_DIR):
     """Compare current contracts to disk without writing either snapshot."""
     contract_dir = Path(contract_dir)
     try:
-        expected_openapi = json.loads(
-            (contract_dir / OPENAPI_SNAPSHOT.name).read_text(encoding="utf-8"))
-        expected_routes = json.loads(
-            (contract_dir / ROUTES_SNAPSHOT.name).read_text(encoding="utf-8"))
+        with file_lock(str(contract_dir / JOURNAL)):
+            if (contract_dir / JOURNAL).exists():
+                raise ValueError("API contract publication was interrupted; regenerate snapshots to recover.")
+            expected_openapi = json.loads(
+                (contract_dir / OPENAPI_SNAPSHOT.name).read_text(encoding="utf-8"))
+            expected_routes = json.loads(
+                (contract_dir / ROUTES_SNAPSHOT.name).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"API contract snapshots are missing or invalid: {contract_dir}") from exc
     return compare_contracts(

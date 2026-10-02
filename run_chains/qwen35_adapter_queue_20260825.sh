@@ -48,15 +48,21 @@ run_recipe() {
     "$(date --iso-8601=seconds)" "$name" "$COMMIT" "$MODEL" \
     "${QUANT:-bf16}" > "$STATUS"
   # shellcheck disable=SC2086
-  env PYTHONPATH=/home/ubuntu/alexandria-audiobook2.git/app \
+  if env PYTHONPATH=/home/ubuntu/alexandria-audiobook2.git/app \
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
     PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
     python3 -u "$TRAINER" --data $data --model "$MODEL" --out "$out" \
       --epochs "$epochs" --lr 1e-4 --lora_r 16 --lora_alpha 32 \
       --batch_size 1 --grad_accum 8 --max_len 2048 --save_steps 100 \
-      --label_field teacher $QUANT > "$log" 2>&1
-  printf '%s OK %s commit=%s\n' \
-    "$(date --iso-8601=seconds)" "$name" "$COMMIT" > "$STATUS"
+      --label_field teacher $QUANT > "$log" 2>&1; then
+    printf '%s OK %s commit=%s\n' \
+      "$(date --iso-8601=seconds)" "$name" "$COMMIT" > "$STATUS"
+  else
+    local rc=$?
+    printf '%s FAIL %s rc=%s commit=%s\n' \
+      "$(date --iso-8601=seconds)" "$name" "$rc" "$COMMIT" > "$STATUS"
+    exit "$rc"
+  fi
 }
 
 cd "$ROOT"

@@ -1,0 +1,66 @@
+"""Execute actual chunk rendering and request coordination on changing snapshots."""
+from pathlib import Path
+import subprocess
+import unittest
+
+SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+SETUP = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+const fields={},timers=new Map(),errors=[],updates=[];let timerId=0,draws=0,playing=false;
+const element=id=>fields[id]||(fields[id]={value:'',style:{},children:[]});
+const body=element('chunks-table-body');let html='';
+Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
+const ctx={window:null,console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
+ setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
+ isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
+vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
+run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')));
+run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));
+const start=source.includes('function ensureChunkRefresh(')?source.indexOf('function ensureChunkRefresh('):source.indexOf('async function loadChunks(');
+run(source.slice(start,source.indexOf('window.toggleChunkExpand',start)));
+const chunk=(id,status='pending')=>({id,status,text:'line '+id,speaker:'Narrator'});
+const ids=()=>body.children.map(row=>row.dataset.id);
+function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
+const turn=()=>new Promise(resolve=>setImmediate(resolve));
+'''
+
+
+class ChunkRefreshJsTests(unittest.TestCase):
+    def run_js(self, code):
+        script = SETUP + '\n(async()=>{\n' + code + '\n})().catch(e=>{console.error(e);process.exitCode=1;});'
+        result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_same_length_replacements_reorders_and_playback_restore_correct_rows(self):
+        self.run_js(r'''
+let snapshot=[chunk(1),chunk(2)];ctx.API.get=async()=>snapshot;await ctx.loadChunks();assert.deepStrictEqual(ids(),['1','2']);
+snapshot=[chunk(3),chunk(4)];await ctx.loadChunks();assert.deepStrictEqual(ids(),['3','4']);
+snapshot=[chunk(4),chunk(3)];await ctx.loadChunks();assert.deepStrictEqual(ids(),['4','3']);
+const before=draws;snapshot=[chunk(4,'done'),chunk(3)];await ctx.loadChunks();assert.strictEqual(draws,before);assert.deepStrictEqual(updates,[4]);
+playing=true;snapshot=[chunk(8),chunk(9)];await ctx.loadChunks();assert.deepStrictEqual(ids(),['4','3']);playing=false;await ctx.loadChunks();assert.deepStrictEqual(ids(),['8','9']);
+snapshot=[];await ctx.loadChunks();assert.match(body.innerHTML,/No chunks found/);assert.strictEqual(run('cachedChunks.length'),0);assert.deepStrictEqual(errors,[]);
+''')
+
+    def test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost(self):
+        self.run_js(r'''
+const first=deferred(),second=deferred();let reads=0,active=0,maxActive=0;
+ctx.API.get=async()=>{const gate=++reads===1?first:second;maxActive=Math.max(maxActive,++active);try{return await gate.promise;}finally{active--;}};
+const a=ctx.loadChunks(),b=ctx.loadChunks(),c=ctx.loadChunks(true);assert.strictEqual(reads,1);
+first.resolve([chunk(1)]);await turn();assert.strictEqual(reads,2);playing=true;second.resolve([chunk(2)]);await Promise.all([a,b,c]);assert.strictEqual(maxActive,1);assert.strictEqual(reads,2);assert.deepStrictEqual(ids(),['2']);
+ctx.API.get=async()=>{throw Error('fixture unavailable');};await ctx.loadChunks();assert.strictEqual(errors.length,1);
+playing=false;ctx.API.get=async()=>[chunk(3,'generating')];await ctx.loadChunks();assert.deepStrictEqual(ids(),['3']);assert.strictEqual(timers.size,1);await ctx.loadChunks();assert.strictEqual(timers.size,1);
+ctx.API.get=async()=>[chunk(3,'done')];await ctx.loadChunks();assert.strictEqual(timers.size,0);
+''')
+
+    def test_actual_batch_poll_fetches_and_renders_once_without_second_timer(self):
+        self.run_js(r'''
+let poll,reads=0,statusReads=0,drift=0;ctx.ensureEditorRenderSnapshot=async()=>[chunk(1)];ctx.showToast=()=>{};ctx.showConfirm=async()=>true;
+ctx.cancelRender=()=>run('isRenderingAll=false');ctx.runDriftCheck=()=>drift++;ctx._startPolling=(key,fetch,options)=>{assert.strictEqual(key,'render_batch');poll={fetch,options};};ctx.API.post=async()=>({});
+ctx.API.get=async url=>{if(url==='/api/status/audio'){statusReads++;return {running:reads===0};}assert.strictEqual(url,'/api/chunks');reads++;return [chunk(1,reads===1?'generating':'done')];};
+run(source.slice(source.indexOf('function getBatchOutcome('),source.indexOf('function pollReviewBatch()')));
+run(source.slice(source.indexOf('async function _runBatchRender('),source.indexOf('window.renderAll =')));
+await ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});
+let data=await poll.fetch();if(poll.options.onTick){await poll.options.onTick(data);}assert.strictEqual(reads,1);assert.strictEqual(timers.size,0);assert.strictEqual(poll.options.doneCheck(data),false);assert.deepStrictEqual(ids(),['1']);
+data=await poll.fetch();if(poll.options.onTick){await poll.options.onTick(data);}assert.strictEqual(poll.options.doneCheck(data),true);await poll.options.onDone(data);assert.strictEqual(reads,2);assert.strictEqual(statusReads,2);assert.strictEqual(timers.size,0);assert.strictEqual(drift,1);assert.strictEqual(run('cachedChunks[0].status'),'done');
+ctx.API.get=async()=>{throw Error('offline');};await assert.rejects(poll.fetch(),/offline/);assert.deepStrictEqual(errors,[]);
+''')

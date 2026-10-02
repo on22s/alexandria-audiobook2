@@ -1,9 +1,13 @@
 import os
+import ntpath
+import hashlib
+import io
 import re
 import json
 import tempfile
 import sys
 import threading
+from functools import wraps
 import shutil
 import uuid
 
@@ -11,13 +15,33 @@ import numpy as np
 import soundfile as sf
 
 import device_utils
-from speech_text import normalize_for_speech
+from adapter_checkpoint_transaction import ensure_adapter_generation_snapshot, get_adapter_generation_sha256
+from lora_evidence import get_file_sha256
+from audio_validation import publish_audio_output
+from speech_text import normalize_for_speech, get_speech_preparation
 from pydub import AudioSegment
+from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
 
 try:
-    from .utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir
+    from .utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir, is_path_inside
 except ImportError:
-    from utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir
+    from utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir, is_path_inside
+
+
+
+# Torch RNG and loaded model operations are shared across local worker threads,
+# including distinct engine instances. Reentrancy permits prompt/load helpers
+# and fallback generation to use the same admission as their outer render.
+_LOCAL_TTS_LOCK = threading.RLock()
+
+
+def ensure_local_tts_serialized(method):
+    """Serialize local model loading, prompt construction and seeded inference."""
+    @wraps(method)
+    def run(*args, **kwargs):
+        with _LOCAL_TTS_LOCK:
+            return method(*args, **kwargs)
+    return run
 
 
 def _resolve_asset_path(rel_path):
@@ -30,13 +54,35 @@ def _resolve_asset_path(rel_path):
     existing installs are unaffected — it only corrects paths once data is
     relocated (e.g. the Docker /alexandria/runtime volume)."""
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    norm = str(rel_path).replace("\\", "/").lstrip("/")
-    base = root_dir if norm.split("/", 1)[0] == "builtin_lora" else _get_runtime_data_dir(root_dir)
-    return os.path.join(base, rel_path)
+    raw = os.fspath(rel_path)
+    norm = raw.replace("\\", "/")
+    if (not norm or norm.startswith("/") or ntpath.splitdrive(norm)[0]
+            or ".." in norm.split("/")):
+        raise ValueError("TTS relative asset path must not be absolute or traverse parents")
+    norm = os.path.normpath(norm)
+    if norm == ".":
+        raise ValueError("TTS relative asset path must name an asset")
+    base = root_dir if norm.split(os.sep, 1)[0] == "builtin_lora" else _get_runtime_data_dir(root_dir)
+    path = os.path.join(base, norm)
+    if not is_path_inside(path, base):
+        raise ValueError("TTS relative asset path escapes its data root")
+    return path
 
 
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
+
+
+def get_style_timeline_index(point):
+    """Read a nonnegative integer timeline position, rejecting malformed data."""
+    value = point.get("from_index", 0)
+    try:
+        index = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("style_timeline from_index must be a nonnegative integer") from exc
+    if isinstance(value, bool) or index < 0 or (not isinstance(value, str) and value != index):
+        raise ValueError("style_timeline from_index must be a nonnegative integer")
+    return index
 
 
 def active_character_style(voice_data, chunk_index=None):
@@ -49,22 +95,29 @@ def active_character_style(voice_data, chunk_index=None):
     style = (data.get("character_style") or data.get("default_style") or "").strip()
     if chunk_index is None:
         return style
-    for point in sorted((p for p in data.get("style_timeline") or [] if isinstance(p, dict)),
-                        key=lambda p: int(p.get("from_index", 0))):
-        if int(point.get("from_index", 0)) <= chunk_index:
+    points = [(get_style_timeline_index(point), point)
+              for point in data.get("style_timeline") or [] if isinstance(point, dict)]
+    for index, point in sorted(points, key=lambda item: item[0]):
+        if index <= chunk_index:
             style = (point.get("character_style") or "").strip()
     return style
 
 
 def voice_config_for_chunk(voice_config, speaker, chunk_index):
-    """A shallow copy of voice_config whose entry for `speaker` carries the
-    anchor in force at `chunk_index`, so every engine path reads the same
-    `character_style` key it already reads and none has to know about the
-    timeline."""
+    """Copy only entries whose timeline anchors apply at this source index.
+    Ensemble members use the same index as their containing line."""
     entry = (voice_config or {}).get(speaker)
-    if not isinstance(entry, dict) or not entry.get("style_timeline"):
+    if not isinstance(entry, dict):
         return voice_config
-    return {**voice_config, speaker: {**entry, "character_style": active_character_style(entry, chunk_index)}}
+    speakers = [speaker]
+    if voice_category(entry) == "ensemble" and isinstance(entry.get("members"), list):
+        speakers.extend(member for member in entry["members"] if isinstance(member, str))
+    updates = {}
+    for name in speakers:
+        data = voice_config.get(name)
+        if isinstance(data, dict) and data.get("style_timeline"):
+            updates[name] = {**data, "character_style": active_character_style(data, chunk_index)}
+    return {**voice_config, **updates} if updates else voice_config
 
 
 def anchored_instruct(voice_data, instruct_text):
@@ -92,6 +145,11 @@ def voice_is_set(voice_data):
     if voice_category(data) != "custom":
         return True
     return bool((data.get("description") or "").strip() or data.get("ref_audio"))
+
+
+def is_voice_config_present(speaker, voice_config):
+    """Whether single and batch generation have an entry for this speaker."""
+    return bool((voice_config or {}).get(speaker))
 
 
 def voice_category(voice_data):
@@ -181,6 +239,8 @@ def mix_to_unison(wav_paths, output_path, max_stretch=1.35):
     clips, rates = [], set()
     for path in wav_paths:
         audio, sr = sf.read(path)
+        if not len(audio):
+            raise ValueError(f"ensemble clip has no audio frames: {path}")
         if audio.ndim > 1:
             audio = audio.mean(axis=1)  # force mono before mixing
         clips.append(np.asarray(audio, dtype=np.float32))
@@ -218,9 +278,8 @@ def mix_to_unison(wav_paths, output_path, max_stretch=1.35):
     # The ensemble path writes directly rather than through _save_wav, so it
     # needs the same check - a mixed file can be truncated exactly as a
     # generated one can.
-    from audio_validation import validate_generated_audio
-    sf.write(output_path, mixed, sample_rate)
-    validate_generated_audio(output_path, "ensemble mix")
+    from audio_validation import save_generated_wav
+    save_generated_wav(mixed, sample_rate, output_path, "ensemble mix")
     return True
 
 
@@ -246,11 +305,21 @@ EDGE_SILENCE_KEEP_TAIL_MS = 80
 _EDGE_SILENCE_STEP_MS = 10
 
 
-def _silent_edge_ms(segment, from_end, threshold_db):
+class ExportCancelled(Exception):
+    """Raised when the caller cancels audio assembly or export."""
+
+
+def ensure_audio_export_active(cancel_check):
+    if cancel_check and cancel_check():
+        raise ExportCancelled('Export cancelled')
+
+
+def _silent_edge_ms(segment, from_end, threshold_db, cancel_check=None):
     """Milliseconds of silence at the start (or end) of a segment."""
     length = len(segment)
     silent = 0
     while silent < length:
+        ensure_audio_export_active(cancel_check)
         start = length - silent - _EDGE_SILENCE_STEP_MS if from_end else silent
         slice_ = segment[max(0, start):max(0, start) + _EDGE_SILENCE_STEP_MS]
         if len(slice_) == 0 or slice_.dBFS > threshold_db:
@@ -261,24 +330,36 @@ def _silent_edge_ms(segment, from_end, threshold_db):
 
 def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
                       keep_head_ms=EDGE_SILENCE_KEEP_HEAD_MS,
-                      keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS):
+                      keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS, cancel_check=None):
     """-> the segment with leading/trailing silence cut back to keep_head_ms /
     keep_tail_ms. A segment that is silent throughout is returned unchanged
     (a missing line must stay visible as its full length, not vanish)."""
+    ensure_audio_export_active(cancel_check)
     if segment is None or len(segment) == 0:
         return segment
-    lead = _silent_edge_ms(segment, False, threshold_db)
+    lead = _silent_edge_ms(segment, False, threshold_db, cancel_check)
     if lead >= len(segment):
         return segment
-    tail = _silent_edge_ms(segment, True, threshold_db)
+    tail = _silent_edge_ms(segment, True, threshold_db, cancel_check)
     start = max(0, lead - keep_head_ms)
     end = len(segment) - max(0, tail - keep_tail_ms)
     return segment[start:end] if (start, end) != (0, len(segment)) else segment
 
 
+def get_pause_duration_ms(previous_chunk, next_chunk, pause_ms=DEFAULT_PAUSE_MS,
+                          same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
+    """Return the existing override-or-speaker-boundary pause rule."""
+    override = previous_chunk.get("pause_after")
+    if override is not None:
+        return int(override)
+    if next_chunk.get("speaker") == previous_chunk.get("speaker"):
+        return same_speaker_pause_ms
+    return pause_ms
+
+
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,
                               same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS,
-                              pause_overrides=None):
+                              pause_overrides=None, cancel_check=None):
     """Combine audio segments with pauses between them.
 
     Args:
@@ -289,26 +370,26 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
     if not audio_segments:
         return None
 
-    audio_segments = [trim_edge_silence(s) for s in audio_segments]
+    ensure_audio_export_active(cancel_check)
+    audio_segments = [trim_edge_silence(s, cancel_check=cancel_check) for s in audio_segments]
     combined = audio_segments[0]
     prev_speaker = speakers[0]
 
     for i, (segment, speaker) in enumerate(zip(audio_segments[1:], speakers[1:])):
+        ensure_audio_export_active(cancel_check)
         override = pause_overrides[i] if pause_overrides else None
-        if override is not None:
-            gap = AudioSegment.silent(duration=override)
-        elif speaker == prev_speaker:
-            gap = AudioSegment.silent(duration=same_speaker_pause_ms)
-        else:
-            gap = AudioSegment.silent(duration=pause_ms)
+        gap = AudioSegment.silent(duration=get_pause_duration_ms(
+            {"speaker": prev_speaker, "pause_after": override}, {"speaker": speaker},
+            pause_ms, same_speaker_pause_ms))
         combined += gap + segment
         prev_speaker = speaker
 
+    ensure_audio_export_active(cancel_check)
     return combined
 
 
 def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
-                     same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
+                     same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, cancel_check=None):
     """Compute a timeline of (chunk, segment, abs_start_ms) tuples.
 
     Args:
@@ -323,27 +404,31 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
     """
     timeline = []
     cursor_ms = 0
-    prev_speaker = None
     prev_chunk = None
 
     for chunk, segment in chunks_with_audio:
-        segment = trim_edge_silence(segment)   # same cut the combined audio gets
-        if prev_speaker is not None:
-            override = prev_chunk.get("pause_after")
-            if override is not None:
-                gap = int(override)
-            elif chunk.get("speaker") == prev_speaker:
-                gap = same_speaker_pause_ms
-            else:
-                gap = pause_ms
-            cursor_ms += gap
+        ensure_audio_export_active(cancel_check)
+        segment = trim_edge_silence(segment, cancel_check=cancel_check)   # same cut the combined audio gets
+        if prev_chunk is not None:
+            cursor_ms += get_pause_duration_ms(
+                prev_chunk, chunk, pause_ms, same_speaker_pause_ms)
 
         timeline.append((chunk, segment, cursor_ms))
         cursor_ms += len(segment)
-        prev_speaker = chunk.get("speaker")
         prev_chunk = chunk
 
     return timeline
+
+
+
+class UnsupportedVoiceBackendError(ValueError):
+    """The selected backend cannot serve this voice category."""
+
+
+_TTS_BACKEND_CAPABILITIES = {
+    "local": frozenset({"custom", "clone", "lora", "design", "ensemble"}),
+    "external": frozenset({"custom", "clone", "ensemble"}),
+}
 
 
 class TTSEngine:
@@ -360,9 +445,9 @@ class TTSEngine:
         tts_config = config.get("tts", {})
         self._mode = tts_config.get("mode", "external")
         self._url = tts_config.get("url", "http://127.0.0.1:7860")
-        # External endpoint pool: one Gradio client per URL, each behind its
-        # own lock (gradio_client is not safe to share across threads), used
-        # round-robin. `url` alone is the one-endpoint pool.
+        # Each endpoint has one lazily created client per configured worker.
+        # Every client keeps its own lock: gradio_client cannot be shared
+        # concurrently. `url` alone is the one-endpoint pool.
         self._external_urls = [u.strip() for u in (tts_config.get("external_urls") or []) if u and u.strip()] or [self._url]
         self._external_timeout = int(tts_config.get("external_timeout_seconds", 300) or 300)
         self._external_parallel_workers = max(1, int(tts_config.get("parallel_workers", 2) or 1))
@@ -391,14 +476,16 @@ class TTSEngine:
         self._local_lora_model = None
         self._custom_warmup_needed = True
         self._lora_adapter_path = None  # track which adapter is currently loaded
-        self._gradio_clients = {}       # url -> gradio_client.Client
-        self._external_locks = {}       # url -> threading.Lock
+        self._lora_generation_sha256 = None
+        self._gradio_clients = {}       # (url, worker) -> gradio_client.Client
+        self._external_locks = {}       # (url, worker) -> threading.Lock
         self._external_pool_lock = threading.Lock()
         self._external_next = 0
+        self._external_client_next = {}
 
-        # Clone prompt cache: speaker_name -> (ref_audio_path, reusable voice_clone_prompt)
+        # Clone prompt cache: speaker_name -> (reference input key, reusable voice_clone_prompt)
         self._clone_prompt_cache = {}
-        # LoRA clone prompt cache: adapter_path -> reusable voice_clone_prompt
+        # LoRA clone prompt cache: (adapter_path, serving generation) -> reusable prompt
         self._lora_prompt_cache = {}
 
     @property
@@ -473,8 +560,8 @@ class TTSEngine:
         the generate calls use - rather than taken as an argument, so the two
         cannot drift apart and silently over-size the batch.
 
-        Returns max batch size (>= 1).  Falls back to a large default on CPU
-        or if the model config is inaccessible.
+        Returns max batch size (>= 1). CPU use has no VRAM limit; an unreadable
+        GPU model config conservatively allows one sequence.
         """
         max_new_tokens = self._max_new_tokens
         import torch
@@ -487,7 +574,7 @@ class TTSEngine:
             num_kv_heads = config.num_key_value_heads
             head_dim = config.hidden_size // config.num_attention_heads
         except AttributeError:
-            return 9999  # can't read config, skip estimation
+            return 1  # cannot size GPU memory safely without model dimensions
 
         dtype_bytes = 2  # bf16
         kv_per_token = num_layers * 2 * num_kv_heads * head_dim * dtype_bytes
@@ -567,6 +654,7 @@ class TTSEngine:
 
     # ── Lazy initialization ──────────────────────────────────────
 
+    @ensure_local_tts_serialized
     def _warmup_model(self, model) -> bool:
         """Run a short warmup generation to pre-tune MIOpen/GPU solvers.
 
@@ -590,6 +678,7 @@ class TTSEngine:
             print(f"Warmup failed (non-fatal): {e}")
             return False
 
+    @ensure_local_tts_serialized
     def ensure_custom_warmup(self, model=None) -> bool:
         """Warm the CustomVoice backend once, retrying after non-fatal failure."""
         if not self._custom_warmup_needed:
@@ -804,6 +893,7 @@ class TTSEngine:
             print(f"  Model not cached locally, downloading {model_id}...")
             return model_cls.from_pretrained(model_id, **load_kwargs)
 
+    @ensure_local_tts_serialized
     def _init_local_custom(self):
         """Load Qwen3-TTS CustomVoice model on demand."""
         if self._local_custom_model is not None:
@@ -836,6 +926,7 @@ class TTSEngine:
                 self._compile_codec(self._local_custom_model)
             return self._local_custom_model
 
+    @ensure_local_tts_serialized
     def _init_local_clone(self):
         """Load Qwen3-TTS Base model (for voice cloning) on demand."""
         if self._local_clone_model is not None:
@@ -865,6 +956,7 @@ class TTSEngine:
             print("Base model (voice cloning) loaded.")
             return self._local_clone_model
 
+    @ensure_local_tts_serialized
     def _init_local_design(self):
         """Load Qwen3-TTS VoiceDesign model on demand."""
         if self._local_design_model is not None:
@@ -894,17 +986,24 @@ class TTSEngine:
             print("VoiceDesign model loaded.")
             return self._local_design_model
 
-    def _init_local_lora(self, adapter_path):
+    @ensure_local_tts_serialized
+    def _init_local_lora(self, adapter_path, generation_sha256=None, source_adapter_path=None):
         """Load Qwen3-TTS Base model with a LoRA adapter on demand.
 
         Caches the model; if a different adapter is requested the old one
         is unloaded first to free VRAM.
         """
-        if self._local_lora_model is not None and self._lora_adapter_path == adapter_path:
+        source_adapter_path = source_adapter_path or adapter_path
+        if generation_sha256 is None:
+            with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
+                return self._init_local_lora(snapshot, generation, source_adapter_path)
+        if (self._local_lora_model is not None and self._lora_adapter_path == source_adapter_path
+                and self._lora_generation_sha256 == generation_sha256):
             return self._local_lora_model
 
         with self._model_lock:
-            if self._local_lora_model is not None and self._lora_adapter_path == adapter_path:
+            if (self._local_lora_model is not None and self._lora_adapter_path == source_adapter_path
+                    and self._lora_generation_sha256 == generation_sha256):
                 return self._local_lora_model
 
             # Unload previous adapter if switching
@@ -913,6 +1012,7 @@ class TTSEngine:
                 del self._local_lora_model
                 self._local_lora_model = None
                 self._lora_adapter_path = None
+                self._lora_generation_sha256 = None
                 self._lora_prompt_cache.clear()
                 self._clear_gpu_cache()
 
@@ -959,8 +1059,9 @@ class TTSEngine:
                 self._compile_codec(model)
 
             self._local_lora_model = model
-            self._lora_adapter_path = adapter_path
-            print(f"LoRA adapter loaded from {adapter_path}")
+            self._lora_adapter_path = source_adapter_path
+            self._lora_generation_sha256 = generation_sha256
+            print(f"LoRA adapter loaded from {source_adapter_path}")
             return model
 
     def external_endpoints(self):
@@ -975,20 +1076,23 @@ class TTSEngine:
             return url
 
     def _external_endpoint(self, url=None):
-        """-> (client, lock) for one endpoint, creating the client on demand."""
+        """-> (client, lock) for the next endpoint worker, creating its client on demand."""
         url = url or self._next_external_url()
         with self._external_pool_lock:
-            lock = self._external_locks.setdefault(url, threading.Lock())
-            client = self._gradio_clients.get(url)
+            worker = self._external_client_next.get(url, 0) % self._external_parallel_workers
+            self._external_client_next[url] = worker + 1
+            key = (url, worker)
+            lock = self._external_locks.setdefault(key, threading.Lock())
+            client = self._gradio_clients.get(key)
         if client is None:
             from gradio_client import Client
             with lock:
-                client = self._gradio_clients.get(url)
+                client = self._gradio_clients.get(key)
                 if client is None:
                     print(f"Connecting to TTS server at {url}...")
                     client = Client(url)
                     with self._external_pool_lock:
-                        self._gradio_clients[url] = client
+                        self._gradio_clients[key] = client
                     print(f"Connected to external TTS server {url}.")
         return client, lock
 
@@ -998,6 +1102,7 @@ class TTSEngine:
 
     # ── Clone prompt cache (local mode) ──────────────────────────
 
+    @ensure_local_tts_serialized
     def _get_clone_prompt(self, speaker, voice_config):
         """Get or create a cached voice clone prompt for a speaker."""
         voice_data = voice_config.get(speaker, {})
@@ -1009,20 +1114,20 @@ class TTSEngine:
         # Resolve relative paths against project root (parent of app/)
         if not os.path.isabs(ref_audio_path):
             ref_audio_path = _resolve_asset_path(ref_audio_path)
-        if not os.path.exists(ref_audio_path):
-            raise FileNotFoundError(f"Reference audio not found for '{speaker}': {ref_audio_path}")
-
-        # Check cache — invalidate if ref_audio changed
+        # Hash and decode one captured reference, resolving historical adapter
+        # directories under publication admission before reading their bytes.
+        ref_audio_path, audio_bytes = get_adapter_asset_snapshot(ref_audio_path)
+        reference_key = (ref_audio_path, ref_text, hashlib.sha256(audio_bytes).hexdigest())
         if speaker in self._clone_prompt_cache:
-            cached_path, cached_prompt = self._clone_prompt_cache[speaker]
-            if cached_path == ref_audio_path:
+            cached_key, cached_prompt = self._clone_prompt_cache[speaker]
+            if cached_key == reference_key:
                 return cached_prompt
             print(f"Voice changed for '{speaker}', rebuilding clone prompt...")
 
         model = self._init_local_clone()
 
         # Load reference audio as numpy array
-        audio_array, sample_rate = sf.read(ref_audio_path)
+        audio_array, sample_rate = sf.read(io.BytesIO(audio_bytes))
         # Ensure mono
         if audio_array.ndim > 1:
             audio_array = audio_array.mean(axis=1)
@@ -1032,38 +1137,97 @@ class TTSEngine:
             ref_audio=(audio_array, sample_rate),
             ref_text=ref_text,
         )
-        self._clone_prompt_cache[speaker] = (ref_audio_path, prompt)
+        self._clone_prompt_cache[speaker] = (reference_key, prompt)
         print(f"Clone prompt cached for '{speaker}'.")
         return prompt
 
+    def get_voice_backend(self, category):
+        """Return the selected backend or reject unsupported local-model fallback."""
+        capabilities = _TTS_BACKEND_CAPABILITIES.get(self._mode)
+        if capabilities is None:
+            raise UnsupportedVoiceBackendError(f"Unknown TTS mode: {self._mode}")
+        if category not in capabilities:
+            raise UnsupportedVoiceBackendError(
+                f"{category} voices require local TTS mode; external TTS supports custom and clone voices.")
+        return self._mode
+
     # ── Core generation methods ──────────────────────────────────
+
+    def _external_single(self, generate, output_path):
+        """Bound one external request without publishing late audio."""
+        staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
+        cancelled = threading.Event()
+        finished = threading.Event()
+        result = {"success": False}
+
+        def work():
+            try:
+                result["success"] = generate(staging_path, cancelled)
+            finally:
+                if cancelled.is_set():
+                    try:
+                        os.remove(staging_path)
+                    except FileNotFoundError:
+                        pass
+                finished.set()
+
+        threading.Thread(target=work, daemon=True).start()
+        if not finished.wait(self._external_timeout):
+            cancelled.set()
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                pass
+            print(f"External TTS timed out after {self._external_timeout}s")
+            return False
+        if (result["success"] and os.path.exists(staging_path)
+                and publish_audio_output(staging_path, output_path, cancelled)):
+            return True
+        try:
+            os.remove(staging_path)
+        except FileNotFoundError:
+            pass
+        return False
 
     def generate_custom_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using CustomVoice model. Returns True on success."""
-        text = normalize_for_speech(text)
-        if self._mode == "local":
+        prepared = get_speech_preparation(text, instruct_text)
+        text, instruct_text = prepared["text"], prepared["instruct"]
+        if self.get_voice_backend("custom") == "local":
             return self._local_generate_custom(text, instruct_text, speaker, voice_config, output_path)
         else:
-            return self._external_generate_custom(text, instruct_text, speaker, voice_config, output_path)
+            return self._external_single(
+                lambda staged, cancelled: self._external_generate_custom(
+                    text, instruct_text, speaker, voice_config, staged, cancelled=cancelled),
+                output_path)
 
     def generate_clone_voice(self, text, speaker, voice_config, output_path):
         """Generate audio using voice cloning. Returns True on success."""
         text = normalize_for_speech(text)
-        if self._mode == "local":
+        if self.get_voice_backend("clone") == "local":
             return self._local_generate_clone(text, speaker, voice_config, output_path)
         else:
-            return self._external_generate_clone(text, speaker, voice_config, output_path)
+            return self._external_single(
+                lambda staged, cancelled: self._external_generate_clone(
+                    text, speaker, voice_config, staged, cancelled=cancelled),
+                output_path)
 
     def generate_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using the appropriate method based on voice type config."""
-        text = normalize_for_speech(text)
+        prepared = get_speech_preparation(text, instruct_text)
+        text, instruct_text = prepared["text"], prepared["instruct"]
         voice_config = resolve_narrator_voice_config(speaker, voice_config)
         voice_data = voice_config.get(speaker)
-        if not voice_data:
+        if not is_voice_config_present(speaker, voice_config):
             print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
             return False
 
         category = voice_category(voice_data)
+        try:
+            self.get_voice_backend(category)
+        except UnsupportedVoiceBackendError as error:
+            print(f"Error: {error}")
+            return False
 
         if category == "clone":
             return self.generate_clone_voice(text, speaker, voice_config, output_path)
@@ -1100,6 +1264,7 @@ class TTSEngine:
                 raise ValueError(
                     f"Ensemble member '{member}' is itself an ensemble; "
                     f"ensembles cannot be nested.")
+            self.get_voice_backend(voice_category(member_data))
 
         temp_dir = tempfile.mkdtemp(prefix="unison_")
         try:
@@ -1119,6 +1284,7 @@ class TTSEngine:
 
     # ── Voice design generation ──────────────────────────────────
 
+    @ensure_local_tts_serialized
     def generate_voice_design(self, description, sample_text, language=None, seed=-1):
         """Generate a voice from a text description using the VoiceDesign model.
 
@@ -1134,6 +1300,7 @@ class TTSEngine:
         Raises:
             RuntimeError: If generation fails
         """
+        self.get_voice_backend("design")
         import time
         import torch
 
@@ -1168,7 +1335,7 @@ class TTSEngine:
         previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
         os.makedirs(previews_dir, exist_ok=True)
 
-        filename = f"preview_{int(time.time() * 1000)}.wav"
+        filename = f"preview_{uuid.uuid4().hex}.wav"
         wav_path = os.path.join(previews_dir, filename)
         self._save_wav(audio, sr, wav_path)
 
@@ -1180,11 +1347,15 @@ class TTSEngine:
         The voice_data 'description' field provides the base voice identity,
         and the per-line instruct_text is appended for delivery/emotion direction.
         """
-        text = normalize_for_speech(text)
+        self.get_voice_backend("design")
+        prepared = get_speech_preparation(text, instruct_text)
+        text, instruct_text = prepared["text"], prepared["instruct"]
         import shutil
 
         base_desc = (voice_data.get("description") or "").strip()
-        instruct = (instruct_text or "").strip()
+        instruct = (anchored_instruct(voice_data, instruct_text)
+                    if (voice_data.get("character_style") or "").strip()
+                    else (instruct_text or "").strip())
 
         if base_desc and instruct:
             description = f"{base_desc}, {instruct}"
@@ -1210,6 +1381,7 @@ class TTSEngine:
 
     # ── LoRA voice generation ────────────────────────────────────
 
+    @ensure_local_tts_serialized
     def generate_lora_voice(self, text, instruct_text, voice_data, output_path):
         """Generate audio using a LoRA-finetuned Base model.
 
@@ -1220,8 +1392,10 @@ class TTSEngine:
 
         The LoRA weights refine voice identity beyond what the reference alone provides.
         """
-        text = normalize_for_speech(text)
+        prepared = get_speech_preparation(text, instruct_text)
+        text, instruct_text = prepared["text"], prepared["instruct"]
         try:
+            self.get_voice_backend("lora")
             import time
 
             adapter_path = voice_data.get("adapter_path")
@@ -1232,8 +1406,10 @@ class TTSEngine:
             # Resolve relative paths against project root
             if not os.path.isabs(adapter_path):
                 adapter_path = _resolve_asset_path(adapter_path)
+            adapter_path = get_resolved_adapter_path(adapter_path)
 
-            if not os.path.isdir(adapter_path):
+            if (not os.path.isdir(adapter_path)
+                    and os.path.basename(adapter_path).startswith("builtin_")):
                 # Auto-download built-in adapters from HF
                 adapter_id = os.path.basename(adapter_path)
                 if adapter_id.startswith("builtin_"):
@@ -1248,34 +1424,12 @@ class TTSEngine:
                     except Exception as e:
                         print(f"Error: Auto-download failed for {adapter_id}: {e}")
                         return False
-                else:
-                    print(f"Error: LoRA adapter path not found: {adapter_path}")
-                    return False
 
-            # Load reference audio and text from adapter directory
-            ref_wav_path = os.path.join(adapter_path, "ref_sample.wav")
-            meta_path = os.path.join(adapter_path, "training_meta.json")
-
-            if not os.path.exists(ref_wav_path):
-                print(f"Error: ref_sample.wav not found in {adapter_path}")
-                return False
-            if not os.path.exists(meta_path):
-                print(f"Error: training_meta.json not found in {adapter_path}")
-                return False
-
-            with open(meta_path, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-            ref_text = meta.get("ref_sample_text", "")
-            if not ref_text:
-                print(f"Error: ref_sample_text missing from training_meta.json")
-                return False
-
+            # User adapters are checked inside snapshot admission, where an ID
+            # renamed after the lookup above can still resolve to its bundle.
+            model, prompt = self._ensure_local_lora_generation(adapter_path, voice_data.get("adapter_generation_sha256"))
             print(f"TTS [local lora] generating for adapter={os.path.basename(adapter_path)}, "
                   f"text='{text[:50]}...'")
-
-            model = self._init_local_lora(adapter_path)
-
-            prompt = self._ensure_lora_prompt(adapter_path, model, ref_text)
 
             # Build instruct_ids so the Base model can follow style prompts
             gen_extra = {}
@@ -1333,9 +1487,40 @@ class TTSEngine:
             traceback.print_exc()
             return False
 
-    def _ensure_lora_prompt(self, adapter_path, model, ref_text):
+    @ensure_local_tts_serialized
+    def _ensure_local_lora_generation(self, adapter_path, expected_generation=None):
+        """Load metadata, model and prompt from one admitted private serving snapshot."""
+        with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
+            if expected_generation is not None and generation != expected_generation:
+                raise ValueError('Adapter generation changed since benchmark fixture admission')
+            with open(os.path.join(snapshot, 'training_meta.json'), encoding='utf-8') as handle:
+                meta = json.load(handle)
+            if not isinstance(meta, dict) or not isinstance(meta.get('ref_sample_text'), str) or not meta['ref_sample_text'].strip():
+                raise ValueError('ref_sample_text missing from training_meta.json')
+            if 'checkpoint_sha256' in meta and meta['checkpoint_sha256'] != get_file_sha256(os.path.join(snapshot, 'adapter_model.safetensors')):
+                raise ValueError('Adapter metadata does not match its weights')
+            if 'reference_audio_sha256' in meta and meta['reference_audio_sha256'] != get_file_sha256(os.path.join(snapshot, 'ref_sample.wav')):
+                raise ValueError('Adapter metadata does not match its reference audio')
+            model = self._init_local_lora(snapshot, generation_sha256=generation, source_adapter_path=adapter_path)
+            prompt = self._ensure_lora_prompt(snapshot, model, meta['ref_sample_text'], generation_sha256=generation, source_adapter_path=adapter_path)
+            # A provider must not mutate the captured serving evidence while loading.
+            if get_adapter_generation_sha256(snapshot) != generation:
+                self._lora_prompt_cache.pop((adapter_path, generation), None)
+                with self._model_lock:
+                    if self._lora_adapter_path == adapter_path and self._lora_generation_sha256 == generation:
+                        self._lora_generation_sha256 = None
+                raise ValueError('Captured adapter generation changed while loading')
+            return model, prompt
+
+    @ensure_local_tts_serialized
+    def _ensure_lora_prompt(self, adapter_path, model, ref_text, generation_sha256=None, source_adapter_path=None):
         """Build and cache the clone prompt used by LoRA inference."""
-        if adapter_path not in self._lora_prompt_cache:
+        source_adapter_path = source_adapter_path or adapter_path
+        if generation_sha256 is None:
+            with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
+                return self._ensure_lora_prompt(snapshot, model, ref_text, generation, source_adapter_path)
+        cache_key = (source_adapter_path, generation_sha256)
+        if cache_key not in self._lora_prompt_cache:
             audio_array, sample_rate = sf.read(os.path.join(adapter_path, "ref_sample.wav"))
             if audio_array.ndim > 1:
                 audio_array = audio_array.mean(axis=1)
@@ -1345,9 +1530,9 @@ class TTSEngine:
                 ref_text=ref_text,
                 x_vector_only_mode=True,
             )
-            self._lora_prompt_cache[adapter_path] = prompt
+            self._lora_prompt_cache[cache_key] = prompt
             print("Clone prompt cached for LoRA adapter.")
-        return self._lora_prompt_cache[adapter_path]
+        return self._lora_prompt_cache[cache_key]
 
     # ── Batch generation ─────────────────────────────────────────
 
@@ -1375,7 +1560,7 @@ class TTSEngine:
         # _local_batch_lora, which does not go through the single-item
         # methods - sees speakable text. Copies rather than mutating the
         # caller's chunk dicts (Rule 17); the caller still owns the originals.
-        chunks = [{**c, "text": normalize_for_speech(c.get("text"))}
+        chunks = [{**c, **get_speech_preparation(c.get("text"), c.get("instruct", ""))}
                   for c in chunks]
         # Resolve narrator strategy once per chunk while retaining the existing
         # batching paths for ordinary speakers.
@@ -1383,16 +1568,29 @@ class TTSEngine:
         for chunk in chunks:
             speaker = chunk.get("speaker")
             resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
+            if not is_voice_config_present(speaker, resolved):
+                results["failed"].append((chunk["index"],
+                    f"No voice configuration for '{speaker}'."))
+                continue
+            voice_config_for_chunk(resolved, speaker, chunk["index"])
+            try:
+                self.get_voice_backend(voice_category(resolved.get(speaker)))
+            except UnsupportedVoiceBackendError as error:
+                results["failed"].append((chunk["index"], str(error)))
+                continue
             dynamic_chunks.append((chunk, resolved))
+        chunks = [chunk for chunk, _ in dynamic_chunks]
+        if not chunks:
+            return results
         if any(resolved is not voice_config for _, resolved in dynamic_chunks):
             # A dynamic narrator may use different configs per chunk; keep those
             # chunks on the established single-item path to avoid mixing voices.
-            results = {"completed": [], "failed": []}
             for chunk, resolved in dynamic_chunks:
                 if resolved is voice_config:
                     continue
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+                resolved = voice_config_for_chunk(resolved, chunk.get("speaker"), idx)
                 try:
                     if self.generate_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
                         results["completed"].append(idx)
@@ -1418,7 +1616,7 @@ class TTSEngine:
 
         for chunk in chunks:
             speaker = chunk.get("speaker")
-            voice_data = voice_config.get(speaker, {})
+            voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
             category = voice_category(voice_data)
 
             if category == "clone":
@@ -1442,7 +1640,7 @@ class TTSEngine:
 
         # Process custom voice chunks
         if custom_chunks:
-            if self._mode == "local":
+            if self.get_voice_backend("custom") == "local":
                 batch_results = self._local_batch_custom(custom_chunks, voice_config, output_dir, batch_seed)
             else:
                 batch_results = self._external_batch(custom_chunks, voice_config, output_dir, "custom")
@@ -1452,7 +1650,7 @@ class TTSEngine:
 
         # Process clone voice chunks (batched by speaker in local mode)
         if clone_chunks:
-            if self._mode == "local":
+            if self.get_voice_backend("clone") == "local":
                 batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
             else:
                 batch_results = self._external_batch(clone_chunks, voice_config, output_dir, "clone")
@@ -1462,28 +1660,7 @@ class TTSEngine:
 
         # Process LoRA voice chunks (batched by adapter in local mode)
         if lora_chunks:
-            if self._mode == "local":
-                batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
-            else:
-                batch_results = {"completed": [], "failed": []}
-                for chunk in lora_chunks:
-                    idx = chunk["index"]
-                    output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                    speaker = chunk.get("speaker")
-                    voice_data = voice_config.get(speaker, {})
-                    try:
-                        success = self.generate_lora_voice(
-                            text=chunk["text"],
-                            instruct_text=chunk.get("instruct", ""),
-                            voice_data=voice_data,
-                            output_path=output_path,
-                        )
-                        if success:
-                            batch_results["completed"].append(idx)
-                        else:
-                            batch_results["failed"].append((idx, "LoRA voice generation failed"))
-                    except Exception as e:
-                        batch_results["failed"].append((idx, str(e)))
+            batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1494,7 +1671,7 @@ class TTSEngine:
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 speaker = chunk.get("speaker")
-                voice_data = voice_config.get(speaker, {})
+                voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
                 try:
                     success = self.generate_design_voice(
                         text=chunk["text"],
@@ -1526,6 +1703,7 @@ class TTSEngine:
         """Run a benchmark batch through the production clone implementation."""
         return self._local_batch_clone(chunks, voice_config, output_dir, batch_seed)
 
+    @ensure_local_tts_serialized
     def enable_codec_compilation(self):
         """Enable torch.compile for codec. Public wrapper for internal compilation."""
         if hasattr(self, '_compile_codec_enabled') and hasattr(self, '_compile_codec'):
@@ -1535,6 +1713,7 @@ class TTSEngine:
 
     # ── Local backend methods ────────────────────────────────────
 
+    @ensure_local_tts_serialized
     def _local_generate_custom(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate custom voice audio using local Qwen3-TTS model."""
         try:
@@ -1588,6 +1767,7 @@ class TTSEngine:
             traceback.print_exc()
             return False
 
+    @ensure_local_tts_serialized
     def _local_generate_clone(self, text, speaker, voice_config, output_path):
         """Generate voice-cloned audio using local Qwen3-TTS Base model."""
         try:
@@ -1636,6 +1816,28 @@ class TTSEngine:
             traceback.print_exc()
             return False
 
+    def save_batch_waveforms(self, waveforms, indices, sample_rate, output_dir, log_saved=False):
+        """Publish available waveforms and return independent results and duration."""
+        result = {"completed": [], "failed": []}
+        for index in indices[len(waveforms):]:
+            result["failed"].append((index, "Batch returned no waveform for this chunk"))
+        duration = 0.0
+        for waveform, index in zip(waveforms, indices):
+            try:
+                path = os.path.join(output_dir, f"temp_batch_{index}.wav")
+                audio = self._concat_audio(waveform)
+                self._save_wav(audio, sample_rate, path)
+                result["completed"].append(index)
+                clip_duration = len(audio) / sample_rate
+                duration += clip_duration
+                if log_saved:
+                    print(f"    Chunk {index} saved: {os.path.getsize(path)} bytes ({clip_duration:.1f}s audio)")
+            except Exception as error:
+                print(f"    Error saving chunk {index}: {error}")
+                result["failed"].append((index, str(error)))
+        return result, duration
+
+    @ensure_local_tts_serialized
     def _local_batch_custom(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Batch generate custom voice using native list API with sub-batching.
 
@@ -1650,6 +1852,7 @@ class TTSEngine:
 
         results = {"completed": [], "failed": []}
         batch_peak_vram_gb = 0.0
+        measure_gpu_peak = torch.cuda.is_available()
 
         texts = []
         speakers = []
@@ -1662,13 +1865,9 @@ class TTSEngine:
             instruct_text = chunk.get("instruct", "")
             speaker_name = chunk.get("speaker", "")
 
-            voice_data = voice_config.get(speaker_name, {})
+            voice_data = voice_config_for_chunk(voice_config, speaker_name, idx).get(speaker_name, {})
             voice = voice_data.get("voice", "Ryan")
-            character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
-
-            instruct = instruct_text if instruct_text else "neutral"
-            if character_style:
-                instruct = f"{instruct} {character_style}"
+            instruct = anchored_instruct(voice_data, instruct_text)
 
             texts.append(text)
             speakers.append(voice)
@@ -1722,7 +1921,8 @@ class TTSEngine:
                 if batch_seed >= 0:
                     torch.manual_seed(batch_seed)
 
-                torch.cuda.reset_peak_memory_stats()
+                if measure_gpu_peak:
+                    torch.cuda.reset_peak_memory_stats()
                 t_start = time.time()
                 wavs_list, sr = model.generate_custom_voice(
                     text=sb_texts,
@@ -1733,31 +1933,20 @@ class TTSEngine:
                     max_new_tokens=self._max_new_tokens,
                 )
                 gen_time = time.time() - t_start
-                peak_gb = torch.cuda.max_memory_allocated() / 1e9
-                batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
-                print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
+                if measure_gpu_peak:
+                    peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                    batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                    print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                 if wavs_list is None:
                     for idx in sb_indices:
                         results["failed"].append((idx, "Batch returned None"))
                     continue
 
-                for idx in sb_indices[len(wavs_list):]:
-                    results["failed"].append((idx, "Batch returned no waveform for this chunk"))
-
-                sb_audio_duration = 0.0
-                for i, (wav, idx) in enumerate(zip(wavs_list, sb_indices)):
-                    try:
-                        output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                        audio = self._concat_audio(wav)
-                        self._save_wav(audio, sr, output_path)
-                        results["completed"].append(idx)
-                        duration = len(audio) / sr
-                        sb_audio_duration += duration
-                        print(f"    Chunk {idx} saved: {os.path.getsize(output_path)} bytes ({duration:.1f}s audio)")
-                    except Exception as e:
-                        print(f"    Error saving chunk {idx}: {e}")
-                        results["failed"].append((idx, str(e)))
+                saved, sb_audio_duration = self.save_batch_waveforms(
+                    wavs_list, sb_indices, sr, output_dir, log_saved=True)
+                results["completed"].extend(saved["completed"])
+                results["failed"].extend(saved["failed"])
 
                 total_audio_duration += sb_audio_duration
                 sb_rtf = sb_audio_duration / gen_time if gen_time > 0 else 0
@@ -1780,6 +1969,7 @@ class TTSEngine:
         results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
         return results
 
+    @ensure_local_tts_serialized
     def _local_batch_clone(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Batch generate clone voices, grouped by speaker.
 
@@ -1792,6 +1982,7 @@ class TTSEngine:
 
         results = {"completed": [], "failed": []}
         batch_peak_vram_gb = 0.0
+        measure_gpu_peak = torch.cuda.is_available()
 
         # Group chunks by speaker
         speaker_groups = {}
@@ -1847,7 +2038,8 @@ class TTSEngine:
                     # (matches _local_batch_custom); otherwise random each run.
                     if batch_seed >= 0:
                         torch.manual_seed(batch_seed)
-                    torch.cuda.reset_peak_memory_stats()
+                    if measure_gpu_peak:
+                        torch.cuda.reset_peak_memory_stats()
                     t_start = time.time()
                     wavs_list, sr = model.generate_voice_clone(
                         text=sb_texts,
@@ -1856,30 +2048,20 @@ class TTSEngine:
                         max_new_tokens=self._max_new_tokens,
                     )
                     gen_time = time.time() - t_start
-                    peak_gb = torch.cuda.max_memory_allocated() / 1e9
-                    batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
-                    print(f"  Peak VRAM clone sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
+                    if measure_gpu_peak:
+                        peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                        batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                        print(f"  Peak VRAM clone sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                     if wavs_list is None:
                         for idx in sb_indices:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
 
-                    for idx in sb_indices[len(wavs_list):]:
-                        results["failed"].append((idx, "Batch returned no waveform for this chunk"))
-
-                    sb_audio_duration = 0.0
-                    for wav, idx in zip(wavs_list, sb_indices):
-                        try:
-                            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                            audio = self._concat_audio(wav)
-                            self._save_wav(audio, sr, output_path)
-                            results["completed"].append(idx)
-                            duration = len(audio) / sr
-                            sb_audio_duration += duration
-                        except Exception as e:
-                            print(f"    Error saving chunk {idx}: {e}")
-                            results["failed"].append((idx, str(e)))
+                    saved, sb_audio_duration = self.save_batch_waveforms(
+                        wavs_list, sb_indices, sr, output_dir)
+                    results["completed"].extend(saved["completed"])
+                    results["failed"].extend(saved["failed"])
 
                     total_audio_duration += sb_audio_duration
                     sb_rtf = sb_audio_duration / gen_time if gen_time > 0 else 0
@@ -1901,6 +2083,7 @@ class TTSEngine:
         results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
         return results
 
+    @ensure_local_tts_serialized
     def _local_batch_lora(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Batch generate LoRA voices, grouped by adapter.
 
@@ -1921,7 +2104,7 @@ class TTSEngine:
         adapter_groups = {}  # adapter_path -> [(chunk, voice_data), ...]
         for chunk in chunks:
             speaker = chunk.get("speaker", "")
-            voice_data = voice_config.get(speaker, {})
+            voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
             adapter_path = voice_data.get("adapter_path", "")
 
             if not adapter_path:
@@ -1930,6 +2113,7 @@ class TTSEngine:
 
             if not os.path.isabs(adapter_path):
                 adapter_path = _resolve_asset_path(adapter_path)
+            adapter_path = get_resolved_adapter_path(adapter_path)
 
             adapter_groups.setdefault(adapter_path, []).append((chunk, voice_data))
 
@@ -1940,7 +2124,8 @@ class TTSEngine:
 
         for adapter_path, group_entries in adapter_groups.items():
             group = [c for c, _ in group_entries]
-            if not os.path.isdir(adapter_path):
+            if (not os.path.isdir(adapter_path)
+                    and os.path.basename(adapter_path).startswith("builtin_")):
                 # Auto-download built-in adapters from HF, mirroring the
                 # single-chunk generate_lora_voice path — otherwise a built-in
                 # LoRA voice that hasn't been fetched yet fails every chunk of a
@@ -1950,7 +2135,10 @@ class TTSEngine:
                 if adapter_id.startswith("builtin_"):
                     print(f"  Adapter {adapter_id} not downloaded, attempting auto-download...")
                     try:
-                        from hf_utils import download_builtin_adapter
+                        try:
+                            from .hf_utils import download_builtin_adapter
+                        except ImportError:
+                            from hf_utils import download_builtin_adapter
                         download_builtin_adapter(adapter_id, os.path.dirname(adapter_path))
                         downloaded = os.path.isdir(adapter_path)
                     except Exception as e:
@@ -1963,20 +2151,7 @@ class TTSEngine:
 
             # Load adapter and build/get clone prompt
             try:
-                ref_wav_path = os.path.join(adapter_path, "ref_sample.wav")
-                meta_path = os.path.join(adapter_path, "training_meta.json")
-                if not os.path.exists(ref_wav_path) or not os.path.exists(meta_path):
-                    raise FileNotFoundError(f"Missing ref_sample.wav or training_meta.json in {adapter_path}")
-
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-                ref_text = meta.get("ref_sample_text", "")
-                if not ref_text:
-                    raise ValueError("ref_sample_text missing from training_meta.json")
-
-                model = self._init_local_lora(adapter_path)
-
-                prompt = self._ensure_lora_prompt(adapter_path, model, ref_text)
+                model, prompt = self._ensure_local_lora_generation(adapter_path)
             except Exception as e:
                 print(f"  Error loading LoRA adapter {os.path.basename(adapter_path)}: {e}")
                 for chunk in group:
@@ -2052,21 +2227,10 @@ class TTSEngine:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
 
-                    for idx in sb_indices[len(wavs_list):]:
-                        results["failed"].append((idx, "Batch returned no waveform for this chunk"))
-
-                    sb_audio_duration = 0.0
-                    for wav, idx in zip(wavs_list, sb_indices):
-                        try:
-                            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                            audio = self._concat_audio(wav)
-                            self._save_wav(audio, sr, output_path)
-                            results["completed"].append(idx)
-                            duration = len(audio) / sr
-                            sb_audio_duration += duration
-                        except Exception as e:
-                            print(f"    Error saving chunk {idx}: {e}")
-                            results["failed"].append((idx, str(e)))
+                    saved, sb_audio_duration = self.save_batch_waveforms(
+                        wavs_list, sb_indices, sr, output_dir)
+                    results["completed"].extend(saved["completed"])
+                    results["failed"].extend(saved["failed"])
 
                     total_audio_duration += sb_audio_duration
                     sb_rtf = sb_audio_duration / gen_time if gen_time > 0 else 0
@@ -2088,6 +2252,21 @@ class TTSEngine:
         return results
 
     # ── External backend methods ─────────────────────────────────
+
+    @staticmethod
+    def _save_external_audio(source_path, output_path, cancelled=None):
+        """Validate the copied response before replacing a published render."""
+        from audio_validation import validate_generated_audio
+        staging_path = f"{output_path}.{uuid.uuid4().hex}.tmp"
+        try:
+            shutil.copy(source_path, staging_path)
+            validate_generated_audio(staging_path, "external TTS")
+            if cancelled and cancelled.is_set():
+                return False
+            return publish_audio_output(staging_path, output_path, cancelled)
+        finally:
+            if os.path.exists(staging_path):
+                os.remove(staging_path)
 
     def _external_generate_custom(self, text, instruct_text, speaker, voice_config, output_path,
                                   endpoint=None, cancelled=None):
@@ -2132,8 +2311,7 @@ class TTSEngine:
 
             if cancelled and cancelled.is_set():
                 return False
-            shutil.copy(generated_audio_filepath, output_path)
-            return True
+            return self._save_external_audio(generated_audio_filepath, output_path, cancelled)
 
         except Exception as e:
             import traceback
@@ -2198,8 +2376,7 @@ class TTSEngine:
 
             if cancelled and cancelled.is_set():
                 return False
-            shutil.copy(generated_audio_filepath, output_path)
-            return True
+            return self._save_external_audio(generated_audio_filepath, output_path, cancelled)
 
         except Exception as e:
             import traceback
@@ -2219,7 +2396,7 @@ class TTSEngine:
                     chunk.get("text", ""),
                     chunk.get("instruct", ""),
                     chunk.get("speaker"),
-                    voice_config,
+                    voice_config_for_chunk(voice_config, chunk.get("speaker"), idx),
                     output_path,
                 )
                 if success:
@@ -2233,22 +2410,23 @@ class TTSEngine:
 
     def _external_batch(self, chunks, voice_config, output_dir, kind):
         """External-mode batch submits up to `parallel_workers` lines per
-        pool endpoint. Each endpoint serializes requests through its client
-        lock, with a per-call timeout. Same result shape as the local batches.
+        pool endpoint. Each worker serializes requests through its client
+        lock, with deadlines measured from submission. Same result shape as local batches.
 
         A call that times out is reported failed; its thread finishes in the
         background (gradio_client has no cancel), which is why the executor is
         not joined - waiting for it would hold the whole batch hostage."""
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+        import time
         results = {"completed": [], "failed": []}
         if not chunks:
             return results
         generate = {
             "custom": lambda c, out, ep, cancelled: self._external_generate_custom(
-                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config, out,
+                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config_for_chunk(voice_config, c.get("speaker", ""), c["index"]), out,
                 endpoint=ep, cancelled=cancelled),
             "clone": lambda c, out, ep, cancelled: self._external_generate_clone(
-                c.get("text", ""), c.get("speaker", ""), voice_config, out,
+                c.get("text", ""), c.get("speaker", ""), voice_config_for_chunk(voice_config, c.get("speaker", ""), c["index"]), out,
                 endpoint=ep, cancelled=cancelled),
         }[kind]
         workers = self._external_parallel_workers * len(self._external_urls)
@@ -2257,7 +2435,8 @@ class TTSEngine:
 
         def render_to_staging(chunk, staging_path, endpoint, cancelled):
             try:
-                return generate(chunk, staging_path, endpoint, cancelled)
+                success = generate(chunk, staging_path, endpoint, cancelled)
+                return success, time.monotonic()
             finally:
                 if cancelled.is_set():
                     try:
@@ -2270,12 +2449,15 @@ class TTSEngine:
             output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
             staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
             cancelled = threading.Event()
+            deadline = time.monotonic() + self._external_timeout
             future = executor.submit(render_to_staging, chunk, staging_path,
                                      self._next_external_url(), cancelled)
-            futures[idx] = (future, cancelled, staging_path, output_path)
-        for idx, (future, cancelled, staging_path, output_path) in futures.items():
+            futures[idx] = (future, cancelled, staging_path, output_path, deadline)
+        for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
             try:
-                success = future.result(timeout=self._external_timeout)
+                success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
+                if finished_at > deadline:
+                    raise FutureTimeout()
             except FutureTimeout:
                 cancelled.set()
                 future.cancel()
@@ -2289,36 +2471,17 @@ class TTSEngine:
                 results["failed"].append((idx, str(e)))
                 continue
             if success and os.path.exists(staging_path):
-                os.replace(staging_path, output_path)
-                results["completed"].append(idx)
+                if publish_audio_output(staging_path, output_path, cancelled):
+                    results["completed"].append(idx)
+                else:
+                    try:
+                        os.remove(staging_path)
+                    except FileNotFoundError:
+                        pass
+                    results["failed"].append((idx, "external TTS cancelled before publication"))
             else:
                 results["failed"].append((idx, f"{kind} voice generation failed"))
         executor.shutdown(wait=False)
-        return results
-
-    def _sequential_custom(self, chunks, voice_config, output_dir, batch_seed=-1):
-        """Sequential custom voice generation for external mode (no native batch)."""
-        results = {"completed": [], "failed": []}
-
-        for chunk in chunks:
-            idx = chunk["index"]
-            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-            try:
-                success = self.generate_custom_voice(
-                    chunk.get("text", ""),
-                    chunk.get("instruct", ""),
-                    chunk.get("speaker", ""),
-                    voice_config,
-                    output_path,
-                )
-                if success:
-                    results["completed"].append(idx)
-                    print(f"Batch chunk {idx} saved: {os.path.getsize(output_path)} bytes")
-                else:
-                    results["failed"].append((idx, "Custom voice generation failed"))
-            except Exception as e:
-                results["failed"].append((idx, str(e)))
-
         return results
 
     # ── Utility ──────────────────────────────────────────────────
@@ -2347,19 +2510,6 @@ class TTSEngine:
         already treat exceptions as failure, and a returned flag is what six
         experiment harnesses ignored.
         """
-        from audio_validation import (remove_stale_audio,
-                                      validate_generated_audio)
-
-        # Delete first, so a leftover file from an earlier run cannot survive a
-        # failed write and be mistaken for this one's output.
-        remove_stale_audio(output_path)
-
-        # Ensure numpy array
-        if not isinstance(audio_array, np.ndarray):
-            audio_array = np.array(audio_array)
-        # Flatten if needed
-        if audio_array.ndim > 1:
-            audio_array = audio_array.flatten()
-        sf.write(output_path, audio_array, sample_rate)
-        return validate_generated_audio(
-            output_path, f"TTS generation to {os.path.basename(output_path)}")
+        from audio_validation import save_generated_wav
+        return save_generated_wav(audio_array, sample_rate, output_path,
+                                  f"TTS generation to {os.path.basename(output_path)}")

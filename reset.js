@@ -1,48 +1,16 @@
+// Existing active-project reset boundary; reusable libraries are retained.
+const resetPaths = [
+  "annotated_script.json", "voices.json", "voice_config.json",
+  "character_aliases.json", "state.json", "app/config.json", "chunks.json",
+  "cloned_audiobook.mp3", "voicelines"
+]
+
 module.exports = {
   run: [{
-    method: "script.stop",
-    params: {
-      uri: ["start.js"]
-    }
-  }, {
+    uri: "launcher_lifecycle.js",
+    method: "stop_writers"
+  }, ...resetPaths.map(path => ({
     method: "fs.rm",
-    params: {
-      path: "annotated_script.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "voices.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "voice_config.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "state.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "app/config.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "chunks.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "cloned_audiobook.mp3"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
-      path: "voicelines"
-    }
-  }]
+    params: { path }
+  }))]
 }

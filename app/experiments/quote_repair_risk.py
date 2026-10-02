@@ -37,6 +37,7 @@ import collections, glob, json, os, re, sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 sys.path.insert(0, REPO + "/app")
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generate_script import split_into_chunks
 
 M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
@@ -53,7 +54,7 @@ def main():
         if not (os.path.exists(src_path) and os.path.exists(cp)):
             continue
         src = open(src_path, encoding="utf-8").read()
-        res = (json.load(open(cp)).get("resolutions") or [])
+        res = (load_generation_delta_checkpoint(cp).get("resolutions") or [])
         chunks = split_into_chunks(src, max_size=3000)
         if len(chunks) != len(res):
             # A different chunk size was used for that run; a mismatched

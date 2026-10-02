@@ -43,6 +43,9 @@ sys.path.insert(0, APP)
 # The repo's one alias-aware speaker comparison, same as the legacy audit uses.
 # Writing a local name-match here is how two scorers drift apart.
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
+from config_settings import load_app_config, get_generation_config
+from lmstudio_settings import get_active_llm_config
+from utils import get_runtime_data_dir, get_app_config_path
 
 DEFAULT_INPUTS = os.path.join(
     REPO, "ab_test_runtime", "results", "collect_all_20260722-155801", "inputs")
@@ -118,14 +121,27 @@ def _load_json(path):
         return None
 
 
+def is_selected_model_binding(record, expected_model):
+    """Reuse only proven selected-model work, without a different failover model."""
+    binding = record.get("model_binding")
+    if not isinstance(binding, dict) or binding.get("primary_model") != expected_model:
+        return False
+    used = binding.get("failover_used")
+    return (used is False or
+            (used is True and binding.get("failover_model") == expected_model))
+
+
 def _single_pass_finished(record, expected_model):
     """The generation_quality record, written by generate_script.py."""
+    if not isinstance(record, dict):
+        return False
     total = record.get("total_chunks")
     if record.get("status") != "complete" or not total:
         return False
     if record.get("accepted_chunk_count") != total:
         return False
-    if expected_model and record.get("model_name") != expected_model:
+    if expected_model and (record.get("model_name") != expected_model
+                           or not is_selected_model_binding(record, expected_model)):
         return False
     return True
 
@@ -146,7 +162,11 @@ def _three_pass_finished(record, expected_model):
     chunks_total, the diagnostic failure list must be empty, and the model name
     lives in the fingerprint.
     """
+    if not isinstance(record, dict):
+        return False
     progress = record.get("progress") or {}
+    if not isinstance(progress, dict):
+        return False
     total = progress.get("chunks_total")
     if record.get("status") != "complete" or not total:
         return False
@@ -156,7 +176,9 @@ def _three_pass_finished(record, expected_model):
         return False
     if expected_model:
         fingerprint = record.get("fingerprint") or {}
-        if fingerprint.get("model_name") != expected_model:
+        if (not isinstance(fingerprint, dict)
+                or fingerprint.get("model_name") != expected_model
+                or not is_selected_model_binding(record, expected_model)):
             return False
     return True
 
@@ -199,10 +221,8 @@ def main():
                          "every chunk. Existence alone is not enough: a "
                          "partial or failed run leaves a file behind too.")
     ap.add_argument("--model", default=None,
-                    help="with --reuse-complete, only reuse output recorded "
-                         "as produced by this model. Without it, a reused arm "
-                         "could silently come from a different model than the "
-                         "arm it is compared against.")
+                    help="Generation model forwarded to both arms and used to "
+                         "validate reuse (default: the active config model).")
     ap.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
                     default=None,
                     help="forwarded to three_pass_generate. Its own default "
@@ -213,6 +233,13 @@ def main():
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "three_pass_vs_single.json"))
     args = ap.parse_args()
+    data_dir = get_runtime_data_dir(REPO)
+    try:
+        generation_config = get_generation_config(
+            load_app_config(get_app_config_path(data_dir, REPO, APP)), args.model)
+    except ValueError as exc:
+        ap.error(str(exc))
+    args.model = get_active_llm_config(generation_config)["model_name"]
 
     # ABSOLUTE, BECAUSE THE ARMS RUN FROM A DIFFERENT DIRECTORY. Each arm is a
     # subprocess launched with cwd=APP, so a relative --inputs given at the
@@ -257,7 +284,7 @@ def main():
                       f"{len(produced[arm][0][0])} entries (0m)")
                 continue
             cmd = [py, "-u", os.path.join(APP, script), src,
-                   "--output", out_path]
+                   "--output", out_path, "--model", args.model]
             # Only the three-pass arm has this switch, and only it needs one:
             # three_pass_generate defaults to on_exhaustion='fail', which
             # aborts the whole book when a single batch cannot be attributed.
@@ -278,6 +305,11 @@ def main():
             if rc != 0 or not os.path.exists(out_path):
                 failures.append({"book": book, "arm": arm, "rc": rc})
                 print(f"  {book:18} {arm:11} FAILED rc={rc} ({mins:.0f}m)")
+                break
+            if not _is_reusable(out_path, args.model):
+                failures.append({"book": book, "arm": arm, "rc": rc,
+                                 "error": "output did not prove completed generation with the selected model"})
+                print(f"  {book:18} {arm:11} FAILED model/completion evidence ({mins:.0f}m)")
                 break
             produced[arm] = (index_entries(out_path), mins)
             print(f"  {book:18} {arm:11} ok, {len(produced[arm][0][0])} entries "
@@ -368,7 +400,8 @@ def main():
             print("  wall-time comparison unavailable: an arm was reused "
                   "rather than run, so it has no measured duration.")
 
-    doc = {"books": args.books, "results": results, "failures": failures}
+    doc = {"books": args.books, "model_name": args.model,
+           "results": results, "failures": failures}
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)

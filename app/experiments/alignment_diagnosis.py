@@ -87,6 +87,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--builds", nargs="+", default=[
         os.path.join(REPO, "ab_test_runtime", "kokoro_ja_asr_eval", "build.json")])
+    ap.add_argument("--language", choices=("ja", "zh", "en"), default="ja")
     ap.add_argument("--per-reader", default=os.path.join(
         REPO, "ab_test_runtime", "experiments"))
     ap.add_argument("--out", default=os.path.join(
@@ -97,6 +98,10 @@ def main():
     for build in args.builds:
         with open(build, encoding="utf-8") as handle:
             document = json.load(handle)
+        language = document.get("language")
+        if language != args.language and (language is not None or args.language != "ja"):
+            sys.exit("build language %r does not match requested %s: %s"
+                     % (language, args.language, build))
         for row in document.get("test", []):
             path = row["human_wav"]
             path = path if os.path.isabs(path) else os.path.join(REPO, path)
@@ -111,15 +116,18 @@ def main():
     # itself worth recording as the limit of this analysis.
     by_reader = {}
     import glob
-    for path in glob.glob(os.path.join(args.per_reader, "asr_ja_reader__*.json")):
+    reader_prefix = "asr_%s_reader__" % args.language
+    for path in glob.glob(os.path.join(args.per_reader, reader_prefix + "*.json")):
         with open(path, encoding="utf-8") as handle:
             doc = json.load(handle)
         arm = next(iter(doc.get("alignment", {}).values()), {})
-        reader = os.path.basename(path)[len("asr_ja_reader__"):-len(".json")]
+        reader = os.path.basename(path)[len(reader_prefix):-len(".json")]
         if "median_error_s" in arm:
             by_reader[reader] = arm["median_error_s"]
 
     rows = [c for c in clips if c.get("book") in by_reader and "seconds" in c]
+    if not rows:
+        sys.exit("no %s reader alignment results match those clips" % args.language)
     for row in rows:
         row["reader_align_s"] = by_reader[row["book"]]
 
@@ -146,12 +154,13 @@ def main():
         }
 
     document = {
+        "language": args.language,
         "clips": len(clips),
         "note": "clip properties against PER-READER alignment; per-clip "
                 "alignment is not stored by asr_backends, so every clip of a "
                 "reader carries that reader's error. Correlations are leads, "
-                "not causes, and n=4 readers cannot separate correlated "
-                "properties.",
+                "not causes; correlations use %d readers and cannot establish "
+                "causation." % len(per_reader),
         "correlation_with_alignment_error": correlations,
         "per_reader": per_reader,
         "rows": rows,

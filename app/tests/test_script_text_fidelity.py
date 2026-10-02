@@ -8,9 +8,8 @@ was wrong was reading an accuracy verdict as though it covered text fidelity.
 So these tests pin the blindness explicitly, on the exact characters involved,
 so that the next person to quote 5.3 finds a test saying what it does not
 measure. They also pin the speech-boundary behaviour that decides which of
-those characters matter, because "the quote survives to the engine and the
-underscore becomes a sentence break" is the whole reason one is a differentiator
-and the other is not.
+those characters matter. Quotes survive to the engine; the former inline
+underscore sentence-break defect is now fixed for both arms.
 """
 import sys
 import unittest
@@ -69,14 +68,10 @@ class SpeechBoundaryTest(unittest.TestCase):
         self.assertIn('"', self._spoken('"Hello," he said.'))
         self.assertNotIn('"', self.breaks)
 
-    def test_an_underscore_becomes_a_sentence_break_not_a_deletion(self):
-        """`He said _hello_ softly.` reaches the engine as three sentences.
-        Emphasis markup does not vanish quietly - it changes the prosody. This
-        happens for BOTH arms, so it is a finding about the pipeline rather
-        than a difference between them."""
+    def test_inline_underscores_do_not_introduce_sentence_breaks(self):
+        """The former inline-marker defect must not add prosody boundaries."""
         spoken = self._spoken("He said _hello_ softly.")
-        self.assertNotIn("_", spoken)
-        self.assertGreaterEqual(spoken.count("."), 2, spoken)
+        self.assertEqual("He said _hello_ softly.", spoken)
 
     def test_a_hyphen_is_left_alone(self):
         """Named alongside the other two, but measured to survive unchanged, so

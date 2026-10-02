@@ -20,17 +20,93 @@
 # Nothing here takes the GPU lock: gpu_job.sh does that, and a stage that needs
 # the card still goes through it.
 
+source "$(dirname "${BASH_SOURCE[0]}")/server_cleanup.sh" || return 1
+
 STAGE_FAILURES=0
 STAGE_TOTAL=0
 declare -A STAGE_RESULT=()
 
 stage_note() { echo "[$(date -u +%FT%TZ)] $*"; }
 
+validate_stage_files() {
+    local path missing=0
+    for path in "$@"; do
+        if [ ! -f "$path" ] || [ ! -r "$path" ]; then
+            stage_note "REFUSING: required file is missing or unreadable: $path"
+            missing=1
+        fi
+    done
+    [ "$missing" -eq 0 ]
+}
+
+record_stage_result() {
+    local name="$1" rc="$2"
+    if [ "$rc" -eq 0 ]; then
+        STAGE_RESULT["$name"]="ok"
+    else
+        STAGE_RESULT["$name"]="failed:$rc"
+        STAGE_FAILURES=$((STAGE_FAILURES + 1))
+    fi
+}
+
+is_stage_successful() {
+    [ "${STAGE_RESULT[$1]:-missing}" = ok ]
+}
+
+# <name> <cap> <checker argv...> -- <run_stage options/worker argv...>
+run_validated_cached_stage() {
+    local name="$1" cap="$2" rc
+    shift 2
+    local checker=()
+    while [ "$#" -gt 0 ] && [ "$1" != -- ]; do
+        checker+=("$1"); shift
+    done
+    if [ "$#" -eq 0 ] || [ "${#checker[@]}" -eq 0 ]; then
+        stage_note "REFUSING: completion checker and worker are required"
+        exit 1
+    fi
+    shift
+    local args=("$@") i=0
+    while [ "${args[$i]:-}" = --needs-vram ] || [ "${args[$i]:-}" = --requires-ok ]; do
+        if [ "${args[$i]}" = --requires-ok ]; then
+            if ! is_stage_successful "${args[$((i + 1))]}"; then
+                run_stage "$name" "$cap" "$@"
+                exit 1
+            fi
+            i=$((i + 2))
+        else
+            i=$((i + 1))
+        fi
+    done
+    "${checker[@]}"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        STAGE_TOTAL=$((STAGE_TOTAL + 1))
+        record_stage_result "$name" 0
+        stage_note "SKIP $name (validated cache)"
+        return 0
+    fi
+    if [ "$rc" -ne 1 ]; then
+        stage_note "REFUSING: cannot validate $name cache"
+        exit 1
+    fi
+    run_stage "$name" "$cap" "$@"
+    if ! is_stage_successful "$name"; then
+        stage_note "REFUSING: $name failed; retaining its evidence"
+        exit 1
+    fi
+    if ! "${checker[@]}"; then
+        record_stage_result "$name" 1
+        stage_note "REFUSING: $name did not publish a complete output"
+        exit 1
+    fi
+}
+
 # run_stage <name> <timeout-spec> [--requires-ok OTHER]... -- <command...>
 #
 # Records the outcome under <name> so later stages can require it, writes the
 # stage's own log, and counts failures for stage_summary.
-# --needs-vram: stop llama-server before running this stage.
+# --needs-vram: request supervised reclamation after the queue acquires its lock.
 #
 # WHY IT IS OPT-IN. llama-server is deliberately started OUTSIDE the lock so
 # consecutive LLM stages share one 8.4 GB load; reclaiming before every stage
@@ -51,62 +127,63 @@ run_stage() {
     done
     [ "${1:-}" = "--" ] && shift
 
-    if [ "$needs_vram" = 1 ] && pgrep -x llama-server >/dev/null 2>&1; then
-        # -x, never -f: `pkill -f` matches the command line of whatever is
-        # doing the matching and has killed a shell in this repo (Rule 22).
-        stage_note "  reclaiming VRAM from llama-server before $name"
-        pkill -x llama-server
-        # WAIT FOR THE MEMORY, NOT FOR A FIXED FIVE SECONDS. The driver frees
-        # VRAM some time after the process exits, and a flat `sleep 5` lost the
-        # separator_space arm on 2026-08-19: gpu_job.sh measured 939 MiB free
-        # against a 4096 MiB floor and refused the stage, then the next stage
-        # started five seconds later and ran perfectly on the same card. Poll
-        # the same number gpu_job.sh gates on, so the two cannot disagree.
-        local waited=0 free
-        while [ "$waited" -lt "${STAGE_VRAM_WAIT:-90}" ]; do
-            free=$(rocm-smi --showmeminfo vram 2>/dev/null \
-                   | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
-            [ -n "$free" ] || break          # cannot tell: do not spin on it
-            # `free` here is USED bytes; stop once the card is mostly clear.
-            [ "$free" -lt 2147483648 ] && break
-            sleep 3; waited=$((waited + 3))
-        done
-        stage_note "  VRAM reclaimed after ${waited}s"
-    fi
-
     # -W semantics. A missing predecessor is NOT treated as satisfied: if the
     # chain was resumed and the earlier stage never ran in this process, we
     # cannot claim it ended well.
     local dep
     for dep in "${requires[@]}"; do
-        if [ "${STAGE_RESULT[$dep]:-missing}" != "ok" ]; then
+        if ! is_stage_successful "$dep"; then
             stage_note "SKIP  $name (requires $dep, which is ${STAGE_RESULT[$dep]:-missing})"
             STAGE_RESULT["$name"]="skipped"
+            STAGE_TOTAL=$((STAGE_TOTAL + 1))
+            STAGE_FAILURES=$((STAGE_FAILURES + 1))
             return 0
         fi
     done
+
 
     local log="${STAGE_LOG_DIR:-/tmp}/${name}.log"
     mkdir -p "$(dirname "$log")"
     STAGE_TOTAL=$((STAGE_TOTAL + 1))
     stage_note "START $name (cap $limit, log ${log})"
-    local started rc
+    local started rc diagnostic timed_out=0
     started=$(date +%s)
+    diagnostic=$(mktemp "${log}.timeout.XXXXXX") || {
+        record_stage_result "$name" 1
+        stage_note "FAIL  $name (could not create timeout diagnostic)"
+        return 0
+    }
     # --signal=INT first so a python job runs its own cleanup and writes its
     # checkpoint; --kill-after is the backstop for one that ignores it.
-    timeout --signal=INT --kill-after=120s "$limit" "$@" > "$log" 2>&1
-    rc=$?
+    if [ "$needs_vram" = 1 ]; then
+        local queue="$(readlink -f -- "$(dirname "${BASH_SOURCE[0]}")/../../gpu_job.sh")"
+        local command=("$@")
+        # Existing queued stages retain their name/argv. Direct commands and
+        # self-queuing chains enter once here; inherited owner proof lets the
+        # latter skip their own acquisition without nesting flock.
+        if [ "$(readlink -f -- "$1")" != "$queue" ]; then
+            command=("$queue" "$name" "$@")
+        fi
+        GPU_RECLAIM_VRAM=1 timeout --verbose --signal=INT --kill-after=120s "$limit" bash -c 'exec "$@" 2>&1' stage-worker "${command[@]}" > "$log" 2> "$diagnostic"
+        rc=$?
+    else
+        timeout --verbose --signal=INT --kill-after=120s "$limit" bash -c 'exec "$@" 2>&1' stage-worker "$@" > "$log" 2> "$diagnostic"
+        rc=$?
+    fi
+    if [ "$rc" -eq 124 ] && [ -s "$diagnostic" ]; then
+        timed_out=1
+    fi
+    cat "$diagnostic" >> "$log"
+    rm -f "$diagnostic"
     local took=$(( $(date +%s) - started ))
 
-    if [ "$rc" -eq 0 ]; then
-        STAGE_RESULT["$name"]="ok"
+    record_stage_result "$name" "$rc"
+    if [ "${STAGE_RESULT[$name]}" = "ok" ]; then
         stage_note "OK    $name (${took}s)"
     else
-        STAGE_RESULT["$name"]="failed:$rc"
-        STAGE_FAILURES=$((STAGE_FAILURES + 1))
-        # 124 is timeout's own code and means the cap was too small, which is a
-        # different problem from the job failing - say which.
-        if [ "$rc" -eq 124 ]; then
+        # The command may itself exit 124. Only timeout's private diagnostic
+        # proves its timer fired; worker stderr remains in the stage log.
+        if [ "$timed_out" -eq 1 ]; then
             stage_note "TIMEOUT $name after ${took}s (cap $limit) - see $log"
         else
             stage_note "FAIL  $name rc=$rc (${took}s) - see $log"
@@ -120,7 +197,53 @@ run_stage() {
 # tree is shared with other sessions and `git add -A` would sweep up their
 # work-in-progress.
 stage_commit_artifacts() {
-    local what="$1" repo="${2:-$PWD}"
+    local what="${1:-unnamed}" repo="${2:-$PWD}"
+    if [ "$#" -lt 3 ]; then
+        stage_note "REFUSING artifact commit: explicit experiment files are required"
+        record_stage_artifact_failure "$what" 2
+        return 2
+    fi
+    local artifact_paths=()
+    shift 2
+    local root path source relative rc
+    if root=$(git -C "$repo" rev-parse --show-toplevel); then
+        :
+    else
+        rc=$?
+        record_stage_artifact_failure "$what" "$rc"
+        return "$rc"
+    fi
+    artifact_paths=()
+    for path in "$@"; do
+        if [[ "$path" = /* ]]; then
+            source="$path"
+        else
+            source="$root/$path"
+        fi
+        relative=$(realpath -m --relative-to="$root" -- "$source") || {
+            record_stage_artifact_failure "$what" 2
+            return 2
+        }
+        if [[ "$relative" != ab_test_runtime/experiments/* ]] || [ -d "$root/$relative" ]; then
+            stage_note "REFUSING artifact commit: expected individual experiment files"
+            record_stage_artifact_failure "$what" 2
+            return 2
+        fi
+        if [ ! -e "$root/$relative" ] && [ ! -L "$root/$relative" ]; then
+            if git -C "$repo" ls-files --error-unmatch -- ":(literal)$relative" >/dev/null 2>&1; then
+                :
+            else
+                rc=$?
+                if [ "$rc" -eq 1 ]; then
+                    continue
+                fi
+                record_stage_artifact_failure "$what" "$rc"
+                return "$rc"
+            fi
+        fi
+        artifact_paths+=(":(literal)$relative")
+    done
+    [ "${#artifact_paths[@]}" -gt 0 ] || return 0
 
     # DID THIS STAGE TURN A MEASUREMENT INTO AN EMPTY ONE? Every chain commits
     # through here, so it is the one place that can ask. dataset_ref_audit.json
@@ -140,8 +263,23 @@ stage_commit_artifacts() {
                         --repo "$repo" 2>&1 | grep -E "rows$|LOST ROWS" || true)
     fi
 
-    git -C "$repo" add ab_test_runtime/experiments/ >/dev/null 2>&1 || return 0
-    git -C "$repo" diff --cached --quiet -- ab_test_runtime/experiments/ && return 0
+    local rc
+    if git -C "$repo" add -- "${artifact_paths[@]}" >/dev/null; then
+        :
+    else
+        rc=$?
+        record_stage_artifact_failure "$what" "$rc"
+        return "$rc"
+    fi
+    if git -C "$repo" diff --cached --quiet -- "${artifact_paths[@]}"; then
+        return 0
+    else
+        rc=$?
+        if [ "$rc" -ne 1 ]; then
+            record_stage_artifact_failure "$what" "$rc"
+            return "$rc"
+        fi
+    fi
 
     local body="Committed by a chain so the dirty-tree gate does not refuse the next
 stage on this stage's own output."
@@ -150,7 +288,7 @@ stage on this stage's own output."
         printf '%s\n' "$shrink_report" | sed 's/^/     /'
         body="$body
 
-ARTIFACTS LOST ROWS WITH NO EXPLANATION IN THIS STAGE:
+ARTIFACTS LOST ROWS OBSERVED WHILE COMMITTING THIS STAGE:
 $shrink_report
 
 A run that measures less than the one before it either failed or changed what
@@ -158,12 +296,25 @@ it measures. This commit records which, because the previous time it happened
 the empty version was indistinguishable from a success."
     fi
 
-    git -C "$repo" commit -q --only -m "Artifacts from the $what stage
+    if git -C "$repo" commit -q --only -m "Artifacts from the $what stage
 
 $body
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
-        -- ab_test_runtime/experiments/ && stage_note "committed $what artifacts"
+        -- "${artifact_paths[@]}"; then
+        stage_note "committed $what artifacts"
+    else
+        rc=$?
+        record_stage_artifact_failure "$what" "$rc"
+        return "$rc"
+    fi
+}
+
+record_stage_artifact_failure() {
+    local what="$1" rc="$2"
+    STAGE_TOTAL=$((STAGE_TOTAL + 1))
+    record_stage_result "artifacts:$what" "$rc"
+    stage_note "FAIL  artifacts:$what rc=$rc (artifact commit did not complete)"
 }
 
 # THE STRICT GATE. Call this LAST. Nothing may run after it that could restore

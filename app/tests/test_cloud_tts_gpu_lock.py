@@ -19,12 +19,16 @@ class CloudTtsGpuLockTests(unittest.TestCase):
             script = root / "run_chains/cloud_tts_qwen_compare_20260824.py"
             script.parent.mkdir()
             script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+            import shutil
+            shutil.copyfile(ROOT / "run_chains/cloud_comparison_provenance.py",
+                            script.parent / "cloud_comparison_provenance.py")
+
             build_dir = root / "ab_test_runtime/reference_spread"
             build_dir.mkdir(parents=True)
             (build_dir / "build_spread3.json").write_text(
                 json.dumps({"ref_sample": "ref.wav", "ref_text": "reference"}), encoding="utf-8")
             wrapper = root / "gpu_job.sh"
-            wrapper.write_text("#!/bin/bash\nprintf '%s\\n' \"$*\" > \"$GPU_DISPATCH\"\n",
+            wrapper.write_text("#!/bin/bash\nif [ \"${1:-}\" = \"--check-lock-owner\" ]; then exec bash "+str(ROOT / "gpu_job.sh")+" \"$@\"; fi\nprintf '%s\\n' \"$*\" > \"$GPU_DISPATCH\"\n",
                                encoding="utf-8")
             wrapper.chmod(0o755)
             modules = root / "modules"
@@ -44,6 +48,17 @@ class CloudTtsGpuLockTests(unittest.TestCase):
                 "        return cls()\n"
                 "    def generate_voice_clone(self, **kwargs): return [[0, 0]], 2\n",
                 encoding="utf-8")
+            snapshot = root / "hub/snapshots" / ("a" * 40)
+            snapshot.mkdir(parents=True)
+            (modules / "huggingface_hub.py").write_text(
+                "class HfApi:\n"
+                "    def model_info(self, *args, **kwargs):\n"
+                "        return type('Info', (), {'sha': 'a'*40})()\n"
+                "def snapshot_download(**kwargs): return " + repr(str(snapshot)) + "\n",
+                encoding="utf-8")
+            metadata_dir = modules / "qwen_tts-1.2.3.dist-info"
+            metadata_dir.mkdir()
+            (metadata_dir / "METADATA").write_text("Metadata-Version: 2.1\nName: qwen-tts\nVersion: 1.2.3\n")
             bin_dir = root / "bin"
             bin_dir.mkdir()
             nvidia = bin_dir / "nvidia-smi"
@@ -60,7 +75,17 @@ class CloudTtsGpuLockTests(unittest.TestCase):
             self.assertIn("cloud_tts_qwen_compare_20260824", (root / "dispatch.log").read_text())
             self.assertFalse((root / "model_loaded").exists())
             env["ALEXANDRIA_GPU_LOCK_HELD"] = "1"
+            env.pop("ALEXANDRIA_GPU_LOCK_PID", None)
+            env["GPU_LOCK"] = str(root / "fixture.lock")
             result = subprocess.run([sys.executable, str(script)], env=env,
                                     capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(0, result.returncode, result.stderr)
+            self.assertFalse((root / "model_loaded").exists())
+            # A real CPU owner retains fd9 while the guarded command closes it.
+            owner = ('exec 9>"$GPU_LOCK"; flock -x 9; '
+                     'export ALEXANDRIA_GPU_LOCK_PID=$$; '
+                     '"$@" 9>&-; rc=$?; exit "$rc"')
+            result = subprocess.run(["bash", "-c", owner, "owned-fixture"] + [sys.executable, str(script)],
+                                    env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertTrue((root / "model_loaded").exists())

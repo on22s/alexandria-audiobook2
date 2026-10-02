@@ -1,7 +1,7 @@
 """Hash-verified Voice Lab preparer ASR benchmark worker."""
 
+from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -9,37 +9,36 @@ import subprocess
 import tempfile
 import time
 
-from utils import is_path_inside
+from benchmark_validation import get_benchmark_file_path, get_benchmark_output_path
+from lora_evidence import get_file_sha256
 
 
 def execute_fixture(fixture, python_executable, preparer_script):
     root_dir = os.path.abspath(fixture["root_dir"])
-    audio_path = os.path.abspath(os.path.join(root_dir, fixture["audio_path"]))
-    if not is_path_inside(audio_path, root_dir):
-        raise ValueError("preparer audio must be inside fixture root")
-    if not os.path.isfile(audio_path):
-        raise FileNotFoundError(f"preparer audio not found: {audio_path}")
+    try:
+        audio_path = get_benchmark_file_path(root_dir, fixture["audio_path"])
+    except ValueError as exc:
+        raise ValueError("preparer audio must be inside fixture root and exist") from exc
     if not isinstance(python_executable, str) or not python_executable:
         raise ValueError("python executable must be a non-empty path")
     if not isinstance(preparer_script, str) or not preparer_script:
         raise ValueError("preparer script must be a non-empty path")
-    with open(audio_path, "rb") as audio_file:
-        if hashlib.sha256(audio_file.read()).hexdigest() != fixture["audio_sha256"]:
-            raise ValueError("preparer audio hash changed")
+    if get_file_sha256(audio_path) != fixture["audio_sha256"]:
+        raise ValueError("preparer audio hash changed")
     with tempfile.TemporaryDirectory(prefix="alexandria-preparer-benchmark-") as scratch:
-        asr_path = os.path.join(scratch, "asr.json")
+        asr_path = get_benchmark_output_path(scratch, "asr.json")
         command = [python_executable, "-u", preparer_script, "--phase", "asr",
                    "--audio", audio_path, "--limit", str(fixture["limit"]),
                    "--lang", fixture["language"], "--asr-output", asr_path,
                    "--asr-model-revision", fixture["model_revision"],
-                   "--scratch-audio", os.path.join(scratch, "audio24.wav")]
+                   "--scratch-audio", get_benchmark_output_path(scratch, "audio24.wav")]
         started = time.monotonic()
         result = subprocess.run(command, cwd=scratch, capture_output=True, text=True,
                                 timeout=3600, check=False)
         elapsed = time.monotonic() - started
         if result.returncode:
             raise RuntimeError((result.stdout + "\n" + result.stderr)[-4000:])
-        with open(asr_path, "rb") as asr_file:
+        with open(get_benchmark_output_path(scratch, "asr.json"), "rb") as asr_file:
             asr_raw = asr_file.read()
     asr = json.loads(asr_raw)
     words = asr.get("word_segments") or []
@@ -57,14 +56,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload", required=True)
     args = parser.parse_args()
-    payload = json.loads(base64.b64decode(args.payload).decode("utf-8"))
-    try:
-        metrics = execute_fixture(payload["fixture"], payload["python"],
-                                  payload["preparer_script"])
-        result = {"status": "passed", "metrics": metrics, "error": None}
-    except Exception as exc:
-        result = {"status": "failed", "metrics": {}, "error": str(exc)}
-    print("PREPARER_BENCHMARK_RESULT=" + json.dumps(result, separators=(",", ":")))
+    def execute():
+        payload = get_decoded_worker_payload(args.payload)
+        return execute_fixture(payload["fixture"], payload["python"], payload["preparer_script"])
+    emit_benchmark_worker_result('PREPARER_BENCHMARK_RESULT=',
+                                 execute, metrics_only=True)
 
 
 if __name__ == "__main__":

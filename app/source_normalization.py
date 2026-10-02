@@ -1,11 +1,13 @@
 """Explicit, auditable normalization for known source-text corruption."""
 
+from bisect import bisect_right
 import re
+import unicodedata
 
 
 KNOWN_SOURCE_CORRUPTIONS = {"саге": "care", "пар": "nap"}
-_KNOWN_RE = re.compile("|".join(re.escape(value) for value in KNOWN_SOURCE_CORRUPTIONS),
-                       re.IGNORECASE)
+_KNOWN_RE = re.compile(r"(?<!\w)(?:" + "|".join(
+    re.escape(value) for value in KNOWN_SOURCE_CORRUPTIONS) + r")(?!\w)", re.IGNORECASE)
 _ILLUSTRATION_CAPTION_RE = re.compile(
     r"Illustration from Volume\s+\d+\s*,\s*coloring by\s+[^\n]{1,100}?\s*"
     r"\(source\)\s*", re.IGNORECASE)
@@ -15,6 +17,19 @@ EXTREME_PHRASE_REPEAT_MIN = 20
 EXTREME_PHRASE_REPEAT_KEEP = 3
 EXTREME_PHRASE_MAX_WORDS = 5
 
+
+
+def get_located_source_changes(text, changes):
+    """Return new evidence records using one newline index for this stage."""
+    if not changes:
+        return []
+    starts = [0, *(match.end() for match in re.finditer("\n", text))]
+    located = []
+    for change in changes:
+        offset = change['offset']
+        line = bisect_right(starts, offset)
+        located.append({**change, 'line': line, 'column': offset - starts[line - 1] + 1})
+    return located
 
 def normalize_known_source_corruptions(text):
     """Return normalized text and location evidence without mutating its source file."""
@@ -26,25 +41,23 @@ def normalize_known_source_corruptions(text):
         if before[:1].isupper():
             after = after.capitalize()
         offset = match.start()
-        line = text.count("\n", 0, offset) + 1
-        line_start = text.rfind("\n", 0, offset) + 1
-        changes.append({"offset": offset, "line": line, "column": offset - line_start + 1,
-                        "before": before, "after": after})
+        changes.append({"offset": offset, "before": before, "after": after})
         return after
 
-    normalized = _KNOWN_RE.sub(replace, text)
+    normalized = _KNOWN_RE.sub(replace, text) if is_predominantly_latin_source(text) else text
+
+    caption_changes = []
 
     def remove_caption(match):
         offset = match.start()
-        line = normalized.count("\n", 0, offset) + 1
-        line_start = normalized.rfind("\n", 0, offset) + 1
-        changes.append({"offset": offset, "line": line,
-                        "column": offset - line_start + 1,
+        caption_changes.append({"offset": offset,
                         "before": match.group(0), "after": "",
                         "rule": "illustration_caption"})
         return ""
 
-    return _ILLUSTRATION_CAPTION_RE.sub(remove_caption, normalized), changes
+    cleaned = _ILLUSTRATION_CAPTION_RE.sub(remove_caption, normalized)
+    return cleaned, (get_located_source_changes(text, changes)
+                     + get_located_source_changes(normalized, caption_changes))
 
 
 def normalize_extreme_phrase_repetitions(text):
@@ -57,31 +70,31 @@ def normalize_extreme_phrase_repetitions(text):
     prose cannot be joined into a match.
     """
     tokens = list(_WORD_RE.finditer(text))
-    candidates = []
-    for start in range(len(tokens)):
-        for width in range(1, EXTREME_PHRASE_MAX_WORDS + 1):
-            if start + width * EXTREME_PHRASE_REPEAT_MIN > len(tokens):
-                break
-            unit = [match.group(0).casefold()
-                    for match in tokens[start:start + width]]
-            repeats = 1
-            while start + (repeats + 1) * width <= len(tokens):
-                offset = start + repeats * width
-                next_unit = [match.group(0).casefold()
-                             for match in tokens[offset:offset + width]]
-                separator = text[tokens[offset - 1].end():tokens[offset].start()]
-                if next_unit != unit or not separator.isspace():
-                    break
-                repeats += 1
+    words = [match.group(0).casefold() for match in tokens]
+    whitespace = [text[tokens[index - 1].end():tokens[index].start()].isspace()
+                  for index in range(1, len(tokens))]
+    candidates = [None] * len(tokens)
+    for width in range(1, EXTREME_PHRASE_MAX_WORDS + 1):
+        # A suffix's run length extends the already computed next unit's run.
+        # Each token is revisited only for the five supported phrase widths.
+        runs = [1] * len(tokens)
+        for start in range(len(tokens) - width, -1, -1):
+            offset = start + width
+            if (offset + width <= len(tokens) and whitespace[offset - 1]
+                    and words[start:offset] == words[offset:offset + width]):
+                runs[start] += runs[offset]
+            repeats = runs[start]
             if repeats < EXTREME_PHRASE_REPEAT_MIN:
                 continue
             end_index = start + repeats * width - 1
-            candidates.append((tokens[start].start(), tokens[end_index].end(),
-                               width, repeats))
+            candidate = (tokens[start].start(), tokens[end_index].end(), width, repeats)
+            previous = candidates[start]
+            if previous is None or candidate[1] > previous[1]:
+                candidates[start] = candidate
 
     selected = []
-    for candidate in sorted(candidates, key=lambda item: (item[0], -item[1])):
-        if selected and candidate[0] < selected[-1][1]:
+    for candidate in candidates:
+        if candidate is None or (selected and candidate[0] < selected[-1][1]):
             continue
         selected.append(candidate)
     if not selected:
@@ -96,11 +109,8 @@ def normalize_extreme_phrase_repetitions(text):
         kept_end = repeated_tokens[width * EXTREME_PHRASE_REPEAT_KEEP - 1].end()
         replacement = repeated[:kept_end] + "…"
         pieces.extend((text[cursor:start], replacement))
-        line_start = text.rfind("\n", 0, start) + 1
         changes.append({
             "offset": start,
-            "line": text.count("\n", 0, start) + 1,
-            "column": start - line_start + 1,
             "before": repeated,
             "after": replacement,
             "rule": "extreme_phrase_repetition",
@@ -109,7 +119,7 @@ def normalize_extreme_phrase_repetitions(text):
         })
         cursor = end
     pieces.append(text[cursor:])
-    return "".join(pieces), changes
+    return "".join(pieces), get_located_source_changes(text, changes)
 
 
 # Cyrillic letters visually identical to Latin ones in upright fonts, per the
@@ -133,6 +143,18 @@ _CYRILLIC_WORD_RE = re.compile(r"\w*[Ѐ-ӿ]\w*", re.UNICODE)
 MAX_HOMOGLYPH_CYRILLIC_RATIO = 0.005
 
 
+def is_predominantly_latin_source(text):
+    """Use the existing stray-corruption limit against actual Latin letters."""
+    letters = 0
+    non_latin = 0
+    for char in text:
+        if char.isalpha():
+            letters += 1
+            if not unicodedata.name(char, "").startswith("LATIN "):
+                non_latin += 1
+    return bool(letters and non_latin / letters < MAX_HOMOGLYPH_CYRILLIC_RATIO)
+
+
 def normalize_homoglyph_words(text):
     """Map whole words of Cyrillic lookalike characters back to Latin,
     returning normalized text and location evidence without mutating the
@@ -141,11 +163,7 @@ def normalize_homoglyph_words(text):
     document is overwhelmingly Latin and every Cyrillic character in the
     word has a homoglyph mapping - one unmappable character leaves the whole
     word untouched."""
-    letter_count = sum(1 for char in text if char.isalpha())
-    if not letter_count:
-        return text, []
-    cyrillic_count = sum(1 for char in text if _CYRILLIC_CHAR_RE.match(char))
-    if not cyrillic_count or cyrillic_count / letter_count >= MAX_HOMOGLYPH_CYRILLIC_RATIO:
+    if not is_predominantly_latin_source(text):
         return text, []
 
     changes = []
@@ -157,13 +175,11 @@ def normalize_homoglyph_words(text):
             return word
         after = "".join(_HOMOGLYPH_MAP.get(char, char) for char in word)
         offset = match.start()
-        line = text.count("\n", 0, offset) + 1
-        line_start = text.rfind("\n", 0, offset) + 1
-        changes.append({"offset": offset, "line": line, "column": offset - line_start + 1,
-                        "before": word, "after": after, "rule": "homoglyph"})
+        changes.append({"offset": offset, "before": word, "after": after, "rule": "homoglyph"})
         return after
 
-    return _CYRILLIC_WORD_RE.sub(replace, text), changes
+    normalized = _CYRILLIC_WORD_RE.sub(replace, text)
+    return normalized, get_located_source_changes(text, changes)
 
 
 _FRONT_MATTER_ANCHOR = re.compile(
@@ -200,25 +216,10 @@ _YEAR_RE = re.compile(r"\s*(?:1[89]|20)\d{2}\b")
 _REPLACEMENT = "�"
 
 
-def _nearest_surviving(chars, index, step):
-    """Return the closest non-U+FFFD neighbour in one direction.
-
-    Consecutive U+FFFD are separate destroyed characters, so a neighbour
-    lookup has to skip past them to find real context. Returns "\n" when it
-    runs off either end, which makes start/end of file behave like a line
-    boundary.
-    """
-    position = index + step
-    while 0 <= position < len(chars) and chars[position] == _REPLACEMENT:
-        position += step
-    return chars[position] if 0 <= position < len(chars) else "\n"
-
-
-def _infer_replacement(chars, index):
+def _infer_replacement(chars, index, right_surviving):
     """Infer one destroyed character from its surroundings, or None."""
     left = chars[index - 1] if index else "\n"
     right = chars[index + 1] if index + 1 < len(chars) else "\n"
-    right_surviving = _nearest_surviving(chars, index, 1)
     if _YEAR_RE.match("".join(chars[index + 1:index + 7])):
         return "©"
     if right == _REPLACEMENT and (left.isalnum() or left in ".,!?"):
@@ -256,10 +257,16 @@ def repair_lossy_replacements(text):
         return text, []
     chars = list(text)
     repairs = []
+    surviving_index = 0
     for index, char in enumerate(chars):
         if char != _REPLACEMENT:
             continue
-        inferred = _infer_replacement(chars, index)
+        if index >= surviving_index:
+            surviving_index = index + 1
+            while surviving_index < len(chars) and chars[surviving_index] == _REPLACEMENT:
+                surviving_index += 1
+        right_surviving = chars[surviving_index] if surviving_index < len(chars) else "\n"
+        inferred = _infer_replacement(chars, index, right_surviving)
         if inferred is not None:
             repairs.append({"offset": index, "before": _REPLACEMENT,
                             "after": inferred})
@@ -268,19 +275,21 @@ def repair_lossy_replacements(text):
     return "".join(chars), repairs
 
 
-def neutralize_lossy_residue(text, substitute="'"):
-    """Replace U+FFFD that no rule could infer, returning text and a count.
+def neutralize_lossy_residue(text, substitute=None):
+    """Use the canonical repair policy by default; explicit substitutes opt in.
 
-    Applied only after repair_lossy_replacements. The residue is genuinely
-    unrecoverable: destroyed letters (``coup d’état``), and cases ambiguous
-    between a plural possessive and a closing quote (``knights’`` vs
-    ``knights”``) that context cannot separate. A plain apostrophe is the most
-    likely value across that residue. Callers record the count so the
-    approximation is visible rather than silent.
+    The default must not consume destroyed characters before the shared repair
+    engine can inspect them. Ambiguous long runs remain visible, as they do in
+    repair_source_encoding. The count records actual replacement characters
+    removed, rather than asserting that all damaged sites were repaired.
     """
     if _REPLACEMENT not in text:
         return text, 0
-    return text.replace(_REPLACEMENT, substitute), text.count(_REPLACEMENT)
+    if substitute is not None:
+        return text.replace(_REPLACEMENT, substitute), text.count(_REPLACEMENT)
+    from repair_source_encoding import repair
+    repaired, _, _ = repair(text)
+    return repaired, text.count(_REPLACEMENT) - repaired.count(_REPLACEMENT)
 
 
 # Signatures of a publisher colophon. Each is strong on its own: none of these

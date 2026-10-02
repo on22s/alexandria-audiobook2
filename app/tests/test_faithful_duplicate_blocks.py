@@ -58,6 +58,30 @@ class FaithfulDuplicateBlockTest(unittest.TestCase):
                          "a block appearing once in source but emitted twice "
                          "should have its second copy removed")
 
+    def test_third_emitted_copy_is_removed_when_source_has_two(self):
+        pair = ("The morning air was sharp and cold.",
+                "Haruhiro rubbed his eyes and sat up.")
+        source = "\n".join(pair + pair)
+        result = build_deterministic_repair(entries(*(pair * 3)), source)
+        self.assertEqual([], result["unresolved"])
+        self.assertEqual(list(pair * 2), [e["text"] for e in result["entries"]])
+        self.assertEqual([5, 6], result["changes"][0]["removed_entry_numbers"])
+
+    def test_fourth_pair_is_removed_when_source_has_three(self):
+        pair = ("The morning air was sharp and cold.",
+                "Haruhiro rubbed his eyes and sat up.")
+        result = build_deterministic_repair(
+            entries(*(pair * 4)), "\n".join(pair * 3))
+        self.assertEqual(list(pair * 3), [e["text"] for e in result["entries"]])
+        self.assertEqual([7, 8], result["changes"][0]["removed_entry_numbers"])
+
+    def test_all_extra_pairs_are_removed_when_source_has_one(self):
+        pair = ("The morning air was sharp and cold.",
+                "Haruhiro rubbed his eyes and sat up.")
+        result = build_deterministic_repair(
+            entries(*(pair * 3)), "\n".join(pair))
+        self.assertEqual(list(pair), [e["text"] for e in result["entries"]])
+
     def test_a_block_absent_from_the_source_stays_unresolved(self):
         """Invented repetition: no rule can pick the correct copy."""
         made_up = "This sentence never appears in the source at all."

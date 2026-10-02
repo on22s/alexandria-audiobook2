@@ -75,6 +75,44 @@ class VotedAttributionTest(unittest.TestCase):
     BATCH = [{"type": "SPOKEN", "text": "Are you okay, Rudi?"},
              {"type": "SPOKEN", "text": "Sorry."}]
 
+    def test_exhausted_fallbacks_are_not_ballots_and_valid_metadata_wins(self):
+        from generate_script import LLMGenParams
+        from three_pass_generate import attribute_batch_voted
+        valid = [{"speaker": "ALICE", "text": "Are you okay, Rudi?", "metadata": "validated"},
+                 {"speaker": "BETTY", "text": "Sorry.", "metadata": "validated"}]
+        calls = []
+        def attribute(*args, **kwargs):
+            number = len(calls)
+            calls.append(number)
+            if number == 1:
+                return valid
+            kwargs.get("exhaustion_sink", []).append(True)
+            return [{"speaker": "UNKNOWN", "text": "Are you okay, Rudi?", "attribution_unchecked": {}},
+                    {"speaker": "UNKNOWN", "text": "Sorry.", "attribution_unchecked": {}}]
+        exhausted = []
+        with patch("three_pass_generate.attribute_batch", side_effect=attribute):
+            entries, confidence = attribute_batch_voted(None, "m", self.BATCH,
+                LLMGenParams(), [], votes=3, on_exhaustion="fallback", exhaustion_sink=exhausted)
+        self.assertEqual(valid, entries)
+        self.assertEqual([1.0, 1.0], confidence)
+        self.assertEqual([], exhausted, 'failed ballots cannot label a validated result exhausted')
+
+    def test_all_exhausted_votes_propagate_exhaustion_and_return_one_flagged_fallback(self):
+        from generate_script import LLMGenParams
+        from three_pass_generate import attribute_batch_voted
+        fallback = [{"speaker": "UNKNOWN", "text": "Are you okay, Rudi?"},
+                    {"speaker": "UNKNOWN", "text": "Sorry."}]
+        def attribute(*args, **kwargs):
+            kwargs.get("exhaustion_sink", []).append(True)
+            return fallback
+        exhausted = []
+        with patch("three_pass_generate.attribute_batch", side_effect=attribute):
+            entries, confidence = attribute_batch_voted(None, "m", self.BATCH,
+                LLMGenParams(), [], votes=3, on_exhaustion="fallback", exhaustion_sink=exhausted)
+        self.assertEqual(fallback, entries)
+        self.assertEqual([0.0, 0.0], confidence)
+        self.assertEqual([True], exhausted)
+
     def test_single_vote_delegates_to_greedy(self):
         from three_pass_generate import attribute_batch_voted
         with patch("three_pass_generate.attribute_batch") as greedy:

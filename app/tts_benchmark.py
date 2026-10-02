@@ -1,7 +1,7 @@
 """Production TTS benchmark execution and deterministic WAV measurements."""
 
+from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -12,21 +12,27 @@ import wave
 
 import numpy as np
 
+from lora_evidence import get_file_sha256
+from adapter_checkpoint_transaction import ensure_adapter_generation_snapshot
 from tts import TTSEngine
 from gpu_stats import sample_gpu_utilization
+from benchmark_validation import (get_benchmark_directory_path,
+                                  get_adapter_artifact_path, get_benchmark_verified_file_path,
+                                  get_benchmark_artifact_name, get_benchmark_output_path)
 
 
-def _run_with_utilization_sampling(fn, poll_interval=0.2):
-    """Run fn() while polling GPU utilization every poll_interval seconds,
+def _run_with_utilization_sampling(fn, poll_interval=1.0):
+    """Run fn() while polling GPU utilization at most once per second,
     returning (fn's result, mean utilization percent or None if no samples
     landed).
 
-    Lets a benchmark distinguish "the GPU was actually busy" from "wall
-    time was dominated by something else" instead of assuming compute-bound
-    just because the call took a long time.
+    This is coarse telemetry, not proof that generation is compute-bound.
+    Each sample can launch external driver probes; shorter requested intervals
+    are clamped to limit measurement overhead. Longer intervals are retained.
     """
     samples = []
     stop = threading.Event()
+    poll_interval = max(1.0, poll_interval)
 
     def _poll():
         while not stop.is_set():
@@ -102,10 +108,8 @@ def run_custom_voice_case(engine, fixture, output_path, load_model=False):
 
 def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=False):
     """Exercise Base-model prompt construction and cached clone generation."""
-    ref_path = os.path.abspath(os.path.join(root_dir, fixture["ref_audio"]))
-    with open(ref_path, "rb") as ref_file:
-        if hashlib.sha256(ref_file.read()).hexdigest() != fixture["ref_audio_sha256"]:
-            raise ValueError("clone reference audio hash changed")
+    ref_path = get_benchmark_verified_file_path(
+        root_dir, fixture["ref_audio"], fixture["ref_audio_sha256"], "clone reference audio")
     voice_config = {fixture["speaker"]: {
         "type": "clone", "seed": fixture["seed"], "ref_audio": ref_path,
         "ref_text": fixture["ref_text"],
@@ -132,23 +136,25 @@ def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=Fals
 
 def run_lora_voice_case(engine, fixture, output_path, root_dir, load_model=False):
     """Exercise adapter loading, prompt construction, and production LoRA generation."""
-    adapter_path = os.path.abspath(os.path.join(root_dir, fixture["adapter_path"]))
-    for filename, expected in fixture["adapter_artifact_sha256"].items():
-        artifact_path = os.path.join(adapter_path, filename)
-        with open(artifact_path, "rb") as artifact_file:
-            if hashlib.sha256(artifact_file.read()).hexdigest() != expected:
+    adapter_path = get_benchmark_directory_path(root_dir, fixture["adapter_path"])
+    for filename in fixture["adapter_artifact_sha256"]:
+        get_adapter_artifact_path(adapter_path, filename)
+    with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
+        for filename, expected in fixture["adapter_artifact_sha256"].items():
+            artifact_path = get_adapter_artifact_path(snapshot, filename)
+            if get_file_sha256(artifact_path) != expected:
                 raise ValueError(f"LoRA adapter artifact hash changed: {filename}")
-    voice_data = {"type": "lora", "adapter_path": adapter_path,
-                  "seed": fixture["seed"]}
-    load_started = time.monotonic()
-    model = engine._init_local_lora(adapter_path)
-    load_seconds = time.monotonic() - load_started
-    with open(os.path.join(adapter_path, "training_meta.json"), "r",
-              encoding="utf-8") as meta_file:
-        ref_text = json.load(meta_file).get("ref_sample_text", "")
-    prompt_started = time.monotonic()
-    engine._ensure_lora_prompt(adapter_path, model, ref_text)
-    prompt_seconds = time.monotonic() - prompt_started
+        voice_data = {"type": "lora", "adapter_path": adapter_path,
+                      "seed": fixture["seed"], "adapter_generation_sha256": generation}
+        load_started = time.monotonic()
+        model = engine._init_local_lora(snapshot, generation_sha256=generation, source_adapter_path=adapter_path)
+        load_seconds = time.monotonic() - load_started
+        with open(os.path.join(snapshot, "training_meta.json"), "r",
+                  encoding="utf-8") as meta_file:
+            ref_text = json.load(meta_file).get("ref_sample_text", "")
+        prompt_started = time.monotonic()
+        engine._ensure_lora_prompt(snapshot, model, ref_text, generation_sha256=generation, source_adapter_path=adapter_path)
+        prompt_seconds = time.monotonic() - prompt_started
     import torch
     torch.manual_seed(fixture["seed"])
     generation_started = time.monotonic()
@@ -186,39 +192,46 @@ def run_design_voice_case(engine, fixture, output_path, load_model=False):
     return metrics
 
 
-def execute_payload(payload, output_dir):
+def execute_payload(payload, output_dir, asset_root=None):
     """Run all cases with one engine so warm timings match production use."""
     config = {"tts": dict(payload.get("tts") or {})}
     config["tts"].update({"mode": "local", "compile_codec": False})
     engine = TTSEngine(config)
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root_dir = asset_root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cases = []
-    first = True
+    warmed_voice_types = set()
     os.makedirs(output_dir, exist_ok=True)
     for fixture in payload["fixtures"]:
+        voice_type = fixture.get("voice_type", "custom")
+        if voice_type not in ("design", "lora", "clone"):
+            voice_type = "custom"
         repetitions = fixture.get("repetition_numbers") or range(
             1, payload["repetitions"] + 1)
         for repetition in repetitions:
-            path = os.path.join(output_dir, f"{fixture['id']}-{repetition}.wav")
+            load_model = voice_type not in warmed_voice_types
             try:
-                if fixture.get("voice_type") == "design":
+                fixture_id = get_benchmark_artifact_name(fixture['id'], "TTS fixture ID")
+                if type(repetition) is not int or repetition < 1:
+                    raise ValueError("TTS fixture ID or repetition is invalid for an output filename")
+                path = get_benchmark_output_path(output_dir, f"{fixture_id}-{repetition}.wav")
+                if voice_type == "design":
                     metrics = run_design_voice_case(
-                        engine, fixture, path, load_model=first)
-                elif fixture.get("voice_type") == "lora":
+                        engine, fixture, path, load_model=load_model)
+                elif voice_type == "lora":
                     metrics = run_lora_voice_case(
-                        engine, fixture, path, root_dir, load_model=first)
-                elif fixture.get("voice_type", "custom") == "clone":
+                        engine, fixture, path, root_dir, load_model=load_model)
+                elif voice_type == "clone":
                     metrics = run_clone_voice_case(
-                        engine, fixture, path, root_dir, load_model=first)
+                        engine, fixture, path, root_dir, load_model=load_model)
                 else:
                     metrics = run_custom_voice_case(
-                        engine, fixture, path, load_model=first)
+                        engine, fixture, path, load_model=load_model)
+                warmed_voice_types.add(voice_type)
                 status, error = "passed", None
             except Exception as exc:
                 metrics, status, error = {}, "failed", str(exc)
             cases.append({"fixture_id": fixture["id"], "repetition": repetition,
                           "status": status, "metrics": metrics, "error": error})
-            first = False
     return cases
 
 
@@ -226,10 +239,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--asset-root", help="Invocation root for privately staged benchmark assets")
     args = parser.parse_args()
-    payload = json.loads(base64.b64decode(args.payload).decode("utf-8"))
-    print("TTS_BENCHMARK_RESULT=" + json.dumps(execute_payload(payload, args.output_dir),
-                                               separators=(",", ":")))
+    emit_benchmark_worker_result('TTS_BENCHMARK_RESULT=',
+                                 lambda: execute_payload(get_decoded_worker_payload(args.payload), args.output_dir, asset_root=args.asset_root))
 
 
 if __name__ == "__main__":

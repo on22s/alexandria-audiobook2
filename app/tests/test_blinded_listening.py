@@ -105,10 +105,81 @@ class BlindedListeningTests(unittest.TestCase):
             {sample["file"] for item in public["sets"] for sample in item["samples"]},
             set(os.listdir(package)))
 
+    def test_dirty_git_arm_paths_stay_in_concealed_key_with_public_hashes(self):
+        original = blind.provenance
+        captured = []
+        def get_fixture_provenance(*args, **kwargs):
+            document = original(*args, **kwargs)
+            document['git'].update(branch='fix/per_char', dirty=True,
+                modified_tracked_files=['very_fast.wav'],
+                untracked_harness_files=['very_slow.wav', 'per_line.wav'])
+            captured.append(document)
+            return document
+        with patch.object(blind, 'provenance', side_effect=get_fixture_provenance):
+            public, key, package, public_path, key_path = self.build()
+        self.assertEqual(captured[0], key['provenance'])
+        for name in ('commit', 'dirty', 'source_state', 'harness_sha256'):
+            self.assertEqual(captured[0]['git'][name], public['provenance']['git'][name])
+        self.assertEqual({'commit', 'dirty', 'source_state', 'harness_sha256'},
+                         set(public['provenance']['git']))
+        self.assertEqual(captured[0]['source_artifacts'], public['provenance']['source_artifacts'])
+        self.assertEqual((public, key), blind.validate_package(public_path, key_path, package))
+        public['provenance']['git']['branch'] = 'fix/per_char'
+        Path(public_path).write_text(json.dumps(public))
+        with self.assertRaisesRegex(blind.ListeningPackageError, 'leaks arm labels'):
+            blind.validate_package(public_path, key_path, package)
+
+    def test_malformed_package_shapes_raise_concrete_errors_without_writes(self):
+        import copy
+        public, key, package, public_path, key_path = self.build()
+        cases = [
+            ("public", lambda d: [], "root must"),
+            ("key", lambda d: [], "root must"),
+            ("public", lambda d: dict(d, provenance=[]), "no provenance"),
+            ("public", lambda d: dict(d, provenance=dict(d["provenance"], git=[])), "provenance.git"),
+            ("public", lambda d: dict(d, package_dir=[]), "package_dir"),
+            ("public", lambda d: dict(d, provenance=dict(d["provenance"], source_artifacts=[1])), "source identities"),
+            ("public", lambda d: dict(d, provenance=dict(d["provenance"], source_artifacts={"x": []})), "hashes must"),
+            ("public", lambda d: dict(d, sets={}), "eight sets"),
+            ("key", lambda d: dict(d, sets={}), "eight sets"),
+        ]
+        for side in ("public", "key"):
+            cases.extend([
+                (side, lambda d: dict(d, sets=[[]] + d["sets"][1:]), "set 0 must"),
+                (side, lambda d: dict(d, sets=[dict(d["sets"][0], id=[])] + d["sets"][1:]), "id must"),
+            ])
+        cases.extend([
+            ("public", lambda d: dict(d, sets=[dict(d["sets"][0], samples={})] + d["sets"][1:]), "samples"),
+            ("public", lambda d: dict(d, sets=[dict(d["sets"][0], samples=[[]])] + d["sets"][1:]), "sample in"),
+            ("public", lambda d: dict(d, sets=[dict(d["sets"][0], samples=[dict(d["sets"][0]["samples"][0], file=[])])] + d["sets"][1:]), "file and sha256"),
+            ("public", lambda d: dict(d, sets=[dict(d["sets"][0], samples=[dict(d["sets"][0]["samples"][0], sha256=[])])] + d["sets"][1:]), "file and sha256"),
+            ("key", lambda d: dict(d, sets=[dict(d["sets"][0], mapping=[])] + d["sets"][1:]), "mapping in"),
+            ("key", lambda d: dict(d, sets=[dict(d["sets"][0], mapping={next(iter(d["sets"][0]["mapping"])): []})] + d["sets"][1:]), "mapping entries"),
+            ("key", lambda d: dict(d, sets=[dict(d["sets"][0], mapping={next(iter(d["sets"][0]["mapping"])): {"source_sha256": []}})] + d["sets"][1:]), "source_sha256"),
+        ])
+        for side, mutate, message in cases:
+            with self.subTest(side=side, message=message):
+                p, k = copy.deepcopy(public), copy.deepcopy(key)
+                if side == "key":
+                    k = mutate(k)
+                else:
+                    p = mutate(p)
+                Path(key_path).write_text(json.dumps(k), encoding="utf-8")
+                if isinstance(p, dict):
+                    p["concealed_key_sha256"] = file_sha256(key_path)
+                Path(public_path).write_text(json.dumps(p), encoding="utf-8")
+                before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+                with self.assertRaisesRegex(blind.ListeningPackageError, message):
+                    blind.validate_package(public_path, key_path, package)
+                self.assertEqual(before, {path: path.read_bytes() for path in before})
+
     def test_same_seed_produces_the_same_concealed_mapping(self):
         _, first_key, _, _, _ = self.build("_one")
         _, second_key, _, _, _ = self.build("_two")
-        self.assertEqual(first_key, second_key)
+        self.assertEqual({k: v for k, v in first_key.items() if k != 'provenance'},
+                         {k: v for k, v in second_key.items() if k != 'provenance'})
+        self.assertEqual(first_key['provenance']['source_artifacts'],
+                         second_key['provenance']['source_artifacts'])
 
     def test_validation_rejects_changed_audio_and_extra_files(self):
         _, _, package, public_path, key_path = self.build()

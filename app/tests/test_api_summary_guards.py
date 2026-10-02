@@ -76,3 +76,17 @@ class ApiSummaryGuards(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmptyAndMalformedApiSummaryTests(unittest.TestCase):
+    def test_empty_suite_is_rejected_in_quick_and_full_modes(self):
+        for full in (False, True):
+            summary = {'schema_version':1, 'mode':'full' if full else 'quick',
+                       'tests':[], 'counts':{'passed':0, 'failed':0, 'skipped':0, 'total':0}}
+            with self.subTest(full=full), self.assertRaisesRegex(ValueError, 'no tests'):
+                verify_release.validate_api_summary(summary, full)
+
+    def test_non_object_summary_is_a_controlled_validation_error(self):
+        for summary in ([], None, 'summary', True, 7):
+            with self.subTest(summary=summary), self.assertRaisesRegex(ValueError, 'object'):
+                verify_release.validate_api_summary(summary, False)

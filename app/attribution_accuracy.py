@@ -17,6 +17,7 @@ import collections
 import json
 import os
 import re
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
 GOLD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "fixtures", "attribution_gold.json")
@@ -55,30 +56,11 @@ def same_person(expected, actual, groups):
 
 
 def romaji_key(name):
-    """Phonetic key collapsing Japanese-romanization spelling variance.
+    """Return a candidate romanization key for diagnosis, never proof of identity.
 
-    These corpora are translated from Japanese, so a name has systematically
-    variable romanizations rather than random typos. Two kinds were observed
-    from magistral-small on mushoku16:
-
-      RUDEUS / RUDIUS / RUDIEUS / RUDUEUS   medial vowels are unstable
-      ALMANFI / ARUMANFI                    one liquid (L=R), and consonant
-                                            clusters take an epenthetic vowel
-
-    The first vowel and the consonant sequence survive both. Dropping ALL
-    vowels also merges them, but it collides REIDA with RUDI - two distinct
-    mushoku16 characters - so the first vowel is retained as a discriminator.
-    Verified: zero collisions between distinct characters across both fixtures'
-    full name sets (mushoku16 21 names, grimgar03 27 names).
-
-    This is deliberately NOT wired into same_person. Exact match measures
-    whether a name is usable downstream - a misspelled speaker fragments the
-    cast list and breaks voice assignment - while this measures whether the
-    model identified the right character. They are different questions, and
-    the penalty is model-specific (magistral-small loses 7.9 points of oracle
-    accuracy to it; three other models lose nothing), so silently normalizing
-    would change every cross-model comparison in the ledger without saying so.
-    Report both.
+    Medial-vowel removal collapses observed RUDEUS/RUDIUS and
+    ALMANFI/ARUMANFI variants, but also distinct names such as MIKA/MIKO.
+    Correctness scoring therefore uses fixture-declared phonetic aliases.
     """
     text = re.sub(r"[^A-Z]", "", normalize_speaker(name))
     if not text:
@@ -89,14 +71,16 @@ def romaji_key(name):
     return f"{first_vowel}|{consonants}"
 
 
-def same_person_phonetic(expected, actual, groups):
-    """same_person, plus romanization-variant tolerance. See romaji_key."""
-    if same_person(expected, actual, groups):
-        return True
-    if not actual:
-        return False
-    key = romaji_key(actual)
-    return bool(key) and key == romaji_key(expected)
+def get_phonetic_alias_groups(gold):
+    """Read explicitly judged spelling variants without inventing identities."""
+    return [{normalize_speaker(name) for name in group}
+            for group in gold.get("phonetic_aliases", [])]
+
+
+def same_person_phonetic(expected, actual, groups, phonetic_groups=()):
+    """Accept exact/alias identity or a declared romanization variant."""
+    return (same_person(expected, actual, groups)
+            or same_person(expected, actual, phonetic_groups))
 
 
 def normalize_line(value):
@@ -135,6 +119,7 @@ def score_run(named_entries, gold, include_disputed=False):
     Alias-equivalent answers count as correct; see alias_groups.
     """
     groups = alias_groups(gold)
+    phonetic_groups = get_phonetic_alias_groups(gold)
     by_text = {}
     for position, entry in enumerate(named_entries):
         by_text.setdefault(normalize_line(entry.get("text")),
@@ -151,9 +136,8 @@ def score_run(named_entries, gold, include_disputed=False):
             "expected": expected,
             "actual": actual,
             "correct": same_person(expected, actual, groups),
-            # Reported alongside, never instead of. See romaji_key: exact match
-            # is the product number, this is the attribution-ability number.
-            "correct_phonetic": same_person_phonetic(expected, actual, groups),
+            # Declared spelling variants remain separate from exact identity.
+            "correct_phonetic": same_person_phonetic(expected, actual, groups, phonetic_groups),
             "aligned": entry is not None,
         })
     return results
@@ -199,8 +183,7 @@ def main():
     gold = load_gold(args.gold)
 
     def named(path):
-        with open(path, encoding="utf-8") as handle:
-            return [e for e in (json.load(handle).get("named") or []) if e]
+        return [e for e in (load_generation_delta_checkpoint(path).get("named") or []) if e]
 
     results = score_run(named(args.checkpoint), gold, args.include_disputed)
     stats = summarize(results)
@@ -218,7 +201,7 @@ def main():
         print(f"phonetic: {stats['correct_phonetic']}/{stats['aligned']} "
               f"({stats['accuracy_phonetic']:.1%})  "
               f"spelling penalty {stats['spelling_penalty']:+.1%} - "
-              f"right character, romanized differently (see romaji_key)")
+              f"declared romanization variant (see phonetic_aliases)")
 
     if args.baseline:
         base = summarize(score_run(named(args.baseline), gold,

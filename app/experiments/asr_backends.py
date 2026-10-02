@@ -378,8 +378,7 @@ def build_alignment_probe(rows, out_wav, gap=0.5):
         elif sr != rate:
             continue                      # never resample silently
         dur = len(audio) / float(sr)
-        truth.append({"id": row["id"], "start": round(cursor, 4),
-                      "end": round(cursor + dur, 4), "text": row["text"]})
+        truth.append(get_alignment_boundary(row, cursor, dur))
         pieces.append(audio)
         pieces.append(np.zeros(int(gap * sr), dtype="float32"))
         cursor += dur + gap
@@ -416,6 +415,174 @@ def score_alignment(truth, segments, tolerance=0.30):
     }
 
 
+def get_asr_rows(args):
+    with open(args.build, encoding="utf-8") as handle:
+        build = json.load(handle)
+    rows = build["test"][args.row_offset:args.row_offset + args.limit]
+    if len(rows) != args.limit or not rows:
+        raise ValueError("ASR input does not cover the requested clip sample")
+    if any(not isinstance(row, dict) or type(row.get("id")) not in (str, int)
+           or not isinstance(row.get("human_wav"), str) or not isinstance(row.get("text"), str)
+           for row in rows):
+        raise ValueError("ASR sample requires clip identity, audio path and reference text")
+    ids = [row["id"] for row in rows]
+    if len(set(ids)) != len(ids):
+        raise ValueError("ASR sample contains duplicate clip identities")
+    return rows
+
+
+def get_asr_whisper_model(args):
+    model = args.whisper_cpp_model
+    if args.lang != "en" and model.endswith("base.en.bin"):
+        model = model.replace("base.en.bin", "base.bin")
+    return model
+
+
+def get_asr_measurement_identity(args, rows):
+    from experiments.provenance import input_sha256
+
+    paths = [args.build, __file__] + [os.path.join(REPO, row["human_wav"]) for row in rows]
+    model = get_asr_whisper_model(args)
+    if any("whisper_cpp" in backend for backend in args.backends):
+        paths.append(args.whisper_cpp_bin)
+    if "whisper_cpp" in args.backends:
+        paths.append(model)
+    if "whisper_cpp_hybrid" in args.backends:
+        paths.append(os.path.join(os.path.dirname(model), "ggml-base.bin"))
+    if any(backend in args.backends for backend in ("whisper_cpp_hybrid", "silero_whisper_cpp")):
+        paths.append(os.path.join(os.path.dirname(model), "ggml-large-v3.bin"))
+    dependencies = {}
+    if any(backend in args.backends for backend in ("silero_vad", "silero_whisper_cpp")):
+        from importlib import metadata
+        try:
+            distribution = metadata.distribution("silero-vad")
+        except metadata.PackageNotFoundError as error:
+            raise ValueError("cannot bind Silero measurement without its installed distribution") from error
+        files = [path for path in distribution.files or []
+                 if str(path).startswith("silero_vad/") and str(path).endswith((".py", ".jit"))]
+        if not any(str(path).endswith(".jit") for path in files):
+            raise ValueError("Silero distribution does not identify its default model bytes")
+        paths.extend(str(distribution.locate_file(path)) for path in files)
+        dependencies["silero-vad"] = distribution.version
+    return {"schema_version": 1, "row_offset": args.row_offset, "limit": args.limit,
+            "align_clips": args.align_clips, "language": args.lang, "backends": list(args.backends),
+            "score_readings": args.score_readings, "keep_hypotheses": args.keep_hypotheses,
+            "clip_ids": [row["id"] for row in rows], "inputs": input_sha256(paths),
+            "dependencies": dependencies}
+
+
+def get_alignment_boundary(row, cursor, duration):
+    return {"id": row["id"], "start": round(cursor, 4),
+            "end": round(cursor + duration, 4), "text": row["text"]}
+
+
+def get_completed_asr_result(path, args):
+    """Validate full transcription/alignment coverage without loading models."""
+    import soundfile as sf
+
+    rows = get_asr_rows(args)
+    identity = get_asr_measurement_identity(args, rows)
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    if (not isinstance(document, dict) or document.get("measurement") != identity
+            or not isinstance(document.get("measurement"), dict)
+            or any(type(document["measurement"].get(key)) is not int
+                   for key in ("schema_version", "row_offset", "limit", "align_clips"))
+            or any(type(document["measurement"].get(key)) is not bool
+                   for key in ("score_readings", "keep_hypotheses"))
+            or document.get("backends") != list(args.backends) or document.get("language") != args.lang
+            or type(document.get("limit")) is not int or document["limit"] != args.limit
+            or document.get("build") != os.path.relpath(args.build, REPO)
+            or document.get("whisper_cpp_model") != os.path.basename(get_asr_whisper_model(args))):
+        raise ValueError("ASR result inputs or measurement settings changed")
+    results = document.get("results")
+    if not isinstance(results, dict) or set(results) != set(args.backends):
+        raise ValueError("ASR result is missing requested backend evidence")
+    for name, result in results.items():
+        if (not isinstance(result, dict) or result.get("processed_ids") != identity["clip_ids"]
+                or type(result.get("failed")) is not int or result["failed"] != 0
+                or result.get("failures") != []):
+            raise ValueError("ASR backend did not process every requested clip")
+        scores = result.get("wer_scores")
+        expected_n = 0 if name in ("energy_vad", "silero_vad") else len(rows)
+        if (not isinstance(scores, list) or len(scores) != expected_n
+                or type(result.get("n")) is not int or result["n"] != expected_n
+                or any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+                       for value in scores)):
+            raise ValueError("ASR backend has incomplete or invalid word-error measurements")
+        if scores:
+            if any(type(result.get(key)) not in (int, float) or not math.isfinite(result[key])
+                   for key in ("wer_mean", "wer_median")):
+                raise ValueError("ASR word-error summary must be finite numeric measurements")
+            if (result.get("wer_mean") != round(statistics.mean(scores), 4)
+                    or result.get("wer_median") != round(statistics.median(scores), 4)):
+                raise ValueError("ASR aggregate disagrees with its clip measurements")
+        if args.keep_hypotheses and expected_n:
+            hypotheses = result.get("hypotheses")
+            if not isinstance(hypotheses, list) or len(hypotheses) != expected_n:
+                raise ValueError("ASR hypotheses do not cover requested clips")
+            for row, score, hypothesis in zip(rows, scores, hypotheses):
+                if (not isinstance(hypothesis, dict) or hypothesis.get("id") != row["id"]
+                        or hypothesis.get("reference") != row["text"]
+                        or not isinstance(hypothesis.get("hypothesis"), str)
+                        or type(hypothesis.get("wer")) not in (int, float)
+                        or hypothesis["wer"] != round(score, 4)
+                        or word_error_rate(row["text"], hypothesis["hypothesis"]) != score):
+                    raise ValueError("ASR stored hypothesis disagrees with its clip score")
+        if args.score_readings:
+            reading_scores = result.get("reading_scores")
+            if (not isinstance(reading_scores, list) or len(reading_scores) != expected_n
+                    or any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+                           for value in reading_scores)):
+                raise ValueError("ASR reading scores do not cover the requested clips")
+            if reading_scores and any(type(result.get(key)) not in (int, float) or not math.isfinite(result[key])
+                                      for key in ("cer_reading_mean", "cer_reading_median")):
+                raise ValueError("ASR reading summary must be finite numeric measurements")
+            if reading_scores and (result.get("cer_reading_mean") != round(statistics.mean(reading_scores), 4)
+                    or result.get("cer_reading_median") != round(statistics.median(reading_scores), 4)):
+                raise ValueError("ASR reading summary disagrees with clip measurements")
+    expected_alignment = min(args.align_clips, len(rows))
+    if type(document.get("alignment_truth_clips")) is not int or document["alignment_truth_clips"] != expected_alignment:
+        raise ValueError("ASR alignment probe does not cover the requested clips")
+    if expected_alignment:
+        truth, cursor, rate = [], 0.0, None
+        for row in rows[:expected_alignment]:
+            info = sf.info(os.path.join(REPO, row["human_wav"]))
+            if info.frames <= 0 or info.samplerate <= 0 or (rate is not None and rate != info.samplerate):
+                raise ValueError("ASR alignment input has invalid duration or mixed sample rates")
+            rate = info.samplerate
+            duration = info.frames / float(rate)
+            truth.append(get_alignment_boundary(row, cursor, duration))
+            cursor += duration + 0.5
+        alignment, segments = document.get("alignment"), document.get("alignment_segments")
+        if (not isinstance(alignment, dict) or set(alignment) != set(args.backends)
+                or not isinstance(segments, dict) or set(segments) != set(args.backends)):
+            raise ValueError("ASR alignment is missing requested backend evidence")
+        for name in args.backends:
+            predictions = segments[name]
+            if (not isinstance(predictions, list) or not predictions
+                    or any(not isinstance(segment, (list, tuple)) or len(segment) != 3
+                           or any(type(value) not in (int, float) or not math.isfinite(value)
+                                  for value in segment[:2])
+                           or segment[0] < 0 or segment[1] < segment[0]
+                           or not isinstance(segment[2], str) for segment in predictions)):
+                raise ValueError("ASR alignment timestamps are missing or invalid")
+            measured = score_alignment(truth, predictions)
+            if not isinstance(alignment[name], dict):
+                raise ValueError("ASR alignment summary must be an object")
+            for key, value in measured.items():
+                observed = alignment[name].get(key)
+                if type(value) is int:
+                    valid = type(observed) is int
+                else:
+                    valid = type(observed) in (int, float) and math.isfinite(observed)
+                if not valid:
+                    raise ValueError("ASR alignment summary has invalid numeric measurements")
+            if alignment[name] != measured:
+                raise ValueError("ASR alignment score disagrees with its measured timestamps")
+    return document
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--build", default=os.path.join(
@@ -450,18 +617,19 @@ def main():
                     help="language code passed to each backend (en/ja/zh)")
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "asr_backends.json"))
+    ap.add_argument("--check-artifact", help="validate a completed result without inference")
     args = ap.parse_args()
-
-    build = json.load(open(args.build, encoding="utf-8"))
-    rows = build["test"][args.row_offset:args.row_offset + args.limit]
-    if not rows:
-        sys.exit("no test rows")
-
-    # English-only checkpoints cannot decode ja/zh at all; using one would
-    # measure the checkpoint choice rather than the backend.
-    wcpp_model = args.whisper_cpp_model
-    if args.lang != "en" and wcpp_model.endswith("base.en.bin"):
-        wcpp_model = wcpp_model.replace("base.en.bin", "base.bin")
+    if args.limit < 1 or args.row_offset < 0 or args.align_clips < 0 or len(args.backends) != len(set(args.backends)):
+        ap.error("request positive clips, nonnegative offset/alignment and unique backends")
+    if args.check_artifact:
+        try:
+            get_completed_asr_result(args.check_artifact, args)
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+            ap.exit(1, f"REFUSING incomplete or stale ASR result: {error}\n")
+        return
+    rows = get_asr_rows(args)
+    measurement = get_asr_measurement_identity(args, rows)
+    wcpp_model = get_asr_whisper_model(args)
 
     def backend(name):
         if name == "whisper_cpp":
@@ -497,7 +665,7 @@ def main():
         fn = backend(name)
         wers, secs, audio_secs, failures, no_ts = [], [], [], [], 0
         hypotheses = []
-        reading_wers = []
+        reading_wers, processed_ids = [], []
         for row in rows:
             wav = os.path.join(REPO, row["human_wav"])
             if not os.path.exists(wav):
@@ -514,6 +682,7 @@ def main():
                 no_ts += 1
             info = sf.info(wav)
             audio_secs.append(info.frames / float(info.samplerate))
+            processed_ids.append(row["id"])
             if name not in {"energy_vad", "silero_vad"}:
                 w = word_error_rate(row["text"], text)
                 if args.score_readings:
@@ -532,7 +701,8 @@ def main():
                                            "reference": row["text"],
                                            "hypothesis": text})
         rec = {"n": len(wers), "failures": failures[:6],
-               "failed": len(failures), "clips_without_timestamps": no_ts}
+               "failed": len(failures), "clips_without_timestamps": no_ts,
+               "processed_ids": processed_ids, "wer_scores": wers, "reading_scores": reading_wers}
         if name in {"energy_vad", "silero_vad"}:
             rec["transcription"] = "not provided; segmentation-only arm"
         if reading_wers:
@@ -566,7 +736,7 @@ def main():
     os.makedirs(probe_dir, exist_ok=True)
     probe_wav, truth = build_alignment_probe(
         rows[:args.align_clips], os.path.join(probe_dir, "probe.wav"))
-    alignment = {}
+    alignment, alignment_segments = {}, {}
     if probe_wav:
         total = truth[-1]["end"] if truth else 0
         print(f"\n  alignment probe: {len(truth)} clips, {total:.1f}s, "
@@ -575,6 +745,7 @@ def main():
             try:
                 _, segs = backend(name)(probe_wav)
                 alignment[name] = score_alignment(truth, segs)
+                alignment_segments[name] = segs
             except Exception as exc:                        # noqa: BLE001
                 alignment[name] = {"error": str(exc)[:160]}
             a = alignment[name]
@@ -593,20 +764,24 @@ def main():
            "language": args.lang, "whisper_cpp_model": os.path.basename(wcpp_model),
            "backends": args.backends, "results": results,
            "alignment": alignment,
-           "alignment_truth_clips": len(truth) if probe_wav else 0}
+           "alignment_truth_clips": len(truth) if probe_wav else 0,
+           "alignment_segments": alignment_segments, "measurement": measurement}
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)
     except Exception as exc:                                # noqa: BLE001
         doc["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1, ensure_ascii=False)
+    if measurement != get_asr_measurement_identity(args, rows):
+        sys.exit("ASR inputs changed during measurement; refusing publication")
+    from utils import atomic_json_write
+    atomic_json_write(doc, args.out)
     print(f"\nwrote {args.out}")
 
-    # A run where every backend failed is a failed run, not a published zero.
-    if not (any(r.get("n") for r in results.values())
-            or any(r.get("scored") for r in alignment.values())):
+    try:
+        get_completed_asr_result(args.out, args)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+        print(f"ASR INCOMPLETE: {error}")
         sys.exit(3)
 
 

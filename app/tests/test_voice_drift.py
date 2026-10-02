@@ -76,7 +76,8 @@ class VoiceDriftScoringTests(unittest.TestCase):
         self.assertEqual(by_uid["u0"]["reference"], "clone:HOLO")
         self.assertEqual(by_uid["u2"]["reference"], "lora:LAWRENCE")
         self.assertEqual(by_uid["u3"], {"index": 3, "uid": "u3", "score": None,
-                                        "flagged": False, "reference": "self"})
+                                        "flagged": False, "reference": "self",
+                                        "error": "not measured: chunk is its own reference"})
         self.assertEqual(by_uid["u4"]["reference"], "chunk:u3")
         # exactly the below-threshold ones are flagged; 0.44 < 0.45 counts
         self.assertEqual({u for u, r in by_uid.items() if r["flagged"]}, {"u1", "u4"})
@@ -132,10 +133,16 @@ class VoiceDriftPersistenceTests(unittest.TestCase):
             _touch(os.path.join(tmp, "temp_batch_0.wav"))
             chunks = pm.load_chunks()
             with patch("project.validate_generated_audio"), \
-                 patch.object(pm, "_export_chunk_audio", return_value="voicelines/a2.mp3"):
+                 patch.object(pm, "_export_chunk_audio") as export:
+                def write_staged_audio(temp_path, filename_base):
+                    relative = f"voicelines/{filename_base}.wav"
+                    _touch(os.path.join(tmp, relative))
+                    return relative
+                export.side_effect = write_staged_audio
                 outcome = pm._finalize_completed_chunk(0, chunks)
             self.assertEqual(outcome[0], "completed")
-            self.assertIsNone(chunks[0]["drift"])
+            self.assertIsNone(pm.load_chunks()[0]["drift"])
+            self.assertEqual(saved, chunks[0]["drift"])
 
     def test_speaker_model_interpreter_prefers_the_running_env(self):
         import importlib.util
@@ -185,3 +192,94 @@ class DriftCheckRouteTests(unittest.TestCase):
             state["running"] = previous
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn("already running", response.json()["detail"])
+
+
+class DriftFailureArtifactTests(unittest.TestCase):
+    def setUp(self):
+        import numpy as np
+        import soundfile as sf
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.chunks = [{"uid": f"u{i}", "speaker": "ANN", "text": str(i),
+                        "status": "done", "audio_path": f"clip{i}.wav"} for i in range(3)]
+        for name in ["reference.wav"] + [c["audio_path"] for c in self.chunks]:
+            sf.write(self.root / name, np.sin(np.arange(4000) / 20) * 0.2, 16000)
+        self.config = {"ANN": {"type": "clone", "ref_audio": "reference.wav"}}
+        self.manager = ProjectManager(str(self.root))
+        with open(self.manager.chunks_path, "w", encoding="utf-8") as handle:
+            json.dump(self.chunks, handle)
+
+    def run_check(self, scores, **options):
+        return voice_drift.check_voice_drift(
+            self.chunks, self.config, str(self.root), sys.executable, 0.45,
+            resolve_asset_path=lambda p: str(self.root / p),
+            score_pairs=lambda pairs, python: (scores, None), **options)
+
+    def test_invalid_score_values_are_unmeasured_in_saved_artifacts(self):
+        import copy
+        for invalid in (float("nan"), float("inf"), -float("inf"),
+                        "NaN", "bad", {}, [], True):
+            with self.subTest(score=repr(invalid)):
+                original = copy.deepcopy((self.chunks, self.config))
+                report = self.run_check([0.7, invalid, 0.2])
+                self.assertIsNone(report["error"])
+                self.assertEqual(["u0", "u1", "u2"], [r["uid"] for r in report["results"]])
+                bad = report["results"][1]
+                self.assertIsNone(bad["score"])
+                self.assertFalse(bad["flagged"])
+                self.assertIn("invalid", bad["error"])
+                self.assertEqual(1, voice_drift.apply_drift_results(self.manager, report["results"], 0.45))
+                saved = self.manager.load_chunks()
+                json.dumps(saved, allow_nan=False)
+                self.assertIsNone(saved[1]["drift"]["score"])
+                self.assertIn("invalid", saved[1]["drift"]["error"])
+                self.assertEqual(0.7, saved[0]["drift"]["score"])
+                self.assertTrue(saved[2]["drift"]["flagged"])
+                self.assertEqual(original, (self.chunks, self.config))
+
+    def test_incomplete_or_malformed_score_lists_cannot_publish_partial_measurement(self):
+        for scores in ([], [0.7], [0.7] * 4, None, "0.7", {"0": 0.7}):
+            with self.subTest(scores=scores):
+                before = Path(self.manager.chunks_path).read_bytes()
+                report = self.run_check(scores)
+                self.assertEqual([], report["results"])
+                self.assertIn("not measured", report["error"])
+                self.assertIn("score", report["error"])
+                self.assertEqual(before, Path(self.manager.chunks_path).read_bytes())
+
+    def test_self_reference_is_explicitly_unmeasured_on_disk(self):
+        self.config = {"ANN": {"type": "custom", "voice": "Ryan"}}
+        report = self.run_check([], indices=[0])
+        result = report["results"][0]
+        self.assertIsNone(result["score"])
+        self.assertEqual("self", result["reference"])
+        self.assertIn("not measured", result["error"])
+        self.assertEqual(0, voice_drift.apply_drift_results(self.manager, report["results"], 0.45))
+        saved = self.manager.load_chunks()[0]["drift"]
+        self.assertIsNone(saved["score"])
+        self.assertIn("not measured", saved["error"])
+
+    def test_unresolved_lora_asset_is_missing_reference_not_a_request_crash(self):
+        reference = voice_drift.get_reference_for_speaker(
+            "ANN", {"ANN": {"type": "lora", "adapter_path": "missing"}},
+            self.chunks, None, lambda p: None)
+        self.assertEqual((None, "lora:ANN"), reference)
+
+    def test_failed_decode_does_not_shift_successful_scores_to_wrong_chunk(self):
+        # A real corrupt first file must not consume the owner of the next
+        # valid pair. Both later chunks still decode through pydub/FFmpeg.
+        (self.root / "clip0.wav").write_bytes(b"not audio")
+        report = self.run_check([0.7, 0.2])
+        self.assertIsNone(report["error"])
+        by_uid = {r["uid"]: r for r in report["results"]}
+        self.assertEqual({"u0", "u1", "u2"}, set(by_uid))
+        self.assertIsNone(by_uid["u0"]["score"])
+        self.assertIn("decode failed", by_uid["u0"]["error"])
+        self.assertEqual(0.7, by_uid["u1"]["score"])
+        self.assertEqual(0.2, by_uid["u2"]["score"])
+        self.assertEqual(1, voice_drift.apply_drift_results(self.manager, report["results"], 0.45))
+        saved = self.manager.load_chunks()
+        self.assertIsNone(saved[0]["drift"]["score"])
+        self.assertEqual(0.7, saved[1]["drift"]["score"])
+        self.assertTrue(saved[2]["drift"]["flagged"])

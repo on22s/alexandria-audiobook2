@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.provenance import provenance  # noqa: E402
 
 
-def held_out(dataset, book):
+def held_out(dataset, book, repo=None, require_audio=False):
     """-> [{human_wav, text, id}] from the val split, paths relative to REPO."""
     meta = os.path.join(dataset, "val", "metadata.jsonl")
     if not os.path.exists(meta):
@@ -41,6 +41,8 @@ def held_out(dataset, book):
             entry = json.loads(line)
             wav = os.path.join(dataset, entry["audio_filepath"])
             if not os.path.exists(wav):
+                if require_audio:
+                    raise ValueError(f"missing held-out audio: {wav}")
                 continue
             # EVERY KEY ljspeech_generate.py READS: id, book, text, human_wav
             # and seconds. The first build shipped three of those and 14 of 15
@@ -50,7 +52,7 @@ def held_out(dataset, book):
             rows.append({"id": os.path.splitext(
                              os.path.basename(entry["audio_filepath"]))[0],
                          "book": book,
-                         "human_wav": os.path.relpath(wav, REPO),
+                         "human_wav": os.path.relpath(wav, repo or REPO),
                          "text": entry.get("text") or "",
                          "seconds": entry.get("duration")
                                     or entry.get("seconds") or 0.0})

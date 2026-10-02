@@ -28,7 +28,6 @@ Usage: ``python tools/hf_purge_batch.py <spec.json>``
 import json
 import sys
 
-LARGE = ('.safetensors', '.gguf', '.wav', '.zip', '.bin', '.pt', '.pth', '.ckpt')
 FREED_TOLERANCE_BYTES = 50_000_000
 
 
@@ -37,8 +36,8 @@ class PurgeRefused(Exception):
 
 
 def get_head_sha_by_path(api, repo, repo_type='model'):
-    """{path: sha256} for every LFS weight file at HEAD of ``repo``."""
-    paths = [p for p in api.list_repo_files(repo, repo_type=repo_type) if p.endswith(LARGE)]
+    """{path: sha256} for every LFS file at HEAD of ``repo``."""
+    paths = api.list_repo_files(repo, repo_type=repo_type)
     out = {}
     for i in range(0, len(paths), 200):
         for info in api.get_paths_info(repo, paths[i:i + 200], repo_type=repo_type):
@@ -51,6 +50,7 @@ def get_head_sha_elsewhere(api, author, exclude_repo):
     """{sha256: ["repo:path", ...]} for weight files at HEAD of the author's other repos."""
     repos = [('model', m.id) for m in api.list_models(author=author)]
     repos += [('dataset', d.id) for d in api.list_datasets(author=author)]
+    repos += [('space', s.id) for s in api.list_spaces(author=author)]
     out = {}
     for repo_type, repo in repos:
         if repo == exclude_repo:
@@ -69,6 +69,13 @@ def run_batch(spec, api, log=print):
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete
 
     repo, purge = spec['repo'], set(spec['purge'])
+    expected = spec.get('expect_bytes')
+    if isinstance(expected, bool) or not isinstance(expected, int) or expected <= 0:
+        raise PurgeRefused('expect_bytes must be a positive integer')
+    lessons = spec.get('lessons') or {}
+    overlap = sorted(set(lessons) & purge)
+    if overlap:
+        raise PurgeRefused(f'lesson paths overlap purge paths: {overlap}')
     if not api.model_info(repo).private:
         raise PurgeRefused(f'{repo} is not private')
     missing = sorted(purge - set(api.list_repo_files(repo)))
@@ -78,7 +85,7 @@ def run_batch(spec, api, log=print):
     head = get_head_sha_by_path(api, repo)
     target = {head[p] for p in purge if p in head}
     if len(target) == 0 or any(p not in head for p in purge):
-        raise PurgeRefused('a purge path is not an LFS weight file')
+        raise PurgeRefused('a purge path is not an LFS file')
     shared = get_shared_paths(head, target, purge)
     if shared:
         raise PurgeRefused(f'another path in {repo} uses a purge object: {shared}')
@@ -86,7 +93,12 @@ def run_batch(spec, api, log=print):
     if elsewhere:
         raise PurgeRefused(f'purge object is at HEAD of another repo: {elsewhere}')
 
-    lessons = spec.get('lessons') or {}
+    stored = {f.file_oid: f.size for f in api.list_lfs_files(repo)}
+    if not target <= stored.keys():
+        raise PurgeRefused('target LFS object is missing from storage listing')
+    target_bytes = sum(stored[sha] for sha in target)
+    if abs(target_bytes - expected) >= FREED_TOLERANCE_BYTES:
+        raise PurgeRefused(f'expected {expected} bytes, target objects total {target_bytes}')
     if lessons:
         api.create_commit(repo, operations=[CommitOperationAdd(path_in_repo=k, path_or_fileobj=v)
                                             for k, v in lessons.items()],

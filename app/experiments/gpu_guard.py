@@ -9,10 +9,10 @@ two minutes having diagnosed nothing.
 The queue exists so work does not collide. Nothing stopped me stepping around
 it, and "remember not to do that" is not a mechanism.
 
-HOW IT KNOWS. gpu_job.sh exports ALEXANDRIA_GPU_LOCK_HELD=1 into every job it
-starts, so anything running UNDER the queue is allowed through untouched. A
-process that finds the lock held without that sentinel is by definition working
-beside a job rather than as one, and is refused.
+HOW IT KNOWS. gpu_job.sh exports an owner PID with its inherited marker.
+The queue ownership CLI verifies kernel ancestry, fd9 identity and an acquired
+exclusive flock. An unverifiable inherited claim is refused; an unmarked call
+probes the lock normally.
 
 It refuses rather than waits. A wait would hide the mistake and quietly serve
 the same collision later; an error names the queue and tells the caller how to
@@ -87,25 +87,50 @@ def gpu_is_busy(lock_path=None):
         handle.close()
 
 
+def is_queue_lock_held_by_us(lock_path=None):
+    """Verify the inherited lease using the queue's kernel ownership CLI."""
+    if os.environ.get("ALEXANDRIA_GPU_LOCK_HELD") != "1":
+        return False
+    environment = dict(os.environ)
+    if lock_path is not None:
+        environment["GPU_LOCK"] = os.fspath(lock_path)
+    owner = environment.get("ALEXANDRIA_GPU_LOCK_PID", "")
+    try:
+        result = subprocess.run(["bash", GPU_JOB, "--check-lock-owner", owner,
+                                 environment.get("ALEXANDRIA_GPU_LOCK_FD", "9")],
+                                env=environment, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"Cannot verify inherited GPU lock ownership: {error}") from error
+    if result.returncode:
+        raise RuntimeError("Cannot verify inherited GPU lock ownership: " +
+                           (result.stderr.strip() or "queue ownership probe failed"))
+    return True
+
+
+def acquire_gpu_lock(lock_path=None):
+    """Hold the queue's flock until release_gpu_lock; refuse contention."""
+    if is_queue_lock_held_by_us(lock_path):
+        return None
+    path = lock_path or os.environ.get("GPU_LOCK") or default_lock()
+    handle = open(path, "a")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        handle.close()
+        raise RuntimeError(f"GPU lock is held by another job: {path}") from error
+    return handle
+
+
+def release_gpu_lock(handle):
+    if handle is not None:
+        handle.close()
+
+
 def require_free_gpu(what="this call", lock_path=None):
     """Raise unless we hold the queue, or nothing else does."""
-    # THE SENTINEL MUST BELONG TO A LIVE JOB. gpu_job.sh exports it into the
-    # job's environment, and a shell or editor opened from inside a chain
-    # inherits it for the rest of its life - including after that job ends and
-    # a different one takes the card. Pairing it with the exporting pid, and
-    # checking that pid is still alive, keeps the exemption tied to the job it
-    # was granted for.
-    if os.environ.get("ALEXANDRIA_GPU_LOCK_HELD") == "1":
-        owner = os.environ.get("ALEXANDRIA_GPU_LOCK_PID")
-        if not owner:
-            return                        # older jobs: no pid to check
-        try:
-            os.kill(int(owner), 0)
-            return                        # the job that was granted it is alive
-        except (ValueError, ProcessLookupError):
-            pass                          # stale sentinel; fall through
-        except PermissionError:
-            return                        # exists, not ours to signal
+    # Every inherited lease uses the same kernel ownership proof as shell chains.
+    if is_queue_lock_held_by_us(lock_path):
+        return
     if os.environ.get("ALEXANDRIA_ALLOW_CONTENTION") == "1":
         return
     if not gpu_is_busy(lock_path):

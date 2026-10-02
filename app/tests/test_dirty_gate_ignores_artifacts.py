@@ -18,6 +18,8 @@ still see a harness anywhere in the code tree.
 """
 import os
 import subprocess
+import tempfile
+from unittest.mock import patch
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,10 +44,10 @@ class DirtyGateIgnoresArtifactsTest(unittest.TestCase):
                 return handle.read()
         shell = read("gpu_job.sh")
         python = read("app", "experiments", "manifest.py")
-        for name, text in (("gpu_job.sh", shell), ("manifest.py", python)):
-            with self.subTest(name):
-                self.assertIn(":(exclude)ab_test_runtime/*", text,
-                              f"{name} counts artifacts as harness dirt")
+        self.assertIn(":(exclude)ab_test_runtime/*", shell)
+        self.assertIn('["bash", script, "--print-source-state", str(repo)]', python)
+        self.assertNotIn('"ls-files", "--others"', python,
+                         "manifest must use the shared source-state policy")
 
     def test_without_the_exclusion_an_artifact_makes_the_tree_dirty(self):
         """The two scans must DISAGREE about a file under ab_test_runtime/.
@@ -56,19 +58,16 @@ class DirtyGateIgnoresArtifactsTest(unittest.TestCase):
         verify_release counts one skipped test as a failure, so it took the
         whole run down (2026-08-30, this PR's first CI).
         """
-        probe = os.path.join(REPO, "ab_test_runtime", "_dirty_gate_probe.py")
-        self.assertFalse(os.path.exists(probe), "probe path is not free")
-        try:
+        with tempfile.TemporaryDirectory() as root, patch(__name__ + ".REPO", root):
+            subprocess.run(["git", "init", "-q", root], check=True,
+                           capture_output=True, timeout=10)
+            os.mkdir(os.path.join(root, "ab_test_runtime"))
+            probe = os.path.join(root, "ab_test_runtime", "_dirty_gate_probe.py")
             with open(probe, "w", encoding="utf-8") as handle:
                 handle.write("# written by a run, not by an author\n")
             relative = "ab_test_runtime/_dirty_gate_probe.py"
-            self.assertIn(relative, untracked_harness(extra_pathspec=False),
-                          "the unfiltered scan is what #417 shipped; it must "
-                          "see this file, or this test proves nothing")
-            self.assertNotIn(relative, untracked_harness(),
-                             "the filtered scan must ignore it")
-        finally:
-            os.remove(probe)
+            self.assertIn(relative, untracked_harness(extra_pathspec=False))
+            self.assertNotIn(relative, untracked_harness())
 
     def test_a_harness_in_the_code_tree_is_still_caught(self):
         """417's real gain: reach beyond app/experiments and run_chains."""

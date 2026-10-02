@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 import evaluation_reviews as er
-from lora_evidence import get_file_sha256
+from lora_evidence import get_file_sha256, get_evaluation_spec_sha256
 from routers import lora
 
 
@@ -29,6 +29,7 @@ def _evaluation_json(checkpoint_dir, spec):
     _write(os.path.join(checkpoint_dir, "probe_0.wav"), f"probe-{spec}".encode())
     return {
         "version": 2,
+        "thresholds": {},
         "probes": [{
             "id": "probe_0", "audio_file": "probe_0.wav",
             "audio_sha256": get_file_sha256(os.path.join(checkpoint_dir, "probe_0.wav")),
@@ -39,7 +40,8 @@ def _evaluation_json(checkpoint_dir, spec):
                 os.path.join(checkpoint_dir, "adapter_model.safetensors")),
             "reference_audio_sha256": get_file_sha256(
                 os.path.join(checkpoint_dir, "ref_sample.wav")),
-            "evaluation_spec_sha256": f"spec-{spec}",
+            "evaluation_spec_sha256": get_evaluation_spec_sha256(
+                (("probe_0", "the quick brown fox"),), 1, {}),
         },
         "candidate_recommendation": {"reason": "candidate ranked higher", "ranking": []},
     }
@@ -152,9 +154,20 @@ class ReviewAudioProxyTests(unittest.TestCase):
                                          er.evidence_fingerprint(prod, cand),
                                          comparison["probe_pairs"], audio_by_role)
                 sid = sess["session_id"]
-                # A valid label streams a file inside the models dir.
+                # Only an in-family source may be captured, then streamed exactly.
+                source = er.get_session_audio_path(reviews, sid, "A", "probe_0", adapter_id="voice")
+                self.assertTrue(lora.is_path_inside(source, models))
                 response = lora._serve_review_audio("voice", sid, "A", "probe_0")
-                self.assertTrue(lora.is_path_inside(response.path, models))
+                import asyncio
+                messages = []
+                async def send(message):
+                    messages.append(message)
+                async def receive():
+                    return {"type": "http.disconnect"}
+                asyncio.run(response({"type": "http", "method": "GET", "headers": []}, receive, send))
+                with open(source, "rb") as handle:
+                    self.assertEqual(handle.read(), b"".join(message.get("body", b"") for message in messages))
+                self.assertFalse(os.path.exists(response.path))
                 # An unknown label / probe is a 404, not a leak.
                 with self.assertRaises(HTTPException):
                     lora._serve_review_audio("voice", sid, "C", "probe_0")
@@ -204,6 +217,10 @@ class ReviewAudioProxyTests(unittest.TestCase):
                 # Unknown label and unknown probe are 404s, not leaks.
                 self.assertEqual(404, client.get(f"{base}/C/probe_0").status_code)
                 self.assertEqual(404, client.get(f"{base}/A/nope").status_code)
+                wrong_adapter = f"/api/lora/models/other-voice/review/session/{sid}/audio/A/probe_0"
+                self.assertEqual(404, client.get(wrong_adapter).status_code)
+                wrong_adapter = f"/api/lora/models/other-voice/review/session/{sid}/audio/A/probe_0"
+                self.assertEqual(404, client.get(wrong_adapter).status_code)
 
 
 if __name__ == "__main__":

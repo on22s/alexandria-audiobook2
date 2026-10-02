@@ -28,9 +28,10 @@ def file_sha256(path):
 
 
 def classify_artifact(path):
-    row = {"artifact": os.path.basename(path), "bytes": os.path.getsize(path),
-           "sha256": file_sha256(path)}
+    row = {"artifact": os.path.basename(path), "bytes": None, "sha256": None}
     try:
+        row["bytes"] = os.path.getsize(path)
+        row["sha256"] = file_sha256(path)
         with open(path, encoding="utf-8") as handle:
             doc = json.load(handle)
     except (OSError, ValueError) as exc:
@@ -169,21 +170,21 @@ def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):
     "can anyone but this machine see it" - which is the question a committed
     index is actually asking.
 
-    This mirrors tests/test_inventory.py::_tracked_test_modules, which exists
-    for the identical reason after breaking the build three times in one day,
-    including its fallback: when git cannot answer (a source export, a
-    container without git), fall back to the filesystem rather than reporting
-    an empty index.
+    If Git cannot establish the tracked set, refuse to regenerate. Treating
+    unknown membership as tracked would publish machine-local evidence into
+    the checked-in index, including during a transient Git failure.
     """
     on_disk = sorted(glob.glob(os.path.join(experiment_dir, "*.json")))
     try:
         result = subprocess.run(
             ["git", "ls-files", "-z", "--", experiment_dir],
             cwd=REPO, capture_output=True, timeout=10)
-    except (OSError, subprocess.SubprocessError):
-        return on_disk, []
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError("Cannot determine tracked artifact membership: Git failed") from error
     if result.returncode != 0:
-        return on_disk, []
+        detail = result.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError(
+            f"Cannot determine tracked artifact membership: Git exited {result.returncode}: {detail}")
     tracked = {os.path.basename(name)
                for name in result.stdout.decode("utf-8").split("\0") if name}
     keep = [p for p in on_disk if os.path.basename(p) in tracked]

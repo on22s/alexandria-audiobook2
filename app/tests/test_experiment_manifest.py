@@ -372,7 +372,14 @@ class UntrackedHarnessTest(unittest.TestCase):
 
     def test_a_fully_tracked_harness_reports_none(self):
         from experiments.manifest import _git_state
-        self.assertIsNone(_git_state(REPO)["untracked_harness_files"])
+        import subprocess
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(["git", "init", "-q", repo], check=True)
+            path = os.path.join(repo, "input.txt")
+            with open(path, "w") as handle:
+                handle.write("tracked input\n")
+            subprocess.run(["git", "-C", repo, "add", "input.txt"], check=True)
+            self.assertIsNone(_git_state(repo)["untracked_harness_files"])
 
 
 class HarnessEvidenceParityTest(unittest.TestCase):

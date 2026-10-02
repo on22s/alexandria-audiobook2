@@ -28,8 +28,8 @@ class ConfigSecretRedactionTests(unittest.TestCase):
             tts=TTSConfig(),
         )
         restored = _restore_redacted_secrets(config, {
-            "llm": {"api_key": "saved-llm"},
-            "llm_local": {"api_key": "saved-local"},
+            "llm": {"base_url": profile.base_url, "api_key": "saved-llm"},
+            "llm_local": {"base_url": profile.base_url, "api_key": "saved-local"},
         })
 
         self.assertEqual("saved-llm", restored.llm.api_key)
@@ -51,8 +51,10 @@ class RedactedKeyResolutionTests(unittest.TestCase):
                     "llm_remote": {"base_url": "https://api.example.com/v1/", "api_key": "sk-real"}}
         self.assertEqual("sk-real", _resolve_redacted_api_key("[REDACTED]", "https://api.example.com/v1", existing))
         self.assertEqual("local", _resolve_redacted_api_key("[REDACTED]", "http://127.0.0.1:8090/v1", existing))
-        # an unmatched URL falls back to the active profile's key, never the sentinel
-        self.assertEqual("sk-real", _resolve_redacted_api_key("[REDACTED]", "https://other/v1", existing))
+        # An unmatched endpoint must never inherit the active profile's key.
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException):
+            _resolve_redacted_api_key("[REDACTED]", "https://other/v1", existing)
         # a real key typed by the user passes through untouched
         self.assertEqual("sk-typed", _resolve_redacted_api_key("sk-typed", "https://api.example.com/v1", existing))
 

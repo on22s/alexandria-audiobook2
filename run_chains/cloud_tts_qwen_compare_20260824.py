@@ -32,10 +32,25 @@ if os.environ.get("ALEXANDRIA_GPU_LOCK_HELD") != "1":
          str(Path(__file__).resolve())],
     )
 
+owner_check = subprocess.run(
+    ["bash", str(Path(__file__).resolve().parent.parent / "gpu_job.sh"),
+     "--check-lock-owner", os.environ.get("ALEXANDRIA_GPU_LOCK_PID", "")],
+    check=False, timeout=30,
+)
+if owner_check.returncode:
+    raise SystemExit("Cannot verify inherited GPU lock ownership")
+
+from cloud_comparison_provenance import (ensure_comparison_model_snapshot,
+                                         get_comparison_package_versions)
+package_versions = get_comparison_package_versions(
+    ["qwen-tts"], {"qwen-tts": os.environ.get("QWEN_TTS_VERSION")})
 torch.manual_seed(20260824)
 started = time.time()
+model_identity = ensure_comparison_model_snapshot(
+    "Qwen/Qwen3-TTS-12Hz-1.7B-Base", os.environ.get("QWEN_MODEL_REVISION"))
+
 model = Qwen3TTSModel.from_pretrained(
-    "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    model_identity["snapshot_path"],
     device_map="cuda:0",
     dtype=torch.bfloat16,
     attn_implementation="sdpa",
@@ -54,6 +69,8 @@ duration = len(wavs[0]) / sample_rate
 result = {
     "model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     "backend": "qwen-tts",
+    "model_identity": model_identity,
+    "package_versions": package_versions,
     "reference_audio": str(reference),
     "reference_text": build["ref_text"],
     "target_text": target,

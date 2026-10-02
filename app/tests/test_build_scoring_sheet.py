@@ -110,3 +110,123 @@ class NeighbourContextTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScoringSheetArtifactTests(unittest.TestCase):
+    def test_checkpoint_container_and_named_rows_are_validated_before_scoring(self):
+        import json, tempfile
+        from pathlib import Path
+        import build_scoring_sheet as sheet
+        invalid = ('checkpoint', 7, None, {'named': {}}, {'named': ''}, {'named': 0},
+                   {'named': ['bad']}, {'named': [42]}, {'named': [False]},
+                   {'named': [{'speaker': 'ANN', 'text': 'Hi.'}, ['bad']]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'checkpoint.json'
+            for data in invalid:
+                with self.subTest(data=data):
+                    path.write_text(json.dumps(data))
+                    with self.assertRaises(ValueError):
+                        sheet.load_named(path)
+            row = {'speaker': 'ANN', 'text': 'Hi.'}
+            for data, expected in (([], []), ({}, []), ({'named': None}, []), ({'named': []}, []),
+                                   ({'named': [None, row, None]}, [row])):
+                path.write_text(json.dumps(data))
+                self.assertEqual(expected, sheet.load_named(path))
+
+    def test_failed_sheet_serialization_preserves_previous_artifact(self):
+        import json, tempfile, sys
+        from pathlib import Path
+        from unittest.mock import patch
+        import build_scoring_sheet as sheet
+        import utils
+        with tempfile.TemporaryDirectory() as tmp:
+            checkpoint = Path(tmp) / 'm' / 'book' / 'result.json.threepass_checkpoint.json'
+            checkpoint.parent.mkdir(parents=True)
+            checkpoint.write_text(json.dumps({'named': [{'speaker': 'ANN', 'text': 'Hello, friend.'}]}))
+            output = Path(tmp) / 'scoring.json'
+            original = b'{"checked": "Keep the human answers"}'
+            output.write_bytes(original)
+            def interrupted(_data, handle, **_kwargs):
+                handle.write('{"partial":')
+                raise OSError('disk failure during JSON serialization')
+            argv = ['build_scoring_sheet.py', tmp, 'book', '--output', str(output)]
+            with patch.object(sys, 'argv', argv), patch.object(utils.json, 'dump', side_effect=interrupted), patch.object(utils.time, 'sleep'):
+                with self.assertRaises(OSError):
+                    sheet.main()
+            self.assertEqual(original, output.read_bytes())
+            self.assertEqual(['m', output.name], sorted(p.name for p in Path(tmp).iterdir()))
+            with patch.object(sys, 'argv', argv):
+                sheet.main()
+            saved = json.loads(output.read_text())
+            self.assertEqual('book', saved['book'])
+            self.assertEqual(1, saved['sampled'])
+            self.assertEqual({'m': 'ANN'}, saved['rows'][0]['answers'])
+
+
+class ScoringSheetCandidateValidationTests(unittest.TestCase):
+    def test_blank_spoken_candidates_are_excluded_from_saved_sheet(self):
+        import json, tempfile, sys
+        from pathlib import Path
+        from unittest.mock import patch
+        import build_scoring_sheet as sheet
+        with tempfile.TemporaryDirectory() as tmp:
+            for model, blank in (('A', ''), ('B', ' \t\n')):
+                checkpoint = Path(tmp) / model / 'book' / 'result.json.threepass_checkpoint.json'
+                checkpoint.parent.mkdir(parents=True)
+                checkpoint.write_text(json.dumps({'named': [
+                    {'speaker': 'ANN', 'text': blank},
+                    {'speaker': 'ANN', 'text': 'A spoken line.'},
+                ]}))
+            output = Path(tmp) / 'sheet.json'
+            with patch.object(sys, 'argv', ['build_scoring_sheet.py', tmp, 'book', '--output', str(output)]):
+                sheet.main()
+            data = json.loads(output.read_text())
+            self.assertEqual(1, data['sampled'])
+            self.assertEqual(['A spoken line.'], [row['text'] for row in data['rows']])
+            self.assertEqual({'A': 2, 'B': 2}, data['entries_per_model'])
+            self.assertEqual({'A': 'ANN', 'B': 'ANN'}, data['rows'][0]['answers'])
+
+    def test_negative_sampling_options_are_cli_errors_before_loading_or_writing(self):
+        import contextlib, io, tempfile, sys
+        from pathlib import Path
+        from unittest.mock import patch
+        import build_scoring_sheet as sheet
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'sheet.json'
+            original = b'{"human_answer": "ANN"}'
+            output.write_bytes(original)
+            for option in ('--size', '--window'):
+                with self.subTest(option=option), patch.object(sys, 'argv', [
+                        'build_scoring_sheet.py', tmp, 'book', option, '-1', '--output', str(output)]), \
+                     patch.object(sheet, 'find_model_runs', return_value={}) as load, \
+                     contextlib.redirect_stderr(io.StringIO()) as errors:
+                    with self.assertRaises(SystemExit) as caught:
+                        sheet.main()
+                    self.assertEqual(2, caught.exception.code)
+                    self.assertIn(option + ' must be nonnegative', errors.getvalue())
+                    load.assert_not_called()
+                self.assertEqual(original, output.read_bytes())
+
+    def test_zero_size_and_context_window_remain_valid(self):
+        import json, tempfile, sys
+        from pathlib import Path
+        from unittest.mock import patch
+        import build_scoring_sheet as sheet
+        with tempfile.TemporaryDirectory() as tmp:
+            checkpoint = Path(tmp) / 'A' / 'book' / 'result.json.threepass_checkpoint.json'
+            checkpoint.parent.mkdir(parents=True)
+            checkpoint.write_text(json.dumps({'named': [
+                {'speaker': 'NARRATOR', 'text': 'Ann walked in.'},
+                {'speaker': 'ANN', 'text': 'Hello.'},
+                {'speaker': 'NARRATOR', 'text': 'Ann waved.'}]}))
+            output = Path(tmp) / 'sheet.json'
+            for size in (0, 1):
+                with patch.object(sys, 'argv', ['build_scoring_sheet.py', tmp, 'book',
+                        '--size', str(size), '--window', '0', '--output', str(output)]):
+                    sheet.main()
+                data = json.loads(output.read_text())
+                self.assertEqual(size, data['sampled'])
+                if size:
+                    self.assertEqual('Hello.', data['rows'][0]['text'])
+                    self.assertEqual([], data['rows'][0]['context_before'])
+                    self.assertEqual([], data['rows'][0]['context_after'])

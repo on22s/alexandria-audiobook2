@@ -78,6 +78,9 @@ def main():
     print(f"  reference: {build['ref_source_id']} (training material)\n")
 
     produced, failures = [], []
+    from gpu_progress import record_gpu_progress
+    if rows:
+        record_gpu_progress('audio rows', 0, len(rows))
     for i, row in enumerate(rows, 1):
         record = {"id": row["id"], "book": row["book"], "text": row["text"],
                   "human_wav": row["human_wav"], "human_seconds": row["seconds"]}
@@ -99,6 +102,7 @@ def main():
         # than scored asymmetrically.
         if ok:
             produced.append(record)
+        record_gpu_progress('audio rows', i, len(rows))
         if i % 25 == 0:
             print(f"  [{i}/{len(rows)}] {len(produced)} complete, "
                   f"{len(failures)} dropped")

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Validate and finish the Stage 4 non-prose replication checkpoint."""
+from concurrent.futures import ThreadPoolExecutor
+
 import hashlib
 import json
 import os
@@ -7,6 +9,7 @@ import subprocess
 import sys
 
 from local_gpu_job import run_gpu_job
+from results_index_validation import require_results_index_entries
 
 
 REPO = os.path.dirname(os.path.abspath(__file__))
@@ -55,13 +58,15 @@ def validate_stage4_artifact(
         path, expected_rows, required_matrix=None,
         expected_script="nonprose_replication.py",
         class_prefixes=None, extra_arg_fields=("limit",),
-        expected_categories=None, summary_function=None):
+        expected_categories=None, summary_function=None, expected_args=None):
     """Return a complete artifact or raise with the first concrete defect."""
     try:
         with open(path, encoding="utf-8") as handle:
             doc = json.load(handle)
     except (OSError, ValueError) as exc:
         raise ArtifactValidationError(f"cannot read {path}: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise ArtifactValidationError("artifact must be an object")
     rows = doc.get("rows")
     if doc.get("status") != "complete":
         raise ArtifactValidationError(f"artifact status is {doc.get('status')!r}")
@@ -84,25 +89,63 @@ def validate_stage4_artifact(
             "provenance harness hash cannot be reproduced from its commit "
             "or the current harness")
 
-    args = provenance.get("args") or {}
+    args = provenance.get("args")
+    if not isinstance(args, dict):
+        raise ArtifactValidationError("provenance arguments must be an object")
     for field in (("source", "config", "adapters", "seeds", "out_dir", "out")
                   + tuple(extra_arg_fields)):
         if field not in args:
             raise ArtifactValidationError(
                 f"provenance arguments are missing {field}")
+    if (not isinstance(args["adapters"], list)
+            or not all(isinstance(value, str) for value in args["adapters"])):
+        raise ArtifactValidationError("provenance adapters must be a list of strings")
+    if (not isinstance(args["seeds"], list)
+            or not all(type(value) is int for value in args["seeds"])):
+        raise ArtifactValidationError("provenance seeds must be a list of integers")
+    for field in ("limit", "limit_per_category"):
+        if field in args and type(args[field]) is not int:
+            raise ArtifactValidationError(f"provenance {field} must be an integer")
+    for field, wanted in (expected_args or {}).items():
+        actual = args.get(field)
+        if field in ("source", "config", "out_dir", "out"):
+            if not isinstance(actual, str) or not actual:
+                raise ArtifactValidationError(f"provenance {field} must be a path string")
+            # Current provenance stores paths relative to REPO; historical
+            # pilot argv used APP-relative output paths. Admit either only
+            # when it resolves to the exact fixed checkpoint target.
+            candidates = {os.path.realpath(os.path.join(base, actual))
+                          for base in (REPO, APP)}
+            matches = os.path.realpath(wanted) in candidates
+        else:
+            matches = actual == wanted
+        if not matches:
+            raise ArtifactValidationError(
+                f"provenance {field} does not match the fixed arguments")
     adapters = tuple(args["adapters"])
     seeds = tuple(args["seeds"])
     class_prefixes = class_prefixes or {"nonprose": "nonprose",
                                         "prose": "prose"}
     classes = tuple(class_prefixes)
-    pair_manifest = ((doc.get("selection") or {}).get("pairs") or [])
+    feature_prefix = next((prefix for label, prefix in class_prefixes.items()
+                           if label != "prose"), None)
+    if feature_prefix is None:
+        raise ArtifactValidationError("class prefixes have no feature class")
+    selection = doc.get("selection")
+    if not isinstance(selection, dict):
+        raise ArtifactValidationError("selection must be an object")
+    pair_manifest = selection.get("pairs")
+    if not isinstance(pair_manifest, list):
+        raise ArtifactValidationError("selection pairs must be a list")
     pair_count = len(pair_manifest)
     if "limit" in extra_arg_fields and args["limit"] != pair_count:
         raise ArtifactValidationError(
             "provenance limit does not match the selection pair count")
     if expected_categories is not None:
-        selected_categories = tuple((doc.get("selection") or {}).get(
-            "categories") or ())
+        categories = selection.get("categories")
+        if not isinstance(categories, list) or not all(isinstance(value, str) for value in categories):
+            raise ArtifactValidationError("selection categories must be a list of strings")
+        selected_categories = tuple(categories)
         if selected_categories != tuple(expected_categories):
             raise ArtifactValidationError("selection categories are wrong")
         wanted_pairs = args["limit_per_category"] * len(expected_categories)
@@ -119,6 +162,10 @@ def validate_stage4_artifact(
     keys = []
     pair_inputs = {}
     for index, pair in enumerate(pair_manifest):
+        if not isinstance(pair, dict):
+            raise ArtifactValidationError(f"selection pair {index} must be an object")
+        if expected_categories is not None and not isinstance(pair.get("category"), str):
+            raise ArtifactValidationError(f"selection pair {index} category must be a string")
         for label, prefix in class_prefixes.items():
             try:
                 pair_inputs[(index, label)] = (
@@ -127,11 +174,11 @@ def validate_stage4_artifact(
                 raise ArtifactValidationError(
                     f"selection pair {index} is missing {exc.args[0]}") from exc
             text = pair.get(f"{prefix}_text")
+            if text is not None and not isinstance(text, str):
+                raise ArtifactValidationError(f"selection pair {index} {prefix} text must be a string")
             if text is not None and _sha256_text(text) != pair[f"{prefix}_sha256"]:
                 raise ArtifactValidationError(
                     f"selection pair {index} {prefix} text hash is wrong")
-        feature_prefix = next(prefix for label, prefix in class_prefixes.items()
-                              if label != "prose")
         for field in (f"{feature_prefix}_features", "prose_features",
                       "absolute_feature_gap"):
             if field not in pair:
@@ -142,11 +189,22 @@ def validate_stage4_artifact(
                 "insertions", "adapter", "seed", "pair", "class", "uid",
                 "source_sha256", "wav", "transcript"}
     repo_real = os.path.realpath(REPO)
+    wav_paths = []
     for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ArtifactValidationError(f"row {index} must be an object")
         missing = required - set(row)
         if missing:
             raise ArtifactValidationError(
                 f"row {index} is missing {', '.join(sorted(missing))}")
+        for field in ("adapter", "class", "uid", "source_sha256", "wav", "transcript"):
+            if not isinstance(row[field], str):
+                raise ArtifactValidationError(f"row {index} {field} must be a string")
+        for field in ("seed", "pair", "words", "errors", "substitutions", "deletions", "insertions"):
+            if type(row[field]) is not int:
+                raise ArtifactValidationError(f"row {index} {field} must be an integer")
+        if not 0 <= row["pair"] < pair_count:
+            raise ArtifactValidationError(f"row {index} pair is outside the selection")
         key = (row["adapter"], row["seed"], row["pair"], row["class"])
         keys.append(key)
         if (row["uid"], row["source_sha256"]) != pair_inputs.get(
@@ -165,13 +223,19 @@ def validate_stage4_artifact(
             raise ArtifactValidationError(f"row {index} WAV escapes the repository")
         if not os.path.isfile(wav) or os.path.getsize(wav) <= 44:
             raise ArtifactValidationError(f"row {index} WAV is missing or empty")
-        try:
-            _read_wav_fully(wav)
-        except Exception as exc:  # noqa: BLE001
-            raise ArtifactValidationError(
-                f"row {index} WAV is not fully decodable: {exc}") from exc
+        wav_paths.append(wav)
     if len(set(keys)) != len(keys) or set(keys) != inferred:
         raise ArtifactValidationError("matrix keys are duplicated, missing, or foreign")
+
+    # Full decoding remains mandatory; only independent file reads overlap.
+    with ThreadPoolExecutor(max_workers=4) as decoders:
+        decoded = [decoders.submit(_read_wav_fully, wav) for wav in wav_paths]
+        for index, future in enumerate(decoded):
+            try:
+                future.result()
+            except Exception as exc:  # noqa: BLE001
+                raise ArtifactValidationError(
+                    f"row {index} WAV is not fully decodable: {exc}") from exc
 
     if summary_function is None:
         from experiments.nonprose_replication import summarize as summary_function
@@ -196,18 +260,25 @@ def run_gpu_experiment(name, timeout_seconds, script, arguments, log_name):
 
 
 def require_index_entries(*filenames):
-    for index_name in ("RESULTS_INDEX.md", "results_index.csv"):
-        path = os.path.join(REPO, index_name)
-        with open(path, encoding="utf-8") as handle:
-            text = handle.read()
-        missing = [name for name in filenames if name not in text]
-        if missing:
-            raise ArtifactValidationError(
-                f"{index_name} is missing {', '.join(missing)}")
+    try:
+        require_results_index_entries(REPO, *filenames)
+    except RuntimeError as exc:
+        raise ArtifactValidationError(str(exc)) from exc
 
 
 def main():
-    validate_stage4_artifact(PILOT, 4)
+    pilot_args = {
+        "adapters": [DEFAULT_ADAPTERS[0]], "seeds": [DEFAULT_SEEDS[0]],
+        "limit": 2,
+        "source": os.path.join(REPO, "ab_test_runtime", "experiments", "prose_vs_nonprose_v3.json"),
+        "config": os.path.join(APP, "config.json"),
+        "out_dir": os.path.join(REPO, "ab_test_runtime", "nonprose_replication_pilot"),
+        "out": PILOT,
+    }
+    pilot_matrix = {(adapter, seed, pair, label)
+                    for adapter in pilot_args["adapters"] for seed in pilot_args["seeds"]
+                    for pair in range(pilot_args["limit"]) for label in ("nonprose", "prose")}
+    validate_stage4_artifact(PILOT, len(pilot_matrix), pilot_matrix, expected_args=pilot_args)
     print("Stage 4 pilot validated strictly (4/4 rows).", flush=True)
     matrix = {(adapter, seed, pair, label)
               for adapter in DEFAULT_ADAPTERS for seed in DEFAULT_SEEDS
@@ -238,29 +309,32 @@ def main():
              "--out", EXPANSION_PILOT],
             "nonprose_category_expansion.log")
     validate_stage4_artifact(
-        EXPANSION_PILOT, 12, pilot_matrix,
+        EXPANSION_PILOT, len(pilot_matrix), pilot_matrix,
         expected_script="nonprose_category_expansion.py",
         class_prefixes=expansion_classes,
         extra_arg_fields=("limit_per_category",),
         expected_categories=CATEGORIES, summary_function=category_summarize)
-    print("Stage 4 category pilot validated strictly (12/12 rows).", flush=True)
+    print(f"Stage 4 category pilot validated strictly ({len(pilot_matrix)}/{len(pilot_matrix)} rows).", flush=True)
 
+    expansion_limit_per_category = 4
     expansion_matrix = {(adapter, seed, pair, label)
                         for adapter in DEFAULT_ADAPTERS
-                        for seed in DEFAULT_SEEDS for pair in range(24)
+                        for seed in DEFAULT_SEEDS
+                        for pair in range(len(CATEGORIES) * expansion_limit_per_category)
                         for label in expansion_classes}
     if not os.path.exists(EXPANSION_FULL):
         run_gpu_experiment(
             "nonprose_category_expansion_full", 43200,
-            "experiments/nonprose_category_expansion.py", [],
+            "experiments/nonprose_category_expansion.py",
+            ["--limit-per-category", str(expansion_limit_per_category)],
             "nonprose_category_expansion.log")
     validate_stage4_artifact(
-        EXPANSION_FULL, 432, expansion_matrix,
+        EXPANSION_FULL, len(expansion_matrix), expansion_matrix,
         expected_script="nonprose_category_expansion.py",
         class_prefixes=expansion_classes,
         extra_arg_fields=("limit_per_category",),
         expected_categories=CATEGORIES, summary_function=category_summarize)
-    print("Stage 4 category expansion validated strictly (432/432 rows).",
+    print(f"Stage 4 category expansion validated strictly ({len(expansion_matrix)}/{len(expansion_matrix)} rows).",
           flush=True)
 
     run([sys.executable, "tools/audit/collect_results.py"])

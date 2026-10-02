@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 import core
+import book_state_transaction as book_transaction
 from project import CHAPTER_EXPORT_DIR
 from routers import editor, scripts_library as library
 
@@ -47,6 +48,8 @@ class SavedBookExportTests(unittest.TestCase):
                             ("process_state", self.state)):
             self.stack.enter_context(patch.object(library, name, value))
         self.stack.enter_context(patch.object(core, "process_state", self.state))
+        self.stack.enter_context(patch.object(core, "_task_claims", {}))
+        self.stack.enter_context(patch.object(core, "_gpu_leases", {}))
         self.stack.enter_context(patch.object(library, "_save_active_book_id"))
         self.stack.enter_context(patch.object(library, "_get_saved_book_id", return_value="b"))
 
@@ -93,18 +96,19 @@ class SavedBookExportTests(unittest.TestCase):
         shutil.rmtree(self.exports[3])
         self.assertEqual("loaded", self.load()["status"])
 
-    def test_invalidation_failure_aborts_before_active_script_mutation(self):
-        real_remove = library.os.remove
-        def remove(path):
-            if str(path) == str(self.exports[1]):
-                raise PermissionError("export is open")
-            return real_remove(path)
-        with patch.object(library.os, "remove", side_effect=remove):
-            with self.assertRaises(PermissionError):
-                self.load()
-        self.assertIn("old", self.active.read_text())
-        self.assertTrue(self.exports[1].exists())
-        core.claim_gpu_task("audacity_export")  # Failed loads release the reservation mutex.
+    def test_failed_export_invalidation_restores_exact_book_and_downloads(self):
+        before = {str(path.relative_to(self.root)):path.read_bytes()
+                  for path in [self.active,*self.exports[:3],self.exports[3]/'chapter.mp3',self.exports[3]/'manifest.json']}
+        move = book_transaction._move
+        def moved(source,target):
+            if Path(source) == self.exports[1]:raise PermissionError("export is open")
+            return move(source,target)
+        with patch.object(book_transaction,"_move",side_effect=moved),self.assertRaises(PermissionError):
+            self.load()
+        self.assertEqual(before,{name:(self.root/name).read_bytes() for name in before})
+        self.assertFalse((self.root/'state.json').exists())
+        owner=core.claim_gpu_task("audacity_export")
+        self.assertTrue(core.release_gpu_task_claim("audacity_export",owner))
 
     def test_export_reservation_waits_until_book_switch_finishes(self):
         copying, release_copy, attempted, reserved = (threading.Event() for _ in range(4))
@@ -117,13 +121,13 @@ class SavedBookExportTests(unittest.TestCase):
             def __exit__(self, *args):
                 mutex.release()
         lock = ObservedLock()
-        real_copy = library.shutil.copy2
-        def copy(src, dst):
-            if dst == str(self.active):
+        move = book_transaction._move
+        def moved(source,target):
+            if Path(target) == self.active:
                 copying.set()
                 if not release_copy.wait(3):
-                    raise RuntimeError("test did not release copy")
-            return real_copy(src, dst)
+                    raise RuntimeError("test did not release native publication")
+            return move(source,target)
         errors, observations = [], []
         def load():
             try:
@@ -132,14 +136,16 @@ class SavedBookExportTests(unittest.TestCase):
                 errors.append(error)
         def reserve():
             try:
-                core.claim_gpu_task("audacity_export")
-                observations.append((self.active.read_text(), self.exports[0].exists()))
-                reserved.set()
+                owner=core.claim_gpu_task("audacity_export")
+                try:
+                    observations.append((self.active.read_text(), self.exports[0].exists()))
+                    reserved.set()
+                finally:core.release_gpu_task_claim("audacity_export",owner)
             except Exception as error:
                 errors.append(error)
         with patch.object(core, "_gpu_lock", lock), \
              patch.object(library, "_gpu_lock", lock, create=True), \
-             patch.object(library.shutil, "copy2", side_effect=copy):
+             patch.object(book_transaction, "_move", side_effect=moved):
             loader = threading.Thread(target=load)
             exporter = threading.Thread(target=reserve, name="export-reservation")
             loader.start()

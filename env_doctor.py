@@ -16,6 +16,8 @@ import sys
 from typing import Dict, List, Optional, Tuple
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(ROOT_DIR, "app"))
+from voicelab_settings import get_voicelab_python
 
 VOICELAB_CONFIG_PATH = os.path.join(
     os.environ.get("ALEXANDRIA_DATA_DIR", "").strip() or ROOT_DIR,
@@ -28,8 +30,8 @@ ENV_SPECS = {
     "app_env": {
         "path": os.path.join(ROOT_DIR, "app", "env", "bin", "python"),
         "required": [
-            "fastapi", "uvicorn", "pydantic", "soundfile", "numpy",
-            "librosa", "transformers", "peft", "mutagen", "torch",
+            "fastapi", "uvicorn", "pydantic", "soundfile", "numpy", "rapidfuzz",
+            "librosa", "transformers", "peft", "mutagen", "torch", "qwen-tts",
         ],
         "optional": [],
         "version_hint": {"torch": "2.10.0+rocm"},
@@ -52,6 +54,7 @@ ENV_SPECS = {
 # Import name overrides for packages whose distribution name differs from
 # the module you `import`.
 _IMPORT_NAME_OVERRIDES = {
+    "qwen-tts": "qwen_tts",
     "llama_cpp": "llama_cpp",
     "umap": "umap",
     "pyannote.audio": "pyannote.audio",
@@ -61,7 +64,7 @@ _OPTIONAL_ABSENCE_NOTES = {
     "pyannote.audio": "diarization unavailable - see requirements-diarization.txt",
 }
 
-PROBE_SCRIPT = """
+PROBE_SCRIPT = "IMPORT_NAME_OVERRIDES = " + repr(_IMPORT_NAME_OVERRIDES) + "\n" + """
 import importlib
 import importlib.metadata as md
 import json
@@ -72,33 +75,29 @@ out = {}
 for pkg in packages:
     version = None
     try:
-        version = md.version(pkg)
-    except md.PackageNotFoundError:
+        mod = importlib.import_module(IMPORT_NAME_OVERRIDES.get(pkg, pkg))
         try:
-            mod = importlib.import_module(pkg)
+            version = md.version(pkg)
+        except md.PackageNotFoundError:
             version = getattr(mod, "__version__", None)
-        except Exception:
-            version = None
+    except Exception:
+        version = None
     out[pkg] = version
 print(json.dumps(out))
 """
 
 
 def resolve_rocm_python_path() -> str:
-    """Read voicelab_config.json's "rocm_python" key the same way the app
-    does (core.py's VOICELAB_DEFAULTS falls back to the
-    ALEXANDRIA_ROCM_PYTHON env var, then ""). Read-only - no validation
-    beyond that, matching the plan's "don't duplicate the lookup logic
-    beyond a read"."""
+    """Read the same saved interpreter/default policy used by the app."""
+    data = {}
     if os.path.exists(VOICELAB_CONFIG_PATH):
         try:
             with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            if isinstance(data, dict) and isinstance(data.get("rocm_python"), str) and data["rocm_python"]:
-                return data["rocm_python"]
         except (json.JSONDecodeError, ValueError, OSError):
             pass
-    return os.environ.get("ALEXANDRIA_ROCM_PYTHON", "")
+    return get_voicelab_python(data)
+
 
 
 def probe_interpreter(python_path: str, packages: List[str], timeout: int = 30) -> Optional[Dict[str, Optional[str]]]:

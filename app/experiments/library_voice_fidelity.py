@@ -29,6 +29,8 @@ carried the narrator's own properties across.
 """
 import argparse
 import json
+import math
+from pathlib import Path
 import os
 import statistics
 import subprocess
@@ -130,35 +132,107 @@ def find_zip(dataset, zip_dir, _cache={}):
     return None
 
 
-def extract_val(zip_path, out_dir, limit):
-    """Pull val clips + text. Returns [(wav_path, text)].
+def get_val_clip_entries(archive, limit):
+    """Return the producer's ordered, available validation clips without extraction."""
+    names = set(archive.namelist())
+    if "val/metadata.jsonl" not in names:
+        return []
+    entries = [json.loads(line) for line in
+               archive.read("val/metadata.jsonl").decode("utf-8").splitlines() if line.strip()]
+    return [entry for entry in entries[:limit]
+            if entry.get("audio_filepath") and entry["audio_filepath"] in names]
 
-    Creates out_dir itself. It did not, and worked only because its first
-    caller happened to makedirs the same path beforehand - so the second
-    caller (retrain_honest) died on FileNotFoundError after paying for a full
-    training run. A function that writes to a directory owns creating it.
-    """
+
+def extract_val(zip_path, out_dir, limit):
+    """Extract selected validation clips; own creation of the destination directory."""
     os.makedirs(out_dir, exist_ok=True)
     rows = []
-    with zipfile.ZipFile(zip_path) as z:
-        names = set(z.namelist())
-        meta_name = "val/metadata.jsonl"
-        if meta_name not in names:
-            return []
-        entries = [json.loads(l) for l in
-                   z.read(meta_name).decode("utf-8").splitlines() if l.strip()]
-        for e in entries[:limit]:
-            rel = e.get("audio_filepath")
-            if not rel or rel not in names:
-                continue
-            dest = os.path.join(out_dir, os.path.basename(rel))
-            with open(dest, "wb") as fh:
-                fh.write(z.read(rel))
-            rows.append((dest, e.get("text") or ""))
+    with zipfile.ZipFile(zip_path) as archive:
+        for entry in get_val_clip_entries(archive, limit):
+            dest = os.path.join(out_dir, os.path.basename(entry["audio_filepath"]))
+            with open(dest, "wb") as handle:
+                handle.write(archive.read(entry["audio_filepath"]))
+            rows.append((dest, entry.get("text") or ""))
     return rows
 
 
-def ecapa_pairs(pairs, python_bin):
+def get_fidelity_expected_clips(models, zips, lines, limit_adapters=0):
+    """Read current benchmark scope, refusing unavailable source prerequisites."""
+    try:
+        if type(lines) is not int or lines < 1:
+            raise ValueError("positive validation clip count required")
+        pairs = adapter_sources(models)
+        if limit_adapters:
+            pairs = pairs[:limit_adapters]
+        if not pairs:
+            raise ValueError("no measurable adapters")
+        expected, cache = {}, {}
+        for name, dataset, _ in pairs:
+            source = find_zip(dataset, zips, cache)
+            if source is None:
+                raise ValueError(f"source ZIP not found for {name}: {dataset}")
+            with zipfile.ZipFile(source) as archive:
+                clips = get_val_clip_entries(archive, lines)
+            names = [os.path.basename(entry["audio_filepath"]) for entry in clips]
+            if not names or len(set(names)) != len(names):
+                raise ValueError(f"missing or ambiguous validation clips for {name}")
+            expected[name] = (dataset, names)
+        return expected
+    except (OSError, ValueError, TypeError, AttributeError, KeyError, zipfile.BadZipFile) as exc:
+        raise RuntimeError(f"cannot validate fidelity source scope: {exc}") from exc
+
+
+def get_completed_library_fidelity(path, models, zips, work, lines, seed, limit_adapters=0):
+    """Read a complete result for this seed/scope; never start models or repair it."""
+    try:
+        __import__("soundfile")
+    except ImportError as exc:
+        raise RuntimeError(f"cannot validate fidelity audio dependency: {exc}") from exc
+    expected = get_fidelity_expected_clips(models, zips, lines, limit_adapters)
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    if (not isinstance(document, dict) or type(document.get("seed")) is not int
+            or document["seed"] != seed or type(document.get("lines_per_adapter")) is not int
+            or document["lines_per_adapter"] != lines or document.get("ecapa_error") is not None):
+        raise ValueError("fidelity result has different seed/scope or an ECAPA failure")
+    results = document.get("results")
+    if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
+        raise ValueError("fidelity requires adapter records")
+    names = [row.get("adapter") for row in results]
+    if any(not isinstance(name, str) for name in names) or len(set(names)) != len(names) or set(names) != set(expected):
+        raise ValueError("fidelity adapter coverage is incomplete or duplicated")
+    from audio_validation import validate_generated_audio, GeneratedAudioError
+    for result in results:
+        name = result["adapter"]
+        dataset, clips = expected[name]
+        rows = result.get("rows")
+        if (result.get("error") or result.get("dataset") != dataset
+                or not isinstance(rows, list) or len(rows) != len(clips)):
+            raise ValueError(f"fidelity clip coverage incomplete for {name}")
+        scores = []
+        for index, (row, clip) in enumerate(zip(rows, clips)):
+            if not isinstance(row, dict) or row.get("error"):
+                raise ValueError(f"fidelity generation failed for {name} clip {index}")
+            score = row.get("ecapa")
+            if type(score) not in (float, int) or not math.isfinite(score) or not -1 <= score <= 1:
+                raise ValueError(f"invalid fidelity score for {name} clip {index}")
+            scores.append(score)
+            for field, filename in (("human_wav", clip), ("gen_wav", f"gen_{index}.wav")):
+                value = row.get(field)
+                if not isinstance(value, str) or (Path(REPO) / value).resolve() != (Path(work) / name / filename).resolve():
+                    raise ValueError(f"wrong fidelity audio identity for {name} clip {index}")
+                try:
+                    validate_generated_audio(str(Path(REPO) / value), "cached fidelity")
+                except GeneratedAudioError as exc:
+                    raise ValueError(str(exc)) from exc
+        aggregate = result.get("ecapa")
+        if (type(aggregate) not in (float, int) or not math.isfinite(aggregate)
+                or aggregate != round(statistics.median(scores), 4)):
+            raise ValueError(f"fidelity aggregate does not match clips for {name}")
+    return document
+
+
+def ecapa_pairs(pairs, python_bin, timeout=3600):
     """Speaker-embedding cosine, run under the interpreter that has
     speechbrain. Never falls back to an acoustic distance: a silent
     substitution of a different metric is the failure mode this whole
@@ -197,7 +271,7 @@ def ecapa_pairs(pairs, python_bin):
     try:
         out = subprocess.run([python_bin, script],
                              input=json.dumps([[a, b] for a, b in pairs]),
-                             capture_output=True, text=True, timeout=3600,
+                             capture_output=True, text=True, timeout=timeout,
                              cwd=APP)
         if out.returncode != 0:
             return [None] * len(pairs), f"rc={out.returncode} {out.stderr[-160:]}"
@@ -222,7 +296,24 @@ def main():
                      "app", "env", "bin", "python")))
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "library_voice_fidelity.json"))
+    ap.add_argument("--check-artifact", action="store_true",
+                    help="read-only cache admission: 0 complete, 1 rerun, 2 prerequisites unavailable")
     args = ap.parse_args()
+    if args.check_artifact:
+        try:
+            get_completed_library_fidelity(args.out, args.models, args.zips, args.work,
+                                           args.lines, args.seed, args.limit_adapters)
+        except RuntimeError as exc:
+            print(f"REFUSING: {exc}", file=sys.stderr)
+            sys.exit(2)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"INCOMPLETE: {exc}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as exc:
+            print(f"REFUSING: fidelity admission failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            sys.exit(2)
+        print("COMPLETE: fidelity seed and all adapter/clip records validated")
+        return
 
     sys.path.insert(0, os.path.join(APP, "experiments"))
     import importlib.util
@@ -341,8 +432,8 @@ def main():
     except Exception as exc:                                # noqa: BLE001
         doc["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1, ensure_ascii=False)
+    from utils import atomic_json_write
+    atomic_json_write(doc, args.out)
     print(f"\nwrote {args.out}")
     if not scored:
         sys.exit(3)

@@ -29,10 +29,11 @@ WHAT THIS DOES NOT DO. It does not stop the duplicates being recreated.
 the annotator emitted, so a later persona run can reintroduce the split. Fixing
 that means canonicalising at write time and is a separate change.
 """
-import argparse, collections, json, os, shutil, sys, time
+import argparse, collections, copy, json, os, sys, time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "app"))
+from voice_config_store import apply_voice_config_update
 
 DEFAULT_CONFIG = os.path.join(REPO, "voice_config.json")
 DEFAULT_ALIASES = os.path.join(REPO, "character_aliases.json")
@@ -45,17 +46,28 @@ DEFAULT_SCRIPT = os.path.join(REPO, "chunks.json")
 TYPE_RANK = {"lora": 3, "builtin_lora": 3, "clone": 3, "design": 2, "custom": 1}
 
 
-def canonical(name, aliases):
-    """Speaker string -> canonical identity, case-insensitively.
+def get_canonical_alias_context(aliases):
+    """Validate aliases and prepare the shared normalized lookup once."""
+    from speaker_identity import get_validated_alias_map, get_speaker_label_index
+    validated = get_validated_alias_map({} if aliases is None else aliases)
+    return validated, get_speaker_label_index(validated)
 
-    find_nicknames writes {"ALIAS": "CANONICAL"} with inconsistent casing, so
-    the map is folded before use; matching it case-sensitively is what let
-    'SUBARU' resolve while 'Subaru' did not.
-    """
+
+def get_canonical_name(name, aliases, label_index):
+    """Return the readable uppercase target using a prepared alias context."""
     if not name:
         return ""
-    folded = {k.lower(): v for k, v in (aliases or {}).items()}
-    return folded.get(name.lower(), name).upper()
+    from speaker_identity import _identity_key
+    matched = label_index.get(_identity_key(name))
+    return (aliases[matched] if matched is not None else name).upper()
+
+
+def canonical(name, aliases):
+    """Speaker string -> canonical identity using shared generation matching."""
+    if not name:
+        return ""
+    validated, label_index = get_canonical_alias_context(aliases)
+    return get_canonical_name(name, validated, label_index)
 
 
 def entry_of(config, key):
@@ -95,27 +107,45 @@ def find_splits(config, aliases, line_counts):
     spellings sharing one voice are harmless duplication, not a defect, and
     flagging them would bury the eight that matter.
     """
+    from speaker_identity import _identity_key
     groups = collections.defaultdict(list)
+    displays = {}
+    validated, label_index = get_canonical_alias_context(aliases)
     for key in config:
         if isinstance(config.get(key), dict):
-            groups[canonical(key, aliases)].append(key)
+            display = get_canonical_name(key, validated, label_index)
+            displays[key] = display
+            identity = _identity_key(display)
+            group = ("identity", identity) if identity else ("empty", display)
+            groups[group].append(key)
 
     splits = []
-    for canon, keys in sorted(groups.items()):
+    for keys in sorted(groups.values(), key=lambda keys: min(displays[key] for key in keys)):
+        canon = min(displays[key] for key in keys)
         if len(keys) < 2:
             continue
         sigs = {k: voice_signature(entry_of(config, k)) for k in keys}
         if len(set(sigs.values())) < 2:
             continue
-        # Voice TYPE outranks line count. A `lora` or `design` entry was made
-        # for that character on purpose; the `custom` entries here are all the
-        # same fallback voice at seed -1, i.e. auto-created. Ranking by lines
-        # first picked custom/Aiden for PUCK over a character LoRA on a 1-vs-0
-        # count, which is exactly backwards.
+        # A fixed custom seed is evidence of deliberate configuration, too.
+        # Compute ranks once for both winner selection and ambiguity checks.
+        ranks = {}
+        for key in keys:
+            entry = entry_of(config, key)
+            rank = TYPE_RANK.get(entry.get("type"), 0)
+            if entry.get("type") == "custom":
+                try:
+                    seed = int(entry.get("seed", -1))
+                except (TypeError, ValueError, OverflowError):
+                    seed = -1
+                if seed >= 0:
+                    rank = TYPE_RANK["design"]
+            ranks[key] = rank
+        # Deliberate configuration outranks line count; existing voice-type
+        # priority still prefers a LoRA over an unseeded custom fallback.
         ranked = sorted(
             keys,
-            key=lambda k: (TYPE_RANK.get(entry_of(config, k).get("type"), 0),
-                           line_counts.get(k, 0)),
+            key=lambda k: (ranks[k], line_counts.get(k, 0)),
             reverse=True)
         winner = ranked[0]
         by_lines = max(keys, key=lambda k: line_counts.get(k, 0))
@@ -123,22 +153,23 @@ def find_splits(config, aliases, line_counts):
         # is surfaced rather than buried in a sort key.
         disputed = (by_lines != winner
                     and line_counts.get(by_lines, 0) > line_counts.get(winner, 0))
-        reason = "richer voice type"
+        reason = "richer voice configuration"
         if disputed:
             reason += (f"; NOTE {by_lines!r} has more lines "
                        f"({line_counts.get(by_lines, 0)} vs "
                        f"{line_counts.get(winner, 0)})")
-        # When every candidate is a DELIBERATE voice of the same rank, there
+        # When winning candidates are DELIBERATE voices of the same rank, there
         # is no principled winner and line count is a coin flip. Subaru is the
         # case in point: 244 lines on breathy_alto_50s_f_fantasy against 168 on
         # silky_baritone_30s_m_fantasy, for a male protagonist. Picking by
         # lines would give him a fifty-year-old female alto for the whole book.
         # Nothing here knows a character's gender or intent, so it must not
         # guess - these are reported and skipped unless --force-ambiguous.
-        ranks = {TYPE_RANK.get(entry_of(config, k).get("type"), 0) for k in keys}
-        ambiguous = len(ranks) == 1 and max(ranks) >= 3
+        best_rank = max(ranks.values())
+        ambiguous = (best_rank >= TYPE_RANK["design"] and
+                     len({sigs[k] for k in keys if ranks[k] == best_rank}) > 1)
         if ambiguous:
-            reason = ("AMBIGUOUS - every spelling is a deliberate voice; "
+            reason = ("AMBIGUOUS - conflicting deliberate voice configurations; "
                       "needs a human choice")
         splits.append({"canonical": canon, "keys": ranked, "winner": winner,
                        "reason": reason, "disputed": disputed,
@@ -181,9 +212,10 @@ def seed_characters(args):
     rather than a defect fix, and existing rendered audio will not match
     audio generated after it.
     """
-    from utils import atomic_json_write, character_voice_seed
+    from utils import character_voice_seed
 
-    raw = json.load(open(args.config, encoding="utf-8"))
+    with open(args.config, encoding="utf-8") as source:
+        raw = json.load(source)
     nested = isinstance(raw.get("characters"), dict)
     config = raw["characters"] if nested else raw
 
@@ -215,15 +247,17 @@ def seed_characters(args):
         print("\nReport only. Re-run with --apply to write.")
         return
 
-    backup = args.config + ".bak"
-    shutil.copy2(args.config, backup)
-    for name, _, seed in changes:
-        config[name]["seed"] = str(seed)
-    if nested:
-        raw["characters"] = config
-    # (data, path) - not (path, data). Verified against utils.py:231
-    # after the reversed form failed on the write path only.
-    atomic_json_write(raw if nested else config, args.config)
+    backup = f"{args.config}.bak-{time.time_ns()}"
+
+    def apply_seeds(current):
+        updated = copy.deepcopy(current)
+        characters = updated["characters"] if nested else updated
+        for name, _, seed in changes:
+            characters[name]["seed"] = str(seed)
+        return updated
+
+    apply_voice_config_update(args.config, apply_seeds, expected=raw,
+                              backup_path=backup)
     print(f"\nSeeded {len(changes)} characters. Backup at {backup}")
 
 
@@ -251,14 +285,18 @@ def main():
     if args.seed_characters:
         return seed_characters(args)
 
-    raw = json.load(open(args.config, encoding="utf-8"))
+    with open(args.config, encoding="utf-8") as source:
+        raw = json.load(source)
     config = raw.get("characters") if isinstance(raw.get("characters"), dict) else raw
-    aliases = (json.load(open(args.aliases, encoding="utf-8"))
-               if os.path.exists(args.aliases) else {})
+    aliases = {}
+    if os.path.exists(args.aliases):
+        with open(args.aliases, encoding="utf-8") as source:
+            aliases = json.load(source)
 
     line_counts = collections.Counter()
     if os.path.exists(args.script):
-        doc = json.load(open(args.script, encoding="utf-8"))
+        with open(args.script, encoding="utf-8") as source:
+            doc = json.load(source)
         entries = doc if isinstance(doc, list) else (doc.get("entries") or [])
         for e in entries:
             if isinstance(e, dict) and e.get("speaker"):
@@ -293,18 +331,25 @@ def main():
               "written first).")
         return
 
-    backup = f"{args.config}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
-    shutil.copy2(args.config, backup)
-    merged = apply_merges(config, splits, args.force_ambiguous)
-    if isinstance(raw.get("characters"), dict):
-        raw["characters"] = merged
-        out = raw
-    else:
-        out = merged
-    with open(args.config, "w", encoding="utf-8") as fh:
-        json.dump(out, fh, indent=2, ensure_ascii=False)
+    backup = f"{args.config}.bak-{time.time_ns()}"
+
+    def apply_reported_merges(current):
+        updated = dict(current)
+        if isinstance(current.get("characters"), dict):
+            updated["characters"] = apply_merges(current["characters"], splits,
+                                                  args.force_ambiguous)
+        else:
+            updated = apply_merges(current, splits, args.force_ambiguous)
+        return updated
+
+    updated = apply_voice_config_update(args.config, apply_reported_merges,
+                                        expected=raw, backup_path=backup)
+    saved_config = updated["characters"] if isinstance(updated.get("characters"), dict) else updated
+    merged_lines = sum(line_counts.get(key, 0) for key in config
+                       if voice_signature(entry_of(config, key)) !=
+                       voice_signature(entry_of(saved_config, key)))
     print(f"\n  backed up to {backup}")
-    print(f"  merged {wrong} lines onto their character's main voice")
+    print(f"  merged {merged_lines} lines onto their character's main voice")
 
 
 if __name__ == "__main__":

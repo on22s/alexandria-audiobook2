@@ -5,9 +5,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from adapter_static import AdapterStaticFiles
 
 from core import (
+    TaskClaimMiddleware, release_pending_task_claims,
     BUILTIN_LORA_DIR,
+    DATA_DIR,
     CLONE_VOICES_DIR,
     DATASET_BUILDER_DIR,
     DESIGNED_VOICES_DIR,
@@ -21,6 +24,8 @@ from core import (
 from utils import check_basic_auth
 from run_history import mark_interrupted_runs
 import evaluation_reviews
+from book_state_transaction import ensure_book_state
+from task_ownership import ensure_startup_recovery
 
 
 # Setup logging
@@ -47,19 +52,28 @@ def reset_stuck_chunks():
 
 @asynccontextmanager
 async def lifespan(_app):
-    reset_stuck_chunks()
-    interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
-    if interrupted:
-        logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
+    with ensure_startup_recovery(DATA_DIR) as recovery_allowed:
+        if recovery_allowed:
+            with ensure_book_state(DATA_DIR):
+                reset_stuck_chunks()
+            interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
+            if interrupted:
+                logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
+        else:
+            logger.info("Preserving active chunks and histories owned by another worker")
     # Clear blind-review sessions abandoned by a prior process; otherwise they
     # only get pruned when the next session is opened.
     pruned = evaluation_reviews.prune_sessions(EVALUATION_REVIEWS_DIR)
     if pruned:
         logger.info("Pruned %d abandoned review session(s)", len(pruned))
-    yield
+    try:
+        yield
+    finally:
+        release_pending_task_claims()
 
 
 app = FastAPI(title="Alexandria Audiobook", lifespan=lifespan)
+app.add_middleware(TaskClaimMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -72,23 +86,13 @@ app.mount("/designed_voices", StaticFiles(directory=DESIGNED_VOICES_DIR), name="
 # Clone voices directory for user-uploaded reference audio
 app.mount("/clone_voices", StaticFiles(directory=CLONE_VOICES_DIR), name="clone_voices")
 
-app.mount("/lora_models", StaticFiles(directory=LORA_MODELS_DIR), name="lora_models")
+app.mount("/lora_models", AdapterStaticFiles(directory=LORA_MODELS_DIR), name="lora_models")
 
 # Built-in LoRA adapters directory
 app.mount("/builtin_lora", StaticFiles(directory=BUILTIN_LORA_DIR), name="builtin_lora")
 
 # Dataset builder directory for preview audio
 app.mount("/dataset_builder", StaticFiles(directory=DATASET_BUILDER_DIR), name="dataset_builder")
-
-# CORS — allow configurable origins via env var, defaulting to localhost for security
-_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://127.0.0.1:4200,http://localhost:4200").split(",")]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Optional HTTP Basic Auth gate. OFF by default: only registered when
 # ALEXANDRIA_AUTH_PASSWORD is set, so the local Pinokio flow is unchanged and
@@ -114,6 +118,17 @@ if _AUTH_PASSWORD:
             "Authentication required", status_code=401,
             headers={"WWW-Authenticate": 'Basic realm="Alexandria"'})
     print("Auth: HTTP Basic Auth enabled (ALEXANDRIA_AUTH_PASSWORD is set)")
+
+# CORS — allow configurable origins via env var, defaulting to localhost for security
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://127.0.0.1:4200,http://localhost:4200").split(",")]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["WWW-Authenticate"],
+)
 
 from routers.system import router as system_router
 

@@ -33,10 +33,12 @@ class FakeHub:
 
     def __init__(self, tmp):
         self.tmp, self.repos, self.private, self.lfs, self.commits = tmp, {}, {}, {}, []
+        self.repo_types = {}
         self.tamper_download = False
 
-    def add_repo(self, repo, files, private=True):
+    def add_repo(self, repo, files, private=True, repo_type="model"):
         self.repos[repo], self.private[repo], self.lfs[repo] = {}, private, {}
+        self.repo_types[repo] = repo_type
         for path, data in files.items():
             self._put(repo, path, data)
 
@@ -48,10 +50,16 @@ class FakeHub:
         return SimpleNamespace(private=self.private[repo])
 
     def list_models(self, author):
-        return [SimpleNamespace(id=r) for r in self.repos if r.startswith(author + "/")]
+        return [SimpleNamespace(id=r) for r in self.repos if r.startswith(author + "/")
+                and self.repo_types[r] == "model"]
 
     def list_datasets(self, author):
-        return []
+        return [SimpleNamespace(id=r) for r in self.repos if r.startswith(author + "/")
+                and self.repo_types[r] == "dataset"]
+
+    def list_spaces(self, author):
+        return [SimpleNamespace(id=r) for r in self.repos if r.startswith(author + "/")
+                and self.repo_types[r] == "space"]
 
     def list_repo_files(self, repo, repo_type="model"):
         return list(self.repos[repo])
@@ -153,9 +161,14 @@ class PurgeGuardTests(unittest.TestCase):
             tool.run_batch(self.spec, self.hub, log=lambda *_: None)
         self._assert_nothing_changed()
 
-    def test_refuses_a_non_weight_path(self):
+    def test_refuses_a_non_lfs_path(self):
         self.spec["purge"] = ["old/adapter_config.json"]
-        with self.assertRaisesRegex(tool.PurgeRefused, "not an LFS weight"):
+        # The fake stores all files as LFS, so model a normal Git blob here.
+        original = self.hub.get_paths_info
+        self.hub.get_paths_info = lambda repo, paths, repo_type="model": [
+            info for info in original(repo, paths, repo_type)
+            if info.path != "old/adapter_config.json"]
+        with self.assertRaisesRegex(tool.PurgeRefused, "not an LFS file"):
             tool.run_batch(self.spec, self.hub, log=lambda *_: None)
         self._assert_nothing_changed()
 
@@ -163,6 +176,75 @@ class PurgeGuardTests(unittest.TestCase):
         self.spec["expect_bytes"] = 5_000_000_000
         with self.assertRaisesRegex(tool.PurgeRefused, "expected"):
             tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self._assert_nothing_changed()
+
+    def test_missing_expected_size_refuses_before_any_commit(self):
+        del self.spec["expect_bytes"]
+        with self.assertRaisesRegex(tool.PurgeRefused, "expect_bytes"):
+            tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self._assert_nothing_changed()
+
+    def test_lesson_cannot_overlap_a_purge_path(self):
+        self.spec["lessons"] = {"old/adapter_model.safetensors": self.lesson}
+        with self.assertRaisesRegex(tool.PurgeRefused, "overlap"):
+            tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self._assert_nothing_changed()
+
+    def test_extensionless_head_reference_blocks_purge(self):
+        self.hub._put(ARCHIVE, "other/weights", b"W" * 1000)
+        with self.assertRaisesRegex(tool.PurgeRefused, "another path"):
+            tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self._assert_nothing_changed()
+
+    def test_space_reference_blocks_purge(self):
+        space = "Om22s/live-space"
+        self.hub.add_repo(space, {"weights": b"W" * 1000}, private=False,
+                          repo_type="space")
+        with self.assertRaisesRegex(tool.PurgeRefused, "another repo"):
+            tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self._assert_nothing_changed()
+
+
+    def test_real_sdk_receives_lfs_records_and_emits_exact_target_ids(self):
+        from unittest.mock import Mock, patch
+        from huggingface_hub import HfApi
+        from huggingface_hub.hf_api import LFSFileInfo
+        import requests
+        sdk=HfApi(endpoint='https://fixture.invalid',token=False)
+        response=requests.Response();response.status_code=200;response.url='https://fixture.invalid'
+        transport=Mock();transport.post.return_value=response
+        original_list=self.hub.list_lfs_files
+        original_delete=self.hub.permanently_delete_lfs_files
+        def records(repo):
+            return [LFSFileInfo(fileOid=item.file_oid,filename='fixture.wav',oid='fixture-git-oid',
+                                pushedAt='2026-09-29T00:00:00Z',size=item.size)
+                    for item in original_list(repo)]
+        def delete(repo,objects):
+            self.assertTrue(all(isinstance(item,LFSFileInfo) for item in objects))
+            sdk.permanently_delete_lfs_files(repo,objects)
+            original_delete(repo,objects)
+        with patch.object(self.hub,'list_lfs_files',side_effect=records), \
+             patch.object(self.hub,'permanently_delete_lfs_files',side_effect=delete), \
+             patch('huggingface_hub.hf_api.get_session',return_value=transport):
+            self.assertEqual(1000,tool.run_batch(self.spec,self.hub,log=lambda *_:None))
+        transport.post.assert_called_once()
+        args,kwargs=transport.post.call_args
+        self.assertEqual('https://fixture.invalid/api/models/'+ARCHIVE+'/lfs-files/batch',args[0])
+        self.assertEqual({'deletions':{'sha':[hashlib.sha256(b'W'*1000).hexdigest()],
+                                      'rewriteHistory':True}},kwargs['json'])
+        self.assertIn('keep/adapter_model.safetensors',self.hub.repos[ARCHIVE])
+        self.assertIn('old/LESSONS.md',self.hub.repos[ARCHIVE])
+        self.assertIn(hashlib.sha256(b'K'*700).hexdigest(),self.hub.lfs[ARCHIVE])
+
+    def test_real_sdk_rejects_string_ids_before_any_transport_call(self):
+        from unittest.mock import patch
+        from huggingface_hub import HfApi
+        sdk=HfApi(endpoint='https://fixture.invalid',token=False)
+        with patch('huggingface_hub.hf_api.get_session') as session:
+            with self.assertRaises(AttributeError):
+                sdk.permanently_delete_lfs_files(ARCHIVE,[hashlib.sha256(b'W'*1000).hexdigest()])
+        session.assert_not_called()
+        self._assert_nothing_changed()
 
 
 if __name__ == "__main__":

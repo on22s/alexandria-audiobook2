@@ -98,15 +98,14 @@ class TrainSplitTest(unittest.TestCase):
                 self.assertFalse(os.path.isabs(r["audio_filepath"]))
 
     def test_train_lora_reads_the_split_not_the_root(self):
-        """Against the real module, so a future edit to load_dataset that
-        reintroduces the root path is caught."""
-        with open(os.path.join(APP, "train_lora.py"), encoding="utf-8") as fh:
-            src = fh.read()
-        self.assertIn('os.path.join(data_dir, "train", "metadata.jsonl")', src,
-                      "train_lora no longer prefers the train/ split")
-        head = src.split("def load_dataset", 1)[-1][:2500]
-        self.assertIn("used_split", head,
-                      "the split-vs-root decision disappeared from load_dataset")
+        """Exercise the metadata reader actually used by the trainer."""
+        from train_lora import get_training_metadata
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = build_dataset(tmp, 3, 2)
+            entries, used_split = get_training_metadata(tmp)
+            self.assertTrue(used_split)
+            self.assertEqual(expected, entries)
+            self.assertTrue(all(row["text"].startswith("train ") for row in entries))
 
 
 class LibraryContaminationTest(unittest.TestCase):

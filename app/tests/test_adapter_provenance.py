@@ -39,7 +39,7 @@ def _load_backfill():
 
 
 class CandidateDigestTest(unittest.TestCase):
-    """Read the source: importing train_lora needs torch, which CI lacks."""
+    """Pin digest expressions in the metadata actually passed to the JSON writer."""
 
     @staticmethod
     def _candidate_dump_keys():
@@ -50,6 +50,13 @@ class CandidateDigestTest(unittest.TestCase):
                     and node.func.attr == "dump"):
                 continue
             arg = node.args[0] if node.args else None
+            if isinstance(arg, ast.Name):
+                assignments = [assignment.value for assignment in ast.walk(tree)
+                    if isinstance(assignment, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == arg.id
+                            for target in assignment.targets)]
+                if len(assignments) == 1:
+                    arg = assignments[0]
             if not isinstance(arg, ast.Dict):
                 continue
             # `**meta` is a key of None, and dropping it would shift every

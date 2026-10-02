@@ -34,12 +34,23 @@ _SENSITIVE_KEY_TOKENS = (
     "access_key", "client_secret", "bearer", "passphrase",
 )
 
-# scheme://user:pass@host  ->  scheme://[REDACTED]@host
-_URL_CREDENTIALS = re.compile(r"([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/\s:@]+:[^/\s@]+@")
+# scheme://userinfo@host  ->  scheme://[REDACTED]@host
+_URL_CREDENTIALS = re.compile(r"([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/\s@?#]+@")
 # key=secret / key: secret in free text (e.g. inside a log line)
+_QUOTED_CREDENTIAL_VALUE = (
+    r"\\\"(?:\\\\.|\\(?!\")|[^\\])*?(?:\\\"|$)"
+    r"|\"(?:\\.|[^\"\\])*(?:\"|$)"
+    r"|'(?:\\.|[^'\\])*(?:'|$)")
 _INLINE_CREDENTIAL = re.compile(
-    r"(?i)\b(api[_-]?key|token|password|secret|authorization|bearer)(\s*[=:]\s*)"
-    r"([^\s,;]+)")
+    r"(?i)(\b(?:api[_-]?key|token|password|secret|authorization|bearer)"
+    r"(?:\\?[\"'])?\s*[=:]\s*)"
+    r"(" + _QUOTED_CREDENTIAL_VALUE + r"|[^\s,;]+)")
+# Unquoted headers occupy the rest of their line: cookie separators and an
+# authentication scheme must not leave the actual credential tail visible.
+_HEADER_CREDENTIAL = re.compile(
+    r"(?i)(\b(?:proxy-authorization|authorization|set-cookie|cookie)"
+    r"(?:\\?[\"'])?[ \t]*[=:][ \t]*)"
+    r"(" + _QUOTED_CREDENTIAL_VALUE + r"|[^\r\n]+)")
 # Bare secret tokens by their well-known *shape*, so a credential stored as a
 # plain string value under an innocent key name is still scrubbed. Deliberately
 # format-based (not "any long string"): the bundle intentionally surfaces git
@@ -65,8 +76,22 @@ _HOME_PATTERNS = (
 
 
 def _key_is_sensitive(key):
-    lowered = str(key).lower()
+    lowered = str(key).lower().replace("-", "_")
     return any(token in lowered for token in _SENSITIVE_KEY_TOKENS)
+
+
+def get_redacted_credentials(value):
+    """Return credential-scrubbed text without path rewriting or truncation."""
+    result = _URL_CREDENTIALS.sub(r"\1" + REDACTED + "@", value)
+    result = _BEARER_TOKEN.sub("Bearer " + REDACTED, result)
+    result = _SECRET_TOKENS.sub(REDACTED, result)
+    def replace_credential(match):
+        value = match.group(2)
+        delimiter = ('\\"' if value.startswith('\\"') else
+                     value[0] if value[0] in "\"'" else "")
+        return match.group(1) + delimiter + REDACTED + delimiter
+    result = _HEADER_CREDENTIAL.sub(replace_credential, result)
+    return _INLINE_CREDENTIAL.sub(replace_credential, result)
 
 
 def redact_text(value, home_dir=None):
@@ -79,13 +104,10 @@ def redact_text(value, home_dir=None):
         result = result.replace(home_dir, "~")
     for pattern in _HOME_PATTERNS:
         result = pattern.sub("~", result)
-    result = _URL_CREDENTIALS.sub(r"\1" + REDACTED + "@", result)
     # Bearer/token-shape scrubbing runs BEFORE the inline key=value rule: for
     # "Authorization: Bearer <tok>" the inline rule would otherwise treat "Bearer"
     # as the value and leave the real token exposed after it.
-    result = _BEARER_TOKEN.sub("Bearer " + REDACTED, result)
-    result = _SECRET_TOKENS.sub(REDACTED, result)
-    result = _INLINE_CREDENTIAL.sub(r"\1\2" + REDACTED, result)
+    result = get_redacted_credentials(result)
     if len(result) > MAX_STRING_CHARS:
         result = result[:MAX_STRING_CHARS] + STRING_TRUNCATION_MARKER
     return result
@@ -112,8 +134,8 @@ def redact(obj, home_dir=None):
     return obj
 
 
-def _too_big(bundle):
-    return len(json.dumps(bundle, ensure_ascii=False).encode("utf-8")) > MAX_TOTAL_BYTES
+def _get_json_size(value):
+    return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
 
 def build_diagnostics(sections, home_dir=None, schema_version=SCHEMA_VERSION):
@@ -134,15 +156,19 @@ def build_diagnostics(sections, home_dir=None, schema_version=SCHEMA_VERSION):
         "sections": {name: redact(value, home_dir) for name, value in sections.items()},
     }
 
-    if _too_big(bundle):
+    total_bytes = _get_json_size(bundle)
+    if total_bytes > MAX_TOTAL_BYTES:
         # Drop largest sections first; keep dropping until within budget.
         sized = sorted(
-            bundle["sections"].items(),
-            key=lambda kv: len(json.dumps(kv[1], ensure_ascii=False).encode("utf-8")),
+            ((name, _get_json_size(value)) for name, value in bundle["sections"].items()),
+            key=lambda kv: kv[1],
             reverse=True,
         )
-        for name, _value in sized:
-            bundle["sections"][name] = f"[omitted: exceeded {MAX_TOTAL_BYTES}-byte bundle budget]"
-            if not _too_big(bundle):
+        marker = f"[omitted: exceeded {MAX_TOTAL_BYTES}-byte bundle budget]"
+        marker_bytes = _get_json_size(marker)
+        for name, value_bytes in sized:
+            bundle["sections"][name] = marker
+            total_bytes += marker_bytes - value_bytes
+            if total_bytes <= MAX_TOTAL_BYTES:
                 break
     return bundle

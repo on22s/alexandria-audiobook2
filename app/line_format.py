@@ -29,7 +29,7 @@ class LineFormatError(ValueError):
 
 def _escape(value):
     return (str(value if value is not None else "")
-            .replace("\\", "\\\\").replace("\n", "\\n").replace("\r", ""))
+            .replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r"))
 
 
 def _unescape(value):
@@ -40,6 +40,8 @@ def _unescape(value):
             nxt = value[i + 1]
             if nxt == "n":
                 out.append("\n"); i += 2; continue
+            if nxt == "r":
+                out.append("\r"); i += 2; continue
             if nxt == "\\":
                 out.append("\\"); i += 2; continue
         out.append(ch); i += 1
@@ -52,6 +54,9 @@ def format_entries(entries):
     for entry in entries:
         if not isinstance(entry, dict):
             raise LineFormatError("entry is not an object: %r" % (entry,))
+        for field in FIELDS[:2]:
+            if DELIMITER in _escape(entry.get(field)):
+                raise LineFormatError("%s contains the record delimiter: %r" % (field, entry.get(field)))
         lines.append(DELIMITER.join(_escape(entry.get(f)) for f in FIELDS))
     return "\n".join(lines)
 

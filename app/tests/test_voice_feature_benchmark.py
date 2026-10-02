@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -61,7 +62,7 @@ class VoiceFeatureBenchmarkTests(unittest.TestCase):
         timings = benchmark.get_librosa_operation_times(signal, sr, repeats=1)
 
         self.assertEqual(
-            {"yin", "rms", "centroid", "rolloff", "harmonic", "flatness", "onset"},
+            {"pyin", "rms", "centroid", "rolloff", "harmonic", "flatness", "onset"},
             set(timings),
         )
         self.assertTrue(all(seconds >= 0 for seconds in timings.values()))
@@ -69,3 +70,58 @@ class VoiceFeatureBenchmarkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BenchmarkDeviceProvenanceTests(unittest.TestCase):
+    def test_cli_reports_the_device_requested_for_the_measurements(self):
+        import contextlib
+        import io
+        import json
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        names = {'cuda': 'current GPU', 'cuda:0': 'GPU zero', 'cuda:1': 'GPU one', 0: 'GPU zero'}
+        for device in ('cpu', 'cuda', 'cuda:0', 'cuda:1'):
+            for parity in (True, False):
+                with self.subTest(device=device, parity=parity):
+                    name = Mock(side_effect=lambda selected: names[selected])
+                    torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda:True, get_device_name=name))
+                    output = io.StringIO()
+                    with patch.dict(sys.modules, {'torch':torch}), \
+                         patch.object(sys,'argv',['benchmark','clip.wav','--device',device,'--repeats','2','--json']), \
+                         patch.object(benchmark,'benchmark_clip',return_value={'path':'clip.wav','parity_passed':parity}) as measure, \
+                         contextlib.redirect_stdout(output):
+                        code = benchmark.main()
+                    report = json.loads(output.getvalue())
+                    self.assertEqual(0 if parity else 2, code)
+                    measure.assert_called_once_with('clip.wav',device,2)
+                    self.assertEqual(device, report['device'])
+                    self.assertEqual('CPU' if device=='cpu' else names[device], report['device_name'])
+                    self.assertEqual(parity, report['parity_passed'])
+                    if device=='cpu':
+                        name.assert_not_called()
+                    else:
+                        name.assert_called_once_with(device)
+
+
+class ProductionOperationParityTests(unittest.TestCase):
+    def test_native_pitch_timing_uses_production_pyin_not_yin(self):
+        from tests.test_unvoiced_profile import profiler
+        import librosa
+        self.assertIs(profiler.get_profiler_acoustic_operations,
+                      benchmark.get_profiler_acoustic_operations)
+        silence = np.zeros(22050, dtype=np.float32)
+        original = librosa.pyin
+        with patch.object(librosa, 'pyin', wraps=original) as measured, \
+             patch.object(librosa, 'yin', side_effect=AssertionError('not the production pitch algorithm')):
+            timings = benchmark.get_librosa_operation_times(silence, 22050, repeats=1)
+        self.assertEqual(2, measured.call_count)  # warmup plus one timed production operation
+        for call in measured.call_args_list:
+            self.assertEqual({'fmin': 50, 'fmax': 400, 'sr': 22050}, call.kwargs)
+            self.assertIs(silence, call.args[0])
+        self.assertIn('pyin', timings)
+        f0, voiced, _ = profiler.get_profiler_acoustic_operations(silence, 22050)['pyin']()
+        self.assertFalse(voiced.any())
+        self.assertTrue(np.isnan(f0).all())
+        # The displaced algorithm invents pitch on this known rejection case.
+        self.assertTrue(np.isfinite(librosa.yin(silence, fmin=50, fmax=400, sr=22050)).all())

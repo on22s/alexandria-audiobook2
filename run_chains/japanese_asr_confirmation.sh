@@ -22,19 +22,7 @@ set -uo pipefail
 # at 1129 of 1200 terms - and a chain skipping on existence would skip it
 # forever, on a subset biased toward the commonest items. Ask the artifact.
 artifact_complete() {
-    "$1" - "$2" <<'PYEOF' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if d.get("status") == "complete":
-    sys.exit(0)
-if d.get("status") == "partial":
-    sys.exit(1)
-r, c = d.get("results"), d.get("candidates_considered")
-sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
-PYEOF
+    "$1" "$repo/app/experiments/asr_backends.py" "${asr_args[@]}" --check-artifact "$2"
 }
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -47,6 +35,13 @@ mkdir -p "$runtime/logs" "$runtime/experiments"
 clips="${JA_CONFIRM_CLIPS:-50}"
 build_dir="$runtime/kokoro_ja_asr_eval"
 out="$runtime/experiments/asr_silero_whisper_ja_confirmation.json"
+asr_args=(
+    --build "$build_dir/build.json"
+    --backends silero_whisper_cpp --lang ja --limit "$clips"
+    --align-clips "$clips"
+    --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli"
+    --whisper-cpp-model "$repo/whisper.cpp/models/ggml-base.bin"
+)
 
 # ASK THE ARTIFACT, not the directory entry. artifact_complete() is defined
 # above and was never called: a confirmation run cut short leaves a file that
@@ -67,11 +62,7 @@ fi
 if ! "$repo/gpu_job.sh" asr_silero_whisper_ja_confirmation \
     timeout --signal=INT --kill-after=30s 3600 \
     "$python" -u "$repo/app/experiments/asr_backends.py" \
-    --build "$build_dir/build.json" \
-    --backends silero_whisper_cpp --lang ja --limit "$clips" \
-    --align-clips "$clips" \
-    --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli" \
-    --whisper-cpp-model "$repo/whisper.cpp/models/ggml-base.bin" \
+    "${asr_args[@]}" \
     --out "$out"; then
     echo "JAPANESE ASR CONFIRMATION FAILED"
     exit 1

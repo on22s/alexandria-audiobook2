@@ -77,7 +77,7 @@ def scene_names(segmented, index, roster, window=12):
 
 
 def build_candidates(segmented, named, index, roster, sources=None):
-    """Ordered candidate set for one line. UNKNOWN is always available."""
+    """Ordered named-speaker candidates; callers offer UNKNOWN separately."""
     sources = sources or ("tag", "recent", "scene")
     parts = []
     if "tag" in sources:

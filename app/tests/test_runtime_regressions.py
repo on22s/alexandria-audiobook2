@@ -40,6 +40,58 @@ from tests.test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_training_blocks_dataset_deletion_until_worker_exits(self):
+        with tempfile.TemporaryDirectory() as root:
+            dataset = Path(root) / "book"
+            dataset.mkdir()
+            (dataset / "metadata.jsonl").write_text("sample\n")
+            state = core_module.process_state["lora_training"]
+            was_running = state["running"]
+            try:
+                with patch.object(lora_module, "LORA_DATASETS_DIR", root):
+                    state["running"] = True
+                    with self.assertRaises(HTTPException) as raised:
+                        asyncio.run(lora_module.lora_delete_dataset("book"))
+                    self.assertEqual(409, raised.exception.status_code)
+                    self.assertTrue((dataset / "metadata.jsonl").exists())
+                    state["running"] = False
+                    asyncio.run(lora_module.lora_delete_dataset("book"))
+                    self.assertFalse(dataset.exists())
+            finally:
+                state["running"] = was_running
+
+    def test_voicelab_start_rejects_pending_checkpoint_recovery(self):
+        request = voicelab_module.VoiceLabRequest(
+            stages=["name"], preflight_id="ready")
+        preflight = {"preflight_id": "ready", "blockers": [],
+                     "_zips_dir": "/unused", "_profiler_model": ""}
+        with patch.object(voicelab_module, "_load_voicelab_config", return_value={}), \
+             patch.object(voicelab_module, "_build_voicelab_preflight",
+                          return_value=preflight), \
+             patch.object(voicelab_module, "_validate_voicelab_path"), \
+             patch.object(voicelab_module, "_voicelab_build_commands",
+                          return_value=[("name", ["python"], "/unused", {})]), \
+             patch.object(voicelab_module, "check_global_gpu_lock"), \
+             patch.object(voicelab_module, "list_adapters_needing_recovery",
+                          return_value=[{"adapter_id": "voice", "operation": "swap"}]), \
+             patch.object(voicelab_module, "claim_gpu_task") as claim:
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(voicelab_module.voicelab_start(request, object()))
+        self.assertEqual(409, raised.exception.status_code)
+        self.assertIn("voice", raised.exception.detail)
+        claim.assert_not_called()
+
+    def test_upload_epub_extractor_rejects_oversized_member_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "book.epub")
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("first.xhtml", "one")
+                archive.writestr("second.xhtml", "two")
+            with patch.dict(script_module.validate_epub_archive.__globals__,
+                            {"EPUB_MAX_MEMBERS": 1}):
+                with self.assertRaisesRegex(ValueError, "too many entries"):
+                    script_module.extract_epub_text(path)
+
     def _write_epub(self, path, opf, members):
         container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
@@ -48,6 +100,24 @@ class RuntimeTests(unittest.TestCase):
             archive.writestr("OEBPS/content.opf", opf)
             for member_path, content in members.items():
                 archive.writestr(member_path, content)
+
+    def test_epub_xhtml_respects_unicode_encoding_and_declared_legacy_charset(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        for encoding in ("utf-8", "utf-16", "utf-16-le", "utf-16-be", "iso-8859-1"):
+            with self.subTest(encoding=encoding), tempfile.TemporaryDirectory() as tmp:
+                declaration = "UTF-16" if encoding.startswith("utf-16") else encoding
+                chapter = ('<?xml version="1.0" encoding="' + declaration + '"?>'
+                           '<html><head><title>Metadata</title></head>'
+                           '<body><h1>Chapter</h1><p>Café readable prose.</p></body></html>').encode(encoding)
+                epub = os.path.join(tmp, "book.epub")
+                self._write_epub(epub, opf, {"OEBPS/chapter.xhtml": chapter})
+                text = script_module.extract_epub_text(epub)
+                self.assertIn("Café readable prose.", text)
+                self.assertNotIn("Metadata", text)
+                self.assertNotIn("\x00", text)
+                self.assertNotIn("�", text)
 
     def test_epub_does_not_read_document_title_metadata_aloud(self):
         opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
@@ -415,7 +485,11 @@ class RuntimeTests(unittest.TestCase):
             async with app_module.app.router.lifespan_context(app_module.app):
                 pass
 
-        with patch.object(app_module, "reset_stuck_chunks") as reset_stuck_chunks:
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(app_module, "DATA_DIR", root), \
+             patch.object(app_module, "RUN_HISTORY_DIR", str(Path(root) / "history")), \
+             patch.object(app_module, "EVALUATION_REVIEWS_DIR", str(Path(root) / "reviews")), \
+             patch.object(app_module, "reset_stuck_chunks") as reset_stuck_chunks:
             asyncio.run(run_lifespan())
 
         reset_stuck_chunks.assert_called_once_with()
@@ -427,11 +501,14 @@ class RuntimeTests(unittest.TestCase):
             async with app_module.app.router.lifespan_context(app_module.app):
                 pass
 
-        with patch.object(app_module.evaluation_reviews, "prune_sessions") as prune:
-            with patch.object(app_module, "reset_stuck_chunks"):
-                asyncio.run(run_lifespan())
-
-        prune.assert_called_once_with(app_module.EVALUATION_REVIEWS_DIR)
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(app_module, "DATA_DIR", root), \
+             patch.object(app_module, "RUN_HISTORY_DIR", str(Path(root) / "history")), \
+             patch.object(app_module, "EVALUATION_REVIEWS_DIR", str(Path(root) / "reviews")), \
+             patch.object(app_module.evaluation_reviews, "prune_sessions") as prune, \
+             patch.object(app_module, "reset_stuck_chunks"):
+            asyncio.run(run_lifespan())
+            prune.assert_called_once_with(app_module.EVALUATION_REVIEWS_DIR)
 
     def test_index_stamps_served_build_for_stale_tab_detection(self):
         # The served page must carry the current build so a tab open across a
@@ -661,6 +738,22 @@ class RuntimeTests(unittest.TestCase):
                          [call.args[1] for call in send_signal.call_args_list])
         self.assertTrue(killed)
 
+    def test_active_cancel_arms_escalation_before_signalling(self):
+        key = '_test_active_cancel'
+        process = SimpleNamespace(pid=123)
+        core_module.process_state[key] = {
+            'running': True, 'cancel': False, 'process': process,
+            'pid': 123, 'paused': False,
+        }
+        try:
+            with patch.object(core_module, '_send_signal_tree') as send_signal:
+                result = core_module._cancel_task(key, 'idle', 'exited')
+            self.assertEqual('cancel signal sent', result['status'])
+            self.assertTrue(core_module.process_state[key]['cancel'])
+            send_signal.assert_called_once_with(process, signal.SIGTERM)
+        finally:
+            core_module.process_state.pop(key, None)
+
     @unittest.skipUnless(os.name == "posix", "SIGTERM-ignore behavior is POSIX-specific")
     def test_cancel_force_stops_subprocess_that_ignores_sigterm(self):
         state = {"cancel": True, "logs": [], "process": None, "pid": None,
@@ -674,6 +767,36 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual(-signal.SIGKILL, return_code)
         self.assertEqual(["ready"], lines)
+
+    def test_run_process_returns_the_actual_subprocess_exit_code_after_cleanup(self):
+        key = "_test_subprocess_result"
+        state = {"running": True, "logs": [], "cancel": False, "process": None, "status": "running"}
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.dict(core_module.process_state, {key:state}), \
+             patch.object(core_module, "_init_task_log", return_value=os.path.join(tmp, "run.log")):
+            for code in (0, 17):
+                result = core_module.run_process([sys.executable, "-c", f"raise SystemExit({code})"], key)
+                self.assertEqual(code, result)
+                self.assertFalse(state["running"])
+                self.assertIsNone(state["process"])
+                self.assertEqual("done" if code == 0 else "failed", state["status"])
+
+    def test_subprocess_log_replaces_invalid_utf8_and_drains(self):
+        state = {"cancel": False, "logs": [], "process": None, "pid": None,
+                 "paused": False}
+        code = "import sys; sys.stdout.buffer.write(b'first\\xff\\nsecond\\n')"
+        return_code, lines = core_module._stream_subprocess_to_logs(
+            [sys.executable, "-c", code], os.getcwd(), state)
+        self.assertEqual(0, return_code)
+        self.assertEqual(["first\ufffd", "second"], lines)
+
+    def test_safe_subpath_rejects_base_directory_itself(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(HTTPException) as raised:
+                core_module._safe_subpath(root, ".")
+            self.assertEqual(400, raised.exception.status_code)
+            self.assertEqual(os.path.realpath(os.path.join(root, "child")),
+                             core_module._safe_subpath(root, "child"))
 
     def test_failed_claimed_task_releases_running_state(self):
         key = "_test_failed_task"
@@ -837,6 +960,7 @@ class RuntimeTests(unittest.TestCase):
         # The point of the feature: members are ordinary speaker keys, so a
         # member that already has a LoRA is rendered through its LoRA.
         engine = self._ensemble_engine()
+        engine._mode = "local"
         voice_config = {
             "Petra and Subaru": {"type": "ensemble", "members": ["Petra", "Subaru"]},
             "Petra": {"type": "lora", "adapter_path": "petra.safetensors"},
@@ -929,9 +1053,8 @@ class RuntimeTests(unittest.TestCase):
             captured = []
             fake_engine = SimpleNamespace(generate_batch=lambda batch, *_args: (
                 captured.extend(batch) or {"completed": [0], "failed": []}))
-            with patch.object(pm, "load_chunks", side_effect=[chunks] * 5), \
-                    patch.object(pm, "get_engine", return_value=fake_engine), \
-                    patch.object(pm, "save_chunks"), \
+            pm.save_chunks(chunks)
+            with patch.object(pm, "get_engine", return_value=fake_engine), \
                     patch.object(pm, "_finalize_completed_chunk", return_value=("completed", 0, "ok")):
                 result = pm.generate_chunks_batch([0], batch_size=1)
             self.assertEqual([0], result["completed"])

@@ -7,7 +7,7 @@
 #
 # Usage: ./extended_chain.sh [PID-to-wait-for]
 set -uo pipefail
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 L="$REPO/ab_test_runtime/logs"
 PY="$REPO/app/env/bin/python"
 export GPU_LOCK="${GPU_LOCK:-$HOME/.alexandria_gpu.lock}"

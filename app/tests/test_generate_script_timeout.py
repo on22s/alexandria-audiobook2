@@ -13,6 +13,9 @@ is a bare OpenAI(base_url, api_key) with nothing bounding it.
 import os
 import re
 import unittest
+from unittest.mock import patch
+
+import core
 
 APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -72,3 +75,18 @@ class LlmClientTimeoutTest(unittest.TestCase):
                     self.assertIn("llm_timeout_seconds", call,
                                   f"{name} sets its own timeout instead of "
                                   f"using the shared one")
+
+
+class TimeoutValueValidationTests(unittest.TestCase):
+    def test_invalid_timeout_cannot_disable_request_deadline(self):
+        for value in ('-1', '0', 'nan', 'NaN', 'inf', '-inf', '1e999', 'broken', ''):
+            with self.subTest(value=value), patch.dict(os.environ, {'ALEXANDRIA_LLM_TIMEOUT': value}):
+                with self.assertLogs(core.logger, level='WARNING') as logs:
+                    self.assertEqual(600.0, core.llm_timeout_seconds())
+                self.assertTrue(any('ALEXANDRIA_LLM_TIMEOUT' in line for line in logs.output))
+        for value, expected in (('0.5', 0.5), ('30', 30.0), (' 120 ', 120.0)):
+            with self.subTest(value=value), patch.dict(os.environ, {'ALEXANDRIA_LLM_TIMEOUT': value}):
+                self.assertEqual(expected, core.llm_timeout_seconds())
+        with patch.dict(os.environ):
+            os.environ.pop('ALEXANDRIA_LLM_TIMEOUT', None)
+            self.assertEqual(600.0, core.llm_timeout_seconds())

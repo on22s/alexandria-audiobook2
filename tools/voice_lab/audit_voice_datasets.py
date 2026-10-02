@@ -18,6 +18,7 @@ APP_DIR = Path(__file__).resolve().parents[2] / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from utils import atomic_json_write
+from audio_validation import validate_finite_audio_values
 from voice_dataset_merge import get_file_fingerprint
 
 
@@ -38,6 +39,7 @@ def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
     audio, sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
     if not len(audio):
         raise ValueError("empty audio")
+    validate_finite_audio_values(audio, "decoded dataset PCM")
     mono = audio.mean(axis=1)
     absolute = np.abs(mono)
     frame_length = max(1, int(sample_rate * 0.02))
@@ -48,7 +50,7 @@ def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
     signal_level = float(np.percentile(frame_rms, 90))
     snr_estimate = 20 * np.log10((signal_level + 1e-8) / (noise_floor + 1e-8))
     pcm_hash = hashlib.sha256(np.asarray(mono, dtype="<f4").tobytes()).hexdigest()
-    return {
+    metrics = {
         "duration_seconds": len(mono) / sample_rate,
         "sample_rate": int(sample_rate),
         "channels": int(audio.shape[1]),
@@ -57,10 +59,13 @@ def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
         "silence_ratio": float(np.mean(absolute < 0.005)),
         "clipping_ratio": float(np.mean(absolute >= 0.99)),
         "snr_estimate_db": float(snr_estimate),
-    }, pcm_hash
+    }
+    validate_finite_audio_values(list(metrics.values()), "dataset metrics")
+    return metrics, pcm_hash
 
 
 def get_clip_warnings(metrics: dict) -> list[str]:
+    validate_finite_audio_values(list(metrics.values()), "dataset metrics")
     warnings = []
     duration = metrics["duration_seconds"]
     if duration < THRESHOLDS["duration_min_seconds"]:
@@ -85,6 +90,28 @@ def get_clip_warnings(metrics: dict) -> list[str]:
 
 
 def is_reusable_report(report: dict, fingerprint: dict) -> bool:
+    if not isinstance(report, dict) or not isinstance(report.get("clips"), list):
+        return False
+    if (not isinstance(report.get("source"), str)
+            or type(report.get("clip_count")) is not int
+            or report["clip_count"] != len(report["clips"])
+            or type(report.get("warning_clip_count")) is not int):
+        return False
+    for clip in report["clips"]:
+        if (not isinstance(clip, dict) or not isinstance(clip.get("path"), str)
+                or not isinstance(clip.get("warnings"), list)
+                or any(not isinstance(warning, str) for warning in clip["warnings"])
+                or ("pcm_sha256" in clip and not isinstance(clip["pcm_sha256"], str))):
+            return False
+        if "metrics" in clip:
+            if not isinstance(clip["metrics"], dict):
+                return False
+            try:
+                validate_finite_audio_values(list(clip["metrics"].values()), "cached dataset metrics")
+            except ValueError:
+                return False
+    if report["warning_clip_count"] != sum(bool(c["warnings"]) for c in report["clips"]):
+        return False
     return (report.get("version") == REPORT_VERSION
             and report.get("source_fingerprint") == fingerprint
             and report.get("thresholds") == THRESHOLDS

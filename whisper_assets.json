@@ -1,0 +1,8 @@
+{
+  "source_repo": "https://github.com/ggml-org/whisper.cpp",
+  "source_commit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+  "model_repo": "ggerganov/whisper.cpp",
+  "model_revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+  "model_filename": "ggml-small.en.bin",
+  "model_sha256": "c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d"
+}

@@ -74,7 +74,7 @@ for variant in $ARMS; do
         --prompt-variant "$variant" --keep-prompts \
         --tag "explicit_$variant" \
         --out "$runtime/experiments/two_stage_attribution__explicit_$variant.json"
-    stage_commit_artifacts "explicit_$variant" "$REPO"
+    stage_commit_artifacts "explicit_$variant" "$REPO" "$runtime/experiments/two_stage_attribution__explicit_$variant.json" "$runtime/experiments/two_stage_attribution__explicit_$variant.json.ckpt" "$runtime/experiments/two_stage_attribution__explicit_$variant.json.ckpt.stale"
 done
 
 # runtime is passed in: REPO is a shell variable, not an exported one, and

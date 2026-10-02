@@ -34,6 +34,8 @@ def _load_document(path, expected_script=None):
             doc = json.load(handle)
     except (OSError, ValueError) as exc:
         raise ListeningPackageError(f"cannot read {path}: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise ListeningPackageError(f"{path} root must be an object")
     provenance = doc.get("provenance")
     if not isinstance(provenance, dict):
         raise ListeningPackageError(f"{path} has no provenance")
@@ -41,7 +43,9 @@ def _load_document(path, expected_script=None):
         raise ListeningPackageError(
             f"{path} came from {provenance.get('script')!r}, expected "
             f"{expected_script!r}")
-    git = provenance.get("git") or {}
+    git = provenance.get("git")
+    if not isinstance(git, dict):
+        raise ListeningPackageError(f"{path} provenance.git must be an object")
     if not isinstance(git.get("harness_sha256"), str) or \
             len(git["harness_sha256"]) != 64:
         raise ListeningPackageError(f"{path} has no harness fingerprint")
@@ -67,6 +71,8 @@ def _validate_wav(path):
 
 
 def _resolve_source(path):
+    if not isinstance(path, str):
+        raise ListeningPackageError("source WAV path must be a string")
     resolved = os.path.realpath(
         path if os.path.isabs(path) else os.path.join(REPO, path))
     repo = os.path.realpath(REPO)
@@ -186,18 +192,25 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
         raise
 
     from utils import atomic_json_write
-    key = {"status": "complete", "randomization_seed": seed,
-           "sets": key_sets}
     try:
+        full_provenance = provenance(
+            __file__, None,
+            source_artifacts={
+                os.path.relpath(path, REPO): file_sha256(path)
+                for path in (instruction_path, casting_path, control_path)},
+            randomization_seed=seed)
+        public_provenance = dict(full_provenance)
+        # Branch names and dirty-file paths can disclose the concealed arms.
+        # Keep exact source identities publicly, and the full Git evidence in the key.
+        public_provenance["git"] = {
+            name: value for name, value in full_provenance.get("git", {}).items()
+            if name in ("commit", "dirty", "source_state", "harness_sha256")}
+        key = {"status": "complete", "randomization_seed": seed,
+               "sets": key_sets, "provenance": full_provenance}
         atomic_json_write(key, key_path)
         public = {
             "status": "complete",
-            "provenance": provenance(
-                __file__, None,
-                source_artifacts={
-                    os.path.relpath(path, REPO): file_sha256(path)
-                    for path in (instruction_path, casting_path, control_path)},
-                randomization_seed=seed),
+            "provenance": public_provenance,
             "package_dir": os.path.relpath(package_dir, REPO),
             "sets": public_sets,
             "concealed_key_sha256": file_sha256(key_path),
@@ -220,9 +233,12 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
 def _load_json(path):
     try:
         with open(path, encoding="utf-8") as handle:
-            return json.load(handle)
+            doc = json.load(handle)
     except (OSError, ValueError) as exc:
         raise ListeningPackageError(f"cannot read {path}: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise ListeningPackageError(f"{path} root must be an object")
+    return doc
 
 
 def validate_package(public_path, key_path, package_dir):
@@ -233,23 +249,34 @@ def validate_package(public_path, key_path, package_dir):
         raise ListeningPackageError("blind package is not complete")
     if file_sha256(key_path) != public.get("concealed_key_sha256"):
         raise ListeningPackageError("concealed key hash does not match")
+    if not isinstance(public.get("package_dir"), str):
+        raise ListeningPackageError("public package_dir must be a string")
     if os.path.realpath(os.path.join(REPO, public.get("package_dir", ""))) != \
             os.path.realpath(package_dir):
         raise ListeningPackageError("public manifest names a different package")
-    source_artifacts = public["provenance"].get("source_artifacts") or {}
-    if not source_artifacts:
+    source_artifacts = public["provenance"].get("source_artifacts")
+    if not isinstance(source_artifacts, dict) or not source_artifacts:
         raise ListeningPackageError("public manifest has no source identities")
     for relative, expected_hash in source_artifacts.items():
+        if not isinstance(relative, str) or not isinstance(expected_hash, str):
+            raise ListeningPackageError("source identity paths and hashes must be strings")
         source_path = os.path.realpath(os.path.join(REPO, relative))
         if os.path.commonpath((os.path.realpath(REPO), source_path)) != \
                 os.path.realpath(REPO) or not os.path.isfile(source_path):
             raise ListeningPackageError(f"source artifact is unavailable: {relative}")
         if file_sha256(source_path) != expected_hash:
             raise ListeningPackageError(f"source artifact changed: {relative}")
-    public_sets = public.get("sets") or []
-    key_sets = key.get("sets") or []
-    if len(public_sets) != 8 or len(key_sets) != 8:
+    public_sets = public.get("sets")
+    key_sets = key.get("sets")
+    if not isinstance(public_sets, list) or not isinstance(key_sets, list) or \
+            len(public_sets) != 8 or len(key_sets) != 8:
         raise ListeningPackageError("blind package must contain eight sets")
+    for label, sets in (("public", public_sets), ("key", key_sets)):
+        for index, item in enumerate(sets):
+            if not isinstance(item, dict):
+                raise ListeningPackageError(f"{label} set {index} must be an object")
+            if not isinstance(item.get("id"), str):
+                raise ListeningPackageError(f"{label} set {index} id must be a string")
     keyed = {item.get("id"): item for item in key_sets}
     if len(keyed) != len(key_sets):
         raise ListeningPackageError("concealed key has duplicate set IDs")
@@ -265,8 +292,22 @@ def validate_package(public_path, key_path, package_dir):
         key_item = keyed.get(set_id)
         if not key_item:
             raise ListeningPackageError(f"concealed key lacks {set_id}")
-        samples = item.get("samples") or []
-        mapping = key_item.get("mapping") or {}
+        samples = item.get("samples")
+        mapping = key_item.get("mapping")
+        if not isinstance(samples, list):
+            raise ListeningPackageError(f"samples in {set_id} must be a list")
+        if not isinstance(mapping, dict):
+            raise ListeningPackageError(f"mapping in {set_id} must be an object")
+        for sample in samples:
+            if not isinstance(sample, dict):
+                raise ListeningPackageError(f"sample in {set_id} must be an object")
+            if not isinstance(sample.get("file"), str) or not isinstance(sample.get("sha256"), str):
+                raise ListeningPackageError(f"sample file and sha256 in {set_id} must be strings")
+        for name, entry in mapping.items():
+            if not isinstance(name, str) or not isinstance(entry, dict):
+                raise ListeningPackageError(f"mapping entries in {set_id} must be objects with string keys")
+            if not isinstance(entry.get("source_sha256"), str):
+                raise ListeningPackageError(f"mapping source_sha256 in {set_id} must be a string")
         names = [sample.get("file") for sample in samples]
         if len(samples) < 2 or set(names) != set(mapping):
             raise ListeningPackageError(f"sample/key mismatch in {set_id}")

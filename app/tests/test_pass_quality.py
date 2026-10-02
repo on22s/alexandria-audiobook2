@@ -13,6 +13,14 @@ def _seg(text, type_="NARRATOR"):
 
 
 class SegmentQualityTests(unittest.TestCase):
+    def test_source_label_cannot_hide_missing_spoken_words(self):
+        source = 'Alice “one two three four five six seven eight nine ten.”'
+        entries = [{"type": "SPOKEN", "text": "one two three four five",
+                    "source_label": "Alice six seven eight nine ten"}]
+        report = validate_segment_quality(source, entries)
+        self.assertIn("low_source_token_recall",
+                      {finding["code"] for finding in report["findings"]})
+
     def test_lexical_quote_classifier_relabels_reference_term_only(self):
         source = 'He was known as "the Fox". Then she said, "Run!"'
         analysis = analyze_outer_quote_regions(source)
@@ -164,6 +172,66 @@ class SegmentQualityTests(unittest.TestCase):
               "text": "Light Novel Adaptation found in Volume 9, Interlude "
                       "To Each Their Vows."}],
             split_outer_quote_regions(source))
+
+    def test_quote_free_analysis_does_not_create_nonexistent_boundaries(self):
+        source = "The room was quiet and the door remained closed."
+        analysis = analyze_outer_quote_regions(source)
+        self.assertEqual([], analysis["regions"])
+        report = validate_segment_quality(source, [_seg(source)], quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual("skipped:none_detected", report["quote_gate"])
+
+    def test_empty_analysis_still_checks_actual_quotes_and_text_fidelity(self):
+        source = '"Come here." She stopped.'
+        entries = [_seg("Come here.", "SPOKEN"), _seg("She stopped.")]
+        empty = {"regions": []}
+        report = validate_segment_quality(source, entries, quote_analysis=empty)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual("ran", report["quote_gate"])
+        misclassified = [_seg("Come here."), _seg("She stopped.")]
+        bad = validate_segment_quality(source, misclassified, quote_analysis=empty)
+        self.assertIn("quote_region_misclassified",
+                      {finding["code"] for finding in bad["findings"]})
+        narration = " ".join(f"word{i}" for i in range(40))
+        truncated = validate_segment_quality(
+            narration, [_seg("word0 word1")],
+            quote_analysis=analyze_outer_quote_regions(narration))
+        self.assertIn("low_source_token_recall",
+                      {finding["code"] for finding in truncated["findings"]})
+        self.assertEqual({"regions": []}, empty)
+
+    def test_quote_free_continuation_keeps_supplied_spoken_regions(self):
+        source = "The speech continues across this chunk."
+        analysis = analyze_outer_quote_regions(source, initial_depth=1, allow_open_end=True)
+        self.assertEqual(["SPOKEN"], [region["type"] for region in analysis["regions"]])
+        report = validate_segment_quality(source, [_seg(source, "SPOKEN")],
+                                          quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual("ran", report["quote_gate"])
+        misclassified = validate_segment_quality(source, [_seg(source)], quote_analysis=analysis)
+        self.assertIn("quote_region_misclassified",
+                      {finding["code"] for finding in misclassified["findings"]})
+
+    def test_quote_continuation_checks_the_first_paragraph_character(self):
+        cases = [('A“B” tail “C” end”', [{"type": "SPOKEN", "text": "AB tail C end"}]),
+                 ('A「B」 tail”', [{"type": "SPOKEN", "text": "AB tail"}]),
+                 ('A" Tail.', [{"type": "SPOKEN", "text": "A"},
+                              {"type": "NARRATOR", "text": "Tail."}])]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                analysis = analyze_outer_quote_regions(source, initial_depth=1)
+                self.assertEqual(expected, analysis["regions"])
+                self.assertEqual(0, analysis["final_depth"])
+                self.assertEqual([], analysis["repairs"])
+
+    def test_repeated_opening_at_an_actual_paragraph_start_stays_decorative(self):
+        for source in ('“More words.”', '\n\n“More words.”', '"More words."'):
+            with self.subTest(source=source):
+                analysis = analyze_outer_quote_regions(source, initial_depth=1)
+                self.assertEqual([{"type": "SPOKEN", "text": "More words."}],
+                                 analysis["regions"])
+                self.assertEqual(0, analysis["final_depth"])
+                self.assertEqual([], analysis["repairs"])
 
     def test_complete_segment_passes(self):
         source = " ".join(f"word{i}" for i in range(50))
@@ -366,6 +434,17 @@ class AttributionRejectsTypeAsSpeakerTest(unittest.TestCase):
     satisfies - so it passed. Measured live: 326 entries in one book, and the
     leak appeared in 8 of 9 books overnight."""
 
+    def test_narrative_metadata_is_rejected_even_without_source_or_with_a_roster(self):
+        frozen = [{"type": "SPOKEN", "text": "Oh-ho."}]
+        for speaker in ("NARRATIVE", "narrative"):
+            for kwargs in ({}, {"source_text": "Narrative appeared. Narrative returned.",
+                                "known_names": {"NARRATIVE"}}):
+                with self.subTest(speaker=speaker, kwargs=kwargs):
+                    report = validate_attribution(frozen, [{"n": 0, "head": "Oh-ho.",
+                                                          "speaker": speaker}], **kwargs)
+                    self.assertFalse(report["passed"])
+                    self.assertEqual("speaker_is_entry_type", report["findings"][0]["code"])
+
     def test_literal_type_name_is_rejected(self):
         frozen = [{"type": "SPOKEN", "text": "Oh-ho."}]
         report = validate_attribution(frozen, [{"n": 0, "head": "Oh-ho.",
@@ -434,3 +513,63 @@ class GateParityAndMessagesTests(unittest.TestCase):
         char = uni[0]["characters"][0]
         self.assertEqual({"character", "codepoint", "name"}, set(char.keys()))
         self.assertEqual("é", char["character"])
+
+
+class ValidationExpectedValueTests(unittest.TestCase):
+    def test_falsey_expected_values_remain_in_diagnostic_context(self):
+        import copy
+        findings = [{"message": "Invalid value.", "entry_number": 1,
+                     "source_line": "Original line.", "value": 2, "expected": value}
+                    for value in (0, False, "", [], {})]
+        original = copy.deepcopy(findings)
+        for finding in findings:
+            with self.subTest(expected=finding["expected"]):
+                text = format_validation_findings([finding])
+                self.assertIn("expected=" + str(finding["expected"]), text)
+                self.assertIn("entry 1", text)
+                self.assertIn('source line="Original line."', text)
+                self.assertIn("rejected=2", text)
+        self.assertEqual(original, findings)
+        self.assertNotIn("expected=", format_validation_findings([
+            {"message": "No constraint."}, {"message": "No constraint.", "expected": None}]))
+
+
+class ConcurrentQuoteTelemetryTests(unittest.TestCase):
+    def test_overlapping_validations_publish_their_own_quote_gate_status(self):
+        import json, tempfile, threading
+        from concurrent.futures import ThreadPoolExecutor
+        from pathlib import Path
+        from unittest.mock import patch
+        import pass_quality
+        plain = 'The room was quiet and the door remained closed.'
+        quoted = '“Come here.” She stopped.'
+        dashed = '\n'.join('— ' + text for text in ('Come here.', 'Wait there.', 'Stay calm.', 'Look outside.', 'Go ahead.'))
+        for other_source, other_entries, expected in (
+                (quoted, [_seg('Come here.', 'SPOKEN'), _seg('She stopped.')], 'ran'),
+                (dashed, [_seg(dashed)], 'skipped:dash_lines')):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                paused, release = threading.Event(), threading.Event()
+                original = pass_quality._introduced_character_findings
+                def hold_first(source, *args, **kwargs):
+                    if source == plain:
+                        paused.set()
+                        if not release.wait(5):
+                            raise RuntimeError('first validation was not released')
+                    return original(source, *args, **kwargs)
+                with patch.object(pass_quality, '_introduced_character_findings', side_effect=hold_first), ThreadPoolExecutor(max_workers=2) as pool:
+                    first = pool.submit(validate_segment_quality, plain, [_seg(plain)])
+                    try:
+                        self.assertTrue(paused.wait(5))
+                        second = pool.submit(validate_segment_quality, other_source, other_entries)
+                        other = second.result(timeout=5)
+                    finally:
+                        release.set()
+                    initial = first.result(timeout=5)
+                for name, report in (('first', initial), ('second', other)):
+                    Path(tmp, name + '.json').write_text(json.dumps(report))
+                saved_first = json.loads(Path(tmp, 'first.json').read_text())
+                saved_second = json.loads(Path(tmp, 'second.json').read_text())
+                self.assertEqual('skipped:none_detected', saved_first['quote_gate'])
+                self.assertEqual(expected, saved_second['quote_gate'])
+                self.assertTrue(saved_first['passed'], saved_first['findings'])
+                self.assertTrue(saved_second['passed'], saved_second['findings'])

@@ -63,6 +63,27 @@ class HonorificSuffixTest(unittest.TestCase):
         # Long enough to clear MIN_SOURCE_FOR_ATTESTATION.
         return (" ".join(sentences) + " ") + ("filler word here. " * 400)
 
+    def test_punctuation_ending_names_pass_both_shared_attestation_callers(self):
+        from three_pass_generate import build_roster
+        for name in ("J.R.R.", "Prince?", "Bri-chan"):
+            with self.subTest(name=name):
+                source = self._book(*(f"{name} spoke at the door." for _ in range(3)))
+                label = name.upper()
+                self.assertTrue(is_attested_name(label, source))
+                frozen = [{"type": "SPOKEN", "text": "Hello."}]
+                report = validate_attribution(
+                    frozen, [{"n": 0, "speaker": label}], source_text=source)
+                self.assertTrue(report["passed"], report["findings"])
+                self.assertEqual([label], build_roster([{"speaker": label}], source))
+
+    def test_punctuation_names_require_literal_whole_labels(self):
+        for label, text in (("J.R.R.", "JxRxRz spoke."),
+                            ("J.R.R.", "J.R.R.X spoke."),
+                            ("J.R.R.", "AJ.R.R. spoke."),
+                            ("Prince?", "Prince?ling spoke.")):
+            with self.subTest(label=label, text=text):
+                self.assertFalse(is_attested_name(label, self._book(text, text, text)))
+
     def test_a_hyphenated_honorific_name_is_attested(self):
         source = self._book("Bri-chan drew his sword.", "Bri-chan laughed again.")
         self.assertTrue(is_attested_name("BRI-CHAN", source))

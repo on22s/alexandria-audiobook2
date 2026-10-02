@@ -67,9 +67,14 @@ def _sha256(data):
 def _commit_is_in_history(commit):
     if not commit:
         return False
-    return subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=REPO,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=REPO,
+            env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"},
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.returncode == 0 if result.returncode in (0, 1) else None
 
 
 def is_path_within_repo(path):
@@ -157,7 +162,10 @@ def inspect_artifact(name):
     problems = list(record.validate())
     if record.summary() != doc.get("summary"):
         problems.append("saved summary differs from row recomputation")
-    if not _commit_is_in_history((meta.get("git") or {}).get("commit")):
+    in_history = _commit_is_in_history((meta.get("git") or {}).get("commit"))
+    if in_history is None:
+        problems.append("recorded commit ancestry could not be verified from local history")
+    elif not in_history:
         problems.append("recorded commit is unavailable from current history")
     if meta.get("validation") != "ok":
         problems.append("artifact validation is not ok")

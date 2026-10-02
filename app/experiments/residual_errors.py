@@ -45,11 +45,12 @@ SPECIAL = {"UNKNOWN", "UNNAMED", "NOT_DIALOGUE"}
 LEAD_SHARE = 0.05
 
 
+from generation_checkpoint_deltas import load_generation_delta_checkpoint
+
 def book_context(book):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
     src = open(M + f"inputs/{book}.txt", encoding="utf-8").read()
-    cp = json.load(open(
-        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
     roster = sorted(set(roster) | {n.upper() for n in

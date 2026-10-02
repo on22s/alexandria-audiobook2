@@ -49,12 +49,14 @@ for (const id of ['manual-llm-panel', 'manual-llm-title', 'manual-llm-hint',
     elements[id] = {value: '', hidden: true, disabled: false, style: {}, textContent: ''};
 }
 let poll, pending, copied, failSubmit = false, runningTask = 'persona';
-const posts = [], statusFetches = [];
+const posts = [], statusFetches = [];let registryFetches=0;
 const context = {
+    currentIsRemote:false, failoverIsRemote:false,
     window: {prompt: () => 'teen'}, console,
     document: {getElementById: id => elements[id] || null},
     API: {
         get: async path => {
+            if (path === '/api/status') {registryFetches++;return {persona:{running:runningTask==='persona'},script:{running:runningTask==='script'}};}
             if (path === '/api/manual_llm/pending') { return {pending}; }
             if (path.startsWith('/api/status/')) {
                 const task = path.split('/').pop(); statusFetches.push(task);
@@ -76,12 +78,16 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(
+    slice(core, 'async function confirmIfRemote(', '// navigator.clipboard') +
+    slice(core, 'const taskStartButtons =', '// --- API Helpers ---') +
+    slice(core, 'function isTaskFailed(', '// --- Desktop notifications ---') +
+    slice(core, 'function getTaskLogUpdate(', '// --- Setup Tab ---') +
     slice(core, 'async function generatePersonas()', 'async function cancelPersonas()') +
     slice(core, 'async function pollPersonaStatus()', '// --- Voices Tab ---') +
     slice(core, 'window.regeneratePersona =', 'window.selectVoiceCandidate =') +
     slice(core, 'function pollScriptLogs(', '// Manual transport') +
     core.slice(core.indexOf('let _manualShown =')) +
-    slice(workbench, 'async function reattachRunningPollers()', '// Init'), context);
+    slice(workbench, 'function reattachTaskActivity(', '// Init'), context);
 const request = (id, sequence) => ({id, sequence, stage_hint: 'Persona',
     messages: [{role: 'user', content: 'Describe Alice'}]});
 const status = id => ({running: true, logs: [], manual_request: {id}});
@@ -123,7 +129,7 @@ const settle = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve
     assert.strictEqual(posts.filter(p => p.path === '/api/generate_personas').at(-1).body.age_group, 'teen');
     poll = null;
     await context.reattachRunningPollers();
-    assert(statusFetches.includes('persona'), 'reload must query persona running state');
+    assert(registryFetches>0, 'reload must query actual task registry for persona running state');
     assert(poll && poll.key === 'persona', 'reload must resume persona polling');
     pending = request('reload', 3);
     await poll.onTick(status('reload')); await settle();
