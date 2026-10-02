@@ -64,34 +64,72 @@ class QueuePathTests(unittest.TestCase):
                 self.assertFalse((self.cwd / "ab_test_runtime").exists())
                 self.assertFalse((self.bin / "ab_test_runtime").exists())
 
-    def test_bash_path_launch_obeys_repository_pause_flag(self):
+    def start_paused_job(self):
+        """Launch gpu_job.sh with the queue paused and wait until it reports HELD.
+
+        Returns (process, queue log, logs dir, stderr file). stderr is kept, not
+        discarded, so a hang can say what the script printed.
+        """
         logs = self.repo / "ab_test_runtime/logs"
         logs.mkdir(parents=True)
         (logs / "gpu_paused").write_text("paused")
-        worker = self.root / "worker-ran"
-        process = subprocess.Popen(["bash", "gpu_job.sh", "paused", "touch", str(worker)],
-                                   cwd=self.cwd, env=self.env, start_new_session=True,
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stderr_path = self.root / "paused-job.stderr"
+        with open(stderr_path, "w") as stderr:
+            process = subprocess.Popen(["bash", "gpu_job.sh", "paused", "touch", str(self.root / "worker-ran")],
+                                       cwd=self.cwd, env=self.env, start_new_session=True,
+                                       stdout=subprocess.DEVNULL, stderr=stderr)
+        qlog = logs / "gpu_jobq.log"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if qlog.exists() and "HELD" in qlog.read_text():
+                break
+            if process.poll() is not None:
+                break
+            time.sleep(0.02)
+        return process, qlog, logs, stderr_path
+
+    def stop_paused_job(self, process, qlog, stderr_path, whole_group=True, limit=10):
+        """SIGTERM the job and return its exit code; on a hang, kill it and say what it printed."""
         try:
-            deadline = time.monotonic() + 5
-            qlog = logs / "gpu_jobq.log"
-            while time.monotonic() < deadline:
-                if qlog.exists() and "HELD" in qlog.read_text():
-                    break
-                if process.poll() is not None:
-                    break
-                time.sleep(0.02)
+            if whole_group:
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                os.kill(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            return process.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+            self.fail(f"gpu_job.sh did not exit within {limit}s of SIGTERM; "
+                      f"stderr: {stderr_path.read_text()!r}; queue log: {qlog.read_text()!r}")
+
+    def test_bash_path_launch_obeys_repository_pause_flag(self):
+        process, qlog, logs, stderr_path = self.start_paused_job()
+        worker = self.root / "worker-ran"
+        try:
             self.assertIsNone(process.poll(), "paused worker must wait")
             self.assertIn("HELD", qlog.read_text())
             self.assertFalse(worker.exists())
             self.assertTrue(list((logs / "pending").iterdir()))
         finally:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            process.wait(timeout=5)
-        self.assertEqual(143, process.returncode)
+            code = self.stop_paused_job(process, qlog, stderr_path)
+        self.assertEqual(143, code)
+        self.assertEqual([], list((logs / "pending").iterdir()))
+
+    def test_signal_to_the_script_alone_is_honoured_without_waiting_out_the_pause_sleep(self):
+        # Bash runs a trap only after its foreground command ends. A signal sent to the
+        # script but not to the sleep it is blocked in (which is also what a group signal
+        # that lands just before the sleep is forked amounts to) used to wait out the whole
+        # 20 s poll sleep: measured 19.7 s. The poll is now 1 s.
+        process, qlog, logs, stderr_path = self.start_paused_job()
+        self.assertIsNone(process.poll(), "paused worker must wait")
+        time.sleep(0.3)  # let the script settle into its poll sleep
+        started = time.monotonic()
+        code = self.stop_paused_job(process, qlog, stderr_path, whole_group=False)
+        self.assertEqual(143, code)
+        self.assertLess(time.monotonic() - started, 5, "SIGTERM to the script alone took too long to be honoured")
         self.assertEqual([], list((logs / "pending").iterdir()))
 
     def test_bash_path_launch_finds_repository_preflight(self):

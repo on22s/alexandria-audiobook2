@@ -1139,20 +1139,31 @@ async def generate_script(background_tasks: BackgroundTasks,
     return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
 
 
+def ensure_script_recovery_response(include_detail=False):
+    """Read metadata and optional failed-unit detail under one book guard."""
+    with ensure_book_state(DATA_DIR):
+        manifest = get_script_recovery_manifest()
+        if manifest is None:
+            return {"recoverable": False}
+        failures = manifest.get("diagnostic_failures") or []
+        response = {
+            "recoverable": True,
+            "status": manifest["status"],
+            "failed_pass": manifest.get("failed_pass"),
+            "failed_chunk": manifest.get("failed_chunk"),
+            "failure_count": len(failures),
+        }
+        if include_detail:
+            checkpoint = _load_failed_checkpoint()
+            response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
+                                  if checkpoint is not None else None)
+        return response
+
+
 @router.get("/api/generate_script/recovery")
-async def generate_script_recovery():
-    """Expose only recovery metadata; source text remains in the local checkpoint."""
-    manifest = await asyncio.to_thread(ensure_script_recovery_manifest)
-    if manifest is None:
-        return {"recoverable": False}
-    failures = manifest.get("diagnostic_failures") or []
-    return {
-        "recoverable": True,
-        "status": manifest["status"],
-        "failed_pass": manifest.get("failed_pass"),
-        "failed_chunk": manifest.get("failed_chunk"),
-        "failure_count": len(failures),
-    }
+async def generate_script_recovery(include_detail: bool = False):
+    """Return metadata by default; opt in to the validated failed-unit detail."""
+    return await asyncio.to_thread(ensure_script_recovery_response, include_detail)
 
 
 def _load_failed_checkpoint(*, locked=False):

@@ -1762,15 +1762,14 @@
             const retryBtn = document.getElementById('btn-retry-script');
             const panel = document.getElementById('script-recovery-panel');
             try {
-                const recovery = await API.get('/api/generate_script/recovery');
+                const recovery = await API.get('/api/generate_script/recovery?include_detail=true');
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
                 if (recovery.recoverable) {
                     const location = recovery.failed_pass
                         ? ` at ${recovery.failed_pass}`
                         : '';
                     showToast(`Generation can resume from its checkpoint${location}.`, 'warning');
-                    const detail = await API.get('/api/generate_script/recovery/detail');
-                    renderScriptRecovery(detail.recoverable ? detail : null);
+                    renderScriptRecovery(recovery.detail || null);
                 } else {
                     renderScriptRecovery(null);
                 }

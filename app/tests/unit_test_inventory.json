@@ -3169,7 +3169,8 @@
     "tests.test_gpu_queue_paths.QueueNameTests.test_control_and_path_names_are_rejected_before_queue_records",
     "tests.test_gpu_queue_paths.QueuePathTests.test_all_launch_forms_share_lock_log_pending_and_identity",
     "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_finds_repository_preflight",
-    "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_obeys_repository_pause_flag"
+    "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_obeys_repository_pause_flag",
+    "tests.test_gpu_queue_paths.QueuePathTests.test_signal_to_the_script_alone_is_honoured_without_waiting_out_the_pause_sleep"
   ],
   "test_gpu_queue_rotation": [
     "tests.test_gpu_queue_rotation.QueueRotationTests.test_actual_status_retains_live_job_across_rotation",
@@ -6169,6 +6170,14 @@
     "tests.test_script_recovery.RecoveryTests.test_skip_narrates_the_chunk_as_is",
     "tests.test_script_recovery.RecoveryTests.test_wrong_chunk_and_running_generation_are_refused"
   ],
+  "test_script_recovery_response": [
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_corrupt_checkpoint_fails_detail_without_hiding_metadata_or_editing_evidence",
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_no_failed_checkpoint_keeps_retry_metadata_without_detail",
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_optional_detail_matches_dedicated_endpoint_for_failed_passes",
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_optional_reader_waits_for_complete_native_publication",
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_real_ui_handler_uses_one_request_and_preserves_controls",
+    "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_stale_book_and_completed_manifest_do_not_expose_detail"
+  ],
   "test_script_recovery_transaction": [
     "tests.test_script_recovery_transaction.ScriptRecoveryTransactionTests.test_delta_recovery_rolls_back_owned_parts_then_retires_them_on_success",
     "tests.test_script_recovery_transaction.ScriptRecoveryTransactionTests.test_each_publication_failure_restores_exact_pair",
@@ -7401,6 +7410,33 @@
     "tests.test_unicode_format_policy.UnicodeFormatPolicyTests.test_explicit_overrides_are_reported_even_when_already_in_source",
     "tests.test_unicode_format_policy.UnicodeFormatPolicyTests.test_joiners_marks_and_isolates_are_described_without_blanket_rejection",
     "tests.test_unicode_format_policy.UnicodeFormatPolicyTests.test_source_gate_and_persona_boundary_share_override_rejection"
+  ],
+  "test_unit_test_sharding": [
+    "tests.test_unit_test_sharding.AssignmentTests.test_a_module_with_no_recorded_time_is_still_assigned_once",
+    "tests.test_unit_test_sharding.AssignmentTests.test_bad_inputs_are_refused",
+    "tests.test_unit_test_sharding.AssignmentTests.test_duration_file_rejects_non_numbers_negatives_and_nan",
+    "tests.test_unit_test_sharding.AssignmentTests.test_head_start_never_loses_a_module",
+    "tests.test_unit_test_sharding.AssignmentTests.test_one_shard_is_everything",
+    "tests.test_unit_test_sharding.AssignmentTests.test_real_modules_are_covered_exactly_once_for_every_shard_count",
+    "tests.test_unit_test_sharding.AssignmentTests.test_result_does_not_depend_on_input_order",
+    "tests.test_unit_test_sharding.AssignmentTests.test_shard_one_gets_less_unit_work_because_it_also_runs_the_other_gates",
+    "tests.test_unit_test_sharding.AssignmentTests.test_shards_are_balanced_within_the_greedy_bound",
+    "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_a_broken_test_file_fails_exactly_one_shard",
+    "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_equals_form_works_and_bad_specs_exit_nonzero_with_a_message",
+    "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_shards_partition_the_run_and_unsharded_runs_everything",
+    "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_with_the_real_head_start_the_shards_still_cover_every_test_once",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_a_complete_set_is_accepted",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_command_line_reads_reports_at_any_depth_and_sets_the_exit_code",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_every_way_of_losing_or_doubling_a_test_is_refused",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_real_inventory_total_matches_its_modules",
+    "tests.test_unit_test_sharding.ShardSpecTests.test_invalid_specs_are_refused",
+    "tests.test_unit_test_sharding.ShardSpecTests.test_valid_specs",
+    "tests.test_unit_test_sharding.SuiteFilteringTests.test_a_module_is_never_split_across_shards",
+    "tests.test_unit_test_sharding.SuiteFilteringTests.test_a_module_that_fails_to_import_is_kept_not_dropped",
+    "tests.test_unit_test_sharding.SuiteFilteringTests.test_every_test_lands_in_exactly_one_shard_in_original_order",
+    "tests.test_unit_test_sharding.VerifierShardTests.test_bad_shard_is_refused_before_any_gate_runs",
+    "tests.test_unit_test_sharding.VerifierShardTests.test_unsharded_and_first_shard_run_every_gate_later_shards_only_the_unit_gate",
+    "tests.test_unit_test_sharding.VerifierShardTests.test_validator_returns_the_count_and_keeps_its_floor_and_skip_rule"
   ],
   "test_unseen_books_reporting": [
     "tests.test_unseen_books_reporting.OriginalUnseenBookStatusTests.test_each_nonzero_book_status_contributes_to_failed_chain_exit",

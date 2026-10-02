@@ -417,7 +417,13 @@ if [ -f "$PAUSE_FLAG" ]; then
     write_queue_log "$(stamp) HELD     $NAME (queue paused)"
     echo "gpu_job: queue is paused; $NAME is waiting. Release with:" >&2
     echo "gpu_job:   ./gpu_pause.sh off" >&2
-    while [ -f "$PAUSE_FLAG" ]; do sleep 20; done
+    # POLL EVERY SECOND, NOT EVERY 20. Bash runs a trap only after the foreground
+    # command finishes. A group-wide SIGTERM normally kills the sleep too, but a
+    # signal that lands just before the sleep is forked (or one sent to this
+    # script alone) leaves a fresh sleep running, and the trap waits it out:
+    # measured 19.7 s from `kill <pid>` to exit, which also made a test of this
+    # path fail intermittently on a loaded CI runner. One second bounds it.
+    while [ -f "$PAUSE_FLAG" ]; do sleep 1; done
     write_queue_log "$(stamp) RELEASED $NAME"
 fi
 

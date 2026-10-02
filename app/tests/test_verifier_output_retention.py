@@ -48,7 +48,8 @@ class VerifierOutputRetentionTests(unittest.TestCase):
                         verifier.run_report_command('summary', command, '.',
                                                     reject_unittest_skips=True)
                 else:
-                    self.assertIsNone(verifier.run_report_command(
+                    # Output is still discarded; only the validated count comes back.
+                    self.assertEqual(500, verifier.run_report_command(
                         'summary', command, '.', reject_unittest_skips=True))
 
     def test_validator_consumes_stream_without_full_read(self):

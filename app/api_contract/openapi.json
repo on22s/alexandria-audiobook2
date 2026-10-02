@@ -5283,8 +5283,20 @@
     },
     "/api/generate_script/recovery": {
       "get": {
-        "description": "Expose only recovery metadata; source text remains in the local checkpoint.",
+        "description": "Return metadata by default; opt in to the validated failed-unit detail.",
         "operationId": "generate_script_recovery_api_generate_script_recovery_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_detail",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Detail",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5293,6 +5305,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Generate Script Recovery"
