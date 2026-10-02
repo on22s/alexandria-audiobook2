@@ -74,14 +74,14 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             batch.main()
         self.assertEqual(2, caught.exception.code)
 
-    def test_fuzzy_source_tie_uses_stable_filename_order(self):
+    def test_fuzzy_source_tie_requires_explicit_choice(self):
         sources = self.root / "sources"
         sources.mkdir()
         (sources / "zeta book.epub").touch()
         (sources / "alpha book.epub").touch()
         # Both candidates overlap one of the two audio tokens equally.
-        self.assertEqual(str(sources / "alpha book.epub"),
-                         batch._find_source_for("alpha zeta.wav", str(sources)))
+        with self.assertRaisesRegex(ValueError, "Ambiguous"):
+            batch._find_source_for("alpha zeta.wav", str(sources))
 
     def test_source_catalog_is_scanned_once_and_match_reused(self):
         sources = self.root / "sources"

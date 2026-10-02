@@ -637,7 +637,7 @@
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_summary_writes_a_complete_final_receipt",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_failed_rerun_invalidates_previous_completion_marker",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_folder_discovery_ignores_audio_named_directory",
-    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_fuzzy_source_tie_uses_stable_filename_order",
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_fuzzy_source_tie_requires_explicit_choice",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_invalid_numeric_arguments_stop_before_processing",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_invalid_zip_is_reprocessed_but_complete_zip_is_skipped",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_multivolume_success_is_recorded_and_source_change_reprocesses",
@@ -6430,6 +6430,15 @@
     "tests.test_source_gate_threshold.SourceGateThresholdTest.test_the_limit_is_small_enough_to_stay_meaningful",
     "tests.test_source_gate_threshold.SourceGateThresholdTest.test_threshold_sits_between_corrupt_and_repaired",
     "tests.test_source_gate_threshold.SourceGateThresholdTest.test_unsafe_controls_remain_an_absolute_refusal"
+  ],
+  "test_source_mapping_admission": [
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_cli_no_source_flag_is_forwarded_and_lease_is_released",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_direct_processing_cannot_bypass_mapping_admission",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_interactive_table_confirmation_once",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_last_file_tie_refuses_before_any_processing",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_match_report_exact_and_near_equal",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_near_equal_fuzzy_scores_are_refused",
+    "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_unmatched_requires_explicit_option"
   ],
   "test_source_normalization_lossy": [
     "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_apostrophe_between_letters",

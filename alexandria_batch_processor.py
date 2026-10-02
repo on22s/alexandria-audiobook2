@@ -172,60 +172,41 @@ def get_source_candidates(source_folder):
             if entry.is_file() and entry.name.lower().endswith(('.epub', '.txt'))]
 
 
-def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50,
-                     source_candidates=None):
-    """Find the best-matching source file in `source_folder` for an audio
-    file. Two-stage match:
+def get_source_match_report(audio_file, source_folder, fuzzy_threshold=0.50,
+                            source_candidates=None):
+    """Return filename evidence, retaining exact EPUB-before-TXT precedence.
 
-      1. Exact-stem match — audio/Book1.wav looks for
-         source_folder/Book1.epub (preferred) or .txt. Cheap and
-         unambiguous when filenames happen to align.
-
-      2. Fuzzy fallback — tokenise both filenames (lowercase, split on
-         non-alphanumeric, drop noise tokens like 'converted',
-         'audiobook', 'volume', publisher decorators, z-library cruft,
-         and pure-digit tokens). Score every .epub/.txt in the folder by
-         F1 token overlap. Return the highest-scoring candidate above
-         `fuzzy_threshold` (default 0.50).
-
-    So 'Michael Kramer The Hero of Ages-converted.wav' matches
-    'Hero of Ages .epub' (shared title tokens: hero, of, ages) and beats
-    'Mistborn The Hero of Ages (... z-library ...).epub' (which has
-    extra series-name tokens that aren't in the audio).
-
-    Returns the source path, or None if nothing scores high enough.
-    Existing exact-stem behaviour is preserved — fuzzy only fires when
-    no exact match exists, so previous --source-folder users see no
-    behavioural change.
+    Fuzzy alternatives within 0.05 of the best score require acceptance;
+    that margin is a filename policy, not calibrated content confidence.
     """
+    report = {"source": None, "score": 0.0, "method": "missing",
+              "alternatives": [], "ambiguous": False}
     if not source_folder or not os.path.isdir(source_folder):
-        return None
-    audio_path = Path(audio_file)
-    stem = audio_path.stem
-
-    # Stage 1: exact-stem match wins immediately when present.
+        return report
+    stem = Path(audio_file).stem
     for ext in ('.epub', '.txt'):
         candidate = Path(source_folder) / (stem + ext)
-        if candidate.exists():
-            return str(candidate)
-
-    # Stage 2: fuzzy token-overlap fallback.
-    audio_tokens = _normalize_filename_tokens(stem)
-    if not audio_tokens:
-        return None
-
-    best_score = 0.0
-    best_path  = None
+        if candidate.is_file():
+            return {**report, "source": str(candidate), "score": 1.0, "method": "exact"}
+    tokens = _normalize_filename_tokens(stem)
     candidates = source_candidates if source_candidates is not None else get_source_candidates(source_folder)
-    for source_path, book_tokens in candidates:
-        score = _fuzzy_score(audio_tokens, book_tokens)
-        if score > best_score:
-            best_score = score
-            best_path = source_path
+    ranked = sorted(((path, _fuzzy_score(tokens, words)) for path, words in candidates),
+                    key=lambda item: (-item[1], item[0].lower()))
+    if not ranked or ranked[0][1] < fuzzy_threshold:
+        return report
+    best, score = ranked[0]
+    alternatives = [{"source": path, "score": value} for path, value in ranked[1:]
+                    if value >= fuzzy_threshold and score - value <= 0.05]
+    return {"source": best, "score": score, "method": "fuzzy",
+            "alternatives": alternatives, "ambiguous": bool(alternatives)}
 
-    if best_path is not None and best_score >= fuzzy_threshold:
-        return best_path
-    return None
+
+def _find_source_for(audio_file, source_folder, fuzzy_threshold=0.50,
+                     source_candidates=None):
+    report = get_source_match_report(audio_file, source_folder, fuzzy_threshold, source_candidates)
+    if report["ambiguous"]:
+        raise ValueError(f"Ambiguous source match for {audio_file}; use an explicit --source")
+    return report["source"]
 
 
 def check_disk_space(path, required_gb_per_file, num_files):
@@ -335,7 +316,7 @@ class BatchProcessor:
 
     def __init__(self, model_path, chunk_size=10.0, language="en", force=False,
                  fallback_model=None, source_folder=None, source_path=None,
-                 source_threshold=0.65, keep_unaligned=False):
+                 source_threshold=0.65, keep_unaligned=False, allow_no_source=False):
         self.model_path = model_path
         self.fallback_model = fallback_model
         self.chunk_size = chunk_size
@@ -350,6 +331,7 @@ class BatchProcessor:
         self.source_path      = source_path
         self.source_threshold = source_threshold
         self.keep_unaligned   = keep_unaligned
+        self.allow_no_source = allow_no_source
         self.source_matches = {}
         self.results = {
             "succeeded": [],
@@ -428,30 +410,40 @@ class BatchProcessor:
             logger.info(f"  ├─ Source-guided: {Path(self.source_path).name} "
                         f"(applied to every audio file)")
         elif self.source_folder:
-            matches = []
-            misses  = []
-            candidates = get_source_candidates(self.source_folder)
-            self.source_matches = {
-                af: _find_source_for(af, self.source_folder, source_candidates=candidates)
-                for af in valid_files
-            }
-            for af in valid_files:
-                src = self.source_matches[af]
-                (matches if src else misses).append(af)
-            logger.info(f"  ├─ Source-guided: matching from {self.source_folder}/")
-            logger.info(f"  │   {len(matches)} matched, {len(misses)} no match "
-                        f"(legacy ASR-only for those)")
-            if misses:
-                for af in misses[:3]:
-                    logger.info(f"  │     no match: {Path(af).stem!r}")
-                if len(misses) > 3:
-                    logger.info(f"  │     … and {len(misses) - 3} more")
+            self.ensure_source_mapping(valid_files)
         if self.source_path or self.source_folder:
             logger.info(f"  ├─ Source threshold: {self.source_threshold:.2f} "
                         f"({'keep-unaligned' if self.keep_unaligned else 'strict-drop'})")
         logger.info(f"  └─ Files to process: {len(valid_files)}/{len(audio_files)} (skipped: {len(self.results['skipped'])})")
 
         return valid_files
+
+    def ensure_source_mapping(self, audio_files):
+        """Display and admit a complete mapping before any processing."""
+        candidates = get_source_candidates(self.source_folder)
+        reports = {audio: get_source_match_report(audio, self.source_folder,
+                    source_candidates=candidates) for audio in audio_files}
+        for audio, report in reports.items():
+            logger.info(f"Source mapping: {Path(audio).name} -> {report['source'] or 'ASR-only'} "
+                        f"(filename score {report['score']:.3f}, {report['method']})")
+            for alternative in report['alternatives']:
+                logger.info(f"  Alternative: {alternative['source']} "
+                            f"(filename score {alternative['score']:.3f})")
+        if reports and sys.stdin.isatty():
+            try:
+                accepted = input("Confirm this entire source mapping (including alternatives/ASR-only)? [yes/no] ")
+            except EOFError:
+                accepted = ""
+            if accepted.strip().lower() != 'yes':
+                raise ValueError("Source mapping not confirmed; no processing started")
+        else:
+            ambiguous = [audio for audio, report in reports.items() if report['ambiguous']]
+            if ambiguous:
+                raise ValueError("Ambiguous source matches: " + ', '.join(ambiguous) + "; use explicit --source")
+            missing = [audio for audio, report in reports.items() if report['source'] is None]
+            if missing and not self.allow_no_source:
+                raise ValueError("No source match: " + ', '.join(missing) + "; explicitly use --allow-no-source for ASR-only")
+        self.source_matches.update({audio: report['source'] for audio, report in reports.items()})
 
     def process_file(self, audio_file, file_index, total_files):
         """Process a single audio file with real-time output streaming."""
@@ -503,7 +495,8 @@ class BatchProcessor:
         elif self.source_folder:
             matched_source = self.source_matches.get(audio_file)
             if audio_file not in self.source_matches:
-                matched_source = _find_source_for(audio_file, self.source_folder)
+                self.ensure_source_mapping([audio_file])
+                matched_source = self.source_matches[audio_file]
             if matched_source is None:
                 logger.warning(
                     f"  ⚠ No source match in {self.source_folder} for "
@@ -664,7 +657,11 @@ class BatchProcessor:
         log_gpu_stats("batch start")
 
         # Validate all files first (also skips already-processed)
-        valid_files = self.validate_files(audio_files)
+        try:
+            valid_files = self.validate_files(audio_files)
+        except ValueError as exc:
+            logger.error(str(exc))
+            return False
 
         if not valid_files:
             # Only report success when EVERY skip was the already-processed case.
@@ -822,14 +819,14 @@ def main():
     # When --source-folder is set, the batch processor looks for a matching
     # source file (basename + .epub or .txt) for each audio file and passes
     # it to the preparer via --source. Audio files without a matching source
-    # are processed in legacy ASR-only mode with a warning. Per-file matching
+    # require explicit ASR-only acceptance before processing. Per-file matching
     # is by stem (e.g. audio/Book1.wav → sources/Book1.epub).
     parser.add_argument(
         "--source-folder",
         metavar="DIR",
         help="Folder containing source .epub or .txt files (matched by audio "
              "basename). Each audio file gets --source <matched-file> passed "
-             "to the preparer. Files with no match run in legacy ASR-only mode."
+             "to the preparer. Unmatched files require --allow-no-source or interactive confirmation."
     )
     parser.add_argument(
         "--source",
@@ -851,6 +848,9 @@ def main():
         help="When using --source / --source-folder, keep low-confidence "
              "chunks (use ASR text) instead of dropping them. Forwarded."
     )
+
+    parser.add_argument("--allow-no-source", action="store_true",
+                        help="Explicitly allow unmatched --source-folder files to run ASR-only")
 
     args = parser.parse_args()
 
@@ -894,6 +894,7 @@ def main():
         source_path=args.source,
         source_threshold=args.source_threshold,
         keep_unaligned=args.keep_unaligned,
+        allow_no_source=args.allow_no_source,
     )
 
     try:
