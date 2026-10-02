@@ -19,6 +19,53 @@ class BatchDiskScratchTests(unittest.TestCase):
         dispatch.assert_not_called()
         self.assertTrue(processor.disk_refused)
 
+    def test_filesystem_location_errors_refuse_before_capacity_probes(self):
+        for operation in ('locate', 'stat'):
+            for component in range(3):
+                with self.subTest(operation=operation, component=component):
+                    processor = batch.BatchProcessor('fixture.gguf')
+                    processor.audio_durations = {'book.wav': 3600}
+                    locations = ['/output', '/scratch', '/system-temp']
+                    stats = [SimpleNamespace(st_dev=index) for index in range(3)]
+                    if operation == 'locate':
+                        locations[component] = OSError('fixture location unavailable')
+                    else:
+                        stats[component] = OSError('fixture device unavailable')
+                    with patch.object(batch, 'get_disk_probe_path', side_effect=locations), \
+                            patch.object(batch.os, 'stat', side_effect=stats), \
+                            patch.object(batch, 'check_disk_space') as capacity, \
+                            self.assertLogs(batch.logger, level='ERROR') as logs:
+                        self.assertFalse(processor.ensure_disk_space('book.wav', 0.5))
+                    capacity.assert_not_called()
+                    self.assertTrue(processor.disk_refused)
+                    self.assertEqual('book.wav', processor.results['failed'][0]['file'])
+                    self.assertIn('Disk space admission refused', processor.results['failed'][0]['reason'])
+                    self.assertIn('Cannot probe scratch/output filesystem', logs.output[0])
+
+    def test_run_reserves_later_long_book_scratch_before_starting_short_book(self):
+        for free_gb, admitted in ((3, False), (12, True)):
+            with self.subTest(free_gb=free_gb):
+                processor = batch.BatchProcessor('fixture.gguf')
+                files = ['short.wav', 'long.wav']
+                with patch.object(processor, 'validate_files', return_value=files), \
+                        patch.object(batch, 'get_audio_duration_seconds', side_effect=[3600, 36000]), \
+                        patch.object(batch, 'get_disk_probe_path', return_value='/same-device'), \
+                        patch.object(batch.os, 'stat', return_value=SimpleNamespace(st_dev=1)), \
+                        patch.object(batch.shutil, 'disk_usage', return_value=SimpleNamespace(
+                            free=free_gb * 1024 ** 3)), \
+                        patch.object(batch, 'log_gpu_stats'), patch.object(batch.time, 'sleep'), \
+                        patch.object(processor, 'print_summary'), \
+                        patch.object(processor, 'process_file') as dispatch:
+                    self.assertEqual(admitted, processor.run(files))
+                if admitted:
+                    self.assertEqual(files, [call.args[0] for call in dispatch.call_args_list])
+                    self.assertFalse(processor.disk_refused)
+                else:
+                    dispatch.assert_not_called()
+                    self.assertTrue(processor.disk_refused)
+                    self.assertEqual('short.wav', processor.results['failed'][0]['file'])
+                    self.assertEqual('long.wav', processor.results['skipped'][0]['file'])
+
     def test_explicit_override_bypasses_probe_and_logs_choice(self):
         processor = batch.BatchProcessor('fixture.gguf', skip_disk_check=True)
         with patch.object(batch, 'check_disk_space', side_effect=OSError('unreadable disk')) as probe, \
