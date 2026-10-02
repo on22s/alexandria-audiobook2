@@ -240,14 +240,32 @@ def check_disk_space(path, required_gb_per_file, num_files):
         logger.info(f"  ├─ Estimated needed: ~{required_gb:.1f} GB ({required_gb_per_file} GB/file × {num_files} files)")
 
         if free_gb < required_gb:
-            logger.warning(f"  └─ ⚠ Low disk space - may fill up during processing")
+            logger.error(f"  └─ Insufficient disk space at {os.path.abspath(path)}: "
+                         f"need {math.ceil((required_gb - free_gb) * 1024 ** 3)} more bytes")
             return False
         else:
             logger.info(f"  └─ ✓ Sufficient disk space")
             return True
     except Exception as e:
-        logger.debug(f"Disk space check failed: {e}")
-        return True  # Don't block on check failure
+        logger.error(f"Disk space check failed at {os.path.abspath(path)}: {e}")
+        return False
+
+
+
+def get_audio_duration_seconds(path):
+    """Read container duration without decoding the audiobook."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=10, check=True)
+        duration = float(result.stdout.strip())
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("invalid container duration")
+        return duration
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        logger.warning(f"Duration unavailable for {path}; retaining disk estimate floor: {error}")
+        return None
 
 
 def save_batch_receipt(path, data):
@@ -358,6 +376,9 @@ class BatchProcessor:
         }
         self.total_time = 0
         self.batch_start_time = None
+        self.audio_durations = {}
+        self.output_bytes_per_second = 0
+        self.disk_refused = False
 
     def validate_files(self, audio_files):
         """Validate all audio files and skip already-processed ones."""
@@ -453,8 +474,24 @@ class BatchProcessor:
 
         return valid_files
 
+    def get_disk_estimate_gb(self, audio_file):
+        duration = self.audio_durations.get(audio_file)
+        estimate = self.output_bytes_per_second * duration if duration else 0
+        return max(0.5, estimate / 1024 ** 3)
+
+    def ensure_disk_space(self, audio_file, required_gb):
+        directory = os.path.dirname(os.path.abspath(get_output_name(audio_file)))
+        if check_disk_space(directory, required_gb_per_file=required_gb, num_files=1):
+            return True
+        self.disk_refused = True
+        self.results["failed"].append({
+            "file": audio_file, "reason": f"Disk space admission refused at {directory}"})
+        return False
+
     def process_file(self, audio_file, file_index, total_files):
         """Process a single audio file with real-time output streaming."""
+        if not self.ensure_disk_space(audio_file, self.get_disk_estimate_gb(audio_file)):
+            return
         file_size = os.path.getsize(audio_file) / (1024 * 1024)
 
         logger.info("=" * 70)
@@ -562,6 +599,17 @@ class BatchProcessor:
                 line = line.rstrip()
                 if line:
                     print(line, flush=True)  # Real-time display
+                    if re.search(r"Volume \d+ saved:", line):
+                        # The preparer emits this only after atomic ZIP publication.
+                        current = get_volume_state(output_name)
+                        published_bytes = sum(state[0] for path, state in current.items()
+                                              if previous_volumes.get(path) != state)
+                        remaining_gb = max(0.5, self.get_disk_estimate_gb(audio_file)
+                                           - published_bytes / 1024 ** 3)
+                        if not self.ensure_disk_space(audio_file, remaining_gb):
+                            process.kill()
+                            process.wait()
+                            return
                     # Keep last 20 lines for error context
                     last_stderr_lines.append(line)
                     if len(last_stderr_lines) > 20:
@@ -589,7 +637,12 @@ class BatchProcessor:
                         "source": source_identity,
                         "volumes": new_volumes,
                     })
-                    output_size = sum(os.path.getsize(path) for path in new_volumes) / (1024 * 1024)
+                    output_bytes = sum(os.path.getsize(path) for path in new_volumes)
+                    duration = self.audio_durations.get(audio_file)
+                    if duration:
+                        self.output_bytes_per_second = max(
+                            self.output_bytes_per_second, output_bytes / duration)
+                    output_size = output_bytes / (1024 * 1024)
                     logger.info(f"  ├─ Output: {len(new_volumes)} ZIP volume(s) ({output_size:.1f} MB)")
                     logger.info(f"  └─ Time: {time_str}")
 
@@ -681,13 +734,19 @@ class BatchProcessor:
             logger.error("No valid files to process (see skipped/failed reasons above)")
             return False
 
-        # Estimate disk space needs (~250MB per audiobook for dataset)
-        check_disk_space(".", required_gb_per_file=0.5, num_files=len(valid_files))
+        self.disk_refused = False
+        self.audio_durations = {path: get_audio_duration_seconds(path) for path in valid_files}
 
         # Process each file
         try:
             for idx, audio_file in enumerate(valid_files, 1):
+                if not self.ensure_disk_space(
+                        audio_file, sum(self.get_disk_estimate_gb(path)
+                                        for path in valid_files[idx - 1:])):
+                    break
                 self.process_file(audio_file, idx, len(valid_files))
+                if self.disk_refused:
+                    break
 
                 # Show overall batch progress after each file
                 if len(valid_files) > 1:

@@ -612,6 +612,17 @@
     "tests.test_batch_completion_js.BatchCompletionJsTests.test_terminal_partial_results_count_pending_skipped_missing_and_cancelled",
     "tests.test_batch_completion_js.BatchCompletionJsTests.test_unavailable_status_rejects_poll_and_manual_cancel_does_not_show_success"
   ],
+  "test_batch_disk_admission": [
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_between_books_refusal_stops_the_next_book",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_direct_book_call_refuses_before_child_launch",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_disk_probe_failure_refuses_and_shortfall_names_output_filesystem",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_healthy_batch_dispatches_every_book_and_checks_remaining_budget",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_initial_disk_refusal_stops_batch_before_dispatch",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_metadata_duration_is_bounded_and_invalid_values_keep_floor",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_only_verified_completed_output_refines_duration_estimate",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_published_volume_refusal_kills_and_reaps_without_success_receipt",
+    "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_real_cpu_child_is_reaped_on_published_volume_disk_refusal"
+  ],
   "test_batch_identity_and_selection": [
     "tests.test_batch_identity_and_selection.BatchIdentity.test_a_hash_may_be_supplied_without_the_prompt_text",
     "tests.test_batch_identity_and_selection.BatchIdentity.test_comparing_two_nulls_must_not_read_as_agreement",
