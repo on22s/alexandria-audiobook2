@@ -227,10 +227,9 @@ class FrontendTests(unittest.TestCase):
                 "strip_front_matter: _isStripFrontMatterChecked()"):
             self.assertIn(required, frontend)
 
-        # Both the single and batch generate calls must send the toggle -
-        # not just one of them (a bare count check catches a copy-paste that
-        # only wires up one call site).
-        self.assertEqual(2, frontend.count("strip_front_matter: _isStripFrontMatterChecked()"))
+        # Single generation, batch generation, and book sample preflight
+        # all forward the same front-matter toggle.
+        self.assertEqual(3, frontend.count("strip_front_matter: _isStripFrontMatterChecked()"))
 
         sort_start = frontend.index("window.scriptBatchSort =")
         sort_end = frontend.index("window.cancelBatchScript", sort_start)
