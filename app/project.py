@@ -978,13 +978,13 @@ class ProjectManager:
                 skipped += 1
         return result, skipped
 
-    def merge_audio(self, cancel_check=None, progress_callback=None):
+    def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None):
         """progress_callback(message) reports loading progress; cancel_check()
         returning True aborts before the merge is written."""
         try:
             chunks_with_audio, skipped = self._load_chunks_with_audio(
                 cancel_check=cancel_check,
-                progress_callback=_loading_progress(progress_callback))
+                progress_callback=_loading_progress(progress_callback), chunks=chunks)
         except ExportCancelled:
             return False, "Merge cancelled"
         if not chunks_with_audio:

@@ -4275,6 +4275,21 @@
     "tests.test_measure_respellings_terms.RowsForTermsTest.test_a_term_that_does_not_romanise_is_refused",
     "tests.test_measure_respellings_terms.RowsForTermsTest.test_known_terms_keep_their_row_and_unknown_ones_are_built"
   ],
+  "test_merge_integrity": [
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_annotation_does_not_hide_editor_change",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_chunks_schedule_as_before_without_body",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_explicit_confirmation_is_bound_to_source_book_and_chunks",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_known_word_replacement_refuses_merge_with_locations",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_saved_script_json_is_unavailable_not_verified_source",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_worker_rechecks_and_exports_checked_rows",
+    "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_cache_is_bounded_copy_safe_and_invalidates_source_book_annotation_and_rows",
+    "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_native_preparation_accepts_publisher_cleanup_and_rejects_wrong_settings",
+    "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_real_owned_http_admission_does_not_deadlock_and_releases_failed_registration"
+  ],
+  "test_merge_integrity_js": [
+    "tests.test_merge_integrity_js.MergeIntegrityJsTests.test_badge_uses_native_status_and_discards_inflight_response_after_edit",
+    "tests.test_merge_integrity_js.MergeIntegrityJsTests.test_native_route_differences_are_shown_before_exact_confirmation_and_decline_stops"
+  ],
   "test_mixed_pdnc_campaign": [
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_actual_run_book_does_not_skip_nonempty_unfinished_json",
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_corrupt_or_incomplete_cache_is_regenerated_with_current_rows",

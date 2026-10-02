@@ -311,6 +311,12 @@ class DeferredExportCancelTests(unittest.TestCase):
             pm, chunks = _project(tmp)
             pm.save_chunks(chunks)
             pm.load_chunks()
+            if not chapter:
+                source=Path(tmp)/'source.txt'
+                source.write_text(' '.join(row['text'] for row in chunks))
+                (Path(tmp)/'state.json').write_text(json.dumps({'input_file_path':str(source)}))
+                with editor_module.ensure_book_state(tmp):
+                    pass
             output = Path(tmp, CHAPTER_EXPORT_DIR) if chapter else Path(tmp, "cloned_audiobook.mp3")
             if chapter:
                 output.mkdir()
@@ -325,6 +331,8 @@ class DeferredExportCancelTests(unittest.TestCase):
             stack.enter_context(patch.object(core, "_gpu_leases", {}))
             stack.enter_context(patch.object(core, "acquire_gpu_lock", return_value=None))
             stack.enter_context(patch.object(editor_module, "project_manager", pm))
+            stack.enter_context(patch.object(editor_module, "DATA_DIR", tmp))
+            stack.enter_context(patch.object(editor_module, "SCRIPT_PATH", pm.script_path))
             background = BackgroundTasks()
             if chapter:
                 response = asyncio.run(editor_module.export_chapters(

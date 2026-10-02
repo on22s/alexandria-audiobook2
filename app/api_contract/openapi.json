@@ -1970,6 +1970,26 @@
         "title": "ManualReply",
         "type": "object"
       },
+      "MergeRequest": {
+        "properties": {
+          "integrity_confirmation": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Confirmation"
+          }
+        },
+        "title": "MergeRequest",
+        "type": "object"
+      },
       "NarratorPreviewRequest": {
         "properties": {
           "focus_speaker": {
@@ -3511,7 +3531,6 @@
     },
     "/api/annotated_script/diff": {
       "get": {
-        "description": "Word-level differences between the saved source and the active script\n(issue #522 s7.4/7.5), one hunk per divergence with the chunk it sits in\nand the script entry to jump to.",
         "operationId": "get_annotated_script_diff_api_annotated_script_diff_get",
         "responses": {
           "200": {
@@ -4688,6 +4707,22 @@
           }
         },
         "summary": "Get Default Prompts"
+      }
+    },
+    "/api/editor/integrity": {
+      "get": {
+        "operationId": "get_editor_integrity_api_editor_integrity_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Editor Integrity"
       }
     },
     "/api/export_audacity": {
@@ -6597,6 +6632,23 @@
     "/api/merge": {
       "post": {
         "operationId": "merge_audio_endpoint_api_merge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MergeRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -6605,6 +6657,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Merge Audio Endpoint"

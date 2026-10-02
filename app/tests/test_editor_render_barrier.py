@@ -15,7 +15,7 @@ function client(){
  const row={dataset:{id:'7'},classList:{add(){}},querySelector:()=>null,querySelectorAll:()=>Object.entries(controls).map(([field,value])=>({value,getAttribute:()=>`updateChunk(7, '${field}', this.value)`}))};
  const calls=[],errors=[],gates=[],gets=[],batches=[];let hold=true,fail=false,holdRead=false,readRelease;
  fs.writeFileSync(artifact,JSON.stringify([{id:7,text:'',speaker:'OLD',status:'pending'}]));
- const context={window:{},document:{getElementById:()=>({style:{}}),querySelector:()=>row,querySelectorAll:selector=>selector==='#chunks-table-body tr[data-id]'?[row]:[]},console:{error(){},log(){}},showToast:error=>errors.push(error),showConfirm:async()=>true,cancelRender(){},_startPolling(){},loadChunks:async()=>{},runDriftCheck(){},API:{post:async(url,data)=>{
+ const context={invalidateEditorIntegrity(){},refreshEditorIntegrity:async()=>{},window:{},document:{getElementById:()=>({style:{}}),querySelector:()=>row,querySelectorAll:selector=>selector==='#chunks-table-body tr[data-id]'?[row]:[]},console:{error(){},log(){}},showToast:error=>errors.push(error),showConfirm:async()=>true,cancelRender(){},_startPolling(){},loadChunks:async()=>{},runDriftCheck(){},API:{post:async(url,data)=>{
  calls.push({url,data:JSON.parse(JSON.stringify(data))});
  if(url==='/api/chunks/7'){
   if(hold){await new Promise(resolve=>gates.push(resolve));}if(fail){throw new Error('fixture row write failed');}

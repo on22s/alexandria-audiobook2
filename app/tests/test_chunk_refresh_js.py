@@ -13,7 +13,7 @@ const body=element('chunks-table-body');let html='';
 Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
 const ctx={window:null,console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
  setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
- isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
+ refreshEditorIntegrity:async()=>{},invalidateEditorIntegrity:()=>{},isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')));
 run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));

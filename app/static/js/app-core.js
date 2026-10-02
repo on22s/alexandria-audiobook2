@@ -4342,6 +4342,65 @@
         });
 
         // --- Editor Tab: text integrity (issue #522 s7.4/7.5) ---
+        let editorIntegrityView = 0;
+
+        function invalidateEditorIntegrity(message = 'Source check pending') {
+            editorIntegrityView++;
+            const badge = document.getElementById('editor-integrity-badge');
+            if (badge) {
+                badge.textContent = message;
+                badge.className = 'badge bg-secondary';
+            }
+        }
+
+        async function refreshEditorIntegrity() {
+            const badge = document.getElementById('editor-integrity-badge');
+            if (!badge) { return; }
+            if (pendingChunkEdits.size || failedChunkEdits.size) {
+                invalidateEditorIntegrity('Save edits before checking source');
+                return;
+            }
+            const view = ++editorIntegrityView;
+            const edits = chunkEditsRevision;
+            try {
+                const report = await API.get('/api/editor/integrity');
+                if (view !== editorIntegrityView || edits !== chunkEditsRevision) { return; }
+                if (report.status === 'verified') {
+                    badge.textContent = 'Saved text matches source';
+                    badge.className = 'badge bg-success';
+                } else if (report.status === 'differences' && Array.isArray(report.hunks)) {
+                    badge.textContent = `${report.hunks.length} word differences`;
+                    badge.className = 'badge bg-warning text-dark';
+                } else {
+                    badge.textContent = 'Source comparison unavailable';
+                    badge.className = 'badge bg-secondary';
+                }
+            } catch (e) {
+                if (view === editorIntegrityView) {
+                    badge.textContent = 'Source comparison unavailable';
+                    badge.className = 'badge bg-secondary';
+                }
+            }
+        }
+
+        async function ensureMergeIntegrityApproval() {
+            await ensureEditorRenderSnapshot();
+            const report = await API.get('/api/editor/integrity');
+            if (!report || !['verified', 'differences', 'unavailable'].includes(report.status)
+                    || typeof report.snapshot !== 'string' || !/^[0-9a-f]{64}$/.test(report.snapshot)
+                    || !Array.isArray(report.hunks)) {
+                throw new Error('Source comparison is unavailable; refresh and try again.');
+            }
+            renderTextDiff(report);
+            const message = report.status === 'verified'
+                ? 'Merge all valid audio chunks into final audiobook?'
+                : report.status === 'differences'
+                    ? `${report.hunks.length} word differences are shown in Text integrity. Continue with this exact text? Cancel to fix them first.`
+                    : `Source comparison unavailable: ${report.reason || 'No original source is on record.'} Continue without a verified source match?`;
+            if (!await showConfirm(message)) { return null; }
+            return report.snapshot;
+        }
+
         async function openTextDiff() {
             const panel = document.getElementById('text-diff-panel');
             const summary = document.getElementById('text-diff-summary');
@@ -4354,7 +4413,7 @@
             }
             summary.textContent = 'Comparing…';
             try {
-                const diff = await API.get('/api/annotated_script/diff');
+                const diff = await API.get('/api/editor/integrity');
                 renderTextDiff(diff);
             } catch (e) {
                 summary.textContent = '';
@@ -4365,6 +4424,12 @@
         function renderTextDiff(diff) {
             const panel = document.getElementById('text-diff-panel');
             const summary = document.getElementById('text-diff-summary');
+            if (diff.status === 'unavailable') {
+                summary.textContent = 'Source comparison unavailable';
+                panel.style.display = '';
+                panel.textContent = diff.reason || 'No original source is on record.';
+                return;
+            }
             const t = diff.totals || {};
             const hunks = diff.hunks || [];
             summary.textContent = `${t.script_words} script words vs ${t.source_words} source · ${t.deleted} dropped, ${t.inserted} added, ${t.replaced} changed · ${hunks.length} place${hunks.length === 1 ? '' : 's'}`;
@@ -4566,8 +4631,11 @@
         }
 
         async function loadChunks(forceFullRedraw = false) {
+            invalidateEditorIntegrity();
             try {
-                return await ensureChunkRefresh(forceFullRedraw);
+                const chunks = await ensureChunkRefresh(forceFullRedraw);
+                void refreshEditorIntegrity();
+                return chunks;
             } catch (e) {
                 console.error("Error loading chunks:", e);
             }
@@ -4944,6 +5012,7 @@
             const previous = pendingChunkEdits.get(id);
             const captured = JSON.parse(JSON.stringify(data));
             chunkEditsRevision++;
+            invalidateEditorIntegrity('Edits awaiting save');
             const request = (async () => {
                 if (previous) { await previous.catch(() => {}); }
                 try {
@@ -4960,6 +5029,7 @@
             pendingChunkEdits.set(id, request);
             request.finally(() => {
                 if (pendingChunkEdits.get(id) === request) { pendingChunkEdits.delete(id); }
+                void refreshEditorIntegrity();
             }).catch(() => {});
             return request;
         }
@@ -5199,10 +5269,10 @@
         });
 
         document.getElementById('btn-merge').addEventListener('click', async () => {
-             if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) { return; }
-
              try {
-                 await API.post('/api/merge', {});
+                 const confirmation = await ensureMergeIntegrityApproval();
+                 if (confirmation === null) { return; }
+                 await API.post('/api/merge', { integrity_confirmation: confirmation });
                  // Switch to Result tab and poll
                  document.querySelector('[data-tab="audio"]').click();
                  const cancelBtn = document.getElementById('btn-cancel-merge');

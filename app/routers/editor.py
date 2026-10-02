@@ -1,3 +1,5 @@
+from merge_integrity import get_source_integrity
+from pathlib import Path
 from book_state_transaction import ensure_book_state
 import asyncio
 import logging
@@ -248,35 +250,72 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks)
     schedule_claimed_background_task(background_tasks, "audio", task)
     return {"status": "started"}
 
+class MergeRequest(BaseModel):
+    integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
+                                                  pattern="^[0-9a-f]{64}$")
+
+
+def _ensure_editor_integrity_locked():
+    """Caller holds book state; native chunk loading may initialize missing rows."""
+    chunks = project_manager.load_chunks()
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    try:
+        script_bytes = Path(SCRIPT_PATH).read_bytes()
+    except FileNotFoundError:
+        script_bytes = b""
+    return get_source_integrity(state, script_bytes, chunks), chunks
+
+
+def _ensure_editor_integrity():
+    with ensure_book_state(DATA_DIR):
+        report, _chunks = _ensure_editor_integrity_locked()
+        return report
+
+
+@router.get("/api/editor/integrity")
+async def get_editor_integrity():
+    return await asyncio.to_thread(_ensure_editor_integrity)
+
+
 @router.post("/api/merge")
-async def merge_audio_endpoint(background_tasks: BackgroundTasks):
-    # Reuse audio process state for merge if possible, or just background it
-    # For simplicity, we just background it and frontend will assume it works
-    # Or we can link it to process_state["audio"]
+async def merge_audio_endpoint(background_tasks: BackgroundTasks, request: Optional[MergeRequest] = None):
+    return await asyncio.to_thread(_start_merge_audio, background_tasks, request)
 
-    def task():
-        process_state["audio"]["start_time"] = time.time()
-        process_state["audio"]["logs"] = ["Starting merge..."]
-        try:
-            success, msg = project_manager.merge_audio(
-                cancel_check=lambda: process_state["audio"]["cancel"],
-                progress_callback=lambda m: process_state["audio"]["logs"].append(m))
-            if success:
-                process_state["audio"]["logs"].append(f"Merge complete: {msg}")
-            elif msg == "Merge cancelled":
-                process_state["audio"]["logs"].append("Merge cancelled")
-            else:
-                process_state["audio"]["logs"].append(f"Merge failed: {msg}")
-        except Exception as e:
-            process_state["audio"]["logs"].append(f"Merge error: {e}")
-        finally:
-            process_state["audio"]["running"] = False
-            process_state["audio"]["cancel"] = False
 
-    # Claim the GPU/TTS slot atomically on the request thread: a merge shares
-    # process_state["audio"] with generation, so without this two rapid POSTs (or
-    # a merge started during generation) both pass and clobber each other, and a
-    # merge's early finally would free the lock while TTS is still in flight.
+def _start_merge_audio(background_tasks, request):
+    with ensure_book_state(DATA_DIR):
+        report, _chunks = _ensure_editor_integrity_locked()
+        confirmation = request.integrity_confirmation if request is not None else None
+        if ((confirmation is not None and confirmation != report["snapshot"])
+                or (report["status"] != "verified" and confirmation is None)):
+            raise HTTPException(status_code=409, detail=report)
+        admitted_snapshot = report["snapshot"]
+
+        def task():
+            process_state["audio"]["start_time"] = time.time()
+            process_state["audio"]["logs"] = ["Starting merge..."]
+            try:
+                with ensure_book_state(DATA_DIR):
+                    current, chunks = _ensure_editor_integrity_locked()
+                    if current["snapshot"] != admitted_snapshot:
+                        raise ValueError("Source or editor chunks changed after merge admission; review again.")
+                success, msg = project_manager.merge_audio(
+                    cancel_check=lambda: process_state["audio"]["cancel"],
+                    progress_callback=lambda m: process_state["audio"]["logs"].append(m),
+                    chunks=chunks)
+                if success:
+                    process_state["audio"]["logs"].append(f"Merge complete: {msg}")
+                elif msg == "Merge cancelled":
+                    process_state["audio"]["logs"].append("Merge cancelled")
+                else:
+                    process_state["audio"]["logs"].append(f"Merge failed: {msg}")
+            except Exception as e:
+                process_state["audio"]["logs"].append(f"Merge error: {e}")
+            finally:
+                process_state["audio"]["running"] = False
+                process_state["audio"]["cancel"] = False
+
+        # Keep the existing atomic owned GPU/TTS admission after integrity approval.
     schedule_claimed_background_task(background_tasks, "audio", task)
     return {"status": "started"}
 

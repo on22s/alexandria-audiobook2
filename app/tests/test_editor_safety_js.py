@@ -367,6 +367,7 @@ const posts = [];
 const toasts = [];
 let bannersRemoved = 0;
 const context = {
+    invalidateEditorIntegrity() {}, refreshEditorIntegrity: async () => {},
     performance: {now: () => 0},
     currentIsRemote:false, failoverIsRemote:false,
     document: {

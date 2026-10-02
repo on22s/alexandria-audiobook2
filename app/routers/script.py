@@ -54,7 +54,7 @@ from three_pass_generate import (build_attribute_request,
                                  resolve_three_pass_generation_settings,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
-from text_diff import word_diff
+from merge_integrity import get_source_integrity
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (split_outer_quote_regions, validate_attribution,
@@ -2343,21 +2343,24 @@ async def get_annotated_script():
 
 @router.get("/api/annotated_script/diff")
 async def get_annotated_script_diff():
-    """Word-level differences between the saved source and the active script
-    (issue #522 s7.4/7.5), one hunk per divergence with the chunk it sits in
-    and the script entry to jump to."""
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=404, detail="No annotated script found")
-    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
-    input_file = state.get("input_file_path") if isinstance(state, dict) else None
-    if not input_file or not os.path.exists(input_file):
-        raise HTTPException(status_code=404, detail="No source text is on record for this script")
-    with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-        entries = json.load(f)
-    if not isinstance(entries, list):
-        raise HTTPException(status_code=400, detail="Script is not a list of entries")
-    source, _encoding = read_source_text(input_file)
-    return await asyncio.to_thread(word_diff, source, entries)
+    return await asyncio.to_thread(_ensure_annotated_script_diff)
+
+
+def _ensure_annotated_script_diff():
+    """Compare annotation with the same source policy as editor merge admission."""
+    with ensure_book_state(DATA_DIR):
+        if not os.path.exists(SCRIPT_PATH):
+            raise HTTPException(status_code=404, detail="No annotated script found")
+        state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+        with open(SCRIPT_PATH, "rb") as stream:
+            script_bytes = stream.read()
+        entries = json.loads(script_bytes)
+        if not isinstance(entries, list):
+            raise HTTPException(status_code=400, detail="Script is not a list of entries")
+        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script")
+        if result["status"] == "unavailable":
+            raise HTTPException(status_code=404, detail=result["reason"])
+        return result
 
 
 @router.get("/api/status")

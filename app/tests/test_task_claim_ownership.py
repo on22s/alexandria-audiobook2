@@ -149,8 +149,12 @@ class TaskClaimOwnershipTests(unittest.TestCase):
         app=FastAPI();app.add_middleware(core.TaskClaimMiddleware);app.include_router(editor.router);app.include_router(script.router)
         manager=Mock();manager.merge_audio.return_value=(True,'merged');manager.export_audacity.return_value=(True,'exported')
         with tempfile.TemporaryDirectory() as tmp:
+            import json
             path=Path(tmp)/'script.json';path.write_text('[]')
-            with patch.object(script,'SCRIPT_PATH',str(path)),patch.object(script,'process_state',self.state),patch.object(editor,'process_state',self.state),patch.object(editor,'project_manager',manager),patch.object(script,'run_process') as run,TestClient(app,raise_server_exceptions=False) as client:
+            source=Path(tmp)/'source.txt';source.write_text('alpha beta')
+            (Path(tmp)/'state.json').write_text(json.dumps({'input_file_path':str(source)}))
+            manager.load_chunks.return_value=[{'text':'alpha beta'}]
+            with patch.object(script,'SCRIPT_PATH',str(path)),patch.object(script,'process_state',self.state),patch.object(editor,'DATA_DIR',tmp),patch.object(editor,'SCRIPT_PATH',str(path)),patch.object(editor,'process_state',self.state),patch.object(editor,'project_manager',manager),patch.object(script,'run_process') as run,TestClient(app,raise_server_exceptions=False) as client:
                 for url,name in (('/api/merge','audio'),('/api/export_audacity','audacity_export'),('/api/find_nicknames','nicknames'),('/api/review_script','review')):
                     with self.subTest(url=url):
                         with patch.object(BackgroundTasks,'add_task',side_effect=RuntimeError('registration rejected')):
