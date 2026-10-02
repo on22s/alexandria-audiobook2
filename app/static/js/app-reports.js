@@ -1,3 +1,9 @@
+        let currentReportFilename = null;
+        let reportViewRequest = 0;
+        let reportExplanationPending = false;
+        let reportExplanationRunId = null;
+        const reportExplanationEligibility = new Map();
+
         // ── Reports ────────────────────────────────────────────────────
         async function loadReports() {
             const listEl = document.getElementById('reports-list');
@@ -8,6 +14,8 @@
                     listEl.innerHTML = '<div class="list-group-item text-muted small">No reports yet. Reports are generated automatically each time a script review finishes.</div>';
                     return;
                 }
+                reportExplanationEligibility.clear();
+                reports.forEach(r => { reportExplanationEligibility.set(r.filename, r.can_explain === true); });
                 listEl.innerHTML = reports.map(r => {
                     const when = r.mtime ? new Date(r.mtime * 1000).toLocaleString() : '';
                     const icon = r.type === 'batch' ? 'fa-layer-group' : 'fa-file-lines';
@@ -64,6 +72,11 @@
         }
 
         async function viewReport(filename) {
+            currentReportFilename = filename;
+            const viewRequest = ++reportViewRequest;
+            const explainButton = document.getElementById('btn-report-explain');
+            explainButton.style.display = reportExplanationEligibility.get(filename) ? '' : 'none';
+            explainButton.disabled = reportExplanationPending;
             const titleEl = document.getElementById('report-view-title');
             const contentEl = document.getElementById('report-view-content');
             document.querySelectorAll('#reports-list .report-list-item').forEach(el => {
@@ -75,11 +88,61 @@
                 const res = await fetch(`/api/reports/${encodeURIComponent(filename)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const markdown = await res.text();
+                if (viewRequest !== reportViewRequest || currentReportFilename !== filename) { return; }
                 const html = marked.parse(markdown);
                 contentEl.innerHTML = DOMPurify.sanitize(html);
             } catch (e) {
+                if (viewRequest !== reportViewRequest || currentReportFilename !== filename) { return; }
                 contentEl.innerHTML = `<p class="text-danger">Failed to load report: ${escapeHtml(e.message || String(e))}</p>`;
             }
+        }
+
+        async function onExplainReport() {
+            const filename = currentReportFilename;
+            if (!filename || reportExplanationPending || !reportExplanationEligibility.get(filename)) { return; }
+            reportExplanationPending = true;
+            document.getElementById('btn-report-explain').disabled = true;
+            let started = false;
+            try {
+                if (!(await confirmIfRemote('this report explanation'))) { return; }
+                if (currentReportFilename !== filename) { return; }
+                const response = await API.post(`/api/reports/${encodeURIComponent(filename)}/explain`, {});
+                if (!response || typeof response.run_id !== 'string' || !response.run_id) { throw new Error('Explanation start did not return a run identifier'); }
+                const runId = response.run_id;
+                reportExplanationRunId = runId;
+                started = true;
+                document.getElementById('btn-report-explanation-cancel').style.display = '';
+                _startPolling('report_explanation', () => API.get('/api/status/report_explanation'), {
+                    interval: 1000,
+                    doneCheck: data => data.run_id !== runId || !data.running,
+                    onDone: async data => {
+                        reportExplanationPending = false;
+                        reportExplanationRunId = null;
+                        document.getElementById('btn-report-explanation-cancel').style.display = 'none';
+                        document.getElementById('btn-report-explain').disabled = false;
+                        if (data.run_id !== runId) {
+                            showToast('Explanation status changed; reload the report to check its result', 'warning');
+                        } else if (data.status === 'done') {
+                            if (currentReportFilename === filename) { await viewReport(filename); }
+                            showToast('Report explanation saved', 'success');
+                        } else {
+                            showToast(data.error || 'Explanation cancelled; report retained', 'warning');
+                        }
+                    },
+                });
+            } catch (e) {
+                showToast(`Explanation failed: ${e.message || String(e)}`, 'error');
+            } finally {
+                if (!started) {
+                    reportExplanationPending = false;
+                    document.getElementById('btn-report-explain').disabled = false;
+                }
+            }
+        }
+
+        async function onCancelReportExplanation() {
+            try { await API.post('/api/reports/explanation/cancel', {run_id: reportExplanationRunId}); }
+            catch (e) { showToast(`Cancel failed: ${e.message || String(e)}`, 'error'); }
         }
 
         // Last script: every tab loader is defined now, so reopen the remembered tab.

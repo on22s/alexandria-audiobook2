@@ -5669,6 +5669,21 @@
     "tests.test_replay_lock_scope.ReplayLockScopeTests.test_production_gpu_wrapper_retains_owned_worker_cleanup_and_releases_between_cases",
     "tests.test_replay_lock_scope.ReplayLockScopeTests.test_worker_failure_is_reported_after_later_independent_replay"
   ],
+  "test_report_explanation": [
+    "tests.test_report_explanation.ReportCreationTests.test_both_report_writers_publish_without_calling_llm",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_explicit_action_publishes_and_releases_claim",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_failed_unsupported_cancelled_or_stale_explanation_preserves_report",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_incomplete_or_busy_refuses_before_provider_or_new_claim",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_queued_cancel_is_run_bound_and_never_calls_provider",
+    "tests.test_report_explanation.ReportPublicationTests.test_changed_incomplete_and_unsupported_metadata_refuse_without_writes",
+    "tests.test_report_explanation.ReportPublicationTests.test_failed_atomic_publication_retains_old_report_and_removes_staging",
+    "tests.test_report_explanation.ReportPublicationTests.test_replacement_preserves_all_other_report_text_and_allows_explicit_retry"
+  ],
+  "test_report_explanation_js": [
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_action_only_dispatches_after_explicit_choice_and_binds_cancel_and_poll",
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_confirmation_switch_and_malformed_start_do_not_start_unbound_poll",
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_other_report_or_run_never_receives_false_success_or_stale_content"
+  ],
   "test_report_filename_handlers": [
     "tests.test_report_filename_handlers.ReportFilenameHandlerTests.test_rendered_handlers_keep_filenames_as_data_and_fetch_exact_encoded_path"
   ],
@@ -6875,6 +6890,7 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_exports_and_builder_restore_exact_owner_and_missing_owner_is_visible",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_one_failed_adapter_does_not_suppress_other_running_tasks",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_remote_persona_and_local_voicelab_both_restore",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_report_explanation_reload_uses_activity_observer_until_completion",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_request_tasks_disable_until_done_and_dynamic_tasks_receive_fallback",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_shared_script_log_controls_remain_serialized",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_slow_review_hydration_does_not_delay_independent_controls",
