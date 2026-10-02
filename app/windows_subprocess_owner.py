@@ -60,7 +60,7 @@ class WindowsOwnerControl:
         self.directory.cleanup()
 
 
-def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, **kwargs):
+def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
     job = WindowsSubprocessJob()
     try:
         directory = tempfile.TemporaryDirectory(prefix='alexandria-windows-owner-')
@@ -74,8 +74,16 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
     assigned = False
     try:
         notice_args = [] if exit_notice_path is None else ['--exit-notice', str(exit_notice_path), '--']
+        handle_args = []
+        if inherited_handles:
+            if kwargs.get('startupinfo') is not None:
+                raise ValueError('Explicit inherited handles require their own startup info')
+            startup = subprocess.STARTUPINFO()
+            startup.lpAttributeList = {'handle_list': list(inherited_handles)}
+            kwargs = dict(kwargs, startupinfo=startup, close_fds=True)
+            handle_args = ['--inherit-handles', json.dumps(list(inherited_handles)), '--']
         process = subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *command],
+            [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *handle_args, *command],
             **kwargs)
         control = WindowsOwnerControl(job, process, directory, termination_grace)
         job.apply_process_membership(int(process._handle))
@@ -112,7 +120,7 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
         raise
 
 
-def run_windows_owned_command(gate, admission, command, exit_notice_path=None):
+def run_windows_owned_command(gate, admission, command, exit_notice_path=None, inherited_handles=()):
     deadline = time.monotonic() + 30
     while not gate.exists():
         if time.monotonic() >= deadline:
@@ -123,7 +131,12 @@ def run_windows_owned_command(gate, admission, command, exit_notice_path=None):
     # survives here to defeat parent's KILL_ON_JOB_CLOSE protection.
     if get_windows_job_active_process_count(api) != 1:
         raise OSError('Windows supervisor has no exclusive initial job membership')
-    process = subprocess.Popen(command)
+    if inherited_handles:
+        startup = subprocess.STARTUPINFO()
+        startup.lpAttributeList = {'handle_list': list(inherited_handles)}
+        process = subprocess.Popen(command, startupinfo=startup, close_fds=True)
+    else:
+        process = subprocess.Popen(command)
     save_windows_owner_message(admission, {'started': process.pid})
     notified = False
     while True:
@@ -145,8 +158,16 @@ if __name__ == '__main__':
         if len(command) < 4 or command[2] != '--':
             raise ValueError('Invalid Windows root-exit notice arguments')
         exit_notice_path, command = command[1], command[3:]
+    inherited_handles = ()
+    if command[:1] == ['--inherit-handles']:
+        if len(command) < 4 or command[2] != '--':
+            raise ValueError('Invalid Windows inherited-handle arguments')
+        inherited_handles, command = json.loads(command[1]), command[3:]
+        if (not isinstance(inherited_handles, list)
+                or any(type(value) is not int or value <= 0 for value in inherited_handles)):
+            raise ValueError('Expected positive Windows handles')
     try:
-        result = run_windows_owned_command(gate, admission, command, exit_notice_path)
+        result = run_windows_owned_command(gate, admission, command, exit_notice_path, inherited_handles)
     except (OSError, RuntimeError) as error:
         if not admission.exists():
             save_windows_owner_message(admission, {'error': str(error), 'errno': getattr(error, 'errno', None)})

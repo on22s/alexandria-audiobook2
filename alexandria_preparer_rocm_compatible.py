@@ -96,6 +96,7 @@ from pathlib import Path
 import alexandria_alignment as alignment
 from alexandria_run_manifest import (
     LOCK_ENV, RunStateError, acquire_run_lock, cleanup_run_artifacts, ensure_run_manifest,
+    run_phase_with_lock,
     get_run_identity, get_sample_path, is_verified_artifact, mark_artifact_complete,
     validate_scratch_path, write_json_atomic, get_file_identity,
 )
@@ -3498,9 +3499,7 @@ def main():
         parser.error(str(error))
 
     def run_phase(command):
-        environment = os.environ.copy()
-        environment[LOCK_ENV] = str(run_lock_fd)
-        return subprocess.run(command, pass_fds=(run_lock_fd,), env=environment)
+        return run_phase_with_lock(command, run_lock_fd)
 
     # ── Phase Orchestration ──────────────────────────────────────────────────
     # ROCm HIP contexts from PyTorch (Wav2Vec2) and llama-cpp often conflict

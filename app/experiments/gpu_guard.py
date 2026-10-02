@@ -19,12 +19,15 @@ the same collision later; an error names the queue and tells the caller how to
 join it. ALEXANDRIA_ALLOW_CONTENTION=1 overrides it for a call that genuinely
 must run beside a job.
 """
-import fcntl
 import functools
 import os
 import subprocess
+import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if REPO not in sys.path:
+    sys.path.append(REPO)
+from alexandria_file_lock import acquire_exclusive_file_lock, release_exclusive_file_lock
 
 # THE SAME DEFAULT gpu_job.sh USES, read from gpu_job.sh itself rather than
 # repeated here. This file used to name a repo-local path while gpu_job.sh
@@ -78,8 +81,8 @@ def gpu_is_busy(lock_path=None):
         # below already fails closed; this one used to fail open.
         return True
     try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(handle, fcntl.LOCK_UN)
+        acquire_exclusive_file_lock(handle.fileno())
+        release_exclusive_file_lock(handle.fileno())
         return False
     except OSError:
         return True
@@ -114,7 +117,7 @@ def acquire_gpu_lock(lock_path=None):
     path = lock_path or os.environ.get("GPU_LOCK") or default_lock()
     handle = open(path, "a")
     try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        acquire_exclusive_file_lock(handle.fileno())
     except OSError as error:
         handle.close()
         raise RuntimeError(f"GPU lock is held by another job: {path}") from error

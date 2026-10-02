@@ -307,7 +307,7 @@ def main():
     from experiments.pdnc_narrator_prior import get_llama_server_environment
     from generate_script import LLMGenParams
     from openai import OpenAI
-    from three_pass_generate import attribute_batch
+    from three_pass_generate import PassExhausted, attribute_batch
     from utils import atomic_json_write
 
     if args.phase == "confirmatory":

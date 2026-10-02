@@ -1,7 +1,6 @@
 """Run and report only the preparer attempts owned by one corpus output directory."""
 import argparse
 import datetime
-import fcntl
 import json
 import math
 import os
@@ -11,6 +10,7 @@ import sys
 import tempfile
 
 from alexandria_run_manifest import get_file_identity, write_json_atomic
+from alexandria_file_lock import acquire_exclusive_file_lock
 
 
 def get_annotation_metrics(row):
@@ -196,7 +196,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
         with (output_dir / '.corpus.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquire_exclusive_file_lock(lock.fileno())
             if args.pairs:
                 return run_corpus(args.repo.resolve(), args.pairs, output_dir, args.model, args.fallback)
             path = output_dir / 'corpus_attempts.json'

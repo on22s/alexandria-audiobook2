@@ -963,6 +963,7 @@
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_application_startup_recovers_before_chunk_reset",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_same_book_reload_nonce_rejects_and_newer_human_fields_are_preserved",
     "tests.test_book_state_transaction.BookReaderAdmissionTests.test_http_voice_snapshot_waits_for_complete_switch",
+    "tests.test_book_state_transaction.BookStateTransactionTests.test_changed_replacement_refuses_recovery_before_deleting_any_artifact",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_corrupt_original_fails_before_restoring_any_artifact",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_external_symlink_and_duplicate_targets_are_rejected",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_move_failure_restores_exact_previous_book_exports_and_checkpoint",
@@ -4590,6 +4591,9 @@
   "test_pdnc_context_evidence": [
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_confirmatory_requires_explicit_passing_pilot",
+    "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_main_quality_exhaustion_still_isolates_and_records_unknown",
+    "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_main_transport_exhaustion_is_not_split_or_checkpointed",
+    "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_main_unrelated_exception_keeps_original_error",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_non_quality_exception_is_not_split",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_pilot_gate_requires_effect_size_and_significance",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_prompt_rejects_proximity_as_attribution",
@@ -4815,6 +4819,7 @@
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_fresh_run_clears_generated_artifacts_but_not_unrelated_files",
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_one_run_owns_the_shared_directory_lock",
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_only_complete_valid_artifacts_are_reused",
+    "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_real_phase_borrows_lock_without_releasing_parent_ownership",
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_scratch_path_refuses_existing_input_and_dangling_symlink",
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_success_cleanup_keeps_unrelated_work_directory_files",
     "tests.test_preparer_run_manifest.PreparerRunManifestTests.test_symlinked_work_directory_is_refused"
@@ -7949,6 +7954,9 @@
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_snapshot_missing_or_empty_required_files_never_replaces_prior",
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_streamed_weights_unchanged_local_processor_and_cache_retained",
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_success_does_not_claim_model_parameter_measurement"
+  ],
+  "test_windows_import_boundary": [
+    "tests.test_windows_import_boundary.WindowsImportBoundaryTests.test_application_and_preparer_import_with_fcntl_unavailable"
   ],
   "test_windows_native_ci": [
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_four_native_methods_on_windows",

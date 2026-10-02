@@ -1,12 +1,16 @@
 """Run ownership and phase-artifact validation for the Alexandria preparer."""
 
 import hashlib
-import fcntl
+import errno
 import json
 import os
 import re
 import tempfile
+import subprocess
+import sys
 from pathlib import Path
+
+from alexandria_file_lock import acquire_exclusive_file_lock
 
 
 MANIFEST_NAME = '.run_manifest.json'
@@ -17,6 +21,7 @@ GENERATED_NAMES = frozenset({
 })
 SAMPLE_NAME = re.compile(r'sample_[0-9]+\.wav\Z')
 LOCK_ENV = 'ALEXANDRIA_PREPARER_LOCK_FD'
+LOCK_HANDLE_ENV = 'ALEXANDRIA_PREPARER_LOCK_HANDLE'
 
 
 class RunStateError(ValueError):
@@ -27,23 +32,65 @@ def acquire_run_lock(temp_dir):
     """Lock the shared work directory across the parent and its phase children."""
     lock_path = Path(temp_dir).absolute().with_name('.alexandria_preparer.lock')
     inherited = os.environ.get(LOCK_ENV)
+    converted = False
+    if os.name == 'nt' and os.environ.get(LOCK_HANDLE_ENV) is not None:
+        import msvcrt
+        try:
+            inherited = msvcrt.open_osfhandle(int(os.environ[LOCK_HANDLE_ENV]), os.O_RDWR)
+        except (OSError, ValueError) as error:
+            raise RunStateError('Invalid inherited preparer handle') from error
+        converted = True
     if inherited is not None:
         try:
             fd = int(inherited)
             actual = os.fstat(fd)
             expected = lock_path.stat()
         except (OSError, ValueError) as error:
+            if converted:
+                os.close(fd)
             raise RunStateError('Invalid inherited preparer lock') from error
         if (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
+            if converted:
+                os.close(fd)
             raise RunStateError('Inherited preparer lock points at another file')
         return fd
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as error:
+        acquire_exclusive_file_lock(fd)
+    except OSError as error:
         os.close(fd)
-        raise RunStateError('Another preparer run owns dataset_temp') from error
+        if error.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+            raise RunStateError('Another preparer run owns dataset_temp') from error
+        raise
     return fd
+
+
+def run_phase_with_lock(command, descriptor):
+    """Borrow the parent's lock through an explicitly inherited native handle."""
+    environment = dict(os.environ)
+    if os.name != 'nt':
+        environment[LOCK_ENV] = str(descriptor)
+        return subprocess.run(command, pass_fds=(descriptor,), env=environment)
+    import msvcrt
+    app_dir = str(Path(__file__).resolve().parent / 'app')
+    if app_dir not in sys.path:
+        sys.path.append(app_dir)
+    from windows_subprocess_owner import start_windows_owned_subprocess
+    duplicate = os.dup(descriptor)
+    process = None
+    try:
+        handle = msvcrt.get_osfhandle(duplicate)
+        os.set_handle_inheritable(handle, True)
+        environment.pop(LOCK_ENV, None)
+        environment[LOCK_HANDLE_ENV] = str(handle)
+        process = start_windows_owned_subprocess(command, env=environment,
+                                                inherited_handles=[handle])
+        return subprocess.CompletedProcess(command, process.wait())
+    finally:
+        if process is not None:
+            process._alexandria_control.close()
+            process.wait()
+        os.close(duplicate)
 
 
 def get_file_identity(path):
@@ -82,11 +129,12 @@ def write_json_atomic(data, path):
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(destination)
-        directory_fd = os.open(destination.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        if os.name != 'nt':
+            directory_fd = os.open(destination.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

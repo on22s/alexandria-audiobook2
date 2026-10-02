@@ -6,8 +6,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import os
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 spec = importlib.util.spec_from_file_location(
     'alexandria_run_manifest', ROOT / 'alexandria_run_manifest.py')
 manifest = importlib.util.module_from_spec(spec)
@@ -27,6 +30,21 @@ class PreparerRunManifestTests(unittest.TestCase):
             audio=str(self.audio), source=str(self.source), chunk_size=10.0,
             phase=None, resume=False, hf_token='secret', output='book.zip')
         self.work = self.root / 'dataset_temp'
+
+    def test_real_phase_borrows_lock_without_releasing_parent_ownership(self):
+        import subprocess
+        descriptor = manifest.acquire_run_lock(self.work)
+        code = "from alexandria_run_manifest import acquire_run_lock;import os,sys;fd=acquire_run_lock(sys.argv[1]);os.close(fd)"
+        try:
+            with patch.dict(os.environ, {'PYTHONPATH': str(ROOT)}):
+                result = manifest.run_phase_with_lock([sys.executable, '-c', code, str(self.work)], descriptor)
+            self.assertEqual(0, result.returncode)
+            with self.assertRaises(manifest.RunStateError):
+                manifest.acquire_run_lock(self.work)
+        finally:
+            os.close(descriptor)
+        released = manifest.acquire_run_lock(self.work)
+        os.close(released)
 
     def test_content_and_effective_options_identify_one_run(self):
         first = manifest.get_run_identity(self.args)

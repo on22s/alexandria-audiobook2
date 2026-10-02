@@ -100,6 +100,47 @@ with books.ensure_book_state(str(root)):
             self.assertEqual(b'protected',other.read_bytes())
 
 
+    def test_changed_replacement_refuses_recovery_before_deleting_any_artifact(self):
+        worker = """
+import os,sys
+from pathlib import Path
+import book_state_transaction as books
+root=Path(sys.argv[1]);move=books._move;count=0
+def crash_after_publish(source,destination):
+ global count
+ move(source,destination);count+=1
+ if count==10:os._exit(77)
+books._move=crash_after_publish
+with books.ensure_book_state(str(root)):
+ books.apply_book_state_locked(str(root),{'script.json':b'new script','voice.json':b'new voices','state.json':b'new identity','new.json':b'new only'},['chapters','export.mp3','checkpoint.json'])
+"""
+        # Protect both a replacement with an old backup and a newly created file.
+        for name in ('voice.json', 'new.json'):
+            with self.subTest(edited=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.prepare(root)
+                result = subprocess.run([sys.executable, '-c', worker, tmp],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(77, result.returncode, result.stderr)
+                journal = json.loads((root / books.JOURNAL).read_bytes())
+                self.assertEqual('publishing', journal['phase'])
+                workspace = root / journal['workspace']
+                self.assertEqual(b'old script', (workspace / 'old-0').read_bytes())
+                self.assertEqual(b'new script', (root / 'script.json').read_bytes())
+                self.assertEqual(b'new voices' if name == 'voice.json' else b'new only',
+                                 (root / name).read_bytes())
+                (root / name).write_bytes(b'human edit after the crash')
+                before = self.snapshot(root)
+                for retry in range(2):
+                    with self.assertRaisesRegex(ValueError, 'Active-book replacement changed; refusing destructive recovery'):
+                        with books.ensure_book_state(tmp):
+                            self.fail('Recovery admitted a book with an edited replacement')
+                    # Refusal must preserve all current files, every old backup,
+                    # and the pending journal, not just the edited target.
+                    self.assertEqual(before, self.snapshot(root))
+                    self.assertEqual(b'human edit after the crash', (root / name).read_bytes())
+
+
 class SavedBookTransactionHttpTests(unittest.TestCase):
     def test_http_load_failure_preserves_prior_book_and_success_publishes_all(self):
         from contextlib import ExitStack
