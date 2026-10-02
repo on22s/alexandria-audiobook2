@@ -38,18 +38,24 @@ def _character_script(character):
     return next((prefix for prefix in _SCRIPT_PREFIXES if name.startswith(prefix)), None)
 
 
-def audit_unicode_text(text, source_text=None):
+def get_unicode_scripts(text):
+    """Read the Unicode script identities of this exact text snapshot."""
+    return frozenset(script for char in str(text or "")
+                     if (script := _character_script(char)))
+
+
+def audit_unicode_text(text, source_text=None, *, source_scripts=None):
     """Describe Unicode scripts and source-unsupported characters without mutation."""
     text = str(text or "")
-    source = str(source_text or "")
-    scripts = sorted({script for char in text if (script := _character_script(char))})
-    source_scripts = {script for char in source if (script := _character_script(char))}
+    scripts = sorted(get_unicode_scripts(text))
+    if source_scripts is None:
+        source_scripts = get_unicode_scripts(source_text)
     introduced = (sorted(set(scripts) - source_scripts) if source_text is not None
                   else sorted(set(scripts) - {"LATIN"}))
     controls = get_unsafe_text_controls(text)
     mixed = []
     for match in _WORD_RE.finditer(text):
-        word_scripts = sorted({script for char in match.group() if (script := _character_script(char))})
+        word_scripts = sorted(get_unicode_scripts(match.group()))
         if "LATIN" in word_scripts and len(word_scripts) > 1:
             mixed.append({"text": match.group(), "scripts": word_scripts,
                           "offset": match.start()})
@@ -141,8 +147,36 @@ def get_source_phrase_occurrences(source_normalized, phrase_normalized):
     return sum(1 for _match in re.finditer(pattern, source_normalized))
 
 
+def get_source_phrase_counter(source_normalized):
+    """Return a counter bound to this immutable source; index only when queried."""
+    positions = None
+
+    def ensure_occurrence_count(phrase_normalized):
+        nonlocal positions
+        if not source_normalized or not phrase_normalized:
+            return 0
+        if phrase_normalized != " ".join(phrase_normalized.split()):
+            return get_source_phrase_occurrences(source_normalized, phrase_normalized)
+        if positions is None:
+            positions = {}
+            for match in re.finditer(r"\S+", source_normalized):
+                positions.setdefault(match.group(), []).append(match.start())
+        count = 0
+        next_start = 0
+        first_word = phrase_normalized.split(" ", 1)[0]
+        for start in positions.get(first_word, []):
+            end = start + len(phrase_normalized)
+            if (start >= next_start and source_normalized.startswith(phrase_normalized, start)
+                    and (end == len(source_normalized) or source_normalized[end].isspace())):
+                count += 1
+                next_start = end
+        return count
+
+    return ensure_occurrence_count
+
+
 def source_occurrences_for_text(source_normalized, text_normalized,
-                                minimum_tokens=5):
+                                minimum_tokens=5, *, count_phrase=None):
     """How many times the source carries this entry's content.
 
     WHY NOT A PLAIN `count`. Two things break exact matching, and both are
@@ -167,26 +201,28 @@ def source_occurrences_for_text(source_normalized, text_normalized,
     Entries shorter than `minimum_tokens` require their complete exact phrase;
     longer entries require a matching window of at least `minimum_tokens` words.
     """
+    count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     tokens = text_normalized.split()
     if not tokens or not source_normalized:
         return 0
     if len(tokens) < minimum_tokens:
-        return get_source_phrase_occurrences(source_normalized, " ".join(tokens))
+        return count_phrase(" ".join(tokens))
     for size in range(len(tokens), minimum_tokens - 1, -1):
         best = 0
         for start in range(0, len(tokens) - size + 1):
             window = " ".join(tokens[start:start + size])
-            best = max(best, get_source_phrase_occurrences(source_normalized, window))
+            best = max(best, count_phrase(window))
         if best:
             return best
     return 0
 
 
-def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None):
+def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None, count_phrase=None):
     findings = []
     occupied = set()
     if source_normalized is None:
         source_normalized = _normalize_words(source_text)
+    count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     for block_size in range(5, 1, -1):
         index = 0
         while index + (2 * block_size) <= len(texts):
@@ -217,11 +253,11 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
                 # So fall back to the per-entry minimum: if every line in the
                 # block is in the source, the block is duplicated (removable).
                 # Only a line the source lacks entirely is an invention.
-                contiguous = get_source_phrase_occurrences(source_normalized, block_text)
+                contiguous = count_phrase(block_text)
                 if source_normalized and not contiguous:
                     source_occurrences = min(
                         source_occurrences_for_text(
-                            source_normalized, _normalize_words(text))
+                            source_normalized, _normalize_words(text), count_phrase=count_phrase)
                         for text in left)
                 else:
                     source_occurrences = contiguous
@@ -252,7 +288,7 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
     return findings
 
 
-def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90, *, exact_findings=None, source_normalized=None):
+def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90, *, exact_findings=None, source_normalized=None, count_phrase=None):
     """Adjacent entry pairs that are near-duplicates of each other but not
     supported by the source - likely model re-generation at a seam.
 
@@ -267,9 +303,10 @@ def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90,
     occupied = set()
     if source_normalized is None:
         source_normalized = _normalize_words(source_text)
+    count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     if exact_findings is None:
         exact_findings = find_adjacent_duplicate_blocks(
-            texts, source_text, source_normalized=source_normalized)
+            texts, source_text, source_normalized=source_normalized, count_phrase=count_phrase)
     for finding in exact_findings:
         occupied.update(number - 1 for number in finding["entry_numbers"])
 
@@ -295,10 +332,8 @@ def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90,
             # Identical text used twice needs two occurrences in the source to be
             # "genuinely repeated prose"; one occurrence can't back both uses.
             required_occurrences = 2 if first_words == second_words else 1
-            first_supported = get_source_phrase_occurrences(
-                source_normalized, _normalize_words(first)) >= required_occurrences
-            second_supported = get_source_phrase_occurrences(
-                source_normalized, _normalize_words(second)) >= required_occurrences
+            first_supported = count_phrase(_normalize_words(first)) >= required_occurrences
+            second_supported = count_phrase(_normalize_words(second)) >= required_occurrences
             if first_supported and second_supported:
                 continue
             source_checked = True
@@ -327,6 +362,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
 
     texts = []
     instructions = []
+    source_scripts = None
     for index, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
             findings.append(_finding("blocking", "invalid_entry", "Entry must be a JSON object.", [index]))
@@ -354,7 +390,9 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             findings.append(_finding("blocking", "missing_speaker", "Entry has no speaker.", [index]))
         if not instruct:
             findings.append(_finding("manual_review", "missing_instruction", "Entry has no delivery instruction.", [index]))
-        unicode_report = audit_unicode_text(text, source_text)
+        if source_scripts is None:
+            source_scripts = get_unicode_scripts(source_text)
+        unicode_report = audit_unicode_text(text, source_text, source_scripts=source_scripts)
         if unicode_report["introduced_scripts"]:
             findings.append(_finding(
                 "blocking", "introduced_unicode_script",
@@ -415,13 +453,14 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
 
     source_tokens = get_normalized_word_tokens(source_text)
     source_normalized = " ".join(source_tokens)
+    count_phrase = get_source_phrase_counter(source_normalized)
     exact_findings = find_adjacent_duplicate_blocks(
-        texts, source_text, source_normalized=source_normalized)
+        texts, source_text, source_normalized=source_normalized, count_phrase=count_phrase)
     findings.extend(exact_findings)
     findings.extend(find_adjacent_near_duplicate_entries(
         texts, source_text, exact_findings=exact_findings,
-        source_normalized=source_normalized))
-    del source_normalized
+        source_normalized=source_normalized, count_phrase=count_phrase))
+    del source_normalized, count_phrase
 
     nonempty_instructions = [value for value in instructions if value]
     if len(nonempty_instructions) >= 20:

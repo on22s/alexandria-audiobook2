@@ -4703,6 +4703,11 @@
     "tests.test_preflight_source_tokens.PreflightSourceTokenTests.test_direct_near_default_reuses_normalized_source_for_exact_pass",
     "tests.test_preflight_source_tokens.PreflightSourceTokenTests.test_token_views_are_immutable_and_keep_existing_unicode_rules"
   ],
+  "test_preflight_source_unicode": [
+    "tests.test_preflight_source_unicode.SourceUnicodeReuseTests.test_absent_and_empty_source_have_different_introduced_scripts",
+    "tests.test_preflight_source_unicode.SourceUnicodeReuseTests.test_full_audit_classifies_source_once_and_does_not_keep_it_for_next_book",
+    "tests.test_preflight_source_unicode.SourceUnicodeReuseTests.test_shared_source_scripts_preserve_each_report_field"
+  ],
   "test_preparer_admission_cancel": [
     "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_both_upload_starts_reserve_before_first_await_and_adopt_same_owner",
     "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_cancel_rejects_idle_and_signals_only_active_disposable_child",
@@ -5999,6 +6004,10 @@
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_rejects_stale_preflight_before_gpu_claim",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
+  "test_safe_cut_sweep": [
+    "tests.test_safe_cut_sweep.SafeCutSweepTests.test_cuts_match_exhaustive_span_predicate_across_dialogue_conventions",
+    "tests.test_safe_cut_sweep.SafeCutSweepTests.test_span_endpoints_are_safe_and_interior_newlines_are_not"
+  ],
   "test_satella_quality_probe": [
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_arms_change_one_variable_at_a_time",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_expanded_probe_has_short_and_long_lines",
@@ -6343,6 +6352,12 @@
     "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_open_quote_after_newline",
     "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_residual_uses_canonical_fallback",
     "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_triple_run_is_quoted_ellipsis"
+  ],
+  "test_source_phrase_index": [
+    "tests.test_source_phrase_index.SourcePhraseIndexTests.test_index_is_lazy_reused_and_bound_to_each_source",
+    "tests.test_source_phrase_index.SourcePhraseIndexTests.test_known_overlap_boundaries_unicode_and_whitespace_cases",
+    "tests.test_source_phrase_index.SourcePhraseIndexTests.test_random_queries_match_original_literal_regex",
+    "tests.test_source_phrase_index.SourcePhraseIndexTests.test_whole_audit_findings_equal_regex_for_faithful_and_unsupported_repeats"
   ],
   "test_source_repair_ambiguous_runs": [
     "tests.test_source_repair_ambiguous_runs.AmbiguousSourceRepairTests.test_damaged_pairs_cannot_consume_the_edge_of_an_unknown_run",

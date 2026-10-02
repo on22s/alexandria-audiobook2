@@ -478,11 +478,17 @@ def _safe_cut_points(piece, convention=None):
         "paired_quotes" if re.search(r'["\u201c\u201d]', piece) else None)
     spans = spoken_spans(piece, convention) if convention else []
 
-    def inside(offset):
-        return any(start < offset < end for start, end in spans)
     points = set(m.start() for m in re.finditer(r"\n", piece))
     points.update(m.end() for m in re.finditer(r"[.!?][\"'\u201d\u2019)]*(?=\s)", piece))
-    return sorted(o for o in points if 0 < o < len(piece) and not inside(o))
+    cuts = []
+    span_index = 0
+    for offset in sorted(points):
+        while span_index < len(spans) and spans[span_index][1] <= offset:
+            span_index += 1
+        if 0 < offset < len(piece) and not (
+                span_index < len(spans) and spans[span_index][0] < offset < spans[span_index][1]):
+            cuts.append(offset)
+    return cuts
 
 
 def split_into_chunk_records(text, max_size=3000):

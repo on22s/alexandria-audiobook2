@@ -1,0 +1,30 @@
+{
+  "workload": "Arc 1 - Volume 1.json",
+  "entries": 3385,
+  "source_chars": 412791,
+  "source_sha256": "3516ad457c2ba7db8e7b5b8f16974060658462fd8e8794896e01242d75151746",
+  "script_sha256": "3f3c819f117e903194d955d868222efe25f924590043a8b7357de940b32169eb",
+  "baseline_commit": "0974ad3b",
+  "modified_source_sha256": "1260e9f324968c915a2558bdc8b818fd5b3bbfd75f528ab10e197c6bc4b34645",
+  "measurements": {
+    "baseline_main": {
+      "seconds": 550.8158653248101,
+      "findings": 134,
+      "report_sha256": "6773c8fa43b70e842a3c9ecfde6da54c20fa8f417820c307787f9f6b05008c82"
+    },
+    "cpu_batch": {
+      "seconds": 0.9042849380057305,
+      "findings": 134,
+      "report_sha256": "6773c8fa43b70e842a3c9ecfde6da54c20fa8f417820c307787f9f6b05008c82"
+    }
+  },
+  "reports_equal": true,
+  "scope": "One full-book audit before/after CPU batch; includes phrase indexing and source Unicode reuse. Single timings, not repeated distribution. No model inference.",
+  "terminal": true,
+  "measurement_notes": [
+    "Single full-book before/after timing; no repeated full-book distribution. CPU source audit only, not TTS/LLM generation.",
+    "Measured from an uncommitted performance working tree, identified by modified_source_sha256. The original probe is external and its exact bytes are identified below.",
+    "Prefix, phrase-count and quote-split experiments are retained in the local validation ledger; no global default or GPU safety policy changed."
+  ],
+  "original_probe_sha256": "1a8a4e97ac42a04fdbd6860e3bf0efed62552a542e0f91d18cd47aa26ba40f7d"
+}
