@@ -31,6 +31,17 @@ const flush=async()=>{for(let i=0;i<8;i++){await Promise.resolve();}};
 
 
 class PreparerControlsJsTests(unittest.TestCase):
+    def test_cpu_fallback_choice_reaches_actual_preparer_request(self):
+        self.run_scenario(SETUP + r"""
+for (const allowed of [false,true]) {
+ elements['prep-allow-cpu-fallback']={checked:allowed};
+ let captured;
+ context.fetch=async(url,request)=>{captured=JSON.parse(request.body.get('config_json'));return {ok:false,status:400,statusText:'fixture refusal',text:async()=>''};};
+ await context.startPreparer();
+ assert.strictEqual(captured.allow_cpu_fallback,allowed);
+}
+""")
+
     run_scenario = ownership.DatasetUiOwnershipJsTests.run_scenario
 
     def test_pending_and_accepted_runs_cancel_the_captured_mode(self):

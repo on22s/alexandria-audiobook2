@@ -82,6 +82,22 @@ class MergeIntegrityAdmission(unittest.TestCase):
         self.assertEqual('unavailable', result.json()['detail']['status'])
         self.assertEqual([], self.scheduled)
 
+    def test_foreign_source_settings_cannot_verify_even_identical_prose(self):
+        other = self.root / 'other-source.txt'
+        other.write_text(self.source.read_text())
+        self.state['script_generation_input_file'] = str(other)
+        self.state['script_generation_options'] = {'strip_front_matter': False}
+        self.write_state()
+        report = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', report['status'])
+        self.assertIn('another source', report['reason'])
+        self.assertEqual(409, self.client.post('/api/merge').status_code)
+        self.assertEqual([], self.scheduled)
+        self.state['script_generation_input_file'] = str(self.source)
+        self.write_state()
+        self.assertEqual('verified', self.client.get('/api/editor/integrity').json()['status'])
+        self.assertEqual(200, self.client.post('/api/merge').status_code)
+
     def test_explicit_confirmation_is_bound_to_source_book_and_chunks(self):
         self.change_rows('alpha gamma')
         snapshot = self.client.post('/api/merge', json={}).json()['detail']['snapshot']

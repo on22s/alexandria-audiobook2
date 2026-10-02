@@ -3435,6 +3435,7 @@ def main():
     parser.add_argument("--auto-detect-speakers", action="store_true", help="Auto-detect narrator count by analyzing audio and logging the number of unique speakers.")
     
     # ── LLM Enrichment ────────────────────────────────────────────────────────
+    parser.add_argument("--allow-cpu-fallback", action="store_true", help="Allow intentional CPU-only LLM enrichment on a GPU machine.")
     parser.add_argument("--enrich-with-llm", action="store_true", help="Enable LLM-based transcript enrichment.")
     parser.add_argument("--llm-model-path", help="Path to the GGUF LLM model file for transcript enrichment. Required if --enrich-with-llm is set.")
     parser.add_argument("--enrich-speaker-attribution", action="store_true", help="Instruct LLM to extract speaker attribution.")
@@ -3808,6 +3809,8 @@ def main():
                          "--input-file", asr_chunks_path,
                          "--output-file", enriched_output_path,
                          "--resume"]
+            if args.allow_cpu_fallback:
+                enrich_cmd.append("--allow-cpu-fallback")
             if args.enrich_speaker_attribution:
                 enrich_cmd.append("--speaker-attribution")
             if args.enrich_narration_style:

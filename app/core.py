@@ -19,6 +19,7 @@ from voicelab_settings import get_voicelab_python
 import threading
 import time
 import uuid
+from review_report import save_review_report
 from typing import List, Optional, Tuple
 
 import aiofiles
@@ -509,6 +510,7 @@ process_state = {
     "m4b_export": {"running": False, "logs": []},
     "chapter_export": {"running": False, "logs": [], "cancel": False},
     "drift_check": {"running": False, "logs": []},
+    "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
                      "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
@@ -539,7 +541,7 @@ GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # profile is not on this machine's GPU (hosted API, a CPU-served model, a
 # box across the network), these contend with each other for the endpoint
 # but not with the TTS/LoRA tasks for the card.
-LLM_TASKS = {"script", "batch_script", "review", "batch_review", "persona",
+LLM_TASKS = {"report_explanation", "script", "batch_script", "review", "batch_review", "persona",
              "voices", "nicknames"} & set(process_state.keys())
 
 
@@ -1944,11 +1946,11 @@ def _is_evidence_bound_summary(summary: str) -> bool:
 
 
 def _insert_llm_summary(lines: List[str], intro_len: int, stats: Optional[dict] = None,
-                        incomplete: bool = False) -> List[str]:
+                        incomplete: bool = False, *, allow_llm: bool = False) -> List[str]:
     """Insert an evidence-bound plain-language summary after the report intro."""
     stats = stats or {}
     summary = None
-    if not incomplete:
+    if allow_llm and not incomplete:
         candidate = _llm_summarize_report("\n".join(lines))
         if candidate and _is_evidence_bound_summary(candidate):
             summary = candidate
@@ -2011,8 +2013,8 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
     lines = _insert_llm_summary(lines, len(intro), stats, incomplete=incomplete)
 
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
+        save_review_report(path, "\n".join(lines) + "\n",
+                           _get_deterministic_review_summary(stats, incomplete), incomplete)
     except OSError:
         return None
     return path

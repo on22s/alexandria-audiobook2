@@ -2317,6 +2317,14 @@
     "tests.test_empty_roster_guard.RosterFallbackTest.test_no_roster_anywhere_still_yields_empty_for_the_guard_to_catch",
     "tests.test_empty_roster_guard.RosterFallbackTest.test_roster_additions_still_wins_when_present"
   ],
+  "test_enricher_cpu_admission": [
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_explicit_cli_override_loads_and_publishes",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_gpu_cpu_build_refuses_before_model_and_preserves_output",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_native_preparer_forwards_opt_in_to_enricher",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_no_fields_never_probes_or_loads_model",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_no_gpu_and_offload_build_keep_model_loading",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_preparer_worker_forwards_only_explicit_opt_in"
+  ],
   "test_enricher_gpu_ownership": [
     "tests.test_enricher_gpu_ownership.EnricherGpuOwnershipTest.test_cli_cleanup_on_success_inference_failure_and_publication_failure",
     "tests.test_enricher_gpu_ownership.EnricherGpuOwnershipTest.test_failed_model_close_keeps_lease_until_close_succeeds",
@@ -4279,6 +4287,7 @@
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_annotation_does_not_hide_editor_change",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_chunks_schedule_as_before_without_body",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_explicit_confirmation_is_bound_to_source_book_and_chunks",
+    "tests.test_merge_integrity.MergeIntegrityAdmission.test_foreign_source_settings_cannot_verify_even_identical_prose",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_known_word_replacement_refuses_merge_with_locations",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_saved_script_json_is_unavailable_not_verified_source",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_worker_rechecks_and_exports_checked_rows",
@@ -4877,6 +4886,7 @@
   "test_preparer_controls_js": [
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_accepted_task_identity_survives_mode_edits",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_both_transports_use_shared_submission_and_restore_failure_controls",
+    "tests.test_preparer_controls_js.PreparerControlsJsTests.test_cpu_fallback_choice_reaches_actual_preparer_request",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_older_poll_completion_cannot_clear_new_task_controls",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_pending_and_accepted_runs_cancel_the_captured_mode",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_status_markup_is_escaped_and_colors_are_constrained"
@@ -5434,6 +5444,10 @@
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_cached_hit_finishes_while_worker_lock_is_held",
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_changed_bytes_cannot_use_cached_hit_while_worker_busy"
   ],
+  "test_reference_key_hashing": [
+    "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_changed_clip_and_unreadable_endpoint_still_invalidate_identity",
+    "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_twelve_clips_are_read_once_and_ordered_pair_hashes_are_unchanged"
+  ],
   "test_reference_rebuild": [
     "tests.test_reference_rebuild.BandConstantTest.test_the_band_is_the_published_one",
     "tests.test_reference_rebuild.CandidateBandTest.test_a_corpus_that_cannot_reach_the_band_yields_nothing",
@@ -5683,6 +5697,22 @@
     "tests.test_replay_lock_scope.ReplayLockScopeTests.test_bookkeeping_and_commits_release_lock_each_replay_retains_it",
     "tests.test_replay_lock_scope.ReplayLockScopeTests.test_production_gpu_wrapper_retains_owned_worker_cleanup_and_releases_between_cases",
     "tests.test_replay_lock_scope.ReplayLockScopeTests.test_worker_failure_is_reported_after_later_independent_replay"
+  ],
+  "test_report_explanation": [
+    "tests.test_report_explanation.ReportCreationTests.test_both_report_writers_publish_without_calling_llm",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_explicit_action_publishes_and_releases_claim",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_failed_unsupported_cancelled_or_stale_explanation_preserves_report",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_incomplete_or_busy_refuses_before_provider_or_new_claim",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_queued_cancel_is_run_bound_and_never_calls_provider",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_real_list_route_reports_native_writer_eligibility",
+    "tests.test_report_explanation.ReportPublicationTests.test_changed_incomplete_and_unsupported_metadata_refuse_without_writes",
+    "tests.test_report_explanation.ReportPublicationTests.test_failed_atomic_publication_retains_old_report_and_removes_staging",
+    "tests.test_report_explanation.ReportPublicationTests.test_replacement_preserves_all_other_report_text_and_allows_explicit_retry"
+  ],
+  "test_report_explanation_js": [
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_action_only_dispatches_after_explicit_choice_and_binds_cancel_and_poll",
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_confirmation_switch_and_malformed_start_do_not_start_unbound_poll",
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_other_report_or_run_never_receives_false_success_or_stale_content"
   ],
   "test_report_filename_handlers": [
     "tests.test_report_filename_handlers.ReportFilenameHandlerTests.test_rendered_handlers_keep_filenames_as_data_and_fetch_exact_encoded_path"
@@ -6890,6 +6920,7 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_exports_and_builder_restore_exact_owner_and_missing_owner_is_visible",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_one_failed_adapter_does_not_suppress_other_running_tasks",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_remote_persona_and_local_voicelab_both_restore",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_report_explanation_reload_uses_activity_observer_until_completion",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_request_tasks_disable_until_done_and_dynamic_tasks_receive_fallback",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_shared_script_log_controls_remain_serialized",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_slow_review_hydration_does_not_delay_independent_controls",

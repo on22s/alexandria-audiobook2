@@ -138,5 +138,16 @@ assert(calls.indexOf('batch_review')<calls.indexOf('nicknames'));
         # Dispatch coverage only; simultaneous admission is verified separately.
         self.run_js('const names=' + json.dumps(list(core.process_state)) + r""";
 statuses=Object.fromEntries(names.map(name=>[name,{running:true,dataset_name:'Book'}]));
-await ctx.reattachRunningPollers();assert.strictEqual(calls.length,names.length);assert.deepStrictEqual(warnings,[['drift check is still running.','info']]);
+await ctx.reattachRunningPollers();assert.strictEqual(calls.length,names.length);assert.deepStrictEqual(warnings,[['drift check is still running.','info'],['report explanation is still running.','info']]);
+""")
+
+    def test_report_explanation_reload_uses_activity_observer_until_completion(self):
+        self.run_js(r"""
+statuses={report_explanation:{running:true}};
+await ctx.reattachRunningPollers();assert.deepStrictEqual(calls,['reattach:report_explanation']);
+assert.strictEqual(ctx.poll.key,'reattach:report_explanation');
+assert(!ctx.poll.options.doneCheck({running:true}));assert(ctx.poll.options.doneCheck({running:false}));
+await ctx.poll.fetch();assert(requests.includes('/api/status/report_explanation'));
+await ctx.poll.options.onDone({running:false,logs:['Explanation saved.']});
+assert.deepStrictEqual(warnings,[['report explanation is still running.','info'],['Explanation saved.','info']]);
 """)

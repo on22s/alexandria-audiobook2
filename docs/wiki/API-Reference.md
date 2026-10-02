@@ -310,7 +310,17 @@ chunks = requests.get(f"{BASE}/api/chunks").json()
 requests.post(f"{BASE}/api/generate_batch_fast", json={"indices": [c["id"] for c in chunks]})
 wait_for("audio")
 
-requests.post(f"{BASE}/api/merge")
+integrity = requests.get(f"{BASE}/api/editor/integrity")
+integrity.raise_for_status()
+integrity = integrity.json()
+if integrity['status'] != 'verified':
+    print(integrity)  # inspect differences or the unavailable-source reason
+    if input('Continue without a verified source match? [yes/no] ') != 'yes':
+        raise SystemExit('Merge declined')
+response = requests.post(f"{BASE}/api/merge", json={
+    'integrity_confirmation': integrity['snapshot']
+})
+response.raise_for_status()  # changed source/book/chunks require a fresh check
 wait_for("audio")
 with open("audiobook.mp3", "wb") as f:
     f.write(requests.get(f"{BASE}/api/audiobook").content)
@@ -349,5 +359,26 @@ await fetch(`${BASE}/api/generate_batch_fast`, {
 });
 await waitFor("audio");
 
-await fetch(`${BASE}/api/merge`, { method: "POST" });
+const integrityResponse = await fetch(`${BASE}/api/editor/integrity`);
+if (!integrityResponse.ok) { throw new Error('Source check failed'); }
+const integrity = await integrityResponse.json();
+if (integrity.status !== 'verified') {
+  console.log(integrity); // inspect differences or the unavailable-source reason
+  if (!window.confirm('Continue without a verified source match?')) {
+    throw new Error('Merge declined');
+  }
+}
+const mergeResponse = await fetch(`${BASE}/api/merge`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ integrity_confirmation: integrity.snapshot })
+});
+if (!mergeResponse.ok) { throw new Error('Merge refused; check the current snapshot again'); }
 ```
+
+`POST /api/merge` accepts a bodyless request only when the current editor text
+matches the selected original source. Differences or unavailable provenance
+return HTTP 409. Inspect `GET /api/editor/integrity` and explicitly confirm its
+current `snapshot` to proceed; the server rechecks it before exporting. A saved
+script-JSON book without its original source remains unavailable and requires
+confirmation on each merge. This check compares text, not the words in WAVs.
