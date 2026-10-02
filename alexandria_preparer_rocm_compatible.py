@@ -3806,7 +3806,8 @@ def main():
             enrich_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "llm_enricher.py"),
                          "--model-path", args.llm_model_path,
                          "--input-file", asr_chunks_path,
-                         "--output-file", enriched_output_path]
+                         "--output-file", enriched_output_path,
+                         "--resume"]
             if args.enrich_speaker_attribution:
                 enrich_cmd.append("--speaker-attribution")
             if args.enrich_narration_style:

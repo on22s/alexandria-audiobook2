@@ -6,10 +6,12 @@ import sys
 import logging
 import tempfile
 import traceback
+from contextlib import nullcontext
 from typing import Dict, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app"))
-from utils import extract_json_object
+from utils import extract_json_object, file_lock, atomic_json_write
+from alexandria_run_manifest import get_file_identity
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 
 from llama_cpp import Llama, llama_supports_gpu_offload
@@ -176,6 +178,8 @@ def main():
     parser.add_argument("--speaker-attribution", action="store_true")
     parser.add_argument("--narration-style", action="store_true")
     parser.add_argument("--emotional-tone", action="store_true")
+    parser.add_argument("--resume", action="store_true",
+                        help="Reuse fingerprint-matched accepted enrichment rows after interruption")
 
     args = parser.parse_args()
 
@@ -194,46 +198,91 @@ def main():
         logger.error("Input must contain a JSON list of transcript objects")
         exit(1)
 
-    try:
-        selected = [key for key, enabled in (
-            ("speaker_attribution", args.speaker_attribution),
-            ("narration_style", args.narration_style),
-            ("emotional_tone", args.emotional_tone),
-        ) if enabled]
-        enricher = LLMEnricher(args.model_path, selected)
-    except Exception as e:
-        logger.error(f"Exiting: Could not initialize LLMEnricher: {e}")
-        exit(1)
-
-    try:
-        enriched_data = []
-        fail_count = 0
-        for i, chunk in enumerate(transcript_data):
-            try:
-                enriched_chunk = enricher.enrich_transcript_chunk(chunk)
-                if enriched_chunk.get("_enrichment_failed"):
-                    fail_count += 1
-                enriched_data.append(enriched_chunk)
-            except Exception as e:
-                logger.error(f"Error processing chunk {i}: {e}")
-                logger.debug(traceback.format_exc())
-                fail_count += 1
-                enriched_data.append({**chunk, "_enrichment_failed": True})
-
-        if transcript_data and fail_count == len(transcript_data):
-            logger.error(f"All {fail_count} chunk(s) failed enrichment - exiting with an error so the caller can detect total failure.")
+    selected = [key for key, enabled in (
+        ("speaker_attribution", args.speaker_attribution),
+        ("narration_style", args.narration_style),
+        ("emotional_tone", args.emotional_tone),
+    ) if enabled]
+    checkpoint_path = args.output_file + ".enrichment_checkpoint.json"
+    checkpoint_lock = file_lock(checkpoint_path) if args.resume and selected else nullcontext()
+    with checkpoint_lock:
+        enricher = None
+        try:
+            cached = [None] * len(transcript_data)
+            identity = None
+            if args.resume and selected:
+                identity = {
+                    "version": 1, "input": get_file_identity(args.input_file),
+                    "model": get_file_identity(args.model_path),
+                    "implementation": get_file_identity(__file__), "fields": selected,
+                    "llama_cpp_version": getattr(sys.modules.get("llama_cpp"), "__version__", None),
+                }
+                if os.path.exists(checkpoint_path):
+                    with open(checkpoint_path, encoding='utf-8') as checkpoint_file:
+                        checkpoint = json.load(checkpoint_file)
+                    if not isinstance(checkpoint, dict):
+                        raise ValueError("Invalid enrichment checkpoint document")
+                    if checkpoint.get("identity") != identity:
+                        logger.warning("Enrichment checkpoint identity changed; starting fresh.")
+                    else:
+                        cached = checkpoint.get("rows")
+                        if not isinstance(cached, list) or len(cached) != len(transcript_data):
+                            raise ValueError("Invalid enrichment checkpoint row count")
+                        for original, row in zip(transcript_data, cached):
+                            if row is not None and (not isinstance(row, dict)
+                                    or row.get("_enrichment_failed")
+                                    or set(row) != set(original) | set(selected)
+                                    or any(row.get(key) != value for key, value in original.items()
+                                           if key not in selected)):
+                                raise ValueError("Invalid enrichment checkpoint source row")
+                        logger.info("Resuming %s accepted enrichment rows", sum(row is not None for row in cached))
+            needs_model = identity is None or any(row is None for row in cached)
+            enricher = LLMEnricher(args.model_path, selected) if needs_model else None
+            if identity is not None and needs_model:
+                if get_file_identity(args.model_path) != identity["model"]:
+                    raise ValueError("Enrichment model changed while loading")
+        except Exception as e:
+            if enricher is not None:
+                enricher.close()
+            logger.error(f"Exiting: Could not initialize LLMEnricher: {e}")
             exit(1)
-        elif fail_count:
-            logger.warning(f"{fail_count}/{len(transcript_data)} chunk(s) failed enrichment; continuing with the rest.")
 
         try:
-            save_enriched_transcript(enriched_data, args.output_file)
-            logger.info(f"Enriched transcript saved to: {args.output_file}")
-        except IOError as e:
-            logger.error(f"Failed to write output file {args.output_file}: {e}")
-            exit(1)
-    finally:
-        enricher.close()
+            enriched_data = []
+            fail_count = 0
+            for i, chunk in enumerate(transcript_data):
+                was_cached = cached[i] is not None
+                try:
+                    enriched_chunk = cached[i] if cached[i] is not None else enricher.enrich_transcript_chunk(chunk)
+                    if enriched_chunk.get("_enrichment_failed"):
+                        fail_count += 1
+                    enriched_data.append(enriched_chunk)
+                except Exception as e:
+                    logger.error(f"Error processing chunk {i}: {e}")
+                    logger.debug(traceback.format_exc())
+                    fail_count += 1
+                    enriched_data.append({**chunk, "_enrichment_failed": True})
+                if identity is not None and not was_cached and not enriched_data[-1].get("_enrichment_failed"):
+                    cached[i] = enriched_data[-1]
+                    atomic_json_write({"identity": identity, "rows": cached}, checkpoint_path)
+
+            if transcript_data and fail_count == len(transcript_data):
+                logger.error(f"All {fail_count} chunk(s) failed enrichment - exiting with an error so the caller can detect total failure.")
+                exit(1)
+            elif fail_count:
+                logger.warning(f"{fail_count}/{len(transcript_data)} chunk(s) failed enrichment; continuing with the rest.")
+
+            try:
+                save_enriched_transcript(enriched_data, args.output_file)
+                logger.info(f"Enriched transcript saved to: {args.output_file}")
+                if identity is not None and os.path.exists(checkpoint_path):
+                    os.unlink(checkpoint_path)
+            except IOError as e:
+                logger.error(f"Failed to write output file {args.output_file}: {e}")
+                exit(1)
+        finally:
+            if enricher is not None:
+                enricher.close()
 
 if __name__ == "__main__":
     main()

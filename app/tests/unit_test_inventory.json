@@ -2278,6 +2278,16 @@
     "tests.test_enricher_preflight_json.EnricherPreflightJsonTests.test_unparseable_response_remains_marked_as_failed",
     "tests.test_enricher_preflight_json.EnricherPreflightJsonTests.test_valid_input_is_enriched_and_exact_nested_output_is_published"
   ],
+  "test_enrichment_resume": [
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_changed_fields_or_runtime_identity_repeats_all_rows",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_changed_source_and_same_size_mtime_model_invalidate_rows",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_checkpoint_write_failure_stops_calls_and_closes_model",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_complete_checkpoint_recovers_publication_without_loading_model",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_corrupt_source_row_fails_before_model_load_or_publication",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_failed_row_is_retried_after_interruption",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_interrupted_run_skips_three_accepted_rows_preserving_source_and_order",
+    "tests.test_enrichment_resume.EnrichmentResumeTests.test_model_changed_during_load_is_closed_without_calls"
+  ],
   "test_ensure_llama_server_default": [
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
