@@ -130,7 +130,7 @@ def _get_reference_score_key(pairs, python_bin, script):
     environment = tuple((name, os.environ.get(name)) for name in (
         "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "HF_HOME", "HUGGINGFACE_HUB_CACHE",
         "TORCH_HOME", "OMP_NUM_THREADS"))
-    hashes = {path: get_file_sha256(path) for pair in pairs for path in pair}
+    hashes = {path: get_file_sha256(path) for path in sorted({path for pair in pairs for path in pair})}
     return (os.path.abspath(python_bin), tuple(sorted((name, get_file_sha256(path))
                                                     for name, path in files.items())),
             environment, tuple((hashes[a], hashes[b]) for a, b in pairs))

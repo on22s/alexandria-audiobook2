@@ -5419,6 +5419,10 @@
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_cached_hit_finishes_while_worker_lock_is_held",
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_changed_bytes_cannot_use_cached_hit_while_worker_busy"
   ],
+  "test_reference_key_hashing": [
+    "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_changed_clip_and_unreadable_endpoint_still_invalidate_identity",
+    "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_twelve_clips_are_read_once_and_ordered_pair_hashes_are_unchanged"
+  ],
   "test_reference_rebuild": [
     "tests.test_reference_rebuild.BandConstantTest.test_the_band_is_the_published_one",
     "tests.test_reference_rebuild.CandidateBandTest.test_a_corpus_that_cannot_reach_the_band_yields_nothing",
