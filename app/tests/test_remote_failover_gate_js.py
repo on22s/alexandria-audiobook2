@@ -21,6 +21,7 @@ function client(activeRemote=false,failoverRemote=true){
  load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
  vm.runInContext('let _scriptStartOver=false;let scriptBatchPoller=null;',ctx);
  load("document.getElementById('btn-gen-script').addEventListener", '// Pause is SIGSTOP');
+ load('function _isReviewForceChecked()', 'function _isStripFrontMatterChecked()');
  load("document.getElementById('btn-review-script').addEventListener", 'const _reviewPauseResume =');
  load('async function findNicknames()', 'let characterAliasesLoaded =');load('async function generatePersonas()', 'async function cancelPersonas()');
  load('window.regeneratePersona =', 'window.selectVoiceCandidate =');load('function getLoraModelsById(', 'function renderVoiceSuggestions()');

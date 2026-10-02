@@ -2213,6 +2213,10 @@
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
+        function _isReviewForceChecked() {
+            const cb = document.getElementById('review-force-rerun');
+            return cb ? cb.checked : false;
+        }
         function _isStripFrontMatterChecked() {
             const cb = document.getElementById('script-strip-front-matter');
             return cb ? cb.checked : true;
@@ -2248,7 +2252,7 @@
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked() });
+                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
@@ -2263,7 +2267,7 @@
                 const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked() });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -2428,6 +2432,7 @@
                     script_names: names,
                     context_window: contextWindow,
                     dedupe_speakers: _isReviewDedupeChecked(),
+                    force_review: _isReviewForceChecked(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
                 });

@@ -26,7 +26,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
             ('both_clean', True, 0, CLEAN, 0, CLEAN, False, 'done'),
             ('single_clean', False, 0, CLEAN, 0, CLEAN, False, 'done'),
         )
-        for label, bidirectional, fwd_rc, fwd_lines, bwd_rc, bwd_lines, nick_failure, expected in cases:
+        for label, bidirectional, fwd_rc, fwd_lines, bwd_rc, bwd_lines, nick_failure, expected in (*cases, ('single_forced', False, 0, CLEAN, 0, CLEAN, False, 'done')):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 scripts = root / 'scripts'
@@ -44,6 +44,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                     calls.append((phase,'nickname' if nickname else 'review'))
                     if nickname:
                         return (1,['fixture discovery crashed']) if nick_failure and phase == 'fwd' else (0,[])
+                    self.assertEqual(phase == 'bwd' or label == 'single_forced', '--force-review' in command)
                     return (fwd_rc,fwd_lines) if phase == 'fwd' else (bwd_rc,bwd_lines)
 
                 def summary(lines, _insert, _totals, incomplete):
@@ -71,7 +72,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                      TestClient(app) as client:
                     response = client.post('/api/review_script/batch/start',json={
                         'script_names':['book'],'dedupe_speakers':True,
-                        'find_nicknames':True,'bidirectional':bidirectional})
+                        'find_nicknames':True,'bidirectional':bidirectional,'force_review':label == 'single_forced'})
                     self.assertEqual(200,response.status_code,response.text)
                     check.assert_called_once_with('batch_review')
                     claim.assert_called_once_with('batch_review')

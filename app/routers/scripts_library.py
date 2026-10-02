@@ -33,6 +33,7 @@ from core import (
 )
 from project import CHAPTER_EXPORT_DIR
 from review_script import _checkpoint_path, clear_checkpoint
+from completed_review_receipt import get_review_receipt_path
 from generate_script import get_generation_checkpoint_path, get_generation_quality_path
 from three_pass_generate import three_pass_checkpoint_path, three_pass_manifest_path
 from script_preflight import audit_script
@@ -52,6 +53,7 @@ def _get_saved_book_companions(path):
     stem = os.path.splitext(path)[0]
     return list(dict.fromkeys([
         stem + ".voice_config.json", stem + ".meta.json",
+        get_review_receipt_path(path),
         *get_generation_checkpoint_artifacts(_checkpoint_path(path)),
         *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(path)),
         get_generation_quality_path(path),

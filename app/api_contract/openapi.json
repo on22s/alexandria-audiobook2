@@ -244,6 +244,11 @@
             "title": "Find Nicknames",
             "type": "boolean"
           },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
+            "type": "boolean"
+          },
           "script_names": {
             "items": {
               "type": "string"
@@ -684,6 +689,11 @@
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
             "type": "boolean"
           },
           "window_size": {
@@ -2301,6 +2311,11 @@
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
             "type": "boolean"
           }
         },

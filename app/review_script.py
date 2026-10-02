@@ -3,22 +3,26 @@ import os
 from core import llm_timeout_seconds
 import sys
 import json
-import hashlib
 import re
 import time
 import difflib
 import subprocess
 import argparse
 import threading
-from dataclasses import replace
+from dataclasses import fields, replace
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
-from llm_provider import make_llm_client, make_run_client
+from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
+                          get_run_fingerprint_identity, resolve_api_key)
+from completed_review_receipt import (get_review_entries_fingerprint,
+    get_review_sidecar_identity, get_completed_review_match,
+    save_completed_review_receipt, remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_current_status, get_effective_max_tokens)
+from lmstudio_settings import get_failover_llm_config
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_checkpoint_document
 from generation_checkpoint_shards import remove_generation_shard_checkpoint, get_generation_checkpoint_artifacts
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, get_runtime_data_dir, get_app_config_path
@@ -149,9 +153,25 @@ def _checkpoint_path(output_path):
     return output_path + ".review_checkpoint.json"
 
 
-def _entries_fingerprint(entries):
-    return hashlib.sha256(json.dumps(entries, sort_keys=True, ensure_ascii=False,
-                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+_entries_fingerprint = get_review_entries_fingerprint
+
+
+def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name):
+    profiles = []
+    for profile in (llm_config, get_failover_llm_config(config)):
+        profiles.append({key: value for key, value in profile.items()
+                         if key not in ('concurrency', 'concurrency_for', 'concurrency_environment')})
+        profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
+    identity = {'algorithm': 1, 'profiles': profiles,
+        'model_binding': get_run_model_binding(client, model_name),
+        'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare},
+        'context_window': args.context_window, 'dedupe_speakers': args.dedupe_speakers,
+        'merge_narrators': (config.get('generation') or {}).get('merge_narrators', False),
+        'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
+        'aliases': get_review_sidecar_identity(args.alias_registry),
+        'voice_config': get_review_sidecar_identity(args.remap_voice_config)}
+    # Store only a digest, never profile credentials or private headers.
+    return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
 
 def load_checkpoint(output_path, total_batches, batch_size, context_window, entries):
@@ -883,6 +903,7 @@ def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
+    parser.add_argument("--force-review", action="store_true", help="Rerun an unchanged completed review")
     parser.add_argument("--input", help="Path to the script JSON to review (default: ../annotated_script.json)")
     parser.add_argument("--output", help="Where to write the reviewed script (default: same as --input)")
     parser.add_argument("--dedupe-speakers", action="store_true",
@@ -987,6 +1008,23 @@ def main():
     gen_params.hard_max_tokens = 32768
 
     client = make_run_client(config, llm_config, llm_timeout_seconds())
+
+    source_sha256 = _entries_fingerprint(entries)
+    receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client, model_name)
+    matched, receipt_reason = get_completed_review_match(script_path, output_path, source_sha256, receipt_fingerprint)
+    if matched and not args.force_review:
+        print(receipt_reason)
+        print(f"Review complete: {len(entries)} -> {len(entries)} entries")
+        for label in ('Text changed', 'Speaker changed', 'Instruct changed', 'Entries changed',
+                      'Entries added', 'Entries removed', 'Narrators merged', 'Speakers merged', 'Total changes'):
+            print(f"  {label}: 0")
+        print("Task review completed successfully.")
+        close = getattr(client, 'close', None)
+        if close:
+            close()
+        return
+    print('Completed-review reuse: ' + ('forced rerun' if args.force_review else receipt_reason))
+    remove_completed_review_receipt(output_path)
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
@@ -1332,6 +1370,9 @@ def main():
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
     if review_complete:
+        save_completed_review_receipt(script_path, output_path, source_sha256,
+            _entries_fingerprint(output_entries), get_completed_review_fingerprint(
+                config, llm_config, gen_params, args, client, model_name))
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the

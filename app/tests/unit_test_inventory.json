@@ -1501,6 +1501,13 @@
     "tests.test_completed_log_hydration_js.CompletedLogHydrationTests.test_response_order_does_not_select_shared_log_and_shared_pane_written_once",
     "tests.test_completed_log_hydration_js.CompletedLogHydrationTests.test_timestamp_ties_missing_times_empty_logs_and_failed_request_have_fixed_selection"
   ],
+  "test_completed_review_receipt": [
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_key_covers_prompts_parameters_profiles_context_and_sidecars",
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_native_transport_repeat_force_and_failed_rerun_receipts",
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_receipt_verifies_separate_input_output_settings_and_checkpoint",
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_standard_and_contextual_force_requests_reach_subprocess",
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_unchanged_in_place_review_dispatches_no_second_batch"
+  ],
   "test_compute_dtype": [
     "tests.test_compute_dtype.ComputeDtypeTests.test_amd_apus_load_in_fp32",
     "tests.test_compute_dtype.ComputeDtypeTests.test_cpu_and_mps_are_fp32",
@@ -5839,6 +5846,9 @@
     "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_http_access_refuses_expired_and_invalid_timestamps_without_pruning",
     "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_prune_aborts_unconsumed_preparation_before_expiry_deletion",
     "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_prune_cannot_delete_session_when_preparation_abort_fails"
+  ],
+  "test_review_force_js": [
+    "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
   ],
   "test_review_surfacing": [
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_a_mapped_glyph_is_not_flagged",

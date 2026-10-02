@@ -129,19 +129,27 @@ _upload_dedupe_lock = threading.Lock()
 
 class ReviewRequest(BaseModel):
     dedupe_speakers: bool = True
+    force_review: bool = False
 
 class ContextualReviewRequest(BaseModel):
     window_size: int = 4
     dedupe_speakers: bool = True
+    force_review: bool = False
 
 class BatchReviewRequest(BaseModel):
     script_names: List[str] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)  # library names without .json
     context_window: int = 0            # >0 enables contextual review
     dedupe_speakers: bool = True       # merge same-character aliases, consistent across the batch
+    force_review: bool = False
     find_nicknames: bool = True        # run nickname discovery per book first, into the shared series alias file
     bidirectional: bool = False        # after the forward pass, re-scan in reverse so early books get
                                        # discovery seeded with full-series hindsight (requires find_nicknames)
 
+
+
+def get_review_force_args(force_review, backward=False):
+    """Intentional backward passes always rerun a completed review."""
+    return ["--force-review"] if force_review or backward else []
 
 
 def get_batch_review_highlights(pool: dict) -> dict:
@@ -1488,6 +1496,7 @@ async def review_script(background_tasks: BackgroundTasks, request: Optional[Rev
     check_global_gpu_lock("review")
 
     cmd = [sys.executable, "-u", "review_script.py"]
+    cmd += get_review_force_args(request.force_review)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
@@ -1520,6 +1529,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
     cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
+    cmd += get_review_force_args(request.force_review)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
@@ -1728,6 +1738,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             ]
             if window > 0:
                 cmd += ["--context-window", str(window)]
+            cmd += get_review_force_args(request.force_review, backward=tag == " [bwd]")
             if dedupe:
                 cmd += ["--dedupe-speakers", "--alias-registry", registry_path]
                 companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")

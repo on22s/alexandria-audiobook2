@@ -85,7 +85,8 @@ class SavedBookPublicationTests(unittest.TestCase):
 
     def test_reserved_companion_names_are_rejected_before_writing(self):
         names=('book.voice_config','book.meta','book.review_checkpoint','book.generation_checkpoint',
-               'book.generation_quality','book.threepass_checkpoint','book.threepass_manifest')
+               'book.generation_quality','book.threepass_checkpoint','book.threepass_manifest',
+               'book.json.review_completed')
         with self.fixture() as (root,api),TestClient(api) as client:
             before=self.artifacts(root)
             for name in names:
