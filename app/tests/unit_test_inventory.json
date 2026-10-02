@@ -6052,6 +6052,9 @@
     "tests.test_saved_script_audit_js.SavedScriptAuditJsTests.test_old_success_cannot_replace_new_pending_or_finished_audit",
     "tests.test_saved_script_audit_js.SavedScriptAuditJsTests.test_reauditing_same_name_still_rejects_an_older_response"
   ],
+  "test_saved_script_hydration_js": [
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered"
+  ],
   "test_scene_narrowing": [
     "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",
     "tests.test_scene_narrowing.BucketTest.test_absent_is_wrong_with_the_gold_nowhere_near",
@@ -6737,6 +6740,8 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_one_failed_adapter_does_not_suppress_other_running_tasks",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_remote_persona_and_local_voicelab_both_restore",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_request_tasks_disable_until_done_and_dynamic_tasks_receive_fallback",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_shared_script_log_controls_remain_serialized",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_slow_review_hydration_does_not_delay_independent_controls",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_training_preparer_audio_benchmark_adapters_and_idle_dispatch"
   ],
   "test_task_start_controls_js": [

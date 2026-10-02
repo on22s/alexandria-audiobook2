@@ -995,16 +995,28 @@
                 lora_test: () => { reattachTaskActivity('lora_test', [], 'lora-test-status'); },
                 drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
             };
+            const controlGroups = new Map(logGroups.flatMap(group =>
+                group.tasks.map(name => [name, group.elementId])));
+            controlGroups.set('preparer', 'preparer-controls');
+            controlGroups.set('batch_preparer', 'preparer-controls');
+            const attachments = new Map();
             for (const [name, isRunning] of Object.entries(running)) {
                 if (!isRunning) { continue; }
-                const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
-                    ? reattachers[name] : () => reattachTaskActivity(name);
-                try {
-                    await attach();
-                } catch (e) {
-                    showToast(`Could not restore ${name.replaceAll('_', ' ')} controls: ${e.message}`, 'warning');
-                }
+                const group = controlGroups.get(name) || name;
+                if (!attachments.has(group)) { attachments.set(group, []); }
+                attachments.get(group).push(name);
             }
+            await Promise.allSettled([...attachments.values()].map(async names => {
+                for (const name of names) {
+                    const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
+                        ? reattachers[name] : () => reattachTaskActivity(name);
+                    try {
+                        await attach();
+                    } catch (e) {
+                        showToast(`Could not restore ${name.replaceAll('_', ' ')} controls: ${e.message}`, 'warning');
+                    }
+                }
+            }));
         }
 
         // Init

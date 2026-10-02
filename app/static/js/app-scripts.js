@@ -94,8 +94,7 @@
                 resetDesignerForm();
                 showToast(`Script "${name}" loaded.`, 'success');
                 clearVoiceSuggestions();
-                await loadCharacterAliases(false);
-                await loadChunks(true);
+                await Promise.all([loadCharacterAliases(false), loadChunks(true)]);
                 await loadVoices();
                 loadSavedScripts();
                 loadDesignedVoices();

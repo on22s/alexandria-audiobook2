@@ -107,6 +107,33 @@ for(const task of ['lora_test','drift_check','future_task','constructor','__prot
 }
 """)
 
+    def test_slow_review_hydration_does_not_delay_independent_controls(self):
+        self.run_js(r"""
+let release;
+ctx.loadReviewBatchScripts=()=>new Promise(resolve=>{release=resolve;});
+statuses={batch_review:{running:true},voicelab:{running:true},lora_training:{running:true},audacity_export:{running:true}};
+const restored=ctx.reattachRunningPollers();
+for(let i=0;i<30;i++){await Promise.resolve();}
+assert(release,'review hydration started');
+assert(calls.includes('voicelab'),'independent Voice Lab must attach before review resolves');
+assert(calls.includes('lora_training'));assert(calls.includes('audacity_export'));
+assert(!calls.includes('batch_review'));
+release();await restored;assert(calls.includes('batch_review'));
+""")
+
+    def test_shared_script_log_controls_remain_serialized(self):
+        self.run_js(r"""
+let release;
+ctx.loadReviewBatchScripts=()=>new Promise(resolve=>{release=resolve;});
+statuses={batch_review:{running:true},nicknames:{running:true},voicelab:{running:true}};
+const restored=ctx.reattachRunningPollers();
+for(let i=0;i<30;i++){await Promise.resolve();}
+assert(release);assert(!calls.includes('nicknames'),'same log controls remain serialized');
+assert(calls.includes('voicelab'));
+release();await restored;
+assert(calls.indexOf('batch_review')<calls.indexOf('nicknames'));
+""")
+
     def test_every_current_registered_task_gets_a_restoration_or_activity_observer(self):
         # Dispatch coverage only; simultaneous admission is verified separately.
         self.run_js('const names=' + json.dumps(list(core.process_state)) + r""";
