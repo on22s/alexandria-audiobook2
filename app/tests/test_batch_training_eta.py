@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import wave
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('batch_eta_test', ROOT / 'tools/voice_lab/batch_train_lora.py')
@@ -16,6 +17,10 @@ spec.loader.exec_module(batch)
 
 
 class BatchTrainingEtaTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_lora_batch_preflight import apply_test_training_dependency_fixture
+        apply_test_training_dependency_fixture(self)
+
     def run_batch(self, mode='stable'):
         clock, trained, lookups = [0], [], {}
         def train(zip_path, dataset_id, adapter_id, args):
@@ -33,11 +38,17 @@ class BatchTrainingEtaTests(unittest.TestCase):
             root = Path(tmp)
             zips = root / 'zips'
             zips.mkdir()
+            pcm = io.BytesIO()
+            with wave.open(pcm, 'wb') as audio:
+                audio.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+                audio.writeframes(b'\x01\x00' * 2400)
             for name in ('a', 'b', 'c', 'd'):
                 with zipfile.ZipFile(zips / (name + '.zip'), 'w') as archive:
-                    archive.writestr('metadata.jsonl', '{}\n')
+                    archive.writestr('metadata.jsonl', '{"audio_filepath":"clip.wav","text":"Hello."}\n')
+                    archive.writestr('clip.wav', pcm.getvalue())
             argv = ['batch', '--zips_dir', str(zips), '--models_dir', str(root / 'models'),
-                    '--datasets_dir', str(root / 'datasets'), '--manifest', str(root / 'manifest.json')]
+                    '--datasets_dir', str(root / 'datasets'), '--manifest', str(root / 'manifest.json'),
+                    '--python', sys.executable, '--device', 'cpu']
             stack.enter_context(patch.object(sys, 'argv', argv))
             stack.enter_context(patch.object(batch, 'load_manifest', return_value=[]))
             stack.enter_context(patch.object(batch, 'adapter_exists', side_effect=exists))

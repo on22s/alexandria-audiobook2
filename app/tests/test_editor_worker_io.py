@@ -19,8 +19,8 @@ class EditorWorkerIoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             pm = ProjectManager(str(root)); pm.save_chunks([
-                {'speaker': 'Hero', 'text': 'Hello', 'status': 'pending'},
-                {'speaker': 'Hero', 'text': 'Other', 'status': 'pending'}])
+                {'id': 0, 'speaker': 'Hero', 'text': 'Hello', 'status': 'pending'},
+                {'id': 1, 'speaker': 'Hero', 'text': 'Other', 'status': 'pending'}])
             (root / 'config.json').write_text('{}')
             script = root / 'script.json'; script.write_text('[{"speaker":"Hero","text":"Hello"}]')
             reports = root / 'reports'; reports.mkdir(); report = reports / 'review.md'; report.write_text('Real report')
@@ -36,6 +36,7 @@ class EditorWorkerIoTests(unittest.TestCase):
             @app.get('/ping')
             async def ping(): return {'ok': True}
             cases = [('chunks', 'GET', '/api/chunks', None, pm, 'load_chunks'),
+                     ('compact listing', 'GET', '/api/chunks/status', None, pm, 'load_chunks'),
                      ('edit', 'POST', '/api/chunks/0', {'text': 'Updated'}, pm, 'update_chunk'),
                      ('insert', 'POST', '/api/chunks/0/insert', {}, pm, 'insert_chunk'),
                      ('delete', 'DELETE', '/api/chunks/1', None, pm, 'delete_chunk'),

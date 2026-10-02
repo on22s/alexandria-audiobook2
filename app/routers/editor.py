@@ -1,6 +1,7 @@
 from book_state_transaction import ensure_book_state
 import asyncio
 import logging
+import json
 import os
 import tempfile
 import time
@@ -34,6 +35,7 @@ from core import (
 )
 from generation_checkpoint_deltas import load_generation_checkpoint_document
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
+from editor_poll_snapshot import EditorPollSnapshots
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection)
@@ -98,6 +100,29 @@ def _ensure_chunk_listing():
     with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
         chunks = project_manager.load_chunks()
     return chunks
+
+_editor_poll_snapshots = EditorPollSnapshots()
+
+
+@router.get("/api/chunks/status")
+async def get_chunk_status_snapshot(revision: Annotated[Optional[str], Query(max_length=64)] = None):
+    return await asyncio.to_thread(_ensure_chunk_status_snapshot, revision)
+
+
+def _ensure_chunk_status_snapshot(revision):
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        chunks = project_manager.load_chunks()
+        try:
+            with open(os.path.join(root, 'state.json'), encoding='utf-8') as stream:
+                state = json.load(stream)
+        except FileNotFoundError:
+            state = {}
+        if not isinstance(state, dict):
+            raise ValueError('Invalid book identity for editor polling')
+        identity = [os.path.abspath(root), state.get('active_book_id'), state.get('book_generation')]
+        return _editor_poll_snapshots.ensure_snapshot(chunks, identity, revision)
+
 
 class ChunkRestoreRequest(BaseModel):
     chunk: dict

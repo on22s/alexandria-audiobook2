@@ -244,6 +244,11 @@
             "title": "Find Nicknames",
             "type": "boolean"
           },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
+            "type": "boolean"
+          },
           "script_names": {
             "items": {
               "type": "string"
@@ -684,6 +689,11 @@
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
             "type": "boolean"
           },
           "window_size": {
@@ -2301,6 +2311,11 @@
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "force_review": {
+            "default": false,
+            "title": "Force Review",
             "type": "boolean"
           }
         },
@@ -3920,6 +3935,51 @@
           }
         },
         "summary": "Restore Chunk"
+      }
+    },
+    "/api/chunks/status": {
+      "get": {
+        "operationId": "get_chunk_status_snapshot_api_chunks_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Chunk Status Snapshot"
       }
     },
     "/api/chunks/{index}": {

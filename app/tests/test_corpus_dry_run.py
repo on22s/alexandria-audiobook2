@@ -34,13 +34,14 @@ mode=os.environ.get('PRESCAN_FIXTURE_MODE','valid')
 if audio.suffix=='.mp3':
     if mode=='failed':sys.exit(7)
     if mode=='missing':sys.exit(0)
-quality={'average_ratio':0.93,'sampled':12,'below_60_percent':1,'review_needed':2}
+quality={'average_ratio':0.93,'sampled':30,'below_60_percent':1,'review_needed':2}
 identity={'audio':get_file_identity(audio),'source':get_file_identity(source),
-          'options':{'alignment_report':str(report),'output':str(output),'chunk_size':10.0,'lang':'en'}}
+          'options':{'alignment_report':str(report),'output':str(output),'chunk_size':10.0,'lang':'en','limit':int(value('--limit'))}}
 if audio.suffix=='.mp3':
     if mode=='stale':identity['audio']['sha256']='0'*64
     if mode=='wrong-settings':identity['options']['alignment_report']='another invocation'
     if mode=='invalid':quality['sampled']=True
+    if mode=='undersampled':quality['sampled']=29
     if mode=='nan':quality['average_ratio']=float('nan')
 write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3' else 1,
                   'scope':'initial_provisional_chunks','identity':identity,'quality':quality},report)
@@ -67,11 +68,11 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
             self.assertEqual(2, len(set(report_paths)))
             data = json.loads((output / 'dry_run_report.json').read_text())
             self.assertEqual(['measured', 'measured'], [row['status'] for row in data['rows']])
-            self.assertEqual([12, 12], [row['quality']['sampled'] for row in data['rows']])
+            self.assertEqual([30, 30], [row['quality']['sampled'] for row in data['rows']])
             text = (output / 'dry_run_report.md').read_text()
             self.assertIn('book.mp3', text)
             self.assertIn('book.wav', text)
-            self.assertIn('0.930 | 12 | 1 | 2', text)
+            self.assertIn('0.930 | 30 | 1 | 2', text)
             self.assertIn('do not measure whole-book alignment', text)
             self.assertFalse(list(output.glob('*.zip')))
             self.assertFalse((output / 'aggregated_report.md').exists())
@@ -79,7 +80,7 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
             self.assertEqual({b'input.wav', b'input.mp3'}, {p.read_bytes() for p in (root / 'audio').iterdir()})
 
     def test_failed_missing_stale_and_invalid_reports_fail_but_attempt_independent_pairs(self):
-        for mode in ('failed', 'missing', 'stale', 'wrong-settings', 'invalid', 'nan', 'bad-version'):
+        for mode in ('failed', 'missing', 'stale', 'wrong-settings', 'invalid', 'nan', 'bad-version', 'undersampled'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 root = self.create_repo(base)

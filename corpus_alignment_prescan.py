@@ -9,6 +9,11 @@ import tempfile
 
 from alexandria_run_manifest import get_file_identity, write_json_atomic
 
+PRESCAN_SAMPLE_COUNT = 30
+# Existing ASR windows cover 30 + 29 * 27 = 813 seconds. Sparse speech may
+# still yield too few evaluable chunks; the receipt check refuses that result.
+PRESCAN_ASR_WINDOW_LIMIT = 30
+
 
 def get_alignment_report_quality(path, audio, source, output):
     document = json.loads(path.read_text(encoding='utf-8'))
@@ -23,7 +28,9 @@ def get_alignment_report_quality(path, audio, source, output):
     options = identity['options']
     if (options.get('alignment_report') != str(path)
             or options.get('output') != str(output)
-            or options.get('chunk_size') != 10.0 or options.get('lang') != 'en'):
+            or options.get('chunk_size') != 10.0 or options.get('lang') != 'en'
+            or type(options.get('limit')) is not int
+            or options['limit'] != PRESCAN_ASR_WINDOW_LIMIT):
         raise ValueError('alignment report settings belong to another invocation')
     quality = document['quality']
     count = quality['sampled']
@@ -32,6 +39,8 @@ def get_alignment_report_quality(path, audio, source, output):
             or type(average) not in (int, float) or not math.isfinite(average)
             or not 0 <= average <= 1):
         raise ValueError('alignment report has invalid measured samples')
+    if count != PRESCAN_SAMPLE_COUNT:
+        raise ValueError(f'Alignment pre-scan requires {PRESCAN_SAMPLE_COUNT} evaluable samples; got {count}')
     low, review = quality['below_60_percent'], quality['review_needed']
     if (type(low) is not int or type(review) is not int
             or not 0 <= low <= review <= count):
@@ -43,7 +52,7 @@ def save_alignment_markdown(rows, path):
     def cell(value):
         return str(value).replace('|', r'\|').replace('\n', ' ').replace('\r', ' ')
     lines = ['# Test corpus dry-run report', '',
-        'ASR-only pre-scan of initial provisional chunks; no LLM annotation or dataset export.',
+        'ASR-only pre-scan of 30 initial provisional chunks; ASR is bounded to 813 seconds, with no LLM annotation or dataset export.',
         'ASR takes time and writes its normal scratch/checkpoint files. These samples do not measure whole-book alignment.', '',
         '| audio | source | status | avg ratio | n sampled | below 60% | review-needed |',
         '|---|---|---|---:|---:|---:|---:|']
@@ -96,7 +105,8 @@ def main():
             report = run_dir / (name + '.alignment.json')
             result = subprocess.run([str(repo / 'run_with_restart.sh'), '--audio', str(audio),
                 '--source', str(source), '--phase', 'asr', '--alignment-report', str(report),
-                '--output', str(output), '--chunk-size', '10.0', '--lang', 'en'], cwd=repo)
+                '--output', str(output), '--chunk-size', '10.0', '--lang', 'en',
+                '--limit', str(PRESCAN_ASR_WINDOW_LIMIT)], cwd=repo)
             if result.returncode:
                 raise ValueError(f'ASR worker exited {result.returncode}')
             row['quality'] = get_alignment_report_quality(report, audio, source, output)

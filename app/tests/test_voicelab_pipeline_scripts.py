@@ -18,6 +18,7 @@ from fastapi import BackgroundTasks
 
 import core
 import archive_utils
+from tests import test_lora_batch_preflight as training_fixtures
 from routers import voicelab
 from voicelab_settings import get_deduped_zip_name, get_profiler_paths, get_voice_lab_script_path
 
@@ -37,6 +38,9 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def test_batch_empty_normalization_has_stable_distinct_child_ids(self):
         ids = [batch_train.sanitize(name) for name in ("---.zip", "声.zip")]
         self.assertTrue(all(ids))
@@ -67,12 +71,13 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             zips = Path(tmp, "zips")
             zips.mkdir()
-            Path(zips, "new.zip").write_bytes(b"unused")
+            training_fixtures.save_valid_training_zip(Path(zips, "new.zip"))
             models = Path(tmp, "models")
             manifest = models / "manifest.json"
             argv = ["batch_train_lora.py", "--zips_dir", str(zips),
                     "--datasets_dir", str(Path(tmp, "datasets")),
-                    "--models_dir", str(models), "--manifest", str(manifest)]
+                    "--models_dir", str(models), "--manifest", str(manifest),
+                    "--python", sys.executable, "--device", "cpu"]
 
             def train_with_intervening_write(*args):
                 batch_train.save_manifest(str(manifest), [{"id": "other", "dataset_id": "other"}])
@@ -111,7 +116,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             argv = ["batch_train_lora.py", "--zips_dir", zips,
                     "--datasets_dir", os.path.join(tmp, "datasets"),
                     "--models_dir", os.path.join(tmp, "models"),
-                    "--manifest", os.path.join(tmp, "models", "manifest.json")]
+                    "--manifest", os.path.join(tmp, "models", "manifest.json"),
+                    "--python", sys.executable, "--device", "cpu"]
             with patch.object(sys, "argv", argv), \
                  patch.object(batch_train, "train_one") as train_one:
                 rc = batch_train.main()
@@ -301,11 +307,12 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             zips = os.path.join(tmp, "zips")
             os.makedirs(zips)
             for name in ("one.zip", "two.zip"):
-                Path(zips, name).write_bytes(b"not used")
+                training_fixtures.save_valid_training_zip(Path(zips, name))
             argv = ["batch_train_lora.py", "--zips_dir", zips,
                     "--datasets_dir", os.path.join(tmp, "datasets"),
                     "--models_dir", os.path.join(tmp, "models"),
-                    "--manifest", os.path.join(tmp, "models", "manifest.json")]
+                    "--manifest", os.path.join(tmp, "models", "manifest.json"),
+                    "--python", sys.executable, "--device", "cpu"]
             with patch.object(sys, "argv", argv), \
                  patch.object(batch_train, "train_one", return_value=None) as train_one:
                 rc = batch_train.main()
@@ -690,46 +697,34 @@ class LegacyProfilerIdTests(unittest.TestCase):
 
 
 class BatchMetadataFailureTests(unittest.TestCase):
-    def test_actual_cli_cleans_bad_encoding_and_continues_to_next_zip(self):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
+    def test_actual_cli_bad_encoding_refuses_all_training_and_preserves_outputs(self):
         import subprocess
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             zips = root/'zips'
             zips.mkdir()
-            for name, data in (('a_bad.zip',b'\xffinvalid utf8'),('b_good.zip',b'{"text":"CPU fixture"}\n')):
+            for name, data in (('a_bad.zip',b'\xffinvalid utf8'),):
                 with zipfile.ZipFile(zips/name,'w') as archive:
                     archive.writestr('metadata.jsonl',data)
+            training_fixtures.save_valid_training_zip(zips/'b_good.zip')
             child = root/'cpu_training_fixture.py'
-            child.write_text("\n".join([
-                'import argparse,json,pathlib',
-                'parser=argparse.ArgumentParser()',
-                'parser.add_argument("--output_dir");parser.add_argument("--data_dir")',
-                'args,_=parser.parse_known_args()',
-                'root=pathlib.Path(args.output_dir);root.mkdir(parents=True,exist_ok=True)',
-                '(root/"training_meta.json").write_text(json.dumps({"epochs":1,"final_loss":3.0,"best_loss":3.0}))',
-                'from safetensors.numpy import save_file;import numpy as np',
-                '(root/"adapter_config.json").write_text(json.dumps({"peft_type":"LORA","r":2,"lora_alpha":4,"target_modules":["q_proj"]}))',
-                'save_file({"layer.lora_A.weight":np.ones((2,3),dtype=np.float32)},str(root/"adapter_model.safetensors"))',
-                'print("[DONE] CPU fixture completed",flush=True)',
-            ])+'\n')
+            dispatched = root/'trainer_was_dispatched'
+            child.write_text(f"from pathlib import Path\nPath({str(dispatched)!r}).write_text('dispatched')\nraise RuntimeError('preflight dispatched a trainer')\n")
             datasets,models,manifest = root/'datasets',root/'models',root/'manifest.json'
             result = subprocess.run([sys.executable,str(ROOT/'tools/voice_lab/batch_train_lora.py'),
                 '--zips_dir',str(zips),'--datasets_dir',str(datasets),'--models_dir',str(models),
-                '--manifest',str(manifest),'--train_script',str(child),'--python',sys.executable],
+                '--manifest',str(manifest),'--train_script',str(child),'--python',sys.executable,'--device','cpu'],
                 capture_output=True,text=True,timeout=10)
             self.assertEqual(1,result.returncode,result.stdout+result.stderr)
-            self.assertIn('Done: 1 trained, 0 skipped, 1 errors',result.stdout)
-            self.assertIn('ERROR reading metadata',result.stdout)
+            self.assertIn('ERROR: a_bad.zip: metadata.jsonl must be valid UTF-8',result.stdout)
             self.assertNotIn('Traceback',result.stderr)
-            self.assertEqual([],list(datasets.iterdir()))
-            rows=json.loads(manifest.read_text())
-            self.assertEqual(1,len(rows))
-            self.assertEqual('b_good',rows[0]['dataset_id'])
-            self.assertEqual(1,rows[0]['sample_count'])
-            self.assertEqual({rows[0]['id'], 'manifest.json.lock'},
-                             {p.name for p in models.iterdir()})
-            self.assertTrue((models/'manifest.json.lock').is_file())
-            self.assertEqual(3.0,json.loads((models/rows[0]['id']/'training_meta.json').read_text())['best_loss'])
+            self.assertFalse(datasets.exists())
+            self.assertFalse(models.exists())
+            self.assertFalse(manifest.exists())
+            self.assertFalse(dispatched.exists())
             with zipfile.ZipFile(zips/'a_bad.zip') as archive:
                 self.assertEqual(b'\xffinvalid utf8',archive.read('metadata.jsonl'))
 
@@ -756,6 +751,9 @@ class BatchMetadataFailureTests(unittest.TestCase):
 
 
 class BatchTrainingEtaTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def test_eta_counts_attempted_training_instead_of_cached_zip_ordinals(self):
         for fail_first in (False,True):
             with self.subTest(fail_first=fail_first),tempfile.TemporaryDirectory() as tmp:
@@ -763,7 +761,7 @@ class BatchTrainingEtaTests(unittest.TestCase):
                 zips=root/'zips'
                 zips.mkdir()
                 for index in range(12):
-                    (zips/('%02d.zip' % index)).touch()
+                    training_fixtures.save_valid_training_zip(zips/('%02d.zip' % index))
                 clock=[0.0]
                 cache_checks=[]
                 attempted=[]
@@ -778,7 +776,7 @@ class BatchTrainingEtaTests(unittest.TestCase):
                     return {'id':adapter_id,'dataset_id':dataset_id}
                 argv=['batch_train_lora.py','--zips_dir',str(zips),
                     '--datasets_dir',str(root/'datasets'),'--models_dir',str(root/'models'),
-                    '--manifest',str(root/'manifest.json')]
+                    '--manifest',str(root/'manifest.json'),'--python',sys.executable,'--device','cpu']
                 with patch.object(sys,'argv',argv), \
                      patch.object(batch_train,'adapter_exists',side_effect=cached), \
                      patch.object(batch_train,'train_one',side_effect=train), \

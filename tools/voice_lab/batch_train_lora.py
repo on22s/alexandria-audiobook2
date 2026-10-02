@@ -38,6 +38,8 @@ sys.path.insert(0, APP_DIR)
 from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
+from dataset_metadata import get_training_dataset_preflight
+from training_preflight import get_selected_interpreter_preflight, get_training_disk_error
 from utils import file_lock
 from voice_manifest import get_voice_manifest, validate_adapter_registration_id_locked, validate_adapter_training_output, get_resolved_adapter_manifest_rows_locked
 from adapter_naming_transaction import lock_adapter_naming
@@ -157,6 +159,53 @@ def extract_zip(zip_path: str, dest_dir: str):
                     shutil.move(os.path.join(nested, item), os.path.join(dest_dir, item))
                 os.rmdir(nested)
                 break
+
+
+def get_batch_archive_preflight(zip_paths):
+    """Inspect every archive in private scratch, retaining all input bytes."""
+    reports, errors = [], []
+    for zip_path in zip_paths:
+        try:
+            with tempfile.TemporaryDirectory(prefix="alexandria-lora-preflight-") as scratch:
+                extract_zip(zip_path, scratch)
+                report = get_training_dataset_preflight(scratch)
+                reports.append({"archive": os.path.basename(zip_path), **report})
+        except Exception as error:
+            errors.append({"archive": os.path.basename(zip_path), "error": str(error)})
+    return {"datasets": reports, "errors": errors}
+
+
+def get_batch_output_preflight(args, zip_paths):
+    """Read access and disk snapshots without creating output directories."""
+    errors = []
+    sizes = []
+    for path in zip_paths:
+        try:
+            with zipfile.ZipFile(path) as archive:
+                sizes.append(sum(item.file_size for item in archive.infolist()))
+        except (OSError, zipfile.BadZipFile):
+            continue  # Archive preflight supplies the named validation error.
+    scratch_need = max(sizes, default=0)
+    dataset_need = sum(sizes) if args.keep_datasets else scratch_need
+    for label, path, required in (
+            ('datasets', args.datasets_dir, dataset_need),
+            ('models', args.models_dir, 0),
+            ('manifest', os.path.dirname(os.path.abspath(args.manifest)), 0),
+            ('scratch', tempfile.gettempdir(), scratch_need)):
+        absolute = os.path.abspath(path)
+        ancestor = absolute
+        while not os.path.exists(ancestor):
+            ancestor = os.path.dirname(ancestor)
+        if not os.path.isdir(ancestor) or not os.access(ancestor, os.W_OK | os.X_OK):
+            errors.append({'archive': label, 'error': f'Output path is not writable: {absolute}'})
+            continue
+        try:
+            error = get_training_disk_error(shutil.disk_usage(ancestor).free, required)
+            if error:
+                errors.append({'archive': label, 'error': f'{absolute}: {error}'})
+        except OSError as error:
+            errors.append({'archive': label, 'error': f'Cannot measure disk at {absolute}: {error}'})
+    return errors
 
 
 def parse_epoch_losses(lines: list[str]) -> dict[int, float]:
@@ -394,21 +443,32 @@ def main() -> int:
             print(f"ERROR: ZIP names normalize to the same dataset id '{dataset_id}': {names}")
         return 1
 
-    os.makedirs(args.models_dir, exist_ok=True)
-    os.makedirs(args.datasets_dir, exist_ok=True)
-
     try:
         manifest = load_manifest(args.manifest)
     except (OSError, ValueError) as e:
         print(f"ERROR: manifest unreadable: {e}", flush=True)
         return 1
 
+    preflight = get_selected_interpreter_preflight(args.python, zips, args.device)
+    preflight["errors"].extend(get_batch_output_preflight(args, zips))
+    for report in preflight["datasets"]:
+        print(f"PREFLIGHT {report['archive']}: {report['sample_count']} samples, "
+              f"{report['audio_count']} validated audio files")
+    if preflight["errors"]:
+        for error in preflight["errors"]:
+            print(f"ERROR: {error['archive']}: {error['error']}")
+        return 1
+
+    if not args.dry_run:
+        os.makedirs(args.models_dir, exist_ok=True)
+        os.makedirs(args.datasets_dir, exist_ok=True)
+
     print(f"Found {len(zips)} zip(s) in {args.zips_dir}")
     print(f"Target loss: {args.target_loss}  Max epochs: {args.max_epochs}  LR: {args.lr}")
     print(f"LoRA r={args.lora_r} alpha={args.lora_alpha}  Grad accum: {args.grad_accum}")
     print(f"Models dir: {args.models_dir}")
     if args.dry_run:
-        print("[dry-run] No training will run\n")
+        print("[dry-run] No training will run; locked resume checks are deferred to a full run\n")
     print()
 
     done = skip = err = 0
@@ -417,6 +477,10 @@ def main() -> int:
     for i, zip_path in enumerate(zips, 1):
         dataset_id = sanitize(zip_path)
         adapter_id = f"{dataset_id}_{int(time.time())}"
+
+        if args.dry_run:
+            print(f"[{i:3d}/{len(zips)}] VALIDATED {os.path.basename(zip_path)}", flush=True)
+            continue
 
         # Skip if already trained
         existing = adapter_exists(args.models_dir, dataset_id, manifest)
@@ -427,9 +491,6 @@ def main() -> int:
             continue
 
         print(f"[{i:3d}/{len(zips)}] TRAIN {os.path.basename(zip_path)}", flush=True)
-
-        if args.dry_run:
-            continue
 
         result = train_one(zip_path, dataset_id, adapter_id, args)
 

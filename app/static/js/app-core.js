@@ -2213,6 +2213,10 @@
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
+        function _isReviewForceChecked() {
+            const cb = document.getElementById('review-force-rerun');
+            return cb ? cb.checked : false;
+        }
         function _isStripFrontMatterChecked() {
             const cb = document.getElementById('script-strip-front-matter');
             return cb ? cb.checked : true;
@@ -2248,7 +2252,7 @@
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked() });
+                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
@@ -2263,7 +2267,7 @@
                 const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked() });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -2428,6 +2432,7 @@
                     script_names: names,
                     context_window: contextWindow,
                     dedupe_speakers: _isReviewDedupeChecked(),
+                    force_review: _isReviewForceChecked(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
                 });
@@ -4399,6 +4404,7 @@
         let isPlayingSequence = false;
         let isRenderingAll = false;
         let cachedChunks = []; // Cache to track changes
+        let chunkSnapshotRevision = null;
         let loadChunksTimer = null; // Pending standalone editor poll
         let chunkRefreshPromise = null;
         let chunkRefreshAgain = false;
@@ -4582,10 +4588,36 @@
                 forceFullRedraw = true;
             }
 
-            const chunks = await API.get('/api/chunks');
+            const query = !forceFullRedraw && chunkSnapshotRevision
+                ? `?revision=${encodeURIComponent(chunkSnapshotRevision)}` : '';
+            const snapshot = await API.get('/api/chunks/status' + query);
+            if (!snapshot || typeof snapshot.revision !== 'string' || typeof snapshot.full !== 'boolean'
+                    || !Array.isArray(snapshot.chunks) || !Array.isArray(snapshot.changed_ids)
+                    || !Number.isInteger(snapshot.total) || snapshot.total < 0) {
+                chunkSnapshotRevision = null;
+                throw new Error('Editor snapshot is unavailable.');
+            }
+            let chunks;
+            if (snapshot.full) {
+                chunks = snapshot.chunks;
+            } else {
+                const changed = new Map(snapshot.chunks.map(chunk => [chunk.id, chunk]));
+                const previous = new Map(cachedChunks.map(chunk => [chunk.id, chunk]));
+                if (snapshot.total !== cachedChunks.length || changed.size !== snapshot.chunks.length
+                        || snapshot.chunks.some(chunk => !previous.has(chunk.id) || previous.get(chunk.id).uid !== chunk.uid)) {
+                    chunkSnapshotRevision = null;
+                    throw new Error('Editor snapshot changed; refresh required.');
+                }
+                chunks = cachedChunks.map(chunk => changed.get(chunk.id) || chunk);
+            }
+            if (chunks.length !== snapshot.total) {
+                chunkSnapshotRevision = null;
+                throw new Error('Editor snapshot is incomplete.');
+            }
             if (chunks.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center">No chunks found. Please generate script first.</td></tr>';
                 cachedChunks = [];
+                chunkSnapshotRevision = snapshot.revision;
                 return chunks;
             }
 
@@ -4602,8 +4634,11 @@
             // Skip redraw if playing audio (unless forced)
             if (!forceFullRedraw && (isPlayingSequence || isAudioPlaying())) {
                 // Only update status badges and progress indicators
-                chunks.forEach(chunk => updateChunkRow(chunk));
+                chunks.forEach(chunk => {
+                    if (snapshot.full || snapshot.changed_ids.includes(chunk.id)) { updateChunkRow(chunk); }
+                });
                 cachedChunks = chunks;
+                chunkSnapshotRevision = snapshot.revision;
 
                 // Continue polling if generating
                 if (!isRenderingAll && chunks.some(c => c.status === 'generating')) {
@@ -4613,7 +4648,7 @@
             }
 
             // Check if we can do incremental update
-            const canIncrement = !forceFullRedraw &&
+            const canIncrement = !forceFullRedraw && !snapshot.full &&
                                 cachedChunks.length === chunks.length &&
                                 tbody.children.length === chunks.length &&
                                 chunks.every((chunk, i) => cachedChunks[i].id === chunk.id
@@ -4672,6 +4707,7 @@
             }
 
             cachedChunks = chunks;
+            chunkSnapshotRevision = snapshot.revision;
 
             // If any chunk is generating, poll (without full redraw)
             if (!isRenderingAll && chunks.some(c => c.status === 'generating')) {
@@ -4913,6 +4949,8 @@
                 try {
                     await API.post(`/api/chunks/${id}`, captured);
                     cachedChunks = cachedChunks.map(chunk => chunk.id === id ? { ...chunk, ...captured } : chunk);
+                    // The server can normalize an edit without changing its revision.
+                    chunkSnapshotRevision = null;
                     failedChunkEdits.delete(id);
                 } catch (error) {
                     failedChunkEdits.set(id, error);

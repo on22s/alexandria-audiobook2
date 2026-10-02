@@ -12,6 +12,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock,patch
 
+from tests import test_lora_batch_preflight as training_fixtures
+
 ROOT=Path(__file__).resolve().parent.parent.parent
 
 def load_script(name):
@@ -22,10 +24,14 @@ batch=load_script('batch_train_lora');profiler=load_script('voice_profiler')
 BAD_DOCUMENTS=(b'{}',b'null',b'"scalar"',b'3',b'true',b'[{"id":"keep"},null]',b'[{},"bad"]',b'[{},[]]',b'[{},true]',b'not JSON',b'\xff')
 
 class VoiceManifestShapeTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def get_batch_args(self,root):
-        zips=root/'zips';zips.mkdir();(zips/'Speaker.zip').write_bytes(b'private fixture zip')
+        zips=root/'zips';zips.mkdir();training_fixtures.save_valid_training_zip(zips/'Speaker.zip')
         return ['batch_train_lora.py','--zips_dir',str(zips),'--datasets_dir',str(root/'datasets'),
-                '--models_dir',str(root/'models'),'--manifest',str(root/'manifest.json')]
+                '--models_dir',str(root/'models'),'--manifest',str(root/'manifest.json'),
+                '--python',sys.executable,'--device','cpu']
 
     def test_batch_reader_rejects_bad_containers_rows_and_encoding(self):
         with tempfile.TemporaryDirectory() as tmp:
