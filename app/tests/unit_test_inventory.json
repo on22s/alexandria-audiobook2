@@ -1383,6 +1383,7 @@
   ],
   "test_chunk_refresh_js": [
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_actual_batch_poll_fetches_and_renders_once_without_second_timer",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_compact_deltas_keep_existing_rows_and_forced_refresh_gets_full_snapshot",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_same_length_replacements_reorders_and_playback_restore_correct_rows"
   ],
@@ -2191,6 +2192,11 @@
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_direct_export_rejects_stale_selection_without_changing_existing_artifacts",
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_generation_routes_reject_invalid_requests_before_scheduling",
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_generation_workers_receive_unique_source_order_and_correct_total"
+  ],
+  "test_editor_poll_delta": [
+    "tests.test_editor_poll_delta.EditorPollDeltaTests.test_book_content_uid_deletion_and_eviction_force_full_resynchronization",
+    "tests.test_editor_poll_delta.EditorPollDeltaTests.test_native_journal_changes_invalidate_revision_without_snapshot_rewrite",
+    "tests.test_editor_poll_delta.EditorPollDeltaTests.test_unchanged_poll_and_one_changed_row_do_not_transfer_book_text"
   ],
   "test_editor_render_barrier": [
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls",

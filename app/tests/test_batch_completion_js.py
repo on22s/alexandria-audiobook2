@@ -13,7 +13,7 @@ ctx.ensureEditorRenderSnapshot=async()=>[1,2,3,4,5,6].map(id=>chunk(id));
 ctx.showToast=(message,tone)=>toasts.push({message,tone});ctx.showConfirm=async()=>true;
 ctx.cancelRender=()=>run('isRenderingAll=false');ctx.runDriftCheck=ids=>drifts.push(Array.from(ids));
 ctx._startPolling=(key,fetch,options)=>{assert.strictEqual(key,'render_batch');poll={fetch,...options};};ctx.API.post=async()=>({});
-ctx.API.get=async url=>{requests.push(url);if(url==='/api/status/audio'){return audio;}assert.strictEqual(url,'/api/chunks');return snapshot;};
+ctx.API.get=async url=>{requests.push(url);if(url==='/api/status/audio'){return audio;}assert.ok(url.startsWith('/api/chunks/status'));return snapshot;};
 if(source.includes('function getBatchOutcome(')){run(source.slice(source.indexOf('function getBatchOutcome('),source.indexOf('function pollReviewBatch()')));}
 run(source.slice(source.indexOf('async function _runBatchRender('),source.indexOf('window.renderAll =')));
 const startBatch=()=>ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});
@@ -33,7 +33,7 @@ let data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),false,'pendi
 snapshot=snapshot.map(c=>({...c,status:'done'}));data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),false,'done chunks alone do not end worker lifecycle');
 audio={running:false};data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),true);await poll.onDone(data);
 assert.deepStrictEqual(toasts,[{message:'Batch complete: 6 succeeded, 0 failed, 0 cancelled, 0 unfinished',tone:'success'}]);assert.deepStrictEqual(drifts,[[1,2,3,4,5,6]]);
-assert.deepStrictEqual(requests,Array(3).fill(['/api/status/audio','/api/chunks']).flat());assert.strictEqual(timers.size,0);
+assert.deepStrictEqual(requests.map(url=>url.split('?')[0]),Array(3).fill(['/api/status/audio','/api/chunks/status']).flat());assert.strictEqual(timers.size,0);
 ''')
 
     def test_terminal_partial_results_count_pending_skipped_missing_and_cancelled(self):

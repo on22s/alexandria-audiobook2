@@ -3922,6 +3922,51 @@
         "summary": "Restore Chunk"
       }
     },
+    "/api/chunks/status": {
+      "get": {
+        "operationId": "get_chunk_status_snapshot_api_chunks_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Chunk Status Snapshot"
+      }
+    },
     "/api/chunks/{index}": {
       "delete": {
         "description": "Delete a chunk at the given index.",

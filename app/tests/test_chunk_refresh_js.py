@@ -1,9 +1,10 @@
 """Execute actual chunk rendering and request coordination on changing snapshots."""
+import os
 from pathlib import Path
 import subprocess
 import unittest
 
-SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+SOURCE = Path(os.environ.get('EDITOR_POLL_JS_SOURCE', Path(__file__).resolve().parent.parent / 'static/js/app-core.js'))
 SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const fields={},timers=new Map(),errors=[],updates=[];let timerId=0,draws=0,playing=false;
@@ -18,6 +19,14 @@ run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse
 run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));
 const start=source.includes('function ensureChunkRefresh(')?source.indexOf('function ensureChunkRefresh('):source.indexOf('async function loadChunks(');
 run(source.slice(start,source.indexOf('window.toggleChunkExpand',start)));
+let getFixture;
+Object.defineProperty(ctx.API,'get',{set:value=>{getFixture=value;},get:()=>async url=>{
+ const data=await getFixture(url);
+ if(!Array.isArray(data)){return data;}
+ const old=run('cachedChunks');
+ const full=!url.includes('?revision=')||old.length!==data.length||data.some((row,i)=>old[i].id!==row.id);
+ return {revision:'fixture-'+JSON.stringify(data),full,total:data.length,running_count:data.filter(row=>row.status==='generating').length,changed_ids:data.map(row=>row.id),chunks:data};
+}});
 const chunk=(id,status='pending')=>({id,status,text:'line '+id,speaker:'Narrator'});
 const ids=()=>body.children.map(row=>row.dataset.id);
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
@@ -56,11 +65,25 @@ ctx.API.get=async()=>[chunk(3,'done')];await ctx.loadChunks();assert.strictEqual
         self.run_js(r'''
 let poll,reads=0,statusReads=0,drift=0;ctx.ensureEditorRenderSnapshot=async()=>[chunk(1)];ctx.showToast=()=>{};ctx.showConfirm=async()=>true;
 ctx.cancelRender=()=>run('isRenderingAll=false');ctx.runDriftCheck=()=>drift++;ctx._startPolling=(key,fetch,options)=>{assert.strictEqual(key,'render_batch');poll={fetch,options};};ctx.API.post=async()=>({});
-ctx.API.get=async url=>{if(url==='/api/status/audio'){statusReads++;return {running:reads===0};}assert.strictEqual(url,'/api/chunks');reads++;return [chunk(1,reads===1?'generating':'done')];};
+ctx.API.get=async url=>{if(url==='/api/status/audio'){statusReads++;return {running:reads===0};}assert.ok(url.startsWith('/api/chunks/status'));reads++;return [chunk(1,reads===1?'generating':'done')];};
 run(source.slice(source.indexOf('function getBatchOutcome('),source.indexOf('function pollReviewBatch()')));
 run(source.slice(source.indexOf('async function _runBatchRender('),source.indexOf('window.renderAll =')));
 await ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});
 let data=await poll.fetch();if(poll.options.onTick){await poll.options.onTick(data);}assert.strictEqual(reads,1);assert.strictEqual(timers.size,0);assert.strictEqual(poll.options.doneCheck(data),false);assert.deepStrictEqual(ids(),['1']);
 data=await poll.fetch();if(poll.options.onTick){await poll.options.onTick(data);}assert.strictEqual(poll.options.doneCheck(data),true);await poll.options.onDone(data);assert.strictEqual(reads,2);assert.strictEqual(statusReads,2);assert.strictEqual(timers.size,0);assert.strictEqual(drift,1);assert.strictEqual(run('cachedChunks[0].status'),'done');
 ctx.API.get=async()=>{throw Error('offline');};await assert.rejects(poll.fetch(),/offline/);assert.deepStrictEqual(errors,[]);
+''')
+
+    def test_compact_deltas_keep_existing_rows_and_forced_refresh_gets_full_snapshot(self):
+        self.run_js(r'''const urls=[];let reply={revision:'v1',full:true,total:2,changed_ids:[1,2],chunks:[chunk(1,'generating'),chunk(2)]};
+ctx.API.get=async url=>{urls.push(url);return reply;};await ctx.loadChunks();const before=draws;
+reply={revision:'v1',full:false,total:2,changed_ids:[],chunks:[]};await ctx.loadChunks();
+assert.strictEqual(draws,before);assert.deepStrictEqual(updates,[]);assert.deepStrictEqual(ids(),['1','2']);assert.strictEqual(timers.size,1);
+reply={revision:'v2',full:false,total:2,changed_ids:[1],chunks:[{...chunk(1,'done'),audio_path:'one.wav'}]};await ctx.loadChunks();
+assert.strictEqual(draws,before);assert.deepStrictEqual(updates,[1]);assert.strictEqual(run('cachedChunks[0].audio_path'),'one.wav');assert.strictEqual(timers.size,0);
+assert.strictEqual(urls[0],'/api/chunks/status');assert.strictEqual(urls[1],'/api/chunks/status?revision=v1');
+reply={revision:'v3',full:true,total:2,changed_ids:[1,2],chunks:[{...chunk(1,'done'),text:'Edited text'},chunk(2)]};await ctx.loadChunks(true);
+assert.strictEqual(urls.at(-1),'/api/chunks/status');assert.ok(draws>before);assert.match(body.innerHTML,/Edited text/);
+reply={revision:'bad',full:false,total:2,changed_ids:[77],chunks:[chunk(77)]};await assert.rejects(ctx.ensureChunkRefresh(),/refresh required/);
+assert.strictEqual(run('chunkSnapshotRevision'),null);assert.strictEqual(run('cachedChunks[0].text'),'Edited text');
 ''')
