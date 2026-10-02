@@ -22,6 +22,7 @@ class RepeatedWorkEfficiencyTests(unittest.TestCase):
         rows = compare.find_disagreements(left, right, pairs=pairs)
         expected = dict(entries_arm_a=len(left), entries_arm_b=len(right),
                         aligned=len(pairs), alignment_coverage=round(coverage, 4),
+                        comparison_eligible=False,
                         disagreement_count=len(rows), sample=compare.sample_disagreements(rows, 1, 11))
         with tempfile.TemporaryDirectory() as tmp:
             a, b, output = [Path(tmp, name) for name in ('a.json', 'b.json', 'report.json')]

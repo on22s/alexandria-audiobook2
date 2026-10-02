@@ -13,7 +13,7 @@ from collections import Counter
 from utils import atomic_json_write
 from generation_checkpoint_deltas import load_generation_checkpoint_document
 
-from attribution_accuracy import normalize_speaker
+from attribution_accuracy import normalize_speaker, is_attribution_comparison_eligible
 
 
 
@@ -122,16 +122,18 @@ def main():
     pairs, coverage = align_arms(entries_a, entries_b)
     rows = find_disagreements(entries_a, entries_b, pairs=pairs)
     sample = sample_disagreements(rows, args.size, args.seed)
+    eligible = is_attribution_comparison_eligible(coverage)
     atomic_json_write(
         {"entries_arm_a": len(entries_a), "entries_arm_b": len(entries_b),
          "aligned": len(pairs), "alignment_coverage": round(coverage, 4),
+         "comparison_eligible": eligible,
          "disagreement_count": len(rows), "sample": sample}, args.output)
     print(f"aligned {len(pairs)} of {len(entries_a)}/{len(entries_b)} entries "
           f"({coverage:.1%} coverage)")
     print(f"{len(rows)} disagreements among aligned entries "
           f"({len(rows)/max(len(pairs),1):.1%}); wrote {len(sample)} sampled "
           f"to {args.output}")
-    if coverage < 0.8:
+    if not eligible:
         print("WARNING: low alignment coverage - the arms segmented very "
               "differently, so this comparison covers only part of the book.")
 

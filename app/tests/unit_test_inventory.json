@@ -487,6 +487,14 @@
     "tests.test_attribution_checkpoint_shapes.AttributionCheckpointShapeTests.test_native_named_entries_and_result_lists_share_one_shape_contract",
     "tests.test_attribution_checkpoint_shapes.AttributionCheckpointShapeTests.test_scoring_readers_replay_latest_indexed_attribution"
   ],
+  "test_attribution_coverage": [
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_actual_score_cli_reports_end_to_end_delta_when_eligible",
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_actual_score_cli_withholds_sparse_comparison_but_displays_both_metrics",
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_comparison_artifact_marks_low_coverage_without_dropping_manual_sample",
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_disputed_rows_are_excluded_from_both_denominators",
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_empty_missing_and_exact_threshold",
+    "tests.test_attribution_coverage.AttributionCoverageTests.test_sparse_perfect_has_lower_end_to_end_accuracy_and_is_ineligible"
+  ],
   "test_attribution_hybrid": [
     "tests.test_attribution_hybrid.AttributionHybridTest.test_cli_policy_file_shape_is_json_serializable",
     "tests.test_attribution_hybrid.AttributionHybridTest.test_confidence_policy_falls_back_on_abstention_or_low_confidence",

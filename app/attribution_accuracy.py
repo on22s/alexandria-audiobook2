@@ -143,6 +143,11 @@ def score_run(named_entries, gold, include_disputed=False):
     return results
 
 
+def is_attribution_comparison_eligible(coverage):
+    """Require the existing 80% alignment floor before comparing arms."""
+    return 0.8 <= coverage <= 1.0
+
+
 def summarize(results):
     aligned = [r for r in results if r["aligned"]]
     correct = [r for r in aligned if r["correct"]]
@@ -151,11 +156,15 @@ def summarize(results):
     missed = collections.Counter(
         r["expected"] for r in aligned if not r["correct"])
     phonetic = [r for r in aligned if r.get("correct_phonetic")]
+    coverage = len(aligned) / len(results) if results else 0.0
     return {
         "scored": len(results),
         "aligned": len(aligned),
         "correct": len(correct),
         "accuracy": len(correct) / len(aligned) if aligned else 0.0,
+        "alignment_coverage": coverage,
+        "end_to_end_accuracy": len(correct) / len(results) if results else 0.0,
+        "comparison_eligible": is_attribution_comparison_eligible(coverage),
         # The gap between these two is a per-model spelling penalty, not noise:
         # it was 7.9 points for magistral-small and 0.0 for three other models
         # on the same fixture. A comparison that quotes only one hides it.
@@ -195,6 +204,9 @@ def main():
               "differently, so the rest could not be scored")
     print(f"correct : {stats['correct']}/{stats['aligned']} "
           f"({stats['accuracy']:.1%})")
+    print(f"coverage: {stats['alignment_coverage']:.1%}; end-to-end: "
+          f"{stats['correct']}/{stats['scored']} "
+          f"({stats['end_to_end_accuracy']:.1%})")
     # Printed only when it differs, so the common case stays a one-line answer
     # but a model paying a romanization penalty cannot be compared without it.
     if stats["correct_phonetic"] != stats["correct"]:
@@ -206,11 +218,16 @@ def main():
     if args.baseline:
         base = summarize(score_run(named(args.baseline), gold,
                                    args.include_disputed))
-        delta = stats["accuracy"] - base["accuracy"]
         print(f"baseline: {base['correct']}/{base['aligned']} "
               f"({base['accuracy']:.1%})")
-        print(f"DELTA   : {delta:+.1%}  "
-              f"({stats['correct'] - base['correct']:+d} lines)")
+        print(f"baseline coverage: {base['alignment_coverage']:.1%}; "
+              f"end-to-end: {base['end_to_end_accuracy']:.1%}")
+        if stats["comparison_eligible"] and base["comparison_eligible"]:
+            delta = stats["end_to_end_accuracy"] - base["end_to_end_accuracy"]
+            print(f"DELTA end-to-end: {delta:+.1%}  "
+                  f"({stats['correct'] - base['correct']:+d} lines)")
+        else:
+            print("COMPARISON withheld: both arms require at least 80% alignment coverage.")
 
     if stats["missed"]:
         print("\nspeakers missed most:")
