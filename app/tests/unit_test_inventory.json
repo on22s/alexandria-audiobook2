@@ -1504,6 +1504,7 @@
   "test_completed_review_receipt": [
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_key_covers_prompts_parameters_profiles_context_and_sidecars",
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_native_transport_repeat_force_and_failed_rerun_receipts",
+    "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_otherwise_valid_receipt_rejects_unsupported_or_noninteger_version",
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_receipt_verifies_separate_input_output_settings_and_checkpoint",
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_standard_and_contextual_force_requests_reach_subprocess",
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_unchanged_in_place_review_dispatches_no_second_batch"

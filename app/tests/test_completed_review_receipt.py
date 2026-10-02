@@ -6,6 +6,20 @@ import unittest
 from tests import test_llm_review_regressions as fixtures
 
 class CompletedReviewReceiptTests(unittest.TestCase):
+    def test_otherwise_valid_receipt_rejects_unsupported_or_noninteger_version(self):
+        import completed_review_receipt as receipts
+        with tempfile.TemporaryDirectory() as temporary:
+            output=Path(temporary)/'book.json';entries=[{'text':'Unchanged.'}]
+            output.write_text(json.dumps(entries));digest=receipts.get_review_entries_fingerprint(entries)
+            receipts.save_completed_review_receipt(str(output),str(output),digest,digest,'settings')
+            path=Path(receipts.get_review_receipt_path(str(output)));valid=json.loads(path.read_text())
+            self.assertTrue(receipts.get_completed_review_match(str(output),str(output),digest,'settings')[0])
+            for version in (2,-1,True,1.0,'1',None):
+                with self.subTest(version=version):
+                    path.write_text(json.dumps({**valid,'version':version}));before=path.read_bytes()
+                    self.assertFalse(receipts.get_completed_review_match(str(output),str(output),digest,'settings')[0])
+                    self.assertEqual(before,path.read_bytes())
+
     def test_unchanged_in_place_review_dispatches_no_second_batch(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'book.json'
