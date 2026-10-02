@@ -811,6 +811,12 @@ def _get_reports():
         except (OSError, HTTPException):
             # File vanished between listdir and stat (concurrent delete) - skip it.
             continue
+        entry["can_explain"] = False
+        try:
+            entry["can_explain"] = not get_review_report_info(filepath)["incomplete"]
+        except (OSError, ValueError):
+            # Legacy, edited and incomplete records remain readable in the list.
+            pass
         reports.append(entry)
     reports.sort(key=lambda r: r["mtime"], reverse=True)
     return reports

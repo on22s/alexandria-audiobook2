@@ -5675,6 +5675,7 @@
     "tests.test_report_explanation.ReportExplanationApiTests.test_failed_unsupported_cancelled_or_stale_explanation_preserves_report",
     "tests.test_report_explanation.ReportExplanationApiTests.test_incomplete_or_busy_refuses_before_provider_or_new_claim",
     "tests.test_report_explanation.ReportExplanationApiTests.test_queued_cancel_is_run_bound_and_never_calls_provider",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_real_list_route_reports_native_writer_eligibility",
     "tests.test_report_explanation.ReportPublicationTests.test_changed_incomplete_and_unsupported_metadata_refuse_without_writes",
     "tests.test_report_explanation.ReportPublicationTests.test_failed_atomic_publication_retains_old_report_and_removes_staging",
     "tests.test_report_explanation.ReportPublicationTests.test_replacement_preserves_all_other_report_text_and_allows_explicit_retry"

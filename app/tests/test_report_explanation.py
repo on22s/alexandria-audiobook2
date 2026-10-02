@@ -98,6 +98,37 @@ class ReportExplanationApiTests(unittest.TestCase):
     def release_claims(self):
         for name,owner in list(core._task_claims.items()):core.release_gpu_task_claim(name,owner['id'])
 
+    def test_real_list_route_reports_native_writer_eligibility(self):
+        from review_report import get_review_report_info, save_review_report
+        stats=core._new_review_totals();stats.update(entries_before=2,entries_after=2,total_changes=0)
+        batch_state={'tasks':[{'name':'book','status':'done','stats_fwd':stats}], 'totals_fwd':stats}
+        with patch.object(core,'REPORTS_DIR',str(self.root)), patch.object(script,'REPORTS_DIR',str(self.root)), \
+             patch.object(core,'_llm_summarize_report') as provider:
+            single=Path(core._write_single_review_report(stats))
+            batch=Path(script._write_batch_review_report(batch_state,['book'],False,False))
+            provider.assert_not_called()
+        for path in (single,batch):
+            self.assertFalse(get_review_report_info(path)['incomplete'])
+        incomplete=self.root/'review_incomplete.md'
+        save_review_report(incomplete,self.body,'The review recorded 2 changes.',True)
+        legacy=self.root/'review_legacy.md';legacy.write_text(self.body)
+        edited=self.root/'review_edited.md'
+        save_review_report(edited,self.body,'The review recorded 2 changes.',False)
+        edited.write_text(edited.read_text().replace('2 changes','3 changes',1))
+        invalid=self.root/'review_invalid.md';invalid.write_bytes(b'\xff')
+        response=self.client.get('/api/reports')
+        self.assertEqual(200,response.status_code,response.text)
+        rows={row['filename']:row for row in response.json()}
+        for path in (self.path,single,batch):
+            with self.subTest(path=path.name):
+                self.assertIs(rows[path.name].get('can_explain'),True)
+        for path in (incomplete,legacy,edited,invalid):
+            with self.subTest(path=path.name):
+                self.assertIs(rows[path.name].get('can_explain'),False)
+        self.assertEqual('batch',rows[batch.name]['type'])
+        self.assertIn('mtime',rows[single.name]);self.assertIn('size',rows[single.name])
+        self.assertEqual({},core._task_claims)
+
     def test_explicit_action_publishes_and_releases_claim(self):
         with patch.object(self.editor,'_llm_summarize_report',return_value='Inspect the two recorded changes.') as provider:
             response=self.client.post('/api/reports/review_fixture.md/explain')
