@@ -64,12 +64,23 @@ class LLMEnricher:
                 if has_gpu:
                     backend = {"NVIDIA": "CUDA", "AMD/ROCm": "HIP",
                                "Apple Silicon (Metal)": "METAL"}[vendor]
+                    if vendor == "AMD/ROCm":
+                        rebuild = (
+                            "Use ~/Desktop/llama_build/build_llama_rocm.sh for the ROCm source build. "
+                            f"Set the script's PY assignment to {sys.executable!r} "
+                            "(the running enrichment interpreter) and check AMDGPU_TARGETS "
+                            "matches your GPU architecture before running it. "
+                            "Exporting PY does not override the script's hardcoded assignment. "
+                        )
+                    else:
+                        rebuild = (
+                            "Rebuild in the same Python environment: python -m pip install "
+                            "--force-reinstall --no-cache-dir llama-cpp-python "
+                            f"-C cmake.args=-DGGML_{backend}=ON. "
+                        )
                     message = (
                         f"{vendor} GPU detected, but this llama-cpp-python build has no GPU support. "
-                        f"Rebuild in the same Python environment: python -m pip install "
-                        f"--force-reinstall --no-cache-dir llama-cpp-python "
-                        f"-C cmake.args=-DGGML_{backend}=ON. "
-                        f"Use --allow-cpu-fallback only for intentional CPU enrichment."
+                        + rebuild + "Use --allow-cpu-fallback only for intentional CPU enrichment."
                     )
                     if not allow_cpu_fallback:
                         raise RuntimeError(message)

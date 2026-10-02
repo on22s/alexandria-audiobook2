@@ -26,8 +26,10 @@ class EnricherCpuAdmissionTests(unittest.TestCase):
         self.assertEqual(1, raised.exception.code)
         self.provider.Llama.assert_not_called()
         self.assertEqual([{'prior':True}], json.loads(output.read_text()))
-        for fragment in ('AMD/ROCm', 'no GPU support', 'GGML_HIP', '--allow-cpu-fallback'):
+        for fragment in ('AMD/ROCm', 'no GPU support', '~/Desktop/llama_build/build_llama_rocm.sh',
+                         'PY assignment', sys.executable, 'GPU architecture', '--allow-cpu-fallback'):
             self.assertIn(fragment, '\n'.join(logs.output))
+        self.assertNotIn('python -m pip install', '\n'.join(logs.output))
         with patch.object(self.module, 'system_has_gpu', return_value=(False, None)):
             enricher = self.module.LLMEnricher('fixture.gguf'); enricher.close()
 
