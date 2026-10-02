@@ -985,10 +985,13 @@
     "tests.test_book_preflight.BookPreflightTests.test_incomplete_sample_is_not_reported_complete"
   ],
   "test_book_preflight_api": [
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_bad_receipts_cannot_be_reported_complete_by_the_http_worker",
     "tests.test_book_preflight_api.BookPreflightApiTests.test_cancel_refuses_another_script_owner",
     "tests.test_book_preflight_api.BookPreflightApiTests.test_http_freezes_source_and_config_without_touching_full_book",
     "tests.test_book_preflight_api.BookPreflightApiTests.test_interrupted_workspace_limit_refuses_without_deleting_files",
-    "tests.test_book_preflight_api.BookPreflightApiTests.test_missing_native_manifest_cannot_complete"
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_missing_native_manifest_cannot_complete",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_source_cap_refuses_before_claim_and_cleans_private_copy",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_source_changed_during_copy_refuses_without_claim_or_receipt"
   ],
   "test_book_preflight_js": [
     "tests.test_book_preflight_js.BookPreflightJsTests.test_decline_and_stale_poll_do_not_start_or_overwrite",
