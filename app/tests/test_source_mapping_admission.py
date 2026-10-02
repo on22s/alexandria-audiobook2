@@ -80,7 +80,7 @@ class SourceMappingAdmissionTests(unittest.TestCase):
 
     def test_direct_processing_cannot_bypass_mapping_admission(self):
         audio = self.audio('unrelated')
-        with patch.object(batch.sys.stdin, 'isatty', return_value=False), patch.object(batch.subprocess, 'Popen') as worker, self.assertRaisesRegex(ValueError, 'allow-no-source'):
+        with patch.object(batch.sys.stdin, 'isatty', return_value=False), patch.object(batch, 'get_audio_duration_seconds', return_value=3600), patch.object(batch.subprocess, 'Popen') as worker, self.assertRaisesRegex(ValueError, 'allow-no-source'):
             self.processor().process_file(audio, 1, 1)
         worker.assert_not_called()
 

@@ -249,6 +249,17 @@ def get_audio_duration_seconds(path):
         return None
 
 
+def get_disk_probe_path(path):
+    """Resolve the filesystem of a scratch/output path before it exists."""
+    probe = os.path.realpath(os.path.abspath(path))
+    while not os.path.exists(probe):
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            raise OSError(f"Cannot locate a filesystem for {path}")
+        probe = parent
+    return probe
+
+
 def save_batch_receipt(path, data):
     """Replace a receipt only after the complete JSON has reached disk."""
     directory = os.path.dirname(path) or "."
@@ -334,7 +345,8 @@ class BatchProcessor:
 
     def __init__(self, model_path, chunk_size=10.0, language="en", force=False,
                  fallback_model=None, source_folder=None, source_path=None,
-                 source_threshold=0.65, keep_unaligned=False, allow_no_source=False):
+                 source_threshold=0.65, keep_unaligned=False, allow_no_source=False,
+                 skip_disk_check=False):
         self.model_path = model_path
         self.fallback_model = fallback_model
         self.chunk_size = chunk_size
@@ -350,6 +362,7 @@ class BatchProcessor:
         self.source_threshold = source_threshold
         self.keep_unaligned   = keep_unaligned
         self.allow_no_source = allow_no_source
+        self.skip_disk_check = skip_disk_check
         self.source_matches = {}
         self.results = {
             "succeeded": [],
@@ -444,10 +457,51 @@ class BatchProcessor:
         estimate = self.output_bytes_per_second * duration if duration else 0
         return max(0.5, estimate / 1024 ** 3)
 
-    def ensure_disk_space(self, audio_file, required_gb):
-        directory = os.path.dirname(os.path.abspath(get_output_name(audio_file)))
-        if check_disk_space(directory, required_gb_per_file=required_gb, num_files=1):
+    def get_scratch_estimates_gb(self, audio_files):
+        # Native long-book peak: 24k PCM16 + 16k float32 + 24k diarization
+        # float32 backing. Whisper.cpp additionally writes 16k PCM16 in TMP.
+        # Fixed allowances cover headers/metadata; these remain estimates.
+        durations = [self.audio_durations.get(path) or 0 for path in audio_files]
+        duration = max(durations, default=0)
+        return (0.5 + duration * 208000 / 1024 ** 3,
+                0.25 + duration * 32000 / 1024 ** 3)
+
+    def ensure_disk_space(self, audio_file, required_gb, scratch_files=None):
+        if self.skip_disk_check:
+            logger.warning("Disk-space admission bypassed by explicit --skip-disk-check "
+                           "for %s; available capacity is not verified", audio_file)
             return True
+        directory = os.path.dirname(os.path.abspath(get_output_name(audio_file)))
+        try:
+            files = [audio_file] if scratch_files is None else scratch_files
+            for path in files:
+                if path not in self.audio_durations:
+                    self.audio_durations[path] = get_audio_duration_seconds(path)
+                if not self.audio_durations[path]:
+                    logger.warning("Scratch duration unavailable for %s; using only the "
+                                   "fixed allowance, which may underestimate long audio", path)
+            dataset_gb, temp_gb = self.get_scratch_estimates_gb(files)
+            logger.info("Scratch reserve is conservative: rechecks retain the full "
+                        "estimate even when some scratch files already occupy disk.")
+            budgets = {}
+            components = ((directory, "remaining ZIP output", required_gb),
+                          (os.path.join(os.getcwd(), "dataset_temp"), "dataset audio scratch", dataset_gb),
+                          (tempfile.gettempdir(), "Whisper.cpp temporary audio", temp_gb))
+            for path, label, amount in components:
+                probe = get_disk_probe_path(path)
+                device = os.stat(probe).st_dev
+                budget = budgets.setdefault(device, {"path": probe, "gb": 0, "parts": []})
+                budget["gb"] += amount
+                budget["parts"].append(f"{label}: {amount:.3f} GiB at {os.path.abspath(path)}")
+            for budget in budgets.values():
+                logger.info("Disk estimate components: %s", "; ".join(budget["parts"]))
+                if not check_disk_space(budget["path"], required_gb_per_file=budget["gb"], num_files=1):
+                    directory = budget["path"]
+                    break
+            else:
+                return True
+        except OSError as error:
+            logger.error("Cannot probe scratch/output filesystem: %s", error)
         self.disk_refused = True
         self.results["failed"].append({
             "file": audio_file, "reason": f"Disk space admission refused at {directory}"})
@@ -482,6 +536,8 @@ class BatchProcessor:
 
     def process_file(self, audio_file, file_index, total_files):
         """Process a single audio file with real-time output streaming."""
+        if not self.skip_disk_check and audio_file not in self.audio_durations:
+            self.audio_durations[audio_file] = get_audio_duration_seconds(audio_file)
         if not self.ensure_disk_space(audio_file, self.get_disk_estimate_gb(audio_file)):
             return
         file_size = os.path.getsize(audio_file) / (1024 * 1024)
@@ -739,7 +795,8 @@ class BatchProcessor:
             for idx, audio_file in enumerate(valid_files, 1):
                 if self.ensure_disk_space(
                         audio_file, sum(self.get_disk_estimate_gb(path)
-                                        for path in valid_files[idx - 1:])):
+                                        for path in valid_files[idx - 1:]),
+                        scratch_files=valid_files[idx - 1:]):
                     self.process_file(audio_file, idx, len(valid_files))
                 if self.disk_refused:
                     self.results["skipped"].extend({
@@ -829,7 +886,8 @@ class BatchProcessor:
         save_batch_receipt(results_file, {
             "timestamp": datetime.now().isoformat(),
             "total_time_seconds": self.total_time,
-            "results": self.results
+            "results": self.results,
+            "skip_disk_check": self.skip_disk_check
         })
         logger.info(f"Results saved to: {results_file}")
         logger.info("=" * 70)
@@ -875,6 +933,11 @@ def main():
         "--force",
         action="store_true",
         help="Reprocess files even if a valid dataset ZIP already exists"
+    )
+
+    parser.add_argument(
+        "--skip-disk-check", action="store_true",
+        help="Explicitly bypass all batch disk-space admission checks; capacity is not verified"
     )
 
     # ── Source-guided chunking (forwarded to preparer) ────────────────────────
@@ -957,6 +1020,7 @@ def main():
         source_threshold=args.source_threshold,
         keep_unaligned=args.keep_unaligned,
         allow_no_source=args.allow_no_source,
+        skip_disk_check=args.skip_disk_check,
     )
 
     try:

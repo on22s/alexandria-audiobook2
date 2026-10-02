@@ -10,6 +10,13 @@ import alexandria_batch_processor as batch
 
 
 class BatchDiskAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        # Pin these output-budget regressions to one filesystem; separate-volume
+        # scratch admission is covered by test_batch_disk_scratch.
+        probe = patch.object(batch, 'get_disk_probe_path', return_value='.')
+        probe.start()
+        self.addCleanup(probe.stop)
+
     def test_initial_disk_refusal_stops_batch_before_dispatch(self):
         processor = batch.BatchProcessor('fixture.gguf')
         with patch.object(processor, 'validate_files', return_value=['first.wav', 'last.wav']), \
@@ -40,7 +47,8 @@ class BatchDiskAdmissionTests(unittest.TestCase):
              patch.object(processor, 'print_summary'), patch.object(processor, 'process_file') as dispatch:
             self.assertTrue(processor.run(['first.wav', 'last.wav']))
         self.assertEqual(2, dispatch.call_count)
-        self.assertEqual([1.0, 0.5], [call.kwargs['required_gb_per_file'] for call in check.call_args_list])
+        scratch = 0.75 + 3600 * (208000 + 32000) / 1024 ** 3
+        self.assertEqual([1.0 + scratch, 0.5 + scratch], [call.kwargs['required_gb_per_file'] for call in check.call_args_list])
 
     def test_disk_probe_failure_refuses_and_shortfall_names_output_filesystem(self):
         from types import SimpleNamespace
@@ -69,6 +77,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
             root = Path(directory); audio = root / 'book.wav'; audio.write_bytes(b'fixture input')
             output = root / 'dataset.zip'
             processor = batch.BatchProcessor('fixture.gguf')
+            processor.audio_durations[str(audio)] = 3600
             class Child:
                 returncode = None
                 killed = False
@@ -130,6 +139,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); audio=root/'book.wav';audio.write_bytes(b'fixture')
             output=root/'dataset.zip';processor=batch.BatchProcessor('fixture.gguf')
+            processor.audio_durations[str(audio)] = 3600
             code=('import zipfile,time\n'
                   'with zipfile.ZipFile('+repr(str(output))+',"w") as z:\n'
                   ' z.writestr("metadata.jsonl", "{}\\n")\n'
@@ -159,6 +169,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             audio=Path(directory)/'book.wav';audio.write_bytes(b'fixture')
             processor=batch.BatchProcessor('fixture.gguf')
+            processor.audio_durations[str(audio)] = 3600
             with patch.object(batch,'check_disk_space',return_value=False), \
                  patch.object(batch.subprocess,'Popen') as launch:
                 processor.process_file(str(audio),1,1)
@@ -216,7 +227,8 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                  patch.object(batch.subprocess,'Popen',side_effect=launch), \
                  patch.object(batch.threading.Thread,'start'):
                 processor.process_file(str(audio),1,1)
-            self.assertEqual([2,1.25],[call.kwargs['required_gb_per_file'] for call in check.call_args_list])
+            scratch = 0.75 + 3600 * (208000 + 32000) / 1024 ** 3
+            self.assertEqual([2 + scratch, 1.25 + scratch], [call.kwargs['required_gb_per_file'] for call in check.call_args_list])
             self.assertEqual(1,len(processor.results['succeeded']))
 
     def test_completed_lower_output_rate_never_reduces_budget(self):

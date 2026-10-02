@@ -626,6 +626,18 @@
     "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_published_volume_refusal_kills_and_reaps_without_success_receipt",
     "tests.test_batch_disk_admission.BatchDiskAdmissionTests.test_real_cpu_child_is_reaped_on_published_volume_disk_refusal"
   ],
+  "test_batch_disk_scratch": [
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_cli_override_is_explicitly_forwarded_and_default_is_false",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_direct_call_probes_duration_before_computing_output_budget",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_explicit_override_bypasses_probe_and_logs_choice",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_override_choice_is_retained_in_batch_receipt",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_override_is_not_the_default",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_override_runs_worker_but_still_requires_verified_output_receipt",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_separate_scratch_filesystem_refuses_despite_output_capacity",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_separate_system_temp_is_also_checked",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_sequential_scratch_reserves_maximum_not_sum",
+    "tests.test_batch_disk_scratch.BatchDiskScratchTests.test_zip_capacity_alone_does_not_admit_long_book_scratch"
+  ],
   "test_batch_identity_and_selection": [
     "tests.test_batch_identity_and_selection.BatchIdentity.test_a_hash_may_be_supplied_without_the_prompt_text",
     "tests.test_batch_identity_and_selection.BatchIdentity.test_comparing_two_nulls_must_not_read_as_agreement",

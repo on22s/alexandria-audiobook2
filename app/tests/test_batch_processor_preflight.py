@@ -19,6 +19,11 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.model = self.root / "model.gguf"
         self.model.touch()
+        # These child/source fixtures use empty audio; pin duration so the
+        # newly required metadata probe does not run through their Popen stubs.
+        duration = patch.object(batch, "get_audio_duration_seconds", return_value=3600)
+        duration.start()
+        self.addCleanup(duration.stop)
 
     def test_audio_directory_is_not_processed(self):
         audio_dir = self.root / "book.wav"
