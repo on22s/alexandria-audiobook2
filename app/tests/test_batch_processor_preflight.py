@@ -82,6 +82,12 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         # Both candidates overlap one of the two audio tokens equally.
         with self.assertRaisesRegex(ValueError, "Ambiguous"):
             batch._find_source_for("alpha zeta.wav", str(sources))
+        candidates = batch.get_source_candidates(str(sources))
+        for order in (candidates, list(reversed(candidates))):
+            report = batch.get_source_match_report("alpha zeta.wav", str(sources), source_candidates=order)
+            self.assertTrue(report['ambiguous'])
+            self.assertEqual([str(sources / 'alpha book.epub'), str(sources / 'zeta book.epub')],
+                [report['source']] + [row['source'] for row in report['alternatives']])
 
     def test_source_catalog_is_scanned_once_and_match_reused(self):
         sources = self.root / "sources"
