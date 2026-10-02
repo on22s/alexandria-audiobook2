@@ -34,7 +34,7 @@ import traceback
 
 from device_utils import (enable_rocm_optimizations, is_oom_failure,
                           normalize_device, resolve_device)
-from dataset_metadata import get_training_metadata
+from dataset_metadata import get_training_metadata, get_training_reference_path
 from voice_manifest import validate_adapter_training_output
 from utils import is_path_inside
 from adapter_checkpoint_transaction import save_adapter_checkpoint, validate_adapter_checkpoint_generation
@@ -323,25 +323,10 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
             return resolved
         return None
 
-    ref_audio_path = None
-    if entries[0].get("ref_audio"):
-        ref_audio_path = _resolve_in_data_dir(entries[0]["ref_audio"])
-        if ref_audio_path is None:
-            print(f"[ERROR] ref_audio escapes the dataset directory: {entries[0]['ref_audio']}", flush=True)
-            sys.exit(1)
-    elif os.path.exists(os.path.join(data_dir, "ref.wav")):
-        ref_audio_path = os.path.join(data_dir, "ref.wav")
-
-    if ref_audio_path is None:
-        # Fall back to first training sample as reference
-        first_audio_rel = entries[0].get("audio_filepath") or entries[0].get("audio", "")
-        ref_audio_path = _resolve_in_data_dir(first_audio_rel)
-        if ref_audio_path is None:
-            print(f"[ERROR] first-sample reference path escapes the dataset directory: {first_audio_rel}", flush=True)
-            sys.exit(1)
-
-    if not os.path.exists(ref_audio_path):
-        print(f"[ERROR] Reference audio not found: {ref_audio_path}", flush=True)
+    try:
+        ref_audio_path = get_training_reference_path(data_dir, entries)
+    except ValueError as error:
+        print(f"[ERROR] {error}", flush=True)
         sys.exit(1)
 
     print(f"[DATA] Using reference audio: {os.path.basename(ref_audio_path)}", flush=True)

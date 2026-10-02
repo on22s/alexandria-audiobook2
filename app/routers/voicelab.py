@@ -42,6 +42,7 @@ from core import (
     process_state,
 )
 from device_utils import normalize_device
+from training_preflight import get_training_vram_error, get_training_disk_error
 from utils import atomic_json_write, file_lock, safe_load_json
 from voicelab_settings import get_profiler_paths, get_voice_lab_script_path
 from run_history import list_runs, update_run
@@ -281,7 +282,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
 
     usage = shutil.disk_usage(DATA_DIR)
     free_gb = round(usage.free / 1024 ** 3, 1)
-    if free_gb < 2:
+    if get_training_disk_error(free_gb * 1024 ** 3):
         finding(blockers, "disk_critical", "Less than 2 GB of free disk remains.")
     elif free_gb < 10:
         finding(warnings, "disk_low", "Less than 10 GB of free disk remains.")
@@ -290,8 +291,8 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     requested_device = request.device or "auto"
     if needs_rocm and requested_device != "cpu" and not probe.get("gpu"):
         finding(blockers, "gpu_unavailable", "The selected interpreter cannot see a GPU.")
-    elif "train" in stages and requested_device != "cpu" and free_vram_gb is not None and free_vram_gb < 8:
-        finding(blockers, "vram_low", "Training requires at least 8 GB of free VRAM.")
+    elif "train" in stages and get_training_vram_error(requested_device, free_vram_gb):
+        finding(blockers, "vram_low", get_training_vram_error(requested_device, free_vram_gb))
     if request.candidate_checkpoints and request.max_epochs == 1:
         finding(warnings, "candidate_duplicate", "A one-epoch candidate will match production and be discarded.")
 

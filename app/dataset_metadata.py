@@ -60,3 +60,41 @@ def require_dataset_wav(path):
                 raise ValueError("training WAV could not be decoded completely")
     except (OSError, RuntimeError) as error:
         raise ValueError("training WAV is not decodable") from error
+
+
+def get_training_reference_path(data_dir, entries):
+    """Resolve the existing reference precedence without leaving the dataset."""
+    from utils import is_path_inside
+    relative = entries[0].get("ref_audio")
+    if not relative:
+        relative = "ref.wav" if os.path.exists(os.path.join(data_dir, "ref.wav")) else (
+            entries[0].get("audio_filepath") or entries[0].get("audio", ""))
+    path = os.path.realpath(os.path.join(data_dir, relative))
+    if not is_path_inside(path, data_dir):
+        raise ValueError(f"Reference audio escapes the dataset directory: {relative}")
+    if not os.path.isfile(path):
+        raise ValueError(f"Reference audio not found: {relative}")
+    return path
+
+
+def get_training_dataset_preflight(data_dir):
+    """Validate metadata and native audio without allocating a model."""
+    from audio_validation import validate_generated_audio, validate_finite_audio_values
+    from utils import is_path_inside
+    import soundfile as sf
+    entries, used_split = get_training_metadata(data_dir)
+    reference = get_training_reference_path(data_dir, entries)
+    paths = {reference}
+    for entry in entries:
+        relative = entry.get("audio_filepath") or entry.get("audio")
+        path = os.path.realpath(os.path.join(data_dir, relative))
+        if not is_path_inside(path, data_dir):
+            raise ValueError(f"Training audio escapes the dataset directory: {relative}")
+        paths.add(path)
+    for path in sorted(paths):
+        validate_generated_audio(path, "training preflight")
+        with sf.SoundFile(path) as audio:
+            for block in audio.blocks(blocksize=65536, dtype="float32"):
+                validate_finite_audio_values(block, "training preflight")
+    return {"sample_count": len(entries), "used_split": used_split,
+            "audio_count": len(paths), "reference": os.path.relpath(reference, data_dir)}

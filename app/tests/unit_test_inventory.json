@@ -4015,6 +4015,13 @@
   "test_lora_backup_scan": [
     "tests.test_lora_backup_scan.LoraBackupScanTests.test_status_counts_current_file_sizes_without_reading_weight_payloads"
   ],
+  "test_lora_batch_preflight": [
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_all_bad_archives_are_reported_and_temp_inputs_retained",
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_damaged_last_zip_refuses_entire_dry_and_full_batch",
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_native_training_split_reference_and_nonfinite_audio",
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_output_access_and_disk_fail_without_creating_paths",
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_valid_cpu_dry_run_is_read_only"
+  ],
   "test_lora_candidate_promotion": [
     "tests.test_lora_candidate_promotion.AlteredComparisonSpecTests.test_comparison_refuses_altered_probe_with_intact_audio_and_declared_hash",
     "tests.test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_deletion_refuses_pending_checkpoint_recovery",
@@ -7283,6 +7290,13 @@
     "tests.test_training_oom_recovery.TrainingSampleIsolationTests.test_partial_backward_restores_references_and_next_optimizer_update_excludes_failed_signal",
     "tests.test_training_oom_recovery.TrainingSampleIsolationTests.test_success_preserves_scaling_sub_loss_weight_and_unused_prior_gradient"
   ],
+  "test_training_resource_preflight": [
+    "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_interpreter_errors_are_failures_not_ready_defaults",
+    "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_selected_interpreter_receives_all_archive_paths_and_device",
+    "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_disk_floor_and_larger_scratch_need",
+    "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_runtime_rejects_unavailable_index_and_low_free_vram",
+    "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_vram_floor_cpu_and_unknown"
+  ],
   "test_training_ui_contract": [
     "tests.test_training_ui_contract.TrainingUiContractTests.test_all_delete_errors_use_shared_handler_without_reload_and_204_succeeds",
     "tests.test_training_ui_contract.TrainingUiContractTests.test_dataset_attributes_preserve_ids_without_injected_tags_or_handlers",
@@ -7966,7 +7980,7 @@
     "tests.test_voicelab_path_policy.VoiceLabPathPolicyTests.test_save_rejects_generated_roots_and_symlinks_without_changing_config"
   ],
   "test_voicelab_pipeline_scripts": [
-    "tests.test_voicelab_pipeline_scripts.BatchMetadataFailureTests.test_actual_cli_cleans_bad_encoding_and_continues_to_next_zip",
+    "tests.test_voicelab_pipeline_scripts.BatchMetadataFailureTests.test_actual_cli_bad_encoding_refuses_all_training_and_preserves_outputs",
     "tests.test_voicelab_pipeline_scripts.BatchMetadataFailureTests.test_metadata_read_failure_cleans_dataset_but_preserves_existing_output",
     "tests.test_voicelab_pipeline_scripts.BatchTrainingEtaTests.test_eta_counts_attempted_training_instead_of_cached_zip_ordinals",
     "tests.test_voicelab_pipeline_scripts.LegacyProfilerIdTests.test_legacy_entry_without_id_does_not_stop_actual_cli_or_drop_later_profiles",
