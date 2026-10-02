@@ -4020,6 +4020,7 @@
     "tests.test_lora_batch_preflight.BatchPreflightTests.test_damaged_last_zip_refuses_entire_dry_and_full_batch",
     "tests.test_lora_batch_preflight.BatchPreflightTests.test_native_training_split_reference_and_nonfinite_audio",
     "tests.test_lora_batch_preflight.BatchPreflightTests.test_output_access_and_disk_fail_without_creating_paths",
+    "tests.test_lora_batch_preflight.BatchPreflightTests.test_training_audio_escape_is_rejected_with_valid_reference_and_audio",
     "tests.test_lora_batch_preflight.BatchPreflightTests.test_valid_cpu_dry_run_is_read_only"
   ],
   "test_lora_candidate_promotion": [
@@ -7291,7 +7292,9 @@
     "tests.test_training_oom_recovery.TrainingSampleIsolationTests.test_success_preserves_scaling_sub_loss_weight_and_unused_prior_gradient"
   ],
   "test_training_resource_preflight": [
+    "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_failed_interpreter_cannot_publish_an_otherwise_valid_ready_receipt",
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_interpreter_errors_are_failures_not_ready_defaults",
+    "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_ready_receipt_requires_exact_requested_archive_coverage",
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_selected_interpreter_receives_all_archive_paths_and_device",
     "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_disk_floor_and_larger_scratch_need",
     "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_runtime_rejects_unavailable_index_and_low_free_vram",

@@ -129,6 +129,22 @@ class BatchPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'non-finite'):
                 get_training_dataset_preflight(str(root))
 
+    def test_training_audio_escape_is_rejected_with_valid_reference_and_audio(self):
+        import numpy as np
+        import soundfile as sf
+        from dataset_metadata import get_training_dataset_preflight
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'dataset'; root.mkdir()
+            for path in (root / 'ref.wav', root / 'clip.wav', Path(temporary) / 'outside.wav'):
+                sf.write(path, np.ones(2400) * .1, 24000)
+            entries = [{'audio_filepath': 'clip.wav', 'text': 'Safe.', 'ref_audio': 'ref.wav'},
+                {'audio_filepath': '../outside.wav', 'text': 'Outside.', 'ref_audio': 'ref.wav'}]
+            metadata = root / 'metadata.jsonl'; metadata.write_text(''.join(json.dumps(row) + '\n' for row in entries))
+            before = {str(path): path.read_bytes() for path in Path(temporary).rglob('*') if path.is_file()}
+            with self.assertRaisesRegex(ValueError, 'Training audio escapes'):
+                get_training_dataset_preflight(str(root))
+            self.assertEqual(before, {str(path): path.read_bytes() for path in Path(temporary).rglob('*') if path.is_file()})
+
     def test_valid_cpu_dry_run_is_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -40,6 +40,36 @@ class TrainingResourcePreflightTests(unittest.TestCase):
         self.assertIsNone(get_training_disk_error(6 * gb, 4 * gb))
 
 class SelectedInterpreterPreflightTests(unittest.TestCase):
+    def test_ready_receipt_requires_exact_requested_archive_coverage(self):
+        import json
+        import subprocess
+        from unittest.mock import patch
+        from training_preflight import get_selected_interpreter_preflight
+        valid = {'status': 'ready', 'datasets': [{'archive': 'first.zip'}, {'archive': 'last.zip'}],
+            'errors': [], 'runtime': {'device': 'cpu'}}
+        for names in (['first.zip'], ['first.zip', 'first.zip'], ['first.zip', 'extra.zip']):
+            receipt = {**valid, 'datasets': [{'archive': name} for name in names]}
+            with self.subTest(names=names), patch('subprocess.run', return_value=
+                    subprocess.CompletedProcess([], 0, json.dumps(receipt), '')):
+                report = get_selected_interpreter_preflight('/chosen/python', ['first.zip', 'last.zip'], 'cpu')
+            self.assertEqual('failed', report['status'])
+            self.assertIn('every requested archive', report['errors'][0]['error'])
+        with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(valid), '')):
+            self.assertEqual(valid, get_selected_interpreter_preflight('/chosen/python', ['first.zip', 'last.zip'], 'cpu'))
+
+    def test_failed_interpreter_cannot_publish_an_otherwise_valid_ready_receipt(self):
+        import json
+        import subprocess
+        from unittest.mock import patch
+        from training_preflight import get_selected_interpreter_preflight
+        valid = {'status': 'ready', 'datasets': [{'archive': 'book.zip'}],
+            'errors': [], 'runtime': {'device': 'cpu'}}
+        with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 1, json.dumps(valid), 'worker failed')):
+            report = get_selected_interpreter_preflight('/chosen/python', ['book.zip'], 'cpu')
+        self.assertEqual('failed', report['status'])
+        self.assertIn('failed without a failed receipt', report['errors'][0]['error'])
+        self.assertIn('worker failed', report['errors'][0]['error'])
+
     def test_interpreter_errors_are_failures_not_ready_defaults(self):
         import subprocess
         from unittest.mock import patch
