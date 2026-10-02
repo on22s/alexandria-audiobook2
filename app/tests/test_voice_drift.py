@@ -84,6 +84,27 @@ class VoiceDriftScoringTests(unittest.TestCase):
         self.assertEqual(by_uid["u1"]["score"], 0.31)
         self.assertNotIn("u5", by_uid)  # pending chunks are not scored
 
+    def test_duplicate_reference_uid_keeps_first_match_and_path_refusal(self):
+        chunks = [
+            {"uid": ["malformed"], "status": "pending"},
+            {"uid": "reference", "speaker": "A", "status": "done",
+             "audio_path": "../outside.wav"},
+            {"uid": "reference", "speaker": "A", "status": "done",
+             "audio_path": "voicelines/a.mp3"},
+        ] + [{"uid": f"target-{i}", "speaker": "A", "status": "done",
+              "audio_path": "voicelines/b.mp3"} for i in range(65)]
+        with patch.object(voice_drift, "_decode_to_wav") as decode:
+            report = voice_drift.check_voice_drift(
+                chunks, {}, self.root, "/usr/bin/python3", .45,
+                indices=list(range(3, len(chunks))), score_pairs=lambda *args: ([], None))
+        self.assertIsNone(report["error"])
+        self.assertEqual(len(report["results"]), 65)
+        self.assertTrue(all(row["error"] == "reference audio path is outside project"
+                            for row in report["results"]))
+        self.assertTrue(all(row["score"] is None and not row["flagged"]
+                            for row in report["results"]))
+        decode.assert_not_called()
+
     def test_indices_restrict_which_chunks_are_scored(self):
         report, seen = self._run([0.9], indices=[1])
         self.assertEqual([r["uid"] for r in report["results"]], ["u1"])

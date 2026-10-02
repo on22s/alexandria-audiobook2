@@ -1,0 +1,110 @@
+{
+  "workload": "Actual public bounded drift path, native reference choice and temporary filesystem. Missing audio excludes decoding/scoring. Synthetic snapshots; no end-to-end ECAPA speed claim.",
+  "rows": [
+    {
+      "size": 1000,
+      "reference_fraction": 0,
+      "timings_seconds": {
+        "baseline": [
+          0.026037072064355016,
+          0.023751186905428767,
+          0.023358121048659086
+        ],
+        "indexed": [
+          0.023341311141848564,
+          0.02350736898370087,
+          0.023216772126033902
+        ]
+      },
+      "results_equal": true
+    },
+    {
+      "size": 5000,
+      "reference_fraction": 0,
+      "timings_seconds": {
+        "baseline": [
+          0.17631944897584617,
+          0.1670546280220151,
+          0.15414390596561134
+        ],
+        "indexed": [
+          0.15206582704558969,
+          0.15302100800909102,
+          0.15230385516770184
+        ]
+      },
+      "results_equal": true
+    },
+    {
+      "size": 10000,
+      "reference_fraction": 0,
+      "timings_seconds": {
+        "baseline": [
+          0.4335127049125731,
+          0.4349494301714003,
+          0.4369148591067642
+        ],
+        "indexed": [
+          0.43572729104198515,
+          0.4375440620351583,
+          0.4373636639211327
+        ]
+      },
+      "results_equal": true
+    },
+    {
+      "size": 1000,
+      "reference_fraction": 0.8,
+      "timings_seconds": {
+        "baseline": [
+          0.00947277806699276,
+          0.008968553971499205,
+          0.008931545075029135
+        ],
+        "indexed": [
+          0.0043122239876538515,
+          0.004271794110536575,
+          0.004342882893979549
+        ]
+      },
+      "results_equal": true
+    },
+    {
+      "size": 5000,
+      "reference_fraction": 0.8,
+      "timings_seconds": {
+        "baseline": [
+          0.16089791292324662,
+          0.15936082997359335,
+          0.1583608710207045
+        ],
+        "indexed": [
+          0.03349720314145088,
+          0.0336276909802109,
+          0.03357137180864811
+        ]
+      },
+      "results_equal": true
+    },
+    {
+      "size": 10000,
+      "reference_fraction": 0.8,
+      "timings_seconds": {
+        "baseline": [
+          0.5767141571268439,
+          0.577487108996138,
+          0.5748622661922127
+        ],
+        "indexed": [
+          0.09641187102533877,
+          0.09670186787843704,
+          0.09639650117605925
+        ]
+      },
+      "results_equal": true
+    }
+  ],
+  "candidate": "audio-3-5",
+  "source_base": "93ba835ab2720084e0b4ffdf1f0707b00ead2d13",
+  "correctness": "All full reports equal across six synthetic snapshots; separate duplicate/unsafe-reference test rejects first matching escape path across three batches."
+}

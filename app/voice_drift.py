@@ -81,6 +81,16 @@ def _decode_to_wav(src, dest_dir, stem):
     return out
 
 
+def get_chunk_uid_index(chunks):
+    """Index string UIDs, retaining the first match used by reference lookup."""
+    chunks_by_uid = {}
+    for chunk in chunks:
+        uid = chunk.get("uid")
+        if isinstance(uid, str):
+            chunks_by_uid.setdefault(uid, chunk)
+    return chunks_by_uid
+
+
 def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
                       indices=None, resolve_alias=None, resolve_asset_path=None,
                       score_pairs=ecapa_pairs):
@@ -111,13 +121,14 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
     targets = [i for i, chunk in enumerate(chunks)
                if chunk.get("status") == "done" and chunk.get("audio_path")
                and (wanted is None or i in wanted)]
+    chunks_by_uid = get_chunk_uid_index(chunks)
     results = []
     for offset in range(0, len(targets), DRIFT_BATCH_SIZE):
         report = _check_voice_drift_batch(
             chunks, voice_config, root_dir, python_bin, threshold,
             indices=targets[offset:offset + DRIFT_BATCH_SIZE],
             resolve_alias=resolve_alias, resolve_asset_path=resolve_asset_path,
-            score_pairs=score_pairs)
+            score_pairs=score_pairs, chunks_by_uid=chunks_by_uid)
         if report["error"]:
             return {"results": [], "error": report["error"]}
         results.extend(report["results"])
@@ -126,7 +137,7 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
 
 def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, threshold,
                       indices=None, resolve_alias=None, resolve_asset_path=None,
-                      score_pairs=ecapa_pairs):
+                      score_pairs=ecapa_pairs, chunks_by_uid=None):
     """Score chunks against their speaker's reference.
 
     Returns {"results": [{index, uid, score, flagged, reference}, ...],
@@ -153,6 +164,8 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
             references[speaker] = get_reference_for_speaker(
                 speaker, voice_config, chunks, resolve_alias, resolve_asset_path)
 
+    if chunks_by_uid is None:
+        chunks_by_uid = get_chunk_uid_index(chunks)
     results, pairs, pair_owner = [], [], []
     with tempfile.TemporaryDirectory(prefix="voice_drift_") as tmp:
         decoded = {}
@@ -171,7 +184,7 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
                                     "flagged": False, "reference": "self",
                                     "error": "not measured: chunk is its own reference"})
                     continue
-                ref_chunk = next((c for c in chunks if c.get("uid") == ref_uid), None)
+                ref_chunk = chunks_by_uid.get(ref_uid)
                 ref_path = os.path.join(root_dir, ref_chunk["audio_path"]) if ref_chunk else None
             if ref_path:
                 ref_path = os.path.join(root_dir, ref_path)
