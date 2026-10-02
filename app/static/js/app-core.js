@@ -4944,6 +4944,8 @@
                 try {
                     await API.post(`/api/chunks/${id}`, captured);
                     cachedChunks = cachedChunks.map(chunk => chunk.id === id ? { ...chunk, ...captured } : chunk);
+                    // The server can normalize an edit without changing its revision.
+                    chunkSnapshotRevision = null;
                     failedChunkEdits.delete(id);
                 } catch (error) {
                     failedChunkEdits.set(id, error);

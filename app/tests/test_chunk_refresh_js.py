@@ -35,6 +35,29 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged(self):
+        self.run_js(r'''run(source.slice(source.indexOf('const pendingChunkEdits ='),source.indexOf('async function ensureEditorRenderSnapshot()')));
+const urls=[];const saved={...chunk(1),uid:'one',pause_after:0};ctx.API.get=async url=>{urls.push(url);return {revision:'v1',full:!url.includes('?revision='),total:1,changed_ids:url.includes('?revision=')?[]:[1],chunks:url.includes('?revision=')?[]:[saved]};};
+await ctx.loadChunks();ctx.API.post=async()=>saved;await ctx.applyChunkEdits(1,{pause_after:-10});await ctx.loadChunks();
+assert.strictEqual(urls.at(-1),'/api/chunks/status');assert.strictEqual(run('cachedChunks[0].pause_after'),0);''')
+
+    def test_duplicate_delta_ids_refuse_before_replacing_cached_rows_and_recover_full(self):
+        self.run_js(r'''const urls=[];let reply={revision:'v1',full:true,total:2,changed_ids:[1,2],chunks:[{...chunk(1),uid:'one'},{...chunk(2),uid:'two'}]};
+ctx.API.get=async url=>{urls.push(url);return reply;};await ctx.loadChunks();
+reply={revision:'v2',full:false,total:2,changed_ids:[1,1],chunks:[{...chunk(1,'done'),uid:'one'},{...chunk(1,'error'),uid:'one'}]};
+await assert.rejects(ctx.ensureChunkRefresh(),/refresh required/);assert.strictEqual(run('chunkSnapshotRevision'),null);assert.strictEqual(run('cachedChunks[0].status'),'pending');
+reply={revision:'v3',full:true,total:2,changed_ids:[1,2],chunks:[{...chunk(1,'done'),uid:'one'},{...chunk(2),uid:'two'}]};await ctx.loadChunks();assert.strictEqual(urls.at(-1),'/api/chunks/status');assert.strictEqual(run('cachedChunks[0].status'),'done');''')
+
+    def test_reused_id_with_changed_uid_refuses_delta_and_preserves_old_identity(self):
+        self.run_js(r'''let reply={revision:'v1',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1),uid:'original'}]};
+ctx.API.get=async()=>reply;await ctx.loadChunks();reply={revision:'v2',full:false,total:1,changed_ids:[1],chunks:[{...chunk(1,'done'),uid:'replacement'}]};
+await assert.rejects(ctx.ensureChunkRefresh(),/refresh required/);assert.strictEqual(run('chunkSnapshotRevision'),null);assert.strictEqual(run('cachedChunks[0].uid'),'original');assert.strictEqual(run('cachedChunks[0].status'),'pending');''')
+
+    def test_full_snapshot_redraws_same_ids_and_status_when_text_changes(self):
+        self.run_js(r'''let reply={revision:'v1',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1),uid:'one',text:'Original text'}]};
+ctx.API.get=async()=>reply;await ctx.loadChunks();const before=draws;reply={revision:'v2',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1),uid:'one',text:'Changed server text'}]};
+await ctx.loadChunks();assert.ok(draws>before);assert.match(body.innerHTML,/Changed server text/);assert.strictEqual(run('cachedChunks[0].text'),'Changed server text');''')
+
     def run_js(self, code):
         script = SETUP + '\n(async()=>{\n' + code + '\n})().catch(e=>{console.error(e);process.exitCode=1;});'
         result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=10)

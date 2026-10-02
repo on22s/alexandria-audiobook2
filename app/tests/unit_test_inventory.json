@@ -1384,8 +1384,12 @@
   "test_chunk_refresh_js": [
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_actual_batch_poll_fetches_and_renders_once_without_second_timer",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_compact_deltas_keep_existing_rows_and_forced_refresh_gets_full_snapshot",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_duplicate_delta_ids_refuse_before_replacing_cached_rows_and_recover_full",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_redraws_same_ids_and_status_when_text_changes",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost",
-    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_same_length_replacements_reorders_and_playback_restore_correct_rows"
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_reused_id_with_changed_uid_refuses_delta_and_preserves_old_identity",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_same_length_replacements_reorders_and_playback_restore_correct_rows",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged"
   ],
   "test_chunk_status_journal": [
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_compaction_interrupted_after_snapshot_is_not_replayed_twice",
