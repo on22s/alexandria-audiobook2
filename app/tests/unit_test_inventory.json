@@ -2580,6 +2580,7 @@
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_readiness_still_reports_exact_missing_speakers_and_allows_ready_state"
   ],
   "test_export_reattachment_js": [
+    "tests.test_export_reattachment_js.ExportReattachmentTests.test_m4b_cancel_and_live_progress_keep_successful_download",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_normal_starts_use_same_poller_after_successful_post_and_never_after_failure",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_shared_poller_all_exports_success_and_failure"
   ],
@@ -4209,6 +4210,15 @@
     "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_dataset_and_model_scans_run_outside_event_loop_and_keep_results"
   ],
   "test_luar_character_selector": [],
+  "test_m4b_cancellation": [
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_cancel_after_encoder_exit_refuses_publication_and_failure_retains_stderr",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_native_http_cancel_keeps_claim_until_worker_finishes",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_prelaunch_cancellation_preserves_prior_output_without_starting_encoder",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_progress_precedes_completion_and_failure_reports_stderr_tail",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_real_encoder_cancel_reaps_descendants_and_preserves_prior_output",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_router_forwards_cancel_and_progress_to_native_manager",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_timeout_and_progress_callback_failure_reap_real_encoder"
+  ],
   "test_m4b_cover_admission": [
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_accepted_covers_survive_actual_m4b_mux_as_attached_picture",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_decoder_pixel_limits_and_publication_failure_preserve_prior_cover",

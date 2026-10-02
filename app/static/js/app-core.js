@@ -5225,7 +5225,7 @@
         function pollExport(taskName) {
             const exports = {
                 audacity_export: { statusId: 'audacity-status', url: '/api/export_audacity', filename: 'audacity_export.zip' },
-                m4b_export: { statusId: 'm4b-status', url: '/api/audiobook_m4b', filename: 'audiobook.m4b' },
+                m4b_export: { statusId: 'm4b-status', cancelId: 'm4b-cancel-btn', url: '/api/audiobook_m4b', filename: 'audiobook.m4b' },
                 chapter_export: { statusId: 'chapter-status', cancelId: 'chapter-cancel-btn' },
             };
             const config = exports[taskName];
@@ -5239,7 +5239,7 @@
                 doneCheck: status => !status.running,
                 onTick: status => {
                     const last = status.logs[status.logs.length - 1] || '';
-                    if (cancelBtn && last.startsWith('Writing')) { statusEl.textContent = last; }
+                    if (cancelBtn && (last.startsWith('Writing') || last.startsWith('Encoding M4B:'))) { statusEl.textContent = last; }
                 },
                 onDone: status => {
                     releaseTaskStart(taskName);
@@ -5249,7 +5249,7 @@
                     const complete = isExportComplete(status);
                     if (!complete) {
                         statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(message)}</span>`;
-                    } else if (cancelBtn) {
+                    } else if (taskName === 'chapter_export') {
                         statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(message)}</span>`;
                         loadChapterExports();
                     } else {
@@ -5496,6 +5496,8 @@
                 statusEl.className = 'small text-danger';
             }
         };
+
+        window.cancelM4B = () => cancelTask('/api/merge_m4b/cancel');
 
         window.exportM4B = async () => {
             if (!claimTaskStart('m4b_export')) { return; }

@@ -66,21 +66,20 @@ class ExportStagingTests(unittest.TestCase):
             managers = [self.make_manager(root, 'Alice', 40),
                         self.make_manager(root, 'Bob', 100)]
             barrier = threading.Barrier(2)
+            from m4b_encode import encode_m4b
             original_run = subprocess.run
             inputs, outputs = [], []
             lock = threading.Lock()
 
-            def encode(cmd, **kwargs):
-                if cmd[0] != 'ffmpeg':
-                    return original_run(cmd, **kwargs)
+            def encode(cmd, *args, **kwargs):
                 barrier.wait(timeout=10)
                 wav, meta = cmd[cmd.index('-i') + 1], cmd[cmd.index('-map_metadata') - 1]
                 with open(wav, 'rb') as source:
                     audio = AudioSegment.from_file(source, format='wav')
                 with lock:
                     inputs.append((len(audio), Path(meta).read_text(), wav, meta))
-                result = original_run(cmd, **kwargs)
-                if result.returncode == 0:
+                result = encode_m4b(cmd, *args, **kwargs)
+                if result[0] == 0:
                     probe = original_run(['ffprobe', '-v', 'error', '-show_entries',
                                           'format_tags=title', '-of', 'json', cmd[-1]],
                                          capture_output=True, text=True, check=True)
@@ -88,7 +87,7 @@ class ExportStagingTests(unittest.TestCase):
                         outputs.append(json.loads(probe.stdout)['format']['tags']['title'])
                 return result
 
-            with patch('project.subprocess.run', side_effect=encode), \
+            with patch('m4b_encode.encode_m4b', side_effect=encode), \
                  concurrent.futures.ThreadPoolExecutor(2) as pool:
                 futures = [pool.submit(manager.merge_m4b, True, {'title': speaker})
                            for manager, speaker in zip(managers, ['Alice', 'Bob'])]

@@ -6646,6 +6646,22 @@
         "summary": "Merge M4B Endpoint"
       }
     },
+    "/api/merge_m4b/cancel": {
+      "post": {
+        "operationId": "cancel_m4b_export_api_merge_m4b_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel M4B Export"
+      }
+    },
     "/api/narrator/preview": {
       "post": {
         "operationId": "preview_narrator_api_narrator_preview_post",
