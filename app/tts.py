@@ -7,6 +7,8 @@ import json
 import tempfile
 import sys
 import threading
+from contextvars import ContextVar, copy_context
+from dataclasses import dataclass
 from functools import wraps
 import shutil
 import uuid
@@ -17,7 +19,7 @@ import soundfile as sf
 import device_utils
 from adapter_checkpoint_transaction import ensure_adapter_generation_snapshot, get_adapter_generation_sha256
 from lora_evidence import get_file_sha256
-from audio_validation import publish_audio_output
+from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
 from pydub import AudioSegment
 from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
@@ -33,6 +35,55 @@ except ImportError:
 # including distinct engine instances. Reentrancy permits prompt/load helpers
 # and fallback generation to use the same admission as their outer render.
 _LOCAL_TTS_LOCK = threading.RLock()
+
+
+@dataclass(frozen=True)
+class TTSFailure:
+    category: str
+    detail: str
+    next_action: str
+
+    def get_message(self):
+        return f"{self.detail} {self.next_action}"
+
+
+@dataclass(frozen=True)
+class TTSGenerationResult:
+    success: bool
+    failure: TTSFailure | None = None
+
+
+_TTS_FAILURES = ContextVar("tts_generation_failures", default=None)
+
+
+def apply_tts_failure(error, category=None, next_action=None):
+    """Record a terminal failure only for the current structured render call."""
+    failures = _TTS_FAILURES.get()
+    if failures is None:
+        return
+    if category is None:
+        if isinstance(error, UnsupportedVoiceBackendError):
+            category = "unsupported_backend"
+            next_action = "Select local TTS for this voice or choose a supported external voice."
+        elif isinstance(error, MemoryError) or any(
+                cls.__name__ == "OutOfMemoryError" for cls in type(error).__mro__):
+            category = "out_of_memory"
+            next_action = "Free GPU memory or reduce the workload before retrying."
+        elif isinstance(error, GeneratedAudioError):
+            category = "invalid_audio"
+            next_action = "Check the TTS output and server logs before retrying."
+        elif isinstance(error, FileNotFoundError):
+            category = "missing_asset"
+            next_action = "Restore the missing voice/model asset before retrying."
+        elif isinstance(error, TimeoutError):
+            category = "timeout"
+            next_action = "Check the TTS server and its logs before retrying."
+        else:
+            category = "generation_error"
+    from diagnostics import redact_text
+    detail = redact_text(str(error) or type(error).__name__)
+    failures.append(TTSFailure(category, detail,
+        next_action or "Check the TTS logs and voice settings before retrying."))
 
 
 def ensure_local_tts_serialized(method):
@@ -1163,6 +1214,10 @@ class TTSEngine:
         def work():
             try:
                 result["success"] = generate(staging_path, cancelled)
+            except Exception as error:
+                import traceback
+                traceback.print_exc()
+                apply_tts_failure(error)
             finally:
                 if cancelled.is_set():
                     try:
@@ -1171,7 +1226,8 @@ class TTSEngine:
                         pass
                 finished.set()
 
-        threading.Thread(target=work, daemon=True).start()
+        context = copy_context()
+        threading.Thread(target=lambda: context.run(work), daemon=True).start()
         if not finished.wait(self._external_timeout):
             cancelled.set()
             try:
@@ -1179,6 +1235,7 @@ class TTSEngine:
             except FileNotFoundError:
                 pass
             print(f"External TTS timed out after {self._external_timeout}s")
+            apply_tts_failure(TimeoutError(f"External TTS timed out after {self._external_timeout}s"))
             return False
         if (result["success"] and os.path.exists(staging_path)
                 and publish_audio_output(staging_path, output_path, cancelled)):
@@ -1212,6 +1269,22 @@ class TTSEngine:
                     text, speaker, voice_config, staged, cancelled=cancelled),
                 output_path)
 
+    def generate_voice_result(self, text, instruct_text, speaker, voice_config, output_path):
+        """Return call-local diagnostics without changing legacy boolean methods."""
+        failures = []
+        token = _TTS_FAILURES.set(failures)
+        try:
+            try:
+                success = bool(self.generate_voice(
+                    text, instruct_text, speaker, voice_config, output_path))
+            except Exception as error:
+                apply_tts_failure(error)
+                success = False
+            # An ensemble can wrap the original member failure; retain its cause.
+            return TTSGenerationResult(success, None if success or not failures else failures[0])
+        finally:
+            _TTS_FAILURES.reset(token)
+
     def generate_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using the appropriate method based on voice type config."""
         prepared = get_speech_preparation(text, instruct_text)
@@ -1220,6 +1293,8 @@ class TTSEngine:
         voice_data = voice_config.get(speaker)
         if not is_voice_config_present(speaker, voice_config):
             print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+            apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                              "Assign a voice to this speaker before retrying.")
             return False
 
         category = voice_category(voice_data)
@@ -1227,6 +1302,7 @@ class TTSEngine:
             self.get_voice_backend(category)
         except UnsupportedVoiceBackendError as error:
             print(f"Error: {error}")
+            apply_tts_failure(error)
             return False
 
         if category == "clone":
@@ -1401,6 +1477,8 @@ class TTSEngine:
             adapter_path = voice_data.get("adapter_path")
             if not adapter_path:
                 print(f"Error: No adapter_path in voice_data")
+                apply_tts_failure("LoRA voice has no adapter_path.", "missing_configuration",
+                                  "Assign a trained adapter before retrying.")
                 return False
 
             # Resolve relative paths against project root
@@ -1423,6 +1501,7 @@ class TTSEngine:
                         download_builtin_adapter(adapter_id, builtin_dir)
                     except Exception as e:
                         print(f"Error: Auto-download failed for {adapter_id}: {e}")
+                        apply_tts_failure(e)
                         return False
 
             # User adapters are checked inside snapshot admission, where an ID
@@ -1472,6 +1551,7 @@ class TTSEngine:
 
             if wavs is None or len(wavs) == 0:
                 print(f"Error: No audio generated for: '{text[:50]}...'")
+                apply_tts_failure("TTS returned no audio.", "invalid_audio")
                 return False
 
             audio = np.concatenate(wavs) if len(wavs) > 1 else wavs[0]
@@ -1485,6 +1565,7 @@ class TTSEngine:
             import traceback
             print(f"Error generating LoRA voice: {e}")
             traceback.print_exc()
+            apply_tts_failure(e)
             return False
 
     @ensure_local_tts_serialized
@@ -1722,6 +1803,8 @@ class TTSEngine:
             voice_data = voice_config.get(speaker)
             if not voice_data:
                 print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+                apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                                  "Assign a voice to this speaker before retrying.")
                 return False
 
             voice = voice_data.get("voice", "Ryan")
@@ -1751,6 +1834,7 @@ class TTSEngine:
 
             if wavs is None or len(wavs) == 0:
                 print(f"Error: No audio generated for: '{text[:50]}...'")
+                apply_tts_failure("TTS returned no audio.", "invalid_audio")
                 return False
 
             # wavs is a list of numpy arrays; concatenate them
@@ -1765,6 +1849,7 @@ class TTSEngine:
             import traceback
             print(f"Error generating custom voice for '{speaker}': {e}")
             traceback.print_exc()
+            apply_tts_failure(e)
             return False
 
     @ensure_local_tts_serialized
@@ -1776,6 +1861,8 @@ class TTSEngine:
             voice_data = voice_config.get(speaker)
             if not voice_data:
                 print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+                apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                                  "Assign a voice to this speaker before retrying.")
                 return False
 
             seed = int(voice_data.get("seed", -1))
@@ -1801,6 +1888,7 @@ class TTSEngine:
 
             if wavs is None or len(wavs) == 0:
                 print(f"Error: No audio generated for: '{text[:50]}...'")
+                apply_tts_failure("TTS returned no audio.", "invalid_audio")
                 return False
 
             audio = np.concatenate(wavs) if len(wavs) > 1 else wavs[0]
@@ -1814,6 +1902,7 @@ class TTSEngine:
             import traceback
             print(f"Error generating clone voice for '{speaker}': {e}")
             traceback.print_exc()
+            apply_tts_failure(e)
             return False
 
     def save_batch_waveforms(self, waveforms, indices, sample_rate, output_dir, log_saved=False):
@@ -2276,6 +2365,8 @@ class TTSEngine:
             voice_data = voice_config.get(speaker)
             if not voice_data:
                 print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+                apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                                  "Assign a voice to this speaker before retrying.")
                 return False
 
             voice = voice_data.get("voice", "Ryan")
@@ -2303,10 +2394,14 @@ class TTSEngine:
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
                 print(f"Error: No audio file generated for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned no audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
                 return False
 
             if os.path.getsize(generated_audio_filepath) == 0:
                 print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned an empty audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
                 return False
 
             if cancelled and cancelled.is_set():
@@ -2317,6 +2412,7 @@ class TTSEngine:
             import traceback
             print(f"Error generating custom voice for '{speaker}': {e}")
             traceback.print_exc()
+            apply_tts_failure(e)
             return False
 
     def _external_generate_clone(self, text, speaker, voice_config, output_path, endpoint=None,
@@ -2329,6 +2425,8 @@ class TTSEngine:
             voice_data = voice_config.get(speaker)
             if not voice_data:
                 print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+                apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                                  "Assign a voice to this speaker before retrying.")
                 return False
 
             ref_audio = voice_data.get("ref_audio")
@@ -2337,6 +2435,8 @@ class TTSEngine:
 
             if not ref_audio or not ref_text:
                 print(f"Warning: Clone voice for '{speaker}' missing ref_audio or ref_text. Skipping.")
+                apply_tts_failure(f"Clone voice for '{speaker}' is missing reference audio or transcript.", "missing_configuration",
+                                  "Set both clone reference audio and its transcript before retrying.")
                 return False
 
             # Resolve relative paths against project root
@@ -2345,6 +2445,8 @@ class TTSEngine:
 
             if not os.path.exists(ref_audio):
                 print(f"Warning: Reference audio not found for '{speaker}': {ref_audio}")
+                apply_tts_failure(f"Reference audio not found for '{speaker}': {ref_audio}", "missing_asset",
+                                  "Restore the clone reference audio before retrying.")
                 return False
 
             client, lock = self._external_endpoint(endpoint)
@@ -2368,10 +2470,14 @@ class TTSEngine:
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
                 print(f"Error: No audio file generated for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned no audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
                 return False
 
             if os.path.getsize(generated_audio_filepath) == 0:
                 print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned an empty audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
                 return False
 
             if cancelled and cancelled.is_set():
@@ -2382,6 +2488,7 @@ class TTSEngine:
             import traceback
             print(f"Error generating clone voice for '{speaker}': {e}")
             traceback.print_exc()
+            apply_tts_failure(e)
             return False
 
     def _sequential_ensemble(self, chunks, voice_config, output_dir):

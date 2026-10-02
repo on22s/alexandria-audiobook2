@@ -877,9 +877,14 @@ class ProjectManager:
             # Pass canonical speaker to the TTS engine so it uses the aliased config;
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
-            success = engine.generate_voice(
-                text, instruct, speaker_to_use,
+            generation_args = (text, instruct, speaker_to_use,
                 voice_config_for_chunk(voice_config, speaker_to_use, index), temp_path)
+            failure = None
+            if callable(getattr(engine, "generate_voice_result", None)):
+                result = engine.generate_voice_result(*generation_args)
+                success, failure = result.success, result.failure
+            else:
+                success = engine.generate_voice(*generation_args)
 
             if success:
                 validate_generated_audio(
@@ -892,7 +897,7 @@ class ProjectManager:
 
                 return True, audio_path
             else:
-                message = "Generation returned False"
+                message = failure.get_message() if failure else "Generation returned False"
                 updated = self._update_chunk_fields_by_uid(
                     chunk["uid"], expected_chunk=chunk, status="error", error=message)
                 return False, message if updated is not None else GENERATION_INPUTS_CHANGED
