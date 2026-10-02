@@ -2333,6 +2333,19 @@
         "title": "PromptPreset",
         "type": "object"
       },
+      "ReportExplanationCancelRequest": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "ReportExplanationCancelRequest",
+        "type": "object"
+      },
       "ReviewRequest": {
         "properties": {
           "dedupe_speakers": {
@@ -7158,6 +7171,42 @@
         "summary": "List Reports"
       }
     },
+    "/api/reports/explanation/cancel": {
+      "post": {
+        "operationId": "cancel_report_explanation_api_reports_explanation_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportExplanationCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Report Explanation"
+      }
+    },
     "/api/reports/{filename}": {
       "get": {
         "operationId": "get_report_api_reports__filename__get",
@@ -7193,6 +7242,43 @@
           }
         },
         "summary": "Get Report"
+      }
+    },
+    "/api/reports/{filename}/explain": {
+      "post": {
+        "operationId": "explain_report_api_reports__filename__explain_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explain Report"
       }
     },
     "/api/review/checkpoints": {

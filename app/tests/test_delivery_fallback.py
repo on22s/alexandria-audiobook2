@@ -104,6 +104,43 @@ class DeliveryFallbackTests(unittest.TestCase):
                     cancel_check=lambda: (_ for _ in ()).throw(RuntimeError("cancelled")))
         self.assertEqual(original, rows)
 
+    def test_unreachable_provider_cannot_report_a_successful_delivery_retry(self):
+        from types import SimpleNamespace
+        rows = [dict(self.rows[0], instruct=tp.default_instruct(self.rows[0]),
+                     instruct_unchecked=True)]
+        original = copy.deepcopy(rows)
+        attempts = []
+        requests = []
+        def unavailable(**kwargs):
+            requests.append(kwargs)
+            raise ConnectionError('offline fixture')
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=unavailable)))
+        with self.assertRaisesRegex(RuntimeError, 'LLM unavailable'):
+            tp.retry_delivery_instructions(client, 'm', rows, self.params,
+                                           attempt_observer=attempts.append)
+        self.assertTrue(requests)
+        self.assertTrue(attempts)
+        self.assertTrue(all(attempt['outcome'] == 'api_error' for attempt in attempts))
+        self.assertEqual(original, rows)
+
+    def test_native_review_narrator_merging_preserves_fallback_metadata(self):
+        from review_script import merge_consecutive_narrators
+        checked = dict(self.rows[0], instruct='Neutral.')
+        unchecked = dict(self.rows[1], instruct='Neutral.', instruct_unchecked=True)
+        for rows in ([checked, unchecked], [unchecked, checked]):
+            original = copy.deepcopy(rows)
+            merged, count = merge_consecutive_narrators(rows)
+            self.assertEqual(0, count)
+            self.assertEqual(original, merged)
+            self.assertEqual(original, rows)
+        rows = [dict(checked, instruct_unchecked=True), unchecked]
+        merged, count = merge_consecutive_narrators(rows)
+        self.assertEqual(1, count)
+        self.assertEqual(1, tp.get_delivery_review_info(merged)['count'])
+        self.assertIs(True, merged[0]['instruct_unchecked'])
+        self.assertEqual(rows[0]['text'] + ' ' + rows[1]['text'], merged[0]['text'])
+
     def test_native_regrouping_preserves_unaffected_audio_and_detaches_changed_rows(self):
         from delivery_review import get_delivery_retry_chunks
         from project import group_into_chunks
