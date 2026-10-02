@@ -973,6 +973,7 @@
         function renderConfigWarnings(config) {
             const banner = document.getElementById('config-warning-banner');
             const message = document.getElementById('config-warning-msg');
+            document.getElementById('config-load-retry').style.display = 'none';
             const warnings = Array.isArray(config.config_warnings) ? config.config_warnings : [];
             if (!warnings.length) {
                 message.textContent = '';
@@ -1175,11 +1176,10 @@
         }
 
         async function loadConfig() {
-            legacyChunkSize = 3000;
-            document.getElementById('max-tokens').value = 4096;
-
             try {
                 const config = await API.get('/api/config');
+                legacyChunkSize = 3000;
+                document.getElementById('max-tokens').value = 4096;
                 renderConfigWarnings(config);
                 applyPauseSupport(config.capabilities);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
@@ -1305,6 +1305,10 @@
                 }
             } catch (e) {
                 console.error("Failed to load config", e);
+                document.getElementById('config-warning-msg').textContent =
+                    'Could not load configuration: ' + (e.message || String(e)) + '. Retry before saving settings.';
+                document.getElementById('config-warning-banner').style.display = '';
+                document.getElementById('config-load-retry').style.display = '';
             }
         }
 

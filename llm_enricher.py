@@ -45,9 +45,11 @@ class LLMEnricher:
 
     def __init__(self, model_path: str, fields=None):
         self.model_path = model_path
-        self.fields = fields or list(self.FIELD_LABELS)
+        self.fields = list(self.FIELD_LABELS) if fields is None else list(fields)
         self.llm = None
         self._gpu_lease = None
+        if not self.fields:
+            return
         try:
             self._gpu_lease = acquire_gpu_lock()
             # Build-level check, independent of any specific model load: does
@@ -93,6 +95,8 @@ class LLMEnricher:
         Returns a new dict (chunk is not mutated). On any failure, the
         returned dict carries `_enrichment_failed: True` so callers can
         distinguish a failed enrichment from a genuine successful one."""
+        if not self.fields:
+            return dict(chunk)
         if not self.llm:
             logger.error("LLM model not loaded. Cannot enrich transcript.")
             return {**chunk, "_enrichment_failed": True}
@@ -196,7 +200,7 @@ def main():
             ("narration_style", args.narration_style),
             ("emotional_tone", args.emotional_tone),
         ) if enabled]
-        enricher = LLMEnricher(args.model_path, selected or None)
+        enricher = LLMEnricher(args.model_path, selected)
     except Exception as e:
         logger.error(f"Exiting: Could not initialize LLMEnricher: {e}")
         exit(1)

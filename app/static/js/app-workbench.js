@@ -284,7 +284,7 @@
                 <td><input type="text" class="form-control form-control-sm" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
                 <td><textarea class="form-control form-control-sm" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${row.text || ''}</textarea></td>
                 <td><input type="number" class="form-control form-control-sm" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
-                <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span></td>
+                <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span>${row.status === 'error' ? row.error || '' : ''}</td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
                     ` + actionHtml + audioHtml + getEscapedHtml`
@@ -392,6 +392,7 @@
 
             // Optimistic UI
             dsbRows[index].status = 'generating';
+            dsbRows[index].error = '';
             dsbRenderTable([index]);
 
             try {
@@ -408,6 +409,8 @@
             } catch (e) {
                 if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
                 dsbRows[index].status = 'error';
+                dsbRows[index].error = e.message || String(e);
+                showToast('Sample generation failed: ' + dsbRows[index].error, 'error');
                 console.error('Sample generation failed:', e);
             }
             dsbRenderTable([index]);

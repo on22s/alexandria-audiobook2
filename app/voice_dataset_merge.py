@@ -12,7 +12,7 @@ import numpy as np
 import soundfile as sf
 
 
-MERGE_VERSION = 3
+MERGE_VERSION = 4
 
 
 def get_file_fingerprint(path: Path) -> dict:
@@ -78,6 +78,7 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
     temporary = Path(temporary_handle.name)
     temporary_handle.close()
     seen_pcm = {}
+    seen_transcripts = {}
     merged_metadata = []
     provenance = []
     duplicate_count = 0
@@ -101,6 +102,10 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                             raise ValueError(f"metadata audio is missing: {original_path}") from error
                         pcm_hash = get_pcm_hash(wav_bytes)
                         if pcm_hash in seen_pcm:
+                            if entry.get("text") != seen_transcripts[pcm_hash]:
+                                raise ValueError(
+                                    f"Conflicting transcripts for duplicate audio: {source_path}:{original_path} "
+                                    f"duplicates {seen_pcm[pcm_hash]}")
                             duplicate_count += 1
                             provenance.append({"source_zip": str(source_path),
                                                "source_audio": original_path,
@@ -113,6 +118,7 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                         merged_entry["audio_filepath"] = output_path
                         merged_metadata.append(merged_entry)
                         seen_pcm[pcm_hash] = output_path
+                        seen_transcripts[pcm_hash] = entry.get("text")
                         provenance.append({"output_audio": output_path,
                                            "source_zip": str(source_path),
                                            "source_audio": original_path})

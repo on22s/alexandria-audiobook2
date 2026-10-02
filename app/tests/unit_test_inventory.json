@@ -3322,6 +3322,21 @@
     "tests.test_identity_gate_completion.IdentityCompletionTests.test_same_path_input_byte_changes_invalidate_cache",
     "tests.test_identity_gate_completion.IdentityCompletionTests.test_zip_identity_is_bound_to_archive_bytes"
   ],
+  "test_improvement_content_integrity": [
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_batch_rejects_swapped_rewritten_and_dropped_words_without_counting_success",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_cli_no_selected_fields_publishes_unchanged_rows_without_gpu_work",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_duplicate_transcript_conflict_preserves_previous_output_and_cleans_staging",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_empty_enrichment_selection_does_not_acquire_a_lease_or_load_a_model",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_failed_singleton_annotation_keeps_original_text_and_audio",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_missing_spine_document_is_an_error_not_an_empty_or_partial_source",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_prosody_punctuation_case_and_unicode_composition_are_admitted",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_real_epub_uses_spine_and_excludes_navigation_and_unlisted_documents",
+    "tests.test_improvement_content_integrity.ImprovementContentIntegrityTests.test_version_three_merge_cannot_hide_an_existing_transcript_conflict"
+  ],
+  "test_improvement_ui_errors_js": [
+    "tests.test_improvement_ui_errors_js.ImprovementUiErrorTests.test_config_failure_is_visible_preserves_inputs_and_success_clears_retry",
+    "tests.test_improvement_ui_errors_js.ImprovementUiErrorTests.test_sample_error_is_escaped_visible_cleared_on_retry_and_not_applied_to_other_project"
+  ],
   "test_index_added_commit_lag": [
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_change_in_any_other_column_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_changed_header_is_not_forgiven",

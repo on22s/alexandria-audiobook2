@@ -104,10 +104,11 @@ class VoiceDatasetMergeTests(unittest.TestCase):
     def make_zip(self, path, clips):
         with zipfile.ZipFile(path, "w") as archive:
             metadata = []
+            transcripts = {}
             for index, wav in enumerate(clips):
                 name = f"train/sample_{index}.wav"
                 archive.writestr(name, wav)
-                metadata.append({"audio_filepath": name, "text": f"line {index}"})
+                metadata.append({"audio_filepath": name, "text": transcripts.setdefault(get_pcm_hash(wav), f"line {index}")})
             archive.writestr("metadata.jsonl", "".join(json.dumps(item) + "\n" for item in metadata))
             archive.writestr("ref.wav", clips[0])
 

@@ -458,7 +458,9 @@ for (const fail of [false, true]) {
         assert.deepStrictEqual(plain(run('dsbRows')), before, change);
     }
 }
-// Current row still accepts success and error results.
+// Current row still accepts success and error results. Stale results above must not toast.
+const toasts = [];
+context.showToast = (...args) => toasts.push(args);
 for (const fail of [false, true]) {
     run("dsbCurrentProject = 'A'; dsbRows = [{emotion:'',text:'first',seed:''}];");
     context.API.post = async () => {
@@ -468,6 +470,11 @@ for (const fail of [false, true]) {
     await context.dsbGenSample(0);
     assert.strictEqual(run('dsbRows[0].status'), fail ? 'error' : 'done');
     if (!fail) { assert.strictEqual(run('dsbRows[0].audio_url'), '/A/current.wav'); }
+    assert.strictEqual(toasts.length, fail ? 1 : 0);
+    if (fail) {
+        assert.strictEqual(run('dsbRows[0].error'), 'generation failed');
+        assert.deepStrictEqual(toasts[0], ['Sample generation failed: generation failed', 'error']);
+    }
 }
 ''')
 

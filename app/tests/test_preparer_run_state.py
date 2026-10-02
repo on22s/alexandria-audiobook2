@@ -429,11 +429,11 @@ class PreparerBatchAnnotationContractTests(unittest.TestCase):
         return result, stats
 
     def test_numbered_annotations_follow_labels_instead_of_response_order(self):
-        for content in ("2. Second annotated.\n1. First annotated.",
-                        "1) First annotated.\n2) Second annotated."):
+        for content in ("2. *Second* original.\n1. *First* original.",
+                        "1) *First* original.\n2) *Second* original."):
             with self.subTest(content=content):
                 result, stats = self.annotate(content)
-                self.assertEqual([(17, "First annotated."), (42, "Second annotated.")], result)
+                self.assertEqual([(17, "*First* original."), (42, "*Second* original.")], result)
                 self.assertEqual(2, stats["llm_success"])
                 self.assertEqual(0, stats["llm_fail"])
 
@@ -458,8 +458,8 @@ class PreparerBatchAnnotationContractTests(unittest.TestCase):
                 self.assertEqual(0, stats["llm_success"])
                 self.assertEqual(0, stats["llm_fail"])
                 self.assertEqual(1, stats["llm_batch_fail"])
-        result, stats = self.annotate('["First annotated.", "Second annotated."]')
-        self.assertEqual([(17, "First annotated."), (42, "Second annotated.")], result)
+        result, stats = self.annotate('["*First* original.", "*Second* original."]')
+        self.assertEqual([(17, "*First* original."), (42, "*Second* original.")], result)
         self.assertEqual(2, stats["llm_success"])
 
 

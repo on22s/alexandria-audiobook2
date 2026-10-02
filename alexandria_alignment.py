@@ -29,6 +29,7 @@ import functools
 import sys
 import os
 import zipfile
+import unicodedata
 from pathlib import Path
 from collections import Counter
 from typing import NamedTuple
@@ -91,6 +92,12 @@ def strip_annotations(text: str) -> str:
     text = _EMPHASIS.sub(r'\1', text)
     text = _PAUSES.sub(' ', text)
     return text
+
+def get_annotation_word_tokens(text: str) -> list[str]:
+    """Compare spoken words while permitting annotation punctuation and emphasis."""
+    text = unicodedata.normalize('NFC', strip_annotations(text).translate(_SMART_QUOTES))
+    return re.findall(r"\w+(?:'\w+)*", text.casefold())
+
 
 def normalize(text: str) -> str:
     """Lowercase + strip punctuation + collapse whitespace for fuzzy matching."""
@@ -200,11 +207,20 @@ def load_epub(path: str) -> str:
     validate_epub_archive(path)
     book = epub.read_epub(path)
     parts = []
-    for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+    for item_id, linear in book.spine:
+        item = book.get_item_with_id(item_id)
+        if item is None:
+            raise ValueError(f"EPUB spine references missing document: {item_id}")
+        if linear == 'no' or item.get_type() != ebooklib.ITEM_DOCUMENT:
+            continue
+        if 'nav' in getattr(item, 'properties', []):
+            continue
         soup = BeautifulSoup(item.get_content(), 'html.parser')
         for tag in soup(['script', 'style']):
             tag.decompose()
         parts.append(soup.get_text(separator=' '))
+    if not parts:
+        raise ValueError('EPUB has no readable spine documents')
     return '\n'.join(parts)
 
 

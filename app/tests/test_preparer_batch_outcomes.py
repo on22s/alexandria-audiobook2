@@ -13,7 +13,7 @@ preparer = support.preparer
 
 
 class PreparerBatchOutcomeTests(unittest.TestCase):
-    def run_annotation(self, failed_chunk=None, valid_batch=False):
+    def run_annotation(self, failed_chunk=None, valid_batch=False, rewritten_chunk=None):
         words = [{'word': text, 'start': i * 1.2, 'end': (i + 1) * 1.2,
                   'confidence': 1, 'speaker': 'ONLY'}
                  for i, text in enumerate(('First.', 'Second.', 'Third.'))]
@@ -27,6 +27,8 @@ class PreparerBatchOutcomeTests(unittest.TestCase):
                 content = prompt.split('Annotate this segment:\n', 1)[1]
                 if content == failed_chunk:
                     raise RuntimeError('fixture chunk failure')
+                if content == rewritten_chunk:
+                    content = 'Invented words.'
             return {'choices': [{'message': {'content': content}}]}
         llm = SimpleNamespace(create_chat_completion=complete)
         samples = np.sin(np.arange(86400) * .05).astype('float32') * .1

@@ -1252,6 +1252,15 @@ def _sanitize_annotation(text: str) -> str:
     return text
 
 
+def get_validated_annotation(annotated_raw, text, source_words, merge_alignment):
+    """Admit prosody-only output before optional source-backed word restoration."""
+    if alignment.get_annotation_word_tokens(annotated_raw) != alignment.get_annotation_word_tokens(text):
+        raise ValueError("Annotation changed spoken words")
+    if source_words is not None:
+        return merge_alignment.merge_annotations_with_source(annotated_raw, source_words)
+    return _sanitize_annotation(annotated_raw)
+
+
 # ── Chunk-boundary selection ──────────────────────────────────────────────────
 def _find_best_cut(word_starts, word_ends, words, chunk_start,
                    min_pause: float = 0.25,
@@ -1879,12 +1888,8 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
         sanitize_changed = 0
         for item, annotated_raw in zip(batch_data, annotations):
             t0_sanitize = time.monotonic()
-            if item.get("source_words_for_merge") is not None:
-                annotated = alignment.merge_annotations_with_source(
-                    annotated_raw, item["source_words_for_merge"]
-                )
-            else:
-                annotated = _sanitize_annotation(annotated_raw)
+            annotated = get_validated_annotation(
+                annotated_raw, item["text"], item.get("source_words_for_merge"), alignment)
             timing['sanitize'] += time.monotonic() - t0_sanitize
 
             results.append((item["segment_idx"], annotated))
@@ -2236,12 +2241,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     annotated_raw = response["choices"][0]["message"]["content"].strip()
                     if not annotated_raw:
                         raise RuntimeError("LLM returned an empty response")
-                    if item.get("source_words_for_merge") is not None:
-                        annotated = alignment.merge_annotations_with_source(
-                            annotated_raw, item["source_words_for_merge"]
-                        )
-                    else:
-                        annotated = _sanitize_annotation(annotated_raw)
+                    annotated = get_validated_annotation(
+                        annotated_raw, item["text"], item.get("source_words_for_merge"), alignment)
                     stats['llm_success'] += 1
                 except Exception as e:
                     stats['llm_fail'] += 1
@@ -2662,12 +2663,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             raise RuntimeError("LLM returned an empty response")
 
                         t0_sanitize = time.monotonic()
-                        if source_words_for_merge is not None:
-                            annotated = alignment.merge_annotations_with_source(
-                                annotated_raw, source_words_for_merge
-                            )
-                        else:
-                            annotated = _sanitize_annotation(annotated_raw)
+                        annotated = get_validated_annotation(
+                            annotated_raw, text, source_words_for_merge, alignment)
                         timing['sanitize'] += time.monotonic() - t0_sanitize
 
                         stats['llm_success'] += 1
