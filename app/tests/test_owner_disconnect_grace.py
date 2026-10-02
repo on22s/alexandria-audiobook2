@@ -25,7 +25,7 @@ class DisconnectGraceTests(unittest.TestCase):
             parent_term = root / "parent-term"
             child = "import pathlib,signal,sys,time; signal.signal(signal.SIGTERM,lambda *_: pathlib.Path(sys.argv[2]).write_text('term')); pathlib.Path(sys.argv[1]).write_text('ready'); time.sleep(60)"
             worker = "import json,os,pathlib,signal,subprocess,sys,time; signal.signal(signal.SIGTERM,lambda *_: pathlib.Path(sys.argv[5]).write_text('term')); p=subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[3],sys.argv[4]]); pathlib.Path(sys.argv[2]).write_text(json.dumps([os.getpid(),p.pid])); p.wait()"
-            runner = "import os,socket,sys; from subprocess_ownership import run_owned_command; os.dup2(int(sys.argv[2]),9); os.close(int(sys.argv[2])); channel=socket.socket(fileno=int(sys.argv[1])); options={} if sys.argv[3]=='default' else {'disconnect_signal':15,'stop_timeout':20}; result=run_owned_command(channel,sys.argv[4:],**options); sys.exit(128-result if result<0 else result)"
+            runner = "import os,socket,sys; from subprocess_ownership import run_owned_command; os.fstat(int(sys.argv[2])); channel=socket.socket(fileno=int(sys.argv[1])); options={} if sys.argv[3]=='default' else {'disconnect_signal':15,'stop_timeout':20}; result=run_owned_command(channel,sys.argv[4:],**options); sys.exit(128-result if result<0 else result)"
             lock = open(lease_path, "a")
             fcntl.flock(lock, fcntl.LOCK_EX)
             control, peer = socket.socketpair()
@@ -39,7 +39,8 @@ class DisconnectGraceTests(unittest.TestCase):
             pids = []
             try:
                 response = control.recv(4096)
-                self.assertIn(b"started", response, "owner did not admit its actual worker")
+                self.assertIn(b"started", response, "owner did not admit its actual worker: " +
+                              (owner.stderr.read().decode() if not response else repr(response)))
                 deadline = time.monotonic() + 5
                 while not child_ready.exists() and time.monotonic() < deadline:
                     time.sleep(.01)

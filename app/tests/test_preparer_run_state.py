@@ -366,6 +366,7 @@ class PreparerRunStateTests(unittest.TestCase):
 
         with patch.object(sys, 'argv', ['preparer', '--audio', str(audio),
                                         '--model', 'model.gguf']), \
+             patch.object(preparer, 'LLAMA_CPP_AVAILABLE', True), \
              patch.object(preparer.subprocess, 'run', side_effect=phase_child):
             with self.assertRaises(SystemExit) as result:
                 preparer.main()

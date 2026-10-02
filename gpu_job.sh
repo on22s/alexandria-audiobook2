@@ -169,14 +169,14 @@ if [ "${1:-}" = "--check-lock-owner" ]; then
         seen="$seen$cursor "
         parent=""
         [ -r "/proc/$cursor/status" ] || refuse_lock_owner "process ancestry is unreadable"
-        while read -r field value; do
+        while IFS=$' \t' read -r field value; do
             if [ "$field" = "PPid:" ]; then
                 parent="$value"
                 break
             fi
         done < "/proc/$cursor/status"
         case "$parent" in
-            ''|*[!0-9]*) refuse_lock_owner "invalid kernel parent PID" ;;
+            ''|*[!0-9]*) refuse_lock_owner "invalid kernel parent PID for $cursor: '${parent}'" ;;
         esac
         cursor="$parent"
     done
@@ -402,6 +402,11 @@ fi
 trap 'ec=$?; rm -f "$PENDING_FILE" 2>/dev/null; \
       if [ "${STARTED:-0}" = 1 ] && type log_result >/dev/null 2>&1; then \
           log_result "$ec"; fi' EXIT
+
+# Waiting jobs own no worker yet; stop explicitly before another pause sleep.
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 # WAIT FOR THE PAUSE FLAG BEFORE TAKING THE LOCK, not after. A job that holds
 # the lock while waiting would block the queue AND look like it was working;

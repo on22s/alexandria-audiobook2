@@ -91,6 +91,7 @@ class QueuePathTests(unittest.TestCase):
             except ProcessLookupError:
                 pass
             process.wait(timeout=5)
+        self.assertEqual(143, process.returncode)
         self.assertEqual([], list((logs / "pending").iterdir()))
 
     def test_bash_path_launch_finds_repository_preflight(self):
