@@ -3473,6 +3473,11 @@ def main():
 
     if args.enrich_with_llm and not args.llm_model_path:
         parser.error("--llm-model-path is required when --enrich-with-llm is set.")
+    from preparer_enrichment_settings import validate_preparer_enrichment_settings
+    try:
+        validate_preparer_enrichment_settings(vars(args))
+    except ValueError as error:
+        parser.error(f"{error} Pass --enrich-speaker-attribution, --enrich-narration-style or --enrich-emotional-tone.")
 
     # Auto-derive --output filename from --source metadata when the caller left
     # the default (or another generic placeholder). Pinned names pass through.

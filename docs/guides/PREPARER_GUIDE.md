@@ -247,7 +247,8 @@ python alexandria_preparer_rocm_compatible.py \
   --audio audiobook.wav \
   --model Qwen2.5-14B-Instruct-Q6_K.gguf \
   --enrich-with-llm \
-  --llm-model-path /path/to/gemma-4-E2B-it-Uncensored-MAX.BF16.gguf
+  --llm-model-path /path/to/gemma-4-E2B-it-Uncensored-MAX.BF16.gguf \
+  --enrich-speaker-attribution --enrich-narration-style --enrich-emotional-tone
 ```
 
 This runs the **full 3-phase pipeline** (ASR → Enrich → Annotate). The enrichment phase uses a small local LLM to add `speaker_attribution`, `narration_style`, and `emotional_tone` metadata to every transcript chunk before annotation.
@@ -268,7 +269,7 @@ This runs the **full 3-phase pipeline** (ASR → Enrich → Annotate). The enric
 
 ### LLM Pre-Processing (Enrichment)
 Add metadata to transcript chunks before annotation using a local GGUF LLM.
-- `--enrich-with-llm` — Enable the enrichment phase (runs between ASR and annotation)
+- `--enrich-with-llm` — Enable the enrichment phase (runs between ASR and annotation). At least one of the three category flags below is required; with none selected the command exits with an error.
 - `--llm-model-path PATH` — Path to the GGUF LLM model file for enrichment (required if `--enrich-with-llm` is set; recommended: Gemma-4-E2B or similar small model)
 - `--enrich-speaker-attribution` — Instruct LLM to extract speaker attribution (e.g. "main character", "narrator", "secondary character")
 - `--enrich-narration-style` — Instruct LLM to extract narration style (e.g. "calm", "energetic", "sad", "questioning")

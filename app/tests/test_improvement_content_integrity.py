@@ -36,6 +36,23 @@ class ImprovementContentIntegrityTests(unittest.TestCase):
             # The chapter contributes its HTML title and body; navigation would add a third.
             self.assertEqual(2, text.count('FIRST'))
 
+    def test_non_linear_spine_documents_are_not_read_as_book_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            book = epub.EpubBook()
+            book.set_identifier('linear'); book.set_title('Linear'); book.set_language('en')
+            chapters = []
+            for title in ('READABLE', 'SIDEBAR', 'FINAL'):
+                chapter = epub.EpubHtml(title=title, file_name=title+'.xhtml', lang='en')
+                chapter.content = f'<html><body><p>{title} body.</p></body></html>'
+                book.add_item(chapter); chapters.append(chapter)
+            book.add_item(epub.EpubNav()); book.add_item(epub.EpubNcx())
+            book.spine = ['nav', chapters[0], (chapters[1], 'no'), chapters[2]]
+            source = Path(tmp)/'linear.epub'; epub.write_epub(str(source), book)
+            self.assertEqual('no', dict(epub.read_epub(str(source)).spine)['chapter_1'])
+            text = alignment.load_source(str(source))
+            self.assertNotIn('SIDEBAR', text)
+            self.assertLess(text.index('READABLE'), text.index('FINAL'))
+
     def test_missing_spine_document_is_an_error_not_an_empty_or_partial_source(self):
         book = SimpleNamespace(spine=[('missing', 'yes')], get_item_with_id=lambda _: None)
         with patch.object(alignment, 'validate_epub_archive'), patch.object(alignment.epub, 'read_epub', return_value=book):
@@ -66,6 +83,14 @@ class ImprovementContentIntegrityTests(unittest.TestCase):
         self.assertEqual('Verified source words.', preparer.get_validated_annotation(
             annotated, text, ['Verified', 'source', 'words.'], SimpleNamespace(merge_annotations_with_source=merge)))
         merge.assert_called_once()
+
+    def test_failed_per_chunk_mode_annotation_keeps_original_text_and_audio(self):
+        # batch_size=1 reaches the per-chunk branch of annotate_chunks, a separate call site
+        # from the singleton fallback that runs after a failed batch.
+        helper = batch_support.PreparerBatchOutcomeTests()
+        text, calls = helper.run_annotation(rewritten_chunk='Second.', batch_size=1)
+        self.assertIn('1 failed', text)
+        self.assertEqual(3, len(calls))
 
     def test_failed_singleton_annotation_keeps_original_text_and_audio(self):
         # The existing artifact helper asserts all three persisted source texts

@@ -54,7 +54,8 @@ class PreparerMetadataReadTests(unittest.TestCase):
                     p.main()
             return SimpleNamespace(returncode=0)
         argv = ['preparer', '--audio', 'book.wav', '--source', 'book.epub',
-                '--model', 'model.gguf', '--enrich-with-llm', '--llm-model-path', 'llm.gguf', *extra]
+                '--model', 'model.gguf', '--enrich-with-llm', '--llm-model-path', 'llm.gguf',
+                '--enrich-narration-style', *extra]
         with patch.object(p, 'LLAMA_CPP_AVAILABLE', True), patch.object(p, 'acquire_run_lock', return_value=1), patch.object(p, 'ensure_run_manifest', side_effect=admit), patch.object(p, 'cleanup_run_artifacts'), patch.object(p.subprocess, 'run', side_effect=child), patch.object(p.alignment.epub, 'read_epub', wraps=p.alignment.epub.read_epub) as reads, patch.object(sys, 'argv', argv):
             if orchestrate:
                 with self.assertRaises(SystemExit) as exit_code:

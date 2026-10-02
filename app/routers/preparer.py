@@ -31,6 +31,7 @@ from core import (
 )
 from utils import secure_filename
 from preparer_numeric_settings import validate_preparer_numeric_settings
+from preparer_enrichment_settings import validate_preparer_enrichment_settings
 
 
 router = APIRouter()
@@ -214,10 +215,10 @@ async def preparer_start(
     if config.enrich_with_llm:
         if not config.llm_model_path:
             raise HTTPException(status_code=400, detail="LLM model path is required for enrichment.")
-        if not any((config.enrich_speaker_attribution,
-                    config.enrich_narration_style,
-                    config.enrich_emotional_tone)):
-            raise HTTPException(status_code=400, detail="Select at least one enrichment category.")
+        try:
+            validate_preparer_enrichment_settings(config.model_dump())
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
     ensure_preparer_diarization_token(
         config.diarize, config.auto_detect_speakers, config.hf_token)
 
