@@ -1696,6 +1696,10 @@
     "tests.test_corpus_owned_summaries.CorpusOwnedSummaryTests.test_stored_dataset_summary_or_inputs_changed_are_explicit_failures",
     "tests.test_corpus_owned_summaries.CorpusOwnedSummaryTests.test_unrelated_logs_do_not_affect_metrics_and_resume_totals_are_not_added_twice"
   ],
+  "test_corpus_prefix": [
+    "tests.test_corpus_prefix.CorpusPrefixTests.test_real_shell_dispatch_bounds_each_asr_request",
+    "tests.test_corpus_prefix.CorpusPrefixTests.test_receipt_refuses_short_samples_and_unbounded_identity"
+  ],
   "test_corpus_read_efficiency": [
     "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_casefold_ties_have_identical_order_and_selection",
     "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_txt_manifest_uses_one_disk_read_and_preserves_decoding_and_hash"
