@@ -17,6 +17,10 @@ spec.loader.exec_module(batch)
 
 
 class BatchTrainingEtaTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_lora_batch_preflight import apply_test_training_dependency_fixture
+        apply_test_training_dependency_fixture(self)
+
     def run_batch(self, mode='stable'):
         clock, trained, lookups = [0], [], {}
         def train(zip_path, dataset_id, adapter_id, args):
