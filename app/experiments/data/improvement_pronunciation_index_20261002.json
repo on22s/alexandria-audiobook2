@@ -1,0 +1,66 @@
+{
+  "results": [
+    {
+      "book": "Arc 3 - Volume 4.json",
+      "input_sha256": "6df9fa59f8fba53574abfb79d305a76699ece59143971198a0f206c739e74da1",
+      "text_bytes": 399633,
+      "speaker_candidates": 50,
+      "forms": 26,
+      "baseline_seconds": [
+        0.7331777948420495,
+        0.7285707481205463,
+        0.720324652036652
+      ],
+      "prototype_seconds": [
+        0.261640097014606,
+        0.2616234680172056,
+        0.2621274620760232
+      ],
+      "baseline_median": 0.7285707481205463,
+      "prototype_median": 0.261640097014606,
+      "identical_records": true
+    },
+    {
+      "book": "Arc 3 - Volume 9.json",
+      "input_sha256": "127af05e3aa644ee00cf4641c8d58f2a005bf2eb44fc4ea0700c1dfe2b2f37b1",
+      "text_bytes": 453539,
+      "speaker_candidates": 40,
+      "forms": 25,
+      "baseline_seconds": [
+        0.6828700611367822,
+        0.6966829330194741,
+        0.6876837960444391
+      ],
+      "prototype_seconds": [
+        0.17209184216335416,
+        0.16756445402279496,
+        0.16744373482652009
+      ],
+      "baseline_median": 0.6876837960444391,
+      "prototype_median": 0.16756445402279496,
+      "identical_records": true
+    },
+    {
+      "book": "Arc 3 - Volume 4_3.json",
+      "input_sha256": "f82d98d4b24f9c98ef2fa2f52d84d97734266807a0c28a3f1e63911cb2f11232",
+      "text_bytes": 397810,
+      "speaker_candidates": 45,
+      "forms": 32,
+      "baseline_seconds": [
+        0.718409244902432,
+        0.7258657701313496,
+        0.7275308810640126
+      ],
+      "prototype_seconds": [
+        0.16688346187584102,
+        0.16731104697100818,
+        0.16070438199676573
+      ],
+      "baseline_median": 0.7258657701313496,
+      "prototype_median": 0.16688346187584102,
+      "identical_records": true
+    }
+  ],
+  "scope": "Three native saved books selected by text length times distinct speaker count; actual character_forms JSON reads included, modified character_forms includes the same native JSON reads. Candidate lists from scripts only, no ambient alias/voice configuration; no end-to-end UI measurement.",
+  "baseline_commit": "f4eb3d28459b0f488f07697600006270365f65c2"
+}

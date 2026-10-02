@@ -210,6 +210,28 @@ class RosterDerivationTest(unittest.TestCase):
         self.assertEqual(forms["Felt"]["occurrences"], 2)
         self.assertEqual(forms["Felt"]["lowercase_occurrences"], 1)
 
+    def test_roster_counts_preserve_unicode_apostrophes_and_complex_names(self):
+        text = ("Felt felt Felt's 'Felt Felt’ Felt_ FeltX 2Felt Café café "
+                "東京 東京's O'Neil O'Neil's Jean-Luc Jean Luc Jean\nLuc")
+        names = ["Felt", "Café", "東京", "O'Neil", "Jean-Luc", "Jean Luc"]
+        forms = self._fixture([{"text": text}], aliases={name: name for name in names})
+        expected = {"Felt": (2, True, 1), "Café": (1, True, 1),
+                    "東京": (1, False, 1), "O'Neil": (1, False, 0),
+                    "Jean-Luc": (1, False, 0), "Jean Luc": (1, False, 0)}
+        self.assertEqual(set(expected), set(forms))
+        for name, (count, collision, lower) in expected.items():
+            with self.subTest(name=name):
+                self.assertEqual({"occurrences": count,
+                                  "collides_with_common_word": collision,
+                                  "lowercase_occurrences": lower}, forms[name])
+
+    def test_roster_counts_do_not_reuse_a_previous_book(self):
+        first = self._fixture([{"text": "Felt Felt felt"}], aliases={"Felt": "Felt"})
+        second = self._fixture([{"text": "Felt"}], aliases={"Felt": "Felt"})
+        self.assertEqual(2, first["Felt"]["occurrences"])
+        self.assertEqual(1, second["Felt"]["occurrences"])
+        self.assertFalse(second["Felt"]["collides_with_common_word"])
+
     def test_a_name_with_no_lowercase_twin_is_not_flagged(self):
         """The counterpart: flagging every name would make the flag useless."""
         forms = self._fixture(

@@ -29,6 +29,7 @@ gets WORSE while the audio gets BETTER. A lexicon is judged by listening, or by
 an ASR comparison that normalises the name on both sides. Optimising it against
 raw WER would select for names that are easy to transcribe rather than right.
 """
+from collections import Counter
 import json
 import os
 import re
@@ -187,14 +188,20 @@ def character_forms(script_path=None, aliases_path=None, voice_config_path=None)
     # A speaker label is usually upper case while prose uses natural case, so
     # try the label AND its title-cased form - but count each spelling
     # separately, because that is what the substitution will match.
+    token_counts = Counter(re.findall(r"[\w']+", text))
+
+    def count_occurrences(form):
+        if re.fullmatch(r"\w+", form):
+            return token_counts[form]
+        return len(re.findall(r"(?<![\w'])" + re.escape(form) + r"(?![\w'])", text))
+
     forms = {}
     for name in candidates:
         name = name.strip()
         if len(name) < 2:
             continue
         for form in {name, name.title()}:
-            n = len(re.findall(r"(?<![\w'])" + re.escape(form) + r"(?![\w'])",
-                               text))
+            n = count_occurrences(form)
             if not n:
                 continue
             # A form whose LOWERCASE also occurs is a name that collides with
@@ -202,8 +209,7 @@ def character_forms(script_path=None, aliases_path=None, voice_config_path=None)
             # (1/22). Case-sensitive matching already protects the verb, but
             # an editor filling this file in deserves to be warned before
             # giving "Man" a respelling.
-            lower = len(re.findall(
-                r"(?<![\w'])" + re.escape(form.lower()) + r"(?![\w'])", text))
+            lower = count_occurrences(form.lower())
             forms[form] = {"occurrences": n,
                            "collides_with_common_word": bool(lower and
                                                              form != form.lower()),

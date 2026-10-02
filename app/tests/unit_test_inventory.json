@@ -5164,6 +5164,8 @@
     "tests.test_pronunciation.RosterDerivationTest.test_a_nickname_does_not_inherit_the_canonical_pronunciation",
     "tests.test_pronunciation.RosterDerivationTest.test_a_respelled_name_does_not_touch_its_lowercase_word",
     "tests.test_pronunciation.RosterDerivationTest.test_forms_are_derived_from_the_roster_and_the_text",
+    "tests.test_pronunciation.RosterDerivationTest.test_roster_counts_do_not_reuse_a_previous_book",
+    "tests.test_pronunciation.RosterDerivationTest.test_roster_counts_preserve_unicode_apostrophes_and_complex_names",
     "tests.test_pronunciation.ShippedLexiconTest.test_it_ships_inert",
     "tests.test_pronunciation.ShippedLexiconTest.test_the_shipped_file_parses"
   ],
