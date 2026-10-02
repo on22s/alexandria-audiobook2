@@ -404,7 +404,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -692,7 +692,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -716,7 +716,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -740,7 +740,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1006,7 +1006,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1030,7 +1030,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1556,7 +1556,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1579,7 +1579,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1644,7 +1644,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1667,7 +1667,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1690,7 +1690,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1734,7 +1734,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1757,7 +1757,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1780,7 +1780,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1803,7 +1803,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1826,7 +1826,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1849,7 +1849,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1959,7 +1959,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -1982,7 +1982,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2007,7 +2007,7 @@
       "problems": [
         "base: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "base: every prediction is empty; this can be an inference failure, not a measured null result",
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation",
         "tuned: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "tuned: every prediction is empty; this can be an inference failure, not a measured null result"
@@ -2035,7 +2035,7 @@
       "problems": [
         "base: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "base: every prediction is empty; this can be an inference failure, not a measured null result",
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation",
         "tuned: 383 rows but not one prediction - the model produced no output. This is a failed run, not a score of zero, and must not be written as a result",
         "tuned: every prediction is empty; this can be an inference failure, not a measured null result"
@@ -2061,7 +2061,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2084,7 +2084,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2107,7 +2107,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2130,7 +2130,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2153,7 +2153,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2176,7 +2176,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2199,7 +2199,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2222,7 +2222,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2245,7 +2245,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2447,7 +2447,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2469,7 +2469,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2490,7 +2490,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2511,7 +2511,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2532,7 +2532,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2553,7 +2553,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2574,7 +2574,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2596,7 +2596,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2617,7 +2617,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2638,7 +2638,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2659,7 +2659,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2681,7 +2681,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2703,7 +2703,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2725,7 +2725,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2746,7 +2746,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2768,7 +2768,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2790,7 +2790,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2812,7 +2812,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2834,7 +2834,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2856,7 +2856,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2878,7 +2878,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2900,7 +2900,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2921,7 +2921,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -2943,7 +2943,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2966,7 +2966,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -2989,7 +2989,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3011,7 +3011,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3329,7 +3329,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3352,7 +3352,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3375,7 +3375,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3497,7 +3497,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3520,7 +3520,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3543,7 +3543,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3566,7 +3566,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3588,7 +3588,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3610,7 +3610,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3631,7 +3631,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3653,7 +3653,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3674,7 +3674,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3696,7 +3696,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3718,7 +3718,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3740,7 +3740,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3762,7 +3762,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3784,7 +3784,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3806,7 +3806,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3828,7 +3828,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3850,7 +3850,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3871,7 +3871,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3893,7 +3893,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -3915,7 +3915,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3938,7 +3938,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3961,7 +3961,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -3984,7 +3984,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4007,7 +4007,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -4029,7 +4029,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4052,7 +4052,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4075,7 +4075,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4098,7 +4098,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4121,7 +4121,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -4142,7 +4142,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4164,7 +4164,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4186,7 +4186,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4208,7 +4208,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4230,7 +4230,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -4252,7 +4252,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -4276,7 +4276,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -4300,7 +4300,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -4324,7 +4324,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4366,7 +4366,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4388,7 +4388,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4410,7 +4410,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4495,7 +4495,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4517,7 +4517,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4539,7 +4539,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4561,7 +4561,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4583,7 +4583,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4605,7 +4605,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4691,7 +4691,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -4797,7 +4797,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -4819,7 +4819,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4842,7 +4842,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4927,7 +4927,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4949,7 +4949,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4971,7 +4971,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -4993,7 +4993,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5015,7 +5015,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5037,7 +5037,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5059,7 +5059,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5081,7 +5081,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5104,7 +5104,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5126,7 +5126,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5148,7 +5148,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5170,7 +5170,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5192,7 +5192,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5214,7 +5214,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5236,7 +5236,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5258,7 +5258,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5280,7 +5280,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5302,7 +5302,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5324,7 +5324,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit ancestry could not be verified from local history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5345,7 +5345,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -5366,7 +5366,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5389,7 +5389,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5412,7 +5412,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5435,7 +5435,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5457,7 +5457,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5479,7 +5479,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5501,7 +5501,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5523,7 +5523,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5547,7 +5547,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5571,7 +5571,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5595,7 +5595,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5618,7 +5618,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5642,7 +5642,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5666,7 +5666,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5690,7 +5690,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5714,7 +5714,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5738,7 +5738,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5762,7 +5762,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5786,7 +5786,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history",
+        "recorded commit ancestry is not verified in current history",
         "saved summary differs from row recomputation"
       ],
       "current_gold": {
@@ -5810,7 +5810,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5833,7 +5833,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5856,7 +5856,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5879,7 +5879,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5901,7 +5901,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5924,7 +5924,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5947,7 +5947,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5969,7 +5969,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -5992,7 +5992,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6015,7 +6015,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6037,7 +6037,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6060,7 +6060,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6083,7 +6083,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6105,7 +6105,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6127,7 +6127,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6149,7 +6149,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6171,7 +6171,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6194,7 +6194,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6217,7 +6217,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6239,7 +6239,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6261,7 +6261,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -6283,7 +6283,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6306,7 +6306,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6328,7 +6328,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6351,7 +6351,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6374,7 +6374,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6397,7 +6397,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6420,7 +6420,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6442,7 +6442,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6464,7 +6464,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6486,7 +6486,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6508,7 +6508,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6531,7 +6531,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6554,7 +6554,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -6576,7 +6576,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -6598,7 +6598,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -6620,7 +6620,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -6641,7 +6641,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6663,7 +6663,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6685,7 +6685,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -6707,7 +6707,7 @@
       "classification": "exploratory",
       "dirty": true,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -7323,7 +7323,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -7978,7 +7978,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": true,
@@ -8079,7 +8079,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8140,7 +8140,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8161,7 +8161,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8182,7 +8182,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8297,7 +8297,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8318,7 +8318,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8339,7 +8339,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8360,7 +8360,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8381,7 +8381,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8402,7 +8402,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8423,7 +8423,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8444,7 +8444,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8465,7 +8465,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,
@@ -8486,7 +8486,7 @@
       "classification": "exploratory",
       "dirty": false,
       "problems": [
-        "recorded commit is unavailable from current history"
+        "recorded commit ancestry is not verified in current history"
       ],
       "current_gold": {
         "available": false,

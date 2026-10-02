@@ -10,6 +10,44 @@ from tools.audit import audit_legacy_attribution as audit
 
 
 class LegacyAttributionAuditTests(unittest.TestCase):
+    def test_committed_audit_is_identical_for_unrelated_and_missing_commit_objects(self):
+        import subprocess
+        structural = json.loads(Path(audit.STRUCTURAL).read_text())
+        name = next(row['artifact'] for row in structural['artifacts']
+                    if row['classification'] == 'provisional')
+        doc = json.loads(Path(audit.EXPERIMENTS, name).read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            original = Path(tmp, 'original')
+            clone = Path(tmp, 'clone')
+            original.mkdir()
+            def git(root, *args):
+                return subprocess.check_output(['git', '-c', 'user.name=Fixture',
+                    '-c', 'user.email=fixture@example.invalid', '-C', str(root), *args],
+                    stderr=subprocess.DEVNULL, text=True).strip()
+            git(original, 'init', '-b', 'main')
+            Path(original, 'tracked').write_text('fixture tree')
+            git(original, 'add', 'tracked')
+            git(original, 'commit', '-m', 'ancestor')
+            ancestor = git(original, 'rev-parse', 'HEAD')
+            unrelated = git(original, 'commit-tree', 'HEAD^{tree}', '-m', 'unrelated root')
+            git(Path(tmp), 'clone', '--no-local', str(original), str(clone))
+            doc['meta']['git']['commit'] = unrelated
+            records = []
+            for root, expected in ((original, False), (clone, None)):
+                Path(root, name).write_text(json.dumps(doc))
+                with mock.patch.object(audit, 'REPO', str(root)), mock.patch.object(audit, 'EXPERIMENTS', str(root)):
+                    self.assertIs(expected, audit._commit_is_in_history(unrelated))
+                    records.append(audit.inspect_artifact(name))
+            self.assertEqual(records[0], records[1])
+            self.assertEqual('exploratory', records[0]['classification'])
+            self.assertIn('recorded commit ancestry is not verified in current history', records[0]['problems'])
+            doc['meta']['git']['commit'] = ancestor
+            Path(clone, name).write_text(json.dumps(doc))
+            with mock.patch.object(audit, 'REPO', str(clone)), mock.patch.object(audit, 'EXPERIMENTS', str(clone)):
+                self.assertTrue(audit._commit_is_in_history(ancestor))
+                self.assertNotIn('recorded commit ancestry is not verified in current history',
+                                 audit.inspect_artifact(name)['problems'])
+
     def test_commit_identity_requires_ancestry_not_unrelated_object_presence(self):
         with mock.patch.object(audit.subprocess, "run") as run:
             run.return_value.returncode = 1

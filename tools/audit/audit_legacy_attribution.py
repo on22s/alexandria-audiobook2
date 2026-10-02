@@ -163,10 +163,11 @@ def inspect_artifact(name):
     if record.summary() != doc.get("summary"):
         problems.append("saved summary differs from row recomputation")
     in_history = _commit_is_in_history((meta.get("git") or {}).get("commit"))
-    if in_history is None:
-        problems.append("recorded commit ancestry could not be verified from local history")
-    elif not in_history:
-        problems.append("recorded commit is unavailable from current history")
+    # An unrelated local object and an object absent from a fresh clone both
+    # lack verified ancestry. Their shared audit record must not depend on
+    # unreachable objects retained in one checkout's object database.
+    if in_history is not True:
+        problems.append("recorded commit ancestry is not verified in current history")
     if meta.get("validation") != "ok":
         problems.append("artifact validation is not ok")
     gold = _current_gold(meta, rows)
