@@ -65,11 +65,32 @@ class AssignmentTests(unittest.TestCase):
     def test_shards_are_balanced_within_the_greedy_bound(self):
         weight = lambda name: self.durations.get(name, sharding.DEFAULT_WEIGHT_SECONDS)
         for count in (2, 3, 4):
-            totals = [sum(weight(n) for n in modules)
-                      for modules in sharding.get_test_shards(MODULES, self.durations, count).values()]
-            average = sum(totals) / count
-            # Longest-processing-time-first never exceeds the average by more than the largest item.
-            self.assertLessEqual(max(totals), average + max(weight(n) for n in MODULES) + 1e-9, count)
+            for head_start in ({}, sharding.SHARD_HEAD_START_SECONDS):
+                with self.subTest(count=count, head_start=head_start):
+                    shards = sharding.get_test_shards(MODULES, self.durations, count, head_start=head_start)
+                    totals = [head_start.get(number, 0.0) + sum(weight(n) for n in modules)
+                              for number, modules in shards.items()]
+                    average = sum(totals) / count
+                    # Longest-processing-time-first never exceeds the average by more than the largest item.
+                    self.assertLessEqual(max(totals), average + max(weight(n) for n in MODULES) + 1e-9)
+
+    def test_shard_one_gets_less_unit_work_because_it_also_runs_the_other_gates(self):
+        weight = lambda name: self.durations.get(name, sharding.DEFAULT_WEIGHT_SECONDS)
+        units = lambda shards: [sum(weight(n) for n in modules) for modules in shards.values()]
+        even = units(sharding.get_test_shards(MODULES, self.durations, 3, head_start={}))
+        favoured = sharding.get_test_shards(MODULES, self.durations, 3)
+        biased = units(favoured)
+        self.assertLess(biased[0], min(biased[1:]) - 100)           # shard 1 is clearly lighter
+        self.assertLess(max(even) - min(even), 20)                  # and without a head start they are even
+        self.assertEqual(MODULES, sorted(n for modules in favoured.values() for n in modules))  # still complete
+
+    def test_head_start_never_loses_a_module(self):
+        for head_start in ({1: 1e9}, {1: 0.0, 2: 500.0}, {3: 40.0}, {}):
+            with self.subTest(head_start=head_start):
+                shards = sharding.get_test_shards(MODULES, self.durations, 3, head_start=head_start)
+                flat = [n for modules in shards.values() for n in modules]
+                self.assertEqual(MODULES, sorted(flat))
+                self.assertEqual(len(flat), len(set(flat)))
 
     def test_a_module_with_no_recorded_time_is_still_assigned_once(self):
         names = MODULES + ["test_brand_new_module_without_a_weight"]
@@ -139,10 +160,17 @@ class CiEnvCommandLineTests(unittest.TestCase):
             (self.root / f"test_shardfixture_{name}.py").write_text(
                 "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        pass\n")
 
-    def run_ci_env(self, *extra):
-        return subprocess.run([sys.executable, "-m", "ci_env", "discover", "-s", str(self.root),
-                               "-p", "test_shardfixture_*.py", "-v", *extra],
-                              cwd=APP, capture_output=True, text=True, timeout=120)
+    def run_ci_env(self, *extra, head_start=False):
+        arguments = ["discover", "-s", str(self.root), "-p", "test_shardfixture_*.py", "-v", *extra]
+        if head_start:
+            command = [sys.executable, "-m", "ci_env", *arguments]
+        else:
+            # Four 1-second fixture modules next to shard 1's real head start would all go to
+            # the other shard; clear it so these tests check the partitioning mechanics.
+            command = [sys.executable, "-c",
+                       "import sys, unit_test_sharding as u; u.SHARD_HEAD_START_SECONDS.clear(); "
+                       "import ci_env; sys.exit(ci_env.main(sys.argv[1:]))", *arguments]
+        return subprocess.run(command, cwd=APP, capture_output=True, text=True, timeout=120)
 
     @staticmethod
     def ran(result):
@@ -153,6 +181,11 @@ class CiEnvCommandLineTests(unittest.TestCase):
         self.assertEqual(4, self.ran(self.run_ci_env()))
         counts = [self.ran(self.run_ci_env("--shard", f"{i}/2")) for i in (1, 2)]
         self.assertEqual([2, 2], counts)
+
+    def test_with_the_real_head_start_the_shards_still_cover_every_test_once(self):
+        counts = [self.ran(self.run_ci_env("--shard", f"{i}/2", head_start=True)) for i in (1, 2)]
+        self.assertEqual(4, sum(counts))
+        self.assertLess(counts[0], counts[1])        # shard 1 carries the other gates, so gets less
 
     def test_equals_form_works_and_bad_specs_exit_nonzero_with_a_message(self):
         self.assertEqual(2, self.ran(self.run_ci_env("--shard=1/2")))

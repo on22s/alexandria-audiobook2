@@ -20,6 +20,11 @@ from pathlib import Path
 DURATIONS_PATH = Path(__file__).parent / "tests" / "module_durations.json"
 # A module with no recorded time (a new test file) counts as this many seconds.
 DEFAULT_WEIGHT_SECONDS = 1.0
+# Shard 1 also runs every non-unit gate (compile, inventory, evidence indexes, API contract,
+# API suite). Measured on CI that was about 116 s more than the others for the same unit
+# weight; the weights are dev-machine seconds, which run about 1.43x CI seconds, so shard 1
+# starts with this much weight already counted and receives that much less unit work.
+SHARD_HEAD_START_SECONDS = {1: 165.0}
 _SPEC = re.compile(r"(\d+)/(\d+)")
 
 
@@ -46,11 +51,13 @@ def get_module_durations(path=DURATIONS_PATH):
     return durations
 
 
-def get_test_shards(module_names, durations, count):
+def get_test_shards(module_names, durations, count, head_start=None):
     """Return {1..count: sorted module names}; each module appears in exactly one shard.
 
     Longest-processing-time-first: heaviest module to the currently lightest shard.
     Ties break by name and shard number, so the result never depends on input order.
+    `head_start` maps a shard number to weight already counted against it (extra work
+    that shard does outside the unit tests); it changes balance only, never coverage.
     """
     names = sorted(module_names)
     if len(set(names)) != len(names):
@@ -58,7 +65,8 @@ def get_test_shards(module_names, durations, count):
     if isinstance(count, bool) or not isinstance(count, int) or count < 1:
         raise ValueError("Shard count must be a positive integer")
     shards = {number: [] for number in range(1, count + 1)}
-    totals = {number: 0.0 for number in shards}
+    head_start = SHARD_HEAD_START_SECONDS if head_start is None else head_start
+    totals = {number: float(head_start.get(number, 0.0)) for number in shards}
     weight = lambda name: float(durations.get(name, DEFAULT_WEIGHT_SECONDS))
     for name in sorted(names, key=lambda item: (-weight(item), item)):
         number = min(totals, key=lambda item: (totals[item], item))
