@@ -4123,6 +4123,14 @@
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
   ],
+  "test_macos_probe_lease": [
+    "tests.test_macos_probe_lease.MacProbeLeaseTests.test_multiple_lease_descriptors_are_rejected_without_leaking_lock",
+    "tests.test_macos_probe_lease.MacProbeLeaseTests.test_real_descriptor_keeps_lease_after_sender_closes_then_releases",
+    "tests.test_macos_probe_lease.MacProbeLeaseTests.test_wrong_admission_message_is_rejected_without_leaking_lock",
+    "tests.test_macos_probe_lease.MacProbeLeaseTests.test_wrong_file_descriptor_is_rejected_and_received_copy_closed",
+    "tests.test_macos_probe_lease.MacProbeReapTests.test_unknown_kernel_error_does_not_become_an_empty_scope",
+    "tests.test_macos_probe_lease.MacProbeReapTests.test_zero_resource_tasks_does_not_certify_reaped_admission_scope"
+  ],
   "test_managed_server_chain": [
     "tests.test_managed_server_chain.ManagedServerChainTests.test_duplicate_launch_is_refused_without_overwriting_owned_pid",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_early_exit_is_not_readiness_and_remains_reaped",
