@@ -75,6 +75,27 @@ REFERENCE_SCORE_CACHE_LIMIT = 64
 REFERENCE_SCORE_CACHE_TTL = 600.0
 _REFERENCE_SCORE_CACHE = OrderedDict()
 _REFERENCE_WORKER_LOCK = threading.Lock()
+_REFERENCE_CACHE_LOCK = threading.Lock()
+
+
+def _apply_reference_score_cache_lookup(key):
+    """Expire old entries and touch a valid hit under the short cache lock."""
+    with _REFERENCE_CACHE_LOCK:
+        now = time.monotonic()
+        for old_key, (created, _) in list(_REFERENCE_SCORE_CACHE.items()):
+            if now - created >= REFERENCE_SCORE_CACHE_TTL:
+                del _REFERENCE_SCORE_CACHE[old_key]
+        if key is not None and key in _REFERENCE_SCORE_CACHE:
+            _REFERENCE_SCORE_CACHE.move_to_end(key)
+            return list(_REFERENCE_SCORE_CACHE[key][1])
+    return None
+
+
+def _save_reference_score_cache(key, values):
+    with _REFERENCE_CACHE_LOCK:
+        _REFERENCE_SCORE_CACHE[key] = (time.monotonic(), tuple(values))
+        while len(_REFERENCE_SCORE_CACHE) > REFERENCE_SCORE_CACHE_LIMIT:
+            _REFERENCE_SCORE_CACHE.popitem(last=False)
 
 
 def _get_reference_score_key(pairs, python_bin, script):
@@ -151,20 +172,23 @@ def _speaker_similarities(pairs, timeout=600, *, dataset_root=None):
     if any(not os.path.isfile(path) for pair in resolved_pairs for path in pair):
         return None
     deadline = time.monotonic() + timeout
-    if not _REFERENCE_WORKER_LOCK.acquire(timeout=max(0, timeout)):
+    try:
+        key = _get_reference_score_key(resolved_pairs, python_bin, script)
+    except (OSError, ValueError):
+        key = None
+    cached = _apply_reference_score_cache_lookup(key)
+    if cached is not None:
+        return cached
+    if not _REFERENCE_WORKER_LOCK.acquire(timeout=max(0, deadline - time.monotonic())):
         return None
     try:
         try:
             key = _get_reference_score_key(resolved_pairs, python_bin, script)
         except (OSError, ValueError):
             key = None  # missing provenance disables reuse, not the existing scorer
-        now = time.monotonic()
-        for old_key, (created, _) in list(_REFERENCE_SCORE_CACHE.items()):
-            if now - created >= REFERENCE_SCORE_CACHE_TTL:
-                del _REFERENCE_SCORE_CACHE[old_key]
-        if key is not None and key in _REFERENCE_SCORE_CACHE:
-            _REFERENCE_SCORE_CACHE.move_to_end(key)
-            return list(_REFERENCE_SCORE_CACHE[key][1])
+        cached = _apply_reference_score_cache_lookup(key)
+        if cached is not None:
+            return cached
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return None
@@ -190,9 +214,7 @@ def _speaker_similarities(pairs, timeout=600, *, dataset_root=None):
             except (OSError, ValueError):
                 after = None
             if key == after:
-                _REFERENCE_SCORE_CACHE[key] = (time.monotonic(), tuple(values))
-                while len(_REFERENCE_SCORE_CACHE) > REFERENCE_SCORE_CACHE_LIMIT:
-                    _REFERENCE_SCORE_CACHE.popitem(last=False)
+                _save_reference_score_cache(key, values)
         return values
     finally:
         _REFERENCE_WORKER_LOCK.release()
