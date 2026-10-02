@@ -3878,12 +3878,17 @@
             return mapping;
         }
 
+        function getCastApplyWarningsHtml(warnings) {
+            return (warnings || []).map(warning =>
+                `<div class="alert alert-warning py-1 px-2 small mt-1 mb-0">${escapeHtml(warning)}</div>`).join('');
+        }
+
         async function submitCastApply() {
             const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
                 const res = await API.post('/api/voice_library/apply', { cast: window._selectedCast, mapping });
-                setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}`);
+                setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}${getCastApplyWarningsHtml(res.warnings)}`);
                 await loadVoices();  // re-render cards with the applied configs
             } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
@@ -3986,7 +3991,7 @@
                 const total = res.results.reduce((sum, r) => sum + r.count, 0);
                 const rows = res.results.map(r => `
                     <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small">
-                        <span>${escapeHtml(r.name)}</span>
+                        <div>${escapeHtml(r.name)}${getCastApplyWarningsHtml(r.warnings)}</div>
                         <span class="${r.error ? 'text-danger' : 'text-muted'}">${r.error ? escapeHtml(r.error) : `${r.count} applied`}</span>
                     </li>`).join('');
                 panel.innerHTML = `

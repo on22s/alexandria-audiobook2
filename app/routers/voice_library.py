@@ -538,6 +538,13 @@ def _build_bulk_cast_match_response(request: CastMatchBulkRequest):
     return {"cast": cast_name, "proposals": proposals, "book_count": len(set(request.script_names))}
 
 
+def get_cast_label_persistence_warning(cast_name: str) -> str:
+    """Explain the secondary failure without undoing a committed assignment."""
+    return (f"Voices from cast '{cast_name}' were applied, but learned character labels "
+            "could not be saved because the voice library is busy. Confirm the character "
+            "mappings when applying this cast to another book.")
+
+
 @router.post("/api/voice_library/apply")
 async def voice_library_apply(request: LibraryApplyRequest):
     """Apply confirmed cast members onto the current voice_config by the given mapping."""
@@ -551,12 +558,16 @@ async def voice_library_apply(request: LibraryApplyRequest):
             _apply_cast_to_current_book, cast_name, request.mapping)
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
+    warnings = []
     try:
         await asyncio.to_thread(_remember_applied_labels, cast_name, request.mapping, applied)
     except TimeoutError:
         logger.warning("Applied cast '%s' but could not record the labels (library locked).", cast_name)
+        if applied:
+            warnings.append(get_cast_label_persistence_warning(cast_name))
 
-    return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied)}
+    return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied),
+            "warnings": warnings}
 
 
 @router.post("/api/voice_library/apply_bulk")
@@ -591,10 +602,15 @@ async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
             _remember_applied_labels(cast_name, request.mapping, applied_union)
         except TimeoutError:
             logger.warning("Applied cast '%s' in bulk but could not record the labels (library locked).", cast_name)
+            warning = get_cast_label_persistence_warning(cast_name)
+            results = [{**result, "warnings": [warning]} if result["applied"] else result
+                       for result in results]
         return results
 
     # Offload the per-book locking/read/write loop to a worker thread so
     # applying a cast to a long series doesn't block the event loop.
     results = await asyncio.to_thread(_apply_all)
 
-    return {"cast": cast_name, "results": results}
+    return {"cast": cast_name, "results": results,
+            "warnings": list(dict.fromkeys(
+                warning for result in results for warning in result.get("warnings", [])))}

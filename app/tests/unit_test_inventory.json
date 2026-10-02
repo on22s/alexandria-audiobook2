@@ -1030,6 +1030,12 @@
     "tests.test_candidate_scoring.ScoreTest.test_no_visible_candidate_declines_rather_than_picking",
     "tests.test_candidate_scoring.ScoreTest.test_the_best_scoring_candidate_wins"
   ],
+  "test_cast_label_warnings": [
+    "tests.test_cast_label_warnings.CastLabelWarningTests.test_actual_ui_handlers_show_escaped_warnings_and_success_counts",
+    "tests.test_cast_label_warnings.CastLabelWarningTests.test_bulk_warns_only_committed_books_and_preserves_errors_and_empty_books",
+    "tests.test_cast_label_warnings.CastLabelWarningTests.test_secondary_timeout_preserves_committed_single_assignment",
+    "tests.test_cast_label_warnings.CastLabelWarningTests.test_successful_label_recording_has_no_warning"
+  ],
   "test_chain_artifact_scope": [
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_actual_replay_loop_commits_only_dispatched_result_and_its_checkpoint",
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_current_literal_file_commits_without_other_sessions_same_folder_wip",
