@@ -41,7 +41,7 @@ assert worker.returncode == 0, (worker.returncode, stderr)
 assert stdout.splitlines() == ['worker-started', sys.argv[2]], stdout
 assert not hasattr(worker, '_alexandria_control')
 """
-            for platform in ('win32', 'darwin'):
+            for platform in ('win32', 'freebsd'):
                 with self.subTest(platform=platform):
                     result = subprocess.run(
                         [sys.executable, '-c', runner, platform, tmp],

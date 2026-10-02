@@ -11,7 +11,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'app'))
 from macos_subprocess_kernel import MacApi, is_macos_coalition_reaped
-from macos_subprocess_owner import start_macos_owned_subprocess
+from subprocess_ownership import start_owned_subprocess as start_macos_owned_subprocess
 from subprocess_ownership import send_subprocess_signal
 
 
@@ -113,7 +113,7 @@ def check_app_death(tmp):
     lease, identity, pulse, late, ready = [tmp / name for name in ('app.lease', 'app.identity', 'app.pulse', 'app.late', 'app.ready')]
     environment = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[2] / 'app')}
     child = [sys.executable, '-c', LEAF, str(pulse), str(identity), str(late)]
-    app_code = "import fcntl,json,pathlib,sys,time; from macos_subprocess_owner import start_macos_owned_subprocess; held=open(sys.argv[1],'w+b'); fcntl.flock(held,fcntl.LOCK_EX); p=start_macos_owned_subprocess(json.loads(sys.argv[3]),gpu_lease_fd=held.fileno()); held.close(); pathlib.Path(sys.argv[2]).write_text(str(p.pid)); time.sleep(60)"
+    app_code = "import fcntl,json,pathlib,sys,time; from subprocess_ownership import start_owned_subprocess as start_macos_owned_subprocess; held=open(sys.argv[1],'w+b'); fcntl.flock(held,fcntl.LOCK_EX); p=start_macos_owned_subprocess(json.loads(sys.argv[3]),gpu_lease_fd=held.fileno()); held.close(); pathlib.Path(sys.argv[2]).write_text(str(p.pid)); time.sleep(60)"
     app = subprocess.Popen([sys.executable, '-c', app_code, str(lease), str(ready), json.dumps(child)], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         wait_for(lambda: ready.exists() and identity.exists(), 'outside app did not admit real worker')

@@ -1,13 +1,20 @@
-name: macOS ownership prerequisite probe
+name: macOS subprocess ownership
 
-# Diagnostic evidence for finding 369, not a production containment gate.
-# Only this diagnostic's changes schedule it; no app, models or GPU jobs load.
+# Native subprocess containment and caller checks, CPU only.
+# Model construction is stubbed; native ownership and kernel leases are real.
 on:
   pull_request:
     paths:
       - '.github/workflows/macos-owner-probe.yml'
       - 'tools/diagnostics/macos_369_native_probe.py'
       - 'tools/diagnostics/macos_369_owner_checks.py'
+      - 'tools/diagnostics/macos_369_callers_checks.py'
+      - 'app/subprocess_ownership.py'
+      - 'app/core.py'
+      - 'app/benchmark_execution.py'
+      - 'app/task_ownership.py'
+      - 'app/experiments/gpu_guard.py'
+      - 'alexandria_file_lock.py'
       - 'app/macos_subprocess_kernel.py'
       - 'app/macos_subprocess_owner.py'
 
@@ -25,8 +32,12 @@ jobs:
           python-version: '3.10'
       - name: Measure ordinary-user native ownership prerequisites
         run: python tools/diagnostics/macos_369_native_probe.py > macos-owner-probe.log 2>&1
-      - name: Verify production macOS owner before enabling dispatch
+      - name: Verify production macOS subprocess owner
         run: python tools/diagnostics/macos_369_owner_checks.py > macos-owner-checks.log 2>&1
+      - name: Install CPU caller dependencies
+        run: python -m pip install 'fastapi==0.128.0' 'pydantic==2.12.5' 'aiofiles==24.1.0' 'numpy==2.2.6' 'soundfile==0.13.1'
+      - name: Verify actual app and benchmark ownership callers
+        run: python tools/diagnostics/macos_369_callers_checks.py > macos-caller-checks.log 2>&1
       - name: Retain actual probe measurements and errors
         if: always()
         uses: actions/upload-artifact@v6
@@ -37,4 +48,6 @@ jobs:
             macos-owner-probe.log
             macos_369_owner_result.json
             macos-owner-checks.log
+            macos_369_callers_result.json
+            macos-caller-checks.log
           if-no-files-found: error

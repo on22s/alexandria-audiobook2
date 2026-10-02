@@ -8,7 +8,7 @@ import time
 import tempfile
 import shlex
 
-from subprocess_ownership import start_owned_subprocess
+from subprocess_ownership import start_owned_subprocess, get_subprocess_lease_options
 from benchmark_remote_command import is_llm_benchmark_command
 
 BENCHMARK_STATE = contextvars.ContextVar('benchmark_execution_state', default=None)
@@ -22,12 +22,8 @@ def get_benchmark_process_options(state, options):
     from core import get_gpu_task_environment, get_task_lease_descriptor
     options = dict(options)
     environment = get_gpu_task_environment(state, options.pop('env', None))
-    lease_fd = None
-    if (sys.platform == 'linux' and environment.get('ALEXANDRIA_GPU_LOCK_HELD') == '1'
-            and environment.get('ALEXANDRIA_GPU_LOCK_PID') == str(os.getpid())):
-        lease_fd = int(environment.get('ALEXANDRIA_GPU_LOCK_FD', '9'))
-    return dict(options, env=environment, gpu_lease_fd=lease_fd,
-                task_lease_fd=get_task_lease_descriptor(state) if sys.platform == 'linux' else None,
+    return dict(options, env=environment,
+                **get_subprocess_lease_options(environment, get_task_lease_descriptor(state)),
                 start_new_session=True)
 
 

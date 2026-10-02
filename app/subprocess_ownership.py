@@ -147,6 +147,17 @@ def save_subprocess_stop_receipt(path):
         os.fsync(receipt.fileno())
 
 
+def get_subprocess_lease_options(environment, task_lease_fd=None):
+    """Read lease capabilities supported by the platform's outside task owner."""
+    gpu_lease_fd = None
+    if sys.platform not in ('linux', 'darwin'):
+        return dict(gpu_lease_fd=None, task_lease_fd=None)
+    if (environment.get('ALEXANDRIA_GPU_LOCK_HELD') == '1'
+            and environment.get('ALEXANDRIA_GPU_LOCK_PID') == str(os.getpid())):
+        gpu_lease_fd = int(environment.get('ALEXANDRIA_GPU_LOCK_FD', '9'))
+    return dict(gpu_lease_fd=gpu_lease_fd, task_lease_fd=task_lease_fd)
+
+
 def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
                            stop_receipt_path=None, disconnect_signal=None, exit_notice_path=None,
                            termination_grace=None, **kwargs):
@@ -155,6 +166,12 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
         from windows_subprocess_owner import start_windows_owned_subprocess
         return start_windows_owned_subprocess(
             command, exit_notice_path=exit_notice_path, termination_grace=termination_grace, **kwargs)
+    if sys.platform == "darwin":
+        from macos_subprocess_owner import start_macos_owned_subprocess
+        return start_macos_owned_subprocess(
+            command, gpu_lease_fd=gpu_lease_fd, task_lease_fd=task_lease_fd,
+            stop_receipt_path=stop_receipt_path, disconnect_signal=disconnect_signal,
+            exit_notice_path=exit_notice_path, termination_grace=termination_grace, **kwargs)
     if sys.platform != "linux":
         return subprocess.Popen(command, **kwargs)
     if disconnect_signal is None:

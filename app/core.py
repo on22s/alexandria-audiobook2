@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 from subprocess_ownership import (SUBPROCESS_TERMINATE_GRACE_SECONDS,
-                                 start_owned_subprocess, stop_owned_subprocess, send_subprocess_signal,
+                                 start_owned_subprocess, stop_owned_subprocess, send_subprocess_signal, get_subprocess_lease_options,
                                  terminate_windows_process_tree as terminate_owned_windows_process_tree)
 from voicelab_settings import get_voicelab_python
 import threading
@@ -1210,7 +1210,7 @@ def get_gpu_task_environment(state: dict, env: dict = None) -> dict:
 
 
 def get_task_lease_descriptor(state):
-    """Read the current claim's borrowed descriptor for its Linux command owner."""
+    """Read the current claim's borrowed descriptor for its outside command owner."""
     with _gpu_lock:
         for task_name, task_state in process_state.items():
             owner = _task_claims.get(task_name)
@@ -1246,11 +1246,6 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     reader = None
     try:
         subprocess_env = get_gpu_task_environment(state, env)
-        lease_fd = None
-        if (sys.platform == "linux"
-                and subprocess_env.get("ALEXANDRIA_GPU_LOCK_HELD") == "1"
-                and subprocess_env.get("ALEXANDRIA_GPU_LOCK_PID") == str(os.getpid())):
-            lease_fd = int(subprocess_env.get("ALEXANDRIA_GPU_LOCK_FD", "9"))
         process = start_owned_subprocess(
             command,
             stdout=subprocess.PIPE,
@@ -1259,11 +1254,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             errors="replace",
             cwd=cwd,
             env=subprocess_env,
-            gpu_lease_fd=lease_fd,
-            task_lease_fd=get_task_lease_descriptor(state) if sys.platform == "linux" else None,
+            **get_subprocess_lease_options(subprocess_env, get_task_lease_descriptor(state)),
             termination_grace=CANCEL_TERMINATE_GRACE_SECONDS,
-            # Linux uses a reaper; Windows uses a gated Job Object owner.
-            # Other POSIX hosts retain the owned process-group dispatch.
+            # Linux uses a reaper; macOS a private task job; Windows a Job Object.
             start_new_session=True,
         )
 

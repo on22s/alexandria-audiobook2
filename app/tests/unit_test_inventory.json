@@ -6654,6 +6654,13 @@
     "tests.test_subprocess_finally.StreamFinallyTests.test_task_returns_only_after_the_wrappers_owned_child_exits",
     "tests.test_subprocess_finally.StreamFinallyTests.test_wait_failure_still_clears_handle_and_closes_log"
   ],
+  "test_subprocess_lease_dispatch": [
+    "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_bad_claim_descriptor_fails_before_worker_admission",
+    "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_darwin_dispatch_forwards_all_owner_options_to_native_launcher",
+    "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_foreign_or_unmarked_gpu_claim_cannot_be_borrowed",
+    "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_supported_owners_borrow_verified_caller_leases_without_changing_environment",
+    "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_unsupported_platform_does_not_interpret_posix_descriptors"
+  ],
   "test_subprocess_log_batches": [
     "tests.test_subprocess_log_batches.SubprocessLogBatchTests.test_control_message_appended_during_publication_is_preserved",
     "tests.test_subprocess_log_batches.SubprocessLogBatchTests.test_disk_write_failure_warning_stays_ordered_and_bounded",
