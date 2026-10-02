@@ -1,0 +1,240 @@
+{
+  "workload_sha256": "43304a9021f5f5bc3389823ec46e500c5ae2cedbfdadd0408b69dd33028c4e97",
+  "bytes": 33950,
+  "workers": 1,
+  "requested": 80,
+  "batch_labels": [
+    "silky_mezzo_30s_f_shipped",
+    "silky_mezzo_30s_f_clean",
+    "silky_alto_40s_f_literary_2_shipped",
+    "silky_alto_40s_f_literary_2_clean"
+  ],
+  "files": [
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_clean/adapter_config.json",
+      "sha256": "63998e43c2176ea14799c13327f6b9c00051baba39c7bc1a5c3b50c2c4244f12"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_clean/adapter_model.safetensors",
+      "sha256": "03076769fad02a0deb2b6d01b4bf6b75647b5e7e0719aefeb9056c4cd53d2929"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_clean/ref_sample.wav",
+      "sha256": "7d6bbd02dd8437a968ee0f3ecd988626e0f82892b1ad487c929c0e47521240f2"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_clean/training_meta.json",
+      "sha256": "f2754722b37d4ffc6d32b7635fa1a9774dc28e82c782ce794eab2a97e7e5a4da"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_shipped/adapter_config.json",
+      "sha256": "a1fcf212d8b04ba91efb39657d6236dfa5db2c56ee16507f8518b962d146c92c"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_shipped/adapter_model.safetensors",
+      "sha256": "78cae932e5ebb4ea67f27018e2cab6cf7c6ddc85e5a82d4521ca15a59e6d670b"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_shipped/ref_sample.wav",
+      "sha256": "7d6bbd02dd8437a968ee0f3ecd988626e0f82892b1ad487c929c0e47521240f2"
+    },
+    {
+      "path": "adapters/silky_alto_40s_f_literary_2_shipped/training_meta.json",
+      "sha256": "0c32d8dfb7649d376b7dade8662503f4d9902018a8c23dd0d4af7529def5ce51"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_clean/adapter_config.json",
+      "sha256": "a1fcf212d8b04ba91efb39657d6236dfa5db2c56ee16507f8518b962d146c92c"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_clean/adapter_model.safetensors",
+      "sha256": "1c3d4026031afe04948871983173de004dbf327f08007cb9cddf641f22619943"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_clean/ref_sample.wav",
+      "sha256": "54c7bce6ac77d89eaef5f23aa3d1eb9bbadd2b9edf7624c70d36b8e985257a56"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_clean/training_meta.json",
+      "sha256": "7f70572e81083439f05ec9b7f5b451033e524876a41c1718b2041259e496b2dd"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_shipped/adapter_config.json",
+      "sha256": "adc4f6af30457c32f956b4793ddbf7b1084d6c0a7a1efda1b2dcabd9042d68de"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_shipped/adapter_model.safetensors",
+      "sha256": "ca06e77efcdab059717272cfa5b5a5ed400477abd9898b361f9c9bf76f701884"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_shipped/ref_sample.wav",
+      "sha256": "54c7bce6ac77d89eaef5f23aa3d1eb9bbadd2b9edf7624c70d36b8e985257a56"
+    },
+    {
+      "path": "adapters/silky_mezzo_30s_f_shipped/training_meta.json",
+      "sha256": "a5aa00a9d37fb834efb673bf644e423260574b5c792e6530783c6013de95d29b"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_000.wav",
+      "sha256": "a9bef745706306cb09e9c925ab4dfd7322615966e2b6627cf11b2e67199e4403"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_001.wav",
+      "sha256": "4232301c32b2d7ac0848e0c88324cba0e16ad698195edc3df5640a9cf43e14d3"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_002.wav",
+      "sha256": "6b9262c5d3aac5a0bdfd41b924076cdbc0629571cead51aaadbd4bcbdd35e6b6"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_003.wav",
+      "sha256": "c29b8fb706e5782920e3334cba45edb7fa11714efb09638483c0c7cd2d91c010"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_004.wav",
+      "sha256": "40aa5989a12d27e9345e7763066b794cba4132803d932317d7d39cf7d4c4e924"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_005.wav",
+      "sha256": "381ee85cdff1f03c379432f3a6da90f4c87a3eab40f926a456b2b1a7596c0794"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_006.wav",
+      "sha256": "634106f2ac212b25639782a441a5c4fee9c0108f7a94d21c52ed3445f500d09f"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_007.wav",
+      "sha256": "aab29173dee872f69c4b2bf95c3b38385e864a4c73f4949ebf592a1c14361097"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_008.wav",
+      "sha256": "5ace2064c75e30cfc38c2fec06f9ed600c96878d30ffe5a513fbfe0cf9830058"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_009.wav",
+      "sha256": "1ce2e32b9932c77cd0641a0a0b59a77b43da2205ec6e4b4a27e6d6365ce3b8d1"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_010.wav",
+      "sha256": "6173cde05d6ac9cb625e75c24a73bc32765d817644cc540da2bf05545ad43a9b"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_011.wav",
+      "sha256": "eb3b90758b4601a9e9efe1000b9924bff141a599c0e9f5c877790311feae2187"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_012.wav",
+      "sha256": "d5f8ba76e978839e13e7c25229a677d5b482c08a1c1e4a6a6e9dcecca92df1f7"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_013.wav",
+      "sha256": "596c664003f3b75dd59ecc07f896667c9841ff9901b926e4b5a35ca783ceffd9"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_014.wav",
+      "sha256": "3460e163b3e01696a35cc9e0828d9b298905a17cdcffc95092263a9fb4e71b9d"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_015.wav",
+      "sha256": "26f70c900d7de50d0b0460c86392f32fbd8f17dd42f5ce4112ecd968f3415be9"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_016.wav",
+      "sha256": "84a16b69d97259d97c0bc8c1a1d00a33ce2bfbf1afe731240c06ad8502c57db4"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_017.wav",
+      "sha256": "50e61009ae86f09d9449243149d193dac4aa9850c1ef284e9ae495ad517f74a8"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_018.wav",
+      "sha256": "25651b61eb3a5c6235e6b4feefc8698d12a3b3ba413e651426665795126c58ec"
+    },
+    {
+      "path": "human/silky_alto_40s_f_literary_2/unseen_019.wav",
+      "sha256": "d626011cc122ecb7b5d3d7b1a474c6a2dbd6b85747fea53ef4135f08b0090703"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_000.wav",
+      "sha256": "61f5db05e73bdb204365eb07477faa2ca74975173dbec1f19d5a437320256de8"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_001.wav",
+      "sha256": "993dbc91f25202fb0cb10da45c4df8f37902753ad5f61e12ed4b12a8a32b273a"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_002.wav",
+      "sha256": "9ef3bef5f9dde1dfba38e1de065409fdd62c6fe7df1d4571f0bb8aefc5845a10"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_003.wav",
+      "sha256": "4211134e4a128577882988069cd8111fe4a647ba502fb8f72dfe17c7bc32379a"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_004.wav",
+      "sha256": "8bab2463103493459d496df5214641bf26954c20932e6033d9b133d4542e2af6"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_005.wav",
+      "sha256": "3bd4339fc16144a944cd4e9b37a12b2112a790d59dca7f1532d33f06aa30cad4"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_006.wav",
+      "sha256": "3f462eccc8357b28e7a4053d250fcc31c38e42d6532a5d18e2b5d7d367a44f6e"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_007.wav",
+      "sha256": "a5c1b19e69744c396d0ef89c4777e57c168c7edb4b92d08f34532f5b9a07e343"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_008.wav",
+      "sha256": "66547c3d322526fb391bd8c524f2fd8980df2bd7dc07eace7b945c7b55b0b83b"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_009.wav",
+      "sha256": "6c49391f6f7b91df81ba75fcc3bb1f6287753f10f0bbebc6936c08501f19015c"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_010.wav",
+      "sha256": "1edb5a3e48e4b20e3164f604d2195ac5db0343538ef8104784e96aa5079b8bf5"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_011.wav",
+      "sha256": "946361e4d6b200cad6aa1c61d62994361af75e6798b1ff3758a2b03463f627c0"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_012.wav",
+      "sha256": "6fbd034415036cbb6229017e530eb3a38610b7a53591bc51ca0f09fcef7902e7"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_013.wav",
+      "sha256": "8288593be100f70c2eee4d4459f4c3395e1606697c8f81f96276ef1d13ef975e"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_014.wav",
+      "sha256": "55a2c28bbfe44ecc9dfb7d82a482ff96d893cd58ff33ffd499bb9439db44cff1"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_015.wav",
+      "sha256": "ead0f930c7966c877f162c11a935d2ed9068e4771be0def8839229b09bf778a5"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_016.wav",
+      "sha256": "c3c998982a4f13c80c093131d22b1faaf51399a347212c0ef91ad4009b25fd12"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_017.wav",
+      "sha256": "364d901edbff5eef4cb86c0ff84f0aa3550d6b6a12d00cd556777a2d39aaa941"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_018.wav",
+      "sha256": "6d93f43a829b2b0cd4c49e02e3daa449cf2ff6c330d7f0bcdeaf62bf6e272ec0"
+    },
+    {
+      "path": "human/silky_mezzo_30s_f/unseen_019.wav",
+      "sha256": "c646e180161c162ca9c7ea66130efb6213881c6720dbee55303ca4658785ff21"
+    }
+  ],
+  "raw_capture": "/home/fakemitch/Desktop/thunder_campaign_20260929/voices",
+  "note": "Frozen text/cast and audio inputs kept locally and on the assigned cloud box; raw book text is not copied into this report."
+}

@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-09-13
+**Last updated:** 2026-09-30
 
 ## How to read this
 
@@ -89,11 +89,39 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 > unseen books were scored, the drop was **4.4 points** — real, but modest. The
 > work is running a clean test, not building a new ability.
 
-**Where this stands, as of 2026-09-28 (a summary of the dated updates below):** the target (a held-out
+**Where this stands, as of 2026-09-30 (a summary of the dated updates below):** the target (a held-out
 gap within 5 points) is met on three of the six bases measured on the 28-novel instrument: Qwen3.8-27B
 UD-Q3_K_XL (-2.2), Qwen3.6-35B-A3B UD-IQ2_XXS (-3.3) and DeepSeek v4-pro (+1.8); it is missed on Qwen3-8B
-Q4_K_M (-7.2), Qwen3.5-9B Q4_K_M (-8.7) and Qwen3.6-35B-A3B UD-IQ1_M (-5.2), so the goal stays open for those. The first "Current" block below is
+Q4_K_M (-7.2), Qwen3.5-9B Q4_K_M (-8.7) and Qwen3.6-35B-A3B UD-IQ1_M (-5.2), so the goal stays open for those. The 2026-09-30 Qwen3-8B UD-Q2_K_XL fold-swap adapter (-3.27, same sign convention) is a seventh
+row but not a like-for-like one: its "development" side is the nine books it trained on, not the 28-novel instrument (see the 2026-09-30 block). The first "Current" block below is
 the 2026-08-08 base-arm measurement (-12.6, a different model and prompt), kept for history.
+
+**Thunder confirmation completed 2026-09-30.** The frozen Qwen3-8B fold-swap
+adapter, trained on nine PDNC books, scores 69.28% on 5,543 sampled quotations
+from the other nineteen, versus 63.03% for base (+6.24 points; 895 fixes,
+549 regressions). Its matching nine-book development score is 72.54% versus
+61.77% base. The adapter's quote-weighted development-to-held-out gap is
+**3.27 points** (-3.27 in the convention of the summary above), inside the
+five-point criterion for this configuration. The development books are the
+nine this adapter trained on, so this is a train-versus-held-out gap for one
+frozen adapter and quant, not a 28-novel-instrument measurement like the rows
+above. This completes the previously requested matching comparison; broader
+model-specific generalisation remains OPEN. Book exclusion is verified (none
+of the nineteen held-out books appears in the training windows). Author
+exclusion is not verified by any artifact: matching titles to authors by hand,
+the training books (Austen, Doyle, Hemingway, Chopin) share no author with the
+held-out nineteen, but no recorded author field backs that, so it stays open
+until one does. Sixteen held-out books improve and three regress.
+
+CPU error analysis finds alias-aware gold-speaker coverage on all 5,543 IDs
+in both fixture-augmented full rosters; this does not test production roster
+discovery. LoRA leaves 1,590 answered wrong
+rows and 113 unanswered; its 549 regressions comprise 494 answered wrong and
+55 unanswered. These categories measure saved samples, not causes. They
+support investigating selection and response handling before expanding
+rosters for this run. Evidence: [fold-swap report](docs/results/thunder-a100-foldswap-2026-09-30.md),
+[matching development report](docs/results/thunder-japanese-development-2026-09-30.md)
+and [CPU error analysis](docs/results/thunder-cpu-followups-2026-09-30.md).
 
 **Metric** — accuracy on held-out books never used in development.
 **Probe** — PDNC gold sets (`attribution_gold_pdnc_*.json`, 1270 / 640 / 584
@@ -2811,6 +2839,20 @@ correct.
 > tempting to rank on. But the preparer needs the audio *sliced*, so a backend
 > that hears perfectly and cannot place a boundary is useless to it.
 
+**Additional scored evidence, 2026-09-30.** Japanese large-v3 scoring is
+complete for 180 generated and 90 human recordings: grouped CER is
+13.14%/12.32% at two seeds, with separate-arm means spanning 13.21–15.43%.
+Matching grouped human CER is 27.01%; reference lengths differ, so these
+are descriptive comparisons, not significance or native-pronunciation
+approval. Chinese human controls average 43.15% CER. These controls retain
+recognizer/source-transcript uncertainty rather than treating ASR as a
+perfect judge. See [completed score replay](docs/results/thunder-japanese-development-2026-09-30.md).
+
+Five historical boundary audits were recounted on CPU: 93/1,000 sampled
+chunks alert (per-source 4.5–14.0%). These are saved ASR/source edge
+conflicts, not manually confirmed cut errors or new alignment measurements.
+They do not close the Japanese boundary goal. See [historical comparison](docs/results/thunder-historical-comparison-2026-09-30.md).
+
 **Metric** — WER (CER for CJK) against human transcripts, plus alignment error
 against known boundaries.
 **Probe** — `app/experiments/asr_backends.py`. The alignment probe concatenates
@@ -3577,6 +3619,21 @@ the gross failure a number hides, not for ranking arms.
 > an audiobook nobody wants to hear, and nothing here would notice.
 >
 > **Why this is reachable now.** The instrument is already built and sealed.
+
+**Follow-up listening completed 2026-09-30.** One listener scored 24 blind
+chapter pairs; all four preference controls passed. Among twenty real
+comparisons, four workers were preferred eight times, sixteen workers seven
+times, with five ties. Three real pairs carried cutoff complaints involving
+the sixteen-worker arm (one also involved four-worker audio). These selected
+problem cases establish neither a preference winner nor equivalence.
+The original voice retest has 17/18 similarity ratings, with the missing
+rating retained; a ten-pair diagnostic also reproduced the runaway complaint
+and a line-specific similarity discrepancy. Details and limits:
+[chapter report](docs/results/thunder-fullchapter-speed-2026-09-30.md) and
+[voice follow-ups](docs/results/thunder-completed-followups-2026-09-30.md).
+The goal remains OPEN: one listener, enriched selections, and native Japanese/
+Chinese pronunciation and listening validation deferred to fluent raters.
+The older byte-identical instruction arm is not repaired by these tests.
 
 **Metric** — blinded preference between paired renders of the same passage.
 **Probe** — `app/experiments/blinded_listening.py`, which renders the sets and
@@ -5072,6 +5129,18 @@ it correctly. It claims less than its title suggests. See 3.2.
 > **Why this is reachable.** Five of the six measured cases are already inside
 > the target. Only Japanese zero-shot cloning sits outside it, so this is one
 > specific case to investigate, not a broad weakness.
+
+**Paired-reference follow-up completed 2026-09-30.** On the same 150 held-out
+Chinese lines, the long reference fails the existing three-times-human
+maximum-duration gate on 49/150 clips; the original short reference fails
+on 0/150. This is a runaway gate, not the goal's narrow fidelity band, and
+neither count substitutes for that band. All failures remain recorded.
+Japanese grouping produced 180/180 duration-valid clips over two seeds,
+closer to human duration than separate clips in 21/30 and 24/30 pairs.
+This confirms these frozen comparisons, not a general pacing or listening
+pass. The existing median status is retained and per-line spread remains
+open. Evidence: [completed follow-ups](docs/results/thunder-completed-followups-2026-09-30.md)
+and [Japanese controls](docs/results/thunder-japanese-development-2026-09-30.md).
 
 **Metric** — mean `dur_ratio` across held-out lines (1.00 = matches the human).
 **Current** — 100 clips per language, both arms, 2026-08-08, plus the
@@ -6680,13 +6749,13 @@ files.**
 
 If only three things get worked on:
 
-1. **Generalisation (1.3)** — the new balanced LoRA scores 89.1% on three
-   author-held-out PDNC books and 78.4% on unseen Grimgar03, strong evidence
-   that training transfers. The goal remains open because its twenty PDNC
-   training novels can no longer serve as held-out confirmation, while the
-   base model's broad result remains 71.0% on 25 unseen novels against 83.6%
-   on the favourable three. Confirm on additional never-trained books and
-   compare development and held-out performance for the same adapter.
+1. **Generalisation (1.3)** — the September 30 fold-swap confirmation is
+   complete: Qwen3-8B LoRA scores 69.28% on nineteen book-held-out novels versus
+   72.54% on its nine development books (3.27-point gap). This configuration
+   is inside the five-point criterion; other model-specific gaps remain
+   open. The saved error analysis identifies answered selection errors and
+   unanswered regressions for follow-up, not a need for another identical
+   matching-development run. See the dated evidence in 1.3.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
    median is 0.927 and meets the goal, disproving the earlier cross-reader
    0.758 diagnosis. However, 43% of individual Japanese clips remain outside

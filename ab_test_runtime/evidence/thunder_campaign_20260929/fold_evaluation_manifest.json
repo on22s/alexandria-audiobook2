@@ -1,0 +1,254 @@
+{
+  "evaluation_books": [
+    "AHandfulOfDust",
+    "APassageToIndia",
+    "ARoomWithAView",
+    "AlicesAdventuresInWonderland",
+    "AnneOfGreenGables",
+    "DaisyMiller",
+    "HardTimes",
+    "HowardsEnd",
+    "NightAndDay",
+    "OliverTwist",
+    "TheAgeOfInnocence",
+    "TheGambler",
+    "TheInvisibleMan",
+    "TheManWhoWasThursday",
+    "TheMysteriousAffairAtStyles",
+    "ThePictureOfDorianGray",
+    "TheSportOfTheGods",
+    "WhereAngelsFearToTread",
+    "WinnieThePooh"
+  ],
+  "files": [
+    {
+      "path": "inputs/pdnc_ahandfulofdust.txt",
+      "sha256": "d93d1d7034fb98e38c1400c33caac7a7ff5c2111029de935fac8f5f7dbd960fc"
+    },
+    {
+      "path": "checkpoints/pdnc_ahandfulofdust__three_pass.json.threepass_checkpoint.json",
+      "sha256": "403293b302c0e908372b6ae24f18a62b4e2bbd663e40a522d271b36bc9af5dbe"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_ahandfulofdust.json",
+      "sha256": "d63121ab5eb8f24d88ecab0bd2f89d4f88f9d9263b5210a2b1dcf4a76f645f4b"
+    },
+    {
+      "path": "inputs/pdnc_apassagetoindia.txt",
+      "sha256": "bc9c50093a6822f7c488224ce46c602981759e3b421b1de0cd698bcc8d54d2b2"
+    },
+    {
+      "path": "checkpoints/pdnc_apassagetoindia__three_pass.json.threepass_checkpoint.json",
+      "sha256": "1710864d3ada3e62d0cc7e0aeeb8c642ba9dae4abebc6725fd5d9474021bd1ae"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_apassagetoindia.json",
+      "sha256": "8911f57cdf89510e42f6e14bcd5d0234440cb6630e0b85af6866906e83c67a52"
+    },
+    {
+      "path": "inputs/pdnc_aroomwithaview.txt",
+      "sha256": "a7f6e16555eda0e34c03659b797c573d637de90c7bbcd70f8592e74948ef419d"
+    },
+    {
+      "path": "checkpoints/pdnc_aroomwithaview__three_pass.json.threepass_checkpoint.json",
+      "sha256": "3093f84f666074e387e796cd230b16f2c1f295df77f811685e2b8c05d24578fb"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_aroomwithaview.json",
+      "sha256": "fb19a6011fee4310b04d0683b36a69363244b0b09e18f8fa7946837ab8b223d3"
+    },
+    {
+      "path": "inputs/pdnc_alicesadventuresinwonderland.txt",
+      "sha256": "3c07acdad93b3fffab80c1cd05f5a64787837a3a046dcffb82d9f23d25b72cf4"
+    },
+    {
+      "path": "checkpoints/pdnc_alicesadventuresinwonderland__three_pass.json.threepass_checkpoint.json",
+      "sha256": "e6dcc023f902b7ef3d6caba7e253da7d0f31c0af95411a7bb6d3941256b4cd36"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_alicesadventuresinwonderland.json",
+      "sha256": "2b93f357b31c4329b672645e18bb0ac05ff6eae2ca52a14402f34953ffccc888"
+    },
+    {
+      "path": "inputs/pdnc_anneofgreengables.txt",
+      "sha256": "caa7444ca060bba9566f3d9ed7ef8340cd5543b03f96c93c24f3691b0e8aeccd"
+    },
+    {
+      "path": "checkpoints/pdnc_anneofgreengables__three_pass.json.threepass_checkpoint.json",
+      "sha256": "dddd21164f01c4bcfb88f4fe1b203f0b2575f60a45d904acc4321d6969e0d82a"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_anneofgreengables.json",
+      "sha256": "56eb3f96f787bcf3e7fe5ad31792b7ac9597026a514c1a2e62b9746cf298de9b"
+    },
+    {
+      "path": "inputs/pdnc_daisymiller.txt",
+      "sha256": "3475c47037aa1aa6b35e763b1049a2362ee7cbd286324b9f2a55baa0bece5dde"
+    },
+    {
+      "path": "checkpoints/pdnc_daisymiller__three_pass.json.threepass_checkpoint.json",
+      "sha256": "cd51ea19fea9bbbe2f321f5e88fdd4bce0d7bc17e93f0491b91a7f9f14978bf6"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_daisymiller.json",
+      "sha256": "ec6927a68df3c0a9ea5812b5075e819003ca600374aab86ff1f8373ca4e0f937"
+    },
+    {
+      "path": "inputs/pdnc_hardtimes.txt",
+      "sha256": "86ec45c3bc09d6a08662f5f20d192a1b04de010ea8dc70e5366d3b60ea35e7e6"
+    },
+    {
+      "path": "checkpoints/pdnc_hardtimes__three_pass.json.threepass_checkpoint.json",
+      "sha256": "abcc358581af6cdfdcdf4d9f837ad29d0003acc0aa5e176fb26c16ce5d3e9bd4"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_hardtimes.json",
+      "sha256": "d2b1ddd9b0fb6a78796bf1484c7c744745026f36ddde5d87d00c16ec68107191"
+    },
+    {
+      "path": "inputs/pdnc_howardsend.txt",
+      "sha256": "fd5c4e2ac5bc8b0c62577c610b9d2f1768bce94245cad9174b4457b6609ddcd3"
+    },
+    {
+      "path": "checkpoints/pdnc_howardsend__three_pass.json.threepass_checkpoint.json",
+      "sha256": "fd4e3b2200983716b129eb7d678a8e6b2d70e57c608f43133424f545fd37d490"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_howardsend.json",
+      "sha256": "5910fde4b339fdcd7e692e94a1648142bc05d04b8ff835d5e7518777639efc37"
+    },
+    {
+      "path": "inputs/pdnc_nightandday.txt",
+      "sha256": "39028e9931692c4affebe2f4e43db1b4438c67ac1d452af0d2d55d1b93fe077d"
+    },
+    {
+      "path": "checkpoints/pdnc_nightandday__three_pass.json.threepass_checkpoint.json",
+      "sha256": "971007e0486a2154ff1019dd6412bde434da9b762899d10c07de1f5614a5aef4"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_nightandday.json",
+      "sha256": "16bce0c2fa0dcf670babc3fa67aed9b5fca3b2cde6bb08aa973923793c71fdda"
+    },
+    {
+      "path": "inputs/pdnc_olivertwist.txt",
+      "sha256": "7042780c3068035978098513fe2d2fe467740af6b82a85fe1e6b36757dd84213"
+    },
+    {
+      "path": "checkpoints/pdnc_olivertwist__three_pass.json.threepass_checkpoint.json",
+      "sha256": "1e4bd135c51858ce22b55ff14a2e512f3b319ab8043496a3f9dafd5fd0ce857a"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_olivertwist.json",
+      "sha256": "f11e19679a9033eeabea3deeb8f715565fdfb267ffe17073292cc73f0c5d7e9a"
+    },
+    {
+      "path": "inputs/pdnc_theageofinnocence.txt",
+      "sha256": "12be42dbe622193a4519cb0fd08fcda3b593ba3bf000c68849453977994cec60"
+    },
+    {
+      "path": "checkpoints/pdnc_theageofinnocence__three_pass.json.threepass_checkpoint.json",
+      "sha256": "a036536036860f11701523baac889807d5531a479f6d96b19889069f7f75456b"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_theageofinnocence.json",
+      "sha256": "29987d1fccd0ed657d1e7d25547ea9c3ffff7b5cc6a3847265fe664d1dd87136"
+    },
+    {
+      "path": "inputs/pdnc_thegambler.txt",
+      "sha256": "e11d342dc4a88db12401910a8eed3c1e65eea2252cf7a8ddaca73b201abfbd92"
+    },
+    {
+      "path": "checkpoints/pdnc_thegambler__three_pass.json.threepass_checkpoint.json",
+      "sha256": "3146539f0862c8eaf11307780a0b7bd7f82ffc263326248659f4476e108cb707"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_thegambler.json",
+      "sha256": "aaa12a5a0d3c931d9151723610b0b428586bb7875372d047a0628ec39a40d612"
+    },
+    {
+      "path": "inputs/pdnc_theinvisibleman.txt",
+      "sha256": "31581b513dfd3a1eea64cf5a8f509c7184038f21787397525ec989f7257f7d31"
+    },
+    {
+      "path": "checkpoints/pdnc_theinvisibleman__three_pass.json.threepass_checkpoint.json",
+      "sha256": "a6bdf93920f0c45cc33a6003201c9c72cea176d0cf1dc241d3637b996fffe2a5"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_theinvisibleman.json",
+      "sha256": "a86be923f1f5c38f46ab94d1c7dab8b954cc2624668719d8a4252a54e5cc715b"
+    },
+    {
+      "path": "inputs/pdnc_themanwhowasthursday.txt",
+      "sha256": "9b3b46730e44838a4323e31d74e8eecea5d30414b33b747e39eb517caaf10a71"
+    },
+    {
+      "path": "checkpoints/pdnc_themanwhowasthursday__three_pass.json.threepass_checkpoint.json",
+      "sha256": "d2224a340bd91d735451510b04047f6b149d2d9042b75cebd9a5e544fc12a685"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_themanwhowasthursday.json",
+      "sha256": "e3bdb3b61bd03658d34b1d40fd2d308d9ae1d3d23fdcf8ce1def8c04d0d213ec"
+    },
+    {
+      "path": "inputs/pdnc_themysteriousaffairatstyles.txt",
+      "sha256": "e6b3744c27e5796d706ca7a3507258330a35d21e74e185fdbfe6dc48ea7acc72"
+    },
+    {
+      "path": "checkpoints/pdnc_themysteriousaffairatstyles__three_pass.json.threepass_checkpoint.json",
+      "sha256": "3a16e4dda9567a4d4d9ff4453cd8aab2f5c96624f9887b7171ea9df0021c7363"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_themysteriousaffairatstyles.json",
+      "sha256": "56089b626c82e8e70ef852d8fcae33096ec2fb179ed37a6d5cb93c2234ca306e"
+    },
+    {
+      "path": "inputs/pdnc_thepictureofdoriangray.txt",
+      "sha256": "1293f3b0b9b0088233049391be644421e8226cae54db1dec6c6c22760afe3e9d"
+    },
+    {
+      "path": "checkpoints/pdnc_thepictureofdoriangray__three_pass.json.threepass_checkpoint.json",
+      "sha256": "762e3fc92c89f1a8c5fd4ff482961c1390bbed859fdf8094bce9723c11aad9ce"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_thepictureofdoriangray.json",
+      "sha256": "d543a2f58d90e1214e24911b7535b2ec40d1d47eb079a497283ea27f87331612"
+    },
+    {
+      "path": "inputs/pdnc_thesportofthegods.txt",
+      "sha256": "12ab9c8e2c15500ca3d52b163d1f386b6da87c29467259930f6ab24a6b546073"
+    },
+    {
+      "path": "checkpoints/pdnc_thesportofthegods__three_pass.json.threepass_checkpoint.json",
+      "sha256": "ddefa6f6329c6a017a8a4d82cc052de1795f00574e10d58921d784c3f1b2f511"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_thesportofthegods.json",
+      "sha256": "55db73a9087f2b04a01e2eb7ebe2aeafcbb87b71701ec239891e4cab404066e7"
+    },
+    {
+      "path": "inputs/pdnc_whereangelsfeartotread.txt",
+      "sha256": "4b85d0e79688594c7e3aa5da11424f4717d1b9cf35a6a243b2a2dcc92d719538"
+    },
+    {
+      "path": "checkpoints/pdnc_whereangelsfeartotread__three_pass.json.threepass_checkpoint.json",
+      "sha256": "26336469143d22f9933dc723272d52c0c09fc207f96f1463d57d5483cf876f08"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_whereangelsfeartotread.json",
+      "sha256": "df6d0df16f35478670748035d4fc7b07cbe759f461092efe951ec88d25d6f925"
+    },
+    {
+      "path": "inputs/pdnc_winniethepooh.txt",
+      "sha256": "bb942f9c4cb5727cd9ef01bffd4eea2b22185953ac90351209096f65e7a2f210"
+    },
+    {
+      "path": "checkpoints/pdnc_winniethepooh__three_pass.json.threepass_checkpoint.json",
+      "sha256": "c21541998f8a61417550512cfa91a3eb8c5f6dde31900eea7379fb5b486bbd77"
+    },
+    {
+      "path": "fixtures/attribution_gold_pdnc_winniethepooh.json",
+      "sha256": "6625b8df081c3a374ed95b60541690404045cd86e4617742fb35451766ca1a3a"
+    }
+  ],
+  "source": "Frozen production-segmented pdnc_hard28 checkpoints; corpus gold only used for scoring"
+}

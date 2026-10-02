@@ -71,6 +71,38 @@ class NormalizationTest(unittest.TestCase):
             self.assertEqual({"Alice", "UI voice"},
                              {entry["name"] for entry in json.loads(manifest_path.read_text())})
 
+    def test_persona_object_request_parses_response_and_writes_log(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        import generate_script as gs
+        from persona_validation import validate_persona_payload
+
+        payload = {"description": "A calm, warm narrator.",
+                   "ref_text": "Once upon a time, a traveller arrived."}
+        response = SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=json.dumps(payload)),
+            finish_reason="stop")], usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=Mock(return_value=response))))
+        records = []
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "persona_responses.log"
+            with patch.object(gs, "get_response_log_path", return_value=str(log_path)) as log:
+                result = gs.call_llm_for_object(
+                    client, "test-model", "Return a persona object.", "NARRATOR",
+                    gs.LLMGenParams(), label="PERSONA NARRATOR",
+                    validate_object=validate_persona_payload, max_retries=0,
+                    attempt_observer=records.append)
+            self.assertEqual(payload, result)
+            client.chat.completions.create.assert_called_once()
+            log.assert_called_once_with("persona_responses.log")
+            self.assertIn("PERSONA NARRATOR", log_path.read_text())
+            self.assertIn(payload["description"], log_path.read_text())
+            self.assertEqual("accepted", records[0]["outcome"])
+
     def test_persona_route_passes_context_lines_to_the_script(self):
         import asyncio
         from unittest.mock import patch

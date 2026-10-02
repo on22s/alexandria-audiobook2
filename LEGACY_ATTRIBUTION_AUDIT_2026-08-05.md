@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 370 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 381 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 252
+- `exploratory`: 263
 - `historical_only`: 65
 - `provisional`: 11
 - `supported_measurement`: 42
@@ -243,6 +243,17 @@ All 370 legacy-metadata artifacts are listed exactly once. Classification descri
 | `lora_serving_eval__qwen3-8b-q4km-michel2_full-local-9070xt-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-q4km-michel2_full-post616-local-9070xt-cleangold-low-budget1024-schema-20260924.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | False | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen3-8b-q4km-michel2_shot-post616-local-9070xt-cleangold-low-budget1024-schema-20260924.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | False | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-q2k-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-q2kl-paired-michel2_full-tnr-4-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-q3km-paired-michel2_full-tnr-0-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-q3ks-paired-michel2_full-tnr-0-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-seed2-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-seed2-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-ud-iq2m-paired-michel2_full-tnr-2-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-ud-iq3xxs-paired-michel2_full-tnr-4-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__qwen3-8b-window25-michel2v2-ud-q2kxl-paired-michel2_full-tnr-1-a100-pdnc9-20260928.json` | lora_serving_eval | exploratory | 5310 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen35-9b-iq4xs-small6-tnr0-20260923.json` | lora_serving_eval | exploratory | 6685 | None | None | True | recorded commit is unavailable from current history |
 | `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json` | lora_serving_eval | exploratory | 383 | 0 | 295 | False | recorded commit is unavailable from current history; saved summary differs from row recomputation |
 | `lora_serving_eval__qwen35-9b-q4km-default-local-9070xt-cleangold-low-budget1024-schema-20260917.json` | lora_serving_eval | exploratory | 768 | 0 | 383 | True | recorded commit is unavailable from current history |

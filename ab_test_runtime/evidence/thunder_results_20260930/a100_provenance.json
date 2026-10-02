@@ -1,0 +1,179 @@
+{
+  "source_result_sha256": "debee575c12595c5adaea01318966714dd38d9c28e2e61a02f405fef63d3e78f",
+  "assets": {
+    "manifest.json": {
+      "sha256": "97eac3b511f3934af4c3455f82373d85aeaa57c37ce895ad7ecec3a681cc3fd8",
+      "bytes": 4191
+    },
+    "evaluation_manifest.json": {
+      "sha256": "d8e04754dcb2c65f0d47ea951dcae885ae86f547358b21771f92313d66fb2f57",
+      "bytes": 10139
+    },
+    "train_windows.jsonl": {
+      "sha256": "8ab9e5b1030a2eda894ca6746612375cdbb76de53337bd77faed28cebe248207",
+      "bytes": 11685615
+    },
+    "run_fold_20260929.sh": {
+      "sha256": "d81338f3ec16fa2293f24af7bac9771bea323e66df32630ff71cd9bbb4025f08",
+      "bytes": 2385
+    },
+    "adapter_model.safetensors": {
+      "sha256": "ddf09da710b9725e1e5084a4cb7341e2ad6d30dc171ad9033c449e2ef8886f21",
+      "bytes": 174655536
+    },
+    "qwen3-8b-foldswap.f16.gguf": {
+      "sha256": "045e5737fbe76eaaf4f3008b8713783e367c1c61ca8a70ef1d8d5171c6bc4753",
+      "bytes": 87328896
+    },
+    "Qwen3-8B-UD-Q2_K_XL.gguf": {
+      "sha256": "e1b3da4b0b69ece74bc46cbcc4e43177b16366508864230f49b226b800168b0c",
+      "bytes": 3501975360
+    },
+    "llama-server": {
+      "sha256": "e51a54d81ba30e9e0b92e2efaf33113a0f236fc37680b728d4094963a0c8fb43",
+      "bytes": 17864
+    }
+  },
+  "frozen_gold_files": {
+    "attribution_gold_pdnc_howardsend.json": {
+      "sha256": "5910fde4b339fdcd7e692e94a1648142bc05d04b8ff835d5e7518777639efc37",
+      "bytes": 2910272
+    },
+    "attribution_gold_pdnc_thepictureofdoriangray.json": {
+      "sha256": "d543a2f58d90e1214e24911b7535b2ec40d1d47eb079a497283ea27f87331612",
+      "bytes": 1420028
+    },
+    "attribution_gold_pdnc_daisymiller.json": {
+      "sha256": "ec6927a68df3c0a9ea5812b5075e819003ca600374aab86ff1f8373ca4e0f937",
+      "bytes": 610100
+    },
+    "attribution_gold_pdnc_nightandday.json": {
+      "sha256": "16bce0c2fa0dcf670babc3fa67aed9b5fca3b2cde6bb08aa973923793c71fdda",
+      "bytes": 2335323
+    },
+    "attribution_gold_pdnc_aroomwithaview.json": {
+      "sha256": "fb19a6011fee4310b04d0683b36a69363244b0b09e18f8fa7946837ab8b223d3",
+      "bytes": 1834763
+    },
+    "attribution_gold_pdnc_whereangelsfeartotread.json": {
+      "sha256": "df6d0df16f35478670748035d4fc7b07cbe759f461092efe951ec88d25d6f925",
+      "bytes": 1123429
+    },
+    "attribution_gold_pdnc_anneofgreengables.json": {
+      "sha256": "56eb3f96f787bcf3e7fe5ad31792b7ac9597026a514c1a2e62b9746cf298de9b",
+      "bytes": 1541184
+    },
+    "attribution_gold_pdnc_winniethepooh.json": {
+      "sha256": "6625b8df081c3a374ed95b60541690404045cd86e4617742fb35451766ca1a3a",
+      "bytes": 931629
+    },
+    "attribution_gold_pdnc_themysteriousaffairatstyles.json": {
+      "sha256": "56089b626c82e8e70ef852d8fcae33096ec2fb179ed37a6d5cb93c2234ca306e",
+      "bytes": 2137112
+    },
+    "attribution_gold_pdnc_alicesadventuresinwonderland.json": {
+      "sha256": "2b93f357b31c4329b672645e18bb0ac05ff6eae2ca52a14402f34953ffccc888",
+      "bytes": 779297
+    },
+    "attribution_gold_pdnc_themanwhowasthursday.json": {
+      "sha256": "e3bdb3b61bd03658d34b1d40fd2d308d9ae1d3d23fdcf8ce1def8c04d0d213ec",
+      "bytes": 954115
+    },
+    "attribution_gold_pdnc_thesportofthegods.json": {
+      "sha256": "55db73a9087f2b04a01e2eb7ebe2aeafcbb87b71701ec239891e4cab404066e7",
+      "bytes": 732939
+    },
+    "attribution_gold_pdnc_thegambler.json": {
+      "sha256": "aaa12a5a0d3c931d9151723610b0b428586bb7875372d047a0628ec39a40d612",
+      "bytes": 917273
+    },
+    "attribution_gold_pdnc_theageofinnocence.json": {
+      "sha256": "29987d1fccd0ed657d1e7d25547ea9c3ffff7b5cc6a3847265fe664d1dd87136",
+      "bytes": 1571250
+    },
+    "attribution_gold_pdnc_ahandfulofdust.json": {
+      "sha256": "d63121ab5eb8f24d88ecab0bd2f89d4f88f9d9263b5210a2b1dcf4a76f645f4b",
+      "bytes": 2601654
+    },
+    "attribution_gold_pdnc_hardtimes.json": {
+      "sha256": "d2b1ddd9b0fb6a78796bf1484c7c744745026f36ddde5d87d00c16ec68107191",
+      "bytes": 1884342
+    },
+    "attribution_gold_pdnc_theinvisibleman.json": {
+      "sha256": "a86be923f1f5c38f46ab94d1c7dab8b954cc2624668719d8a4252a54e5cc715b",
+      "bytes": 1049346
+    },
+    "attribution_gold_pdnc_apassagetoindia.json": {
+      "sha256": "8911f57cdf89510e42f6e14bcd5d0234440cb6630e0b85af6866906e83c67a52",
+      "bytes": 2340709
+    },
+    "attribution_gold_pdnc_olivertwist.json": {
+      "sha256": "f11e19679a9033eeabea3deeb8f715565fdfb267ffe17073292cc73f0c5d7e9a",
+      "bytes": 2903736
+    }
+  },
+  "log_sha256": {
+    "fold.log": "5107c723a41f4ccebe3f555b9ee1fe925a3f19f337455c99b9735cbc6b93a785",
+    "fold_server.log": "507f53a11e131f3a2e18e5e7f9ea2ea4508ab2c1f50bcb2490b6685f1f3d7c4c"
+  },
+  "adapter_scale_confirmations": 38,
+  "adapter_scale_sequence": [
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0
+  ],
+  "training_recipe": {
+    "batch_size": 1,
+    "chat_template": {
+      "sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8"
+    },
+    "epochs": 1,
+    "gradient_accumulation_steps": 8,
+    "label_field": "teacher",
+    "learning_rate": 0.0002,
+    "load_in_4bit": false,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "lora_r": 16,
+    "max_length": 8192,
+    "prompt_variant": "michel2_full"
+  },
+  "limitations": [
+    "Scale confirmations and launch arguments recorded; no per-request raw replies/prompt hashes retained."
+  ]
+}

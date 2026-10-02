@@ -1,0 +1,60 @@
+[
+  {
+    "box": "tnr-0",
+    "runtime_commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+    "app_tracked_changes": "",
+    "files": {
+      "repo/app/experiments/thunder_audio_campaign.py": {
+        "sha256": "ac4f6a35810478a6e619038e74029228b30b30ae81d0083f44119cd41d75985c",
+        "bytes": 4668
+      },
+      "repo/app/experiments/_ecapa_batch.py": {
+        "sha256": "40b88523b70b59490d09ba65bb97af218e7fb089be275fd0a309e430acb8094d",
+        "bytes": 3664
+      },
+      "repo/app/tts.py": {
+        "sha256": "5f55f0a6fdcc82ff3f5b66794af7b537bea03bf0f48ed9a157986952d5985b8d",
+        "bytes": 106321
+      },
+      "chapter/workload.json": {
+        "sha256": "20b996c55cb7831911c927c89e1ab6554195f94e9d4ed45a7e0add51c257e541",
+        "bytes": 388270
+      },
+      "chapter_run/result.json": {
+        "sha256": "ec1e23cfe811ce598d911a522396ebaed22ebfdc1efcd167e5125ed7ae44ec3e",
+        "bytes": 360266
+      }
+    }
+  },
+  {
+    "box": "tnr-2",
+    "runtime_commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+    "app_tracked_changes": "",
+    "files": {
+      "repo/app/experiments/thunder_audio_campaign.py": {
+        "sha256": "ac4f6a35810478a6e619038e74029228b30b30ae81d0083f44119cd41d75985c",
+        "bytes": 4668
+      },
+      "repo/app/experiments/_ecapa_batch.py": {
+        "sha256": "40b88523b70b59490d09ba65bb97af218e7fb089be275fd0a309e430acb8094d",
+        "bytes": 3664
+      },
+      "repo/app/tts.py": {
+        "sha256": "5f55f0a6fdcc82ff3f5b66794af7b537bea03bf0f48ed9a157986952d5985b8d",
+        "bytes": 106321
+      },
+      "voices/workload.json": {
+        "sha256": "43304a9021f5f5bc3389823ec46e500c5ae2cedbfdadd0408b69dd33028c4e97",
+        "bytes": 33950
+      },
+      "voices_run/result.json": {
+        "sha256": "1a8cf962ff0c0f31a76f3f6e1958c3174b374b67364564f86b7326b32423e96f",
+        "bytes": 44434
+      },
+      "voices_run/identity_scores.json": {
+        "sha256": "1da4d946870a54c28c7b262e591d1a886fb194ed534fbb1eb4226c2a9b607075",
+        "bytes": 7484
+      }
+    }
+  }
+]

@@ -1,0 +1,740 @@
+{
+  "status": "complete",
+  "controls_passed": 7,
+  "verifier_sha256": "c9a00671c193d0c87a708f40fca993f1cbb9787f751e9c5ddbc971b04e7d604b",
+  "scoring_sha256": "3df2933e04184cd69d35af43c926c434e9581e1458aeb9cb81ab791e2b0e144a",
+  "historical": {
+    "reports": [
+      {
+        "report": "lora_serving_eval__gemma-schema-smoke-20260910.json",
+        "source_sha256": "b3cc95eb41a812eb677d7015b79ec87e364fea1ae84ec7fbd4550afb23ee5649",
+        "arms": {
+          "base": {
+            "n": 3,
+            "stored_correct": 2,
+            "current_correct": 2,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 3,
+            "stored_correct": 2,
+            "current_correct": 2,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen38-author-heldout-balanced-tnr0-product-batch10-latest-20260913.json",
+        "source_sha256": "4816685563e6e10b2c9d369cfb591265058117f86c9d6338fec898682d66078c",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 566,
+            "current_correct": 566,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 576,
+            "current_correct": 576,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__gemma4-12b-task4k-a6000-gold-reasoning0-20260909.json",
+        "source_sha256": "07a5491feec5e0cf188bf06e65de1eedf0d55b8e7528cab7e91d842e5c97aeca",
+        "arms": {
+          "base": {
+            "n": 772,
+            "stored_correct": 530,
+            "current_correct": 530,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 772,
+            "stored_correct": 14,
+            "current_correct": 14,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-glimmer-30b-mixed-tplfix-seed2-a6000-gold-schema-checked-20260911.json",
+        "source_sha256": "8dee01bcf5c854c392222bd992cfc215a897f8913af62d1ba85ea45d05b18dfc",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 416,
+            "current_correct": 416,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 454,
+            "current_correct": 454,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-glimmer-30b-task4k-multin-tplfix-seed2-promptgate-q3-canary-20260912.json",
+        "source_sha256": "6bb1a27f6da9ebbaa4d3067daf6a848f4821b4c5b53b38041150f0f5110c05b4",
+        "arms": {
+          "base": {
+            "n": 2,
+            "stored_correct": 1,
+            "current_correct": 1,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 2,
+            "stored_correct": 0,
+            "current_correct": 0,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__gemma4-12b-qatbase-multin-tnr0-gold-schema-batch1b-20260910.json",
+        "source_sha256": "809e3927a1314c7f3835502123925d3565ff143a45742f9333fe10a38af984f3",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 407,
+            "current_correct": 407,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 417,
+            "current_correct": 417,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-glimmer-30b-mixed-lossfix-michel-tnr0-none-20260915b.json",
+        "source_sha256": "562246856597d2e2715f7c96e50db78660e254916cde356002e9111620b74754",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 291,
+            "current_correct": 291,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 288,
+            "current_correct": 288,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "distill_eval__qwen38-repl-mix75full-s20260905-tnr0split-20260905.json",
+        "source_sha256": "819f9d29facbf125f4f07e4b737f4b6ffd3023ba867dbc8807f75a1090fa1a3d",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 604,
+            "current_correct": 604,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "tuned": {
+            "n": 768,
+            "stored_correct": 0,
+            "current_correct": 0,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "distill_eval__qwen38-repl-mix75match-s20260905-tnr0split-20260905.json",
+        "source_sha256": "e054df2e572f8bf710642166df03b80ad9d2441b84989e672a940e759f5936f0",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 604,
+            "current_correct": 604,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "tuned": {
+            "n": 768,
+            "stored_correct": 621,
+            "current_correct": 621,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-window25b-q3kxl-gold-paired-michel2_full-tnr-0-20260924.json",
+        "source_sha256": "9e3fc5b75042d04ec8c060c44666df89fbcc273c46c3eaa244662399fd50d4af",
+        "arms": {
+          "base": {
+            "n": 176,
+            "stored_correct": 156,
+            "current_correct": 156,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 176,
+            "stored_correct": 159,
+            "current_correct": 159,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen36-35b-a3b-nonthinking-michel2_full-tnr0-cleangold-none-temp07-schema-20260917.json",
+        "source_sha256": "5a897b105fd4c7b2d198ffc79861ca6358f4028beddc6713a689d5c1382cf3eb",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 660,
+            "current_correct": 660,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen36-35b-a3b-nonthinking-default-tnr0-cleangold-none-temp07-schema-20260917.json",
+        "source_sha256": "2cccacf302449bdbc977090eaa6e003048a6fce4ce1848a7787c6b1b1b2415f6",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 594,
+            "current_correct": 594,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-q4-kquant17-gen3-rightsclean-michel2_full-tnr0-pdnc9lite-low-schema-20260921.json",
+        "source_sha256": "c8f6bf8ae1f349c6fab5009a519f87573bc6a1638b2f065df8d0ecfc572748ea",
+        "arms": {
+          "base": {
+            "n": 2655,
+            "stored_correct": 2498,
+            "current_correct": 2508,
+            "pdnc_rows_rescored": 2655,
+            "moved_up": 10,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 2655,
+            "stored_correct": 2407,
+            "current_correct": 2407,
+            "pdnc_rows_rescored": 2655,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-glimmer-30b-gen3-rightsclean-rft-michel2-full-tnr0-product-batch25-20260921.json",
+        "source_sha256": "e2d537fcf5a6faacd3d35f1627a773b180b24899443c6d0f2f4f7af151c5485c",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 690,
+            "current_correct": 690,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 671,
+            "current_correct": 671,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-q3-michel2-tnr1-pdnc9lite-low-schema-20260917.json",
+        "source_sha256": "15ba9c292c3c2427779033a4f380b38adbfb496725c3e64aa13adc502b59e3ed",
+        "arms": {
+          "base": {
+            "n": 2655,
+            "stored_correct": 2437,
+            "current_correct": 2440,
+            "pdnc_rows_rescored": 2655,
+            "moved_up": 3,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__muse-window25b-q3kxl-paired-michel2_full-tnr-1d-pdnc9-20260924.json",
+        "source_sha256": "1aba3c1c38a1b003a3e14e3254741a33579150f6002c9255cbf4ed176d459b4a",
+        "arms": {
+          "base": {
+            "n": 2655,
+            "stored_correct": 2356,
+            "current_correct": 2368,
+            "pdnc_rows_rescored": 2655,
+            "moved_up": 12,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 2655,
+            "stored_correct": 2278,
+            "current_correct": 2278,
+            "pdnc_rows_rescored": 2655,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__gemma4-12b-hardcases-a100-gold-20260909.json",
+        "source_sha256": "d3a2f063309a9ddb14171715769f198165624eada90efdd3ea3533204b802804",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 541,
+            "current_correct": 541,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 0,
+            "current_correct": 0,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "distill_eval__gemma4-task4k-hf-adapter-smoke-20260909.json",
+        "source_sha256": "17c3e83df3d4f8a3c85affef39641e8e8de32c8f0635da16672f107376088b51",
+        "arms": {
+          "base": {
+            "n": 18,
+            "stored_correct": 14,
+            "current_correct": 14,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "tuned": {
+            "n": 18,
+            "stored_correct": 13,
+            "current_correct": 13,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__gemma4-12b-qatbase-multin-a100-gold-batch1-20260910.json",
+        "source_sha256": "caa5ffbe6f413931fc59388d1f10a253baa7c25ea5875badc5f9d6758db0a49d",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 377,
+            "current_correct": 377,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 384,
+            "current_correct": 384,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__gemma4-12b-qatbase-multin-a100-gold-verified-20260910.json",
+        "source_sha256": "56accd6e93eff5e7dd25e616d588aaabc253f0320bcb5d7a3fb768bea9b3ed0b",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 417,
+            "current_correct": 417,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          },
+          "lora": {
+            "n": 768,
+            "stored_correct": 438,
+            "current_correct": 438,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-fixed-20260914.json",
+        "source_sha256": "7e585ef1c4465da1d8960d1eecd2b80a4ad21f58730f98a57e0c24c3f59772f4",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 477,
+            "current_correct": 477,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-control-20260914.json",
+        "source_sha256": "ef56960179fd9a773a6be330b88e476c32baea4fbd3bc23457ff67125cb6ec62",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 479,
+            "current_correct": 479,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      },
+      {
+        "report": "lora_serving_eval__qwen3-14b-base-tnr1-cleangold-windows-chapter-20260914.json",
+        "source_sha256": "23ccc2da8c8ce9aac93437cd166d483a48a9ae0346cadf7b9ab75cc1ed937558",
+        "arms": {
+          "base": {
+            "n": 768,
+            "stored_correct": 474,
+            "current_correct": 474,
+            "pdnc_rows_rescored": 0,
+            "moved_up": 0,
+            "moved_down": 0
+          }
+        }
+      }
+    ],
+    "fixture_sha256": {
+      "pdnc_ahandfulofdust": "d63121ab5eb8f24d88ecab0bd2f89d4f88f9d9263b5210a2b1dcf4a76f645f4b",
+      "pdnc_emma": "118e24d18bc42abfc097c6fd99e3fcd6bc0159353b923f01f76ccbd78cf6b605",
+      "pdnc_mansfieldpark": "8ba59a2210d579305d119e8c9e098795f7f47b2d6a6a4d8913336824d12066f1",
+      "pdnc_northangerabbey": "018454235657d4a69e37ec2d789f1960b161cafc86232a9f7c75dd8290281f56",
+      "pdnc_persuasion": "0157191f01f86073074709860f7a0fffda21c332c106fc7a7ecb2c0caebf5cb0",
+      "pdnc_prideandprejudice": "48ef9d78af3d66779f797b5708855d211fc7d953bd32f9566870afd00e93d9d5",
+      "pdnc_senseandsensibility": "5dfe8e16a7a923260bf86aa357e5079055445740a65cff88bdd09ba72ab118a1",
+      "pdnc_theawakening": "de7f1d861d1603bfed9a80f9df665aef9cb2dcbde67c1b81c24defdd745399df",
+      "pdnc_thegambler": "aaa12a5a0d3c931d9151723610b0b428586bb7875372d047a0628ec39a40d612",
+      "pdnc_themysteriousaffairatstyles": "56089b626c82e8e70ef852d8fcae33096ec2fb179ed37a6d5cb93c2234ca306e",
+      "pdnc_thesignofthefour": "f098c22ab696ffc2005d50da635b79e005e87bc70023292c2ded372c94f1f830",
+      "pdnc_thesunalsorises": "4b04e8e5cea3dee1754a65f3603a9c0b2ac2d03ee93eb97fbb00efdd3dac2f45"
+    },
+    "scope": "All PDNC rows rescored; non-PDNC rows retain stored flags."
+  },
+  "a100": {
+    "source_sha256": "debee575c12595c5adaea01318966714dd38d9c28e2e61a02f405fef63d3e78f",
+    "fixture_sha256": {
+      "pdnc_ahandfulofdust": "d63121ab5eb8f24d88ecab0bd2f89d4f88f9d9263b5210a2b1dcf4a76f645f4b",
+      "pdnc_apassagetoindia": "8911f57cdf89510e42f6e14bcd5d0234440cb6630e0b85af6866906e83c67a52",
+      "pdnc_aroomwithaview": "fb19a6011fee4310b04d0683b36a69363244b0b09e18f8fa7946837ab8b223d3",
+      "pdnc_alicesadventuresinwonderland": "2b93f357b31c4329b672645e18bb0ac05ff6eae2ca52a14402f34953ffccc888",
+      "pdnc_anneofgreengables": "56eb3f96f787bcf3e7fe5ad31792b7ac9597026a514c1a2e62b9746cf298de9b",
+      "pdnc_daisymiller": "ec6927a68df3c0a9ea5812b5075e819003ca600374aab86ff1f8373ca4e0f937",
+      "pdnc_hardtimes": "d2b1ddd9b0fb6a78796bf1484c7c744745026f36ddde5d87d00c16ec68107191",
+      "pdnc_howardsend": "5910fde4b339fdcd7e692e94a1648142bc05d04b8ff835d5e7518777639efc37",
+      "pdnc_nightandday": "16bce0c2fa0dcf670babc3fa67aed9b5fca3b2cde6bb08aa973923793c71fdda",
+      "pdnc_olivertwist": "f11e19679a9033eeabea3deeb8f715565fdfb267ffe17073292cc73f0c5d7e9a",
+      "pdnc_theageofinnocence": "29987d1fccd0ed657d1e7d25547ea9c3ffff7b5cc6a3847265fe664d1dd87136",
+      "pdnc_thegambler": "aaa12a5a0d3c931d9151723610b0b428586bb7875372d047a0628ec39a40d612",
+      "pdnc_theinvisibleman": "a86be923f1f5c38f46ab94d1c7dab8b954cc2624668719d8a4252a54e5cc715b",
+      "pdnc_themanwhowasthursday": "e3bdb3b61bd03658d34b1d40fd2d308d9ae1d3d23fdcf8ce1def8c04d0d213ec",
+      "pdnc_themysteriousaffairatstyles": "56089b626c82e8e70ef852d8fcae33096ec2fb179ed37a6d5cb93c2234ca306e",
+      "pdnc_thepictureofdoriangray": "d543a2f58d90e1214e24911b7535b2ec40d1d47eb079a497283ea27f87331612",
+      "pdnc_thesportofthegods": "55db73a9087f2b04a01e2eb7ebe2aeafcbb87b71701ec239891e4cab404066e7",
+      "pdnc_whereangelsfeartotread": "df6d0df16f35478670748035d4fc7b07cbe759f461092efe951ec88d25d6f925",
+      "pdnc_winniethepooh": "6625b8df081c3a374ed95b60541690404045cd86e4617742fb35451766ca1a3a"
+    },
+    "n_per_arm": 5543,
+    "categories": {
+      "base": {
+        "wrong_with_gold_in_roster": 1960,
+        "correct": 3494,
+        "unanswered": 89
+      },
+      "lora": {
+        "wrong_with_gold_in_roster": 1590,
+        "correct": 3840,
+        "unanswered": 113
+      }
+    },
+    "alias_aware_candidate_coverage": {
+      "base": 5543,
+      "lora": 5543
+    },
+    "transitions": {
+      "wrong_with_gold_in_roster -> wrong_with_gold_in_roster": 1058,
+      "correct -> correct": 2945,
+      "wrong_with_gold_in_roster -> correct": 857,
+      "correct -> wrong_with_gold_in_roster": 494,
+      "unanswered -> unanswered": 13,
+      "unanswered -> wrong_with_gold_in_roster": 38,
+      "correct -> unanswered": 55,
+      "unanswered -> correct": 38,
+      "wrong_with_gold_in_roster -> unanswered": 45
+    },
+    "regression_destinations": {
+      "wrong_with_gold_in_roster": 494,
+      "unanswered": 55
+    },
+    "fix_origins": {
+      "wrong_with_gold_in_roster": 857,
+      "unanswered": 38
+    },
+    "per_book": {
+      "pdnc_ahandfulofdust": {
+        "n": 494,
+        "base_correct": 294,
+        "lora_correct": 317,
+        "base_unanswered": 2,
+        "lora_unanswered": 6,
+        "fixes": 84,
+        "regressions": 61,
+        "regressions_to_unanswered": 5
+      },
+      "pdnc_apassagetoindia": {
+        "n": 459,
+        "base_correct": 250,
+        "lora_correct": 235,
+        "base_unanswered": 10,
+        "lora_unanswered": 0,
+        "fixes": 58,
+        "regressions": 73,
+        "regressions_to_unanswered": 0
+      },
+      "pdnc_aroomwithaview": {
+        "n": 331,
+        "base_correct": 208,
+        "lora_correct": 217,
+        "base_unanswered": 4,
+        "lora_unanswered": 12,
+        "fixes": 43,
+        "regressions": 34,
+        "regressions_to_unanswered": 7
+      },
+      "pdnc_alicesadventuresinwonderland": {
+        "n": 185,
+        "base_correct": 84,
+        "lora_correct": 132,
+        "base_unanswered": 0,
+        "lora_unanswered": 1,
+        "fixes": 58,
+        "regressions": 10,
+        "regressions_to_unanswered": 0
+      },
+      "pdnc_anneofgreengables": {
+        "n": 208,
+        "base_correct": 164,
+        "lora_correct": 168,
+        "base_unanswered": 0,
+        "lora_unanswered": 4,
+        "regressions": 19,
+        "regressions_to_unanswered": 4,
+        "fixes": 23
+      },
+      "pdnc_daisymiller": {
+        "n": 272,
+        "base_correct": 229,
+        "lora_correct": 221,
+        "base_unanswered": 5,
+        "lora_unanswered": 4,
+        "fixes": 24,
+        "regressions": 32,
+        "regressions_to_unanswered": 3
+      },
+      "pdnc_hardtimes": {
+        "n": 211,
+        "base_correct": 151,
+        "lora_correct": 162,
+        "base_unanswered": 0,
+        "lora_unanswered": 5,
+        "fixes": 31,
+        "regressions": 20,
+        "regressions_to_unanswered": 5
+      },
+      "pdnc_howardsend": {
+        "n": 382,
+        "base_correct": 258,
+        "lora_correct": 284,
+        "base_unanswered": 0,
+        "lora_unanswered": 1,
+        "regressions": 38,
+        "regressions_to_unanswered": 1,
+        "fixes": 64
+      },
+      "pdnc_nightandday": {
+        "n": 265,
+        "base_correct": 206,
+        "lora_correct": 216,
+        "base_unanswered": 0,
+        "lora_unanswered": 1,
+        "regressions": 20,
+        "regressions_to_unanswered": 0,
+        "fixes": 30
+      },
+      "pdnc_olivertwist": {
+        "n": 136,
+        "base_correct": 102,
+        "lora_correct": 96,
+        "base_unanswered": 1,
+        "lora_unanswered": 0,
+        "regressions": 20,
+        "regressions_to_unanswered": 0,
+        "fixes": 14
+      },
+      "pdnc_theageofinnocence": {
+        "n": 344,
+        "base_correct": 202,
+        "lora_correct": 232,
+        "base_unanswered": 13,
+        "lora_unanswered": 4,
+        "regressions": 38,
+        "regressions_to_unanswered": 2,
+        "fixes": 68
+      },
+      "pdnc_thegambler": {
+        "n": 246,
+        "base_correct": 126,
+        "lora_correct": 132,
+        "base_unanswered": 26,
+        "lora_unanswered": 40,
+        "regressions": 21,
+        "regressions_to_unanswered": 13,
+        "fixes": 27
+      },
+      "pdnc_theinvisibleman": {
+        "n": 234,
+        "base_correct": 139,
+        "lora_correct": 164,
+        "base_unanswered": 0,
+        "lora_unanswered": 4,
+        "fixes": 37,
+        "regressions": 12,
+        "regressions_to_unanswered": 1
+      },
+      "pdnc_themanwhowasthursday": {
+        "n": 110,
+        "base_correct": 75,
+        "lora_correct": 82,
+        "base_unanswered": 0,
+        "lora_unanswered": 2,
+        "fixes": 17,
+        "regressions": 10,
+        "regressions_to_unanswered": 1
+      },
+      "pdnc_themysteriousaffairatstyles": {
+        "n": 403,
+        "base_correct": 133,
+        "lora_correct": 245,
+        "base_unanswered": 18,
+        "lora_unanswered": 22,
+        "regressions": 17,
+        "regressions_to_unanswered": 9,
+        "fixes": 129
+      },
+      "pdnc_thepictureofdoriangray": {
+        "n": 344,
+        "base_correct": 263,
+        "lora_correct": 291,
+        "base_unanswered": 0,
+        "lora_unanswered": 0,
+        "regressions": 24,
+        "regressions_to_unanswered": 0,
+        "fixes": 52
+      },
+      "pdnc_thesportofthegods": {
+        "n": 325,
+        "base_correct": 225,
+        "lora_correct": 242,
+        "base_unanswered": 2,
+        "lora_unanswered": 0,
+        "fixes": 50,
+        "regressions": 33,
+        "regressions_to_unanswered": 0
+      },
+      "pdnc_whereangelsfeartotread": {
+        "n": 344,
+        "base_correct": 247,
+        "lora_correct": 260,
+        "base_unanswered": 0,
+        "lora_unanswered": 5,
+        "regressions": 37,
+        "regressions_to_unanswered": 3,
+        "fixes": 50
+      },
+      "pdnc_winniethepooh": {
+        "n": 250,
+        "base_correct": 138,
+        "lora_correct": 144,
+        "base_unanswered": 8,
+        "lora_unanswered": 2,
+        "fixes": 36,
+        "regressions": 30,
+        "regressions_to_unanswered": 1
+      }
+    }
+  },
+  "limitations": [
+    "Stored prediction analysis, not model inference or raw-response replay.",
+    "Roster coverage diagnoses saved samples; categories do not prove causes.",
+    "Historical alias replay does not establish valid serving or training separation."
+  ]
+}

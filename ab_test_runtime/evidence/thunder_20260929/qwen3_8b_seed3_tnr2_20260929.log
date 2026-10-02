@@ -1,0 +1,1775 @@
+2026-09-29T18:52:26+00:00 WAIT for a free GPU
+2026-09-29T18:52:26+00:00 SWEEP qwen3-8b-window25-michel2v2-seed3 on tnr-2, 1 base quants
+2026-09-29T18:52:26+00:00 WAIT for a free GPU
+2026-09-29T18:52:27+00:00 SERVE ud-q2kxl with qwen3-8b-window25-michel2v2-seed3
+2026-09-29T18:52:35+00:00 CELL qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928
+
+pdnc_thesunalsorises: 1759 scoreable lines, roster 49, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=3043 completion=903 | took 11.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3074 completion=936 | took 10.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2437 completion=1371 | took 16.5s
+  finish_reason=stop | tokens: prompt=2586 completion=1286 | took 15.6s
+  finish_reason=stop | tokens: prompt=2633 completion=1229 | took 15.2s
+  finish_reason=stop | tokens: prompt=2491 completion=1280 | took 15.8s
+  finish_reason=stop | tokens: prompt=3418 completion=1313 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3569 completion=1353 | took 15.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3449 completion=1312 | took 14.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 6: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2245 completion=1303 | took 16.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2276 completion=1317 | took 14.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3037 completion=1279 | took 16.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3188 completion=1046 | took 11.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 8: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2728 completion=1345 | took 16.9s
+  finish_reason=stop | tokens: prompt=2665 completion=1339 | took 17.2s
+  finish_reason=stop | tokens: prompt=2759 completion=1320 | took 16.6s
+  finish_reason=stop | tokens: prompt=3080 completion=1167 | took 14.9s
+  finish_reason=stop | tokens: prompt=2547 completion=1346 | took 16.7s
+  finish_reason=stop | tokens: prompt=2411 completion=1312 | took 15.6s
+  finish_reason=stop | tokens: prompt=2750 completion=1375 | took 16.8s
+  finish_reason=stop | tokens: prompt=2797 completion=1272 | took 15.9s
+  finish_reason=stop | tokens: prompt=2600 completion=965 | took 12.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2691 completion=714 | took 7.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 17: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2716 completion=1245 | took 15.1s
+  finish_reason=stop | tokens: prompt=2445 completion=1289 | took 15.8s
+  finish_reason=stop | tokens: prompt=2383 completion=1291 | took 15.6s
+  finish_reason=stop | tokens: prompt=2907 completion=1243 | took 15.4s
+  finish_reason=stop | tokens: prompt=2596 completion=1271 | took 15.9s
+  finish_reason=stop | tokens: prompt=2866 completion=1366 | took 16.8s
+  finish_reason=stop | tokens: prompt=2896 completion=1348 | took 16.9s
+  finish_reason=stop | tokens: prompt=4039 completion=1321 | took 17.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4070 completion=1040 | took 12.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 25: PassExhausted, scoring last attempt
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=2537 completion=1257 | took 16.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2568 completion=1271 | took 13.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 26: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3015 completion=1073 | took 13.5s
+  finish_reason=stop | tokens: prompt=2627 completion=1251 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2758 completion=1290 | took 14.1s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2288 completion=1294 | took 15.8s
+  finish_reason=stop | tokens: prompt=2720 completion=1181 | took 14.8s
+  finish_reason=stop | tokens: prompt=2702 completion=1405 | took 17.8s
+  finish_reason=stop | tokens: prompt=2762 completion=1230 | took 16.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2793 completion=1246 | took 13.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 32: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2412 completion=1260 | took 15.4s
+  finish_reason=stop | tokens: prompt=3321 completion=1257 | took 16.8s
+  finish_reason=stop | tokens: prompt=2981 completion=1370 | took 17.5s
+  finish_reason=stop | tokens: prompt=3010 completion=1287 | took 16.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3041 completion=1245 | took 13.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 36: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3578 completion=1216 | took 15.9s
+  finish_reason=stop | tokens: prompt=2658 completion=1328 | took 17.2s
+  finish_reason=stop | tokens: prompt=2920 completion=1293 | took 16.2s
+  finish_reason=stop | tokens: prompt=2766 completion=1216 | took 15.1s
+  base  166/345 =  48.1%  [42.7-53.5]  unanswered 16  778s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=3227 completion=1215 | took 19.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3378 completion=1237 | took 17.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3268 completion=1215 | took 17.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2621 completion=1244 | took 19.3s
+  finish_reason=stop | tokens: prompt=2591 completion=1011 | took 16.0s
+  finish_reason=stop | tokens: prompt=2633 completion=888 | took 13.9s
+  finish_reason=stop | tokens: prompt=2491 completion=850 | took 13.8s
+  finish_reason=stop | tokens: prompt=3415 completion=1344 | took 20.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3526 completion=1177 | took 16.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2208 completion=1317 | took 20.6s
+  finish_reason=stop | tokens: prompt=3047 completion=1321 | took 20.6s
+  finish_reason=stop | tokens: prompt=2780 completion=1095 | took 17.4s
+  finish_reason=stop | tokens: prompt=2671 completion=1325 | took 20.8s
+  finish_reason=stop | tokens: prompt=2764 completion=1345 | took 20.9s
+  finish_reason=stop | tokens: prompt=3087 completion=936 | took 15.5s
+  finish_reason=stop | tokens: prompt=2551 completion=1365 | took 21.5s
+  finish_reason=stop | tokens: prompt=2409 completion=1362 | took 20.7s
+  finish_reason=stop | tokens: prompt=2761 completion=1335 | took 20.2s
+  finish_reason=stop | tokens: prompt=2795 completion=1287 | took 20.2s
+  finish_reason=stop | tokens: prompt=2613 completion=974 | took 15.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2644 completion=710 | took 9.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 17: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2729 completion=1245 | took 19.4s
+  finish_reason=stop | tokens: prompt=2445 completion=1308 | took 20.1s
+  finish_reason=stop | tokens: prompt=2385 completion=1055 | took 16.6s
+  finish_reason=stop | tokens: prompt=2907 completion=925 | took 15.5s
+  finish_reason=stop | tokens: prompt=2598 completion=1151 | took 17.8s
+  finish_reason=stop | tokens: prompt=2866 completion=1368 | took 21.4s
+  finish_reason=stop | tokens: prompt=2896 completion=1367 | took 21.8s
+  finish_reason=stop | tokens: prompt=4039 completion=1321 | took 22.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4070 completion=1321 | took 19.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 25: PassExhausted, scoring last attempt
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=2537 completion=1278 | took 20.2s
+  finish_reason=stop | tokens: prompt=2739 completion=833 | took 14.0s
+  finish_reason=stop | tokens: prompt=2629 completion=1275 | took 19.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2700 completion=1260 | took 17.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2710 completion=1279 | took 17.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 28: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2306 completion=1300 | took 20.0s
+  finish_reason=stop | tokens: prompt=2714 completion=659 | took 11.3s
+  finish_reason=stop | tokens: prompt=2702 completion=1193 | took 18.5s
+  finish_reason=stop | tokens: prompt=2762 completion=1074 | took 17.8s
+  finish_reason=stop | tokens: prompt=2334 completion=1296 | took 20.7s
+  finish_reason=stop | tokens: prompt=3335 completion=1283 | took 19.9s
+  finish_reason=stop | tokens: prompt=2991 completion=1403 | took 22.6s
+  finish_reason=stop | tokens: prompt=3020 completion=1020 | took 16.5s
+  finish_reason=stop | tokens: prompt=3243 completion=1095 | took 18.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3324 completion=1223 | took 17.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2665 completion=1277 | took 20.6s
+  finish_reason=stop | tokens: prompt=2922 completion=1159 | took 18.2s
+  finish_reason=stop | tokens: prompt=2768 completion=1118 | took 18.2s
+  lora  236/345 =  68.4%  [63.2-73.3]  unanswered 6  882s
+
+pdnc_emma: 998 scoreable lines, roster 16, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=3593 completion=1227 | took 16.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3624 completion=1229 | took 13.9s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=5646 completion=1072 | took 15.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5697 completion=1072 | took 12.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3393 completion=1377 | took 18.2s
+  finish_reason=stop | tokens: prompt=3329 completion=1260 | took 16.8s
+  finish_reason=stop | tokens: prompt=3271 completion=1308 | took 17.2s
+  finish_reason=stop | tokens: prompt=4689 completion=1275 | took 17.4s
+  finish_reason=stop | tokens: prompt=4030 completion=1332 | took 18.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4061 completion=1379 | took 15.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 7: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5273 completion=1196 | took 17.0s
+  finish_reason=stop | tokens: prompt=3065 completion=1336 | took 17.8s
+  finish_reason=stop | tokens: prompt=3443 completion=941 | took 13.2s
+  finish_reason=stop | tokens: prompt=3467 completion=1046 | took 14.1s
+  finish_reason=stop | tokens: prompt=5258 completion=815 | took 12.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5299 completion=1195 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5309 completion=1169 | took 13.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5289 completion=753 | took 8.7s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  base window 12: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4446 completion=1360 | took 18.7s
+  finish_reason=stop | tokens: prompt=3902 completion=1301 | took 17.8s
+  finish_reason=stop | tokens: prompt=3354 completion=1247 | took 16.3s
+  finish_reason=stop | tokens: prompt=2816 completion=1317 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2857 completion=1078 | took 12.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3007 completion=1351 | took 15.1s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=3652 completion=1289 | took 17.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3703 completion=1291 | took 14.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3857 completion=1372 | took 17.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3888 completion=1372 | took 15.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 18: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3093 completion=1302 | took 16.7s
+  finish_reason=stop | tokens: prompt=3575 completion=1367 | took 17.9s
+  finish_reason=stop | tokens: prompt=3414 completion=1279 | took 16.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3455 completion=1305 | took 14.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 21: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3796 completion=1229 | took 16.5s
+  finish_reason=stop | tokens: prompt=2881 completion=1292 | took 16.3s
+  finish_reason=stop | tokens: prompt=2941 completion=1258 | took 15.9s
+  finish_reason=stop | tokens: prompt=2382 completion=1258 | took 15.7s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3430 completion=1301 | took 16.4s
+  finish_reason=stop | tokens: prompt=3890 completion=1209 | took 16.3s
+  finish_reason=stop | tokens: prompt=3695 completion=1284 | took 17.2s
+  finish_reason=stop | tokens: prompt=3287 completion=1306 | took 17.5s
+  finish_reason=stop | tokens: prompt=2898 completion=1283 | took 16.7s
+  finish_reason=stop | tokens: prompt=2702 completion=1100 | took 14.3s
+  finish_reason=stop | tokens: prompt=4025 completion=1266 | took 16.9s
+  finish_reason=stop | tokens: prompt=3015 completion=1264 | took 16.7s
+  finish_reason=stop | tokens: prompt=3137 completion=1326 | took 17.1s
+  finish_reason=stop | tokens: prompt=4345 completion=1245 | took 16.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4376 completion=894 | took 10.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4506 completion=1234 | took 14.6s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=3373 completion=1237 | took 16.9s
+  finish_reason=stop | tokens: prompt=3398 completion=1263 | took 16.8s
+  finish_reason=stop | tokens: prompt=3275 completion=1291 | took 17.3s
+  finish_reason=stop | tokens: prompt=4089 completion=1239 | took 16.8s
+  finish_reason=stop | tokens: prompt=3349 completion=1271 | took 17.0s
+  base  196/318 =  61.6%  [56.0-67.0]  unanswered 3  841s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=4086 completion=1229 | took 20.9s
+  finish_reason=stop | tokens: prompt=5646 completion=1082 | took 19.6s
+  finish_reason=stop | tokens: prompt=3094 completion=1398 | took 22.5s
+  finish_reason=stop | tokens: prompt=3329 completion=858 | took 14.8s
+  finish_reason=stop | tokens: prompt=3271 completion=1334 | took 21.5s
+  finish_reason=stop | tokens: prompt=4689 completion=1273 | took 21.7s
+  finish_reason=stop | tokens: prompt=4015 completion=1365 | took 22.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4046 completion=1384 | took 19.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 7: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5258 completion=1196 | took 20.7s
+  finish_reason=stop | tokens: prompt=3067 completion=1365 | took 22.3s
+  finish_reason=stop | tokens: prompt=3448 completion=1290 | took 20.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3509 completion=1286 | took 18.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3477 completion=1229 | took 20.3s
+  finish_reason=stop | tokens: prompt=5266 completion=1201 | took 21.3s
+  finish_reason=stop | tokens: prompt=4457 completion=1326 | took 22.8s
+  finish_reason=stop | tokens: prompt=3897 completion=1302 | took 21.8s
+  finish_reason=stop | tokens: prompt=3361 completion=1189 | took 19.3s
+  finish_reason=stop | tokens: prompt=2816 completion=1307 | took 20.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2887 completion=1319 | took 18.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2857 completion=1345 | took 18.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2867 completion=1312 | took 18.4s
+  Succeeded on retry 4
+  finish_reason=stop | tokens: prompt=3631 completion=1320 | took 21.0s
+  finish_reason=stop | tokens: prompt=3865 completion=1344 | took 22.4s
+  finish_reason=stop | tokens: prompt=3590 completion=1313 | took 21.6s
+  finish_reason=stop | tokens: prompt=3571 completion=1389 | took 23.0s
+  finish_reason=stop | tokens: prompt=3430 completion=1309 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3471 completion=1293 | took 18.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3466 completion=1016 | took 17.3s
+  finish_reason=stop | tokens: prompt=2882 completion=1292 | took 20.3s
+  finish_reason=stop | tokens: prompt=2941 completion=1040 | took 16.8s
+  finish_reason=stop | tokens: prompt=2367 completion=1240 | took 19.2s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=3412 completion=667 | took 11.8s
+  finish_reason=stop | tokens: prompt=3888 completion=902 | took 15.4s
+  finish_reason=stop | tokens: prompt=3695 completion=1296 | took 20.6s
+  finish_reason=stop | tokens: prompt=3283 completion=1330 | took 21.6s
+  finish_reason=stop | tokens: prompt=2900 completion=1272 | took 20.2s
+  finish_reason=stop | tokens: prompt=2702 completion=1083 | took 17.2s
+  finish_reason=stop | tokens: prompt=4023 completion=1280 | took 20.7s
+  finish_reason=stop | tokens: prompt=3013 completion=1238 | took 20.3s
+  finish_reason=stop | tokens: prompt=3137 completion=1314 | took 20.4s
+  finish_reason=stop | tokens: prompt=4327 completion=1266 | took 21.0s
+  finish_reason=stop | tokens: prompt=3387 completion=1263 | took 20.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3418 completion=922 | took 13.1s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3404 completion=1270 | took 20.5s
+  finish_reason=stop | tokens: prompt=3282 completion=1280 | took 20.7s
+  finish_reason=stop | tokens: prompt=4082 completion=1133 | took 19.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4123 completion=1260 | took 18.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3356 completion=1272 | took 20.5s
+  lora  241/318 =  75.8%  [70.7-80.4]  unanswered 0  951s
+
+pdnc_prideandprejudice: 836 scoreable lines, roster 74, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=2263 completion=1291 | took 15.9s
+  finish_reason=stop | tokens: prompt=2927 completion=1290 | took 16.2s
+  finish_reason=stop | tokens: prompt=4136 completion=1236 | took 15.9s
+  finish_reason=stop | tokens: prompt=3921 completion=1288 | took 17.2s
+  finish_reason=stop | tokens: prompt=3147 completion=1320 | took 16.7s
+  finish_reason=stop | tokens: prompt=2945 completion=1264 | took 16.6s
+  finish_reason=stop | tokens: prompt=3366 completion=1245 | took 15.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3537 completion=1245 | took 13.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 7: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2892 completion=1349 | took 16.8s
+  finish_reason=stop | tokens: prompt=3767 completion=1253 | took 16.4s
+  finish_reason=stop | tokens: prompt=3571 completion=1182 | took 15.5s
+  finish_reason=stop | tokens: prompt=4452 completion=1296 | took 17.8s
+  finish_reason=stop | tokens: prompt=3637 completion=1283 | took 17.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3678 completion=1281 | took 14.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4412 completion=1262 | took 17.6s
+  finish_reason=stop | tokens: prompt=3290 completion=1287 | took 16.9s
+  finish_reason=stop | tokens: prompt=3538 completion=1015 | took 13.9s
+  finish_reason=stop | tokens: prompt=3522 completion=1292 | took 17.1s
+  finish_reason=stop | tokens: prompt=3952 completion=1260 | took 16.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4133 completion=1271 | took 14.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3983 completion=1099 | took 12.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 17: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4739 completion=1324 | took 18.3s
+  finish_reason=stop | tokens: prompt=4297 completion=1264 | took 17.4s
+  finish_reason=stop | tokens: prompt=4611 completion=1234 | took 17.1s
+  finish_reason=stop | tokens: prompt=3445 completion=789 | took 11.5s
+  finish_reason=stop | tokens: prompt=3071 completion=1275 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3102 completion=1276 | took 14.1s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=8051 completion=1149 | took 17.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8082 completion=1143 | took 14.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8142 completion=1161 | took 14.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 23: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3310 completion=1270 | took 17.6s
+  finish_reason=stop | tokens: prompt=3898 completion=1272 | took 17.0s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=4668 completion=742 | took 11.4s
+  finish_reason=stop | tokens: prompt=3190 completion=1296 | took 17.3s
+  finish_reason=stop | tokens: prompt=5527 completion=803 | took 11.9s
+  finish_reason=stop | tokens: prompt=4284 completion=1254 | took 17.0s
+  finish_reason=stop | tokens: prompt=3734 completion=1349 | took 18.0s
+  finish_reason=stop | tokens: prompt=3133 completion=1259 | took 16.1s
+  finish_reason=stop | tokens: prompt=3130 completion=1282 | took 16.1s
+  finish_reason=stop | tokens: prompt=3971 completion=1237 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4002 completion=1245 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4052 completion=1231 | took 13.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 33: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3406 completion=1309 | took 16.7s
+  finish_reason=stop | tokens: prompt=3995 completion=1220 | took 16.3s
+  finish_reason=stop | tokens: prompt=3894 completion=1242 | took 16.4s
+  finish_reason=stop | tokens: prompt=2958 completion=1346 | took 17.3s
+  finish_reason=stop | tokens: prompt=4228 completion=1263 | took 16.7s
+  finish_reason=stop | tokens: prompt=3752 completion=1315 | took 17.3s
+  finish_reason=stop | tokens: prompt=3705 completion=1245 | took 16.4s
+  base  175/296 =  59.1%  [53.3-64.8]  unanswered 5  781s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=2942 completion=1292 | took 20.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3133 completion=1160 | took 16.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2932 completion=1311 | took 20.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2963 completion=1316 | took 18.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4140 completion=955 | took 17.0s
+  finish_reason=stop | tokens: prompt=3915 completion=1300 | took 21.1s
+  finish_reason=stop | tokens: prompt=3145 completion=1343 | took 21.3s
+  finish_reason=stop | tokens: prompt=2949 completion=1283 | took 20.7s
+  finish_reason=stop | tokens: prompt=3377 completion=1225 | took 19.4s
+  finish_reason=stop | tokens: prompt=3052 completion=1409 | took 22.0s
+  finish_reason=stop | tokens: prompt=3781 completion=1121 | took 18.4s
+  finish_reason=stop | tokens: prompt=3570 completion=1279 | took 21.1s
+  finish_reason=stop | tokens: prompt=4456 completion=1103 | took 18.7s
+  finish_reason=stop | tokens: prompt=3638 completion=1319 | took 22.1s
+  finish_reason=stop | tokens: prompt=4423 completion=1163 | took 19.8s
+  finish_reason=stop | tokens: prompt=3290 completion=1299 | took 20.9s
+  finish_reason=stop | tokens: prompt=3538 completion=1299 | took 20.9s
+  finish_reason=stop | tokens: prompt=3524 completion=1304 | took 20.8s
+  finish_reason=stop | tokens: prompt=3956 completion=994 | took 16.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3987 completion=915 | took 13.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 17: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4743 completion=1301 | took 21.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4774 completion=1245 | took 18.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4914 completion=1297 | took 19.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4834 completion=1061 | took 15.4s
+  Succeeded on retry 4
+  finish_reason=stop | tokens: prompt=4282 completion=1273 | took 21.6s
+  finish_reason=stop | tokens: prompt=4617 completion=1269 | took 21.6s
+  finish_reason=stop | tokens: prompt=3477 completion=1326 | took 21.5s
+  finish_reason=stop | tokens: prompt=3071 completion=1307 | took 20.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3132 completion=1314 | took 18.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=8060 completion=1168 | took 22.2s
+  finish_reason=stop | tokens: prompt=3947 completion=1268 | took 22.0s
+  finish_reason=stop | tokens: prompt=3896 completion=1259 | took 20.6s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=4672 completion=886 | took 15.7s
+  finish_reason=stop | tokens: prompt=3190 completion=1296 | took 20.5s
+  finish_reason=stop | tokens: prompt=5527 completion=952 | took 17.3s
+  finish_reason=stop | tokens: prompt=4286 completion=1268 | took 21.4s
+  finish_reason=stop | tokens: prompt=3728 completion=1336 | took 21.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3799 completion=635 | took 9.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3103 completion=1126 | took 18.3s
+  finish_reason=stop | tokens: prompt=3127 completion=1299 | took 20.1s
+  finish_reason=stop | tokens: prompt=3967 completion=1036 | took 17.4s
+  finish_reason=stop | tokens: prompt=3244 completion=1350 | took 21.4s
+  finish_reason=stop | tokens: prompt=4004 completion=1232 | took 20.2s
+  finish_reason=stop | tokens: prompt=3894 completion=1257 | took 20.4s
+  finish_reason=stop | tokens: prompt=2956 completion=1344 | took 21.1s
+  finish_reason=stop | tokens: prompt=4210 completion=928 | took 15.7s
+  finish_reason=stop | tokens: prompt=3746 completion=1330 | took 21.5s
+  finish_reason=stop | tokens: prompt=3712 completion=1259 | took 20.4s
+  lora  215/296 =  72.6%  [67.2-77.6]  unanswered 0  936s
+
+pdnc_mansfieldpark: 734 scoreable lines, roster 35, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=4689 completion=1250 | took 17.0s
+  finish_reason=stop | tokens: prompt=5466 completion=1265 | took 18.0s
+  finish_reason=stop | tokens: prompt=4345 completion=1305 | took 18.0s
+  finish_reason=stop | tokens: prompt=3882 completion=1395 | took 18.6s
+  finish_reason=stop | tokens: prompt=3420 completion=1294 | took 17.2s
+  finish_reason=stop | tokens: prompt=3540 completion=1353 | took 17.7s
+  finish_reason=stop | tokens: prompt=2778 completion=1318 | took 16.7s
+  finish_reason=stop | tokens: prompt=2735 completion=1317 | took 16.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2766 completion=1320 | took 14.8s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3040 completion=1330 | took 16.8s
+  finish_reason=stop | tokens: prompt=3454 completion=1354 | took 17.5s
+  finish_reason=stop | tokens: prompt=2975 completion=1316 | took 17.2s
+  finish_reason=stop | tokens: prompt=3661 completion=1328 | took 17.3s
+  finish_reason=stop | tokens: prompt=3330 completion=1322 | took 17.4s
+  finish_reason=stop | tokens: prompt=3637 completion=1300 | took 17.4s
+  finish_reason=stop | tokens: prompt=4832 completion=1245 | took 17.5s
+  finish_reason=stop | tokens: prompt=3912 completion=1287 | took 17.3s
+  finish_reason=stop | tokens: prompt=3403 completion=1310 | took 17.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3434 completion=1311 | took 14.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4335 completion=1248 | took 16.8s
+  finish_reason=stop | tokens: prompt=3198 completion=1200 | took 16.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3269 completion=1210 | took 13.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3642 completion=1247 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3683 completion=1264 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 20: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4788 completion=1143 | took 15.8s
+  finish_reason=stop | tokens: prompt=3005 completion=1275 | took 16.7s
+  finish_reason=stop | tokens: prompt=2985 completion=1318 | took 16.7s
+  finish_reason=stop | tokens: prompt=2768 completion=1278 | took 16.1s
+  finish_reason=stop | tokens: prompt=3525 completion=1342 | took 17.0s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3895 completion=1281 | took 16.9s
+  finish_reason=stop | tokens: prompt=3742 completion=1230 | took 16.2s
+  finish_reason=stop | tokens: prompt=3518 completion=1249 | took 16.5s
+  finish_reason=stop | tokens: prompt=2858 completion=1334 | took 17.0s
+  finish_reason=stop | tokens: prompt=3200 completion=1269 | took 16.1s
+  finish_reason=stop | tokens: prompt=4605 completion=1273 | took 17.6s
+  finish_reason=stop | tokens: prompt=3837 completion=1236 | took 16.4s
+  finish_reason=stop | tokens: prompt=3505 completion=986 | took 13.4s
+  finish_reason=stop | tokens: prompt=3216 completion=1265 | took 16.2s
+  finish_reason=stop | tokens: prompt=3765 completion=1312 | took 17.0s
+  finish_reason=stop | tokens: prompt=4371 completion=1255 | took 17.1s
+  finish_reason=stop | tokens: prompt=4753 completion=1208 | took 16.9s
+  finish_reason=stop | tokens: prompt=6940 completion=654 | took 11.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=6971 completion=1129 | took 13.6s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=6654 completion=1114 | took 17.5s
+  finish_reason=stop | tokens: prompt=6118 completion=1121 | took 17.4s
+  base  155/271 =  57.2%  [51.1-63.2]  unanswered 2  742s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=5249 completion=721 | took 14.8s
+  finish_reason=stop | tokens: prompt=5467 completion=809 | took 15.9s
+  finish_reason=stop | tokens: prompt=4345 completion=1305 | took 22.6s
+  finish_reason=stop | tokens: prompt=3882 completion=1426 | took 23.3s
+  finish_reason=stop | tokens: prompt=3424 completion=1292 | took 21.4s
+  finish_reason=stop | tokens: prompt=3538 completion=1356 | took 22.2s
+  finish_reason=stop | tokens: prompt=2780 completion=1249 | took 20.0s
+  finish_reason=stop | tokens: prompt=2739 completion=1336 | took 21.0s
+  finish_reason=stop | tokens: prompt=3039 completion=1330 | took 21.1s
+  finish_reason=stop | tokens: prompt=3453 completion=1338 | took 21.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3514 completion=1347 | took 19.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3484 completion=1343 | took 18.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 10: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3389 completion=1339 | took 21.0s
+  finish_reason=stop | tokens: prompt=3666 completion=1161 | took 19.5s
+  finish_reason=stop | tokens: prompt=3323 completion=1237 | took 20.3s
+  finish_reason=stop | tokens: prompt=3635 completion=1337 | took 21.7s
+  finish_reason=stop | tokens: prompt=4840 completion=669 | took 13.2s
+  finish_reason=stop | tokens: prompt=3912 completion=1100 | took 18.7s
+  finish_reason=stop | tokens: prompt=3428 completion=1253 | took 20.6s
+  finish_reason=stop | tokens: prompt=4334 completion=1247 | took 21.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4365 completion=1206 | took 17.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3197 completion=1213 | took 19.8s
+  finish_reason=stop | tokens: prompt=3644 completion=1264 | took 20.6s
+  finish_reason=stop | tokens: prompt=5515 completion=741 | took 14.5s
+  finish_reason=stop | tokens: prompt=3003 completion=1160 | took 19.3s
+  finish_reason=stop | tokens: prompt=2985 completion=1232 | took 19.5s
+  finish_reason=stop | tokens: prompt=2769 completion=855 | took 14.3s
+  finish_reason=stop | tokens: prompt=3525 completion=1277 | took 20.8s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=3895 completion=1295 | took 21.7s
+  finish_reason=stop | tokens: prompt=3747 completion=1282 | took 21.8s
+  finish_reason=stop | tokens: prompt=3542 completion=1267 | took 20.6s
+  finish_reason=stop | tokens: prompt=2862 completion=1325 | took 21.1s
+  finish_reason=stop | tokens: prompt=3204 completion=1321 | took 21.0s
+  finish_reason=stop | tokens: prompt=4626 completion=1269 | took 21.4s
+  finish_reason=stop | tokens: prompt=3837 completion=1248 | took 21.0s
+  finish_reason=stop | tokens: prompt=3505 completion=956 | took 16.4s
+  finish_reason=stop | tokens: prompt=3216 completion=1133 | took 18.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3267 completion=1246 | took 17.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3763 completion=1296 | took 21.1s
+  finish_reason=stop | tokens: prompt=4369 completion=1253 | took 21.0s
+  finish_reason=stop | tokens: prompt=4751 completion=664 | took 13.1s
+  finish_reason=stop | tokens: prompt=6943 completion=779 | took 16.1s
+  finish_reason=stop | tokens: prompt=6681 completion=1156 | took 22.2s
+  finish_reason=stop | tokens: prompt=6153 completion=1038 | took 20.4s
+  lora  177/271 =  65.3%  [59.3-71.0]  unanswered 1  860s
+
+pdnc_senseandsensibility: 609 scoreable lines, roster 22, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=4111 completion=1246 | took 17.9s
+  finish_reason=stop | tokens: prompt=3921 completion=1245 | took 17.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3972 completion=1239 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 2: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4268 completion=1179 | took 16.4s
+  finish_reason=stop | tokens: prompt=2251 completion=1276 | took 16.0s
+  finish_reason=stop | tokens: prompt=3744 completion=1109 | took 14.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3785 completion=956 | took 11.0s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3300 completion=1293 | took 16.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3331 completion=1285 | took 14.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3341 completion=1294 | took 14.5s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2518 completion=1111 | took 14.5s
+  finish_reason=stop | tokens: prompt=3522 completion=1271 | took 16.4s
+  finish_reason=stop | tokens: prompt=3750 completion=1335 | took 17.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3981 completion=1335 | took 15.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 9: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2865 completion=1255 | took 16.3s
+  finish_reason=stop | tokens: prompt=2559 completion=1263 | took 16.2s
+  finish_reason=stop | tokens: prompt=3391 completion=1264 | took 16.5s
+  finish_reason=stop | tokens: prompt=4236 completion=1280 | took 17.3s
+  finish_reason=stop | tokens: prompt=2785 completion=972 | took 13.3s
+  finish_reason=stop | tokens: prompt=2874 completion=1334 | took 16.8s
+  finish_reason=stop | tokens: prompt=2884 completion=1249 | took 16.0s
+  finish_reason=stop | tokens: prompt=2753 completion=1269 | took 16.2s
+  finish_reason=stop | tokens: prompt=3406 completion=1216 | took 15.8s
+  finish_reason=stop | tokens: prompt=3219 completion=1299 | took 17.0s
+  finish_reason=stop | tokens: prompt=4474 completion=1298 | took 17.8s
+  finish_reason=stop | tokens: prompt=3282 completion=1132 | took 15.4s
+  finish_reason=stop | tokens: prompt=3307 completion=981 | took 13.4s
+  finish_reason=stop | tokens: prompt=3504 completion=1258 | took 16.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3555 completion=851 | took 9.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3565 completion=1245 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3595 completion=1249 | took 14.2s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  base window 23: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3426 completion=1288 | took 17.0s
+  finish_reason=stop | tokens: prompt=3232 completion=1292 | took 16.6s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3006 completion=1265 | took 16.4s
+  finish_reason=stop | tokens: prompt=2457 completion=1303 | took 16.4s
+  finish_reason=stop | tokens: prompt=3442 completion=1340 | took 17.5s
+  finish_reason=stop | tokens: prompt=3901 completion=1253 | took 17.1s
+  finish_reason=stop | tokens: prompt=4437 completion=1200 | took 16.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4578 completion=1220 | took 14.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3373 completion=1283 | took 17.1s
+  finish_reason=stop | tokens: prompt=4251 completion=1323 | took 18.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): entry has a missing or out-of-range index n=13; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4285 completion=1185 | took 13.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3079 completion=1308 | took 17.2s
+  finish_reason=stop | tokens: prompt=3921 completion=1308 | took 17.4s
+  finish_reason=stop | tokens: prompt=5091 completion=1078 | took 15.6s
+  finish_reason=stop | tokens: prompt=2575 completion=1275 | took 16.9s
+  finish_reason=stop | tokens: prompt=5181 completion=1353 | took 18.5s
+  finish_reason=stop | tokens: prompt=4996 completion=1166 | took 17.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5027 completion=1112 | took 12.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 38: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3687 completion=1269 | took 16.8s
+  finish_reason=stop | tokens: prompt=4769 completion=1188 | took 16.4s
+  base  131/223 =  58.7%  [52.0-65.3]  unanswered 18  810s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=4760 completion=1140 | took 20.0s
+  finish_reason=stop | tokens: prompt=3904 completion=1076 | took 18.3s
+  finish_reason=stop | tokens: prompt=3967 completion=1141 | took 19.3s
+  finish_reason=stop | tokens: prompt=2251 completion=1316 | took 20.3s
+  finish_reason=stop | tokens: prompt=3759 completion=1251 | took 20.1s
+  finish_reason=stop | tokens: prompt=3302 completion=1153 | took 18.7s
+  finish_reason=stop | tokens: prompt=2520 completion=1309 | took 20.7s
+  finish_reason=stop | tokens: prompt=3537 completion=1292 | took 20.9s
+  finish_reason=stop | tokens: prompt=3765 completion=1392 | took 22.7s
+  finish_reason=stop | tokens: prompt=3343 completion=1127 | took 18.5s
+  finish_reason=stop | tokens: prompt=2558 completion=1068 | took 17.0s
+  finish_reason=stop | tokens: prompt=3391 completion=1264 | took 20.0s
+  finish_reason=stop | tokens: prompt=4236 completion=1009 | took 17.4s
+  finish_reason=stop | tokens: prompt=2786 completion=850 | took 14.4s
+  finish_reason=stop | tokens: prompt=2874 completion=1358 | took 21.2s
+  finish_reason=stop | tokens: prompt=2888 completion=1254 | took 19.9s
+  finish_reason=stop | tokens: prompt=2755 completion=1287 | took 20.0s
+  finish_reason=stop | tokens: prompt=3412 completion=1211 | took 19.7s
+  finish_reason=stop | tokens: prompt=3225 completion=1306 | took 20.8s
+  finish_reason=stop | tokens: prompt=4465 completion=1296 | took 21.4s
+  finish_reason=stop | tokens: prompt=3280 completion=1215 | took 20.1s
+  finish_reason=stop | tokens: prompt=3301 completion=1246 | took 20.3s
+  finish_reason=stop | tokens: prompt=3504 completion=1245 | took 20.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3665 completion=1264 | took 18.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3555 completion=1248 | took 17.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3635 completion=1267 | took 17.9s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  lora window 23: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3426 completion=1236 | took 20.1s
+  finish_reason=stop | tokens: prompt=3231 completion=1309 | took 20.8s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=3006 completion=1263 | took 19.9s
+  finish_reason=stop | tokens: prompt=2455 completion=1076 | took 17.0s
+  finish_reason=stop | tokens: prompt=3439 completion=1352 | took 21.5s
+  finish_reason=stop | tokens: prompt=3893 completion=973 | took 16.6s
+  finish_reason=stop | tokens: prompt=4437 completion=1242 | took 20.7s
+  finish_reason=stop | tokens: prompt=3379 completion=1211 | took 19.8s
+  finish_reason=stop | tokens: prompt=4249 completion=1253 | took 20.6s
+  finish_reason=stop | tokens: prompt=3078 completion=1319 | took 21.5s
+  finish_reason=stop | tokens: prompt=3921 completion=1301 | took 21.5s
+  finish_reason=stop | tokens: prompt=5090 completion=1107 | took 19.4s
+  finish_reason=stop | tokens: prompt=2575 completion=1278 | took 20.5s
+  finish_reason=stop | tokens: prompt=5187 completion=1360 | took 22.9s
+  finish_reason=stop | tokens: prompt=5004 completion=1176 | took 21.0s
+  finish_reason=stop | tokens: prompt=2945 completion=1272 | took 21.1s
+  finish_reason=stop | tokens: prompt=4768 completion=1199 | took 20.4s
+  lora  177/223 =  79.4%  [73.5-84.5]  unanswered 0  852s
+
+pdnc_northangerabbey: 672 scoreable lines, roster 18, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=3906 completion=1060 | took 15.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3937 completion=1187 | took 13.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4027 completion=1173 | took 13.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2965 completion=1299 | took 16.8s
+  finish_reason=stop | tokens: prompt=2847 completion=1336 | took 17.0s
+  finish_reason=stop | tokens: prompt=3974 completion=1094 | took 15.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4015 completion=1190 | took 13.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4025 completion=965 | took 10.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 4: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3485 completion=1314 | took 17.4s
+  finish_reason=stop | tokens: prompt=3351 completion=1300 | took 17.3s
+  finish_reason=stop | tokens: prompt=2792 completion=1341 | took 17.1s
+  finish_reason=stop | tokens: prompt=3090 completion=1307 | took 16.8s
+  finish_reason=stop | tokens: prompt=3817 completion=1334 | took 17.8s
+  finish_reason=stop | tokens: prompt=3505 completion=1294 | took 17.0s
+  finish_reason=stop | tokens: prompt=2833 completion=1296 | took 16.9s
+  finish_reason=stop | tokens: prompt=2883 completion=1344 | took 16.8s
+  finish_reason=stop | tokens: prompt=3952 completion=1311 | took 17.0s
+  finish_reason=stop | tokens: prompt=3597 completion=1423 | took 18.6s
+  finish_reason=stop | tokens: prompt=2885 completion=1293 | took 16.8s
+  finish_reason=stop | tokens: prompt=2713 completion=1363 | took 17.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2744 completion=1380 | took 15.1s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3359 completion=1270 | took 16.4s
+  finish_reason=stop | tokens: prompt=2820 completion=1327 | took 16.6s
+  finish_reason=stop | tokens: prompt=2862 completion=1268 | took 16.3s
+  finish_reason=stop | tokens: prompt=3794 completion=1279 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3825 completion=1299 | took 14.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3312 completion=1317 | took 17.1s
+  finish_reason=stop | tokens: prompt=4043 completion=1304 | took 17.5s
+  finish_reason=stop | tokens: prompt=2903 completion=938 | took 12.7s
+  finish_reason=stop | tokens: prompt=2978 completion=1326 | took 16.5s
+  finish_reason=stop | tokens: prompt=3074 completion=1380 | took 17.4s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3851 completion=1306 | took 17.1s
+  finish_reason=stop | tokens: prompt=3429 completion=1371 | took 17.9s
+  finish_reason=stop | tokens: prompt=2649 completion=1343 | took 16.9s
+  finish_reason=stop | tokens: prompt=4684 completion=1309 | took 17.6s
+  finish_reason=stop | tokens: prompt=5700 completion=1186 | took 17.7s
+  finish_reason=stop | tokens: prompt=3413 completion=1240 | took 16.8s
+  finish_reason=stop | tokens: prompt=2650 completion=1261 | took 15.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2681 completion=1263 | took 13.6s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=5003 completion=1168 | took 16.5s
+  finish_reason=stop | tokens: prompt=2555 completion=1309 | took 16.9s
+  finish_reason=stop | tokens: prompt=4838 completion=1240 | took 16.8s
+  finish_reason=stop | tokens: prompt=2488 completion=1331 | took 17.1s
+  finish_reason=stop | tokens: prompt=4306 completion=1201 | took 15.9s
+  finish_reason=stop | tokens: prompt=4092 completion=1018 | took 14.3s
+  finish_reason=stop | tokens: prompt=4853 completion=1211 | took 17.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4884 completion=1210 | took 13.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 39: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5541 completion=753 | took 12.6s
+  base  272/409 =  66.5%  [61.7-71.1]  unanswered 1  775s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=4245 completion=1218 | took 21.1s
+  finish_reason=stop | tokens: prompt=3226 completion=1323 | took 21.0s
+  finish_reason=stop | tokens: prompt=2855 completion=1325 | took 21.0s
+  finish_reason=stop | tokens: prompt=3986 completion=913 | took 15.7s
+  finish_reason=stop | tokens: prompt=3442 completion=1334 | took 21.6s
+  finish_reason=stop | tokens: prompt=3351 completion=1317 | took 21.0s
+  finish_reason=stop | tokens: prompt=2792 completion=1250 | took 19.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2863 completion=1343 | took 18.8s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3094 completion=1307 | took 20.4s
+  finish_reason=stop | tokens: prompt=3817 completion=858 | took 14.9s
+  finish_reason=stop | tokens: prompt=3506 completion=1183 | took 19.2s
+  finish_reason=stop | tokens: prompt=2834 completion=1345 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2865 completion=1350 | took 18.6s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2903 completion=1391 | took 21.6s
+  finish_reason=stop | tokens: prompt=3978 completion=767 | took 13.6s
+  finish_reason=stop | tokens: prompt=3602 completion=1097 | took 18.5s
+  finish_reason=stop | tokens: prompt=2891 completion=1108 | took 17.7s
+  finish_reason=stop | tokens: prompt=2713 completion=1379 | took 21.5s
+  finish_reason=stop | tokens: prompt=3359 completion=1271 | took 20.4s
+  finish_reason=stop | tokens: prompt=2821 completion=1326 | took 20.9s
+  finish_reason=stop | tokens: prompt=2862 completion=1274 | took 20.2s
+  finish_reason=stop | tokens: prompt=3792 completion=1092 | took 17.8s
+  finish_reason=stop | tokens: prompt=3312 completion=1317 | took 21.1s
+  finish_reason=stop | tokens: prompt=4042 completion=1314 | took 21.4s
+  finish_reason=stop | tokens: prompt=2918 completion=1228 | took 19.6s
+  finish_reason=stop | tokens: prompt=2978 completion=1326 | took 20.4s
+  finish_reason=stop | tokens: prompt=3074 completion=1404 | took 22.2s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=3850 completion=1328 | took 21.6s
+  finish_reason=stop | tokens: prompt=3431 completion=1390 | took 22.2s
+  finish_reason=stop | tokens: prompt=2647 completion=1362 | took 21.2s
+  finish_reason=stop | tokens: prompt=4684 completion=1309 | took 22.3s
+  finish_reason=stop | tokens: prompt=5700 completion=1002 | took 18.7s
+  finish_reason=stop | tokens: prompt=3413 completion=1254 | took 21.0s
+  finish_reason=stop | tokens: prompt=2650 completion=1018 | took 16.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2751 completion=1236 | took 17.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=5010 completion=1167 | took 20.0s
+  finish_reason=stop | tokens: prompt=2554 completion=1309 | took 20.7s
+  finish_reason=stop | tokens: prompt=4838 completion=1001 | took 17.5s
+  finish_reason=stop | tokens: prompt=2488 completion=1353 | took 21.1s
+  finish_reason=stop | tokens: prompt=4307 completion=966 | took 16.5s
+  finish_reason=stop | tokens: prompt=4094 completion=1335 | took 21.7s
+  finish_reason=stop | tokens: prompt=4856 completion=1219 | took 20.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4897 completion=1223 | took 17.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 39: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5544 completion=835 | took 15.7s
+  lora  346/409 =  84.6%  [80.7-88.0]  unanswered 1  866s
+
+pdnc_persuasion: 309 scoreable lines, roster 33, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=4769 completion=1212 | took 17.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4800 completion=1212 | took 13.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2852 completion=1289 | took 16.8s
+  finish_reason=stop | tokens: prompt=4082 completion=1268 | took 16.3s
+  finish_reason=stop | tokens: prompt=4202 completion=1264 | took 17.1s
+  finish_reason=stop | tokens: prompt=3455 completion=1354 | took 17.4s
+  finish_reason=stop | tokens: prompt=4810 completion=1210 | took 16.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4851 completion=1185 | took 13.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4941 completion=1059 | took 12.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4841 completion=1214 | took 13.8s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name.; metrics={}
+  base window 6: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5360 completion=1229 | took 17.2s
+  finish_reason=stop | tokens: prompt=4313 completion=1267 | took 17.5s
+  finish_reason=stop | tokens: prompt=2890 completion=1321 | took 16.8s
+  finish_reason=stop | tokens: prompt=3701 completion=1289 | took 16.8s
+  finish_reason=stop | tokens: prompt=5317 completion=1252 | took 17.5s
+  finish_reason=stop | tokens: prompt=4450 completion=1070 | took 15.3s
+  finish_reason=stop | tokens: prompt=4306 completion=1323 | took 17.9s
+  finish_reason=stop | tokens: prompt=5024 completion=1214 | took 17.1s
+  finish_reason=stop | tokens: prompt=3506 completion=1269 | took 17.1s
+  finish_reason=stop | tokens: prompt=3590 completion=1073 | took 14.6s
+  finish_reason=stop | tokens: prompt=5004 completion=1191 | took 16.7s
+  finish_reason=stop | tokens: prompt=4360 completion=1254 | took 17.8s
+  finish_reason=stop | tokens: prompt=3351 completion=1273 | took 17.0s
+  finish_reason=stop | tokens: prompt=4633 completion=623 | took 9.8s
+  finish_reason=stop | tokens: prompt=3268 completion=1276 | took 16.7s
+  finish_reason=stop | tokens: prompt=4185 completion=886 | took 12.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4216 completion=1237 | took 13.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 22: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2844 completion=1290 | took 16.3s
+  finish_reason=stop | tokens: prompt=3827 completion=1230 | took 16.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3988 completion=965 | took 10.8s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4798 completion=1315 | took 18.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4829 completion=1260 | took 14.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4979 completion=1051 | took 12.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 25: PassExhausted, scoring last attempt
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3320 completion=1323 | took 17.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3351 completion=1323 | took 14.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 26: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3936 completion=928 | took 12.6s
+  finish_reason=stop | tokens: prompt=3694 completion=1299 | took 17.0s
+  finish_reason=stop | tokens: prompt=3650 completion=1197 | took 15.6s
+  finish_reason=stop | tokens: prompt=2653 completion=1302 | took 16.2s
+  finish_reason=stop | tokens: prompt=3552 completion=1310 | took 16.8s
+  finish_reason=stop | tokens: prompt=3874 completion=1338 | took 17.5s
+  finish_reason=stop | tokens: prompt=4104 completion=1321 | took 17.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4135 completion=1319 | took 14.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4155 completion=1321 | took 14.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 33: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5678 completion=1220 | took 17.0s
+  finish_reason=stop | tokens: prompt=4777 completion=1004 | took 14.9s
+  finish_reason=stop | tokens: prompt=4417 completion=1267 | took 17.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4448 completion=1169 | took 13.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): duplicate index n=0; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4443 completion=786 | took 8.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 36: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4982 completion=1273 | took 17.1s
+  finish_reason=stop | tokens: prompt=3031 completion=1334 | took 17.5s
+  finish_reason=stop | tokens: prompt=3693 completion=1258 | took 16.3s
+  finish_reason=stop | tokens: prompt=5187 completion=1261 | took 17.5s
+  base  140/219 =  63.9%  [57.2-70.3]  unanswered 2  831s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=5586 completion=921 | took 17.5s
+  finish_reason=stop | tokens: prompt=3491 completion=1305 | took 21.3s
+  finish_reason=stop | tokens: prompt=4079 completion=1277 | took 20.9s
+  finish_reason=stop | tokens: prompt=4207 completion=1282 | took 21.4s
+  finish_reason=stop | tokens: prompt=3460 completion=1362 | took 21.8s
+  finish_reason=stop | tokens: prompt=4814 completion=1218 | took 21.0s
+  finish_reason=stop | tokens: prompt=5629 completion=1229 | took 21.9s
+  finish_reason=stop | tokens: prompt=4303 completion=1145 | took 19.5s
+  finish_reason=stop | tokens: prompt=2888 completion=1342 | took 21.5s
+  finish_reason=stop | tokens: prompt=3701 completion=1302 | took 21.4s
+  finish_reason=stop | tokens: prompt=5328 completion=1242 | took 21.4s
+  finish_reason=stop | tokens: prompt=4454 completion=1251 | took 21.3s
+  finish_reason=stop | tokens: prompt=4303 completion=1321 | took 21.9s
+  finish_reason=stop | tokens: prompt=5026 completion=1229 | took 21.2s
+  finish_reason=stop | tokens: prompt=3511 completion=984 | took 16.7s
+  finish_reason=stop | tokens: prompt=3591 completion=1189 | took 19.3s
+  finish_reason=stop | tokens: prompt=4999 completion=1199 | took 20.3s
+  finish_reason=stop | tokens: prompt=4359 completion=1268 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4390 completion=1269 | took 18.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3351 completion=1320 | took 21.1s
+  finish_reason=stop | tokens: prompt=4652 completion=611 | took 11.6s
+  finish_reason=stop | tokens: prompt=3268 completion=1228 | took 20.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3309 completion=1088 | took 15.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3299 completion=1304 | took 18.3s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=4191 completion=972 | took 16.8s
+  finish_reason=stop | tokens: prompt=2823 completion=1238 | took 19.8s
+  finish_reason=stop | tokens: prompt=3831 completion=1293 | took 20.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3862 completion=890 | took 12.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4798 completion=1321 | took 22.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4829 completion=1059 | took 15.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4939 completion=1328 | took 19.3s
+  Succeeded on retry 3
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=4241 completion=1343 | took 22.6s
+  finish_reason=stop | tokens: prompt=4055 completion=1196 | took 19.9s
+  finish_reason=stop | tokens: prompt=3695 completion=1313 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3726 completion=949 | took 13.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3736 completion=1306 | took 18.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 28: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3252 completion=1204 | took 19.6s
+  finish_reason=stop | tokens: prompt=2660 completion=1319 | took 20.6s
+  finish_reason=stop | tokens: prompt=3552 completion=810 | took 13.9s
+  finish_reason=stop | tokens: prompt=3876 completion=1338 | took 21.5s
+  finish_reason=stop | tokens: prompt=4104 completion=1331 | took 21.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4155 completion=1335 | took 18.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 33: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=5678 completion=1239 | took 21.6s
+  finish_reason=stop | tokens: prompt=4769 completion=1276 | took 22.0s
+  finish_reason=stop | tokens: prompt=4420 completion=1287 | took 21.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4451 completion=1287 | took 18.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 36: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4985 completion=1103 | took 19.0s
+  finish_reason=stop | tokens: prompt=3031 completion=1186 | took 19.5s
+  finish_reason=stop | tokens: prompt=3690 completion=1232 | took 19.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3841 completion=1273 | took 18.0s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=5186 completion=816 | took 15.2s
+  lora  173/219 =  79.0%  [73.0-84.2]  unanswered 0  992s
+
+pdnc_theawakening: 415 scoreable lines, roster 20, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=2607 completion=1221 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2668 completion=1231 | took 13.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4665 completion=840 | took 12.4s
+  finish_reason=stop | tokens: prompt=3763 completion=776 | took 11.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3804 completion=842 | took 9.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 3: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3295 completion=1210 | took 16.2s
+  finish_reason=stop | tokens: prompt=2926 completion=1145 | took 15.1s
+  finish_reason=stop | tokens: prompt=2581 completion=1272 | took 15.8s
+  finish_reason=stop | tokens: prompt=3363 completion=1281 | took 16.1s
+  finish_reason=stop | tokens: prompt=3043 completion=955 | took 12.6s
+  finish_reason=stop | tokens: prompt=2485 completion=1161 | took 14.2s
+  finish_reason=stop | tokens: prompt=3354 completion=1262 | took 16.2s
+  finish_reason=stop | tokens: prompt=3352 completion=1291 | took 16.7s
+  finish_reason=stop | tokens: prompt=2822 completion=1194 | took 15.4s
+  finish_reason=stop | tokens: prompt=3551 completion=1152 | took 14.9s
+  finish_reason=stop | tokens: prompt=2774 completion=1293 | took 16.1s
+  finish_reason=stop | tokens: prompt=2348 completion=1308 | took 16.3s
+  finish_reason=stop | tokens: prompt=2648 completion=1317 | took 16.2s
+  finish_reason=stop | tokens: prompt=3379 completion=1302 | took 16.6s
+  finish_reason=stop | tokens: prompt=3229 completion=1312 | took 17.0s
+  finish_reason=stop | tokens: prompt=3713 completion=1160 | took 15.6s
+  finish_reason=stop | tokens: prompt=3545 completion=1089 | took 14.4s
+  finish_reason=stop | tokens: prompt=3140 completion=1351 | took 17.2s
+  finish_reason=stop | tokens: prompt=2552 completion=1302 | took 16.2s
+  finish_reason=stop | tokens: prompt=2428 completion=1283 | took 16.0s
+  finish_reason=stop | tokens: prompt=3181 completion=1288 | took 15.9s
+  finish_reason=stop | tokens: prompt=3303 completion=885 | took 12.4s
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=2645 completion=1338 | took 16.6s
+  finish_reason=stop | tokens: prompt=2768 completion=1293 | took 16.4s
+  finish_reason=stop | tokens: prompt=3168 completion=1306 | took 16.4s
+  finish_reason=stop | tokens: prompt=4226 completion=1042 | took 14.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4297 completion=804 | took 9.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4367 completion=1102 | took 12.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 29: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2640 completion=1272 | took 16.0s
+  finish_reason=stop | tokens: prompt=3759 completion=1225 | took 15.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3880 completion=1251 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3790 completion=1012 | took 11.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 31: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2319 completion=1314 | took 16.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2350 completion=1314 | took 14.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 32: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2574 completion=1246 | took 15.2s
+  finish_reason=stop | tokens: prompt=3104 completion=1015 | took 13.1s
+  finish_reason=stop | tokens: prompt=2270 completion=1325 | took 16.2s
+  finish_reason=stop | tokens: prompt=3095 completion=869 | took 11.4s
+  finish_reason=stop | tokens: prompt=2624 completion=1314 | took 16.3s
+  finish_reason=stop | tokens: prompt=2647 completion=1323 | took 16.6s
+  finish_reason=stop | tokens: prompt=2933 completion=1302 | took 16.3s
+  finish_reason=stop | tokens: prompt=3540 completion=1273 | took 16.8s
+  base  228/290 =  78.6%  [73.4-83.2]  unanswered 8  704s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=2871 completion=1247 | took 20.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2932 completion=1233 | took 17.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2942 completion=1251 | took 17.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 1: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=4929 completion=1114 | took 19.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5010 completion=1139 | took 16.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3764 completion=1219 | took 20.5s
+  finish_reason=stop | tokens: prompt=3489 completion=858 | took 14.8s
+  finish_reason=stop | tokens: prompt=2926 completion=1028 | took 16.6s
+  finish_reason=stop | tokens: prompt=2585 completion=1281 | took 19.8s
+  finish_reason=stop | tokens: prompt=3358 completion=1036 | took 16.5s
+  finish_reason=stop | tokens: prompt=3027 completion=1102 | took 17.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3058 completion=1207 | took 16.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3068 completion=1118 | took 15.7s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2485 completion=1121 | took 17.5s
+  finish_reason=stop | tokens: prompt=3353 completion=1151 | took 18.6s
+  finish_reason=stop | tokens: prompt=3360 completion=1304 | took 20.9s
+  finish_reason=stop | tokens: prompt=2822 completion=840 | took 14.2s
+  finish_reason=stop | tokens: prompt=3551 completion=641 | took 11.3s
+  finish_reason=stop | tokens: prompt=2770 completion=1113 | took 18.0s
+  finish_reason=stop | tokens: prompt=2348 completion=1035 | took 16.3s
+  finish_reason=stop | tokens: prompt=2648 completion=1330 | took 20.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2679 completion=1338 | took 18.7s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3381 completion=1333 | took 21.3s
+  finish_reason=stop | tokens: prompt=3242 completion=1132 | took 18.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3273 completion=1292 | took 17.9s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3705 completion=1206 | took 19.8s
+  finish_reason=stop | tokens: prompt=3554 completion=950 | took 16.2s
+  finish_reason=stop | tokens: prompt=3140 completion=1368 | took 21.4s
+  finish_reason=stop | tokens: prompt=2552 completion=1329 | took 20.8s
+  finish_reason=stop | tokens: prompt=2435 completion=1296 | took 20.0s
+  finish_reason=stop | tokens: prompt=3190 completion=1044 | took 17.1s
+  finish_reason=stop | tokens: prompt=3303 completion=1290 | took 20.8s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=2655 completion=1232 | took 19.4s
+  finish_reason=stop | tokens: prompt=2770 completion=1320 | took 20.8s
+  finish_reason=stop | tokens: prompt=3176 completion=1322 | took 20.9s
+  finish_reason=stop | tokens: prompt=4226 completion=1232 | took 20.5s
+  finish_reason=stop | tokens: prompt=2715 completion=1102 | took 18.0s
+  finish_reason=stop | tokens: prompt=3758 completion=1251 | took 20.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3789 completion=882 | took 12.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 31: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2318 completion=1222 | took 19.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2349 completion=1347 | took 18.9s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2601 completion=1282 | took 20.0s
+  finish_reason=stop | tokens: prompt=3108 completion=1360 | took 21.4s
+  finish_reason=stop | tokens: prompt=2270 completion=1305 | took 20.0s
+  finish_reason=stop | tokens: prompt=3093 completion=1164 | took 18.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3124 completion=1170 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 36: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2628 completion=1324 | took 20.7s
+  finish_reason=stop | tokens: prompt=2645 completion=1116 | took 17.8s
+  finish_reason=stop | tokens: prompt=2933 completion=825 | took 14.1s
+  finish_reason=stop | tokens: prompt=3541 completion=790 | took 13.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3622 completion=1285 | took 18.4s
+  Succeeded on retry 2
+  lora  253/290 =  87.2%  [82.8-90.9]  unanswered 0  932s
+
+pdnc_thesignofthefour: 354 scoreable lines, roster 35, 40 windows
+  adapter scale now 0.0
+  finish_reason=stop | tokens: prompt=2092 completion=1268 | took 16.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2123 completion=1272 | took 13.7s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3038 completion=1272 | took 15.9s
+  finish_reason=stop | tokens: prompt=3202 completion=1326 | took 16.7s
+  finish_reason=stop | tokens: prompt=3207 completion=1289 | took 16.7s
+  finish_reason=stop | tokens: prompt=3376 completion=990 | took 13.4s
+  finish_reason=stop | tokens: prompt=3141 completion=1303 | took 16.8s
+  finish_reason=stop | tokens: prompt=3105 completion=1271 | took 16.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3136 completion=1273 | took 14.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4069 completion=1255 | took 17.3s
+  finish_reason=stop | tokens: prompt=2812 completion=1260 | took 16.5s
+  finish_reason=stop | tokens: prompt=3619 completion=1126 | took 15.1s
+  finish_reason=stop | tokens: prompt=2817 completion=1298 | took 16.5s
+  finish_reason=stop | tokens: prompt=2965 completion=1274 | took 16.0s
+  finish_reason=stop | tokens: prompt=2748 completion=1275 | took 16.0s
+  finish_reason=stop | tokens: prompt=3044 completion=1252 | took 15.7s
+  finish_reason=stop | tokens: prompt=3124 completion=872 | took 11.5s
+  finish_reason=stop | tokens: prompt=2916 completion=1270 | took 15.7s
+  finish_reason=stop | tokens: prompt=3180 completion=1390 | took 17.6s
+  finish_reason=stop | tokens: prompt=2833 completion=1276 | took 16.2s
+  finish_reason=stop | tokens: prompt=3088 completion=1304 | took 16.9s
+  finish_reason=stop | tokens: prompt=2579 completion=1305 | took 16.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2620 completion=1329 | took 14.6s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=4005 completion=1346 | took 17.9s
+  finish_reason=stop | tokens: prompt=3427 completion=1076 | took 14.9s
+  finish_reason=stop | tokens: prompt=2816 completion=1320 | took 16.8s
+  finish_reason=stop | tokens: prompt=3553 completion=1259 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3594 completion=1278 | took 14.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3604 completion=1260 | took 14.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 24: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2423 completion=1293 | took 16.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2474 completion=1307 | took 14.0s
+  Succeeded on retry 2
+  base 25/40 ...
+  finish_reason=stop | tokens: prompt=3618 completion=1308 | took 16.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3649 completion=1326 | took 14.7s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3317 completion=1326 | took 17.2s
+  finish_reason=stop | tokens: prompt=3252 completion=1234 | took 15.7s
+  finish_reason=stop | tokens: prompt=2862 completion=1304 | took 16.3s
+  finish_reason=stop | tokens: prompt=2993 completion=1456 | took 18.0s
+  finish_reason=stop | tokens: prompt=3817 completion=990 | took 13.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4028 completion=1305 | took 14.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 31: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2794 completion=1243 | took 16.0s
+  finish_reason=stop | tokens: prompt=3645 completion=1272 | took 16.6s
+  finish_reason=stop | tokens: prompt=3638 completion=1279 | took 16.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3669 completion=1284 | took 14.5s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  base window 34: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3330 completion=1043 | took 13.8s
+  finish_reason=stop | tokens: prompt=3338 completion=1256 | took 16.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3369 completion=1280 | took 14.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=6551 completion=1023 | took 15.4s
+  finish_reason=stop | tokens: prompt=4762 completion=1327 | took 19.1s
+  finish_reason=stop | tokens: prompt=6337 completion=1371 | took 20.1s
+  finish_reason=stop | tokens: prompt=4472 completion=1275 | took 18.2s
+  base  171/284 =  60.2%  [54.3-65.9]  unanswered 14  796s
+  adapter scale now 1.0
+  finish_reason=stop | tokens: prompt=2410 completion=1272 | took 20.1s
+  finish_reason=stop | tokens: prompt=3028 completion=1258 | took 20.0s
+  finish_reason=stop | tokens: prompt=3194 completion=1326 | took 21.0s
+  finish_reason=stop | tokens: prompt=3207 completion=896 | took 15.2s
+  finish_reason=stop | tokens: prompt=3376 completion=1306 | took 20.4s
+  finish_reason=stop | tokens: prompt=3144 completion=1301 | took 20.4s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3175 completion=1241 | took 17.4s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3105 completion=1289 | took 20.4s
+  finish_reason=stop | tokens: prompt=4066 completion=1256 | took 20.8s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4097 completion=1267 | took 17.9s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2810 completion=1297 | took 20.6s
+  finish_reason=stop | tokens: prompt=3637 completion=1292 | took 20.8s
+  finish_reason=stop | tokens: prompt=2836 completion=1327 | took 21.0s
+  finish_reason=stop | tokens: prompt=2975 completion=1185 | took 18.6s
+  finish_reason=stop | tokens: prompt=2760 completion=1326 | took 20.6s
+  finish_reason=stop | tokens: prompt=3066 completion=1300 | took 20.8s
+  finish_reason=stop | tokens: prompt=3148 completion=1308 | took 20.9s
+  finish_reason=stop | tokens: prompt=2950 completion=1314 | took 20.4s
+  finish_reason=stop | tokens: prompt=3206 completion=1381 | took 21.8s
+  finish_reason=stop | tokens: prompt=2845 completion=1322 | took 20.6s
+  finish_reason=stop | tokens: prompt=3108 completion=1324 | took 20.7s
+  finish_reason=stop | tokens: prompt=2581 completion=1305 | took 20.2s
+  finish_reason=stop | tokens: prompt=4035 completion=1012 | took 16.6s
+  finish_reason=stop | tokens: prompt=3445 completion=1133 | took 18.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3486 completion=834 | took 11.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 22: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=3175 completion=1340 | took 21.3s
+  finish_reason=stop | tokens: prompt=3565 completion=1300 | took 21.2s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3616 completion=1277 | took 18.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt and budget already rejected at temperature 0; further retries cannot differ
+  lora window 24: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2435 completion=1331 | took 20.8s
+  lora 25/40 ...
+  finish_reason=stop | tokens: prompt=3626 completion=1364 | took 21.7s
+  finish_reason=stop | tokens: prompt=3327 completion=1366 | took 21.9s
+  finish_reason=stop | tokens: prompt=3264 completion=1300 | took 21.1s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3315 completion=1245 | took 17.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3435 completion=1280 | took 18.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3395 completion=1298 | took 18.2s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  lora window 28: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=2960 completion=1344 | took 21.1s
+  finish_reason=stop | tokens: prompt=3013 completion=1448 | took 22.4s
+  finish_reason=stop | tokens: prompt=3815 completion=1396 | took 22.4s
+  finish_reason=stop | tokens: prompt=3670 completion=1293 | took 20.9s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3721 completion=1113 | took 15.7s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3701 completion=1320 | took 18.5s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=3686 completion=1334 | took 21.7s
+  finish_reason=stop | tokens: prompt=3660 completion=1315 | took 21.2s
+  finish_reason=stop | tokens: prompt=2854 completion=1268 | took 19.9s
+  finish_reason=stop | tokens: prompt=3339 completion=1308 | took 20.8s
+  finish_reason=stop | tokens: prompt=6561 completion=1287 | took 22.9s
+  finish_reason=stop | tokens: prompt=4792 completion=1382 | took 24.0s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=4893 completion=1335 | took 19.3s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5023 completion=1340 | took 19.6s
+  Retry policy: retry_same_budget; token budget remains 4096
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5003 completion=1361 | took 19.6s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  lora window 38: PassExhausted, scoring last attempt
+  finish_reason=stop | tokens: prompt=6168 completion=907 | took 16.9s
+  finish_reason=stop | tokens: prompt=4472 completion=1107 | took 19.3s
+  lora  216/284 =  76.1%  [70.7-80.9]  unanswered 9  1036s
+
+  per book
+    pdnc_thesunalsorises base  48.1%  lora  68.4%   +20.3
+    pdnc_emma          base  61.6%  lora  75.8%   +14.2
+    pdnc_prideandprejudice base  59.1%  lora  72.6%   +13.5
+    pdnc_mansfieldpark base  57.2%  lora  65.3%    +8.1
+    pdnc_senseandsensibility base  58.7%  lora  79.4%   +20.6
+    pdnc_northangerabbey base  66.5%  lora  84.6%   +18.1
+    pdnc_persuasion    base  63.9%  lora  79.0%   +15.1
+    pdnc_theawakening  base  78.6%  lora  87.2%    +8.6
+    pdnc_thesignofthefour base  60.2%  lora  76.1%   +15.8
+
+  pooled  base 1634/2655 = 61.5%
+  pooled  lora 2034/2655 = 76.6%
+  paired  +15.1 points  +603/-203 of 2655  p=8.147e-47
+  strict  base 1629/2569 = 63.4%  lora 1978/2569 = 77.0%  +13.6 points  +547/-198 of 2569  p=1.215e-38  unanswered {'base': 69, 'lora': 17}
+wrote /home/ubuntu/aa2_probe/ab_test_runtime/experiments/lora_serving_eval__qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928.json
+2026-09-29T23:08:48+00:00 OK qwen3-8b-window25-michel2v2-seed3-ud-q2kxl-paired-michel2_full-tnr-2-pdnc9-20260928
+2026-09-29T23:08:48+00:00 SWEEP-COMPLETE qwen3-8b-window25-michel2v2-seed3 on tnr-2
+2026-09-29T23:08:48+00:00 QWEN3-8B-SEED3-TNR2 COMPLETE

@@ -1,0 +1,20 @@
+{
+  "silky_mezzo_30s_f": {
+    "n": 20,
+    "reference_hash_matches": 20,
+    "transcript_matches_per_arm": 20,
+    "selected_clips_in_excluded_training_volumes": 0,
+    "original_training_clip_count": 88,
+    "holdout_manifest_sha256": "7369b8c985e40ed2487ad4dab70409a8231756d232b96de84d2c5e89e34b69f7",
+    "scope": "Matched original verified holdout capture and its excluded-volume policy; not an independent reconstruction of every training example."
+  },
+  "silky_alto_40s_f_literary_2": {
+    "n": 20,
+    "reference_hash_matches": 20,
+    "transcript_matches_per_arm": 20,
+    "selected_clips_in_excluded_training_volumes": 0,
+    "original_training_clip_count": 188,
+    "holdout_manifest_sha256": "ca59353add9dc4dafbb2930320f462355646e3752774e1c229064e07b5a80e3f",
+    "scope": "Matched original verified holdout capture and its excluded-volume policy; not an independent reconstruction of every training example."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "tts_batch_quality_tnr0_20260929.log.gz": {
+    "original_name": "tts_batch_quality_tnr0_20260929.log",
+    "original_sha256": "81d0d37c8724714b459cf381926897f2d29de0e5ee47cb5bc7f83d737887c690",
+    "original_bytes": 29243
+  },
+  "tts_ctl_w1_seed42_20260929.log.gz": {
+    "original_name": "tts_ctl_w1_seed42_20260929.log",
+    "original_sha256": "4a8b962dd095743d4395d443014a65b2bb1c564ae50a7ea39e74ff09bfd1720d",
+    "original_bytes": 17749
+  },
+  "tts_ctl_w1_seed43_20260929.log.gz": {
+    "original_name": "tts_ctl_w1_seed43_20260929.log",
+    "original_sha256": "51ea3f50db37534b325fb4ee518db37f1e478f5baf56a7d45021b331dc08d3d6",
+    "original_bytes": 17568
+  }
+}

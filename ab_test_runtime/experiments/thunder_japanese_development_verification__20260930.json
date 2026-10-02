@@ -1,0 +1,871 @@
+{
+  "status": "complete",
+  "experiment": "thunder_japanese_development_followups",
+  "a100_development": {
+    "status": "verified",
+    "source_sha256": "0506c4c7309d602f9d1bc292b09b7e1e70cb5b7ce5b7c470e4b80abc053f526e",
+    "controls_passed": 6,
+    "rows": 5310,
+    "sampled_ids_per_arm": 2655,
+    "overall": {
+      "arms": {
+        "base": {
+          "n": 2655,
+          "correct": 1640,
+          "unanswered": 40,
+          "accuracy": 0.6177024482109228
+        },
+        "lora": {
+          "n": 2655,
+          "correct": 1926,
+          "unanswered": 29,
+          "accuracy": 0.7254237288135593
+        }
+      },
+      "delta_pp": 10.772128060263652,
+      "improved": 521,
+      "regressed": 235
+    },
+    "strict": {
+      "arms": {
+        "base": {
+          "n": 2594,
+          "correct": 1630,
+          "unanswered": 0,
+          "accuracy": 0.6283731688511951
+        },
+        "lora": {
+          "n": 2594,
+          "correct": 1918,
+          "unanswered": 0,
+          "accuracy": 0.7393986121819583
+        }
+      },
+      "delta_pp": 11.102544333076326,
+      "improved": 513,
+      "regressed": 225
+    },
+    "books": {
+      "pdnc_emma": {
+        "arms": {
+          "base": {
+            "n": 318,
+            "correct": 178,
+            "unanswered": 2,
+            "accuracy": 0.559748427672956
+          },
+          "lora": {
+            "n": 318,
+            "correct": 246,
+            "unanswered": 2,
+            "accuracy": 0.7735849056603774
+          }
+        },
+        "delta_pp": 21.383647798742146,
+        "improved": 86,
+        "regressed": 18
+      },
+      "pdnc_mansfieldpark": {
+        "arms": {
+          "base": {
+            "n": 271,
+            "correct": 151,
+            "unanswered": 0,
+            "accuracy": 0.5571955719557196
+          },
+          "lora": {
+            "n": 271,
+            "correct": 174,
+            "unanswered": 0,
+            "accuracy": 0.6420664206642066
+          }
+        },
+        "delta_pp": 8.487084870848705,
+        "improved": 46,
+        "regressed": 23
+      },
+      "pdnc_northangerabbey": {
+        "arms": {
+          "base": {
+            "n": 409,
+            "correct": 274,
+            "unanswered": 1,
+            "accuracy": 0.6699266503667481
+          },
+          "lora": {
+            "n": 409,
+            "correct": 326,
+            "unanswered": 0,
+            "accuracy": 0.7970660146699267
+          }
+        },
+        "delta_pp": 12.713936430317851,
+        "improved": 88,
+        "regressed": 36
+      },
+      "pdnc_persuasion": {
+        "arms": {
+          "base": {
+            "n": 219,
+            "correct": 153,
+            "unanswered": 1,
+            "accuracy": 0.6986301369863014
+          },
+          "lora": {
+            "n": 219,
+            "correct": 162,
+            "unanswered": 3,
+            "accuracy": 0.7397260273972602
+          }
+        },
+        "delta_pp": 4.109589041095885,
+        "improved": 37,
+        "regressed": 28
+      },
+      "pdnc_prideandprejudice": {
+        "arms": {
+          "base": {
+            "n": 296,
+            "correct": 175,
+            "unanswered": 10,
+            "accuracy": 0.5912162162162162
+          },
+          "lora": {
+            "n": 296,
+            "correct": 223,
+            "unanswered": 7,
+            "accuracy": 0.7533783783783784
+          }
+        },
+        "delta_pp": 16.216216216216218,
+        "improved": 76,
+        "regressed": 28
+      },
+      "pdnc_senseandsensibility": {
+        "arms": {
+          "base": {
+            "n": 223,
+            "correct": 139,
+            "unanswered": 15,
+            "accuracy": 0.6233183856502242
+          },
+          "lora": {
+            "n": 223,
+            "correct": 155,
+            "unanswered": 0,
+            "accuracy": 0.695067264573991
+          }
+        },
+        "delta_pp": 7.17488789237668,
+        "improved": 35,
+        "regressed": 19
+      },
+      "pdnc_theawakening": {
+        "arms": {
+          "base": {
+            "n": 290,
+            "correct": 225,
+            "unanswered": 0,
+            "accuracy": 0.7758620689655172
+          },
+          "lora": {
+            "n": 290,
+            "correct": 234,
+            "unanswered": 0,
+            "accuracy": 0.8068965517241379
+          }
+        },
+        "delta_pp": 3.103448275862064,
+        "improved": 41,
+        "regressed": 32
+      },
+      "pdnc_thesignofthefour": {
+        "arms": {
+          "base": {
+            "n": 284,
+            "correct": 169,
+            "unanswered": 7,
+            "accuracy": 0.5950704225352113
+          },
+          "lora": {
+            "n": 284,
+            "correct": 190,
+            "unanswered": 9,
+            "accuracy": 0.6690140845070423
+          }
+        },
+        "delta_pp": 7.3943661971831,
+        "improved": 50,
+        "regressed": 29
+      },
+      "pdnc_thesunalsorises": {
+        "arms": {
+          "base": {
+            "n": 345,
+            "correct": 176,
+            "unanswered": 4,
+            "accuracy": 0.5101449275362319
+          },
+          "lora": {
+            "n": 345,
+            "correct": 216,
+            "unanswered": 8,
+            "accuracy": 0.6260869565217392
+          }
+        },
+        "delta_pp": 11.594202898550732,
+        "improved": 62,
+        "regressed": 22
+      }
+    },
+    "limits": [
+      "Development/training books, not held-out.",
+      "Saved predictions recomputed; raw responses unavailable so parsing cannot be independently checked."
+    ],
+    "runtime": {
+      "commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+      "dirty": false,
+      "harness_sha256": "1266119d0eee156f5be17fe2924dd103e83f0c54d26aa545c27098bf8009f9b4"
+    },
+    "input_hashes": {
+      "data/fixtures/attribution_gold_pdnc_emma.json": "ea9956d4209c1f8a91fc7756e081223a9807e86fc6ff4f91ce2c73a743dbadfd",
+      "data/inputs/pdnc_emma.txt": "244f3afe05a7490c0fe0daddad0b93ab42f5639ac2fc24814b321c91dd143d1c",
+      "data/checkpoints/pdnc_emma__three_pass.json.threepass_checkpoint.json": "f502e40d2b5f3458d4c32df411f97272f614350b67a9b01dcb0d6483698bc07b",
+      "data/fixtures/attribution_gold_pdnc_mansfieldpark.json": "8b390a01b369a9fd5adfaa19e892d676cd040e2f9d467133f3d4f89061912cd1",
+      "data/inputs/pdnc_mansfieldpark.txt": "b6c3c9f73be5e54682dc8b77f31844e48f3972b8e1f80dd86bd2b62c5ff80d87",
+      "data/checkpoints/pdnc_mansfieldpark__three_pass.json.threepass_checkpoint.json": "5b687acac827812ab4520482f832d1ab362684b03b74ec1cf1c592fcae7cd39e",
+      "data/fixtures/attribution_gold_pdnc_northangerabbey.json": "6a0f6e82343dd4bfbb510e3c9e3088a08fe154c58f3b16d7cf65823ee69c2581",
+      "data/inputs/pdnc_northangerabbey.txt": "b204181174e72d207e7a7d48db85faf1758a6e73b9abbf9f8f94ef29e28e13ee",
+      "data/checkpoints/pdnc_northangerabbey__three_pass.json.threepass_checkpoint.json": "e1cc7d2e624618e7a9beb8fb75ca5a109944edf9af4d2faf62ab02a59e064255",
+      "data/fixtures/attribution_gold_pdnc_persuasion.json": "e43b2a9860531a032430b77d759bb934c2eebb1faf7f92ee83c299c91588fe36",
+      "data/inputs/pdnc_persuasion.txt": "b42c4b4735cadffec44ef7462405b1551388fd1be6c35487c23745763584cd26",
+      "data/checkpoints/pdnc_persuasion__three_pass.json.threepass_checkpoint.json": "d4e70b6dc9d00ca1fbbfd47fa08bfc3f63a5ac845a8bfe2cf243c981ef221927",
+      "data/fixtures/attribution_gold_pdnc_prideandprejudice.json": "d78f68a4b16e49df0ca090e534f3dcd83a358d085f51228c154893d027f40857",
+      "data/inputs/pdnc_prideandprejudice.txt": "03ef2a45e7d958ea400cd63e77499ba65e0aa4a06e35c434ca348a0e46789660",
+      "data/checkpoints/pdnc_prideandprejudice__three_pass.json.threepass_checkpoint.json": "1ced23fbccbfe648378f339de68cd5b93dd7ee70623394cf6bb84e66274b1707",
+      "data/fixtures/attribution_gold_pdnc_senseandsensibility.json": "5373e0c2c042db1b21d0fed332b8193034c81c7a47bd0d6818af0b938417a078",
+      "data/inputs/pdnc_senseandsensibility.txt": "504919bfd78b59cc995904769eb51e645be05c805718e445d0ec969366e0d5c5",
+      "data/checkpoints/pdnc_senseandsensibility__three_pass.json.threepass_checkpoint.json": "9fb8e98b2d07de9185f26dd578665df1b556a925abaa8d4522a028ac1625bcf5",
+      "data/fixtures/attribution_gold_pdnc_theawakening.json": "b00b1f60d9a76bbaec7018f928023eaf0047850aedaf949dd4bbd2f7d3f6494d",
+      "data/inputs/pdnc_theawakening.txt": "70e6caa8b14d81c3675f774158abfe674e091b73dafc784ef33c13f08a3de603",
+      "data/checkpoints/pdnc_theawakening__three_pass.json.threepass_checkpoint.json": "b9114b6841e7b0d4d5a51c96664e84515e67860eb528c1e6ee55a90be6a25f36",
+      "data/fixtures/attribution_gold_pdnc_thesignofthefour.json": "086186e09a15c82d1d710008ae91f80e67b3e28f7e44285fa73d89973e569952",
+      "data/inputs/pdnc_thesignofthefour.txt": "f64ea9c167a8bda40b1d2c79516759b3c15c50d5f1808fe4a1a2bacd8188ea5f",
+      "data/checkpoints/pdnc_thesignofthefour__three_pass.json.threepass_checkpoint.json": "c4ff2cc063e503c5ea67ec2096f449e64912aeee0e3320942101fe1c612c69d0",
+      "data/fixtures/attribution_gold_pdnc_thesunalsorises.json": "4b04e8e5cea3dee1754a65f3603a9c0b2ac2d03ee93eb97fbb00efdd3dac2f45",
+      "data/inputs/pdnc_thesunalsorises.txt": "4fd2e7b51fc866b9f5abfa11be3137c4954a005aeddc1858b8e7778426316923",
+      "data/checkpoints/pdnc_thesunalsorises__three_pass.json.threepass_checkpoint.json": "1f66a9c60a555240e93339ea6def498ca45ac5c342e8f2271fe353f6beec3526"
+    }
+  },
+  "development_minus_heldout_lora_gap_pp": 3.265807844372348,
+  "japanese_duration": {
+    "status": "duration_scoring_verified",
+    "verified_audio": 180,
+    "duration_rejected": 0,
+    "source_sha256": "aba6add9217b85eb0c654048df8d956d3fdfbc049cf2fa864b026adecf13ff8c",
+    "seeds": {
+      "1234": {
+        "paired_cases": 30,
+        "grouped_closer": 21,
+        "split_closer": 8,
+        "ties": 1,
+        "sign_test_two_sided_p": 0.0241195447742939,
+        "median_split_ratio": 0.8829480212445407,
+        "median_grouped_ratio": 0.9124970797490737,
+        "median_split_absolute_error": 0.11705197875545925,
+        "median_grouped_absolute_error": 0.08750292025092632
+      },
+      "1235": {
+        "paired_cases": 30,
+        "grouped_closer": 24,
+        "split_closer": 6,
+        "ties": 0,
+        "sign_test_two_sided_p": 0.0014309063553810122,
+        "median_split_ratio": 0.8851501284849398,
+        "median_grouped_ratio": 0.927982840666,
+        "median_split_absolute_error": 0.11484987151506021,
+        "median_grouped_absolute_error": 0.07201715933399999
+      }
+    },
+    "limits": [
+      "Duration only; pronunciation, speaker identity and boundary listening not scored.",
+      "Thirty fresh pairs, two fixed seeds; results do not establish population generalization."
+    ]
+  },
+  "japanese_whisper_base_identity": {
+    "status": "complete",
+    "scored": 180,
+    "human_controls": 90,
+    "wall_s_median": 2.933760524261743,
+    "wall_s_min": 0.9315911261364818,
+    "wall_s_max": 11.544583234935999,
+    "controls": {
+      "cer": "identity, deletion, insertion passed",
+      "ecapa_self": 1.0
+    },
+    "limits": [
+      "Thirty same-narrator pairs, two seeds; not population generalization.",
+      "Missing acoustic/alignment values remain explicitly unscored.",
+      "ASR errors must be interpreted alongside human transcription controls.",
+      "Grouped audio matches concatenated human; separate comparisons use their own matching human.",
+      "ECAPA identity is not a pronunciation metric; pitch is not a speaker classifier."
+    ],
+    "arms_by_seed": {
+      "1234:left": {
+        "n": 30,
+        "cer_mean": 0.1899759500280041,
+        "ecapa_same_text_human_mean": 0.8267391264438629,
+        "ecapa_reference_mean": 0.8179166873296102,
+        "human_cer_mean": 0.2615148565483735
+      },
+      "1234:right": {
+        "n": 30,
+        "cer_mean": 0.2218492185890003,
+        "ecapa_same_text_human_mean": 0.8203412115573883,
+        "ecapa_reference_mean": 0.8079525609811147,
+        "human_cer_mean": 0.2662142899539478
+      },
+      "1234:grouped": {
+        "n": 30,
+        "cer_mean": 0.19492667984186549,
+        "ecapa_same_text_human_mean": 0.876977018515269,
+        "ecapa_reference_mean": 0.8461930831273397,
+        "human_cer_mean": 0.2695563452563928
+      },
+      "1235:left": {
+        "n": 30,
+        "cer_mean": 0.18635878985603474,
+        "ecapa_same_text_human_mean": 0.8267627060413361,
+        "ecapa_reference_mean": 0.8133378287156423,
+        "human_cer_mean": 0.2615148565483735
+      },
+      "1235:right": {
+        "n": 30,
+        "cer_mean": 0.22137082950302608,
+        "ecapa_same_text_human_mean": 0.81561505595843,
+        "ecapa_reference_mean": 0.8145067314306895,
+        "human_cer_mean": 0.2662142899539478
+      },
+      "1235:grouped": {
+        "n": 30,
+        "cer_mean": 0.19852069358927324,
+        "ecapa_same_text_human_mean": 0.8759282330671946,
+        "ecapa_reference_mean": 0.8526700516541799,
+        "human_cer_mean": 0.2695563452563928
+      }
+    }
+  },
+  "japanese_accent_acoustic": {
+    "status": "complete",
+    "scored": 180,
+    "human_controls": 90,
+    "wall_s_median": 1.2448150184936821,
+    "wall_s_min": 0.45457059144973755,
+    "wall_s_max": 3.43859757296741,
+    "controls": {
+      "accent_unit_tests": 11,
+      "acoustic": "tone, silence, irregular phonation passed"
+    },
+    "limits": [
+      "Thirty same-narrator pairs, two seeds; not population generalization.",
+      "Missing acoustic/alignment values remain explicitly unscored.",
+      "ASR errors must be interpreted alongside human transcription controls.",
+      "Grouped audio matches concatenated human; separate comparisons use their own matching human.",
+      "ECAPA identity is not a pronunciation metric; pitch is not a speaker classifier."
+    ],
+    "arms_by_seed": {
+      "1234:left": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 219,
+          "drop_phrases": 119,
+          "drop_agreement": 0.8991596638655462,
+          "rise_phrases": 153,
+          "rise_agreement": 0.6993464052287581,
+          "correlation_phrases": 181,
+          "correlation_mean": 0.4463624506313702,
+          "morae": 850,
+          "morae_voiced": 818,
+          "coverage": 0.9623529411764706,
+          "alignment_score_mean": -1.038440063239634
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 219,
+          "drop_phrases": 110,
+          "drop_agreement": 0.8090909090909091,
+          "rise_phrases": 144,
+          "rise_agreement": 0.625,
+          "correlation_phrases": 174,
+          "correlation_mean": 0.40379455367247935,
+          "morae": 850,
+          "morae_voiced": 794,
+          "coverage": 0.9341176470588235,
+          "alignment_score_mean": -1.2718771327939675
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 138.6,
+            "generated_median": 132.75
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 60.9,
+            "generated_median": 63.349999999999994
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.025500000000000002,
+            "generated_median": 0.025500000000000002
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.08265,
+            "generated_median": 0.0796
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.25725,
+            "generated_median": 16.308300000000003
+          }
+        }
+      },
+      "1234:right": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 222,
+          "drop_phrases": 117,
+          "drop_agreement": 0.717948717948718,
+          "rise_phrases": 134,
+          "rise_agreement": 0.6343283582089553,
+          "correlation_phrases": 165,
+          "correlation_mean": 0.36729207470505704,
+          "morae": 852,
+          "morae_voiced": 805,
+          "coverage": 0.9448356807511737,
+          "alignment_score_mean": -1.0759332901890115
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 222,
+          "drop_phrases": 114,
+          "drop_agreement": 0.7280701754385965,
+          "rise_phrases": 139,
+          "rise_agreement": 0.60431654676259,
+          "correlation_phrases": 169,
+          "correlation_mean": 0.37678055727306464,
+          "morae": 852,
+          "morae_voiced": 806,
+          "coverage": 0.9460093896713615,
+          "alignment_score_mean": -1.1531067520979679
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 136.65,
+            "generated_median": 129.4
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 54.099999999999994,
+            "generated_median": 63.800000000000004
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.0243,
+            "generated_median": 0.025599999999999998
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.0776,
+            "generated_median": 0.08
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.9745,
+            "generated_median": 16.561700000000002
+          }
+        }
+      },
+      "1234:grouped": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 441,
+          "drop_phrases": 226,
+          "drop_agreement": 0.8185840707964602,
+          "rise_phrases": 294,
+          "rise_agreement": 0.6564625850340136,
+          "correlation_phrases": 350,
+          "correlation_mean": 0.41136386644001965,
+          "morae": 1702,
+          "morae_voiced": 1627,
+          "coverage": 0.9559341950646298,
+          "alignment_score_mean": -1.0845400503246319
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 441,
+          "drop_phrases": 225,
+          "drop_agreement": 0.7866666666666666,
+          "rise_phrases": 289,
+          "rise_agreement": 0.6228373702422145,
+          "correlation_phrases": 345,
+          "correlation_mean": 0.39072403573794884,
+          "morae": 1702,
+          "morae_voiced": 1614,
+          "coverage": 0.9482961222091657,
+          "alignment_score_mean": -1.2771769525843064
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 137.0,
+            "generated_median": 131.25
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 62.75,
+            "generated_median": 61.55
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.02515,
+            "generated_median": 0.025849999999999998
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.07935,
+            "generated_median": 0.08105
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.7986,
+            "generated_median": 16.424999999999997
+          }
+        }
+      },
+      "1235:left": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 219,
+          "drop_phrases": 110,
+          "drop_agreement": 0.8454545454545455,
+          "rise_phrases": 154,
+          "rise_agreement": 0.7077922077922078,
+          "correlation_phrases": 182,
+          "correlation_mean": 0.4647382464254769,
+          "morae": 850,
+          "morae_voiced": 809,
+          "coverage": 0.951764705882353,
+          "alignment_score_mean": -1.0301396795013986
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 219,
+          "drop_phrases": 110,
+          "drop_agreement": 0.8090909090909091,
+          "rise_phrases": 144,
+          "rise_agreement": 0.625,
+          "correlation_phrases": 174,
+          "correlation_mean": 0.40379455367247935,
+          "morae": 850,
+          "morae_voiced": 794,
+          "coverage": 0.9341176470588235,
+          "alignment_score_mean": -1.2718771327939675
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 138.6,
+            "generated_median": 130.9
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 60.9,
+            "generated_median": 65.0
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.025500000000000002,
+            "generated_median": 0.02725
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.08265,
+            "generated_median": 0.0809
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.25725,
+            "generated_median": 16.23585
+          }
+        }
+      },
+      "1235:right": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 222,
+          "drop_phrases": 115,
+          "drop_agreement": 0.7913043478260869,
+          "rise_phrases": 142,
+          "rise_agreement": 0.6267605633802817,
+          "correlation_phrases": 168,
+          "correlation_mean": 0.3974659173941258,
+          "morae": 852,
+          "morae_voiced": 812,
+          "coverage": 0.9530516431924883,
+          "alignment_score_mean": -1.0665787386202408
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 222,
+          "drop_phrases": 114,
+          "drop_agreement": 0.7280701754385965,
+          "rise_phrases": 139,
+          "rise_agreement": 0.60431654676259,
+          "correlation_phrases": 169,
+          "correlation_mean": 0.37678055727306464,
+          "morae": 852,
+          "morae_voiced": 806,
+          "coverage": 0.9460093896713615,
+          "alignment_score_mean": -1.1531067520979679
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 136.65,
+            "generated_median": 130.1
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 54.099999999999994,
+            "generated_median": 58.9
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.0243,
+            "generated_median": 0.025349999999999998
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.0776,
+            "generated_median": 0.07985
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.9745,
+            "generated_median": 16.700000000000003
+          }
+        }
+      },
+      "1235:grouped": {
+        "n": 30,
+        "accent": {
+          "rows": 30,
+          "phrases": 441,
+          "drop_phrases": 224,
+          "drop_agreement": 0.8035714285714286,
+          "rise_phrases": 305,
+          "rise_agreement": 0.6295081967213115,
+          "correlation_phrases": 355,
+          "correlation_mean": 0.4163440278750509,
+          "morae": 1702,
+          "morae_voiced": 1635,
+          "coverage": 0.9606345475910694,
+          "alignment_score_mean": -1.0880684752376402
+        },
+        "alignment_skipped": {},
+        "human_accent": {
+          "rows": 30,
+          "phrases": 441,
+          "drop_phrases": 225,
+          "drop_agreement": 0.7866666666666666,
+          "rise_phrases": 289,
+          "rise_agreement": 0.6228373702422145,
+          "correlation_phrases": 345,
+          "correlation_mean": 0.39072403573794884,
+          "morae": 1702,
+          "morae_voiced": 1614,
+          "coverage": 0.9482961222091657,
+          "alignment_score_mean": -1.2771769525843064
+        },
+        "acoustic_partial": 0,
+        "acoustic_pairs": {
+          "f0_median": {
+            "n": 30,
+            "human_median": 137.0,
+            "generated_median": 130.5
+          },
+          "f0_spread": {
+            "n": 30,
+            "human_median": 62.75,
+            "generated_median": 64.2
+          },
+          "jitter_local": {
+            "n": 30,
+            "human_median": 0.02515,
+            "generated_median": 0.0257
+          },
+          "shimmer_local": {
+            "n": 30,
+            "human_median": 0.07935,
+            "generated_median": 0.0825
+          },
+          "hnr_db": {
+            "n": 30,
+            "human_median": 16.7986,
+            "generated_median": 16.35185
+          }
+        }
+      }
+    }
+  },
+  "japanese_matched_identity": {
+    "seeds": {
+      "1234": {
+        "n": 30,
+        "ceiling_invalid_pairs": 16,
+        "human_ceiling_mean": 0.8724128603935242,
+        "full_mean": {
+          "split_concat": 0.8847347656885783,
+          "grouped": 0.8769742786884308
+        },
+        "matched_mean": {
+          "split_concat": 0.8756373882293701,
+          "grouped": 0.8692144950230917
+        }
+      },
+      "1235": {
+        "n": 30,
+        "ceiling_invalid_pairs": 17,
+        "human_ceiling_mean": 0.8750165581703186,
+        "full_mean": {
+          "split_concat": 0.8826388875643413,
+          "grouped": 0.8759317874908448
+        },
+        "matched_mean": {
+          "split_concat": 0.8815681298573812,
+          "grouped": 0.8739707231521606
+        }
+      }
+    },
+    "status": "complete",
+    "scored": 60,
+    "human_controls": 30,
+    "controls": {
+      "ecapa_self": 1.0,
+      "construction": "left+right no added silence; matching concatenated human"
+    },
+    "limits": [
+      "Thirty pairs and two fixed seeds, one narrator.",
+      "Same-text ECAPA is descriptive; cross-text human ceiling must bound arms before normalized identity claims.",
+      "Truncation below is a duration-control experiment, not a quality-approved playback.",
+      "Raw CER includes recognizer and source-transcript errors."
+    ],
+    "median_wall_s": 0.1914876252412796,
+    "max_wall_s": 0.27296291757375
+  },
+  "source_hashes": {
+    "asr_identity": "e2136577bb195b45e26681bade21256d5ebcfadf3952be2abc252d88fbfce553",
+    "accent_acoustic": "9843dfe74f42c4a6c030b325ca0133e5de08de957153db29aed27b8c8ad3f6d6",
+    "matched_identity": "3d9a856768f5e6134de1403941a0d76732181ce0b6fd3c9169c16a93b2db319d"
+  },
+  "verifier_sha256": "ab6c6f837e3a5b3b138fba5f178b8f1c951c83871c7513b3af7b9c5856f27214",
+  "limits": [
+    "Native Japanese and Chinese listening validation deferred until fluent raters are available.",
+    "Large-v3 independent transcription and Chinese quality scoring pending; no partial results published.",
+    "Accent, ASR, ECAPA and acoustic measurements retained from frozen cloud scorers; downloaded file hashes and counts verified, instruments not independently rerun.",
+    "No goal closure, model promotion or production settings change."
+  ],
+  "japanese_instrument_provenance": {
+    "tnr1": {
+      "runtime_commit": "c3870a68d5c606e885458521ee386154f66fcc4c",
+      "dependencies": {
+        "torch": "2.12.1",
+        "torchaudio": "2.11.0",
+        "transformers": "4.57.3",
+        "librosa": "0.11.0",
+        "speechbrain": "1.1.1",
+        "hyperpyyaml": "1.2.3"
+      },
+      "models": {
+        "whisper-base/config.json": "a153c53883a6799b6f056b4a8d1a515c9926d03994682ba88a7616618d7da0c1",
+        "whisper-base/model.safetensors": "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b",
+        "whisper-base/tokenizer_config.json": "2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce",
+        "whisper-base/special_tokens_map.json": "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691",
+        "whisper-base/generation_config.json": "444b3f636d2fff89dd9ecf549e2a085b61f7ff0fa0246d4628bac6a3b8cc9ba4",
+        "whisper-base/preprocessor_config.json": "9b5cd03a36fbb8a627c64d98a5b5b126ead95a77720723944487311f0110b666",
+        "whisper-base/added_tokens.json": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
+        "whisper-base/normalizer.json": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+        "whisper-base/merges.txt": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+        "whisper-base/vocab.json": "8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9",
+        "whisper-base/tokenizer.json": "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+        "whisper-base/.cache/huggingface/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "whisper-base/.cache/huggingface/download/config.json.metadata": "7cc63a32788c1f4eea5b48952ddaa7331610cd1afe1ae9aab770cb0e34880cb4",
+        "whisper-base/.cache/huggingface/download/added_tokens.json.metadata": "7fcbffcc14b0a70b57676fc6541964546b1a1004fc0f7b3419f019ad919f1b8e",
+        "whisper-base/.cache/huggingface/download/tokenizer.json.metadata": "9b136c79d60aeab8db90700dca461a89430921a8328c6048bb56c28b0847998d",
+        "whisper-base/.cache/huggingface/download/model.safetensors.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/preprocessor_config.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/vocab.json.metadata": "caa2c6bc7b2329b0c00a809e03b70ed285d72d7fffce5caad52983b5737b5e7e",
+        "whisper-base/.cache/huggingface/download/normalizer.json.metadata": "0e2ccbdf96e9e1842b1c58da13dc11473a70f6e4daced300271a4c677e230350",
+        "whisper-base/.cache/huggingface/download/model.safetensors.metadata": "268c89c3c7b8f440c3135a70347c920c6a6241a2493694212301438ad064c3e8",
+        "whisper-base/.cache/huggingface/download/merges.txt.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/tokenizer_config.json.metadata": "99eaac110181189d45b8a9f5c7cd8200a4785323a2cd4842c42e2decac56b933",
+        "whisper-base/.cache/huggingface/download/special_tokens_map.json.metadata": "b731c4aa0c8a8e576023cc17d60e666087e6e4f358b98f8877830bd48a68c865",
+        "whisper-base/.cache/huggingface/download/added_tokens.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/merges.txt.metadata": "16cf0f6009d5ddd69fe3fbc6ec29827ec8b60cd91567458848a0687c506a9e9b",
+        "whisper-base/.cache/huggingface/download/generation_config.json.metadata": "fc26ab1b678e1b12d54301fb0f805114cff3ab37373f39524e99f4ced0c71b7b",
+        "whisper-base/.cache/huggingface/download/normalizer.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/generation_config.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/tokenizer.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/config.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/special_tokens_map.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/vocab.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/tokenizer_config.json.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "whisper-base/.cache/huggingface/download/preprocessor_config.json.metadata": "707b7bc64007cea47abe335a261efc7c8f58dc3657223b61892c1e3d9744cd3d"
+      },
+      "source_hashes": {
+        "app/experiments/voice_compare_view.py": "a6d043eb04754768f6e7fbfa69c3faa488bcf9caeb20dc35e239ebca4cc209c0",
+        "app/experiments/aligned_japanese_accent.py": "f59f6adfd2fc5a213e6f86ccd30014d2e314edb1821940d5de05ec655c468e01",
+        "app/experiments/asr_backends.py": "0f874ab387d12611e54ab6fa91885d88bbce1485e8ae0a81c2190a81d1d20358"
+      }
+    },
+    "tnr2": {
+      "runtime_commit": "454417276a323649acb6c2c98a02f97acd2edfaf",
+      "dependencies": {
+        "torch": "2.12.1",
+        "torchaudio": "2.11.0",
+        "transformers": "4.57.3",
+        "librosa": "0.11.0",
+        "pyopenjtalk": "0.4.1",
+        "praat-parselmouth": "0.4.7"
+      },
+      "models": {
+        "torch_cache/hub/checkpoints/model.pt": "20ef12963ab4924bef49ac4fc7f58ad5da2ee43b2c11bc8c853c9b90ecdbc680"
+      },
+      "source_hashes": {
+        "app/experiments/asr_backends.py": "0f874ab387d12611e54ab6fa91885d88bbce1485e8ae0a81c2190a81d1d20358",
+        "app/experiments/aligned_japanese_accent.py": "f59f6adfd2fc5a213e6f86ccd30014d2e314edb1821940d5de05ec655c468e01",
+        "app/experiments/voice_compare_view.py": "a6d043eb04754768f6e7fbfa69c3faa488bcf9caeb20dc35e239ebca4cc209c0"
+      }
+    },
+    "whisper_base_revision": "e37978b90ca9030d5170a5c07aadb050351a65bb",
+    "ecapa_revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+  }
+}

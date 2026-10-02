@@ -1,0 +1,660 @@
+{
+  "status": "complete",
+  "experiment": "thunder_completed_followups",
+  "runtime_commit": "454417276a323649acb6c2c98a02f97acd2edfaf",
+  "chinese": {
+    "verified_waveforms": 300,
+    "paired_lines": 150,
+    "duration_gate_max_ratio": 3,
+    "arms": {
+      "long_typical": {
+        "attempted": 150,
+        "duration_rejected": 49,
+        "rejection_percent": 32.666666666666664,
+        "median_duration_ratio": 0.8516794962647527,
+        "maximum_duration_ratio": 74.19887103777681,
+        "maximum_audio_seconds": 163.76
+      },
+      "short_original": {
+        "attempted": 150,
+        "duration_rejected": 0,
+        "rejection_percent": 0.0,
+        "median_duration_ratio": 0.9144028758066893,
+        "maximum_duration_ratio": 1.217173558172338,
+        "maximum_audio_seconds": 5.76
+      }
+    },
+    "long_rejected_short_passed": 49,
+    "raw_result_sha256": "9641bdfc3d1dc4b1d0b51da36ac6d837138e81098586c31b6c2c19bfb4d04e15"
+  },
+  "diagnostic": {
+    "verified_waveforms": 24,
+    "original_sentence_repeats": 8,
+    "exact_repeat_hash_matches": 8,
+    "training_performed": false,
+    "stored_acoustic_metrics": [
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20260930,
+        "wer": 0.0,
+        "ecapa": 0.7221459746360779,
+        "seconds": 10.4,
+        "duration_ratio": 1.1040339702760085,
+        "pitch": {
+          "median_hz": 211.97200712382107,
+          "voiced_frames": 268,
+          "frames": 326
+        }
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20261001,
+        "wer": 25.096774193548388,
+        "ecapa": -0.1064809113740921,
+        "seconds": 163.76,
+        "duration_ratio": 17.384288747346073,
+        "pitch": {
+          "median_hz": 471.75388730172057,
+          "voiced_frames": 1713,
+          "frames": 5118
+        }
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 1,
+        "seed": 20260930,
+        "wer": 0.17857142857142858,
+        "ecapa": 0.6126492023468018,
+        "seconds": 9.52,
+        "duration_ratio": 1.096774193548387,
+        "pitch": {
+          "median_hz": 244.19512610464471,
+          "voiced_frames": 214,
+          "frames": 298
+        }
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 1,
+        "seed": 20261001,
+        "wer": 0.14285714285714285,
+        "ecapa": 0.5735969543457031,
+        "seconds": 10.48,
+        "duration_ratio": 1.207373271889401,
+        "pitch": {
+          "median_hz": 247.03253679443804,
+          "voiced_frames": 232,
+          "frames": 328
+        }
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 2,
+        "seed": 20260930,
+        "wer": 0.04,
+        "ecapa": 0.6022095680236816,
+        "seconds": 7.84,
+        "duration_ratio": 1.018181818181818,
+        "pitch": {
+          "median_hz": 238.62168244234755,
+          "voiced_frames": 216,
+          "frames": 246
+        }
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 2,
+        "seed": 20261001,
+        "wer": 0.0,
+        "ecapa": 0.6159853935241699,
+        "seconds": 7.76,
+        "duration_ratio": 1.0077922077922077,
+        "pitch": {
+          "median_hz": 212.58420458456652,
+          "voiced_frames": 228,
+          "frames": 243
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20260930,
+        "wer": 0.07407407407407407,
+        "ecapa": 0.04958128556609154,
+        "seconds": 9.2,
+        "duration_ratio": 1.16751269035533,
+        "pitch": {
+          "median_hz": 103.86438732073715,
+          "voiced_frames": 165,
+          "frames": 288
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20261001,
+        "wer": 0.07407407407407407,
+        "ecapa": 0.08339066803455353,
+        "seconds": 7.76,
+        "duration_ratio": 0.9847715736040609,
+        "pitch": {
+          "median_hz": 108.15005551329962,
+          "voiced_frames": 147,
+          "frames": 243
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 1,
+        "seed": 20260930,
+        "wer": 0.12903225806451613,
+        "ecapa": 0.6952919960021973,
+        "seconds": 10.72,
+        "duration_ratio": 1.4972067039106145,
+        "pitch": {
+          "median_hz": 109.72359190577328,
+          "voiced_frames": 146,
+          "frames": 336
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 1,
+        "seed": 20261001,
+        "wer": 0.12903225806451613,
+        "ecapa": 0.6752645969390869,
+        "seconds": 9.52,
+        "duration_ratio": 1.3296089385474859,
+        "pitch": {
+          "median_hz": 106.9078461768407,
+          "voiced_frames": 133,
+          "frames": 298
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 2,
+        "seed": 20260930,
+        "wer": 0.07692307692307693,
+        "ecapa": 0.7695181369781494,
+        "seconds": 9.92,
+        "duration_ratio": 1.0508474576271187,
+        "pitch": {
+          "median_hz": 122.09756305232236,
+          "voiced_frames": 169,
+          "frames": 311
+        }
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 2,
+        "seed": 20261001,
+        "wer": 0.07692307692307693,
+        "ecapa": 0.6967154741287231,
+        "seconds": 10.48,
+        "duration_ratio": 1.1101694915254239,
+        "pitch": {
+          "median_hz": 103.56527989502837,
+          "voiced_frames": 110,
+          "frames": 328
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 0,
+        "seed": 20260930,
+        "wer": 0.10714285714285714,
+        "ecapa": 0.08962613344192505,
+        "seconds": 7.44,
+        "duration_ratio": 0.8985507246376813,
+        "pitch": {
+          "median_hz": 124.2317908609653,
+          "voiced_frames": 177,
+          "frames": 233
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 0,
+        "seed": 20261001,
+        "wer": 0.07142857142857142,
+        "ecapa": 0.06991300731897354,
+        "seconds": 9.44,
+        "duration_ratio": 1.1400966183574879,
+        "pitch": {
+          "median_hz": 155.62074655812117,
+          "voiced_frames": 209,
+          "frames": 296
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 1,
+        "seed": 20260930,
+        "wer": 0.07142857142857142,
+        "ecapa": 0.6002299785614014,
+        "seconds": 7.92,
+        "duration_ratio": 0.8372093023255813,
+        "pitch": {
+          "median_hz": 103.2661724693196,
+          "voiced_frames": 207,
+          "frames": 248
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 1,
+        "seed": 20261001,
+        "wer": 0.03571428571428571,
+        "ecapa": 0.5203906297683716,
+        "seconds": 6.72,
+        "duration_ratio": 0.7103594080338266,
+        "pitch": {
+          "median_hz": 94.69549768063699,
+          "voiced_frames": 192,
+          "frames": 211
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 2,
+        "seed": 20260930,
+        "wer": 0.0,
+        "ecapa": 0.5119544863700867,
+        "seconds": 8.96,
+        "duration_ratio": 1.076923076923077,
+        "pitch": {
+          "median_hz": 134.69544579712476,
+          "voiced_frames": 160,
+          "frames": 281
+        }
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 2,
+        "seed": 20261001,
+        "wer": 0.0,
+        "ecapa": 0.4812580943107605,
+        "seconds": 7.28,
+        "duration_ratio": 0.875,
+        "pitch": {
+          "median_hz": 211.35980966307562,
+          "voiced_frames": 167,
+          "frames": 228
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20260930,
+        "wer": 0.21052631578947367,
+        "ecapa": 0.6858029961585999,
+        "seconds": 7.76,
+        "duration_ratio": 1.0572207084468666,
+        "pitch": {
+          "median_hz": 171.677511892231,
+          "voiced_frames": 153,
+          "frames": 243
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20261001,
+        "wer": 0.21052631578947367,
+        "ecapa": 0.7170050144195557,
+        "seconds": 7.28,
+        "duration_ratio": 0.9918256130790192,
+        "pitch": {
+          "median_hz": 180.8384017769491,
+          "voiced_frames": 133,
+          "frames": 228
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 1,
+        "seed": 20260930,
+        "wer": 0.058823529411764705,
+        "ecapa": 0.6645311117172241,
+        "seconds": 9.28,
+        "duration_ratio": 1.1262135922330097,
+        "pitch": {
+          "median_hz": 182.93964279069144,
+          "voiced_frames": 171,
+          "frames": 291
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 1,
+        "seed": 20261001,
+        "wer": 0.0,
+        "ecapa": 0.8103015422821045,
+        "seconds": 8.96,
+        "duration_ratio": 1.0873786407766992,
+        "pitch": {
+          "median_hz": 176.70804697206307,
+          "voiced_frames": 135,
+          "frames": 281
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 2,
+        "seed": 20260930,
+        "wer": 0.0,
+        "ecapa": 0.7611551284790039,
+        "seconds": 8.56,
+        "duration_ratio": 1.1233595800524936,
+        "pitch": {
+          "median_hz": 148.1652464233414,
+          "voiced_frames": 148,
+          "frames": 268
+        }
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 2,
+        "seed": 20261001,
+        "wer": 0.0,
+        "ecapa": 0.7854502201080322,
+        "seconds": 8.4,
+        "duration_ratio": 1.1023622047244095,
+        "pitch": {
+          "median_hz": 203.5721807498765,
+          "voiced_frames": 170,
+          "frames": 263
+        }
+      }
+    ],
+    "metric_controls": {
+      "ecapa_self": 1.0000001192092896,
+      "ecapa_foreign_human_different_sentence": 0.36947429180145264,
+      "pitch": "100/200 Hz tones accepted, silence rejected",
+      "wer": "identical=0, deletion and repetition nonzero"
+    },
+    "human_asr_mean_wer": 0.09358157038639078,
+    "result_sha256": "dad00e2703675d72c501bfb0127ae1965a0b4ef14c5aac32b2b7c7049610127d",
+    "quality_sha256": "8f02fd5a429fe347de269e00f14e60b23f5d846bc9963dbe817e2692d5cb245a"
+  },
+  "retest_listening": {
+    "rated_at": "2026-09-30T18:45:18.661Z",
+    "raters": 1,
+    "groups": {
+      "foreign_control": {
+        "pairs": 4,
+        "similarity_rated": 4,
+        "similarity_histogram": {
+          "2": 1,
+          "1": 2,
+          "3": 1
+        },
+        "human_correct": 3,
+        "human_choices": {
+          "1": 2,
+          "Cannot tell": 1,
+          "2": 1
+        }
+      },
+      "identical_control": {
+        "pairs": 2,
+        "similarity_rated": 2,
+        "similarity_histogram": {
+          "5": 2
+        },
+        "human_correct": 1,
+        "human_choices": {
+          "Cannot tell": 1,
+          "Both": 1
+        }
+      },
+      "main": {
+        "pairs": 12,
+        "similarity_rated": 11,
+        "similarity_histogram": {
+          "1": 5,
+          "3": 3,
+          "5": 2,
+          "4": 1
+        },
+        "human_correct": 10,
+        "human_choices": {
+          "1": 6,
+          "2": 4,
+          "Cannot tell": 2
+        }
+      }
+    },
+    "ratings_sha256": "68abf01388d9b59e72dba264c2961b829a19c5b7a0afd967b5b7e7e0901ff71d",
+    "sealed_key_sha256": "be338740f4d3a16cb3979d8fee021dd69d65e7a5f6e11a04bb5538c9c30ceb94",
+    "html_sha256": "a5cd2330cea421e18538b7707fce29cd09a9e0a910849d4e17d7392695f5b482",
+    "main_rows": [
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "2"
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 3,
+        "human_correct": true,
+        "human_choice": "2"
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": false,
+        "human_choice": "Cannot tell"
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 4,
+        "human_correct": true,
+        "human_choice": "2"
+      },
+      {
+        "adapter": "warm_baritone_40s_m_fantasy",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 3,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "warm_baritone_40s_m_2",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": false,
+        "human_choice": "Cannot tell"
+      },
+      {
+        "adapter": "warm_baritone_40s_m_2",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "breathy_tenor_18s_m_supernatural",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": null,
+        "human_correct": true,
+        "human_choice": "2"
+      },
+      {
+        "adapter": "warm_baritone_40s_m_fantasy",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 3,
+        "human_correct": true,
+        "human_choice": "1"
+      }
+    ]
+  },
+  "diagnostic_listening": {
+    "rated_at": "2026-09-30T19:42:45.832Z",
+    "raters": 1,
+    "groups": {
+      "identical_control": {
+        "pairs": 2,
+        "similarity_rated": 2,
+        "similarity_histogram": {
+          "5": 2
+        },
+        "human_correct": 2,
+        "human_choices": {
+          "Both": 2
+        }
+      },
+      "main": {
+        "pairs": 8,
+        "similarity_rated": 8,
+        "similarity_histogram": {
+          "5": 4,
+          "1": 2,
+          "4": 2
+        },
+        "human_correct": 5,
+        "human_choices": {
+          "1": 4,
+          "2": 1,
+          "Both": 3
+        }
+      }
+    },
+    "ratings_sha256": "048d42cd903c87518b470c12312249afb742b23632b59645e2cee3d1d6ed4328",
+    "sealed_key_sha256": "0963ff28f404756cf978dd3692a6f37a039bac6f8ccd30f3eb09979b280227e4",
+    "html_sha256": "88cbe7681c17b76fb82127615d9b8a90597060afc80e334faf3dc6f736ea5f41",
+    "main_rows": [
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 1,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "2"
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 4,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "husky_baritone_20s_m_anime",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 4,
+        "human_correct": true,
+        "human_choice": "1"
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 1,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": false,
+        "human_choice": "Both"
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": false,
+        "human_choice": "Both"
+      },
+      {
+        "adapter": "husky_tenor_30s_m_literary",
+        "line_index": 0,
+        "seed": 20260930,
+        "kind": "main",
+        "similarity": 5,
+        "human_correct": false,
+        "human_choice": "Both"
+      },
+      {
+        "adapter": "warm_tenor_20s_m",
+        "line_index": 0,
+        "seed": 20261001,
+        "kind": "main",
+        "similarity": 1,
+        "human_correct": true,
+        "human_choice": "1"
+      }
+    ]
+  },
+  "limits": [
+    "Chinese verification measures duration only, not recognition or speaker quality.",
+    "Acoustic metrics retained from CPU scorer; this verifier checks waveforms and aggregates rather than rerunning ASR, ECAPA or pitch.",
+    "Single rater, enriched listening selections; no population estimate or goal closure.",
+    "Retest similarity score 17 missing and left unscored; detailed notes remain private."
+  ]
+}

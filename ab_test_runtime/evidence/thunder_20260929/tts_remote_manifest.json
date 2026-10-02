@@ -1,0 +1,862 @@
+[
+  {
+    "path": "/home/ubuntu/tts_batch_quality_20260929.py",
+    "bytes": 6450,
+    "sha256": "ed6b5ab5c81e5cc67b18fc85bf871bcc340eae9947d7702f73301bb2420976a3"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_tnr0_20260929.json",
+    "bytes": 20588,
+    "sha256": "70f2a0c5b66eb2ec82bdd1ce5e8906a66880ce09e0580b8338d1519bba13a030"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_tnr0_20260929.log",
+    "bytes": 29243,
+    "sha256": "81d0d37c8724714b459cf381926897f2d29de0e5ee47cb5bc7f83d737887c690"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_0.wav",
+    "bytes": 579884,
+    "sha256": "2f2f25b4ed34589d802d0c8f49a5fadcfdc0187856407debcb62530a7988f1e7"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_1.wav",
+    "bytes": 1420844,
+    "sha256": "a40616f6a1b7555054f163a61fb2972e1428ddbfa385eac9c673c306b68a4110"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_10.wav",
+    "bytes": 1090604,
+    "sha256": "393d678f1f76a23281cc670c7aef3bcf4eb2ef0954f031bdf4e8f4b03333f8c1"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_11.wav",
+    "bytes": 695084,
+    "sha256": "9fc7952b38eaf46cce94fdedb172f2a57ecb4f664cb10436913ac7e2a13cd469"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_12.wav",
+    "bytes": 353324,
+    "sha256": "1cfd8882e5dc5ac923594c6117849f66fd6597e008489788920a0eabca691f1d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_13.wav",
+    "bytes": 322604,
+    "sha256": "9e7c668b3651f5c267891a180fc9196fcd38c78c7d7358d90364593d48a75ea7"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_14.wav",
+    "bytes": 664364,
+    "sha256": "eebe1466684cd68e780a718dfc3d38077a93d2e3aeaff11aceff14e72a73bd7a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_15.wav",
+    "bytes": 599084,
+    "sha256": "4241c254c0193179b6c9c1a3f9e1c588c8b76e97b7eaa6d438ead2c24922b0c9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_16.wav",
+    "bytes": 975404,
+    "sha256": "57adad96bc31d70257749f30e8139053f58e1c31acf672e11f80e4d2e1d2d283"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_17.wav",
+    "bytes": 1724204,
+    "sha256": "c84b9a4dc7aa9db0b7c597d2c705d253226c8cb6767fcc4a941ab0c32320ab3d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_18.wav",
+    "bytes": 721964,
+    "sha256": "a9f5869340054c9087fa7fa886353bd8abaea1d465104dd46555b731b00d8c4a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_19.wav",
+    "bytes": 1013804,
+    "sha256": "6dd9cc9f33bac1d3e322fb584c143c623acebc7a8c8646f8f4d594b4249446f0"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_2.wav",
+    "bytes": 668204,
+    "sha256": "65ba8d27d7c57010e8b54664a646cc57815dba5fdd626cb265b88f3cf37ce4f4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_20.wav",
+    "bytes": 1228844,
+    "sha256": "4d6450c6399efdd3ff3593c85b95e030142a3d9c83b1f14e0ca59559e9cc14ec"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_21.wav",
+    "bytes": 361004,
+    "sha256": "af09c77147438920673ddffb8e7cc2f0e1d86e6f8938fae45851dfb026f37300"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_22.wav",
+    "bytes": 625964,
+    "sha256": "8ddba328bd53fc64f88b7b2618aadcf0e67c0f28e77f67f96bd43e63cfdae0f9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_23.wav",
+    "bytes": 284204,
+    "sha256": "0d407eafcaa34ad8567c7d49ffd4f029a46ad083dbde51c70efdd05e5b5f1a13"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_24.wav",
+    "bytes": 756524,
+    "sha256": "4b611dbd222cda5b9701913b47d518874646e9c4146338307d866a5a9cc83fa4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_25.wav",
+    "bytes": 295724,
+    "sha256": "650f6bdd033c5e9bd6db9e84041c96213a3da225c59a83e316666ff1cbcc72ee"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_26.wav",
+    "bytes": 583724,
+    "sha256": "74dbe63e4cbfb31bf8a18adb66dae3767a301d1c335ffaf5b419cd0a090e9320"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_27.wav",
+    "bytes": 1417004,
+    "sha256": "b1102ee32d8bf2cccc15beefb1f914d255c6726da1daab3b7a209b69b2bce43f"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_28.wav",
+    "bytes": 1589804,
+    "sha256": "ebe7aa9ce0b3baee2a730ed67e06db98cfca336437616ea85d7b05d130b9c6d4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_29.wav",
+    "bytes": 645164,
+    "sha256": "ebe7768134ba1ba6a5f0b6daeb65b48f12479b0da3d48205f12f205ca1208b15"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_3.wav",
+    "bytes": 203564,
+    "sha256": "98bdb9759b80374d9e6fac0348cf57681c20b32c1fec247a33ed0f272920ec3e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_30.wav",
+    "bytes": 1090604,
+    "sha256": "2212c198dc71b96c209aca74ecb6bae572e1cc861f5614f72859e9d877708d59"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_31.wav",
+    "bytes": 195884,
+    "sha256": "afd45750cc95858cbc1b78a48c061e1d6e87e4828a654a829e319b879b935f08"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_4.wav",
+    "bytes": 184364,
+    "sha256": "3551eb4eb6e8e9f5feb9d2a89d67e1cf599a3775ddb6e4452e87835d9570f1a4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_5.wav",
+    "bytes": 629804,
+    "sha256": "0dcd706e01cfa9edb2a0df95e3dd03426af5a97b83f5cd1a63f17875801492e8"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_6.wav",
+    "bytes": 1509164,
+    "sha256": "f8dbca648a9aaa03a8b5297addad2dcd507eb66d9fd2547b9299e0d7454d58e4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_7.wav",
+    "bytes": 307244,
+    "sha256": "ad1063d7a5a63dbe02170441269ef1acfe811a5cc0a7c81d6cea500d80cffa61"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_8.wav",
+    "bytes": 1136684,
+    "sha256": "32ec8d5d989d6200ddde402b9668934844a1ee5dc457ec7fb24ae433adda09ab"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w1/temp_batch_9.wav",
+    "bytes": 349484,
+    "sha256": "9abcbaabf800bb57755cb5573308eaf8aeb24035413a2d5d06eac9c6ac0416d6"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_0.wav",
+    "bytes": 664364,
+    "sha256": "5172c7b3bf0d21c9f27ffae8c4d16a6ebd5db9952aa5198b2969554af90a671c"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_1.wav",
+    "bytes": 1290284,
+    "sha256": "060bfe96902436b60f06087e008c7468f4e7c10bb68e1238295c8bcb3c0ab9ac"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_10.wav",
+    "bytes": 1770284,
+    "sha256": "025c01a707c1082349e8ae3debb6396557f9489a1c3e6f162845f3f54b72b5c5"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_11.wav",
+    "bytes": 583724,
+    "sha256": "86e62c83c8f6ba9cb385eb10f3c090d315d503c114662b8ba8ac8daf98846668"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_12.wav",
+    "bytes": 391724,
+    "sha256": "c379b39f5aff0a8a15ee7d0e5006d511a8fa3f2f010c464d163c16bf0d1a5c95"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_13.wav",
+    "bytes": 418604,
+    "sha256": "0b65231ce5c5e585b7309fe79502f7e893e1646c4544f8a6b81ddd09fd79b0a5"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_14.wav",
+    "bytes": 307244,
+    "sha256": "1a2617cd5553838b958d44686ac2c39990c5dbb971b7a1c5871a352d1d56fd7e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_15.wav",
+    "bytes": 683564,
+    "sha256": "f873b6df9d026c8955a93f05e72534fdacc0063b2b7872c66edd5dfc07d975a9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_16.wav",
+    "bytes": 706604,
+    "sha256": "7648ded53fed1f7d12b6ee954440b4e631b986d4010e36826ccd6c611cc23c22"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_17.wav",
+    "bytes": 1620524,
+    "sha256": "cce793583adb2b45b9f650df25d184bd0e789ecc1a0a311862b9ac1de90d281e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_18.wav",
+    "bytes": 848684,
+    "sha256": "af1ceb6bc2db0792cecf0c6306ca5654faca05a6302db30f61fdabd9e7a2b641"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_19.wav",
+    "bytes": 1033004,
+    "sha256": "44fe8374ec6c9c87985bd45bdccfc5a9d5887d9bfc043347c5e97d607a4f6b21"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_2.wav",
+    "bytes": 967724,
+    "sha256": "8f4781c99de5e43305a3177c95a4423fd502d2c53289bfe1b1628882738e7fb1"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_20.wav",
+    "bytes": 1520684,
+    "sha256": "4b83fb1c9cbd92205924ab5ba2efd5936f07b2588b5b921c2d9a583742c736d7"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_21.wav",
+    "bytes": 330284,
+    "sha256": "dea7fbacfeea7c82d6190d4508bdafea8afa059816f21d4daa2e1dba75edc34d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_22.wav",
+    "bytes": 649004,
+    "sha256": "895890d7040c06eca548ab125dbfa67a602739ed9e9e2d5802fedae7c622a66b"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_23.wav",
+    "bytes": 395564,
+    "sha256": "9bfeb1eb5f2341d45b92c8c1a862375e157a81c899363390392794f8814e0b05"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_24.wav",
+    "bytes": 245804,
+    "sha256": "51f5edd9b3ff8f231b371d4247e4b69c2c20f086fb7c91668d8fcd0c1626d84d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_25.wav",
+    "bytes": 633644,
+    "sha256": "aeec31a6275606ecb9d0cc0fe75023193d84b47c86cff43045a40aff1639e373"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_26.wav",
+    "bytes": 602924,
+    "sha256": "41ddf684437a0378dfdb392dda1dc70deb248b4812734f2ac5e7d093d90ecfbb"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_27.wav",
+    "bytes": 1666604,
+    "sha256": "4ec08c07f2b73de7ff2e6acabc19adaaf19ed02f4f0fe29f791551f22e1f39df"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_28.wav",
+    "bytes": 1582124,
+    "sha256": "1b62187c0744d913274720ed1428da239b9fc762fa16b5d7980dd54bf6a13808"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_29.wav",
+    "bytes": 856364,
+    "sha256": "ec63b218c0443bedf3080c44d26c7121a8d3b91fe75cb5e7e56d47508237ac06"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_3.wav",
+    "bytes": 165164,
+    "sha256": "76eaa82a677ef1b6882968a6b116d0281e6ebddebfb300d53a7fa2dc2a926fc0"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_30.wav",
+    "bytes": 1178924,
+    "sha256": "5d8046aa4c69d1f3b86b6d48d02364b8e316f89c9e08fede916f454e5195b588"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_31.wav",
+    "bytes": 234284,
+    "sha256": "d8d82381c6eade57dbf627734843944872020d68faa5e6ff0f5a3fb52016ef2b"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_4.wav",
+    "bytes": 222764,
+    "sha256": "2299e099c463424e6957670921f868116bc2dd5ebd92a03045429a1c63596ea5"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_5.wav",
+    "bytes": 591404,
+    "sha256": "8e135f998a506d9b28c816585a51a4882a6dbc30a055980dd9db6a9b77091669"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_6.wav",
+    "bytes": 2008364,
+    "sha256": "b7e40fbbc590ca197ff0a2854c3af43b76e3c1a7b08978cfbf3e15da3ba774dd"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_7.wav",
+    "bytes": 295724,
+    "sha256": "1a1c92bab41c385eb806855b7f90617f3e7a98b4074022f70a874458748186cc"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_8.wav",
+    "bytes": 1148204,
+    "sha256": "a7622b94415e80e605152ef2ec8ed0b07dc82ae13c233ae1f450b345bc6fb2aa"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w16/temp_batch_9.wav",
+    "bytes": 387884,
+    "sha256": "f546acf9e47cb43b14cf092678f9b0ea7f6f2d55912452de7c57779e948f375f"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_0.wav",
+    "bytes": 560684,
+    "sha256": "bf3bec17a8b115300f857833634ba4e443bceeb7286b397f010b7633f17747f8"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_1.wav",
+    "bytes": 1566764,
+    "sha256": "4eccfbf8814157d34aadf40596c306d41e371f1070fed3d0e6af45f50031f35e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_10.wav",
+    "bytes": 1290284,
+    "sha256": "bb78e70d8a2948c8f669089e90691ba8b48094052f5e33d53345967cc9aa992b"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_11.wav",
+    "bytes": 553004,
+    "sha256": "fd586412be3e67e831dcb865a6dd64cc01c1f97edf2f45d6e1a135e14ae486a6"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_12.wav",
+    "bytes": 418604,
+    "sha256": "3b4df882c0bfae99da0e222dbe33436c931dd65306ecbf87858613935ee5d589"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_13.wav",
+    "bytes": 441644,
+    "sha256": "5d183df62c9dc66493a2752f84fa56bcbd1ac05af9cd2f65134eb58bc5f79b0c"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_14.wav",
+    "bytes": 326444,
+    "sha256": "9ba67861a0c3978e15146cbefb867893a9d802c61f98ae3e7502d0e1d88c4b14"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_15.wav",
+    "bytes": 476204,
+    "sha256": "be3b82c07b8a86741e04e54a556c58dd935a19463f564e4baa08134fd42cefbd"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_16.wav",
+    "bytes": 925484,
+    "sha256": "ec631533d6c572cbef17a63f7ae200e2b182fb717560684ea6dacc7a88d6a03e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_17.wav",
+    "bytes": 1148204,
+    "sha256": "c402d65f184bf65f630581ff88e59981330e67490cd0483d87079a14ee1fff22"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_18.wav",
+    "bytes": 591404,
+    "sha256": "8c1d23e795cf9d451011f3f4d2246498d8578b5ef3d1ac768a14123a5487a098"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_19.wav",
+    "bytes": 1155884,
+    "sha256": "6982ae4a49b9dabbc7c572da97e5b38fe8f6cad2f09f11c6f8bd1c32dbbae89c"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_2.wav",
+    "bytes": 1163564,
+    "sha256": "001746375736cb25c6ee2a7f8d0b65967225baa5499a156f8629eaf271a02f87"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_20.wav",
+    "bytes": 733484,
+    "sha256": "48ecc84f750b7d1b358a3237883e78bfbed8d2bbe741fd39372ccefff252a5bc"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_21.wav",
+    "bytes": 318764,
+    "sha256": "441b4f7819099a60a8f7aafdbd7d5bccd29afe28e434907a1e511b0e50b69b76"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_22.wav",
+    "bytes": 925484,
+    "sha256": "e853f53df0d1fedf6f1a8e5e347dd8550a360b607158aa18bf2212dabcafb622"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_23.wav",
+    "bytes": 261164,
+    "sha256": "21a3dbccb2eda05e41d2c18a2f29275204cf548c22260adedf29fc2e764b9994"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_24.wav",
+    "bytes": 326444,
+    "sha256": "ad20aec1f5270f72ef1535fa3226fc807b47be69392ac0e504707b17e41fcf58"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_25.wav",
+    "bytes": 288044,
+    "sha256": "b899e42d9aa0f3c00cb28bb0bc1213f2c5ad34e310bf4f7589ffb0970b39247f"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_26.wav",
+    "bytes": 541484,
+    "sha256": "a2ac4538ca09122567b164ead2f2f016d0461f25f051df2e6de2a966c052c966"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_27.wav",
+    "bytes": 2012204,
+    "sha256": "a1e32a55350dccbd7f39c84ba3046f66ddcf1c8a867024ced41d2093d916d584"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_28.wav",
+    "bytes": 1201964,
+    "sha256": "76361cb7307a5efedd3a0b738abe0bdf61e64b3953a0ee6480f6c0e3ad98f52c"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_29.wav",
+    "bytes": 718124,
+    "sha256": "c868e82dae7520f51fdceb3ba6823eaf7e1204157d9d014f6360421ff91aff08"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_3.wav",
+    "bytes": 203564,
+    "sha256": "83e1d98981203f1e8987d7ca3d6265d963015493f7461b34faac02bec291045a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_30.wav",
+    "bytes": 1221164,
+    "sha256": "efca6b7998b1bf9c0775dbbfc853750b70006af74af7af653264f1972c4ce0ff"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_31.wav",
+    "bytes": 218924,
+    "sha256": "8e9aa9e0032d9d46df6484f54f4041d0266af5b476e7bc2ca51906e95f9fe0c9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_4.wav",
+    "bytes": 364844,
+    "sha256": "de0905c47d20d70ac6f166305fdf2539f0970e75b350c97cfec49262feb2e3f2"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_5.wav",
+    "bytes": 430124,
+    "sha256": "3a8d3b3076bdd54027b77c0a6945d427266c2aabb475ba3e316aa487acc552e9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_6.wav",
+    "bytes": 2841644,
+    "sha256": "258621725db1a744c0eaf45008c141cb01898b363d0e8bd8d8774e7741a04d01"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_7.wav",
+    "bytes": 207404,
+    "sha256": "e204078659d628f8b3969c1b87a051553dbd07dea11e958670feedd1dde08cb3"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_8.wav",
+    "bytes": 1562924,
+    "sha256": "127d95b9d10d0f46a03c143f5f67da966f3a94431a78726d036b9509fb61a0cc"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs/w4/temp_batch_9.wav",
+    "bytes": 295724,
+    "sha256": "e276aacf1679e3147f765ddc76ec7d5915ea67e52ed1dfbc756404be2d0e60f0"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_0.wav",
+    "bytes": 579884,
+    "sha256": "2f2f25b4ed34589d802d0c8f49a5fadcfdc0187856407debcb62530a7988f1e7"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_1.wav",
+    "bytes": 1420844,
+    "sha256": "a40616f6a1b7555054f163a61fb2972e1428ddbfa385eac9c673c306b68a4110"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_10.wav",
+    "bytes": 1090604,
+    "sha256": "393d678f1f76a23281cc670c7aef3bcf4eb2ef0954f031bdf4e8f4b03333f8c1"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_11.wav",
+    "bytes": 695084,
+    "sha256": "9fc7952b38eaf46cce94fdedb172f2a57ecb4f664cb10436913ac7e2a13cd469"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_12.wav",
+    "bytes": 353324,
+    "sha256": "1cfd8882e5dc5ac923594c6117849f66fd6597e008489788920a0eabca691f1d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_13.wav",
+    "bytes": 322604,
+    "sha256": "9e7c668b3651f5c267891a180fc9196fcd38c78c7d7358d90364593d48a75ea7"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_14.wav",
+    "bytes": 664364,
+    "sha256": "eebe1466684cd68e780a718dfc3d38077a93d2e3aeaff11aceff14e72a73bd7a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_15.wav",
+    "bytes": 599084,
+    "sha256": "4241c254c0193179b6c9c1a3f9e1c588c8b76e97b7eaa6d438ead2c24922b0c9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_16.wav",
+    "bytes": 975404,
+    "sha256": "57adad96bc31d70257749f30e8139053f58e1c31acf672e11f80e4d2e1d2d283"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_17.wav",
+    "bytes": 1724204,
+    "sha256": "c84b9a4dc7aa9db0b7c597d2c705d253226c8cb6767fcc4a941ab0c32320ab3d"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_18.wav",
+    "bytes": 721964,
+    "sha256": "a9f5869340054c9087fa7fa886353bd8abaea1d465104dd46555b731b00d8c4a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_19.wav",
+    "bytes": 1013804,
+    "sha256": "6dd9cc9f33bac1d3e322fb584c143c623acebc7a8c8646f8f4d594b4249446f0"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_2.wav",
+    "bytes": 668204,
+    "sha256": "65ba8d27d7c57010e8b54664a646cc57815dba5fdd626cb265b88f3cf37ce4f4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_20.wav",
+    "bytes": 1228844,
+    "sha256": "4d6450c6399efdd3ff3593c85b95e030142a3d9c83b1f14e0ca59559e9cc14ec"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_21.wav",
+    "bytes": 361004,
+    "sha256": "af09c77147438920673ddffb8e7cc2f0e1d86e6f8938fae45851dfb026f37300"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_22.wav",
+    "bytes": 625964,
+    "sha256": "8ddba328bd53fc64f88b7b2618aadcf0e67c0f28e77f67f96bd43e63cfdae0f9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_23.wav",
+    "bytes": 284204,
+    "sha256": "0d407eafcaa34ad8567c7d49ffd4f029a46ad083dbde51c70efdd05e5b5f1a13"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_24.wav",
+    "bytes": 756524,
+    "sha256": "4b611dbd222cda5b9701913b47d518874646e9c4146338307d866a5a9cc83fa4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_25.wav",
+    "bytes": 295724,
+    "sha256": "650f6bdd033c5e9bd6db9e84041c96213a3da225c59a83e316666ff1cbcc72ee"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_26.wav",
+    "bytes": 583724,
+    "sha256": "74dbe63e4cbfb31bf8a18adb66dae3767a301d1c335ffaf5b419cd0a090e9320"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_27.wav",
+    "bytes": 1417004,
+    "sha256": "b1102ee32d8bf2cccc15beefb1f914d255c6726da1daab3b7a209b69b2bce43f"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_28.wav",
+    "bytes": 1589804,
+    "sha256": "ebe7aa9ce0b3baee2a730ed67e06db98cfca336437616ea85d7b05d130b9c6d4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_29.wav",
+    "bytes": 645164,
+    "sha256": "ebe7768134ba1ba6a5f0b6daeb65b48f12479b0da3d48205f12f205ca1208b15"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_3.wav",
+    "bytes": 203564,
+    "sha256": "98bdb9759b80374d9e6fac0348cf57681c20b32c1fec247a33ed0f272920ec3e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_30.wav",
+    "bytes": 1090604,
+    "sha256": "2212c198dc71b96c209aca74ecb6bae572e1cc861f5614f72859e9d877708d59"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_31.wav",
+    "bytes": 195884,
+    "sha256": "afd45750cc95858cbc1b78a48c061e1d6e87e4828a654a829e319b879b935f08"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_4.wav",
+    "bytes": 184364,
+    "sha256": "3551eb4eb6e8e9f5feb9d2a89d67e1cf599a3775ddb6e4452e87835d9570f1a4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_5.wav",
+    "bytes": 629804,
+    "sha256": "0dcd706e01cfa9edb2a0df95e3dd03426af5a97b83f5cd1a63f17875801492e8"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_6.wav",
+    "bytes": 1509164,
+    "sha256": "f8dbca648a9aaa03a8b5297addad2dcd507eb66d9fd2547b9299e0d7454d58e4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_7.wav",
+    "bytes": 307244,
+    "sha256": "ad1063d7a5a63dbe02170441269ef1acfe811a5cc0a7c81d6cea500d80cffa61"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_8.wav",
+    "bytes": 1136684,
+    "sha256": "32ec8d5d989d6200ddde402b9668934844a1ee5dc457ec7fb24ae433adda09ab"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_42/w1/temp_batch_9.wav",
+    "bytes": 349484,
+    "sha256": "9abcbaabf800bb57755cb5573308eaf8aeb24035413a2d5d06eac9c6ac0416d6"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_0.wav",
+    "bytes": 556844,
+    "sha256": "807b7c4bcce4e9ea783d2027923ca7aeec8213325e2fb2763dcd52633580016f"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_1.wav",
+    "bytes": 737324,
+    "sha256": "07c8dd577fbf53bc67ad761190c651bb3037e50e73548932ea53cc78e8d49da4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_10.wav",
+    "bytes": 975404,
+    "sha256": "090ab00f5c90b1fe6cb4163ec5ed6c68a6e40beb40674a32b4ae1acd12882df9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_11.wav",
+    "bytes": 606764,
+    "sha256": "1658214114b256060d6925a17ee771892ae2b447867607b651dbc6ab02a5cae4"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_12.wav",
+    "bytes": 341804,
+    "sha256": "ae31516daf67c20bf547f72352dd3577df5014c0da236bde45fc9f22ad066518"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_13.wav",
+    "bytes": 487724,
+    "sha256": "8144af674255868f769af8976fa616599ef165ea66c3bb0e8f1b33726372306c"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_14.wav",
+    "bytes": 330284,
+    "sha256": "d6cb067ba74d74c06da4b725222c9c32c52b8fa07aa4ebbd9450edff14a4e20a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_15.wav",
+    "bytes": 560684,
+    "sha256": "7437fad6755accbe7024870eea9c327f970da9b86dcdcc38618c22c45a07ef77"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_16.wav",
+    "bytes": 787244,
+    "sha256": "674f5005e067a72a61af619c4814b82bb2c60aed68ed98266f44a8b28d9a6ddc"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_17.wav",
+    "bytes": 1624364,
+    "sha256": "91c5a062fbb815b570904d88419a85ee8175134ae56f5af8a8d3c43c1acb85d5"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_18.wav",
+    "bytes": 672044,
+    "sha256": "42ba0f6953ddaf921647276431e718a7cfa9e6e8e838f75f99b2b7c7c358d241"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_19.wav",
+    "bytes": 1186604,
+    "sha256": "9c7a0556e1dc8a0d57bedafd35528fd71b0ff93d57a109dd17d61be72367e57e"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_2.wav",
+    "bytes": 1025324,
+    "sha256": "eac1ff526167ec3c9f08e150c25b90f3005c2c9d0da3f3842898bafefb3ceb76"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_20.wav",
+    "bytes": 1059884,
+    "sha256": "09daea21f8cf9c5dcf15e1c58bd07a1eb9b9064112aa0e4b85159308b5df5152"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_21.wav",
+    "bytes": 334124,
+    "sha256": "1b5d0e9a385df19c6a05f8483402d6ee48b5ac1b348f04a929a2badf9efee7eb"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_22.wav",
+    "bytes": 679724,
+    "sha256": "dc5cfe3efa8a3ce53436e1e85cc28b146e6eb6c8977a0be5f33545f4f27fa784"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_23.wav",
+    "bytes": 203564,
+    "sha256": "b47eeb5351325540b1a8599240904338eeba4ebb3cd9f1d478d4190c816bcd77"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_24.wav",
+    "bytes": 241964,
+    "sha256": "f4cffa0af94382c3d1f15825acff76382ac8071c47d6d06c0bdde982ac4790a2"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_25.wav",
+    "bytes": 529964,
+    "sha256": "5e324e2080a300a913526cad7a782c8b9c88ac480787b5fddcd1a7f3fe29b1ce"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_26.wav",
+    "bytes": 625964,
+    "sha256": "714b974500cb4502251662657ea4b105b8e31ee17ba5ec16307bba51cdab37d5"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_27.wav",
+    "bytes": 1981484,
+    "sha256": "98088b496004f0743efdf12d6220a56350131c5bc5162048aaa7a446041d2790"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_28.wav",
+    "bytes": 1405484,
+    "sha256": "422e561237b3bdb5ecf9dd7d3d2dfe932b788e848426e28175f2ef828c095b0a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_29.wav",
+    "bytes": 698924,
+    "sha256": "9dadbfa5e1b9e1e2f58e64f8cb05f772baee5bd435e724220886ef519ba16ae9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_3.wav",
+    "bytes": 238124,
+    "sha256": "cb5ae076597bb5e8e32c3515e190c988c107eb497892550b0a2471ab395b597a"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_30.wav",
+    "bytes": 1163564,
+    "sha256": "9cefc8a9651bad873f56902eeaddc5e09723d7ecd73197ed13321a519c0f3677"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_31.wav",
+    "bytes": 184364,
+    "sha256": "aa91c9f038719cd0469fae020252131121f92bf841e5b42519de1f2b805afbee"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_4.wav",
+    "bytes": 276524,
+    "sha256": "fa04715bf9fdc23c6b3c27fa815ac1b290349a959399d92d70e44949043237a0"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_5.wav",
+    "bytes": 679724,
+    "sha256": "d5c32b51e3ce4fd188d831cf4aff73648f8cdb369dcbd5fa7f15612c3aaf51ec"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_6.wav",
+    "bytes": 2887724,
+    "sha256": "9542b765b0f9a4b6dc3a2614a6c4ecfe2ab4b30a50424bf34527792b0ef2fb45"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_7.wav",
+    "bytes": 215084,
+    "sha256": "2caccf13489acddd3d5af46829aa7acc1871c00f6105ae31d8d464db442992f9"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_8.wav",
+    "bytes": 1582124,
+    "sha256": "192e7591a50203d7f495843dbe005d1063b4125d7114228324c53f68206c2109"
+  },
+  {
+    "path": "/home/ubuntu/tts_batch_quality_wavs_ctl_43/w1/temp_batch_9.wav",
+    "bytes": 633644,
+    "sha256": "bb38379b5c4b890537fd7456cdd318a28c93b696b55d91aa59deb2bb4982c1c3"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_20260929.py",
+    "bytes": 6558,
+    "sha256": "1f1994ece07760bace7a19f6777a8d5b439d423442696856eee98580d3183b9e"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_chain_20260929.log",
+    "bytes": 223,
+    "sha256": "1b3b2eaf7dfc5402b830ba5810177d796ece1a266d4f99bfe3807bd1e5d80d88"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_chain_20260929.sh",
+    "bytes": 529,
+    "sha256": "4bbd8a8cd9988ba3e611be4857f73b354ca84ae96038606a26bafd9ae611af3d"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_compare_20260929.json",
+    "bytes": 794,
+    "sha256": "a0d4608711c92dbf46a7e74585a6712b8ec275d4a15d4558e31a4adfbf0388c4"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_compare_20260929.py",
+    "bytes": 1731,
+    "sha256": "b918478be61ff24809735fe0a6675d4d4cfa1325bcc1abf7e05ee1c7bd69de7b"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_w1_seed42_20260929.json",
+    "bytes": 7107,
+    "sha256": "bbe013bb803046a6eeebba5449c81c608474a76fa44e1ce7c3aa7205eaca9622"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_w1_seed42_20260929.log",
+    "bytes": 17749,
+    "sha256": "4a8b962dd095743d4395d443014a65b2bb1c564ae50a7ea39e74ff09bfd1720d"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_w1_seed43_20260929.json",
+    "bytes": 7023,
+    "sha256": "2f4ab6265dfccb529d9821e8f6cd54a4ef5c9d1110d8b1ccfd672edd995d0fc6"
+  },
+  {
+    "path": "/home/ubuntu/tts_ctl_w1_seed43_20260929.log",
+    "bytes": 17568,
+    "sha256": "51ea3f50db37534b325fb4ee518db37f1e478f5baf56a7d45021b331dc08d3d6"
+  }
+]
