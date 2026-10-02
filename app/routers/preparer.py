@@ -113,6 +113,7 @@ class PreparerConfig(PreparerQualityConfig):
     batch_size: int = 1
     # LLM enrichment
     enrich_with_llm: bool = False
+    allow_cpu_fallback: bool = False
     llm_model_path: Optional[str] = None
     enrich_speaker_attribution: bool = False
     enrich_narration_style: bool = False
@@ -321,6 +322,8 @@ async def preparer_start(
                 cmd.append("--no-auto-anchor")
         if config.enrich_with_llm:
             cmd.append("--enrich-with-llm")
+            if config.allow_cpu_fallback:
+                cmd.append("--allow-cpu-fallback")
             if config.llm_model_path:
                 cmd.extend(["--llm-model-path", config.llm_model_path])
             if config.enrich_speaker_attribution:
