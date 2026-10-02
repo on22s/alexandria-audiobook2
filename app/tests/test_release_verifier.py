@@ -56,8 +56,16 @@ class CiEnvParityTests(unittest.TestCase):
     def test_ci_runs_the_shared_release_verifier(self):
         workflow = self._workflow()
         self.assertIn(
-            "python verify_release.py --json-report release-report.json", workflow)
+            'python verify_release.py --shard "${{ matrix.shard }}" --json-report release-report.json',
+            workflow)
         self.assertNotIn("python -m unittest discover", workflow)
+        # The unit suite is split across a matrix; a final job checks the shards
+        # together ran every test. The matrix size and the checker's --shards must agree.
+        matrix = re.search(r'shard:\s*\[([^\]]*)\]', workflow)
+        shards = [item.strip().strip('"') for item in matrix.group(1).split(",")]
+        count = len(shards)
+        self.assertEqual([f"{i}/{count}" for i in range(1, count + 1)], shards)
+        self.assertIn(f"python check_shard_reports.py ../shard-reports --shards {count}", workflow)
         self.assertIn("actions/upload-artifact@v6", workflow)
         self.assertIn("Diagnose whether failure exists on the base commit", workflow)
         self.assertIn("fetch-depth: 0", workflow)
@@ -284,9 +292,13 @@ class ReleaseVerifierTests(unittest.TestCase):
             "counts": {"passed": 1, "failed": 0, "skipped": 1, "total": 2},
             "skips": [{"name": "gpu", "reason": "requires --full"}],
         }
+        def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True):
+            # Only the unit gate reports a value (its test count); the others return nothing.
+            return 600 if reject_unittest_skips else None
+
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(verify_release, "compile_python_files", return_value=None), \
-             patch.object(verify_release, "run_command"), \
+             patch.object(verify_release, "run_command", side_effect=run_command), \
              patch.object(verify_release, "run_api_suite", return_value=api_result):
             report_path = Path(tmp) / "report.json"
             self.assertEqual(0, verify_release.main(["--json-report", str(report_path)]))
@@ -306,6 +318,12 @@ class ReleaseVerifierTests(unittest.TestCase):
             [gate["name"] for gate in report["gates"]],
         )
         self.assertEqual(api_result, report["gates"][-1]["result"])
+        # The unit gate records how many tests ran, so sharded runs can be totalled.
+        gates = {gate["name"]: gate for gate in report["gates"]}
+        self.assertEqual({"tests_ran": 600}, gates["unit_tests"]["result"])
+        self.assertTrue(all("result" not in gate for name, gate in gates.items()
+                            if name not in ("unit_tests", "api_tests")))
+        self.assertNotIn("shard", report)
         self.assertTrue(all(gate["status"] == "passed" for gate in report["gates"]))
 
     def test_json_report_is_written_on_failure_with_secrets_redacted(self):

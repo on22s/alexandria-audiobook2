@@ -4,14 +4,28 @@ name: tests
 # against a disposable ALEXANDRIA_DATA_DIR. GPU/LLM-dependent `--full` tests are
 # intentionally NOT run here — they need a real GPU + LM Studio and belong in a
 # separate manual/self-hosted job.
+#
+# The unit suite runs as three parallel shards (separate VMs: the tests write
+# real files into the checkout, so they must not share one). A shard is a set of
+# whole test modules chosen by app/unit_test_sharding.py from measured times.
+# Shard 1 also runs every non-unit gate. The final `test` job fails unless the
+# shards together ran exactly the inventoried number of tests, so a dropped or
+# double-run module cannot hide behind green shards. Changing the shard count
+# means changing the matrix AND `--shards` below; the checker fails loudly if
+# they disagree.
 on:
   pull_request:
   push:
     branches: [main]
 
 jobs:
-  test:
+  unit:
+    name: unit (${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/3", "2/3", "3/3"]
     defaults:
       run:
         working-directory: app
@@ -77,12 +91,13 @@ jobs:
           python -c "import torch, torchaudio, peft; from safetensors import safe_open; assert torch.version.cuda is None and torch.version.hip is None; assert torchaudio.__version__.endswith('+cpu')"
 
       - name: Snapshot maintenance hints
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.shard == '1/3'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python diagnose_pr_changes.py --base "$BASE_SHA"
 
       - name: Verify experiment evidence indexes
+        if: matrix.shard == '1/3'
         working-directory: .
         run: |
           python tools/audit/audit_experiment_artifacts.py --check
@@ -91,7 +106,7 @@ jobs:
 
       - name: Shared release verifier
         id: verify
-        run: python verify_release.py --json-report release-report.json
+        run: python verify_release.py --shard "${{ matrix.shard }}" --json-report release-report.json
 
       - name: Diagnose whether failure exists on the base commit
         if: always() && github.event_name == 'pull_request' && steps.verify.outcome == 'failure'
@@ -101,7 +116,7 @@ jobs:
           BASE_WORKTREE="${RUNNER_TEMP}/alexandria-base"
           git worktree add --detach "$BASE_WORKTREE" "$BASE_SHA"
           set +e
-          (cd "$BASE_WORKTREE/app" && python verify_release.py --json-report "${RUNNER_TEMP}/base-release-report.json")
+          (cd "$BASE_WORKTREE/app" && python verify_release.py --shard "${{ matrix.shard }}" --json-report "${RUNNER_TEMP}/base-release-report.json")
           BASE_STATUS=$?
           set -e
           git worktree remove --force "$BASE_WORKTREE"
@@ -119,11 +134,41 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: release-verification-report
+          # A shard name contains "/", which artifact names forbid.
+          name: release-verification-report-shard-${{ strategy.job-index }}
           path: |
             app/release-report.json
             app/base-release-report.json
           if-no-files-found: warn
+
+  # Stable job name: this is the one check that means "the whole suite passed".
+  test:
+    needs: unit
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Fail if any shard did not pass
+        if: needs.unit.result != 'success'
+        working-directory: .  # before checkout, app/ does not exist yet
+        run: |
+          echo "::error::The unit shards finished as '${{ needs.unit.result }}'; see the unit jobs."
+          exit 1
+
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-verification-report-shard-*
+          path: shard-reports
+
+      - name: Verify the shards together ran every test exactly once
+        run: python check_shard_reports.py ../shard-reports --shards 3
 
   windows-owner:
     runs-on: windows-latest

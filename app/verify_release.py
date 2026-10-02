@@ -19,6 +19,7 @@ from pathlib import Path
 
 from utils import atomic_json_write
 from diagnostics import get_redacted_credentials
+from unit_test_sharding import parse_shard_spec
 from subprocess_ownership import (get_owned_exit_result, is_subprocess_tree_running,
                                  start_owned_subprocess, stop_owned_subprocess)
 
@@ -110,15 +111,17 @@ def run_command(label, command, cwd, reject_unittest_skips=False, capture_output
         if reject_unittest_skips:
             if summary_stream is not None:
                 summary_stream.seek(0)
-                validate_unittest_output(summary_stream)
-            else:
-                validate_unittest_output(combined)
+                return validate_unittest_output(summary_stream)
+            return validate_unittest_output(combined)
         return combined
 
 
 def run_report_command(*args, **kwargs):
-    """Run a streamed command without retaining its console output in reports."""
-    run_command(*args, **kwargs, capture_output=False)
+    """Run a streamed command without retaining its console output in reports.
+
+    Returns the unit-test count for the unit gate and None for every other gate.
+    """
+    return run_command(*args, **kwargs, capture_output=False)
 
 
 def get_python_paths(repo_dir):
@@ -222,6 +225,7 @@ def validate_unittest_output(output):
             f"Unit discovery ran only {ran.group(1)} tests, under the "
             f"{MINIMUM_UNIT_TESTS} floor - the suite is not being found. "
             "Check that app/tests/__init__.py still exists.")
+    return int(ran.group(1))
 
 
 def run_api_suite(app_dir, full):
@@ -284,7 +288,17 @@ def main(argv=None):
     )
     parser.add_argument("--json-report", metavar="PATH",
                         help="atomically write a machine-readable release report")
+    parser.add_argument(
+        "--shard", metavar="I/N",
+        help="run only shard I of N of the unit tests (see unit_test_sharding.py); "
+             "the other gates run on shard 1 only, so N parallel runs cover everything once",
+    )
     args = parser.parse_args(argv)
+    try:
+        shard = parse_shard_spec(args.shard) if args.shard is not None else None
+    except ValueError as error:
+        parser.error(str(error))
+    runs_other_gates = shard is None or shard[0] == 1
     app_dir = Path(__file__).resolve().parent
     repo_dir = app_dir.parent
     started = time.monotonic()
@@ -294,23 +308,29 @@ def main(argv=None):
         "status": "running",
         "gates": [],
     }
+    if args.shard is not None:
+        report["shard"] = args.shard
     failure = None
     try:
-        run_report_gate(report, "compile_python", lambda: compile_python_files(repo_dir))
+        if runs_other_gates:
+            run_report_gate(report, "compile_python", lambda: compile_python_files(repo_dir))
+            run_report_gate(
+                report, "test_inventory", lambda: run_report_command(
+                    "Unit test inventory",
+                    [sys.executable, "update_test_inventory.py", "--check"], app_dir,
+                ),
+            )
+        unit_command = [sys.executable, "-m", "ci_env", "discover", "-s", ".", "-p", "test_*.py", "-v"]
+        if args.shard is not None:
+            unit_command += ["--shard", args.shard]
         run_report_gate(
-            report, "test_inventory", lambda: run_report_command(
-                "Unit test inventory",
-                [sys.executable, "update_test_inventory.py", "--check"], app_dir,
-            ),
-        )
-        run_report_gate(
-            report, "unit_tests", lambda: run_report_command(
+            report, "unit_tests", lambda: {"tests_ran": run_report_command(
                 # ci_env keeps local import exclusions aligned with CI.
                 # CI supplies CPU Torch/PEFT for structural artifact checks.
-                "Unit test discovery (CI-equivalent env)",
-                [sys.executable, "-m", "ci_env", "discover", "-s", ".", "-p", "test_*.py", "-v"],
-                app_dir, reject_unittest_skips=True,
-            ),
+                "Unit test discovery (CI-equivalent env)"
+                + (f", shard {args.shard}" if args.shard is not None else ""),
+                unit_command, app_dir, reject_unittest_skips=True,
+            )},
         )
         # THE THREE CHECKS CI RUNS AND THIS DID NOT. "verifier green" was
         # followed by a red CI three times on 2026-08-19/20, every time because
@@ -318,22 +338,23 @@ def main(argv=None):
         # the next one, because the CI step runs them in sequence and stops at
         # the first. They belong here, where they cost two seconds, rather than
         # in a four-minute round trip. Run from the repo root, not app/.
-        for gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
-                             ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
-                             ("results_index", "tools/audit/collect_results.py")):
+        if runs_other_gates:
+            for gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
+                                 ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
+                                 ("results_index", "tools/audit/collect_results.py")):
+                run_report_gate(
+                    report, gate, lambda script=script: run_report_command(
+                        "Evidence index (%s)" % script,
+                        [sys.executable, script, "--check"], repo_dir,
+                    ),
+                )
             run_report_gate(
-                report, gate, lambda script=script: run_report_command(
-                    "Evidence index (%s)" % script,
-                    [sys.executable, script, "--check"], repo_dir,
+                report, "api_contract", lambda: run_report_command(
+                    "API contract snapshots",
+                    [sys.executable, "update_api_contract_snapshots.py", "--check"], app_dir,
                 ),
             )
-        run_report_gate(
-            report, "api_contract", lambda: run_report_command(
-                "API contract snapshots",
-                [sys.executable, "update_api_contract_snapshots.py", "--check"], app_dir,
-            ),
-        )
-        run_report_gate(report, "api_tests", lambda: run_api_suite(app_dir, args.full))
+            run_report_gate(report, "api_tests", lambda: run_api_suite(app_dir, args.full))
     except BaseException as exc:
         failure = exc
         report["status"] = "failed"
