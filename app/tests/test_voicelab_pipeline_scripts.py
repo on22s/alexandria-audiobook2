@@ -38,6 +38,9 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def test_batch_empty_normalization_has_stable_distinct_child_ids(self):
         ids = [batch_train.sanitize(name) for name in ("---.zip", "声.zip")]
         self.assertTrue(all(ids))
@@ -694,6 +697,9 @@ class LegacyProfilerIdTests(unittest.TestCase):
 
 
 class BatchMetadataFailureTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def test_actual_cli_bad_encoding_refuses_all_training_and_preserves_outputs(self):
         import subprocess
         with tempfile.TemporaryDirectory() as tmp:
@@ -745,6 +751,9 @@ class BatchMetadataFailureTests(unittest.TestCase):
 
 
 class BatchTrainingEtaTests(unittest.TestCase):
+    def setUp(self):
+        training_fixtures.apply_test_training_dependency_fixture(self)
+
     def test_eta_counts_attempted_training_instead_of_cached_zip_ordinals(self):
         for fail_first in (False,True):
             with self.subTest(fail_first=fail_first),tempfile.TemporaryDirectory() as tmp:

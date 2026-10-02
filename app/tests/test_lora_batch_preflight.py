@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -26,7 +27,22 @@ def save_valid_training_zip(path):
         archive.writestr('metadata.jsonl', '{"audio_filepath":"clip.wav","text":"Hello."}\n')
         archive.writestr('clip.wav', pcm.getvalue())
 
+def apply_test_training_dependency_fixture(testcase):
+    """Supply discovery-only Qwen package for CPU scheduling tests, not inference."""
+    temporary = tempfile.TemporaryDirectory()
+    testcase.addCleanup(temporary.cleanup)
+    Path(temporary.name, 'qwen_tts.py').write_text(
+        "raise RuntimeError('This test fixture cannot perform Qwen inference')\n")
+    search = temporary.name + (os.pathsep + os.environ['PYTHONPATH'] if os.environ.get('PYTHONPATH') else '')
+    environment = patch.dict(os.environ, {'PYTHONPATH': search})
+    environment.start()
+    testcase.addCleanup(environment.stop)
+
+
 class BatchPreflightTests(unittest.TestCase):
+    def setUp(self):
+        apply_test_training_dependency_fixture(self)
+
     def test_damaged_last_zip_refuses_entire_dry_and_full_batch(self):
         for dry in (False, True):
             with self.subTest(dry=dry), tempfile.TemporaryDirectory() as tmp:
