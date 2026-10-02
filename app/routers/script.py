@@ -2171,8 +2171,8 @@ def get_validated_batch_script_narrators(request):
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
     """Process multiple text/EPUB files through three_pass_generate.py - the
     same command single-book generation runs (build_generate_script_command)."""
-    prepared_jobs = await asyncio.to_thread(get_prepared_batch_script_jobs, request)
     check_global_gpu_lock("batch_script")
+    prepared_jobs = await asyncio.to_thread(get_prepared_batch_script_jobs, request)
 
     def _run():
         with ensure_book_state(SCRIPTS_DIR):

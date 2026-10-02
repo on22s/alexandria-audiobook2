@@ -807,7 +807,7 @@ class ProjectManager:
                 self._remove_temp_file(staged_path)
 
     def _reset_captured_generations(self, captured, indices, done_indices):
-        """Reset only pending generation owners; return count and stale failures."""
+        """Reset generating owners; count unfinished requests and report stale inputs."""
         count, failed = 0, []
         for idx in indices:
             if idx in done_indices:
@@ -824,6 +824,9 @@ class ProjectManager:
                     failed.append((idx, GENERATION_INPUTS_CHANGED))
                 else:
                     count += 1
+            else:
+                # A cancelled queued worker never changed the captured row.
+                count += 1
         return count, failed
 
     def generate_chunk_audio(self, index):

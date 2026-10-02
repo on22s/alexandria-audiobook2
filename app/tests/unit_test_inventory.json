@@ -617,6 +617,8 @@
   ],
   "test_batch_prepared_sources": [
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_actual_start_and_background_preflight_read_each_source_once",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_atomic_claim_rechecks_busy_state_after_preparation",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_busy_batch_refuses_before_source_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_changed_source_revalidates_narrator_even_if_size_and_mtime_match",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text"
@@ -5045,6 +5047,7 @@
     "tests.test_project_export_staging.ExportStagingTests.test_overlapping_m4b_exports_keep_each_calls_wav_and_metadata"
   ],
   "test_project_status_journal": [
+    "tests.test_project_status_journal.ProjectStatusJournalTests.test_cancelled_queued_generation_is_counted_without_changing_prior_state",
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_changed_book_refuses_publication_and_preserves_old_journal",
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_editing_target_rejects_old_audio_without_reverting_edit",
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_oom_retry_steps_down_and_finally_compacts_after_cancel_or_callback_failure",

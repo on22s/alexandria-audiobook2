@@ -60,6 +60,34 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
                 job = call.args[0]
                 self.assertEqual(sources[job['index']].read_text(),job['prepared_source']['text'])
 
+    def test_busy_batch_refuses_before_source_preparation(self):
+        from fastapi import HTTPException
+        request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+        background = BackgroundTasks()
+        core.process_state['batch_script']['running'] = True
+        with patch.object(script, 'get_prepared_batch_script_jobs') as prepare:
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(script.generate_script_batch_start(request, background))
+        self.assertEqual(400, error.exception.status_code)
+        self.assertIn('already running', error.exception.detail)
+        prepare.assert_not_called()
+        self.assertEqual([], background.tasks)
+
+    def test_atomic_claim_rechecks_busy_state_after_preparation(self):
+        from fastapi import HTTPException
+        request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+        background = BackgroundTasks()
+        def became_busy(request):
+            core.process_state['batch_script']['running'] = True
+            return []
+        with patch.object(script, 'get_prepared_batch_script_jobs', side_effect=became_busy):
+            with self.assertRaises(HTTPException) as error:
+                asyncio.run(script.generate_script_batch_start(request, background))
+        self.assertEqual(400, error.exception.status_code)
+        self.assertIn('already running', error.exception.detail)
+        self.assertEqual([], background.tasks)
+        self.assertEqual({}, core._task_claims)
+
     def test_changed_source_revalidates_narrator_even_if_size_and_mtime_match(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);path=root/'book.txt';path.write_text('Alexis Alexis Alexis')

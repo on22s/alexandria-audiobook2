@@ -139,6 +139,68 @@ m.generate_chunks_parallel([0],max_workers=1)
         self.assertEqual(sentinel.read_text(), "keep")
         self.assertFalse(remove_chunk_snapshot(self.manager.chunks_path))
 
+    def test_cancelled_queued_generation_is_counted_without_changing_prior_state(self):
+        from concurrent.futures import Future
+        for prior_status, stale in (("pending", False), ("done", False),
+                                    ("error", False), ("pending", True)):
+            with self.subTest(prior_status=prior_status, stale=stale):
+                rows = copy.deepcopy(self.rows)
+                rows[1]["status"] = prior_status
+                if prior_status == "done":
+                    rows[1]["audio_path"] = "voicelines/prior.wav"
+                    sf.write(self.root / rows[1]["audio_path"], [.2] * 2400, 24000)
+                self.manager.save_chunks(rows)
+                prior = copy.deepcopy(rows[1])
+                prior_bytes = ((self.root / prior["audio_path"]).read_bytes()
+                               if prior.get("audio_path") else None)
+                generated = []
+                class Engine:
+                    def generate_voice(self, text, instruct, speaker, config, output):
+                        generated.append(text)
+                        sf.write(output, [.1] * 2400, 24000)
+                        return True
+                self.manager.engine = Engine()
+                class QueuedFuture(Future):
+                    def cancel(self):
+                        cancelled = super().cancel()
+                        if cancelled:
+                            self.set_running_or_notify_cancel()
+                        return cancelled
+                manager = self.manager
+                class OrderedExecutor:
+                    def __init__(self, **kwargs):
+                        self.submitted = 0
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        pass
+                    def submit(self, function, *args):
+                        self.submitted += 1
+                        if self.submitted == 2:
+                            return QueuedFuture()
+                        future = Future()
+                        future.set_running_or_notify_cancel()
+                        future.set_result(function(*args))
+                        if stale:
+                            manager.update_chunk(1, {"text": "edited queued row"})
+                        return future
+                with patch("concurrent.futures.ThreadPoolExecutor", OrderedExecutor):
+                    result = self.manager.generate_chunks_parallel(
+                        [0, 1], max_workers=2, cancel_check=lambda: True)
+                self.assertEqual(result["completed"], [0])
+                self.assertEqual(generated, ["line 0"])
+                if stale:
+                    self.assertEqual(result["cancelled"], 0)
+                    self.assertEqual(len(result["failed"]), 1)
+                    self.assertEqual(self.manager.load_chunks()[1]["text"], "edited queued row")
+                else:
+                    self.assertEqual(result["failed"], [])
+                    self.assertEqual(result["cancelled"], 1)
+                    self.assertEqual(self.manager.load_chunks()[1], prior)
+                    if prior_bytes is not None:
+                        self.assertEqual((self.root / prior["audio_path"]).read_bytes(), prior_bytes)
+                self.assertFalse(self.journal.exists())
+
     def test_oom_retry_steps_down_and_finally_compacts_after_cancel_or_callback_failure(self):
         for mode in ("oom", "cancel", "callback_error"):
             with self.subTest(mode=mode):
