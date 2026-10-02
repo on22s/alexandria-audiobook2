@@ -116,11 +116,13 @@ def _is_structural_text(text):
     return False
 
 
-def _make_chunk(speaker, text, instruct, pause_after=None):
+def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None):
     """Build a chunk dict, omitting pause_after when None for clean JSON."""
     chunk = {"speaker": speaker, "text": text, "instruct": instruct}
     if pause_after is not None:
         chunk["pause_after"] = pause_after
+    if source_indices is not None:
+        chunk["source_entry_indices"] = list(source_indices)
     return chunk
 
 
@@ -241,10 +243,13 @@ def get_speakable_entries(script_entries, review_sink=None):
 
 
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
-                      review_sink=None):
+                      review_sink=None, include_source_indices=False):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
         raise ValueError("max_chars must be a positive integer")
+    if include_source_indices:
+        script_entries = [{**entry, "_source_entry_indices": [index]}
+                          for index, entry in enumerate(script_entries)]
     script_entries = get_speakable_entries(script_entries,
                                            review_sink=review_sink)
     if not script_entries:
@@ -255,6 +260,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     current_text = script_entries[0].get("text", "")
     current_instruct = script_entries[0].get("instruct", "")
     current_pause_after = script_entries[0].get("pause_after")
+    current_indices = script_entries[0].get("_source_entry_indices") if include_source_indices else None
 
     for entry in script_entries[1:]:
         speaker = get_speaker(entry)
@@ -274,22 +280,26 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             combined = current_text + " " + text
             if len(combined) <= max_chars:
                 current_text = combined
+                if include_source_indices:
+                    current_indices = sorted(set(current_indices + entry["_source_entry_indices"]))
                 # Last merged entry's pause_after wins
                 current_pause_after = entry.get("pause_after", current_pause_after)
             else:
-                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
                 current_text = text
+                current_indices = entry["_source_entry_indices"] if include_source_indices else None
                 current_instruct = instruct
                 current_pause_after = entry.get("pause_after")
         else:
-            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
             current_speaker = speaker
+            current_indices = entry["_source_entry_indices"] if include_source_indices else None
             current_text = text
             current_instruct = instruct
             current_pause_after = entry.get("pause_after")
 
     # Don't forget the last chunk
-    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
 
     bounded = []
     for chunk in chunks:

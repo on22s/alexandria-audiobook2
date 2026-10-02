@@ -4565,9 +4565,89 @@
             return chunkRefreshPromise;
         }
 
-        async function loadChunks(forceFullRedraw = false) {
+        let deliveryReviewView = 0;
+        let deliveryRetryClaim = null;
+        let deliveryRetryPending = false;
+
+        function renderDeliveryReview(info) {
+            const panel = document.getElementById('delivery-review-panel');
+            if (!panel) { return; }
+            if (!info || !Number.isInteger(info.count) || !Array.isArray(info.rows)) {
+                panel.style.display = '';
+                panel.textContent = 'Delivery review is unavailable; refresh before relying on its warnings.';
+                return;
+            }
+            panel.style.display = info.count || deliveryRetryClaim ? '' : 'none';
+            const rows = info.rows.map(row => `<li><strong>Entry ${escapeHtml(String(row.entry))} · ${escapeHtml(row.speaker)}</strong>: ${escapeHtml(row.text)}<br><small>${escapeHtml(row.instruct)}</small></li>`).join('');
+            panel.innerHTML = `<strong>Needs delivery review: ${info.count} entries</strong>
+                <p class="small mb-2">Pass 3 exhausted its retries for these entries and used generic delivery instructions. Text and speakers were retained.</p>
+                <div style="max-height:16rem;overflow:auto"><ol>${rows}</ol></div>
+                ${info.retry_refusal ? `<p class="small">${escapeHtml(info.retry_refusal)}</p>` : ''}
+                <button class="btn btn-sm btn-outline-warning" onclick="retryDeliveryInstructions()" ${!info.retry_available || deliveryRetryPending || deliveryRetryClaim ? 'disabled' : ''}>Retry delivery only</button>
+                ${deliveryRetryClaim ? '<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelDeliveryInstructions()">Cancel delivery retry</button>' : ''}`;
+        }
+
+        async function refreshDeliveryReview() {
+            const view = ++deliveryReviewView;
             try {
-                return await ensureChunkRefresh(forceFullRedraw);
+                const info = await API.get('/api/annotated_script/delivery_review');
+                if (view !== deliveryReviewView) { return null; }
+                renderDeliveryReview(info);
+                return info;
+            } catch (e) {
+                if (view === deliveryReviewView) { renderDeliveryReview(null); }
+                return null;
+            }
+        }
+
+        window.retryDeliveryInstructions = async () => {
+            if (deliveryRetryPending || deliveryRetryClaim) { return; }
+            deliveryRetryPending = true;
+            try {
+                await ensureEditorRenderSnapshot();
+                const info = await refreshDeliveryReview();
+                if (!info || !info.count || !info.retry_available) { return; }
+                if (!await confirmIfRemote('this delivery-only retry', true)) { return; }
+                const started = await API.post('/api/annotated_script/delivery_review/retry', {snapshot: info.snapshot});
+                deliveryRetryClaim = started.claim_id;
+                renderDeliveryReview(info);
+                const claim = deliveryRetryClaim;
+                _startPolling('delivery_retry', () => API.get('/api/annotated_script/delivery_review/status/' + encodeURIComponent(claim)), {
+                    intervalMs: 1500,
+                    doneCheck: status => !status.running,
+                    onDone: async () => {
+                        if (deliveryRetryClaim !== claim) { return; }
+                        deliveryRetryClaim = null;
+                        await loadChunks(true);
+                        await refreshDeliveryReview();
+                        showToast('Delivery retry stopped. Review any remaining flagged entries.', 'info');
+                    },
+                });
+            } catch (e) {
+                showToast('Delivery retry failed: ' + e.message, 'warning');
+            } finally {
+                deliveryRetryPending = false;
+                await refreshDeliveryReview();
+            }
+        };
+
+        window.cancelDeliveryInstructions = async () => {
+            if (!deliveryRetryClaim) { return; }
+            const claim = deliveryRetryClaim;
+            try {
+                await API.post('/api/annotated_script/delivery_review/cancel', {claim_id: claim});
+                showToast('Cancellation queued; the provider call must return before ownership is released.', 'info');
+            } catch (e) {
+                showToast('Delivery cancellation failed: ' + e.message, 'warning');
+            }
+        };
+
+        async function loadChunks(forceFullRedraw = false) {
+            ++deliveryReviewView;
+            try {
+                const chunks = await ensureChunkRefresh(forceFullRedraw);
+                await refreshDeliveryReview();
+                return chunks;
             } catch (e) {
                 console.error("Error loading chunks:", e);
             }
@@ -5113,6 +5193,7 @@
 
             try {
                 const chunks = await ensureEditorRenderSnapshot();
+                await refreshDeliveryReview();
                 let toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
                     .filter(c => c.text && c.text.trim());
 
