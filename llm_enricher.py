@@ -45,7 +45,7 @@ class LLMEnricher:
         "emotional_tone": "Emotional Tone (e.g., happy, anxious, neutral, excited)",
     }
 
-    def __init__(self, model_path: str, fields=None):
+    def __init__(self, model_path: str, fields=None, *, allow_cpu_fallback=False):
         self.model_path = model_path
         self.fields = list(self.FIELD_LABELS) if fields is None else list(fields)
         self.llm = None
@@ -62,13 +62,18 @@ class LLMEnricher:
             if not llama_supports_gpu_offload():
                 has_gpu, vendor = system_has_gpu()
                 if has_gpu:
-                    logger.warning(
-                        f"{vendor} GPU detected on this system, but this "
-                        f"llama-cpp-python build has no GPU support compiled in "
-                        f"(llama_supports_gpu_offload() is False) - LLM inference "
-                        f"will run on CPU and be dramatically slower. Rebuild "
-                        f"llama-cpp-python with the correct GPU backend flags."
+                    backend = {"NVIDIA": "CUDA", "AMD/ROCm": "HIP",
+                               "Apple Silicon (Metal)": "METAL"}[vendor]
+                    message = (
+                        f"{vendor} GPU detected, but this llama-cpp-python build has no GPU support. "
+                        f"Rebuild in the same Python environment: python -m pip install "
+                        f"--force-reinstall --no-cache-dir llama-cpp-python "
+                        f"-C cmake.args=-DGGML_{backend}=ON. "
+                        f"Use --allow-cpu-fallback only for intentional CPU enrichment."
                     )
+                    if not allow_cpu_fallback:
+                        raise RuntimeError(message)
+                    logger.warning(message + " Explicit CPU fallback enabled.")
             logger.info(f"Loading LLM model from: {self.model_path}")
             self.llm = Llama(
                 model_path=self.model_path,
@@ -181,6 +186,9 @@ def main():
     parser.add_argument("--resume", action="store_true",
                         help="Reuse fingerprint-matched accepted enrichment rows after interruption")
 
+    parser.add_argument("--allow-cpu-fallback", action="store_true",
+                        help="Allow CPU enrichment when a GPU is detected but this build cannot offload")
+
     args = parser.parse_args()
 
     try:
@@ -237,7 +245,7 @@ def main():
                                 raise ValueError("Invalid enrichment checkpoint source row")
                         logger.info("Resuming %s accepted enrichment rows", sum(row is not None for row in cached))
             needs_model = identity is None or any(row is None for row in cached)
-            enricher = LLMEnricher(args.model_path, selected) if needs_model else None
+            enricher = LLMEnricher(args.model_path, selected, allow_cpu_fallback=args.allow_cpu_fallback) if needs_model else None
             if identity is not None and needs_model:
                 if get_file_identity(args.model_path) != identity["model"]:
                     raise ValueError("Enrichment model changed while loading")

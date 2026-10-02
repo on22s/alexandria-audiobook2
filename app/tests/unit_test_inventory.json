@@ -2317,6 +2317,14 @@
     "tests.test_empty_roster_guard.RosterFallbackTest.test_no_roster_anywhere_still_yields_empty_for_the_guard_to_catch",
     "tests.test_empty_roster_guard.RosterFallbackTest.test_roster_additions_still_wins_when_present"
   ],
+  "test_enricher_cpu_admission": [
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_explicit_cli_override_loads_and_publishes",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_gpu_cpu_build_refuses_before_model_and_preserves_output",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_native_preparer_forwards_opt_in_to_enricher",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_no_fields_never_probes_or_loads_model",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_no_gpu_and_offload_build_keep_model_loading",
+    "tests.test_enricher_cpu_admission.EnricherCpuAdmissionTests.test_preparer_worker_forwards_only_explicit_opt_in"
+  ],
   "test_enricher_gpu_ownership": [
     "tests.test_enricher_gpu_ownership.EnricherGpuOwnershipTest.test_cli_cleanup_on_success_inference_failure_and_publication_failure",
     "tests.test_enricher_gpu_ownership.EnricherGpuOwnershipTest.test_failed_model_close_keeps_lease_until_close_succeeds",
@@ -4862,6 +4870,7 @@
   "test_preparer_controls_js": [
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_accepted_task_identity_survives_mode_edits",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_both_transports_use_shared_submission_and_restore_failure_controls",
+    "tests.test_preparer_controls_js.PreparerControlsJsTests.test_cpu_fallback_choice_reaches_actual_preparer_request",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_older_poll_completion_cannot_clear_new_task_controls",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_pending_and_accepted_runs_cancel_the_captured_mode",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_status_markup_is_escaped_and_colors_are_constrained"
