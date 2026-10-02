@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/macos-owner-probe.yml'
       - 'tools/diagnostics/macos_369_native_probe.py'
+      - 'tools/diagnostics/macos_369_owner_checks.py'
+      - 'app/macos_subprocess_kernel.py'
+      - 'app/macos_subprocess_owner.py'
 
 permissions:
   contents: read
@@ -22,6 +25,8 @@ jobs:
           python-version: '3.10'
       - name: Measure ordinary-user native ownership prerequisites
         run: python tools/diagnostics/macos_369_native_probe.py > macos-owner-probe.log 2>&1
+      - name: Verify production macOS owner before enabling dispatch
+        run: python tools/diagnostics/macos_369_owner_checks.py > macos-owner-checks.log 2>&1
       - name: Retain actual probe measurements and errors
         if: always()
         uses: actions/upload-artifact@v6
@@ -30,4 +35,6 @@ jobs:
           path: |
             macos_369_native_probe_result.json
             macos-owner-probe.log
+            macos_369_owner_result.json
+            macos-owner-checks.log
           if-no-files-found: error

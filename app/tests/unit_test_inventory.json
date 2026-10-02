@@ -4123,6 +4123,17 @@
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
   ],
+  "test_macos_owner_protocol": [
+    "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_nonexclusive_and_unknown_scope_are_rejected",
+    "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_shared_scope_and_changed_identity_are_rejected",
+    "tests.test_macos_owner_protocol.MacOwnerCleanupTests.test_signal_refusal_is_not_success_or_empty_membership",
+    "tests.test_macos_owner_protocol.MacOwnerCleanupTests.test_unknown_reap_query_and_remove_timeout_retain_cleanup_until_esrch",
+    "tests.test_macos_owner_protocol.MacOwnerCleanupTests.test_vanished_exact_identity_does_not_signal_recycled_pid",
+    "tests.test_macos_owner_protocol.MacOwnerTransportTests.test_bad_descriptor_packet_closes_received_lock",
+    "tests.test_macos_owner_protocol.MacOwnerTransportTests.test_incomplete_configuration_is_error",
+    "tests.test_macos_owner_protocol.MacOwnerTransportTests.test_real_worker_pass_fd_can_reuse_original_control_fd",
+    "tests.test_macos_owner_protocol.MacOwnerTransportTests.test_transferred_descriptor_retains_real_lock_after_sender_closes"
+  ],
   "test_macos_probe_lease": [
     "tests.test_macos_probe_lease.MacProbeLeaseTests.test_multiple_lease_descriptors_are_rejected_without_leaking_lock",
     "tests.test_macos_probe_lease.MacProbeLeaseTests.test_real_descriptor_keeps_lease_after_sender_closes_then_releases",
