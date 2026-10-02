@@ -45,9 +45,9 @@ vm.runInNewContext(fs.readFileSync(app+'/static/js/app-reports.js','utf8'),conte
         self.assertEqual(filenames, [link['data-filename'] for link in links])
         results = self.run_node(r'''
 const fs=require('fs'),vm=require('vm'),app=process.argv[1],links=JSON.parse(process.argv[2]);
-const title={},content={},requests=[],sanitized=[],active=[];
+const title={},content={},explainButton={style:{}},requests=[],sanitized=[],active=[];
 const elements=links.map(link=>({dataset:{filename:link['data-filename']},classList:{toggle:(key,on)=>active.push({key,on})}}));
-const context={restoreTab(){},document:{getElementById:id=>id==='report-view-title'?title:content,querySelectorAll:()=>elements},
+const context={restoreTab(){},document:{getElementById:id=>id==='report-view-title'?title:id==='btn-report-explain'?explainButton:content,querySelectorAll:()=>elements},
  fetch:async url=>{requests.push(url);return {ok:true,text:async()=>'<unsafe report>'};},
  marked:{parse:text=>text},DOMPurify:{sanitize:html=>{sanitized.push(html);return 'sanitized report';}}};
 vm.runInNewContext(fs.readFileSync(app+'/static/js/app-reports.js','utf8'),context);

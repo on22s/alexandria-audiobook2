@@ -1,3 +1,4 @@
+from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
                                     apply_book_state_locked)
 import asyncio
@@ -91,7 +92,7 @@ from core import (
     _format_pass_summary,
     _init_batch_state,
     _init_task_log,
-    _insert_llm_summary,
+    _insert_llm_summary, _get_deterministic_review_summary,
     _markdown_aliases_lines,
     _markdown_book_pass_lines,
     _markdown_diff_highlights_lines,
@@ -283,8 +284,7 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
         else:
             lines += _markdown_aliases_lines(aliases_fwd)
 
-    # Ask the LLM for a plain-English summary of the report so far, before appending
-    # the (potentially very long) book-by-book breakdown.
+    # Publish the deterministic summary before the book-by-book breakdown.
     partial = bool(cancelled or failed or incomplete or state.get("cancel") or len(done) < total_books)
     lines = _insert_llm_summary(lines, len(intro), overall, incomplete=partial)
 
@@ -326,23 +326,11 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
                     lines.append("- Not reviewed.")
             lines.append("")
 
-    staged_path = None
     try:
-        fd, staged_path = tempfile.mkstemp(prefix=".batch_review_", suffix=".md",
-                                           dir=REPORTS_DIR)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(staged_path, path)
+        save_review_report(path, "\n".join(lines) + "\n",
+                           _get_deterministic_review_summary(overall, partial), partial)
     except OSError:
         return None
-    finally:
-        if staged_path and os.path.exists(staged_path):
-            try:
-                os.unlink(staged_path)
-            except OSError as exc:
-                logger.warning("Could not remove staged batch review report: %s", exc)
     return path
 
 
