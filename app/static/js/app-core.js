@@ -914,8 +914,8 @@
             await saveConfigPayload(payload, onSaved);
         }
 
-        async function reloadPromptPresets(activeName) {
-            const config = await API.get('/api/config');
+        async function reloadPromptPresets(activeName, savedConfig = null) {
+            const config = savedConfig || await API.get('/api/config');
             activePromptPreset = activeName || (config.prompts && config.prompts.attribution_preset) || 'default';
             renderPromptPresets(config.prompt_presets || [], activePromptPreset);
         }
@@ -1464,15 +1464,16 @@
                     // Refresh is_remote from the now-active saved config (not a
                     // full loadConfig() - that resets unrelated fields to
                     // hardcoded defaults).
+                    let savedConfig = null;
                     try {
-                        const savedConfig = await API.get('/api/config');
+                        savedConfig = await API.get('/api/config');
                         currentIsRemote = !!savedConfig.is_remote;
                         failoverIsRemote = !!savedConfig.failover_is_remote;
                         renderConfigWarnings(savedConfig);
                     }
                     catch (e) { console.debug('is_remote refresh after save failed', e); }
                     showToast('Configuration Saved!', 'success');
-                    try { await reloadPromptPresets(); } catch (e) { console.debug('preset reload after save failed', e); }
+                    try { await reloadPromptPresets(undefined, savedConfig); } catch (e) { console.debug('preset reload after save failed', e); }
                 });
             } catch (e) {
                 showToast('Error saving config: ' + e.message, 'error');
@@ -2857,9 +2858,14 @@
                         }
                     }
                     // Refresh voices and caches
-                    try { await loadVoices(); } catch (e) { console.debug('voices refresh failed', e); }
-                    try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
-                    try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
+                    let refreshedResources = [];
+                    try { refreshedResources = (await loadVoices()).refreshedResources; } catch (e) { console.debug('voices refresh failed', e); }
+                    if (!refreshedResources.includes('/api/voice_design/list')) {
+                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
+                    }
+                    if (!refreshedResources.includes('/api/clone_voices/list')) {
+                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
+                    }
                     showToast(failed ? 'Persona generation stopped; manual recovery is available.' : 'Persona generation finished', failed ? 'warning' : 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
@@ -3140,6 +3146,7 @@
             await flushVoiceSaves();
             const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
             let resourcesComplete = true;
+            const refreshedResources = [];
             if (!reuseResources) { _voiceResourcesRefreshedAt = -Infinity; }
             // Fetch independent lists together; render only after dropdowns and
             // per-character cast counts are ready. Keep old optional lists on error.
@@ -3148,7 +3155,10 @@
                 ['_cloneVoicesCache', '/api/clone_voices/list', 'clone-voices'],
                 ['_loraModelsCache', '/api/lora/models', 'lora-models'],
             ].map(async ([key, path, label]) => {
-                try { window[key] = await API.get(path); }
+                try {
+                    window[key] = await API.get(path);
+                    refreshedResources.push(path);
+                }
                 catch (e) { resourcesComplete = false; console.debug(`${label} cache refresh failed`, e); }
             });
             const [voices] = await Promise.all([
@@ -3160,7 +3170,7 @@
             }
             if (reuseResources && _voiceCardsRevision === _voiceSaveSnapshot.revision
                     && _voiceCardsBookToken === _voiceSaveSnapshot.book_token) {
-                return;
+                return {refreshedResources};
             }
             refreshVoicesScope();
             const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
@@ -3174,7 +3184,7 @@
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
                 _voiceCardsRevision = _voiceSaveSnapshot.revision;
                 _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
-                return;
+                return {refreshedResources};
             }
             container.innerHTML = voices.map((v, i) => createVoiceCard(v, i)).join('');
             _voiceCardsRevision = _voiceSaveSnapshot.revision;
@@ -3191,6 +3201,7 @@
             if (window._voiceSuggestions && Object.keys(window._voiceSuggestions).length) {
                 renderVoiceSuggestions();
             }
+            return {refreshedResources};
         }
 
         window.selectVoiceVersion = async function selectVoiceVersion(select) {

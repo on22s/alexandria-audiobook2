@@ -1501,6 +1501,9 @@
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_fractional_integer_fields_reach_server_validation_without_truncation",
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_integer_fields_preserve_exponent_and_decimal_notation"
   ],
+  "test_config_refresh_reuse_js": [
+    "tests.test_config_refresh_reuse_js.ConfigRefreshReuseTests.test_actual_callback_success_and_independent_retry"
+  ],
   "test_config_regressions": [
     "tests.test_config_regressions.ConfigTests.test_app_config_loader_ignores_invalid_legacy_values_without_writing",
     "tests.test_config_regressions.ConfigTests.test_app_config_loader_returns_fresh_shape_safe_data",
@@ -4660,6 +4663,9 @@
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_cpu_only_recovery_remains_available_during_another_gpu_task",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_save_and_registration_failure_release_only_the_pending_reservation"
+  ],
+  "test_persona_refresh_reuse_js": [
+    "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_completed_reads_and_failure_retries"
   ],
   "test_persona_text_controls": [
     "tests.test_persona_text_controls.PersonaTextControlTests.test_both_text_fields_reject_controls_before_stripping_without_mutating_payload",
