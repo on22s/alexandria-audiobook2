@@ -3160,7 +3160,8 @@
     "tests.test_gpu_queue_paths.QueueNameTests.test_control_and_path_names_are_rejected_before_queue_records",
     "tests.test_gpu_queue_paths.QueuePathTests.test_all_launch_forms_share_lock_log_pending_and_identity",
     "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_finds_repository_preflight",
-    "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_obeys_repository_pause_flag"
+    "tests.test_gpu_queue_paths.QueuePathTests.test_bash_path_launch_obeys_repository_pause_flag",
+    "tests.test_gpu_queue_paths.QueuePathTests.test_signal_to_the_script_alone_is_honoured_without_waiting_out_the_pause_sleep"
   ],
   "test_gpu_queue_rotation": [
     "tests.test_gpu_queue_rotation.QueueRotationTests.test_actual_status_retains_live_job_across_rotation",
