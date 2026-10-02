@@ -3927,6 +3927,9 @@
   "test_lmstudio_status_route": [
     "tests.test_lmstudio_status_route.LmStudioStatusRouteTest.test_status_uses_the_active_profile_not_the_stale_mirror"
   ],
+  "test_lmstudio_visible_poll_js": [
+    "tests.test_lmstudio_visible_poll_js.LmStudioVisiblePollJsTests.test_foreground_poll_wiring_retains_immediate_and_explicit_refreshes"
+  ],
   "test_local_audio_url_js": [
     "tests.test_local_audio_url_js.LocalAudioUrlTests.test_actual_handlers_preserve_raw_paths_and_cache_query",
     "tests.test_local_audio_url_js.LocalAudioUrlTests.test_actual_ui_urls_fetch_distinct_static_file_bytes"

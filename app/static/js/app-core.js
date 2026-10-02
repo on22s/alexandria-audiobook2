@@ -284,7 +284,9 @@
                 }
 
                 // Trigger tab specific loads
-                if (selectedLink.dataset.tab === 'editor') {
+                if (selectedLink.dataset.tab === 'setup') {
+                    pollLmStudioStatus();
+                } else if (selectedLink.dataset.tab === 'editor') {
                     loadChunks();
                 } else if (selectedLink.dataset.tab === 'voices') {
                     loadVoices(false);

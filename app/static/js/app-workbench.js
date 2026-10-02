@@ -764,6 +764,12 @@
             }
         }
 
+        function pollLmStudioStatus() {
+            const setup = document.getElementById('setup-tab');
+            if (document.hidden || !setup || setup.style.display === 'none') { return; }
+            return refreshLmStudioStatus();
+        }
+
         async function refreshLmStudioStatus() {
             const badge = document.getElementById('lmstudio-status-badge');
             const toggle = document.getElementById('lmstudio-optimize-toggle');
@@ -1009,11 +1015,12 @@
         dsbLoadProjects();
         updateSystemStats();
         updateEtaStatus();
-        refreshLmStudioStatus();
+        pollLmStudioStatus();
         reattachRunningPollers();
         setInterval(updateSystemStats, 10000); // Update every 10s
         setInterval(updateEtaStatus, 10000); // Update every 10s
-        setInterval(refreshLmStudioStatus, 30000); // Update every 30s
+        setInterval(pollLmStudioStatus, 30000); // Update visible Setup every 30s
+        document.addEventListener('visibilitychange', pollLmStudioStatus);
 
         // ── Preparer ──────────────────────────────────────────────
         let prepBatchQueue = [];

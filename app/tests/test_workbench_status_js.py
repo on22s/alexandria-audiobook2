@@ -53,7 +53,7 @@ for (const mode of ['running','idle','unavailable']) {
     const status = {running:mode === 'running', logs:['existing training progress','epoch 3'],
         tasks:[{name:'train',status:'running'}]};
     const context = {console:{debug:()=>{}},window:{},showToast:()=>{},_makePauseResumeHandler:()=>()=>{},
-        document:{getElementById: id => elements[id] ||= {style:{display:'none'},disabled:false,innerText:'',innerHTML:'',scrollHeight:12}},
+        document:{addEventListener:()=>{},getElementById: id => elements[id] ||= {style:{display:'none'},disabled:false,innerText:'',innerHTML:'',scrollHeight:12}},
         API:{get: async url => {
             calls.push(url);
             if (url === '/api/status') {
@@ -74,7 +74,7 @@ for (const mode of ['running','idle','unavailable']) {
         escapeHtml:String,
     };
     for (const name of ['loadConfig','loadVoices','loadSavedScripts','loadDesignedVoices',
-                        'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus']) {
+                        'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus','pollLmStudioStatus']) {
         context[name] = () => {};
     }
     vm.createContext(context);
