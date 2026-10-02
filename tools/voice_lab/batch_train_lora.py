@@ -455,7 +455,13 @@ def main() -> int:
         done += 1
 
         elapsed_all = time.time() - start_all
-        remaining = len(zips) - i
+        try:
+            remaining = sum(1 for path in zips[i:]
+                            if not adapter_exists(args.models_dir, sanitize(path), manifest))
+        except (OSError, ValueError) as e:
+            print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
+                  f"ETA unavailable: {e}\n", flush=True)
+            continue
         avg_per = elapsed_all / (done + err)
         eta_s = remaining * avg_per
         eta_min = eta_s / 60

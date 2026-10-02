@@ -702,6 +702,11 @@
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_native_lora_shared_adapter_keeps_each_sorted_row_style_and_batching",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_timeline_compatibility_and_late_invalid_narrator_refuse_before_render"
   ],
+  "test_batch_training_eta": [
+    "tests.test_batch_training_eta.BatchTrainingEtaTests.test_dispatch_rechecks_a_changed_adapter_instead_of_reusing_eta_skip",
+    "tests.test_batch_training_eta.BatchTrainingEtaTests.test_eta_excludes_future_completed_adapters",
+    "tests.test_batch_training_eta.BatchTrainingEtaTests.test_eta_lookup_failure_is_visible_without_stopping_independent_work"
+  ],
   "test_batch_voice_contract": [
     "tests.test_batch_voice_contract.BatchVoiceContractTests.test_dynamic_narrator_is_resolved_before_the_missing_config_check",
     "tests.test_batch_voice_contract.BatchVoiceContractTests.test_missing_voice_failure_survives_dynamic_narrator_dispatch",
