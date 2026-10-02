@@ -693,6 +693,12 @@
     "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_save_waits_until_generation_releases_same_output_claim",
     "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_version_rechecks_disk_and_other_batch_reservations"
   ],
+  "test_batch_script_sizing_reuse": [
+    "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_live_capacity_reduces_workers_without_rescanning",
+    "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_preparation_and_dispatch_scan_once_without_mutating_input",
+    "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_refusal_matches_uncached_after_settings_change",
+    "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_source_settings_windows_and_prompts_invalidate"
+  ],
   "test_batch_style_timeline": [
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_and_local_lora_keep_original_indices",

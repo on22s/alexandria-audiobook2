@@ -46,6 +46,8 @@ from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_attribute_request,
                                  build_instruct_request,
                                  build_three_pass_request_preflight,
+                                 get_three_pass_preflight_capacity,
+                                 get_context_rescue_windows,
                                  apply_segment_gate_controls,
                                  default_instruct,
                                  read_source_text,
@@ -53,7 +55,8 @@ from three_pass_generate import (build_attribute_request,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
 from text_diff import word_diff
-from default_prompts import load_segment_prompts
+from default_prompts import (load_segment_prompts, load_attribute_prompts,
+                             load_instruct_prompts)
 from pass_quality import (split_outer_quote_regions, validate_attribution,
                           validate_instruct, validate_segment_quality)
 from speaker_identity import stabilize_speaker_identities
@@ -1942,6 +1945,27 @@ def get_validated_batch_script_source(job):
     return _read_and_validate_batch_script_source(job)
 
 
+def get_batch_script_sizing_identity(text, settings, context_windows):
+    """Identify all request-shape inputs; server capacity is applied separately."""
+    inputs = {"source": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+              "settings": settings,
+              "context_windows": get_context_rescue_windows(context_windows),
+              "prompts": [load_segment_prompts(), load_attribute_prompts(),
+                          load_instruct_prompts()]}
+    return hashlib.sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False,
+                                    allow_nan=False).encode("utf-8")).hexdigest()
+
+
+def get_batch_script_source_preflight(job, text, settings, context, context_windows):
+    """Reuse this request's sizing summary only while its inputs still match."""
+    receipt = (job.get("prepared_source") or {}).get("preflight")
+    if receipt and receipt["identity"] == get_batch_script_sizing_identity(
+            text, settings, context_windows):
+        return get_three_pass_preflight_capacity(receipt["report"], context, 1)
+    return build_three_pass_request_preflight(
+        text, settings, context, 1, context_windows=context_windows)
+
+
 def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
@@ -1957,8 +1981,8 @@ def build_batch_script_preflight(jobs):
     books = []
     for job in jobs:
         text, normalization_count = get_validated_batch_script_source(job)
-        report = build_three_pass_request_preflight(
-            text, settings, context, 1, context_windows=context_windows)
+        report = get_batch_script_source_preflight(
+            job, text, settings, context, context_windows)
         unicode_report = audit_unicode_text(text)
         books.append({
             "filename": job["filename"],
@@ -2005,10 +2029,12 @@ def three_pass_refusal(jobs):
     server status - only the configured settings and the source text."""
     config = load_app_config(CONFIG_PATH)
     settings = resolve_three_pass_generation_settings(config)
+    context_windows = (config.get("generation") or {}).get("context_rescue_windows")
     reports = []
     for job in jobs:
         text, _ = get_validated_batch_script_source(job)
-        reports.append((job["filename"], build_three_pass_request_preflight(text, settings, 0, 1)))
+        reports.append((job["filename"], get_batch_script_source_preflight(
+            job, text, settings, 0, context_windows)))
     return (output_ceiling_refusal(settings, reports)
             or unquoted_book_refusal(settings, reports))
 
@@ -2147,14 +2173,23 @@ def get_prepared_batch_script_jobs(request):
                  "input_path": _resolve_batch_script_input(task.filename),
                  "first_person_narrator": narrator}
                 for task, narrator in zip(request.tasks, narrators)]
+        config = load_app_config(CONFIG_PATH)
+        settings = resolve_three_pass_generation_settings(config)
+        context_windows = (config.get("generation") or {}).get("context_rescue_windows")
         prepared = []
         for job in jobs:
             identity = get_batch_script_source_identity(job["input_path"])
             text, normalizations = _read_and_validate_batch_script_source(job)
             if get_batch_script_source_identity(job["input_path"]) != identity:
                 raise ValueError(f"Source changed while preparing: {job['filename']}")
+            sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows)
+            report = build_three_pass_request_preflight(
+                text, settings, 0, 1, context_windows=context_windows)
             prepared.append({**job, "prepared_source": {
-                "identity": identity, "text": text, "normalizations": normalizations}})
+                "identity": identity, "text": text, "normalizations": normalizations,
+                "preflight": {
+                    "identity": sizing_identity,
+                    "report": {key: value for key, value in report.items() if key != "requests"}}}})
         refusal = three_pass_refusal(prepared)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

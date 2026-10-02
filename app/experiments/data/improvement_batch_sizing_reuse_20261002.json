@@ -1,0 +1,69 @@
+{
+  "baseline_commit": "09f94dcd",
+  "results": [
+    {
+      "source": "repeated-synthetic",
+      "text_bytes": 354000,
+      "text_sha256": "5e61ba2c84666ebde297017708f4e0a50cb0ffbf099baa46994d977183278df7",
+      "one_job": true,
+      "baseline_seconds": [
+        1.5693600091617554,
+        1.533873429056257,
+        1.5378655239474028
+      ],
+      "changed_seconds": [
+        0.9454523399472237,
+        0.9428114779293537,
+        0.9329770330805331
+      ],
+      "baseline_median": 1.5378655239474028,
+      "changed_median": 0.9428114779293537,
+      "dispatch_seconds": {
+        "baseline": [
+          0.9120175989810377,
+          0.901716778986156,
+          0.9078418221324682
+        ],
+        "changed": [
+          0.3133279997855425,
+          0.31222817208617926,
+          0.30818139505572617
+        ]
+      },
+      "identical_reports": true
+    },
+    {
+      "source": "Arc 3 - Volume 4.json",
+      "text_bytes": 399633,
+      "text_sha256": "e9ccc70278ee37f67af246c625cb60fcb00106e5b6a24d54d6628caf8cc0258b",
+      "one_job": true,
+      "baseline_seconds": [
+        0.8616111178416759,
+        0.8460733438841999,
+        0.8532626561354846
+      ],
+      "changed_seconds": [
+        0.6285552680492401,
+        0.6272611918393523,
+        0.6332329669967294
+      ],
+      "baseline_median": 0.8532626561354846,
+      "changed_median": 0.6285552680492401,
+      "dispatch_seconds": {
+        "baseline": [
+          0.5794958039186895,
+          0.5722882908303291,
+          0.5771521080750972
+        ],
+        "changed": [
+          0.3488306989893317,
+          0.3496211899910122,
+          0.3549971920438111
+        ]
+      },
+      "identical_reports": true
+    }
+  ],
+  "full_scanner_equivalence_cases": 6,
+  "scope": "Real preparation/dispatch and scanner, native text files, controlled server/config. Saved annotated script joined into text is a representative input, not an original EPUB or end-to-end model run."
+}

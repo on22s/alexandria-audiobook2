@@ -1287,11 +1287,10 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                     max(256, 48 * len(batch)))
 
     totals = sorted(request["predicted_total_tokens"] for request in requests)
-    per_slot = int(context_length or 0) // max(1, int(parallel or 1))
     worst = totals[-1] if totals else 0
     p95 = totals[max(0, math.ceil(len(totals) * 0.95) - 1)] if totals else 0
-    return {
-        "chunk_count": len(chunks), "context_length": context_length,
+    return get_three_pass_preflight_capacity({
+        "chunk_count": len(chunks),
         # what pass 1 will cost in model calls, and whether this book marks
         # its dialogue at all (the quotes-only refusal reads these)
         "segmentation": {
@@ -1299,11 +1298,9 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             "quote_presegmented": len(chunks) - len(unresolved_chunks),
             "llm_chunks": len(unresolved_chunks),
             "chunks_without_quote_marks": chunks_without_quote_marks},
-        "parallel": parallel, "per_slot_context": per_slot,
         "worst_predicted_tokens": worst, "p95_predicted_tokens": p95,
         "average_predicted_tokens": (
             round(sum(totals) / len(totals), 1) if totals else 0),
-        "predicted_fits": bool(per_slot and worst <= per_slot),
         "output_ceiling": output_ceiling,
         "largest_predicted_completion": largest_completion,
         "exceeds_output_ceiling": largest_completion > output_ceiling,
@@ -1313,7 +1310,15 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             max(500, int(chunk_size * output_ceiling / largest_completion) // 100 * 100)
             if largest_completion > output_ceiling else None),
         "requests": requests,
-    }
+    }, context_length, parallel)
+
+
+def get_three_pass_preflight_capacity(report, context_length, parallel):
+    """Return a sizing report with the current context-slot capacity."""
+    per_slot = int(context_length or 0) // max(1, int(parallel or 1))
+    return {**report, "context_length": context_length, "parallel": parallel,
+            "per_slot_context": per_slot,
+            "predicted_fits": bool(per_slot and report["worst_predicted_tokens"] <= per_slot)}
 
 
 _CONTEXT_BLEED_MIN_CHARS = 40
