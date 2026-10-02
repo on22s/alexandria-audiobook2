@@ -550,11 +550,12 @@ class ProjectManager:
             logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
             try:
                 os.replace(self.chunks_path, backup)
-            except OSError:
-                try:
-                    os.remove(self.chunks_path)
-                except OSError:
-                    pass
+            except OSError as error:
+                raise OSError(
+                    f"Cannot preserve corrupted chunks at {self.chunks_path} "
+                    f"in {backup}; refusing regeneration. Preserve the original "
+                    "file and resolve the backup failure before retrying."
+                ) from error
 
         # If no chunks (or corrupted), generate from script
         if os.path.exists(self.script_path):

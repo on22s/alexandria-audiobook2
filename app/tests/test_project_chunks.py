@@ -321,6 +321,33 @@ class M4BExportArtifactTests(unittest.TestCase):
 
 
 class ScriptShapeRegenerationTests(unittest.TestCase):
+    def test_failed_corrupt_backup_preserves_original_and_refuses_regeneration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            chunks = Path(tmp, "chunks.json")
+            original = b'{broken generation progress'
+            chunks.write_bytes(original)
+            script = Path(tmp, "annotated_script.json")
+            script.write_text(json.dumps([{"speaker": "Narrator", "text": "Recoverable source."}]))
+            source = script.read_bytes()
+            previous_backup = Path(tmp, "chunks.json.corrupt")
+            previous_backup.write_bytes(b'older saved progress')
+            replace = os.replace
+
+            def refuse_backup(src, dst):
+                if os.fspath(src) == str(chunks) and os.fspath(dst) == str(previous_backup):
+                    raise PermissionError("backup destination denied")
+                return replace(src, dst)
+
+            with patch("project.os.replace", side_effect=refuse_backup), \
+                    patch("project.group_into_chunks", wraps=group_into_chunks) as regenerate:
+                with self.assertRaisesRegex(OSError, "Cannot preserve corrupted chunks.*refusing regeneration"):
+                    manager.load_chunks()
+                regenerate.assert_not_called()
+            self.assertEqual(original, chunks.read_bytes())
+            self.assertEqual(source, script.read_bytes())
+            self.assertEqual(b'older saved progress', previous_backup.read_bytes())
+
     def test_malformed_json_shapes_warn_without_replacing_source_or_writing_chunks(self):
         for value in ({}, {"speaker": "A", "text": "wrong outer shape"},
                       None, True, 42, "text", [None], [False], [1], ["text"],

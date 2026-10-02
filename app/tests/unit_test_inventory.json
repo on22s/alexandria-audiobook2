@@ -5028,6 +5028,7 @@
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_explicit_zero_pause_survives_persisted_chunks_and_timeline",
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_several_scene_breaks_each_keep_their_silence",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_corrupt_chunk_backup_survives_invalid_source_shape",
+    "tests.test_project_chunks.ScriptShapeRegenerationTests.test_failed_corrupt_backup_preserves_original_and_refuses_regeneration",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_malformed_json_shapes_warn_without_replacing_source_or_writing_chunks",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_valid_empty_and_nonempty_arrays_keep_regeneration_and_uid_persistence",
     "tests.test_project_chunks.SpeakableEntryTests.test_block_glyphs_and_leading_marks_are_not_sent_to_tts",
