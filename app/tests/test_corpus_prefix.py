@@ -45,7 +45,7 @@ class CorpusPrefixTests(unittest.TestCase):
                 with self.subTest(count=count), self.assertRaisesRegex(ValueError, '30'):
                     corpus.get_alignment_report_quality(report, audio, source, output)
             document['quality']['sampled'] = 30
-            for limit in (None, 29, True):
+            for limit in (None, 29, True, False, 30.0):
                 document['identity']['options']['limit'] = limit
                 report.write_text(json.dumps(document))
                 with self.subTest(limit=limit), self.assertRaisesRegex(ValueError, 'settings'):
