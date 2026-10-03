@@ -302,7 +302,28 @@ def passage_text(frozen_batch, neighbor_contexts=None):
 
 
 PASSAGE_SHAPED = ("passage", "michel")
-USER_VARIANTS = tuple(v for v in VARIANTS if v != "judge")   # judge is gold labelling, harness only
+USER_VARIANTS = tuple(v for v in VARIANTS if v != "judge")
+
+# The michel2 rule 7, and the opt-in replacement (#653, Setup switch
+# generation.three_pass_group_rule). Measured on a light-novel chapter whose
+# cast list named THE STUDENTS: without it 5 of 10 runs answered UNKNOWN for
+# every crowd line (32/70 correct); with it 70/70. On five PDNC novels named
+# accuracy moved -0.1 pt and unnamed individuals -0.6 pt, past the 0.5 cap the
+# gate allowed though inside the 1.8 pt run-to-run spread - so it is opt-in.
+UNKNOWN_RULE_7 = ('7. If the speaker is genuinely unknowable, use "UNKNOWN". A wrong name is '
+                  'worse than UNKNOWN.')
+GROUP_RULE_7 = ('7. A line said by an unnamed member of a group on the roster (for example THE '
+                'STUDENTS, THE CROWD, THE GUARDS) takes that group\'s name. Use "UNKNOWN" only '
+                'when no listed person or group fits. A wrong name is worse than UNKNOWN.')
+
+
+def get_group_rule_system(system_text):
+    """-> (text, applied): `system_text` with rule 7 replaced by the group rule.
+    A text without the exact rule 7 (another variant, a user's own edit) comes
+    back unchanged with applied=False, never half-edited."""
+    if (system_text or "").count(UNKNOWN_RULE_7) != 1:
+        return system_text, False
+    return system_text.replace(UNKNOWN_RULE_7, GROUP_RULE_7), True   # judge is gold labelling, harness only
 
 
 def builtin_texts(variant):

@@ -155,6 +155,11 @@ class GenerationConfig(BaseModel):
     # the A/B (#729) saved 17% of requests but could not separate its accuracy
     # effect from DeepSeek's run-to-run noise.
     three_pass_keep_whole_batch: bool = False
+    # Pass 2: a line said by an unnamed member of a group on the cast list
+    # (THE STUDENTS) takes the group's name instead of UNKNOWN
+    # (attribution_prompt_variants.GROUP_RULE_7). Off by default: measured on
+    # one light-novel chapter and five PDNC novels (#653), see that constant.
+    three_pass_group_rule: bool = False
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 

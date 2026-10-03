@@ -1261,6 +1261,11 @@
             "title": "Three Pass Chunk Size",
             "type": "integer"
           },
+          "three_pass_group_rule": {
+            "default": false,
+            "title": "Three Pass Group Rule",
+            "type": "boolean"
+          },
           "three_pass_instruct_temperature": {
             "default": 0.1,
             "maximum": 2.0,
