@@ -65,6 +65,9 @@ attribution_hybrid__sequence_joint_pilot.json,exploratory,git+naming,no,attribut
 attribution_hybrid__sequence_repeat_joint_pilot.json,exploratory,git+naming,no,attribution_hybrid.py,cc7f9194,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 audible_errors.json,exploratory,git+naming,no,audible_errors.py,05e4c8d2,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 audio_views.json,supported_structure,provenance,yes,,,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+background_speakers_ab.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+background_speakers_eval.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+background_speakers_threepass.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 baseline_heldout__husky_baritone_40s_m_2.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 baseline_heldout__husky_baritone_40s_m_scifi.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 baseline_heldout__husky_tenor_30s_m_literary.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results

@@ -1,0 +1,590 @@
+{
+ "rows": [
+  {
+   "checkpoint": "pdnc_aroomwithaview__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_aroomwithaview",
+   "model": "deepseek-v4-pro",
+   "gold_rows": 1634,
+   "located": 1193,
+   "unlocated": 441,
+   "descriptive": {
+    "n": 10,
+    "abstain": 6,
+    "named": 4,
+    "abstain_pct": 60.0,
+    "named_pct": 40.0
+   },
+   "title_name": {
+    "n": 0
+   },
+   "descriptor_of_named": {
+    "n": 6,
+    "abstain": 5,
+    "named": 1,
+    "abstain_pct": 83.3,
+    "named_pct": 16.7
+   },
+   "named": {
+    "n": 1177,
+    "abstain": 14,
+    "correct": 1117,
+    "named": 46,
+    "abstain_pct": 1.2,
+    "correct_pct": 94.9,
+    "named_pct": 3.9
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 4,
+     "abstain": 2,
+     "named": 2,
+     "abstain_pct": 50.0,
+     "named_pct": 50.0
+    },
+    "3-9": {
+     "n": 6,
+     "abstain": 4,
+     "named": 2,
+     "abstain_pct": 66.7,
+     "named_pct": 33.3
+    }
+   },
+   "named_error_examples": [
+    {
+     "book": "pdnc_aroomwithaview",
+     "gold": "THE LITTLE OLD LADY",
+     "predicted": "LUCY",
+     "line": "If only Mr. Emerson was\nmore tactful! We were so sorry for you at dinner."
+    },
+    {
+     "book": "pdnc_aroomwithaview",
+     "gold": "THE VICAR",
+     "predicted": "MR. BEEBE",
+     "line": "Cousin of one of my parishioners. I do not consider her choice of a\npiece happy. Beethoven is so usually simple and dire"
+    },
+    {
+     "book": "pdnc_aroomwithaview",
+     "gold": "THE VICAR",
+     "predicted": "MR. BEEBE",
+     "line": "She will be delighted. She and Miss Bartlett are full of the praises of\nyour sermon."
+    },
+    {
+     "book": "pdnc_aroomwithaview",
+     "gold": "THE CABMAN",
+     "predicted": "LUCY",
+     "line": "Buona sera--e grazie."
+    }
+   ],
+   "output_labels": {
+    "distinct": 14,
+    "descriptive": [],
+    "abstain_lines": 60
+   }
+  },
+  {
+   "checkpoint": "pdnc_theinvisibleman__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_theinvisibleman",
+   "model": "deepseek-v4-pro",
+   "gold_rows": 904,
+   "located": 489,
+   "unlocated": 415,
+   "descriptive": {
+    "n": 38,
+    "abstain": 27,
+    "named": 11,
+    "abstain_pct": 71.1,
+    "named_pct": 28.9
+   },
+   "title_name": {
+    "n": 221,
+    "abstain": 60,
+    "correct": 149,
+    "named": 12,
+    "abstain_pct": 27.1,
+    "correct_pct": 67.4,
+    "named_pct": 5.4
+   },
+   "descriptor_of_named": {
+    "n": 0
+   },
+   "named": {
+    "n": 230,
+    "abstain": 5,
+    "correct": 213,
+    "named": 12,
+    "abstain_pct": 2.2,
+    "correct_pct": 92.6,
+    "named_pct": 5.2
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 5,
+     "abstain": 4,
+     "named": 1,
+     "abstain_pct": 80.0,
+     "named_pct": 20.0
+    },
+    "10+": {
+     "n": 19,
+     "abstain": 10,
+     "named": 9,
+     "abstain_pct": 52.6,
+     "named_pct": 47.4
+    },
+    "3-9": {
+     "n": 14,
+     "abstain": 13,
+     "named": 1,
+     "abstain_pct": 92.9,
+     "named_pct": 7.1
+    }
+   },
+   "named_error_examples": [
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "MR. THOMAS MARVEL",
+     "line": "Don t it? Extra-ordinary, _I_ call it. Never heard tell of Invisible\nMen before, I haven t, but nowadays one hears such "
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "MR. THOMAS MARVEL",
+     "line": "It s enough, ain t it?"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "It makes me regular uncomfortable, the bare\nthought of that chap running about the country! He is at present At\nLarge, a"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "But you\nwas just a-going to tell me about this here Invisible Man!"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "But it s in the paper,"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "But how  bout this paper? D you mean to say ?"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "Then why did you let me go on and tell you all this blarsted stuff,\nthen? What d yer mean by letting a man make a fool o"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "Bandying words! I m a jolly good mind"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE MARINER",
+     "predicted": "HENFREY",
+     "line": "You d better move\non,"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE BARMAN",
+     "predicted": "BUNTING",
+     "line": "Here he\nis!"
+    },
+    {
+     "book": "pdnc_theinvisibleman",
+     "gold": "THE HOUSEMAID",
+     "predicted": "HALL",
+     "line": "Only a runaway ring, sir,"
+    }
+   ],
+   "output_labels": {
+    "distinct": 15,
+    "descriptive": [],
+    "abstain_lines": 293
+   }
+  },
+  {
+   "checkpoint": "pdnc_hardtimes__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_hardtimes",
+   "model": "deepseek-v4-pro",
+   "gold_rows": 1595,
+   "located": 835,
+   "unlocated": 760,
+   "descriptive": {
+    "n": 8,
+    "abstain": 8,
+    "abstain_pct": 100.0
+   },
+   "title_name": {
+    "n": 0
+   },
+   "descriptor_of_named": {
+    "n": 9,
+    "abstain": 3,
+    "correct": 6,
+    "abstain_pct": 33.3,
+    "correct_pct": 66.7
+   },
+   "named": {
+    "n": 818,
+    "abstain": 23,
+    "correct": 756,
+    "named": 39,
+    "abstain_pct": 2.8,
+    "correct_pct": 92.4,
+    "named_pct": 4.8
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 2,
+     "abstain": 2,
+     "abstain_pct": 100.0
+    },
+    "3-9": {
+     "n": 6,
+     "abstain": 6,
+     "abstain_pct": 100.0
+    }
+   },
+   "named_error_examples": [],
+   "output_labels": {
+    "distinct": 18,
+    "descriptive": [],
+    "abstain_lines": 132
+   }
+  },
+  {
+   "checkpoint": "pdnc_daisymiller__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_daisymiller",
+   "model": "deepseek-v4-pro",
+   "gold_rows": 550,
+   "located": 366,
+   "unlocated": 184,
+   "descriptive": {
+    "n": 1,
+    "abstain": 1,
+    "abstain_pct": 100.0
+   },
+   "title_name": {
+    "n": 0
+   },
+   "descriptor_of_named": {
+    "n": 0
+   },
+   "named": {
+    "n": 365,
+    "abstain": 2,
+    "correct": 361,
+    "named": 2,
+    "abstain_pct": 0.5,
+    "correct_pct": 98.9,
+    "named_pct": 0.5
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 1,
+     "abstain": 1,
+     "abstain_pct": 100.0
+    }
+   },
+   "named_error_examples": [],
+   "output_labels": {
+    "distinct": 9,
+    "descriptive": [],
+    "abstain_lines": 9
+   }
+  },
+  {
+   "checkpoint": "pdnc_themysteriousaffairatstyles__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_themysteriousaffairatstyles",
+   "model": "qwen3-14b",
+   "gold_rows": 1861,
+   "located": 1330,
+   "unlocated": 531,
+   "descriptive": {
+    "n": 14,
+    "abstain": 3,
+    "named": 11,
+    "abstain_pct": 21.4,
+    "named_pct": 78.6
+   },
+   "title_name": {
+    "n": 0
+   },
+   "descriptor_of_named": {
+    "n": 0
+   },
+   "named": {
+    "n": 1316,
+    "abstain": 254,
+    "correct": 338,
+    "named": 724,
+    "abstain_pct": 19.3,
+    "correct_pct": 25.7,
+    "named_pct": 55.0
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 3,
+     "named": 3,
+     "named_pct": 100.0
+    },
+    "3-9": {
+     "n": 11,
+     "abstain": 3,
+     "named": 8,
+     "abstain_pct": 27.3,
+     "named_pct": 72.7
+    }
+   },
+   "named_error_examples": [
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "A YOUNG AND RATHER SCARED LOOKING NURSE",
+     "predicted": "MISS HOWARD",
+     "line": "Sister is very sorry. She forgot."
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "A YOUNG AND RATHER SCARED LOOKING NURSE",
+     "predicted": "MRS. INGLETHORP",
+     "line": "Don't you think you could possibly let us have it to-night?"
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN AGED RUSTIC",
+     "predicted": "DORCAS",
+     "line": "You'm from the Hall, bain't you?"
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN AGED RUSTIC",
+     "predicted": "DR. BAUERSTEIN",
+     "line": "A little chap? As waves his hands when he talks? One of them Belgies\nfrom the village?"
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN AGED RUSTIC",
+     "predicted": "DR. WILKINS",
+     "line": "Oh, ay, he's been here, right enough. More'n once too. Friend of\nyours, is he? Ah, you gentlemen from the Hall   you'm a"
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN AGED RUSTIC",
+     "predicted": "DR. WILKINS",
+     "line": "_One_ does, mister. Naming no names, mind. And a very liberal\ngentleman too! Oh, thank you, sir, I'm sure."
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN OLD WOMAN",
+     "predicted": "DORCAS",
+     "line": "Haven't you heard?"
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN OLD WOMAN",
+     "predicted": "DORCAS",
+     "line": "About him."
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN OLD WOMAN",
+     "predicted": "DORCAS",
+     "line": "He's took."
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "AN OLD WOMAN",
+     "predicted": "DORCAS",
+     "line": "No, took by the perlice."
+    },
+    {
+     "book": "pdnc_themysteriousaffairatstyles",
+     "gold": "ONE OF THE OTHER BELGIANS",
+     "predicted": "DORCAS",
+     "line": "There is a lady below, asking for Mr Hastings."
+    }
+   ],
+   "output_labels": {
+    "distinct": 25,
+    "descriptive": [],
+    "abstain_lines": 511
+   }
+  },
+  {
+   "checkpoint": "pdnc_ahandfulofdust__three_pass.json.threepass_checkpoint.json",
+   "book": "pdnc_ahandfulofdust",
+   "model": "qwen3-14b",
+   "gold_rows": 2337,
+   "located": 1928,
+   "unlocated": 409,
+   "descriptive": {
+    "n": 42,
+    "abstain": 15,
+    "named": 27,
+    "abstain_pct": 35.7,
+    "named_pct": 64.3
+   },
+   "title_name": {
+    "n": 0
+   },
+   "descriptor_of_named": {
+    "n": 27,
+    "abstain": 15,
+    "correct": 5,
+    "named": 7,
+    "abstain_pct": 55.6,
+    "correct_pct": 18.5,
+    "named_pct": 25.9
+   },
+   "named": {
+    "n": 1859,
+    "abstain": 494,
+    "correct": 584,
+    "named": 781,
+    "abstain_pct": 26.6,
+    "correct_pct": 31.4,
+    "named_pct": 42.0
+   },
+   "descriptive_by_band": {
+    "1-2": {
+     "n": 10,
+     "abstain": 3,
+     "named": 7,
+     "abstain_pct": 30.0,
+     "named_pct": 70.0
+    },
+    "10+": {
+     "n": 19,
+     "abstain": 5,
+     "named": 14,
+     "abstain_pct": 26.3,
+     "named_pct": 73.7
+    },
+    "3-9": {
+     "n": 13,
+     "abstain": 7,
+     "named": 6,
+     "abstain_pct": 53.8,
+     "named_pct": 46.2
+    }
+   },
+   "named_error_examples": [
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE STATIONMASTER",
+     "predicted": "BEAVER",
+     "line": "Her\nladyship coming back to-day?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE STATIONMASTER",
+     "predicted": "BEAVER",
+     "line": "Sam Brace's wife went to London and he couldn't get her back. Had to go\nup and fetch her himself. And then she give him "
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "A PAGE",
+     "predicted": "MRS BEAVER",
+     "line": "A lady on the telephone for you, Mr Grant-Menzies."
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "A PAGE",
+     "predicted": "MRS BEAVER",
+     "line": "She didn't give a name."
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "A KINDLY YOUNG LADY",
+     "predicted": "JOHN",
+     "line": "D'you mind signing on?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "A KINDLY YOUNG LADY",
+     "predicted": "JOHN",
+     "line": "That's five bob each,\nplease."
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "POLLY COCKPURSE",
+     "line": "Lady Brenda not ill, I hope?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "MRS BEAVER",
+     "line": "And how are the great studies progressing?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "MRS BEAVER",
+     "line": "Splendid. We shall all be coming to her soon to solve our economic\nproblems. But I daresay you and John miss her?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "MRS BEAVER",
+     "line": "Well, please give her my kindest regards."
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "MR LAST",
+     "line": "And how are the abstruse sciences, Lady Brenda?"
+    },
+    {
+     "book": "pdnc_ahandfulofdust",
+     "gold": "THE VICAR",
+     "predicted": "MR LAST",
+     "line": "We shall all be coming to you for advice about our overdrafts."
+    }
+   ],
+   "output_labels": {
+    "distinct": 38,
+    "descriptive": [],
+    "abstain_lines": 829
+   }
+  }
+ ],
+ "provenance": {
+  "script": "background_speakers.py",
+  "written": "2026-10-03T03:20:44",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
+   "branch": "issue-653-background-chars",
+   "dirty": false,
+   "source_state": "clean",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "228c74b992fbdf4cbbda4806d19d8031f1c9e88d9dea3668e9c89c593247beaa"
+  },
+  "args": {
+   "fixtures": "fixtures",
+   "command": "threepass",
+   "checkpoints": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/gutenberg_stage0/checkpoints/pdnc_aroomwithaview__three_pass.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/gutenberg_stage0/checkpoints/pdnc_theinvisibleman__three_pass.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/gutenberg_stage0/checkpoints/pdnc_hardtimes__three_pass.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/gutenberg_stage0_holdout/checkpoints/pdnc_daisymiller__three_pass.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3/pdnc_themysteriousaffairatstyles__three_pass.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3/pdnc_ahandfulofdust__three_pass.json.threepass_checkpoint.json"
+   ],
+   "output": "ab_test_runtime/experiments/background_speakers_threepass.json"
+  }
+ }
+}
