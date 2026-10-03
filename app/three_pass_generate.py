@@ -220,10 +220,19 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
 def resolve_attribute_prompt(config, variant_override=None):
     """-> (variant, texts) the run sends: the active preset (Setup -> Prompt
     Customization), or with --prompt-variant the builtin of that variant."""
-    from attribution_prompt_variants import resolve_attribution_preset
+    from attribution_prompt_variants import (builtin_texts, get_group_rule_system,
+                                             resolve_attribution_preset)
     if variant_override:
-        return variant_override, None
-    variant, texts, _ = resolve_attribution_preset(config)
+        variant, texts = variant_override, None
+    else:
+        variant, texts, _ = resolve_attribution_preset(config)
+    if (config.get("generation") or {}).get("three_pass_group_rule") is True:
+        # Setup switch (#653). Sent as preset text, so the changed prompt is
+        # part of the checkpoint identity like any edited preset.
+        system = (texts or {}).get("system") or builtin_texts(variant)["system"]
+        system, applied = get_group_rule_system(system)
+        if applied:
+            texts = dict(texts or {}, system=system)
     return variant, texts
 
 
@@ -2926,7 +2935,11 @@ def main():
     })
     attribute_prompt_variant, attribute_prompt_texts = resolve_attribute_prompt(
         config, args.prompt_variant)
-    from attribution_prompt_variants import VARIANTS, builtin_texts, validate_preset_texts
+    from attribution_prompt_variants import (GROUP_RULE_7, VARIANTS, builtin_texts,
+                                             validate_preset_texts)
+    if (config.get("generation") or {}).get("three_pass_group_rule") is True:
+        print("Group rule: on" if GROUP_RULE_7 in ((attribute_prompt_texts or {}).get("system") or "")
+              else "Group rule: on, but this prompt has no standard rule 7 to replace; not applied")
     if attribute_prompt_variant not in VARIANTS:
         raise SystemExit(f"unknown prompt variant {attribute_prompt_variant!r}; expected one of {VARIANTS}")
     problem = validate_preset_texts(attribute_prompt_variant, attribute_prompt_texts)

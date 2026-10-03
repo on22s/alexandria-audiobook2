@@ -46,21 +46,19 @@ from attribution_prompt_variants import MICHEL2_INSTRUCTION, MICHEL2_SYSTEM  # n
 from experiments.provenance import provenance                               # noqa: E402
 
 PRESET_NAME = "michel2_full_groups"
-RULE_7 = ('7. If the speaker is genuinely unknowable, use "UNKNOWN". A wrong name is worse than '
-          'UNKNOWN.')
-GROUP_RULE_7 = ('7. A line said by an unnamed member of a group on the roster (for example THE '
-                'STUDENTS, THE CROWD, THE GUARDS) takes that group\'s name. Use "UNKNOWN" only '
-                'when no listed person or group fits. A wrong name is worse than UNKNOWN.')
+from attribution_prompt_variants import GROUP_RULE_7, UNKNOWN_RULE_7 as RULE_7  # noqa: E402,F401
 MAX_NAMED_DROP = 0.5
 
 
 def get_group_rule_system():
     """MICHEL2_SYSTEM (where michel2's numbered rules live) with rule 7
-    replaced - and nothing else changed."""
-    flat = MICHEL2_SYSTEM
-    if flat.count(RULE_7) != 1:
+    replaced - and nothing else changed. The product's own function since the
+    Setup switch shipped; this experiment measured exactly that text."""
+    from attribution_prompt_variants import get_group_rule_system as replace_rule
+    text, applied = replace_rule(MICHEL2_SYSTEM)
+    if not applied:
         raise ValueError("rule 7 is not where this experiment expects it; the prompt changed")
-    return flat.replace(RULE_7, GROUP_RULE_7)
+    return text
 
 
 def make_data_dir(source_dir, target_dir):

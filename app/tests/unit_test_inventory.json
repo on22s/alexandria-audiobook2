@@ -3372,6 +3372,14 @@
     "tests.test_gpu_stats.RocmJsonOutputTests.test_actual_cpu_command_parses_complete_payload_after_brace_warning_or_before_trailing_warning",
     "tests.test_gpu_stats.RocmJsonOutputTests.test_malformed_nonzero_missing_and_timed_out_commands_remain_unknown"
   ],
+  "test_group_rule_setting": [
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_a_prompt_without_rule_seven_is_left_alone",
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_defaults_off_and_round_trips",
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_page_switch_is_off_by_default_and_saved",
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_switch_changes_the_checkpoint_identity",
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_switch_off_sends_the_builtin_unchanged",
+    "tests.test_group_rule_setting.GroupRuleSettingTest.test_switch_on_replaces_only_rule_seven_of_the_sent_system_prompt"
+  ],
   "test_guarded_voice_ui": [
     "tests.test_guarded_voice_ui.GuardedVoiceUiTests.test_acknowledgement_chain_conflict_discard_and_stale_refresh",
     "tests.test_guarded_voice_ui.GuardedVoiceUiTests.test_actual_browser_javascript_posts_to_real_guarded_http_and_preserves_newer_artifact"
