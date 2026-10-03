@@ -1,12 +1,12 @@
 # Results index
 
-Generated 2026-10-03 from `ab_test_runtime/experiments/` — 1812 artifacts, 3123 arms.
+Generated 2026-10-03 from `ab_test_runtime/experiments/` — 1813 artifacts, 3123 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
-`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 991 of 4406 rows are replayable.
+`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 992 of 4407 rows are replayable.
 
-`cited_by_goal` is populated on 338 rows of 4406. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
+`cited_by_goal` is populated on 338 rows of 4407. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 
@@ -3852,6 +3852,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `offbyone_turns.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `overnight_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `paired_arm_check__lr2e4_r16_20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `pass2_keep_scope_ab.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

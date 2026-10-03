@@ -1,0 +1,462 @@
+{
+ "gate_definition": {
+  "min_call_drop_pct": 20.0,
+  "max_named_drop_pts": 0.5
+ },
+ "rows": [
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "line",
+   "calls": 117,
+   "cost_usd": 0.3001,
+   "subdivisions": 10,
+   "kept_batches": 0,
+   "accuracy": {
+    "named": {
+     "n": 426,
+     "correct": 356
+    },
+    "descriptive": {
+     "n": 33,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 0,
+   "unknown_lines": 80
+  },
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "batch",
+   "calls": 93,
+   "cost_usd": 0.2587,
+   "subdivisions": 1,
+   "kept_batches": 4,
+   "accuracy": {
+    "named": {
+     "n": 426,
+     "correct": 368
+    },
+    "descriptive": {
+     "n": 33,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 6,
+   "unknown_lines": 71
+  },
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "line_repeat",
+   "calls": 162,
+   "cost_usd": 0.3834,
+   "subdivisions": 24,
+   "kept_batches": 0,
+   "accuracy": {
+    "named": {
+     "n": 426,
+     "correct": 369
+    },
+    "descriptive": {
+     "n": 33,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 0,
+   "unknown_lines": 66
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "line",
+   "calls": 141,
+   "cost_usd": 0.3437,
+   "subdivisions": 7,
+   "kept_batches": 0,
+   "accuracy": {
+    "named": {
+     "n": 219,
+     "correct": 195
+    },
+    "descriptive": {
+     "n": 16,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 20,
+     "correct": 9
+    }
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 0,
+   "unknown_lines": 105
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "batch",
+   "calls": 120,
+   "cost_usd": 0.3088,
+   "subdivisions": 1,
+   "kept_batches": 2,
+   "accuracy": {
+    "named": {
+     "n": 219,
+     "correct": 180
+    },
+    "descriptive": {
+     "n": 16,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 20,
+     "correct": 9
+    }
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 2,
+   "unknown_lines": 91
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "line_repeat",
+   "calls": 142,
+   "cost_usd": 0.3523,
+   "subdivisions": 7,
+   "kept_batches": 0,
+   "accuracy": {
+    "named": {
+     "n": 219,
+     "correct": 195
+    },
+    "descriptive": {
+     "n": 16,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 20,
+     "correct": 17
+    }
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 0,
+   "unknown_lines": 115
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "line",
+   "calls": 220,
+   "cost_usd": 0.4919,
+   "subdivisions": 19,
+   "kept_batches": 2,
+   "accuracy": {
+    "named": {
+     "n": 230,
+     "correct": 216
+    },
+    "descriptive": {
+     "n": 38,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 221,
+     "correct": 148
+    }
+   },
+   "unchecked_gold_lines": {
+    "n": 1,
+    "correct": 1
+   },
+   "unchecked_lines": 2,
+   "unknown_lines": 279
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "batch",
+   "calls": 192,
+   "cost_usd": 0.4383,
+   "subdivisions": 6,
+   "kept_batches": 6,
+   "accuracy": {
+    "named": {
+     "n": 230,
+     "correct": 206
+    },
+    "descriptive": {
+     "n": 38,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 221,
+     "correct": 149
+    }
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 7,
+   "unknown_lines": 302
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "line_repeat",
+   "calls": 279,
+   "cost_usd": 0.5817,
+   "subdivisions": 29,
+   "kept_batches": 3,
+   "accuracy": {
+    "named": {
+     "n": 230,
+     "correct": 166
+    },
+    "descriptive": {
+     "n": 38,
+     "correct": 0
+    },
+    "title_name": {
+     "n": 221,
+     "correct": 188
+    }
+   },
+   "unchecked_gold_lines": {
+    "n": 1,
+    "correct": 1
+   },
+   "unchecked_lines": 3,
+   "unknown_lines": 187
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "line",
+   "calls": 336,
+   "cost_usd": 0.7484,
+   "subdivisions": 33,
+   "kept_batches": 2,
+   "accuracy": {
+    "named": {
+     "n": 1886,
+     "correct": 1474
+    },
+    "descriptive": {
+     "n": 42,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {
+    "n": 1,
+    "correct": 1
+   },
+   "unchecked_lines": 2,
+   "unknown_lines": 172
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "batch",
+   "calls": 237,
+   "cost_usd": 0.5585,
+   "subdivisions": 2,
+   "kept_batches": 10,
+   "accuracy": {
+    "named": {
+     "n": 1886,
+     "correct": 1363
+    },
+    "descriptive": {
+     "n": 42,
+     "correct": 1
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {
+    "n": 3,
+    "correct": 2
+   },
+   "unchecked_lines": 20,
+   "unknown_lines": 157
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "line_repeat",
+   "calls": 318,
+   "cost_usd": 0.7133,
+   "subdivisions": 24,
+   "kept_batches": 3,
+   "accuracy": {
+    "named": {
+     "n": 1886,
+     "correct": 1500
+    },
+    "descriptive": {
+     "n": 42,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {
+    "n": 1,
+    "correct": 1
+   },
+   "unchecked_lines": 3,
+   "unknown_lines": 163
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "line",
+   "calls": 349,
+   "cost_usd": 0.7351,
+   "subdivisions": 17,
+   "kept_batches": 1,
+   "accuracy": {
+    "named": {
+     "n": 1718,
+     "correct": 669
+    },
+    "descriptive": {
+     "n": 43,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 1,
+   "unknown_lines": 193
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "batch",
+   "calls": 323,
+   "cost_usd": 0.7027,
+   "subdivisions": 6,
+   "kept_batches": 11,
+   "accuracy": {
+    "named": {
+     "n": 1718,
+     "correct": 677
+    },
+    "descriptive": {
+     "n": 43,
+     "correct": 4
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {
+    "n": 11,
+    "correct": 4
+   },
+   "unchecked_lines": 30,
+   "unknown_lines": 138
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "line_repeat",
+   "calls": 379,
+   "cost_usd": 0.7956,
+   "subdivisions": 20,
+   "kept_batches": 1,
+   "accuracy": {
+    "named": {
+     "n": 1718,
+     "correct": 809
+    },
+    "descriptive": {
+     "n": 43,
+     "correct": 0
+    },
+    "title_name": {}
+   },
+   "unchecked_gold_lines": {},
+   "unchecked_lines": 1,
+   "unknown_lines": 191
+  }
+ ],
+ "summary": {
+  "line": {
+   "named_pct": 64.97,
+   "descriptive_pct": 0.0,
+   "title_name_pct": 65.15,
+   "named_n": 4479,
+   "descriptive_n": 172,
+   "title_name_n": 241,
+   "calls": 1163,
+   "cost_usd": 2.6192,
+   "subdivisions": 86,
+   "kept_batches": 5,
+   "unchecked_lines": 5,
+   "unknown_lines": 829
+  },
+  "batch": {
+   "named_pct": 62.38,
+   "descriptive_pct": 2.91,
+   "title_name_pct": 65.56,
+   "named_n": 4479,
+   "descriptive_n": 172,
+   "title_name_n": 241,
+   "calls": 965,
+   "cost_usd": 2.267,
+   "subdivisions": 16,
+   "kept_batches": 33,
+   "unchecked_lines": 65,
+   "unknown_lines": 759
+  },
+  "line_repeat": {
+   "named_pct": 67.85,
+   "descriptive_pct": 0.0,
+   "title_name_pct": 85.06,
+   "named_n": 4479,
+   "descriptive_n": 172,
+   "title_name_n": 241,
+   "calls": 1280,
+   "cost_usd": 2.8263,
+   "subdivisions": 104,
+   "kept_batches": 7,
+   "unchecked_lines": 7,
+   "unknown_lines": 722
+  }
+ },
+ "gate": {
+  "calls_drop_pct": 17.0,
+  "calls_pass": false,
+  "named_delta_pts": -2.59,
+  "line_vs_line_spread_pts": 2.88,
+  "named_allowed_drop_pts": 0.5,
+  "named_pass": false,
+  "unnamed_delta_pts": 2.91,
+  "unnamed_pass": true,
+  "passes": false
+ },
+ "provenance": {
+  "script": "pass2_keep_scope_ab.py",
+  "written": "2026-10-03T05:33:22",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "2ec0c9af5afdd2bcbb4aa6ced6778f66475eb436",
+   "branch": "pass2-keep-scope",
+   "dirty": false,
+   "source_state": "clean",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "d61a3f5911b79320b8e3c11904b0e4b960c6c37a5368e05799f0b3be1af00dad"
+  },
+  "args": {
+   "fixtures": "fixtures",
+   "books": [
+    "pdnc_thesportofthegods",
+    "pdnc_themanwhowasthursday",
+    "pdnc_theinvisibleman",
+    "pdnc_ahandfulofdust",
+    "pdnc_thesunalsorises"
+   ],
+   "arm": [
+    "line=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/keep_scope_ab/out:line:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/keep_scope_ab/logs",
+    "batch=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/keep_scope_ab/out:batch:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/keep_scope_ab/logs",
+    "line_repeat=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/issue653_ab/out:base:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/issue653_ab/logs"
+   ],
+   "candidate": "batch",
+   "baseline": "line",
+   "repeat": "line_repeat",
+   "output": "ab_test_runtime/experiments/pass2_keep_scope_ab.json"
+  }
+ }
+}
