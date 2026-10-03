@@ -4143,6 +4143,7 @@ tight_rebuild__velvety_mezzo_30s_f_gothic__rebuilt.json,supported_structure,prov
 tight_rebuild__velvety_mezzo_30s_f_gothic__shipped.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tight_rebuild__warm_baritone_40s_m_1__rebuilt.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tight_rebuild__warm_baritone_40s_m_1__shipped.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+time_skip_traits.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 time_split__warm_baritone_30s_m_1_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 tone_spread_sensitivity.json,supported_structure,provenance,yes,,,2.7,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 training_composition.json,exploratory,git+naming,no,training_composition.py,e544836e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
