@@ -512,6 +512,16 @@ assert.strictEqual(JSON.stringify(metadata),before);
             self.assertIn(field, js)
             self.assertIn(f"getElementById('{control}').checked", js)
 
+    def test_keep_whole_batch_switch_is_off_by_default_and_saved(self):
+        """#729: opt-in only - the A/B could not rule out an accuracy cost."""
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        js = _read_frontend_source()
+        tag = re.search(r'<input\b[^>]*id="tp-keep-whole-batch"[^>]*>', html)
+        self.assertIsNotNone(tag)
+        self.assertNotIn("checked", tag.group(0))
+        self.assertIn("three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked", js)
+        self.assertIn("getElementById('tp-keep-whole-batch').checked = g.three_pass_keep_whole_batch === true", js)
+
     def test_frontend_config_controls_match_backend_schema(self):
         html = _read_frontend_source()
         input_tags = {

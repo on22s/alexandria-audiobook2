@@ -148,6 +148,13 @@ class GenerationConfig(BaseModel):
     three_pass_segmentation: SegmentationMode = "auto"
     three_pass_quoted_must_be_spoken: bool = True
     three_pass_unquoted_must_be_narrator: bool = True
+    # Pass 2: when a batch runs out of retries and the ONLY failures are a
+    # name the book never capitalises or a quoted line left unnamed, keep the
+    # whole batch and flag just those lines, instead of halving it down to
+    # them (#668: one refused label costs a halving per level). Off by default:
+    # the A/B (#729) saved 17% of requests but could not separate its accuracy
+    # effect from DeepSeek's run-to-run noise.
+    three_pass_keep_whole_batch: bool = False
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 

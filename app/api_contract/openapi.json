@@ -1234,6 +1234,11 @@
             "title": "Three Pass Instruct Temperature",
             "type": "number"
           },
+          "three_pass_keep_whole_batch": {
+            "default": false,
+            "title": "Three Pass Keep Whole Batch",
+            "type": "boolean"
+          },
           "three_pass_model_profiles": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ThreePassModelProfile"

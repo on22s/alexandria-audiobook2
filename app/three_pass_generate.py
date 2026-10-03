@@ -153,6 +153,7 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
             "three_pass_quoted_must_be_spoken", True) is not False,
         "unquoted_must_be_narrator": gen.get(
             "three_pass_unquoted_must_be_narrator", True) is not False,
+        "keep_scope": "batch" if gen.get("three_pass_keep_whole_batch") is True else "line",
         "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
         "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 2000)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
@@ -2772,11 +2773,12 @@ def main():
     parser.add_argument("--cast-file", default=None,
                         help="JSON cast list [{name, aliases}] put on the pass-2 roster "
                              "ahead of attested names (experiments/build_cast_list.py).")
-    parser.add_argument("--pass2-keep-scope", choices=PASS2_KEEP_SCOPES, default="line",
-                        help="With --pass2-on-exhaustion keep: 'line' (default) subdivides an "
-                             "exhausted batch down to the failing line before keeping it; "
-                             "'batch' keeps a batch whose only failures are keepable checks "
-                             "whole, flagging just those lines (#668).")
+    parser.add_argument("--pass2-keep-scope", choices=PASS2_KEEP_SCOPES, default=None,
+                        help="With --pass2-on-exhaustion keep: 'line' subdivides an exhausted "
+                             "batch down to the failing line before keeping it; 'batch' keeps a "
+                             "batch whose only failures are keepable checks whole, flagging just "
+                             "those lines (#668). Default: the Setup switch "
+                             "(generation.three_pass_keep_whole_batch), else 'line'.")
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback", "keep"],
                         default="fail",
                         help="testing default 'fail' surfaces pass-2 failures; "
@@ -2920,16 +2922,19 @@ def main():
         params.user_prompt_template = attribute_prompt_texts.get("user") or None
     client = make_run_client(config, llm, llm_timeout_seconds())
 
+    # The CLI flag overrides the Setup switch; neither set means 'line'.
+    keep_scope = args.pass2_keep_scope or generation_settings["keep_scope"]
     output_path, chunks_path = get_output_paths(data_dir, args.output)
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"attribute_batch_size={attribute_batch_size}, "
           f"attribute_context_chars={attribute_context_chars}, "
           f"attribute_prompt_variant={attribute_prompt_variant}, "
-          f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
+          f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}, "
+          f"pass2_keep_scope={keep_scope}")
     # Resolve execution controls once; samples and full runs share this policy.
     run_options = MappingProxyType({
         "on_exhaustion": args.pass2_on_exhaustion,
-        "keep_scope": args.pass2_keep_scope,
+        "keep_scope": keep_scope,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "endpoint": base_url,

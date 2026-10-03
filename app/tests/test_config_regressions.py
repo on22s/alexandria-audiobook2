@@ -118,6 +118,11 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse(loaded.three_pass_quoted_must_be_spoken)
         self.assertFalse(loaded.three_pass_unquoted_must_be_narrator)
 
+    def test_keep_whole_batch_defaults_off_and_round_trips(self):
+        self.assertFalse(config_settings.GenerationConfig().three_pass_keep_whole_batch)
+        saved = config_settings.GenerationConfig(three_pass_keep_whole_batch=True).model_dump()
+        self.assertTrue(config_settings.GenerationConfig(**saved).three_pass_keep_whole_batch)
+
     def test_app_config_loader_ignores_invalid_legacy_values_without_writing(self):
         document = json.dumps({
             "llm_mode": "cloud",

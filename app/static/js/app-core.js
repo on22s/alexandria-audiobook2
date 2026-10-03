@@ -1167,6 +1167,7 @@
             document.getElementById('merge-narrators').checked = !!g.merge_narrators;
             document.getElementById('tp-quoted-must-be-spoken').checked = g.three_pass_quoted_must_be_spoken !== false;
             document.getElementById('tp-unquoted-must-be-narrator').checked = g.three_pass_unquoted_must_be_narrator !== false;
+            document.getElementById('tp-keep-whole-batch').checked = g.three_pass_keep_whole_batch === true;
         }
 
         let currentBookFilename = '';
@@ -1321,7 +1322,7 @@
                 const g = defaults.generation;
                 if (!g || Object.values(generationControlFields).some(key => g[key] == null)
                     || g.chunk_size == null || !Array.isArray(g.banned_tokens) || !Array.isArray(g.context_rescue_windows)
-                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator'].some(key => typeof g[key] !== 'boolean')) {
+                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator', 'three_pass_keep_whole_batch'].some(key => typeof g[key] !== 'boolean')) {
                     throw new Error('Generation defaults are unavailable');
                 }
 
@@ -1433,6 +1434,7 @@
                     three_pass_segmentation: document.getElementById('tp-segmentation').value || 'auto',
                     three_pass_quoted_must_be_spoken: document.getElementById('tp-quoted-must-be-spoken').checked,
                     three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
+                    three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked,
                     context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
                     context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
                 }

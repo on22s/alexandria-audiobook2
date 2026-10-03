@@ -207,3 +207,12 @@ class BatchKeepScopeTests(unittest.TestCase):
         import inspect
         self.assertNotIn("keep_scope", inspect.signature(tp.three_pass_fingerprint).parameters)
 
+    def test_the_setup_switch_selects_the_scope(self):
+        on = tp.resolve_three_pass_generation_settings(
+            {"generation": {"three_pass_keep_whole_batch": True}})
+        self.assertEqual("batch", on["keep_scope"])
+        for generation in ({}, {"three_pass_keep_whole_batch": False},
+                           {"three_pass_keep_whole_batch": "yes"}):
+            self.assertEqual("line", tp.resolve_three_pass_generation_settings(
+                {"generation": generation})["keep_scope"])
+
