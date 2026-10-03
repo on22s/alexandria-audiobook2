@@ -32,6 +32,10 @@ STATE_CHANGE_BANDS = 2
 # the time skip in every chapter, but single batches flipped Roxy (an adult who
 # looks young) and gave Paul and Rudeus stray infant/teen lines.
 PERSIST_LINES = 10
+# Children are not given an age anchor on the roster: they grow within a
+# volume, and an anchor fought the text - with "toddler" on the roster,
+# Rudeus's labels swung toddler <-> child through ages 3-5 (time_skip_traits_v2).
+UNANCHORED_AGES = ("infant", "toddler", "young_child", "child")
 
 TRAITS_FIELDS = '{"n", "speaker", "gender", "age_group", "ageless"}'
 TRAITS_RULE = (
@@ -160,8 +164,10 @@ def get_established_traits(named_entries):
         summary = get_speaker_trait_summary(lines)
         if not summary:
             continue
-        parts = [value.replace("_", " ") for value in summary["current"].values()
-                 if value != "unknown"]
+        current = summary["current"]
+        parts = [current["gender"]] if current["gender"] != "unknown" else []
+        if current["age_group"] not in ("unknown", *UNANCHORED_AGES):
+            parts.append(current["age_group"].replace("_", " "))
         if summary["ageless"]:
             parts.append("ageless")
         if parts:
