@@ -562,7 +562,10 @@ def get_named_from_answer(frozen_batch, ordered, cast=None, speaker_traits=False
         if isinstance(speaker, str):
             speaker = alias_to_name.get(speaker.strip().upper(), speaker)
         named = {**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker}
-        if speaker_traits and f.get("type") == "SPOKEN":
+        # Traits describe a character: a spoken line the model gave to the
+        # narrator (kept unchecked) carries none, so NARRATOR gets no tag.
+        if (speaker_traits and f.get("type") == "SPOKEN"
+                and str(speaker or "").strip().upper() != "NARRATOR"):
             from speaker_traits import get_traits_from_answer
             named.update(get_traits_from_answer(item))
         out.append(named)

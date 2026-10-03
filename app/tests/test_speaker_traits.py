@@ -126,6 +126,14 @@ class PassTwoTest(unittest.TestCase):
                           spoken["speaker_ageless"]))
         self.assertNotIn("speaker_gender", narration)
 
+    def test_a_spoken_line_answered_narrator_records_nothing(self):
+        params = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
+                              max_tokens=500, temperature=0.0)
+        ordered = [{"n": 0, "speaker": "NARRATOR", "gender": "MALE", "age_group": "ADULT"}]
+        named = tp.get_named_from_answer([{"type": "SPOKEN", "text": "x"}], ordered,
+                                         speaker_traits=True)
+        self.assertNotIn("speaker_gender", named[0])
+
     def test_off_records_nothing(self):
         self.assertTrue(all("speaker_gender" not in entry for entry in self.attribute(False)))
 

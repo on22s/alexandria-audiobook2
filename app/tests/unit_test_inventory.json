@@ -6797,6 +6797,7 @@
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_missing_speechbrain_fails_instead_of_falling_back"
   ],
   "test_speaker_traits": [
+    "tests.test_speaker_traits.PassTwoTest.test_a_spoken_line_answered_narrator_records_nothing",
     "tests.test_speaker_traits.PassTwoTest.test_off_records_nothing",
     "tests.test_speaker_traits.PassTwoTest.test_on_records_the_fields_on_spoken_lines_only",
     "tests.test_speaker_traits.PromptTest.test_a_prompt_without_the_answer_shape_is_left_alone",
