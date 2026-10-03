@@ -51,12 +51,20 @@ MIN_LINES_FOR_FLICKER = 10
 
 
 def get_chapters(entries):
-    """-> chapter number per entry (0 = prologue), from the heading entries."""
+    """-> chapter number per entry (0 = prologue), from the headings.
+
+    Pass 1 leaves a heading INSIDE a longer narration entry ("...graduation?
+    Chapter 6: Reasons for Respect I had not left..."), so it is searched for
+    anywhere in the entry. An entry holding several headings is the table of
+    contents and is ignored. The first version only matched a heading at the
+    start of an entry and put all ~224 of Rudeus's lines in one chapter -
+    caught on an interim read, fixed before the final scoring.
+    """
     chapter, out = 0, []
     for entry in entries:
-        match = re.match(r"\s*Chapter (\d+):", entry.get("text") or "")
-        if match and entry.get("speaker") == "NARRATOR":
-            chapter = int(match.group(1))
+        headings = re.findall(r"Chapter (\d+):", entry.get("text") or "")
+        if len(headings) == 1 and entry.get("speaker") == "NARRATOR":
+            chapter = int(headings[0])
         out.append(chapter)
     return out
 

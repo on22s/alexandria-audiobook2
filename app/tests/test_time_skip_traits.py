@@ -18,6 +18,12 @@ class TimeSkipScorerTest(unittest.TestCase):
         self.assertEqual([0, 3, 3, 8], ts.get_chapters([_say("A", "adult"), _head(3),
                                                         _say("A", "toddler"), _head(8)]))
 
+    def test_a_heading_inside_narration_counts_and_the_contents_page_does_not(self):
+        toc = {"speaker": "NARRATOR", "text": "Prologue\n\nChapter 1: A\n\nChapter 2: B\n\nChapter 3: C"}
+        inline = {"speaker": "NARRATOR", "text": "Wait.\n\nChapter 6:\nReasons for Respect\n\nI had not"}
+        self.assertEqual([0, 0, 6, 6], ts.get_chapters([toc, _say("A", "adult"), inline,
+                                                        _say("A", "child")]))
+
     def test_flicker_counts_two_band_reversals_only(self):
         self.assertEqual(1, ts.get_flips(["child", "adult", "child"]))
         self.assertEqual(0, ts.get_flips(["teen", "young_adult", "teen"]))   # one band
