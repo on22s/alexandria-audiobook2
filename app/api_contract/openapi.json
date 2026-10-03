@@ -2306,6 +2306,19 @@
         "title": "PromptPreset",
         "type": "object"
       },
+      "ReportExplanationCancelRequest": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "ReportExplanationCancelRequest",
+        "type": "object"
+      },
       "ReviewRequest": {
         "properties": {
           "dedupe_speakers": {
@@ -5341,6 +5354,123 @@
         "summary": "Generate Script Pause"
       }
     },
+    "/api/generate_script/preflight": {
+      "post": {
+        "operationId": "book_preflight_api_generate_script_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateScriptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Book Preflight"
+      }
+    },
+    "/api/generate_script/preflight/{job_id}": {
+      "get": {
+        "operationId": "book_preflight_status_api_generate_script_preflight__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Book Preflight Status"
+      }
+    },
+    "/api/generate_script/preflight/{job_id}/cancel": {
+      "post": {
+        "operationId": "book_preflight_cancel_api_generate_script_preflight__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Book Preflight Cancel"
+      }
+    },
     "/api/generate_script/recovery": {
       "get": {
         "description": "Return metadata by default; opt in to the validated failed-unit detail.",
@@ -6646,6 +6776,22 @@
         "summary": "Merge M4B Endpoint"
       }
     },
+    "/api/merge_m4b/cancel": {
+      "post": {
+        "operationId": "cancel_m4b_export_api_merge_m4b_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel M4B Export"
+      }
+    },
     "/api/narrator/preview": {
       "post": {
         "operationId": "preview_narrator_api_narrator_preview_post",
@@ -7006,6 +7152,42 @@
         "summary": "List Reports"
       }
     },
+    "/api/reports/explanation/cancel": {
+      "post": {
+        "operationId": "cancel_report_explanation_api_reports_explanation_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportExplanationCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Report Explanation"
+      }
+    },
     "/api/reports/{filename}": {
       "get": {
         "operationId": "get_report_api_reports__filename__get",
@@ -7041,6 +7223,43 @@
           }
         },
         "summary": "Get Report"
+      }
+    },
+    "/api/reports/{filename}/explain": {
+      "post": {
+        "operationId": "explain_report_api_reports__filename__explain_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explain Report"
       }
     },
     "/api/review/checkpoints": {

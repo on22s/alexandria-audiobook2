@@ -1011,7 +1011,7 @@ class ReviewSummaryTests(unittest.TestCase):
         with patch.object(
                 core, "_llm_summarize_report",
                 return_value="Everything looks great and all issues were fixed."):
-            lines = core._insert_llm_summary(["Report"], 1, stats)
+            lines = core._insert_llm_summary(["Report"], 1, stats, allow_llm=True)
 
         self.assertIn("without recorded failed or skipped sections", lines[4])
         self.assertNotIn("Everything looks great", lines[4])
@@ -1019,7 +1019,7 @@ class ReviewSummaryTests(unittest.TestCase):
     def test_evidence_bound_llm_summary_is_kept_for_complete_run(self):
         summary = "The pass reported three text changes; inspect the examples below."
         with patch.object(core, "_llm_summarize_report", return_value=summary):
-            lines = core._insert_llm_summary(["Report"], 1, {"total_changes": 3})
+            lines = core._insert_llm_summary(["Report"], 1, {"total_changes": 3}, allow_llm=True)
 
         self.assertEqual(lines[4], summary)
 

@@ -27,6 +27,28 @@ def cleanup_fixture(pid):
         while is_running(pid) and time.monotonic()<deadline: time.sleep(.01)
 
 
+class OwnedServerCleanupRaceTests(unittest.TestCase):
+    def test_exit_during_escalation_ownership_query_is_reaped_as_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / 'race.sh'
+            script.write_text('source "$1/run_chains/lib/server_cleanup.sh"\n'
+                'sleep 60 & pid=$!\n'
+                'queries=0\n'
+                'is_owned_server_child() {\n'
+                ' queries=$((queries + 1))\n'
+                ' if [ "$queries" = 1 ]; then return 0; fi\n'
+                ' wait "$1" 2>/dev/null || true\n'
+                ' return 1\n'
+                '}\n'
+                'stop_owned_server "$pid" 0; rc=$?\n'
+                'if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid"; wait "$pid"; exit 99; fi\n'
+                '[ "$queries" = 2 ] || exit 98\n'
+                'exit "$rc"\n')
+            result = subprocess.run(['bash', str(script), str(ROOT)],
+                capture_output=True, text=True, timeout=5)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
 class OwnedServerLauncherTests(unittest.TestCase):
     def fixture(self, root, script_name, mode):
         (root/'run_chains/lib').mkdir(parents=True)

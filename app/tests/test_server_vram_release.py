@@ -71,6 +71,7 @@ class ServerVramReleaseTests(unittest.TestCase):
                     pid=int((root/'server.pid').read_text())
                     self.assertFalse(Path('/proc',str(pid)).exists(),'child not reaped before campaign exit')
                     self.assertFalse((root/'queried_before_reap').exists(),'VRAM queried before owned child was reaped')
+                    self.assertTrue((root/'vram_queries').exists(), result.stdout + result.stderr)
                     count=int((root/'vram_queries').read_text())
                     self.assertEqual(3 if policy=='release' else 1 if policy=='unknown' else 2,count)
                     self.assertEqual(4,len((root/'jobs').read_text().splitlines()))

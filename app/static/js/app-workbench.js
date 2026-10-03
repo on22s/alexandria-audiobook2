@@ -1132,6 +1132,7 @@
                 no_auto_anchor:  document.getElementById('prep-no-auto-anchor').checked,
                 batch_size:      getNumFieldValue('prep-batch-size', 1, true),
                 enrich_with_llm: document.getElementById('prep-enrich-with-llm').checked,
+                allow_cpu_fallback: document.getElementById('prep-allow-cpu-fallback').checked,
                 llm_model_path:  document.getElementById('prep-llm-model-path').value || null,
                 enrich_speaker_attribution: document.getElementById('prep-enrich-speaker').checked,
                 enrich_narration_style:     document.getElementById('prep-enrich-narration').checked,

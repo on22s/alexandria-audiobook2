@@ -23,6 +23,10 @@ stop_owned_server() {
         return 0
     fi
     if ! is_owned_server_child "$pid"; then
+        if ! kill -0 "$pid" 2>/dev/null; then
+            wait "$pid" 2>/dev/null || true
+            return 0
+        fi
         echo "REFUSING server cleanup: PID $pid is not this shell's child" >&2
         return 1
     fi
@@ -33,6 +37,10 @@ stop_owned_server() {
     done
     if kill -0 "$pid" 2>/dev/null; then
         if ! is_owned_server_child "$pid"; then
+            if ! kill -0 "$pid" 2>/dev/null; then
+                wait "$pid" 2>/dev/null || true
+                return 0
+            fi
             echo "REFUSING server cleanup: PID $pid no longer belongs to this shell" >&2
             return 1
         fi

@@ -1,3 +1,4 @@
+from review_report import get_review_report_info, apply_review_report_explanation
 from book_state_transaction import ensure_book_state
 import asyncio
 import logging
@@ -24,7 +25,7 @@ from core import (
     REPORTS_DIR,
     SCRIPTS_DIR,
     SCRIPT_PATH,
-    _load_voicelab_config,
+    _load_voicelab_config, _llm_summarize_report, _is_evidence_bound_summary,
     _save_upload_limited,
     _warn_corrupted_json,
     _gpu_lock,
@@ -385,7 +386,10 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
                 "description": request.description,
                 "cover_path": os.path.join(DATA_DIR, "m4b_cover.jpg") if os.path.exists(os.path.join(DATA_DIR, "m4b_cover.jpg")) else "",
             }
-            success, msg = project_manager.merge_m4b(per_chunk_chapters=request.per_chunk_chapters, metadata=meta)
+            success, msg = project_manager.merge_m4b(
+                per_chunk_chapters=request.per_chunk_chapters, metadata=meta,
+                cancel_check=lambda: process_state["m4b_export"].get("cancel", False),
+                progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message))
             process_state["m4b_export"]["result"] = get_export_task_result(success, msg)
             if success:
                 process_state["m4b_export"]["logs"].append(f"Export complete: {msg}")
@@ -400,6 +404,15 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     schedule_claimed_background_task(background_tasks, "m4b_export", task)
     process_state["m4b_export"]["result"] = None
     return {"status": "started"}
+
+@router.post("/api/merge_m4b/cancel")
+async def cancel_m4b_export():
+    state = process_state["m4b_export"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No M4B export is running.")
+    state["cancel"] = True
+    return {"status": "cancelling"}
+
 
 class ChapterExportRequest(BaseModel):
     format: str = "mp3"
@@ -810,6 +823,12 @@ def _get_reports():
         except (OSError, HTTPException):
             # File vanished between listdir and stat (concurrent delete) - skip it.
             continue
+        entry["can_explain"] = False
+        try:
+            entry["can_explain"] = not get_review_report_info(filepath)["incomplete"]
+        except (OSError, ValueError):
+            # Legacy, edited and incomplete records remain readable in the list.
+            pass
         reports.append(entry)
     reports.sort(key=lambda r: r["mtime"], reverse=True)
     return reports
@@ -818,6 +837,56 @@ def _get_reports():
 @router.get("/api/reports/{filename}")
 async def get_report(filename: str):
     return await asyncio.to_thread(_get_report_response, filename)
+
+
+@router.post("/api/reports/{filename}/explain")
+async def explain_report(filename: str, background_tasks: BackgroundTasks):
+    filepath = _get_report_path(filename)
+    try:
+        info = await asyncio.to_thread(get_review_report_info, filepath)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if info["incomplete"]:
+        raise HTTPException(status_code=409, detail="Incomplete reviews retain their deterministic summary")
+
+    def run():
+        state = process_state["report_explanation"]
+        state.update(status="running", filename=filename, error=None, logs=[])
+        try:
+            if state.get("cancel"):
+                state["status"] = "cancelled"
+                return
+            candidate = _llm_summarize_report(info["content"])
+            if not candidate or not _is_evidence_bound_summary(candidate):
+                raise ValueError("Explanation unavailable or unsupported; the original report was retained")
+            if state.get("cancel"):
+                state["status"] = "cancelled"
+                return
+            apply_review_report_explanation(filepath, info["sha256"], candidate)
+            state["status"] = "done"
+            state["logs"].append("Report explanation saved")
+        except Exception as exc:
+            state["status"] = "failed"
+            state["error"] = str(exc)
+            state["logs"].append(str(exc))
+
+    run_id = schedule_claimed_background_task(background_tasks, "report_explanation", run)
+    process_state["report_explanation"].update(run_id=run_id, filename=filename,
+                                              status="pending", error=None, logs=[])
+    return {"status":"started", "filename":filename, "run_id":run_id}
+
+
+class ReportExplanationCancelRequest(BaseModel):
+    run_id: str
+
+
+@router.post("/api/reports/explanation/cancel")
+async def cancel_report_explanation(request: ReportExplanationCancelRequest):
+    state = process_state["report_explanation"]
+    if not state["running"] or state.get("run_id") != request.run_id:
+        raise HTTPException(status_code=409, detail="This explanation run is no longer active")
+    state["cancel"] = True
+    return {"status":"cancel_requested"}
 
 
 def _get_report_response(filename: str):

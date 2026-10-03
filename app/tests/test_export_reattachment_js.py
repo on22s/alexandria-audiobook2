@@ -56,3 +56,24 @@ let handler;element('chapter-export-btn').addEventListener=(event,fn)=>handler=f
 await handler();assert.strictEqual(calls.length,2);assert.strictEqual(element('chapter-cancel-btn').style.display,'none');
 ctx.API.post=async()=>({});await handler();assert.strictEqual(calls.at(-1),'chapter_export');
 """)
+
+    def test_m4b_cancel_and_live_progress_keep_successful_download(self):
+        self.run_js(r"""
+const source=fs.readFileSync(process.argv[2],'utf8');
+vm.runInContext(source.slice(source.indexOf('        function isExportComplete('),source.indexOf('        window.exportAudacity =')),ctx);
+const calls=[],downloads=[];let poll;
+ctx._startPolling=(key,fetch,options)=>{assert.strictEqual(key,'m4b_export');poll=options;};
+ctx.cancelTask=async url=>{calls.push(url);return true;};
+ctx.document.createElement=()=>({click(){downloads.push(this.download);}});
+ctx.document.body={appendChild:()=>{},removeChild:()=>{}};ctx.setTimeout=()=>{};
+vm.runInContext(source.slice(source.indexOf('        window.cancelM4B ='),source.indexOf('        window.exportM4B =')),ctx);
+ctx.pollExport('m4b_export');assert.strictEqual(element('m4b-cancel-btn').style.display,'');
+poll.onTick({logs:['Encoding M4B: 1.5/3.0 s; elapsed 0.2 s'],running:true});
+assert.strictEqual(element('m4b-status').textContent,'Encoding M4B: 1.5/3.0 s; elapsed 0.2 s');
+await ctx.cancelM4B();assert.deepStrictEqual(calls,['/api/merge_m4b/cancel']);
+assert.strictEqual(element('m4b-cancel-btn').style.display,'');
+poll.onDone({logs:[],result:{status:'cancelled',message:'Export cancelled'},running:false});
+assert.strictEqual(element('m4b-cancel-btn').style.display,'none');assert.strictEqual(downloads.length,0);
+ctx.pollExport('m4b_export');poll.onDone({logs:[],result:{status:'done',message:'audiobook.m4b'},running:false});
+assert.deepStrictEqual(downloads,['audiobook.m4b']);assert.strictEqual(element('m4b-cancel-btn').style.display,'none');
+""")
