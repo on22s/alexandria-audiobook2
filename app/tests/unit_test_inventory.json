@@ -7455,6 +7455,11 @@
     "tests.test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_guide_links_canonical_summary_and_preserves_scope_limits",
     "tests.test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_summary_covers_every_registered_stage"
   ],
+  "test_time_skip_traits": [
+    "tests.test_time_skip_traits.TimeSkipScorerTest.test_a_correct_timeline_passes_and_an_adult_mind_fails",
+    "tests.test_time_skip_traits.TimeSkipScorerTest.test_chapters_come_from_heading_entries",
+    "tests.test_time_skip_traits.TimeSkipScorerTest.test_flicker_counts_two_band_reversals_only"
+  ],
   "test_time_split_chain": [
     "tests.test_time_split_chain.TimeSplitChainTests.test_actual_library_builder_artifact_is_accepted_and_short_generation_is_rejected",
     "tests.test_time_split_chain.TimeSplitChainTests.test_bad_explicit_environment_refuses_before_any_worker",
