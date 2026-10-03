@@ -4695,6 +4695,14 @@
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_interrupt_between_replacements_restores_pair_and_propagates",
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_serialization_failure_leaks_no_stage_and_never_changes_targets"
   ],
+  "test_pass2_keep_scope_ab": [
+    "tests.test_pass2_keep_scope_ab.GateTest.test_fails_when_calls_drop_less_than_twenty_percent",
+    "tests.test_pass2_keep_scope_ab.GateTest.test_named_may_drop_by_the_line_vs_line_spread_only",
+    "tests.test_pass2_keep_scope_ab.GateTest.test_passes_with_fewer_calls_and_no_accuracy_loss",
+    "tests.test_pass2_keep_scope_ab.GateTest.test_the_allowance_never_exceeds_half_a_point",
+    "tests.test_pass2_keep_scope_ab.GateTest.test_unnamed_may_not_drop",
+    "tests.test_pass2_keep_scope_ab.LogCountTest.test_counts_responses_cost_and_subdivisions"
+  ],
   "test_pass_prompt_payload_js": [
     "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_actual_config_http_save_persists_prompt_text_used_after_disk_reload",
     "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_default_edits_become_presets_custom_edits_preserve_metadata_and_reload"
