@@ -114,6 +114,33 @@ def _get_modal_state(states):
             ages.most_common(1)[0][0] if ages else "unknown")
 
 
+def _get_settled_states(lines):
+    """-> [((gender, age), start)] for one character's lines in order, `start`
+    indexing `lines`: the first state from its first PERSIST_LINES known lines,
+    then each change that PERSIST_LINES consecutive lines confirmed, starting
+    at the first of those lines. The one implementation behind the card, the
+    roster and the voice timeline (Rule 15)."""
+    known = [(index, entry) for index, entry in enumerate(lines) if "speaker_gender" in entry
+             and (entry["speaker_gender"], entry["speaker_age_group"]) != ("unknown", "unknown")]
+    if not known:
+        return []
+    raw = [(e["speaker_gender"], e["speaker_age_group"]) for _, e in known]
+    states = [(_get_modal_state(raw[:PERSIST_LINES]), known[0][0])]
+    candidate = []
+    for index, entry in known[len(raw[:PERSIST_LINES]):]:
+        state = _get_state(entry, states[-1][0])
+        if not _is_new_state(state, states[-1][0]):
+            candidate = []
+            continue
+        if candidate and _is_new_state(state, _get_modal_state([s for s, _ in candidate])):
+            candidate = []
+        candidate.append((state, index))
+        if len(candidate) >= PERSIST_LINES:
+            states.append((_get_modal_state([s for s, _ in candidate]), candidate[0][1]))
+            candidate = []
+    return states
+
+
 def get_speaker_trait_summary(lines):
     """-> the per-character view, or None without data.
 
@@ -124,31 +151,59 @@ def get_speaker_trait_summary(lines):
     of STATE_CHANGE_BANDS age bands. `current` is the last settled state - what
     a later batch is told (get_established_traits) and what a voice follows.
     """
-    known = [entry for entry in lines if "speaker_gender" in entry
-             and (entry["speaker_gender"], entry["speaker_age_group"]) != ("unknown", "unknown")]
-    if not [entry for entry in lines if "speaker_gender" in entry]:
+    traited = [entry for entry in lines if "speaker_gender" in entry]
+    if not traited:
         return None
-    raw = [(e["speaker_gender"], e["speaker_age_group"]) for e in known]
-    states = [_get_modal_state(raw[:PERSIST_LINES])] if raw else []
-    candidate = []
-    for entry in known[len(raw[:PERSIST_LINES]):]:
-        state = _get_state(entry, states[-1])
-        if not _is_new_state(state, states[-1]):
-            candidate = []
-            continue
-        if candidate and _is_new_state(state, _get_modal_state(candidate)):
-            candidate = []
-        candidate.append(state)
-        if len(candidate) >= PERSIST_LINES:
-            states.append(_get_modal_state(candidate))
-            candidate = []
+    raw = [(e["speaker_gender"], e["speaker_age_group"]) for e in traited
+           if (e["speaker_gender"], e["speaker_age_group"]) != ("unknown", "unknown")]
+    states = [state for state, _ in _get_settled_states(lines)]
     overall = _get_modal_state(raw)
     current = states[-1] if states else ("unknown", "unknown")
     return {"gender": overall[0], "age_group": overall[1],
-            "ageless": any(e.get("speaker_ageless") for e in lines if "speaker_gender" in e),
-            "lines": len([e for e in lines if "speaker_gender" in e]),
+            "ageless": any(e.get("speaker_ageless") for e in traited),
+            "lines": len(traited),
             "current": {"gender": current[0], "age_group": current[1]},
             "states": [{"gender": g, "age_group": a} for g, a in states] if len(states) > 1 else []}
+
+
+def get_state_timeline(script_entries):
+    """-> {SPEAKER: [{"from_entry", "gender", "age_group"}]} for every speaker
+    whose settled state changes; `from_entry` indexes `script_entries`."""
+    by_speaker = collections.defaultdict(list)
+    for index, entry in enumerate(script_entries):
+        if isinstance(entry, dict) and "speaker_gender" in entry and entry.get("speaker"):
+            by_speaker[str(entry["speaker"]).strip().upper()].append((index, entry))
+    out = {}
+    for speaker, rows in by_speaker.items():
+        states = _get_settled_states([entry for _, entry in rows])
+        if len(states) > 1:
+            out[speaker] = [{"from_entry": rows[start][0], "gender": g, "age_group": a}
+                            for (g, a), start in states]
+    return out
+
+
+# The voice library tags adapters with the older, coarser age groups; the
+# early-childhood stages all match its "child".
+LIBRARY_AGE_GROUPS = {"infant": "child", "toddler": "child", "young_child": "child"}
+
+
+def get_library_age_group(age_group):
+    return LIBRARY_AGE_GROUPS.get(age_group, age_group)
+
+
+def get_chunk_index_for_entry(chunks, speaker, text, start=0):
+    """-> the index of the first chunk at or after `start` spoken by `speaker`
+    whose text contains `text`, or None. By content, so chunks merged or
+    edited after they were built still map."""
+    wanted = " ".join(str(text or "").split())
+    if not wanted:
+        return None
+    for index in range(max(0, start), len(chunks)):
+        chunk = chunks[index] if isinstance(chunks[index], dict) else {}
+        if (str(chunk.get("speaker") or "").strip().upper() == str(speaker).strip().upper()
+                and wanted in " ".join(str(chunk.get("text") or "").split())):
+            return index
+    return None
 
 
 def get_established_traits(named_entries):

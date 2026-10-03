@@ -154,6 +154,37 @@ def active_character_style(voice_data, chunk_index=None):
     return style
 
 
+# Bookkeeping a voice version carries that must never overlay the entry it is
+# applied to: its own label, and the entry's version/timeline structure.
+VERSION_OVERLAY_EXCLUDED = ("age_group", "versions", "version_timeline", "style_timeline",
+                            "candidates", "active_version", "active_candidate")
+
+
+def get_version_fields(voice_data, version_id):
+    """-> the fields one of a character's voice versions puts over its entry,
+    or None when the version does not exist. One overlay for the whole-book
+    select route and the per-chunk version timeline (Rule 15)."""
+    version = ((voice_data or {}).get("versions") or {}).get(version_id)
+    if not isinstance(version, dict):
+        return None
+    return {key: value for key, value in version.items() if key not in VERSION_OVERLAY_EXCLUDED}
+
+
+def active_version_id(voice_data, chunk_index):
+    """The version a `version_timeline` puts in force at a chunk, or None.
+    A point is {"from_index": N, "version_id": "..."}: from chunk N on, the
+    character speaks with that version (a settled age or gender state, #653)."""
+    if chunk_index is None:
+        return None
+    current = None
+    points = [(get_style_timeline_index(point), point)
+              for point in (voice_data or {}).get("version_timeline") or [] if isinstance(point, dict)]
+    for index, point in sorted(points, key=lambda item: item[0]):
+        if index <= chunk_index:
+            current = point.get("version_id")
+    return current
+
+
 def voice_config_for_chunk(voice_config, speaker, chunk_index):
     """Copy only entries whose timeline anchors apply at this source index.
     Ensemble members use the same index as their containing line."""
@@ -166,7 +197,14 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
     updates = {}
     for name in speakers:
         data = voice_config.get(name)
-        if isinstance(data, dict) and data.get("style_timeline"):
+        if not isinstance(data, dict):
+            continue
+        version_id = active_version_id(data, chunk_index) if data.get("version_timeline") else None
+        fields = get_version_fields(data, version_id) if version_id else None
+        if fields:
+            data = {**data, **fields}
+            updates[name] = data
+        if data.get("style_timeline"):
             updates[name] = {**data, "character_style": active_character_style(data, chunk_index)}
     return {**voice_config, **updates} if updates else voice_config
 

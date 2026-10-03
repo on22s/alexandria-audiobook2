@@ -16,6 +16,7 @@ from config_settings import load_app_config
 from voice_config_store import apply_voice_config_update, get_voice_config_revision, VoiceConfigConflict
 
 from core import (
+    CHUNKS_PATH,
     CAST_MAJOR_LINE_THRESHOLD,
     CONFIG_PATH,
     LLMConfigError,
@@ -48,7 +49,9 @@ from core import (
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
-from speaker_traits import get_speaker_trait_summary
+from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
+                            get_normalized_age_group,
+                            get_speaker_trait_summary, get_state_timeline)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -74,6 +77,19 @@ class VoiceStylePoint(BaseModel):
     model_config = {"extra": "allow"}
     from_index: int = 0
     character_style: Optional[str] = ""
+
+    @field_validator("from_index", mode="before")
+    @classmethod
+    def validate_from_index(cls, value):
+        return get_style_timeline_index({"from_index": value})
+
+
+class VoiceVersionPoint(BaseModel):
+    """From chunk `from_index` on, the character speaks with voice version
+    `version_id` (a settled age/gender state, #653); None = the main voice
+    again, for a state that changes back."""
+    from_index: int = 0
+    version_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
     @field_validator("from_index", mode="before")
     @classmethod
@@ -111,6 +127,7 @@ class VoiceConfigItem(BaseModel):
     # Identity anchors that take over from a line onward (tts.active_character_style):
     # [{"from_index": N, "character_style": "..."}]. Set from the Editor.
     style_timeline: List[VoiceStylePoint] = Field(default_factory=list)
+    version_timeline: List[VoiceVersionPoint] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_ensemble_members(self):
@@ -401,6 +418,144 @@ async def add_style_point(speaker: str, request: StylePointRequest):
         current["style_timeline"] = sorted(points, key=lambda p: int(p["from_index"]))
     entry = await asyncio.to_thread(_mutate_voice_entry, speaker, add)
     return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
+
+
+def get_library_voice_config(candidate):
+    """The voice config a library LoRA voice is assigned with - the one shape
+    _apply_voice_suggestions writes, reused for a state's version."""
+    return {"type": candidate["type"], "adapter_id": candidate["adapter_id"],
+            "adapter_path": (f"builtin_lora/{candidate['adapter_id']}"
+                             if candidate["type"] == "builtin_lora"
+                             else f"lora_models/{candidate['adapter_id']}")}
+
+
+def get_adapter_users(voice_config):
+    """-> {adapter_id: [speakers]} for every LoRA voice the book already uses,
+    as a main voice or as a version."""
+    users = {}
+    for name, entry in (voice_config or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        configs = [entry, *[v for v in (entry.get("versions") or {}).values() if isinstance(v, dict)]]
+        for config in configs:
+            adapter_id = config.get("adapter_id")
+            if adapter_id and config.get("type") in ("lora", "builtin_lora"):
+                users.setdefault(adapter_id, [])
+                if name not in users[adapter_id]:
+                    users[adapter_id].append(name)
+    return users
+
+
+def get_chapter_label(script, index):
+    """The chapter heading in force at a script line, from narration, or None."""
+    for entry in reversed(script[:index + 1]):
+        if isinstance(entry, dict) and get_script_speaker(entry) == "NARRATOR":
+            found = re.findall(r"\b(?:Chapter \d+|Prologue|Epilogue)\b", entry.get("text") or "")
+            if found:
+                return found[-1]
+    return None
+
+
+def get_state_voice_sources(state, speaker, entry, candidates, users, limit=6):
+    """Ranked voices for one settled state (owner order, 2026-10-03): the
+    character's own matching versions, then UNUSED library voices, then ones
+    other characters use; generating a version is offered only if none fit."""
+    age = get_library_age_group(state["age_group"])
+    gender = state["gender"]
+    versions = []
+    for version_id, version in sorted((entry.get("versions") or {}).items()):
+        if not isinstance(version, dict):
+            continue
+        version_age = get_library_age_group(get_normalized_age_group(version.get("age_group")))
+        version_gender = version.get("gender") or "unknown"
+        if (get_age_distance(age, version_age) <= 1 and version_age != "unknown"
+                and version_gender in ("unknown", gender)):
+            versions.append({"version_id": version_id, "age_group": version.get("age_group")})
+    ranked = _rank_heuristic_candidates("", candidates, gender if gender in ("male", "female") else None,
+                                        age, filter_gender=True)
+    by_id = {c["adapter_id"]: c for c in candidates}
+    fitting = [by_id[i] for i in ranked
+               if (by_id[i].get("gender") in ("unknown", gender) or gender not in ("male", "female"))
+               and (age == "unknown" or (by_id[i].get("age_group", "unknown") != "unknown"
+                                         and get_age_distance(age, by_id[i]["age_group"]) <= 1))]
+    def describe(candidate):
+        return {"adapter_id": candidate["adapter_id"], "name": candidate["name"],
+                "gender": candidate.get("gender", "unknown"),
+                "age_group": candidate.get("age_group", "unknown"),
+                "used_by": [n for n in users.get(candidate["adapter_id"], []) if n != speaker],
+                "config": get_library_voice_config(candidate)}
+    fitting = [c for c in fitting if speaker not in users.get(c["adapter_id"], [])]
+    unused = [describe(c) for c in fitting if not users.get(c["adapter_id"])][:limit]
+    used = [describe(c) for c in fitting if users.get(c["adapter_id"])][:limit]
+    return {"versions": versions, "library_unused": unused, "library_used": used,
+            "offer_generate": not versions and not unused and not used}
+
+
+@router.get("/api/voices/{speaker}/state_timeline")
+async def get_voice_state_timeline(speaker: str):
+    """The suggested voice timeline for a character whose settled gender/age
+    changes (#653). Suggests only: nothing changes audio until it is applied."""
+    def build():
+        _require_script_speaker(speaker)
+        script = safe_load_json(SCRIPT_PATH, default=[])
+        chunks = safe_load_json(CHUNKS_PATH, default=[]) if os.path.isfile(CHUNKS_PATH) else []
+        voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
+        entry = voice_config.get(speaker) if isinstance(voice_config.get(speaker), dict) else {}
+        states = get_state_timeline(script).get(speaker.strip().upper(), [])
+        if not states:
+            return {"speaker": speaker, "states": [], "applied": entry.get("version_timeline", [])}
+        candidates = _build_lora_candidates()
+        users = get_adapter_users(voice_config)
+        # Map the character's lines in order, so a line said twice ("Yes.")
+        # maps to the chunk at ITS place in the book, not the first one.
+        line_chunks, start = {}, 0
+        for index, line in enumerate(script[:states[-1]["from_entry"] + 1]) if chunks else ():
+            if get_script_speaker(line).upper() == speaker.strip().upper():
+                chunk_index = get_chunk_index_for_entry(chunks, speaker, line.get("text"), start)
+                if chunk_index is not None:
+                    line_chunks[index], start = chunk_index, chunk_index
+        out = []
+        for state in states:
+            line = script[state["from_entry"]]
+            chunk_index = line_chunks.get(state["from_entry"])
+            out.append({**state, "from_index": chunk_index,
+                        "chapter": get_chapter_label(script, state["from_entry"]),
+                        "line": (line.get("text") or "")[:120],
+                        "sources": get_state_voice_sources(state, speaker, entry, candidates, users)})
+        return {"speaker": speaker, "states": out, "applied": entry.get("version_timeline", []),
+                "chunks_built": bool(chunks)}
+    return await asyncio.to_thread(build)
+
+
+class VersionTimelineRequest(BaseModel):
+    points: List[VoiceVersionPoint] = Field(max_length=50)
+
+
+@router.post("/api/voices/{speaker}/version_timeline")
+async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
+    """Apply a character's voice timeline. Every version must exist, or
+    nothing is written."""
+    await asyncio.to_thread(_require_script_speaker, speaker)
+    def save(current):
+        versions = current.get("versions") or {}
+        missing = [p.version_id for p in request.points
+                   if p.version_id is not None and p.version_id not in versions]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Unknown voice version: {', '.join(missing)}")
+        points = {p.from_index: {"from_index": p.from_index, "version_id": p.version_id}
+                  for p in request.points}
+        current["version_timeline"] = [points[i] for i in sorted(points)]
+    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, save)
+    return {"status": "saved", "speaker": speaker, "version_timeline": entry.get("version_timeline", [])}
+
+
+@router.delete("/api/voices/{speaker}/version_timeline")
+async def clear_version_timeline(speaker: str):
+    await asyncio.to_thread(_require_script_speaker, speaker)
+    def clear(current):
+        current.pop("version_timeline", None)
+    await asyncio.to_thread(_mutate_voice_entry, speaker, clear)
+    return {"status": "cleared", "speaker": speaker}
 
 
 @router.delete("/api/voices/{speaker}/style_timeline/{from_index}")

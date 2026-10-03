@@ -2939,6 +2939,23 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VersionTimelineRequest": {
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceVersionPoint"
+            },
+            "maxItems": 50,
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "VersionTimelineRequest",
+        "type": "object"
+      },
       "VoiceApprovalRequest": {
         "properties": {
           "persona_status": {
@@ -3206,6 +3223,13 @@
             "default": "custom",
             "title": "Type",
             "type": "string"
+          },
+          "version_timeline": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceVersionPoint"
+            },
+            "title": "Version Timeline",
+            "type": "array"
           },
           "versions": {
             "additionalProperties": {
@@ -3569,6 +3593,31 @@
           "suggestion"
         ],
         "title": "VoiceSuggestionApplyRequest",
+        "type": "object"
+      },
+      "VoiceVersionPoint": {
+        "description": "From chunk `from_index` on, the character speaks with voice version\n`version_id` (a settled age/gender state, #653); None = the main voice\nagain, for a state that changes back.",
+        "properties": {
+          "from_index": {
+            "default": 0,
+            "title": "From Index",
+            "type": "integer"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "title": "VoiceVersionPoint",
         "type": "object"
       },
       "VoiceVersionRequest": {
@@ -9904,6 +9953,44 @@
         "summary": "Update Persona Voice Audit"
       }
     },
+    "/api/voices/{speaker}/state_timeline": {
+      "get": {
+        "description": "The suggested voice timeline for a character whose settled gender/age\nchanges (#653). Suggests only: nothing changes audio until it is applied.",
+        "operationId": "get_voice_state_timeline_api_voices__speaker__state_timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Voice State Timeline"
+      }
+    },
     "/api/voices/{speaker}/style_timeline": {
       "post": {
         "description": "From this line on, the character sounds like `character_style` (an\naged character, a time skip). Replaces a point at the same index.",
@@ -9996,6 +10083,89 @@
           }
         },
         "summary": "Remove Style Point"
+      }
+    },
+    "/api/voices/{speaker}/version_timeline": {
+      "delete": {
+        "operationId": "clear_version_timeline_api_voices__speaker__version_timeline_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Version Timeline"
+      },
+      "post": {
+        "description": "Apply a character's voice timeline. Every version must exist, or\nnothing is written.",
+        "operationId": "save_version_timeline_api_voices__speaker__version_timeline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionTimelineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Version Timeline"
       }
     },
     "/api/voices/{speaker}/versions": {

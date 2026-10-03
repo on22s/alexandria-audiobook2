@@ -3167,6 +3167,7 @@
                                     </select>
                                     <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
                                 </div>
+                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>Voice changes (${voice.traits.states.length} states)</button><div class="voice-state-rows"></div></div>` : ''}
                                 <button class="btn btn-sm btn-outline-secondary mt-1" type="button" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
                                 <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates)}</div>
                                 <div class="form-check form-switch small">
@@ -3600,9 +3601,9 @@
             } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
         };
 
-        window.generateAgeVersion = async function generateAgeVersion(button) {
+        window.generateAgeVersion = async function generateAgeVersion(button, presetAge) {
             const speaker = button.closest('.voice-card')?.dataset.voice;
-            const ageGroup = window.prompt('Age profile (child, teen, adult, middle_aged, elderly):');
+            const ageGroup = window.prompt('Age profile (infant, toddler, young_child, child, teen, young_adult, adult, middle_aged, elderly):', presetAge || '');
             if (!ageGroup || !ageGroup.trim()) { return; }
             try {
                 if (!(await confirmIfRemote('this age-version generation', true))) { return; }
@@ -4296,6 +4297,113 @@
             } catch (e) {
                 showToast('Could not remove: ' + (e.message || 'unknown error'), 'error');
             }
+        }
+
+        // Voices tab: a character whose settled age/gender changes (#653) gets
+        // one voice per state. Library voices nobody uses come first, then
+        // ones other characters use, then generating an age version. Nothing
+        // changes audio until Apply.
+        function getVoiceStateDefault(state, applied, index) {
+            const point = (applied || []).find(p => p.from_index === state.from_index);
+            if (point) { return point.version_id ? `version:${point.version_id}` : 'main'; }
+            const sources = state.sources || {};
+            if (index === 0) { return 'main'; }
+            if ((sources.versions || []).length) { return `version:${sources.versions[0].version_id}`; }
+            if ((sources.library_unused || []).length) { return `library:${sources.library_unused[0].adapter_id}`; }
+            if ((sources.library_used || []).length) { return `library:${sources.library_used[0].adapter_id}`; }
+            return 'main';
+        }
+
+        function renderVoiceStateRows(data) {
+            const states = (data && data.states) || [];
+            if (!states.length) { return '<div class="small text-muted">No settled change of age or gender for this character.</div>'; }
+            const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+            const rows = states.map((state, index) => {
+                const sources = state.sources || {};
+                const selected = getVoiceStateDefault(state, data.applied, index);
+                const where = state.from_index === null || state.from_index === undefined
+                    ? 'line not found in the Editor yet' : `from line ${state.from_index + 1}`;
+                const library = (c, suffix) => option(`library:${c.adapter_id}`, `${c.name} · ${c.gender} · ${c.age_group}${suffix}`, selected);
+                const options = [option('main', 'Main voice', selected),
+                    ...(sources.versions || []).map(v => option(`version:${v.version_id}`, `Version: ${v.version_id}`, selected)),
+                    // the applied version, even when it no longer ranks as a match
+                    ...(selected.startsWith('version:') && !(sources.versions || []).some(v => `version:${v.version_id}` === selected)
+                        ? [option(selected, `Version: ${selected.slice(8)}`, selected)] : []),
+                    ...(sources.library_unused || []).map(c => library(c, ' · unused')),
+                    ...(sources.library_used || []).map(c => library(c, ` · used by ${(c.used_by || []).join(', ')}`))]
+                    .join('');
+                const generate = sources.offer_generate
+                    ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">Generate ${escapeHtml(state.age_group.replace(/_/g, ' '))} version</button>` : '';
+                return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-age="${escapeHtml(state.age_group)}">`
+                    + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${where})</span></div>`
+                    + `<select class="form-select form-select-sm voice-state-source"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
+            }).join('');
+            return rows + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearVoiceStates(this)">Clear</button></div>`;
+        }
+
+        async function openVoiceStates(button) {
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const target = card?.querySelector('.voice-state-rows');
+            if (!speaker || !target) { return; }
+            try {
+                const data = await API.get(`/api/voices/${encodeURIComponent(speaker)}/state_timeline`);
+                window._voiceStateSuggestions = window._voiceStateSuggestions || {};
+                window._voiceStateSuggestions[speaker] = data;
+                target.innerHTML = renderVoiceStateRows(data);
+            } catch (e) { showToast('Could not load voice changes: ' + (e.message || 'unknown error'), 'error'); }
+        }
+
+        async function applyVoiceStates(button) {
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const data = (window._voiceStateSuggestions || {})[speaker];
+            if (!speaker || !data) { return; }
+            const candidates = new Map();
+            for (const state of data.states || []) {
+                for (const c of [...(state.sources?.library_unused || []), ...(state.sources?.library_used || [])]) {
+                    candidates.set(c.adapter_id, c);
+                }
+            }
+            const points = [];
+            try {
+                for (const row of card.querySelectorAll('.voice-state-row')) {
+                    const value = row.querySelector('.voice-state-source')?.value || 'main';
+                    if (row.dataset.fromIndex === '') { continue; }
+                    const fromIndex = Number(row.dataset.fromIndex);
+                    if (value === 'main') {
+                        if (points.length) { points.push({from_index: fromIndex, version_id: null}); }
+                    } else if (value.startsWith('version:')) {
+                        points.push({from_index: fromIndex, version_id: value.slice(8)});
+                    } else if (value.startsWith('library:')) {
+                        const chosen = candidates.get(value.slice(8));
+                        if (!chosen) { continue; }
+                        const versionId = `${row.dataset.age}-${chosen.adapter_id}`.slice(0, 80);
+                        await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
+                            version_id: versionId, age_group: row.dataset.age, config: chosen.config});
+                        points.push({from_index: fromIndex, version_id: versionId});
+                    }
+                }
+                if (points.length) {
+                    await API.post(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`, {points});
+                } else {
+                    await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`);
+                }
+                await loadVoices();
+                const first = points.length ? Math.min(...points.map(p => p.from_index)) + 1 : null;
+                showToast(first ? `Voice changes saved for ${speaker}. Lines already generated from line ${first} on keep the old voice: regenerate them in the Editor.`
+                    : `${speaker} uses the main voice throughout.`, 'success');
+            } catch (e) { showToast('Could not apply voice changes: ' + (e.message || 'unknown error'), 'error'); }
+        }
+
+        async function clearVoiceStates(button) {
+            const speaker = button.closest('.voice-card')?.dataset.voice;
+            if (!speaker) { return; }
+            try {
+                await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`);
+                await loadVoices();
+                showToast(`${speaker} uses the main voice throughout. Regenerate lines already made with a state voice.`, 'success');
+            } catch (e) { showToast('Could not clear voice changes: ' + (e.message || 'unknown error'), 'error'); }
         }
 
         // Editor: from this line on, this character sounds different (an aged
