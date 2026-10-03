@@ -8085,6 +8085,7 @@
   "test_voice_seed_repair_ui": [
     "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_backup_failure_preserves_config_and_refuses_success",
     "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_native_preview_apply_preserves_explicit_seeds_metadata_and_original_backup",
+    "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_seed_transform_returns_detached_flat_and_nested_configs",
     "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_stale_voice_or_book_refuses_without_backup_or_write",
     "tests.test_voice_seed_repair_ui.VoiceSeedRepairUiTests.test_native_preview_one_click_and_changed_displayed_snapshot_refusal"
   ],

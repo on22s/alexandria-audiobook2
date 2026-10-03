@@ -8,10 +8,31 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import voices
+from repair_voice_config import apply_unseeded_voice_seeds
 from utils import character_voice_seed
 
 
 class VoiceSeedRepairTests(unittest.TestCase):
+    def test_seed_transform_returns_detached_flat_and_nested_configs(self):
+        characters = {'ALICE': {'seed': '-1', 'audit': {'keep': True}},
+                      'BOB': {'seed': '12'}}
+        for nested in (False, True):
+            with self.subTest(nested=nested):
+                raw = json.loads(json.dumps(characters))
+                if nested:
+                    raw = {'characters': raw, 'ALICE': {'seed': '99'},
+                           'metadata': {'keep': True}}
+                before = json.loads(json.dumps(raw))
+                expected = json.loads(json.dumps(raw))
+                expected_characters = expected['characters'] if nested else expected
+                expected_characters['ALICE']['seed'] = str(character_voice_seed('ALICE'))
+                updated = apply_unseeded_voice_seeds(raw)
+                self.assertEqual(before, raw, 'The transform must not mutate its input')
+                self.assertEqual(expected, updated)
+                updated_characters = updated['characters'] if nested else updated
+                updated_characters['ALICE']['audit']['keep'] = False
+                self.assertEqual(before, raw, 'Returned nested metadata must be detached too')
+
     def fixture(self, root, stack):
         raw = {'ALICE': {'type': 'custom', 'voice': 'Aiden', 'seed': '-1', 'audit': {'keep': True}},
                'BOB': {'type': 'clone', 'seed': '12', 'ref_audio': 'unchanged.wav'},
@@ -137,6 +158,13 @@ for(const changed of ['dirty','revision','book']){
 }
 dirty=false;ctx._voiceCardsRevision=native.revision;ctx._voiceCardsBookToken=native.book_token;
 failFlush=true;await ctx.applyStableVoiceSeeds();assert.strictEqual(posts.length,1);assert(toasts.at(-1).includes('pending edit failed'));
+let releaseFlush,pendingFlushes=0;
+const flushPending=new Promise(resolve=>{releaseFlush=resolve;});
+ctx.flushVoiceSaves=async()=>{pendingFlushes++;await flushPending;};
+const firstClick=ctx.applyStableVoiceSeeds(),secondClick=ctx.applyStableVoiceSeeds();
+const flushAttempts=pendingFlushes;releaseFlush();await Promise.all([firstClick,secondClick]);
+assert.strictEqual(flushAttempts,1,'A pending repair must block a second click before flushing');
+assert.strictEqual(posts.length,2,'Two overlapping clicks must publish just one additional repair');
 finished=true;
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """
