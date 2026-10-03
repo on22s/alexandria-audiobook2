@@ -30,8 +30,11 @@ class TimeSkipScorerTest(unittest.TestCase):
         self.assertEqual(0, ts.get_flips(["infant", "toddler", "child"]))    # growing up
 
     def test_a_correct_timeline_passes_and_an_adult_mind_fails(self):
-        good = [_head(1), _say("RUDEUS", "infant"), _head(3), _say("RUDEUS", "toddler"),
-                _head(5), _say("RUDEUS", "young_child"), _head(8), _say("RUDEUS", "child")]
+        # ten lines per stretch: a state settles only after PERSIST_LINES
+        good = ([_head(1)] + [_say("RUDEUS", "infant")] * 10 + [_head(3)]
+                + [_say("RUDEUS", "toddler")] * 10 + [_head(5)]
+                + [_say("RUDEUS", "young_child")] * 10 + [_head(8)]
+                + [_say("RUDEUS", "child")] * 10)
         result = ts.score_run(good)
         self.assertTrue(all(result["checks"].values()), result["checks"])
         adult_mind = [_head(n) if i % 2 == 0 else _say("RUDEUS", "adult")

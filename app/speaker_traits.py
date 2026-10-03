@@ -26,15 +26,25 @@ AGE_GROUP_NAMES = tuple(name for name, _ in AGE_GROUPS)
 # A change of one band (a teen turning young adult) does not change a voice;
 # only a bigger jump or a gender change is a new state (owner, 2026-10-03).
 STATE_CHANGE_BANDS = 2
+# A new state counts only after this many consecutive lines show it, so one
+# stray label never changes a voice while a real time skip still does. Set
+# after Mushoku Tensei Vol 1 (time_skip_traits.json): per-line age followed
+# the time skip in every chapter, but single batches flipped Roxy (an adult who
+# looks young) and gave Paul and Rudeus stray infant/teen lines.
+PERSIST_LINES = 10
 
 TRAITS_FIELDS = '{"n", "speaker", "gender", "age_group", "ageless"}'
 TRAITS_RULE = (
     "\n\nALSO, for every entry give the speaker's \"gender\" (MALE, FEMALE, GENDERLESS or "
-    "UNKNOWN), \"age_group\" and \"ageless\". \"age_group\" is the age the speaker looks and "
-    "acts at that point in the story, one of: "
+    "UNKNOWN), \"age_group\" and \"ageless\". \"age_group\" is the age the speaker SOUNDS "
+    "AND LOOKS at that point in the story - the voice a director would cast, not their true "
+    "age - one of: "
     + ", ".join(f"{name.upper()} ({years})" for name, years in AGE_GROUPS if years)
-    + ", UNKNOWN. \"ageless\" is true only for an immortal or otherwise un-aging being (a "
-    "spirit, a god, a centuries-old vampire); give such a speaker the age they look and act. "
+    + ", UNKNOWN. A child speaks with a child's voice even with an adult's mind. \"ageless\" "
+    "is true when the speaker's real age differs greatly from how they look and sound (an "
+    "immortal, a long-lived race, a centuries-old vampire, a reincarnated mind). A ROSTER "
+    "name may carry [gender, age group, ageless] established by earlier passages: keep those "
+    "for that speaker unless this passage shows a change (a time skip, a transformation). "
     "Use UNKNOWN when the text does not establish it, and UNKNOWN and false for narration "
     "entries. Each object is then " + TRAITS_FIELDS + ".")
 
@@ -79,34 +89,81 @@ def get_age_distance(first, second):
     return abs(AGE_GROUP_NAMES.index(first) - AGE_GROUP_NAMES.index(second))
 
 
-def get_speaker_trait_summary(lines):
-    """-> the per-character view the Voices card shows, or None without data.
+def _get_state(entry, current):
+    """(gender, age) for one line, unknowns filled from the current state."""
+    gender, age = entry["speaker_gender"], entry["speaker_age_group"]
+    if current:
+        gender = current[0] if gender == "unknown" else gender
+        age = current[1] if age == "unknown" else age
+    return gender, age
 
-    `lines` are a character's script entries in order. The summary is the most
-    common known gender and age, whether any line marked the speaker ageless,
-    and the STATES: each point where the age moves by STATE_CHANGE_BANDS or
-    more, or the gender changes, from the first known state on.
+
+def _is_new_state(state, current):
+    return (state[0] != current[0] and "unknown" not in (state[0], current[0])) \
+        or get_age_distance(state[1], current[1]) >= STATE_CHANGE_BANDS
+
+
+def _get_modal_state(states):
+    genders = collections.Counter(g for g, _ in states if g != "unknown")
+    ages = collections.Counter(a for _, a in states if a != "unknown")
+    return (genders.most_common(1)[0][0] if genders else "unknown",
+            ages.most_common(1)[0][0] if ages else "unknown")
+
+
+def get_speaker_trait_summary(lines):
+    """-> the per-character view, or None without data.
+
+    `lines` are a character's script entries in order. The STATES are the
+    character's settled gender/age over the book: it starts from the most
+    common values of its first PERSIST_LINES known lines, and moves to a new
+    state only after PERSIST_LINES consecutive lines show a change of gender or
+    of STATE_CHANGE_BANDS age bands. `current` is the last settled state - what
+    a later batch is told (get_established_traits) and what a voice follows.
     """
-    known = [entry for entry in lines if "speaker_gender" in entry]
-    if not known:
+    known = [entry for entry in lines if "speaker_gender" in entry
+             and (entry["speaker_gender"], entry["speaker_age_group"]) != ("unknown", "unknown")]
+    if not [entry for entry in lines if "speaker_gender" in entry]:
         return None
-    genders = collections.Counter(e["speaker_gender"] for e in known if e["speaker_gender"] != "unknown")
-    ages = collections.Counter(e["speaker_age_group"] for e in known
-                               if e["speaker_age_group"] != "unknown")
-    states = []
-    for entry in known:
-        gender, age = entry["speaker_gender"], entry["speaker_age_group"]
-        if gender == "unknown" and age == "unknown":
+    raw = [(e["speaker_gender"], e["speaker_age_group"]) for e in known]
+    states = [_get_modal_state(raw[:PERSIST_LINES])] if raw else []
+    candidate = []
+    for entry in known[len(raw[:PERSIST_LINES]):]:
+        state = _get_state(entry, states[-1])
+        if not _is_new_state(state, states[-1]):
+            candidate = []
             continue
-        if not states:
-            states.append({"gender": gender, "age_group": age})
+        if candidate and _is_new_state(state, _get_modal_state(candidate)):
+            candidate = []
+        candidate.append(state)
+        if len(candidate) >= PERSIST_LINES:
+            states.append(_get_modal_state(candidate))
+            candidate = []
+    overall = _get_modal_state(raw)
+    current = states[-1] if states else ("unknown", "unknown")
+    return {"gender": overall[0], "age_group": overall[1],
+            "ageless": any(e.get("speaker_ageless") for e in lines if "speaker_gender" in e),
+            "lines": len([e for e in lines if "speaker_gender" in e]),
+            "current": {"gender": current[0], "age_group": current[1]},
+            "states": [{"gender": g, "age_group": a} for g, a in states] if len(states) > 1 else []}
+
+
+def get_established_traits(named_entries):
+    """-> {SPEAKER: "female, young adult, ageless"} for the roster a later
+    pass-2 batch sees: each speaker's settled current state, from the lines
+    attributed so far. Speakers with nothing settled are left out."""
+    by_speaker = collections.defaultdict(list)
+    for entry in named_entries:
+        if entry and "speaker_gender" in entry and entry.get("speaker"):
+            by_speaker[str(entry["speaker"]).strip().upper()].append(entry)
+    out = {}
+    for speaker, lines in by_speaker.items():
+        summary = get_speaker_trait_summary(lines)
+        if not summary:
             continue
-        last = states[-1]
-        gender_changed = "unknown" not in (gender, last["gender"]) and gender != last["gender"]
-        if gender_changed or get_age_distance(age, last["age_group"]) >= STATE_CHANGE_BANDS:
-            states.append({"gender": gender if gender != "unknown" else last["gender"],
-                           "age_group": age if age != "unknown" else last["age_group"]})
-    return {"gender": genders.most_common(1)[0][0] if genders else "unknown",
-            "age_group": ages.most_common(1)[0][0] if ages else "unknown",
-            "ageless": any(e.get("speaker_ageless") for e in known),
-            "lines": len(known), "states": states if len(states) > 1 else []}
+        parts = [value.replace("_", " ") for value in summary["current"].values()
+                 if value != "unknown"]
+        if summary["ageless"]:
+            parts.append("ageless")
+        if parts:
+            out[speaker] = ", ".join(parts)
+    return out

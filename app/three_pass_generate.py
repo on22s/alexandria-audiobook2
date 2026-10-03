@@ -31,6 +31,7 @@ from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
 from speaker_identity import stabilize_speaker_identities
+from speaker_traits import get_established_traits
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
@@ -625,7 +626,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
                     exhaustion_sink=None, entries_provider=None, surround=None,
-                    cast=None, keep_scope="line", speaker_traits=False):
+                    cast=None, keep_scope="line", speaker_traits=False, roster_traits=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -682,7 +683,9 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             # what a provider that rebuilds the prompt its own way needs: the
             # roster and contexts the canonical prompt was built from, and the
             # surrounding text when the user asked for it
-            roster=roster, neighbor_contexts=neighbor_contexts, surround=surround)
+            roster=roster, neighbor_contexts=neighbor_contexts, surround=surround,
+            # established [gender, age] per speaker, only with per-line traits on
+            **({"roster_traits": roster_traits} if roster_traits else {}))
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
@@ -702,7 +705,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 attempt_observer=attempt_observer, source_text=source_text,
                 exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
                 surround=surround, cast=cast, keep_scope=keep_scope,
-                speaker_traits=speaker_traits))
+                speaker_traits=speaker_traits, roster_traits=roster_traits))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
@@ -2340,6 +2343,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         vote_temperature=vote_temperature,
                         on_exhaustion=on_exhaustion, keep_scope=keep_scope,
                         speaker_traits=speaker_traits,
+                        roster_traits=(get_established_traits(named) if speaker_traits else None),
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
