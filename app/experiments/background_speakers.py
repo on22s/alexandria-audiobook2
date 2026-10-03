@@ -42,6 +42,7 @@ APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, APP)
 
 from experiments.provenance import provenance               # noqa: E402
+from generation_checkpoint_deltas import load_generation_delta_checkpoint  # noqa: E402
 from speaker_identity import is_group_speaker_label          # noqa: E402
 from utils import is_generic_speaker                         # noqa: E402
 
@@ -314,8 +315,10 @@ def run_threepass(args):
     gold_index = load_gold_index(fixtures)
     results = []
     for path in args.checkpoints:
-        with open(path, encoding="utf-8") as handle:
-            checkpoint = json.load(handle)
+        # The repo's loader, not json.load: a checkpoint written by a current
+        # run is an indexed-delta document whose header alone has no entries,
+        # and reading it raw scores a finished book as zero located lines.
+        checkpoint = load_generation_delta_checkpoint(path)
         book = os.path.basename(path).split("__", 1)[0]
         with open(os.path.join(fixtures, f"attribution_gold_{book}.json"),
                   encoding="utf-8") as handle:
