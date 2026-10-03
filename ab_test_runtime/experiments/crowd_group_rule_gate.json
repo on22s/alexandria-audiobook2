@@ -1,0 +1,39 @@
+{
+ "gate": {
+  "crowd_share": {
+   "cast": 0.457,
+   "groups": 1.0
+  },
+  "crowd_pass": true,
+  "named_delta_pts": -0.1,
+  "named_spread_pts": 0.9,
+  "named_pass": true,
+  "descriptive_delta_pts": -0.6,
+  "descriptive_spread_pts": 1.8,
+  "descriptive_pass": false,
+  "passes": false
+ },
+ "provenance": {
+  "script": "crowd_group_rule.py",
+  "written": "2026-10-03T08:17:06",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "86bdf0ca73236d28d88b1062bae66aeaf8919fbc",
+   "branch": "crowd-group-rule",
+   "dirty": false,
+   "source_state": "clean",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "eb1f1328c3d8239b3a7ec51a84b57d53e9f28754da8abc06828919edddfd6a2a"
+  },
+  "args": {
+   "command": "gate",
+   "chapter": "../ab_test_runtime/experiments/crowd_group_rule_chapter.json",
+   "pdnc": "crowd_pdnc_all.json",
+   "baseline": "cast",
+   "candidate": "groups",
+   "repeat": "cast_repeat",
+   "output": "../ab_test_runtime/experiments/crowd_group_rule_gate.json"
+  }
+ }
+}
