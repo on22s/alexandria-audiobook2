@@ -282,7 +282,9 @@ def run_score(args):
     base_named = (who["base1"] + who["base2"]) / 2
     line_named = (who["line1"] + who["line2"]) / 2
     spread = abs(who["base1"] - who["base2"])
-    token_rise = round(100 * (tokens["line"] / 2 - (tokens["base1"] + tokens["base2"]) / 2)
+    # tokens[...] is already a per-run figure (total / files x books); dividing
+    # the line arm by 2 again reported -47.5% for a +5.0% rise on the interim.
+    token_rise = round(100 * (tokens["line"] - (tokens["base1"] + tokens["base2"]) / 2)
                        / ((tokens["base1"] + tokens["base2"]) / 2), 1)
     gate = {"per_character_n": pooled["n"], "not_in_both": pooled["not_in_both"],
             "gender_accuracy_pct": accuracy,
