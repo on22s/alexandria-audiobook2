@@ -159,6 +159,63 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
     }
 
 
+def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generation_settings=None):
+    """Build the shared native generation/retry policy without changing config."""
+    generation_settings = (generation_settings if generation_settings is not None
+                           else resolve_three_pass_generation_settings(config))
+    gen = config.get("generation") or {}
+    llm = get_active_llm_config(config)
+    model_profile = generation_settings["model_profile"]
+    params = LLMGenParams(
+        max_tokens=generation_settings["max_tokens"],
+        # The escalation ceiling follows the configured budget. It used to stay
+        # at the dataclass default (16384) whatever Setup said, so a hosted
+        # reasoning model that thinks for 16k tokens was cut off at exactly
+        # that point with "cannot grow beyond 16384" while the user had set
+        # 65536 (reported 2026-09-17 against an OpenRouter model via a
+        # GPT-Load gateway). Never below the default, so local setups keep
+        # their headroom; get_effective_max_tokens still clamps to the
+        # server's real context when one is known.
+        hard_max_tokens=resolve_hard_max_tokens(generation_settings["max_tokens"]),
+        temperature=gen.get("temperature", 0.6),
+        top_p=gen.get("top_p", 0.8),
+        top_k=gen.get("top_k"), min_p=gen.get("min_p"),
+        context_length=lm_status.get("context_length"),
+        segment_temperature=model_profile.get(
+            # Segmentation and attribution are classification, not writing:
+            # each has one right answer, so sampling only adds noise. Measured
+            # on mushoku16, sending an identical attribution batch twice at
+            # temperature 0.1 changed 23.6% of speakers; at 0.0 it changed 0%.
+            # That noise was most of the 37.4% run-to-run disagreement that
+            # made model comparison impossible, and it also meant regenerating
+            # a book produced materially different speakers each time.
+            # instruct stays at 0.1: it is the one genuinely generative pass,
+            # writing delivery direction rather than choosing a label.
+            "segment_temperature", gen.get("three_pass_segment_temperature", 0.0)),
+        attribute_temperature=model_profile.get(
+            "attribute_temperature", gen.get("three_pass_attribute_temperature", 0.0)),
+        instruct_temperature=model_profile.get(
+            "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
+        segment_output_ratio=generation_settings["segment_output_ratio"],
+        segmentation=generation_settings["segmentation"],
+        quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
+        unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
+        reasoning_effort=reasoning_effort,
+        provider_extra_body=llm.get("provider_extra_body"),
+        structured_output=llm.get("structured_output", "auto"),
+        api_retry_limit=llm.get("api_retry_limit"),
+        retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
+        retry_multiplier=llm.get("retry_multiplier", 2),
+        retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
+        retry_jitter=llm.get("retry_jitter", 0.2),
+        on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
+    params.segment_system_prompt, params.segment_user_prompt_template = resolve_three_pass_prompt(
+        config, "pass1")
+    params.instruct_system_prompt, params.instruct_user_prompt_template = resolve_three_pass_prompt(
+        config, "pass3")
+    return params
+
+
 def resolve_attribute_prompt(config, variant_override=None):
     """-> (variant, texts) the run sends: the active preset (Setup -> Prompt
     Customization), or with --prompt-variant the builtin of that variant."""
@@ -625,7 +682,8 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
         ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated instruct response lost its index binding")
-        return [{**p, "instruct": item.get("instruct")}
+        return [{**{key: value for key, value in p.items()
+                    if key != "instruct_unchecked"}, "instruct": item.get("instruct")}
                 for p, item in zip(prior_batch, ordered)]
     ranges = get_exhausted_runtime_batch_ranges(client, prior_batch, attempts)
     if ranges:
@@ -639,7 +697,64 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
-    return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
+    return [{**e, "instruct": default_instruct(e), "instruct_unchecked": True}
+            for e in prior_batch]
+
+
+def get_delivery_review_info(entries):
+    """Return 1-based locations of actual pass-3 fallback instructions."""
+    indices = [index + 1 for index, entry in enumerate(entries)
+               if isinstance(entry, dict) and entry.get("instruct_unchecked") is True]
+    return {"count": len(indices), "entries": indices}
+
+
+def retry_delivery_instructions(client, model_name, entries, params,
+                                cancel_check=None, attempt_observer=None):
+    """Retry only marked delivery entries, retaining frozen text and context.
+
+    Returns new rows; publication and its book/snapshot guard belong to the
+    caller. The original generation passes and checkpoint are not invoked.
+    """
+    result = [dict(entry) for entry in entries]
+    pending = [entry if entry.get("instruct_unchecked") is True else None
+               for entry in result]
+    for indexed_batch in iter_unique_entry_batches(pending):
+        work = [indexed_batch]
+        while work:
+            if cancel_check:
+                cancel_check()
+            current = work.pop(0)
+            batch = [entry for _, entry in current]
+            contexts = [{"previous_context": entries[index - 1] if index else None,
+                         "next_context": entries[index + 1]
+                         if index + 1 < len(entries) else None}
+                        for index, _ in current]
+            request_params = ensure_run_request_params(client, params)
+            if (len(current) > 1 and not does_instruct_batch_fit_context(
+                    batch, request_params, contexts)):
+                midpoint = len(current) // 2
+                work[0:0] = [current[:midpoint], current[midpoint:]]
+                continue
+            attempts = []
+
+            def observe(attempt):
+                attempts.append(attempt)
+                if attempt_observer:
+                    attempt_observer(attempt)
+
+            exhausted = []
+            updated = instruct_batch(
+                client, model_name, batch, request_params,
+                neighbor_contexts=contexts, exhaustion_sink=exhausted,
+                attempt_observer=observe)
+            if cancel_check:
+                cancel_check()
+            if (exhausted and attempts and all(
+                    attempt.get("outcome") == "api_error" for attempt in attempts)):
+                raise RuntimeError("instruct LLM unavailable; refusing fallback output")
+            for (index, _), entry in zip(current, updated):
+                result[index] = entry
+    return result
 
 
 def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None):
@@ -1544,7 +1659,7 @@ def _resolution_counts(resolutions):
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
                     progress=None, diagnostic_failures=None, telemetry=None,
-                    model_binding=None):
+                    model_binding=None, delivery_review=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -1561,6 +1676,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "diagnostic_failures": diagnostic_failures or [],
         "telemetry": telemetry or {},
         "model_binding": model_binding,
+        "delivery_review": delivery_review or {"count": 0, "entries": []},
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -1901,6 +2017,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             code for attempt in attempts
             for code in (attempt.get("failure_codes") or []))
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                        delivery_review=get_delivery_review_info(annotated),
                         model_binding=get_run_model_binding(client, model_name, resumed_binding),
                         telemetry={
                             "model_name": model_name,
@@ -2730,53 +2847,7 @@ def main():
     _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     print(heal_msg)
-    params = LLMGenParams(
-        max_tokens=generation_settings["max_tokens"],
-        # The escalation ceiling follows the configured budget. It used to stay
-        # at the dataclass default (16384) whatever Setup said, so a hosted
-        # reasoning model that thinks for 16k tokens was cut off at exactly
-        # that point with "cannot grow beyond 16384" while the user had set
-        # 65536 (reported 2026-09-17 against an OpenRouter model via a
-        # GPT-Load gateway). Never below the default, so local setups keep
-        # their headroom; get_effective_max_tokens still clamps to the
-        # server's real context when one is known.
-        hard_max_tokens=resolve_hard_max_tokens(generation_settings["max_tokens"]),
-        temperature=gen.get("temperature", 0.6),
-        top_p=gen.get("top_p", 0.8),
-        top_k=gen.get("top_k"), min_p=gen.get("min_p"),
-        context_length=lm_status.get("context_length"),
-        segment_temperature=model_profile.get(
-            # Segmentation and attribution are classification, not writing:
-            # each has one right answer, so sampling only adds noise. Measured
-            # on mushoku16, sending an identical attribution batch twice at
-            # temperature 0.1 changed 23.6% of speakers; at 0.0 it changed 0%.
-            # That noise was most of the 37.4% run-to-run disagreement that
-            # made model comparison impossible, and it also meant regenerating
-            # a book produced materially different speakers each time.
-            # instruct stays at 0.1: it is the one genuinely generative pass,
-            # writing delivery direction rather than choosing a label.
-            "segment_temperature", gen.get("three_pass_segment_temperature", 0.0)),
-        attribute_temperature=model_profile.get(
-            "attribute_temperature", gen.get("three_pass_attribute_temperature", 0.0)),
-        instruct_temperature=model_profile.get(
-            "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
-        segment_output_ratio=generation_settings["segment_output_ratio"],
-        segmentation=generation_settings["segmentation"],
-        quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
-        unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
-        reasoning_effort=args.reasoning_effort,
-        provider_extra_body=llm.get("provider_extra_body"),
-        structured_output=llm.get("structured_output", "auto"),
-        api_retry_limit=llm.get("api_retry_limit"),
-        retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
-        retry_multiplier=llm.get("retry_multiplier", 2),
-        retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
-        retry_jitter=llm.get("retry_jitter", 0.2),
-        on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
-    params.segment_system_prompt, params.segment_user_prompt_template = resolve_three_pass_prompt(
-        config, "pass1")
-    params.instruct_system_prompt, params.instruct_user_prompt_template = resolve_three_pass_prompt(
-        config, "pass3")
+    params = get_three_pass_run_params(config, lm_status, args.reasoning_effort, generation_settings)
     generation_settings.update({
         "segment_system_prompt": params.segment_system_prompt,
         "segment_user_prompt_template": params.segment_user_prompt_template,

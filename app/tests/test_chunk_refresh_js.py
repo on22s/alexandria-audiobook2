@@ -19,6 +19,8 @@ run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse
 run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));
 const start=source.includes('function ensureChunkRefresh(')?source.indexOf('function ensureChunkRefresh('):source.indexOf('async function loadChunks(');
 run(source.slice(start,source.indexOf('window.toggleChunkExpand',start)));
+// Delivery UI is exercised with native route replies in its own suite.
+ctx.refreshDeliveryReview=async()=>null;
 let getFixture;
 Object.defineProperty(ctx.API,'get',{set:value=>{getFixture=value;},get:()=>async url=>{
  const data=await getFixture(url);

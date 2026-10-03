@@ -26,6 +26,7 @@ from audio_validation import publish_audio_output, remove_stale_audio, validate_
 from tts import (
     TTSEngine,
     ExportCancelled,
+    ensure_audio_export_active,
     combine_audio_with_pauses,
     compute_timeline,
     get_pause_duration_ms,
@@ -116,11 +117,13 @@ def _is_structural_text(text):
     return False
 
 
-def _make_chunk(speaker, text, instruct, pause_after=None):
+def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None):
     """Build a chunk dict, omitting pause_after when None for clean JSON."""
     chunk = {"speaker": speaker, "text": text, "instruct": instruct}
     if pause_after is not None:
         chunk["pause_after"] = pause_after
+    if source_indices is not None:
+        chunk["source_entry_indices"] = list(source_indices)
     return chunk
 
 
@@ -241,10 +244,13 @@ def get_speakable_entries(script_entries, review_sink=None):
 
 
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
-                      review_sink=None):
+                      review_sink=None, include_source_indices=False):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
         raise ValueError("max_chars must be a positive integer")
+    if include_source_indices:
+        script_entries = [{**entry, "_source_entry_indices": [index]}
+                          for index, entry in enumerate(script_entries)]
     script_entries = get_speakable_entries(script_entries,
                                            review_sink=review_sink)
     if not script_entries:
@@ -255,6 +261,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     current_text = script_entries[0].get("text", "")
     current_instruct = script_entries[0].get("instruct", "")
     current_pause_after = script_entries[0].get("pause_after")
+    current_indices = script_entries[0].get("_source_entry_indices") if include_source_indices else None
 
     for entry in script_entries[1:]:
         speaker = get_speaker(entry)
@@ -274,22 +281,26 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             combined = current_text + " " + text
             if len(combined) <= max_chars:
                 current_text = combined
+                if include_source_indices:
+                    current_indices = sorted(set(current_indices + entry["_source_entry_indices"]))
                 # Last merged entry's pause_after wins
                 current_pause_after = entry.get("pause_after", current_pause_after)
             else:
-                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
                 current_text = text
+                current_indices = entry["_source_entry_indices"] if include_source_indices else None
                 current_instruct = instruct
                 current_pause_after = entry.get("pause_after")
         else:
-            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
             current_speaker = speaker
+            current_indices = entry["_source_entry_indices"] if include_source_indices else None
             current_text = text
             current_instruct = instruct
             current_pause_after = entry.get("pause_after")
 
     # Don't forget the last chunk
-    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after))
+    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
 
     bounded = []
     for chunk in chunks:
@@ -1116,7 +1127,7 @@ class ProjectManager:
             return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, zip_path
 
-    def merge_m4b(self, per_chunk_chapters=False, metadata=None):
+    def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -1129,28 +1140,33 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
-        chunks_with_audio, skipped = self._load_chunks_with_audio()
-        if not chunks_with_audio:
-            return False, "No audio segments found"
+        try:
+            chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
+                    progress_callback=_loading_progress(progress_callback))
+            if not chunks_with_audio:
+                return False, "No audio segments found"
 
-        # Phase 1 — Compute timeline
-        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-        timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
+            # Phase 1 — Compute timeline
+            pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check)
 
-        if not timeline:
-            return False, "No audio segments found"
+            if not timeline:
+                return False, "No audio segments found"
 
-        # Phase 2 — Build chapters
-        chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
-        print(f"  M4B: {len(chapters)} chapters")
+            # Phase 2 — Build chapters
+            chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
+            print(f"  M4B: {len(chapters)} chapters")
 
-        # Phase 3 — Combine audio and export to temp WAV
-        audio_segments = [seg for _, seg, _ in timeline]
-        speakers = [chunk["speaker"] for chunk, _, _ in timeline]
-        pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-        final_audio = combine_audio_with_pauses(
-            audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides
-        )
+            # Phase 3 — Combine audio and export to temp WAV
+            audio_segments = [seg for _, seg, _ in timeline]
+            speakers = [chunk["speaker"] for chunk, _, _ in timeline]
+            pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
+            final_audio = combine_audio_with_pauses(
+                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check
+            )
+
+        except ExportCancelled:
+            return False, "Export cancelled"
 
         staging_id = uuid.uuid4().hex
         temp_wav = os.path.join(self.root_dir, f".m4b-{staging_id}.wav")
@@ -1159,7 +1175,7 @@ class ProjectManager:
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
         try:
-            _export_audio_segment(final_audio, temp_wav, "wav")
+            _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
 
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
@@ -1202,11 +1218,18 @@ class ProjectManager:
                 "-f", "mp4",
                 pending_output
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode != 0:
-                print(f"FFmpeg stderr: {result.stderr[-500:]}")
-                return False, f"FFmpeg failed (exit {result.returncode})"
+            from m4b_encode import encode_m4b
+            result, stderr = encode_m4b(cmd, len(final_audio) / 1000, cancel_check, progress_callback)
+            if result != 0:
+                if progress_callback:
+                    progress_callback("FFmpeg stderr: " + stderr[-500:])
+                print(f"FFmpeg stderr: {stderr[-500:]}")
+                return False, f"FFmpeg failed (exit {result})"
+            ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
+
+        except ExportCancelled:
+            return False, "Export cancelled"
 
         finally:
             # Only the unpublished staging output is ever removed here; a prior

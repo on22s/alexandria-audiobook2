@@ -939,6 +939,33 @@
         "title": "DatasetSaveRequest",
         "type": "object"
       },
+      "DeliveryRetryCancelRequest": {
+        "properties": {
+          "claim_id": {
+            "title": "Claim Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id"
+        ],
+        "title": "DeliveryRetryCancelRequest",
+        "type": "object"
+      },
+      "DeliveryRetryRequest": {
+        "properties": {
+          "snapshot": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot"
+        ],
+        "title": "DeliveryRetryRequest",
+        "type": "object"
+      },
       "DirectionSelection": {
         "properties": {
           "entry_number": {
@@ -3540,6 +3567,131 @@
           }
         },
         "summary": "Get Annotated Script"
+      }
+    },
+    "/api/annotated_script/delivery_review": {
+      "get": {
+        "operationId": "get_delivery_review_api_annotated_script_delivery_review_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Delivery Review"
+      }
+    },
+    "/api/annotated_script/delivery_review/cancel": {
+      "post": {
+        "operationId": "cancel_delivery_review_api_annotated_script_delivery_review_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryRetryCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Delivery Review"
+      }
+    },
+    "/api/annotated_script/delivery_review/retry": {
+      "post": {
+        "operationId": "retry_delivery_review_api_annotated_script_delivery_review_retry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Delivery Review"
+      }
+    },
+    "/api/annotated_script/delivery_review/status/{claim_id}": {
+      "get": {
+        "operationId": "get_delivery_retry_status_api_annotated_script_delivery_review_status__claim_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Delivery Retry Status"
       }
     },
     "/api/annotated_script/diff": {
@@ -6836,6 +6988,22 @@
           }
         },
         "summary": "Merge M4B Endpoint"
+      }
+    },
+    "/api/merge_m4b/cancel": {
+      "post": {
+        "operationId": "cancel_m4b_export_api_merge_m4b_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel M4B Export"
       }
     },
     "/api/narrator/preview": {

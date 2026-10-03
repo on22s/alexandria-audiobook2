@@ -425,7 +425,10 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
                 "description": request.description,
                 "cover_path": os.path.join(DATA_DIR, "m4b_cover.jpg") if os.path.exists(os.path.join(DATA_DIR, "m4b_cover.jpg")) else "",
             }
-            success, msg = project_manager.merge_m4b(per_chunk_chapters=request.per_chunk_chapters, metadata=meta)
+            success, msg = project_manager.merge_m4b(
+                per_chunk_chapters=request.per_chunk_chapters, metadata=meta,
+                cancel_check=lambda: process_state["m4b_export"].get("cancel", False),
+                progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message))
             process_state["m4b_export"]["result"] = get_export_task_result(success, msg)
             if success:
                 process_state["m4b_export"]["logs"].append(f"Export complete: {msg}")
@@ -440,6 +443,15 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     schedule_claimed_background_task(background_tasks, "m4b_export", task)
     process_state["m4b_export"]["result"] = None
     return {"status": "started"}
+
+@router.post("/api/merge_m4b/cancel")
+async def cancel_m4b_export():
+    state = process_state["m4b_export"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No M4B export is running.")
+    state["cancel"] = True
+    return {"status": "cancelling"}
+
 
 class ChapterExportRequest(BaseModel):
     format: str = "mp3"

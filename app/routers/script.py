@@ -2619,3 +2619,128 @@ async def get_task_log(task_name: str, download: bool = False):
         media_type="text/plain",
         filename=filename if download else None,
     )
+
+
+class DeliveryRetryRequest(BaseModel):
+    snapshot: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class DeliveryRetryCancelRequest(BaseModel):
+    claim_id: str
+
+
+def ensure_delivery_review_response():
+    from delivery_review import ensure_delivery_review_snapshot, get_delivery_retry_chunks
+    from three_pass_generate import get_delivery_review_info
+    snapshot = ensure_delivery_review_snapshot(DATA_DIR)
+    info = get_delivery_review_info(snapshot["entries"])
+    reason = None
+    try:
+        get_delivery_retry_chunks(snapshot["entries"], snapshot["entries"], snapshot["chunks"])
+    except ValueError as exc:
+        reason = str(exc)
+    return {**info, "snapshot": snapshot["token"], "retry_available": reason is None,
+            "retry_refusal": reason, "rows": [
+                {"entry": index, "speaker": snapshot["entries"][index - 1]["speaker"],
+                 "text": snapshot["entries"][index - 1]["text"],
+                 "instruct": snapshot["entries"][index - 1].get("instruct", "")}
+                for index in info["entries"]]}
+
+
+@router.get("/api/annotated_script/delivery_review")
+async def get_delivery_review():
+    try:
+        return await asyncio.to_thread(ensure_delivery_review_response)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def start_delivery_retry(background_tasks, request):
+    from delivery_review import (ensure_delivery_review_snapshot, get_delivery_retry_chunks,
+                                 apply_delivery_retry)
+    from llm_provider import make_run_client, get_run_model_binding
+    from three_pass_generate import (get_delivery_review_info, get_three_pass_run_params,
+                                     retry_delivery_instructions)
+    from core import llm_timeout_seconds
+    snapshot = ensure_delivery_review_snapshot(DATA_DIR)
+    if snapshot["token"] != request.snapshot:
+        raise HTTPException(status_code=409, detail="Delivery review changed; reload before retrying.")
+    count = get_delivery_review_info(snapshot["entries"])["count"]
+    if not count:
+        raise HTTPException(status_code=409, detail="No fallback delivery instructions need retrying.")
+    get_delivery_retry_chunks(snapshot["entries"], snapshot["entries"], snapshot["chunks"])
+    config = copy.deepcopy(load_app_config(CONFIG_PATH))
+
+    def run():
+        state = process_state["script"]
+        state["logs"] = [f"Retrying delivery for {count} entries; segmentation and speakers retained."]
+        state["start_time"] = time.time()
+        client = None
+
+        def check_cancel():
+            if state.get("cancel"):
+                raise RuntimeError("Delivery retry cancelled; results were not published.")
+
+        try:
+            check_cancel()
+            llm = get_active_llm_config(config)
+            model = llm.get("model_name", "")
+            _, status, message = ensure_ideal_settings(
+                config.get("llm_mode", "local"), llm.get("base_url", "http://localhost:1234/v1"),
+                model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+            state["logs"].append(message)
+            check_cancel()
+            params = get_three_pass_run_params(config, status, llm.get("reasoning_effort"))
+            client = make_run_client(config, llm, llm_timeout_seconds())
+            after = retry_delivery_instructions(client, model, snapshot["entries"], params,
+                                               cancel_check=check_cancel)
+            prompt_digest = hashlib.sha256(json.dumps([
+                params.instruct_system_prompt, params.instruct_user_prompt_template],
+                ensure_ascii=False).encode("utf-8")).hexdigest()
+            info = apply_delivery_retry(DATA_DIR, snapshot, after, cancel_check=check_cancel,
+                retry_record={"model_binding": get_run_model_binding(client, model),
+                              "created_at": time.time(), "prompt_sha256": prompt_digest,
+                              "configured_params": {"max_tokens": params.max_tokens,
+                                  "context_length": params.context_length,
+                                  "instruct_temperature": params.instruct_temperature}})
+            state["logs"].append(f"Delivery retry saved; {info['count']} entries still need review.")
+        except RuntimeError:
+            if not state.get("cancel"):
+                raise
+            state["logs"].append("Delivery retry cancelled; prior artifacts retained.")
+        finally:
+            if client is not None and hasattr(client, "close"):
+                client.close()
+
+    claim_id = schedule_claimed_background_task(
+        background_tasks, "script", _run_claimed_background_task, "script", run)
+    return {"status": "started", "claim_id": claim_id, "total": count}
+
+
+@router.post("/api/annotated_script/delivery_review/retry")
+async def retry_delivery_review(request: DeliveryRetryRequest, background_tasks: BackgroundTasks):
+    try:
+        return await asyncio.to_thread(start_delivery_retry, background_tasks, request)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/annotated_script/delivery_review/cancel")
+async def cancel_delivery_review(request: DeliveryRetryCancelRequest):
+    import core
+    with core._gpu_lock:
+        owner = core._task_claims.get("script")
+        if owner is None or owner["id"] != request.claim_id:
+            raise HTTPException(status_code=409, detail="This delivery retry is no longer running.")
+        process_state["script"]["cancel"] = True
+    return {"status": "cancel queued; ownership retained until the provider returns"}
+
+
+@router.get("/api/annotated_script/delivery_review/status/{claim_id}")
+async def get_delivery_retry_status(claim_id: str):
+    import core
+    with core._gpu_lock:
+        owner = core._task_claims.get("script")
+        running = owner is not None and owner["id"] == claim_id
+        return {"running": running,
+                "logs": list(process_state["script"].get("logs", []))[-20:] if running else []}

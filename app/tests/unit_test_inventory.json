@@ -1931,6 +1931,30 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_delivery_fallback": [
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_native_regrouping_preserves_unaffected_audio_and_detaches_changed_rows",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_native_review_narrator_merging_preserves_fallback_metadata",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_native_run_manifest_and_checkpoint_record_exact_fallback_rows",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_native_shared_params_keep_selected_profile_prompts_and_retry_policy",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_publication_updates_native_checkpoint_manifest_and_chunks_atomically",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_reconciliation_refuses_changed_frozen_or_unaffected_rows_without_chunks",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_source_mapping_retains_native_speech_splits_and_default_output",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_stale_book_script_or_editor_and_cancel_refuse_without_publication",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_targeted_retry_calls_only_pass3_with_original_neighbors",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_targeted_retry_exhaustion_retains_warning_and_cancellation_stops_calls",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_unreachable_provider_cannot_report_a_successful_delivery_retry",
+    "tests.test_delivery_fallback.DeliveryFallbackTests.test_validated_success_clears_prior_marker_only",
+    "tests.test_delivery_fallback.DeliveryReviewApiTests.test_actual_get_and_owned_post_retry_clear_only_delivery_marker",
+    "tests.test_delivery_fallback.DeliveryReviewApiTests.test_cancelled_blocked_provider_retains_real_claim_until_worker_exits",
+    "tests.test_delivery_fallback.DeliveryReviewApiTests.test_failed_publication_rolls_back_script_chunks_manifest_and_checkpoint",
+    "tests.test_delivery_fallback.DeliveryReviewApiTests.test_journal_only_change_rejects_stale_retry_and_fresh_retry_keeps_latest_audio"
+  ],
+  "test_delivery_review_js": [
+    "tests.test_delivery_review_js.DeliveryReviewJsTests.test_decline_failed_flush_and_stale_response_do_not_start_or_paint_old_book",
+    "tests.test_delivery_review_js.DeliveryReviewJsTests.test_native_list_retry_snapshot_and_owned_cancel_then_refresh"
+  ],
   "test_derived_file_hooks": [
     "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_clean_derived_state_does_not_commit_unrelated_working_changes",
     "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_git_inspection_failure_preserves_head_and_the_entire_index",
@@ -2610,6 +2634,7 @@
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_readiness_still_reports_exact_missing_speakers_and_allows_ready_state"
   ],
   "test_export_reattachment_js": [
+    "tests.test_export_reattachment_js.ExportReattachmentTests.test_m4b_cancel_and_live_progress_keep_successful_download",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_normal_starts_use_same_poller_after_successful_post_and_never_after_failure",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_shared_poller_all_exports_success_and_failure"
   ],
@@ -4239,6 +4264,15 @@
     "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_dataset_and_model_scans_run_outside_event_loop_and_keep_results"
   ],
   "test_luar_character_selector": [],
+  "test_m4b_cancellation": [
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_cancel_after_encoder_exit_refuses_publication_and_failure_retains_stderr",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_native_http_cancel_keeps_claim_until_worker_finishes",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_prelaunch_cancellation_preserves_prior_output_without_starting_encoder",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_progress_precedes_completion_and_failure_reports_stderr_tail",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_real_encoder_cancel_reaps_descendants_and_preserves_prior_output",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_router_forwards_cancel_and_progress_to_native_manager",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_timeout_and_progress_callback_failure_reap_real_encoder"
+  ],
   "test_m4b_cover_admission": [
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_accepted_covers_survive_actual_m4b_mux_as_attached_picture",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_decoder_pixel_limits_and_publication_failure_preserve_prior_cover",
