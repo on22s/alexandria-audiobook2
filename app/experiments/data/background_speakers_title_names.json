@@ -1,0 +1,175 @@
+{
+ "purpose": "PDNC gold labels that are descriptive in FORM but function as a name. A judgement, kept apart from background_speakers.is_descriptive_label so it can be corrected without touching the rule. Recurring unnamed people (THE DETECTIVE, THE MARINER, A HIGH PIPING VOICE) are deliberately NOT here: they are what #653 is about.",
+ "written": "2026-10-02",
+ "books": {
+  "pdnc_theinvisibleman": [
+   {
+    "label": "THE INVISIBLE MAN",
+    "why": "the protagonist (Griffin); the book's own name for him"
+   }
+  ],
+  "pdnc_olivertwist": [
+   {
+    "label": "THE ARTFUL DODGER",
+    "why": "nickname of Jack Dawkins, used as his name throughout"
+   }
+  ],
+  "pdnc_thegambler": [
+   {
+    "label": "THE GENERAL",
+    "why": "principal characters addressed by title throughout"
+   },
+   {
+    "label": "THE BARON",
+    "why": "principal characters addressed by title throughout"
+   }
+  ],
+  "pdnc_alicesadventuresinwonderland": [
+   {
+    "label": "THE KING OF HEARTS",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE QUEEN",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE KNAVE OF HEARTS",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE HATTER",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE GRYPHON",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE MOCK TURTLE",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE WHITE RABBIT",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE DUCHESS",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE CATERPILLAR",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE DORMOUSE",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE CAT",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE MOUSE",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE DODO",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   },
+   {
+    "label": "THE LORY",
+    "why": "in this book the title/species IS the character's name (the Cheshire Cat, the Hatter)"
+   }
+  ],
+  "pdnc_themanwhowasthursday": [
+   {
+    "label": "THE PRESIDENT",
+    "why": "council members known by title or code; recurring principals"
+   },
+   {
+    "label": "THE SECRETARY",
+    "why": "council members known by title or code; recurring principals"
+   },
+   {
+    "label": "THE MARQUIS",
+    "why": "council members known by title or code; recurring principals"
+   }
+  ],
+  "pdnc_apassagetoindia": [
+   {
+    "label": "THE NAWAB BADAHUR",
+    "why": "contains a personal name"
+   }
+  ],
+  "pdnc_theageofinnocence": [
+   {
+    "label": "THE MARCHIONESS",
+    "why": "titled named individuals (Medora Manson; the Duke of St Austrey)"
+   },
+   {
+    "label": "THE DUKE",
+    "why": "titled named individuals (Medora Manson; the Duke of St Austrey)"
+   }
+  ]
+ },
+ "descriptive_without_article": {
+  "purpose": "Gold labels descriptive in form that is_descriptive_label misses because they carry no article. Found by hand-checking every non-descriptive gold label containing a role word (2026-10-02); LADY <name> and DOCTOR <name> were checked and are names.",
+  "books": {
+   "pdnc_thesignofthefour": [
+    "WOODEN-LEGGED MAN"
+   ],
+   "pdnc_ahandfulofdust": [
+    "DAN'S GIRL"
+   ],
+   "pdnc_whereangelsfeartotread": [
+    "LITTLE GIRL"
+   ],
+   "pdnc_thepictureofdoriangray": [
+    "HANSOM DRIVER"
+   ],
+   "pdnc_thesunalsorises": [
+    "SOMMELIER"
+   ],
+   "pdnc_aroomwithaview": [
+    "ITALIAN LADY"
+   ],
+   "pdnc_nightandday": [
+    "PARLOR-MAID"
+   ]
+  }
+ },
+ "descriptors_of_named": {
+  "purpose": "Descriptive PDNC labels whose gold alias group contains a personal name: a named person described until revealed. Hand-picked 2026-10-02 from the 34 descriptive labels with any non-descriptive alias; the other 20 aliased only to bare role nouns (FOOTMAN, STATIONMASTER, OLD MAN ON THE BUS) and stay unnamed.",
+  "books": {
+   "pdnc_thesignofthefour": [
+    "WOODEN-LEGGED MAN",
+    "A HIGH PIPING VOICE",
+    "A SMALL, DARK, BRISK MAN"
+   ],
+   "pdnc_hardtimes": [
+    "THE OLD WOMAN"
+   ],
+   "pdnc_ahandfulofdust": [
+    "THE DETECTIVE",
+    "THE DETECTIVE COLLEAGUE",
+    "DAN'S GIRL",
+    "THE BARMAN",
+    "THE WOMAN AT WHOSE HOUSE SHE WAS DINING"
+   ],
+   "pdnc_aroomwithaview": [
+    "THE DRIVER"
+   ],
+   "pdnc_thesunalsorises": [
+    "THE CONCIERGE",
+    "THE CHAUFFEUR"
+   ],
+   "pdnc_themanwhowasthursday": [
+    "THE INVISIBLE CHIEF"
+   ],
+   "pdnc_howardsend": [
+    "A LITTLE BOY"
+   ]
+  }
+ }
+}
