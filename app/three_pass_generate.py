@@ -1611,6 +1611,28 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     return []
 
 
+
+def get_preflight_sample_info(label, index, output_path, planned_calls,
+                              entries=None, error=None):
+    """Read the sample's native failure evidence for the preflight receipt."""
+    manifest = safe_load_json(three_pass_manifest_path(output_path), {})
+    info = {"label": label, "chunk_index": index,
+            "planned_calls": dict(planned_calls),
+            "status": "failed" if error or manifest.get("status") in {
+                "failed", "incomplete"} else "complete",
+            "failure_codes": manifest.get("progress", {}).get("failure_codes", {})}
+    if entries is not None:
+        info["entries"] = len(entries)
+    if error:
+        info["error"] = error
+    elif info["status"] == "failed":
+        info["error"] = "The sample pipeline did not complete."
+    for key in ("failed_pass", "failed_chunk"):
+        if key in manifest:
+            info[key] = manifest[key]
+    return info
+
+
 def three_pass_checkpoint_path(output_path):
     return output_path + ".threepass_checkpoint.json"
 
@@ -2885,22 +2907,25 @@ def main():
     planned_calls = get_planned_calls(book)
     print(plan_line(planned_calls), flush=True)
     if args.preflight:
-        summary = {"status": "complete", "model_name": model_name, "samples": []}
+        summary = {"status": "complete", "model_name": model_name,
+                   "planned_calls": dict(planned_calls), "samples": []}
         for label, index, sample in select_preflight_chunks(book, chunk_size):
             sample_out = f"{output_path}.preflight_{label}.json"
+            sample_plan = get_planned_calls(sample)
             try:
                 sample_entries = run_three_pass(
                     client, model_name, sample, params, chunk_size,
                     output_path=sample_out,
-                    planned_calls=get_planned_calls(sample), **run_options)
+                    planned_calls=sample_plan, **run_options)
                 atomic_json_write(sample_entries, sample_out)
-                summary["samples"].append({"label": label, "chunk_index": index,
-                                           "status": "complete",
-                                           "entries": len(sample_entries)})
+                info = get_preflight_sample_info(label, index, sample_out,
+                                                 sample_plan, entries=sample_entries)
             except (RuntimeError, PassExhausted) as exc:
+                info = get_preflight_sample_info(label, index, sample_out,
+                                                 sample_plan, error=str(exc))
+            summary["samples"].append(info)
+            if info["status"] != "complete":
                 summary["status"] = "failed"
-                summary["samples"].append({"label": label, "chunk_index": index,
-                                           "status": "failed", "error": str(exc)})
                 break
         atomic_json_write(summary, output_path + ".preflight_manifest.json")
         sys.exit(0 if summary["status"] == "complete" else 1)

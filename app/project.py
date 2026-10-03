@@ -26,6 +26,7 @@ from audio_validation import publish_audio_output, remove_stale_audio, validate_
 from tts import (
     TTSEngine,
     ExportCancelled,
+    ensure_audio_export_active,
     combine_audio_with_pauses,
     compute_timeline,
     get_pause_duration_ms,
@@ -1126,7 +1127,7 @@ class ProjectManager:
             return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, zip_path
 
-    def merge_m4b(self, per_chunk_chapters=False, metadata=None):
+    def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -1139,28 +1140,33 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
-        chunks_with_audio, skipped = self._load_chunks_with_audio()
-        if not chunks_with_audio:
-            return False, "No audio segments found"
+        try:
+            chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
+                    progress_callback=_loading_progress(progress_callback))
+            if not chunks_with_audio:
+                return False, "No audio segments found"
 
-        # Phase 1 — Compute timeline
-        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-        timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
+            # Phase 1 — Compute timeline
+            pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check)
 
-        if not timeline:
-            return False, "No audio segments found"
+            if not timeline:
+                return False, "No audio segments found"
 
-        # Phase 2 — Build chapters
-        chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
-        print(f"  M4B: {len(chapters)} chapters")
+            # Phase 2 — Build chapters
+            chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
+            print(f"  M4B: {len(chapters)} chapters")
 
-        # Phase 3 — Combine audio and export to temp WAV
-        audio_segments = [seg for _, seg, _ in timeline]
-        speakers = [chunk["speaker"] for chunk, _, _ in timeline]
-        pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-        final_audio = combine_audio_with_pauses(
-            audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides
-        )
+            # Phase 3 — Combine audio and export to temp WAV
+            audio_segments = [seg for _, seg, _ in timeline]
+            speakers = [chunk["speaker"] for chunk, _, _ in timeline]
+            pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
+            final_audio = combine_audio_with_pauses(
+                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check
+            )
+
+        except ExportCancelled:
+            return False, "Export cancelled"
 
         staging_id = uuid.uuid4().hex
         temp_wav = os.path.join(self.root_dir, f".m4b-{staging_id}.wav")
@@ -1169,7 +1175,7 @@ class ProjectManager:
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
         try:
-            _export_audio_segment(final_audio, temp_wav, "wav")
+            _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
 
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
@@ -1212,11 +1218,18 @@ class ProjectManager:
                 "-f", "mp4",
                 pending_output
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode != 0:
-                print(f"FFmpeg stderr: {result.stderr[-500:]}")
-                return False, f"FFmpeg failed (exit {result.returncode})"
+            from m4b_encode import encode_m4b
+            result, stderr = encode_m4b(cmd, len(final_audio) / 1000, cancel_check, progress_callback)
+            if result != 0:
+                if progress_callback:
+                    progress_callback("FFmpeg stderr: " + stderr[-500:])
+                print(f"FFmpeg stderr: {stderr[-500:]}")
+                return False, f"FFmpeg failed (exit {result})"
+            ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
+
+        except ExportCancelled:
+            return False, "Export cancelled"
 
         finally:
             # Only the unpublished staging output is ever removed here; a prior

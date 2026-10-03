@@ -1305,6 +1305,11 @@
                         </div>
                     </div>
 
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-outline-primary" id="btn-book-preflight" onclick="startBookPreflight()">Preflight this book</button>
+                        <button type="button" class="btn btn-outline-danger" id="btn-cancel-book-preflight" onclick="cancelBookPreflight()" style="display:none;">Cancel preflight</button>
+                        <div id="book-preflight-result" class="alert alert-secondary small mt-2" style="display:none;"></div>
+                    </div>
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
@@ -2471,6 +2476,7 @@
                                         <button class="btn btn-outline-success btn-sm" id="btn-export-m4b" onclick="exportM4B()">
                                             <i class="fas fa-book-reader me-1"></i>Export M4B
                                         </button>
+                                        <button class="btn btn-outline-danger btn-sm" id="m4b-cancel-btn" onclick="cancelM4B()" style="display:none">Cancel M4B</button>
                                         <label class="form-check d-inline-flex align-items-center ms-2 small" title="Refuse export until every speaker is marked ready">
                                             <input type="checkbox" class="form-check-input me-1" id="m4b-require-ready">
                                             Require ready

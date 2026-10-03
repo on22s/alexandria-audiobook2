@@ -282,7 +282,7 @@ class M4BExportArtifactTests(unittest.TestCase):
         import json
         from pathlib import Path
         import subprocess
-        from types import SimpleNamespace
+        from m4b_encode import start_owned_subprocess
         from pydub import AudioSegment
         with tempfile.TemporaryDirectory() as tmp:
             manager = ProjectManager(tmp)
@@ -309,8 +309,11 @@ class M4BExportArtifactTests(unittest.TestCase):
             self.assertEqual("Example Author", artifact["format"]["tags"]["artist"])
             self.assertAlmostEqual(0.6, float(artifact["format"]["duration"]), delta=0.1)
             self.assertGreater(len(AudioSegment.from_file(str(target))), 500)
-            with patch("project.subprocess.run", return_value=SimpleNamespace(
-                    returncode=1, stderr="Injected encoder failure")):
+            def failed_encoder(command, **kwargs):
+                broken = list(command)
+                broken[broken.index("-c:a") + 1] = "invalid-test-codec"
+                return start_owned_subprocess(broken, **kwargs)
+            with patch("m4b_encode.start_owned_subprocess", side_effect=failed_encoder):
                 ok, message = manager.merge_m4b(per_chunk_chapters=True)
             self.assertFalse(ok)
             self.assertIn("FFmpeg failed", message)

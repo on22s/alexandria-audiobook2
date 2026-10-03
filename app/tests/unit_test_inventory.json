@@ -979,6 +979,28 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
+  "test_book_preflight": [
+    "tests.test_book_preflight.BookPreflightTests.test_cli_records_full_and_sample_plans",
+    "tests.test_book_preflight.BookPreflightTests.test_exhaustion_keeps_native_failure_codes",
+    "tests.test_book_preflight.BookPreflightTests.test_incomplete_sample_is_not_reported_complete"
+  ],
+  "test_book_preflight_api": [
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_bad_receipts_cannot_be_reported_complete_by_the_http_worker",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_cancel_refuses_another_script_owner",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_http_freezes_source_and_config_without_touching_full_book",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_interrupted_workspace_limit_refuses_without_deleting_files",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_missing_native_manifest_cannot_complete",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_source_cap_refuses_before_claim_and_cleans_private_copy",
+    "tests.test_book_preflight_api.BookPreflightApiTests.test_source_changed_during_copy_refuses_without_claim_or_receipt"
+  ],
+  "test_book_preflight_js": [
+    "tests.test_book_preflight_js.BookPreflightJsTests.test_decline_and_stale_poll_do_not_start_or_overwrite",
+    "tests.test_book_preflight_js.BookPreflightJsTests.test_native_failure_plan_and_owned_cancel"
+  ],
+  "test_book_preflight_ownership": [
+    "tests.test_book_preflight_ownership.BookPreflightOwnershipTests.test_failed_registration_or_receipt_publish_releases_pending_claim",
+    "tests.test_book_preflight_ownership.BookPreflightOwnershipTests.test_real_child_cancel_keeps_claim_until_child_reaped"
+  ],
   "test_book_state_transaction": [
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_application_startup_recovers_before_chunk_reset",
@@ -2612,6 +2634,7 @@
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_readiness_still_reports_exact_missing_speakers_and_allows_ready_state"
   ],
   "test_export_reattachment_js": [
+    "tests.test_export_reattachment_js.ExportReattachmentTests.test_m4b_cancel_and_live_progress_keep_successful_download",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_normal_starts_use_same_poller_after_successful_post_and_never_after_failure",
     "tests.test_export_reattachment_js.ExportReattachmentTests.test_shared_poller_all_exports_success_and_failure"
   ],
@@ -4241,6 +4264,15 @@
     "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_dataset_and_model_scans_run_outside_event_loop_and_keep_results"
   ],
   "test_luar_character_selector": [],
+  "test_m4b_cancellation": [
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_cancel_after_encoder_exit_refuses_publication_and_failure_retains_stderr",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_native_http_cancel_keeps_claim_until_worker_finishes",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_prelaunch_cancellation_preserves_prior_output_without_starting_encoder",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_progress_precedes_completion_and_failure_reports_stderr_tail",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_real_encoder_cancel_reaps_descendants_and_preserves_prior_output",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_router_forwards_cancel_and_progress_to_native_manager",
+    "tests.test_m4b_cancellation.M4bCancellationTests.test_timeout_and_progress_callback_failure_reap_real_encoder"
+  ],
   "test_m4b_cover_admission": [
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_accepted_covers_survive_actual_m4b_mux_as_attached_picture",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_decoder_pixel_limits_and_publication_failure_preserve_prior_cover",
