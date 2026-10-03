@@ -7,6 +7,7 @@ import os
 import re
 import signal
 import sys
+import time
 from typing import Dict, List, Optional, Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -57,6 +58,7 @@ from utils import (
     secure_filename,
 )
 from persona_validation import validate_persona_payload
+from repair_voice_config import get_unseeded_voice_seed_changes, apply_unseeded_voice_seeds
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -573,7 +575,8 @@ def _ensure_voice_snapshot():
         config = snapshot["voices"]
         return {"revision": get_voice_config_revision(config),
                 "book_token": get_book_snapshot_token(snapshot), "book_id": snapshot["book_id"], "config": config,
-                "voices": get_voice_rows(script, config)}
+                "voices": get_voice_rows(script, config),
+                "seed_changes": get_unseeded_voice_seed_changes(config)}
 
 
 @router.get("/api/voice_config/snapshot")
@@ -589,6 +592,42 @@ async def save_guarded_voice_config(request: GuardedVoiceSaveRequest):
     try:
         return await asyncio.to_thread(_apply_voice_save, request.voices,
                                        request.revision, request.book_token)
+    except VoiceConfigConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+
+
+class VoiceSeedRepairRequest(BaseModel):
+    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+def _apply_voice_seed_repair(request):
+    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
+        with file_lock(VOICE_CONFIG_PATH):
+            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
+            if get_book_snapshot_token(snapshot) != request.book_token:
+                raise VoiceConfigConflict("Active book changed; reload voices before seeding")
+            config = snapshot["voices"]
+            if get_voice_config_revision(config) != request.revision:
+                raise VoiceConfigConflict("Voice configuration changed; reload it before seeding")
+            changes = get_unseeded_voice_seed_changes(config)
+        backup = None
+        updated = config
+        if changes:
+            backup = f"{VOICE_CONFIG_PATH}.bak-{time.time_ns()}"
+            updated = apply_voice_config_update(VOICE_CONFIG_PATH, apply_unseeded_voice_seeds,
+                expected=config, expected_revision=request.revision, backup_path=backup)
+        return {"status": "saved" if changes else "unchanged", "changes": changes,
+                "backup": os.path.basename(backup) if backup else None,
+                "revision": get_voice_config_revision(updated), "book_token": request.book_token}
+
+
+@router.post("/api/voice_config/seed_unseeded")
+async def apply_voice_seed_repair(request: VoiceSeedRepairRequest):
+    try:
+        return await asyncio.to_thread(_apply_voice_seed_repair, request)
     except VoiceConfigConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except TimeoutError:

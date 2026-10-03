@@ -198,50 +198,50 @@ def apply_merges(config, splits, force_ambiguous=False):
 
 
 
-def seed_characters(args):
-    """Replace random per-line voice draws with one stable draw per character.
-
-    A "-1" seed means the generator draws a new voice for every line. That was
-    invisible until 2026-08-04 because `generate_lora_voice` ignored the field
-    entirely, so every voice behaved that way regardless of what was stored.
-    Now the field is honoured, "-1" means it literally - and 70 of 71
-    characters carried it.
-
-    Deliberately separate from the split repair and off by default. This
-    changes how a book SOUNDS on its next generation, which is the user's call
-    rather than a defect fix, and existing rendered audio will not match
-    audio generated after it.
-    """
+def get_unseeded_voice_seed_changes(raw):
+    """Preview the existing opt-in seed policy without changing any entry."""
     from utils import character_voice_seed
+    config = raw["characters"] if isinstance(raw.get("characters"), dict) else raw
+    return [{"name": name, "seed": str(character_voice_seed(name))}
+            for name, entry in config.items() if isinstance(entry, dict)
+            and str(entry.get("seed", "-1")).strip() in ("", "-1")]
 
+
+def apply_unseeded_voice_seeds(raw):
+    """Return a detached config with only the previewed seeds replaced."""
+    updated = copy.deepcopy(raw)
+    config = updated["characters"] if isinstance(updated.get("characters"), dict) else updated
+    for change in get_unseeded_voice_seed_changes(raw):
+        config[change["name"]]["seed"] = change["seed"]
+    return updated
+
+
+def seed_characters(args):
+    """Offer stable character seeds without changing defaults or existing audio.
+
+    Individual generation honors character seeds; fast-batch generation uses
+    a separate batch seed. Applying this opt-in repair can change regenerated
+    audio and does not establish audible identity across a whole book.
+    """
     with open(args.config, encoding="utf-8") as source:
         raw = json.load(source)
     nested = isinstance(raw.get("characters"), dict)
     config = raw["characters"] if nested else raw
 
-    changes = []
-    for name, entry in config.items():
-        if not isinstance(entry, dict):
-            continue
-        current = str(entry.get("seed", "-1")).strip()
-        # Only unseeded entries. An explicit seed is somebody's decision and
-        # is not overwritten.
-        if current and current != "-1":
-            continue
-        changes.append((name, current or "(none)", character_voice_seed(name)))
+    changes = [(change["name"], str(config[change["name"]].get("seed", "-1")).strip() or "(none)", change["seed"])
+               for change in get_unseeded_voice_seed_changes(raw)]
 
     if not changes:
         print("Every character already has a stable seed. Nothing to do.")
         return
 
-    print(f"{len(changes)} of {len(config)} characters are redrawn per line:\n")
+    print(f"{len(changes)} of {len(config)} characters have unseeded settings:\n")
     for name, was, now in changes[:40]:
         print(f"  {name[:34]:36} {was:>6} -> {now}")
     if len(changes) > 40:
         print(f"  ... and {len(changes) - 40} more")
-    print("\n  A '-1' seed draws a new voice for EVERY LINE. Seeding makes each"
-          "\n  character one consistent voice for the whole book.")
-    print("  Audio already rendered will NOT match audio generated after this.")
+    print("\n  Individual rendering uses character seeds. Fast batches use a separate batch seed.")
+    print("  Existing rendered audio is kept; regenerated audio may sound different.")
 
     if not args.apply:
         print("\nReport only. Re-run with --apply to write.")
@@ -249,14 +249,7 @@ def seed_characters(args):
 
     backup = f"{args.config}.bak-{time.time_ns()}"
 
-    def apply_seeds(current):
-        updated = copy.deepcopy(current)
-        characters = updated["characters"] if nested else updated
-        for name, _, seed in changes:
-            characters[name]["seed"] = str(seed)
-        return updated
-
-    apply_voice_config_update(args.config, apply_seeds, expected=raw,
+    apply_voice_config_update(args.config, apply_unseeded_voice_seeds, expected=raw,
                               backup_path=backup)
     print(f"\nSeeded {len(changes)} characters. Backup at {backup}")
 
@@ -276,10 +269,9 @@ def main():
                     help="write the merge (backs up first); default is report only")
     ap.add_argument("--seed-characters", action="store_true",
                     dest="seed_characters",
-                    help="give every character a stable per-name seed. Voices "
-                         "written before 2026-08-04 carry -1, meaning the voice "
-                         "is redrawn on EVERY LINE - the 'multiple narrators' "
-                         "effect. Reports by default; needs --apply to write.")
+                    help="offer stable per-name seeds for unseeded character settings. "
+                         "Individual rendering uses these; fast batches use a separate "
+                         "batch seed. Reports by default; needs --apply to write.")
     args = ap.parse_args()
 
     if args.seed_characters:

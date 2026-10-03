@@ -3420,6 +3420,26 @@
         "title": "VoiceLabRequest",
         "type": "object"
       },
+      "VoiceSeedRepairRequest": {
+        "properties": {
+          "book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Book Token",
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "book_token"
+        ],
+        "title": "VoiceSeedRepairRequest",
+        "type": "object"
+      },
       "VoiceStylePoint": {
         "additionalProperties": true,
         "properties": {
@@ -8611,6 +8631,42 @@
           }
         },
         "summary": "Save Guarded Voice Config"
+      }
+    },
+    "/api/voice_config/seed_unseeded": {
+      "post": {
+        "operationId": "apply_voice_seed_repair_api_voice_config_seed_unseeded_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSeedRepairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Voice Seed Repair"
       }
     },
     "/api/voice_config/snapshot": {

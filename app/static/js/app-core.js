@@ -3219,6 +3219,42 @@
         let _voiceCardsRevision = null;
         let _voiceCardsBookToken = null;
 
+        let _voiceSeedRepairPending = false;
+
+        function getVoiceSeedRepairMarkup(snapshot) {
+            const changes = snapshot?.seed_changes || [];
+            if (!changes.length) { return ''; }
+            const rows = changes.map(change => `<li>${escapeHtml(change.name)}: proposed seed ${escapeHtml(change.seed)}</li>`).join('');
+            return `<div class="alert alert-warning"><strong>${changes.length} unseeded voice settings</strong>
+                <ul>${rows}</ul><p>An original-file backup will be saved. Existing rendered audio is kept. Regenerated audio may sound different.
+                Individual rendering uses character seeds; fast-batch rendering uses its separate batch seed.</p>
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyStableVoiceSeeds()" ${_voiceSeedRepairPending ? 'disabled' : ''}>Apply stable seeds to unseeded entries only</button></div>`;
+        }
+
+        window.applyStableVoiceSeeds = async function applyStableVoiceSeeds() {
+            if (_voiceSeedRepairPending) { return; }
+            _voiceSeedRepairPending = true;
+            try {
+                await flushVoiceSaves();
+                const snapshot = _voiceSaveSnapshot;
+                const changes = snapshot.seed_changes || [];
+                if (!changes.length) { return; }
+                if (voiceSaveQueue.isDirty() || snapshot.revision !== _voiceCardsRevision
+                        || snapshot.book_token !== _voiceCardsBookToken) {
+                    throw new Error('Voice settings changed; reload voices to review the new seed suggestions.');
+                }
+                const result = await API.post('/api/voice_config/seed_unseeded', {
+                    revision: snapshot.revision, book_token: snapshot.book_token,
+                });
+                await loadVoices(false);
+                showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000);
+            } catch (e) {
+                showToast('Stable seed repair failed: ' + e.message, 'error');
+            } finally {
+                _voiceSeedRepairPending = false;
+            }
+        };
+
         async function loadVoices(refreshResources = true) {
             await flushVoiceSaves();
             const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
@@ -3263,7 +3299,7 @@
                 _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
                 return {refreshedResources};
             }
-            container.innerHTML = voices.map((v, i) => createVoiceCard(v, i)).join('');
+            container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + voices.map((v, i) => createVoiceCard(v, i)).join('');
             _voiceCardsRevision = _voiceSaveSnapshot.revision;
             _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
             renderReadyCount();

@@ -8082,6 +8082,12 @@
     "tests.test_voice_script_speakers.VoiceScriptSpeakerTests.test_recovery_accepts_legacy_speaker_and_preserves_contextual_error",
     "tests.test_voice_script_speakers.VoiceScriptSpeakerTests.test_suggestions_skip_malformed_rows_and_require_spoken_text"
   ],
+  "test_voice_seed_repair_ui": [
+    "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_backup_failure_preserves_config_and_refuses_success",
+    "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_native_preview_apply_preserves_explicit_seeds_metadata_and_original_backup",
+    "tests.test_voice_seed_repair_ui.VoiceSeedRepairTests.test_stale_voice_or_book_refuses_without_backup_or_write",
+    "tests.test_voice_seed_repair_ui.VoiceSeedRepairUiTests.test_native_preview_one_click_and_changed_displayed_snapshot_refusal"
+  ],
   "test_voice_suggestion_provenance": [
     "tests.test_voice_suggestion_provenance.VoiceSuggestionProvenanceTests.test_later_unparseable_batch_keeps_valid_prior_llm_choices_and_warns",
     "tests.test_voice_suggestion_provenance.VoiceSuggestionProvenanceTests.test_omitted_and_invalid_rankings_are_disclosed_per_character",
