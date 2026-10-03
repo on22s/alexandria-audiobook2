@@ -16,6 +16,11 @@ ARMS, everything else identical:
                      when the text says "the mariner". Invented names (FUTURE_ME,
                      SILAS DURGAN) are not descriptive in form and still fail.
 
+  admit_described    (replaces admit_descriptive after book 1) the same, but the
+                     label need not open with an article: it passes when the
+                     book writes the phrase as a common noun (see
+                     is_common_phrase_in_source).
+
 THE PRODUCT GATE IS NOT CHANGED. The admit arm patches the function in this
 process only (Rule 9: a guard is not relaxed in the product to measure it).
 
@@ -42,7 +47,9 @@ from experiments.background_speakers import (                # noqa: E402
     _NUMBERED, get_loose_form, is_descriptive_label)
 from experiments.provenance import provenance                 # noqa: E402
 
-ARMS = ("base", "admit_descriptive")
+ARMS = ("base", "admit_descriptive", "admit_described")
+_PRONOUNS = frozenset("i me my mine you your he him his she her it its we us our "
+                      "they them their myself yourself himself herself".split())
 
 
 def is_described_in_source(name, source_text):
@@ -55,16 +62,36 @@ def is_described_in_source(name, source_text):
         re.IGNORECASE) is not None
 
 
-def get_admitting_gate(original):
+def is_common_phrase_in_source(name, source_text):
+    """A label the book uses as a COMMON noun phrase: written lowercase at
+    least once and no more often capitalised than not. EDITOR, OLD MILITARY
+    MAN, PROPRIETOR - DeepSeek drops the article that is_descriptive_label
+    looks for, so admit_descriptive rejected all three on the first book.
+    A pronoun anywhere rules it out (FUTURE ME); a name is capitalised in the
+    text and stays with is_attested_name."""
+    form = _NUMBERED.sub("", get_loose_form(name)).strip()
+    words = re.findall(r"[A-Za-z']+", form)
+    if not words or any(w.lower() in _PRONOUNS for w in words):
+        return False
+    found = re.findall(r"(?<!\w)" + r"[\s_-]+".join(map(re.escape, words))
+                       + r"(?!\w)", source_text or "", re.IGNORECASE)
+    lower = sum(1 for f in found if f[:1].islower())
+    return lower >= 1 and lower >= len(found) - lower
+
+
+def get_admitting_gate(original, admits=is_described_in_source):
     def gate(name, source_text, *args, **kwargs):
         return (original(name, source_text, *args, **kwargs)
-                or is_described_in_source(name, source_text))
+                or admits(name, source_text))
     return gate
 
 
 def install_arm(arm):
-    if arm == "admit_descriptive":
-        gate = get_admitting_gate(pass_quality.is_attested_name)
+    if arm in ("admit_descriptive", "admit_described"):
+        gate = get_admitting_gate(
+            pass_quality.is_attested_name,
+            is_described_in_source if arm == "admit_descriptive"
+            else is_common_phrase_in_source)
         # Both references: pass_quality's own module global (output gate) and
         # the name three_pass_generate imported (roster gate).
         pass_quality.is_attested_name = gate
