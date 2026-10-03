@@ -50,12 +50,14 @@ def _params():
                         max_tokens=500, temperature=0.0)
 
 
-def _attribute(frozen, answer, mode, source_text=None):
-    client, _ = _client_always(answer)
+def _attribute(frozen, answer, mode, source_text=None, keep_scope="line", cast=None):
+    client, calls = _client_always(answer)
     with contextlib.redirect_stdout(io.StringIO()):
-        return tp.attribute_batch(client, "m", frozen, _params(), roster=[],
-                                  max_retries=1, on_exhaustion=mode,
-                                  source_text=source_text)
+        out = tp.attribute_batch(client, "m", frozen, _params(), roster=[],
+                                 max_retries=1, on_exhaustion=mode,
+                                 source_text=source_text, keep_scope=keep_scope, cast=cast)
+    _attribute.calls = calls["attribute"]
+    return out
 
 
 class KeepExhaustedAnswerTests(unittest.TestCase):
@@ -139,3 +141,69 @@ class KeepExhaustedAnswerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# A three-line batch from The Invisible Man: Mr. Hall is attested, Silas Durgan
+# is written once (refused by speaker_not_in_source), the tag is narration.
+HALL_LINE = "Mr. Hall, we shall see."
+BATCH = [{"type": "SPOKEN", "text": HALL_LINE},
+         {"type": "SPOKEN", "text": DURGAN_LINE},
+         {"type": "NARRATOR", "text": "said he."}]
+BATCH_SOURCE = DURGAN_SOURCE + '"' + HALL_LINE + '" said he. '
+
+
+class BatchKeepScopeTests(unittest.TestCase):
+    """--pass2-keep-scope batch (#668): a batch whose ONLY failures are keepable
+    is kept whole, flagging just the refused lines, instead of being halved
+    down to them - one rejected label otherwise costs a halving per level."""
+
+    ANSWER = [{"n": 0, "speaker": "MR. HALL"}, {"n": 1, "speaker": "SILAS DURGAN"},
+              {"n": 2, "speaker": "NARRATOR"}]
+
+    def test_line_scope_still_raises_so_the_caller_subdivides(self):
+        with self.assertRaises(tp.PassExhausted):
+            _attribute(BATCH, self.ANSWER, "keep", BATCH_SOURCE)
+
+    def test_batch_scope_keeps_the_batch_and_flags_only_the_refused_line(self):
+        out = _attribute(BATCH, self.ANSWER, "keep", BATCH_SOURCE, keep_scope="batch")
+        self.assertEqual(2, _attribute.calls)                   # max_retries=1: no subdivision
+        self.assertEqual(["MR. HALL", "SILAS DURGAN", "NARRATOR"], [e["speaker"] for e in out])
+        self.assertNotIn("attribution_unchecked", out[0])
+        self.assertEqual(["speaker_not_in_source"], out[1]["attribution_unchecked"])
+        self.assertNotIn("attribution_unchecked", out[2])
+        self.assertEqual([e["text"] for e in BATCH], [e["text"] for e in out])   # text frozen
+
+    def test_batch_scope_still_subdivides_a_mixed_failure(self):
+        """narrator_renamed is not keepable (right 29 of 29 in the audit), so a
+        batch that also renamed narration must still be split, not kept."""
+        renamed = self.ANSWER[:2] + [{"n": 2, "speaker": "MR. HALL"}]
+        with self.assertRaises(tp.PassExhausted):
+            _attribute(BATCH, renamed, "keep", BATCH_SOURCE, keep_scope="batch")
+
+    def test_batch_scope_still_subdivides_a_misaligned_answer(self):
+        with self.assertRaises(tp.PassExhausted):
+            _attribute(BATCH, self.ANSWER[:2], "keep", BATCH_SOURCE, keep_scope="batch")
+
+    def test_batch_scope_needs_keep(self):
+        with self.assertRaises(tp.PassExhausted):
+            _attribute(BATCH, self.ANSWER, "fail", BATCH_SOURCE, keep_scope="batch")
+
+    def test_a_kept_cast_alias_is_folded_like_an_accepted_one(self):
+        """One voice per character on both paths: GRIFFIN is THE STRANGER
+        whether the batch passed or was kept."""
+        cast = {"alias_to_name": {"GRIFFIN": "THE STRANGER"}, "known_names": frozenset()}
+        answer = [{"n": 0, "speaker": "GRIFFIN"}, {"n": 1, "speaker": "SILAS DURGAN"},
+                  {"n": 2, "speaker": "NARRATOR"}]
+        out = _attribute(BATCH, answer, "keep", BATCH_SOURCE, keep_scope="batch", cast=cast)
+        self.assertEqual("THE STRANGER", out[0]["speaker"])
+
+    def test_the_kept_label_stays_off_the_roster(self):
+        out = _attribute(BATCH, self.ANSWER, "keep", BATCH_SOURCE, keep_scope="batch")
+        self.assertNotIn("SILAS DURGAN", tp.attested_new_speakers(out, set(), BATCH_SOURCE))
+
+    def test_scope_does_not_change_the_checkpoint_identity(self):
+        """A run may resume under either scope: everything either one saves is
+        valid output and anything kept is flagged."""
+        import inspect
+        self.assertNotIn("keep_scope", inspect.signature(tp.three_pass_fingerprint).parameters)
+

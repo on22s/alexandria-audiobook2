@@ -7273,6 +7273,14 @@
     "tests.test_three_pass_generate.SegmentationModeTests.test_quotes_mode_narrates_an_unquoted_chunk_without_a_call"
   ],
   "test_three_pass_keep_exhausted": [
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_a_kept_cast_alias_is_folded_like_an_accepted_one",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_keeps_the_batch_and_flags_only_the_refused_line",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_needs_keep",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_still_subdivides_a_misaligned_answer",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_still_subdivides_a_mixed_failure",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_line_scope_still_raises_so_the_caller_subdivides",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_scope_does_not_change_the_checkpoint_identity",
+    "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_the_kept_label_stays_off_the_roster",
     "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_keep_resumes_a_fail_checkpoint",
     "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_kept_names_stay_off_both_roster_gates",
     "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_multi_entry_batch_still_raises_so_the_caller_subdivides",

@@ -487,26 +487,67 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 KEEPABLE_ATTRIBUTION_FAILURES = frozenset({"speaker_not_in_source", "spoken_not_named"})
 
 
-def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster):
+PASS2_KEEP_SCOPES = ("line", "batch")
+
+
+def is_keepable_exhaustion(frozen_batch, last_entries, last_report):
+    """Whether a batch's last answer is aligned and failed ONLY keepable checks.
+
+    The one predicate for both keep scopes: 'line' asks it of a single entry,
+    'batch' of a whole batch, so the two cannot disagree about what is keepable.
+    """
+    findings = (last_report or {}).get("findings", [])
+    codes = {finding.get("code") or "unknown" for finding in findings}
+    if not last_entries or not codes or not codes <= KEEPABLE_ATTRIBUTION_FAILURES:
+        return False
+    if not all(isinstance(finding.get("entry_number"), int) for finding in findings):
+        return False
+    return index_head_check(frozen_batch, last_entries)[0]
+
+
+def get_named_from_answer(frozen_batch, ordered, cast=None):
+    """The accepted answer as named entries - the one conversion for a passed
+    batch and a kept one: frozen text, the model's speaker, a cast alias folded
+    to its name ("GRIFFIN" -> THE STRANGER, one voice per character)."""
+    alias_to_name = (cast or {}).get("alias_to_name") or {}
+    out = []
+    for f, item in zip(frozen_batch, ordered):
+        speaker = strip_roster_alias_echo(item.get("speaker"))
+        if isinstance(speaker, str):
+            speaker = alias_to_name.get(speaker.strip().upper(), speaker)
+        out.append({**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker})
+    return out
+
+
+def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster, cast=None):
     """What on_exhaustion='keep' returns for a batch that ran out of retries.
 
-    One entry whose last answer failed ONLY keepable checks keeps that answer;
-    anything else (unparsed, misaligned, an unkeepable check) gets the fallback
-    labels. Either way each entry is flagged `attribution_unchecked` with the
-    failure codes, so the output says what was not verified, and the roster
-    gates skip flagged entries, so a kept name cannot spread to later batches.
+    A batch whose last answer failed ONLY keepable checks keeps that answer:
+    every line takes the model's speaker, and only the lines a check named are
+    flagged `attribution_unchecked` with their codes. Anything else (unparsed,
+    misaligned, an unkeepable check) gets the fallback labels, all flagged.
+    The roster gates skip flagged entries, so a kept name cannot spread to
+    later batches. The caller decides whether a multi-entry batch may be kept
+    (keep scope 'batch') or must be subdivided first (scope 'line').
     """
     codes = sorted({finding.get("code") or "unknown"
                     for finding in (last_report or {}).get("findings", [])}) or ["unparsed"]
-    ok, _, ordered = (index_head_check(frozen_batch, last_entries)
-                      if last_entries else (False, None, None))
-    if len(frozen_batch) == 1 and ok and set(codes) <= KEEPABLE_ATTRIBUTION_FAILURES:
-        speaker = strip_roster_alias_echo(ordered[0].get("speaker"))
-        speaker = speaker.strip() if isinstance(speaker, str) and speaker.strip() else "UNKNOWN"
-        print(f"  Attribution exhausted; kept the model's last answer {speaker!r} "
-              f"unchecked ({', '.join(codes)})")
-        return [{**{k: v for k, v in frozen_batch[0].items() if k != "type"},
-                 "speaker": speaker, "attribution_unchecked": codes}]
+    if is_keepable_exhaustion(frozen_batch, last_entries, last_report):
+        ordered = index_head_check(frozen_batch, last_entries)[2]
+        flagged = {}
+        for finding in last_report["findings"]:
+            flagged.setdefault(finding["entry_number"] - 1, set()).add(finding["code"])
+        kept = get_named_from_answer(frozen_batch, ordered, cast)
+        for index, entry_codes in flagged.items():
+            speaker = kept[index].get("speaker")
+            kept[index] = {**kept[index],
+                           "speaker": speaker.strip() if isinstance(speaker, str)
+                           and speaker.strip() else "UNKNOWN",
+                           "attribution_unchecked": sorted(entry_codes)}
+        print(f"  Attribution exhausted; kept the model's last answer for "
+              f"{len(frozen_batch)} entr{'y' if len(frozen_batch) == 1 else 'ies'}, "
+              f"{len(flagged)} unchecked ({', '.join(codes)})")
+        return kept
     print(f"  Attribution exhausted; labelled {len(frozen_batch)} entr"
           f"{'y' if len(frozen_batch) == 1 else 'ies'} with the fallback ({', '.join(codes)})")
     seeded = [{**{k: v for k, v in e.items() if k != "type"},
@@ -530,13 +571,16 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
                     exhaustion_sink=None, entries_provider=None, surround=None,
-                    cast=None):
+                    cast=None, keep_scope="line"):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
     unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities; 'keep'
     raises for a multi-entry batch (so the caller subdivides) and, at one
-    entry, returns keep_exhausted_answer instead of aborting the book."""
+    entry, returns keep_exhausted_answer instead of aborting the book. With
+    keep_scope='batch' a multi-entry batch whose last answer failed only
+    keepable checks is kept whole instead of subdivided (#668: one rejected
+    label otherwise costs a halving per level, ~25 requests for 25 lines)."""
     params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
@@ -592,15 +636,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated attribution response lost its index binding")
-        alias_to_name = (cast or {}).get("alias_to_name") or {}
-        out = []
-        for f, item in zip(frozen_batch, ordered):
-            speaker = strip_roster_alias_echo(item.get("speaker"))
-            if isinstance(speaker, str):
-                # one voice per character: a cast alias ("GRIFFIN") becomes its name
-                speaker = alias_to_name.get(speaker.strip().upper(), speaker)
-            out.append({**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker})
-        return out
+        return get_named_from_answer(frozen_batch, ordered, cast)
     ranges = get_exhausted_runtime_batch_ranges(client, frozen_batch, attempts)
     if ranges:
         combined = []
@@ -611,13 +647,16 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 neighbor_contexts=(neighbor_contexts[start:end] if neighbor_contexts else None),
                 attempt_observer=attempt_observer, source_text=source_text,
                 exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
-                surround=surround, cast=cast))
+                surround=surround, cast=cast, keep_scope=keep_scope))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
-    if on_exhaustion == "keep" and len(frozen_batch) == 1:
+    if on_exhaustion == "keep" and (
+            len(frozen_batch) == 1
+            or (keep_scope == "batch" and is_keepable_exhaustion(
+                frozen_batch, validated.get("last"), validated.get("last_report")))):
         return keep_exhausted_answer(frozen_batch, validated.get("last"),
-                                     validated.get("last_report"), roster)
+                                     validated.get("last_report"), roster, cast)
     if on_exhaustion in ("fail", "keep"):
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch",
                             last_entries=validated.get("last"))
@@ -1881,7 +1920,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    vote_temperature=0.3, first_person_narrator=None,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
-                   planned_calls=None, cast=None):
+                   planned_calls=None, cast=None, keep_scope="line"):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -2023,6 +2062,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "model_name": model_name,
                             "first_person_narrator": narrator or None,
                             "thinking_mode": thinking_mode or "default",
+                            "pass2_keep_scope": keep_scope,
                             "cast": ({"sha256": cast["sha256"], "names": len(cast["names"])}
                                      if cast else None),
                             "unicode": dict(unicode_report or {}),
@@ -2243,7 +2283,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         client, model_name, batch, params, roster=roster,
                         votes=attribution_votes,
                         vote_temperature=vote_temperature,
-                        on_exhaustion=on_exhaustion,
+                        on_exhaustion=on_exhaustion, keep_scope=keep_scope,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
@@ -2732,6 +2772,11 @@ def main():
     parser.add_argument("--cast-file", default=None,
                         help="JSON cast list [{name, aliases}] put on the pass-2 roster "
                              "ahead of attested names (experiments/build_cast_list.py).")
+    parser.add_argument("--pass2-keep-scope", choices=PASS2_KEEP_SCOPES, default="line",
+                        help="With --pass2-on-exhaustion keep: 'line' (default) subdivides an "
+                             "exhausted batch down to the failing line before keeping it; "
+                             "'batch' keeps a batch whose only failures are keepable checks "
+                             "whole, flagging just those lines (#668).")
     parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback", "keep"],
                         default="fail",
                         help="testing default 'fail' surfaces pass-2 failures; "
@@ -2884,6 +2929,7 @@ def main():
     # Resolve execution controls once; samples and full runs share this policy.
     run_options = MappingProxyType({
         "on_exhaustion": args.pass2_on_exhaustion,
+        "keep_scope": args.pass2_keep_scope,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "endpoint": base_url,
