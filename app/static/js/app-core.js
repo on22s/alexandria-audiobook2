@@ -1170,6 +1170,7 @@
             document.getElementById('tp-unquoted-must-be-narrator').checked = g.three_pass_unquoted_must_be_narrator !== false;
             document.getElementById('tp-keep-whole-batch').checked = g.three_pass_keep_whole_batch === true;
             document.getElementById('tp-group-rule').checked = g.three_pass_group_rule === true;
+            document.getElementById('tp-speaker-traits').checked = g.three_pass_speaker_traits === true;
         }
 
         let currentBookFilename = '';
@@ -1324,7 +1325,7 @@
                 const g = defaults.generation;
                 if (!g || Object.values(generationControlFields).some(key => g[key] == null)
                     || g.chunk_size == null || !Array.isArray(g.banned_tokens) || !Array.isArray(g.context_rescue_windows)
-                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator', 'three_pass_keep_whole_batch', 'three_pass_group_rule'].some(key => typeof g[key] !== 'boolean')) {
+                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator', 'three_pass_keep_whole_batch', 'three_pass_group_rule', 'three_pass_speaker_traits'].some(key => typeof g[key] !== 'boolean')) {
                     throw new Error('Generation defaults are unavailable');
                 }
 
@@ -1438,6 +1439,7 @@
                     three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
                     three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked,
                     three_pass_group_rule: document.getElementById('tp-group-rule').checked,
+                    three_pass_speaker_traits: document.getElementById('tp-speaker-traits').checked,
                     context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
                     context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
                 }
@@ -3118,6 +3120,20 @@
             return null;
         }
 
+        // Gender/age per line (#653): one tag per character - the most common
+        // values, "ageless" when marked, and any big change in order (a time
+        // skip, a gender change). Model text, so every value is escaped.
+        function getTraitBadgeHtml(traits) {
+            if (!traits) { return ''; }
+            const label = (state) => [state.gender, state.age_group]
+                .filter(value => value && value !== 'unknown').map(value => value.replace('_', ' ')).join(' · ');
+            const states = (traits.states || []).map(label).filter(text => text);
+            const text = states.length ? states.join(' → ') : label(traits);
+            if (!text && !traits.ageless) { return ''; }
+            const shown = [text, traits.ageless ? 'ageless' : ''].filter(part => part).join(' · ');
+            return `<span class="badge bg-light text-dark border ms-2" title="From the script: ${Number(traits.lines) || 0} lines with gender/age">${escapeHtml(shown)}</span>`;
+        }
+
         function createVoiceCard(voice, index) {
             const config = voice.config || {};
             const voiceType = config.type || 'custom';
@@ -3131,7 +3147,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
+                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>

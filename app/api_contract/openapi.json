@@ -1315,6 +1315,11 @@
             "title": "Three Pass Segmentation",
             "type": "string"
           },
+          "three_pass_speaker_traits": {
+            "default": false,
+            "title": "Three Pass Speaker Traits",
+            "type": "boolean"
+          },
           "three_pass_unquoted_must_be_narrator": {
             "default": true,
             "title": "Three Pass Unquoted Must Be Narrator",

@@ -48,7 +48,7 @@ class GroupRuleSettingTest(unittest.TestCase):
         self.assertNotIn("checked", tag.group(0))
         self.assertIn("three_pass_group_rule: document.getElementById('tp-group-rule').checked", js)
         self.assertIn("getElementById('tp-group-rule').checked = g.three_pass_group_rule === true", js)
-        self.assertIn("'three_pass_group_rule'].some(", js)
+        self.assertRegex(js, r"'three_pass_group_rule'[^\]]*\]\.some\(")
 
 
 if __name__ == "__main__":

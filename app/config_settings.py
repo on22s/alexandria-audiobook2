@@ -160,6 +160,10 @@ class GenerationConfig(BaseModel):
     # (attribution_prompt_variants.GROUP_RULE_7). Off by default: measured on
     # one light-novel chapter and five PDNC novels (#653), see that constant.
     three_pass_group_rule: bool = False
+    # Pass 2: every answer also gives the speaker's gender, age group (as they
+    # look and act) and an ageless flag (speaker_traits.py). Off by default;
+    # measured in character_traits.json (+2.6% tokens, who-speaks unchanged).
+    three_pass_speaker_traits: bool = False
     three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 

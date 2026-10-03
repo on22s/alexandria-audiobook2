@@ -16,7 +16,7 @@ FIELDS={'max-tokens':'max_tokens','temperature':'temperature','top-p':'top_p','t
 SETUP=r'''
 seed();const helper=source.indexOf('const generationControlFields =');if(helper>=0){run(source.slice(helper,source.indexOf('async function loadConfig()',helper)));}
 run(source.slice(source.indexOf('window.resetPrompts ='),source.indexOf('// Toggle chevron')));
-for(const id of Object.keys(fields)){const el=element(id);let stored=el.value;Object.defineProperty(el,'value',{enumerable:true,get:()=>stored,set:value=>stored=String(value)});el.value=id==='tp-segmentation'?'llm':'99';}element('banned-tokens').value='old token';element('context-rescue-windows').value='100';element('merge-narrators').checked=true;element('tp-quoted-must-be-spoken').checked=false;element('tp-unquoted-must-be-narrator').checked=false;element('tp-keep-whole-batch').checked=true;element('tp-group-rule').checked=true;run('legacyChunkSize=9999;');
+for(const id of Object.keys(fields)){const el=element(id);let stored=el.value;Object.defineProperty(el,'value',{enumerable:true,get:()=>stored,set:value=>stored=String(value)});el.value=id==='tp-segmentation'?'llm':'99';}element('banned-tokens').value='old token';element('context-rescue-windows').value='100';element('merge-narrators').checked=true;element('tp-quoted-must-be-spoken').checked=false;element('tp-unquoted-must-be-narrator').checked=false;element('tp-keep-whole-batch').checked=true;element('tp-group-rule').checked=true;element('tp-speaker-traits').checked=true;run('legacyChunkSize=9999;');
 const state=()=>JSON.stringify({elements,legacy:run('legacyChunkSize'),cache:snapshot()});
 '''
 
@@ -34,7 +34,7 @@ assert.strictEqual(element('pass1-system-prompt').value,defaults.pass1_system_pr
 console.log(JSON.stringify(context.buildConfigPayload(2)));
 '''
         payload=actions.PromptPresetTransactionTests().run_case(code);expected=GenerationConfig().model_dump()
-        keys=list(FIELDS.values())+['chunk_size','banned_tokens','context_rescue_windows','merge_narrators','three_pass_quoted_must_be_spoken','three_pass_unquoted_must_be_narrator','three_pass_keep_whole_batch','three_pass_group_rule']
+        keys=list(FIELDS.values())+['chunk_size','banned_tokens','context_rescue_windows','merge_narrators','three_pass_quoted_must_be_spoken','three_pass_unquoted_must_be_narrator','three_pass_keep_whole_batch','three_pass_group_rule','three_pass_speaker_traits']
         self.assertEqual({key:expected[key] for key in keys},{key:payload['generation'][key] for key in keys})
         with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(invalidate_config_cache=lambda:None,engine=None)),TestClient(app) as client:
             response=client.post('/api/config',json=payload);self.assertEqual(200,response.status_code,response.text);saved=json.loads(Path(root,'config.json').read_text());self.assertEqual({key:expected[key] for key in keys},{key:saved['generation'][key] for key in keys})

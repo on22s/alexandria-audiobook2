@@ -233,7 +233,25 @@ def resolve_attribute_prompt(config, variant_override=None):
         system, applied = get_group_rule_system(system)
         if applied:
             texts = dict(texts or {}, system=system)
+    if (config.get("generation") or {}).get("three_pass_speaker_traits") is True:
+        # Setup switch (#653): every pass-2 answer also carries the speaker's
+        # gender, age group and ageless flag (speaker_traits.TRAITS_RULE).
+        # Only the michel2 prompts name their answer shape; any other prompt is
+        # left alone and the run says so (is_speaker_traits_prompt).
+        from speaker_traits import TRAITS_FIELDS, TRAITS_RULE
+        base = builtin_texts(variant)
+        user = (texts or {}).get("user") or base["user"]
+        if '{"n", "speaker"}' in user:
+            system = (texts or {}).get("system") or base["system"]
+            texts = dict(texts or {}, system=system + TRAITS_RULE,
+                         user=user.replace('{"n", "speaker"}', TRAITS_FIELDS))
     return variant, texts
+
+
+def is_speaker_traits_prompt(texts):
+    """Whether the resolved pass-2 texts ask for the per-line traits."""
+    from speaker_traits import TRAITS_FIELDS
+    return TRAITS_FIELDS in ((texts or {}).get("user") or "")
 
 
 def resolve_three_pass_prompt(config, pass_name):
@@ -496,6 +514,15 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 }
 
 
+def get_attribution_response_schema(speaker_traits=False):
+    """The pass-2 response schema; with per-line traits on, the three optional
+    fields are allowed (speaker_traits.get_traits_response_schema)."""
+    if not speaker_traits:
+        return ATTRIBUTION_RESPONSE_SCHEMA
+    from speaker_traits import get_traits_response_schema
+    return get_traits_response_schema(ATTRIBUTION_RESPONSE_SCHEMA)
+
+
 # Checks whose refusal of a single line is not evidence the answer is wrong.
 # Audited 2026-09-28 against PDNC on the stage-0 books: of the clear cases,
 # speaker_not_in_source refused the PDNC speaker every time (Silas Durgan, named
@@ -524,7 +551,7 @@ def is_keepable_exhaustion(frozen_batch, last_entries, last_report):
     return index_head_check(frozen_batch, last_entries)[0]
 
 
-def get_named_from_answer(frozen_batch, ordered, cast=None):
+def get_named_from_answer(frozen_batch, ordered, cast=None, speaker_traits=False):
     """The accepted answer as named entries - the one conversion for a passed
     batch and a kept one: frozen text, the model's speaker, a cast alias folded
     to its name ("GRIFFIN" -> THE STRANGER, one voice per character)."""
@@ -534,11 +561,16 @@ def get_named_from_answer(frozen_batch, ordered, cast=None):
         speaker = strip_roster_alias_echo(item.get("speaker"))
         if isinstance(speaker, str):
             speaker = alias_to_name.get(speaker.strip().upper(), speaker)
-        out.append({**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker})
+        named = {**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker}
+        if speaker_traits and f.get("type") == "SPOKEN":
+            from speaker_traits import get_traits_from_answer
+            named.update(get_traits_from_answer(item))
+        out.append(named)
     return out
 
 
-def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster, cast=None):
+def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster, cast=None,
+                          speaker_traits=False):
     """What on_exhaustion='keep' returns for a batch that ran out of retries.
 
     A batch whose last answer failed ONLY keepable checks keeps that answer:
@@ -556,7 +588,7 @@ def keep_exhausted_answer(frozen_batch, last_entries, last_report, roster, cast=
         flagged = {}
         for finding in last_report["findings"]:
             flagged.setdefault(finding["entry_number"] - 1, set()).add(finding["code"])
-        kept = get_named_from_answer(frozen_batch, ordered, cast)
+        kept = get_named_from_answer(frozen_batch, ordered, cast, speaker_traits)
         for index, entry_codes in flagged.items():
             speaker = kept[index].get("speaker")
             kept[index] = {**kept[index],
@@ -590,7 +622,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
                     exhaustion_sink=None, entries_provider=None, surround=None,
-                    cast=None, keep_scope="line"):
+                    cast=None, keep_scope="line", speaker_traits=False):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -623,7 +655,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
                                                else params.temperature),
-                          response_schema=ATTRIBUTION_RESPONSE_SCHEMA)
+                          response_schema=get_attribution_response_schema(speaker_traits))
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an
@@ -655,7 +687,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated attribution response lost its index binding")
-        return get_named_from_answer(frozen_batch, ordered, cast)
+        return get_named_from_answer(frozen_batch, ordered, cast, speaker_traits)
     ranges = get_exhausted_runtime_batch_ranges(client, frozen_batch, attempts)
     if ranges:
         combined = []
@@ -666,7 +698,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 neighbor_contexts=(neighbor_contexts[start:end] if neighbor_contexts else None),
                 attempt_observer=attempt_observer, source_text=source_text,
                 exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
-                surround=surround, cast=cast, keep_scope=keep_scope))
+                surround=surround, cast=cast, keep_scope=keep_scope,
+                speaker_traits=speaker_traits))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
@@ -675,7 +708,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             or (keep_scope == "batch" and is_keepable_exhaustion(
                 frozen_batch, validated.get("last"), validated.get("last_report")))):
         return keep_exhausted_answer(frozen_batch, validated.get("last"),
-                                     validated.get("last_report"), roster, cast)
+                                     validated.get("last_report"), roster, cast, speaker_traits)
     if on_exhaustion in ("fail", "keep"):
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch",
                             last_entries=validated.get("last"))
@@ -1750,7 +1783,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            attribute_context_chars=0, attribute_prompt_variant="default",
                            attribute_prompt_texts=None, cast_sha256=None,
                            attribution_votes=1, vote_temperature=0.3,
-                           first_person_narrator=None):
+                           first_person_narrator=None, speaker_traits=False):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -1813,7 +1846,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # than on the caller's params object. Include it in the checkpoint
         # identity so changing the request contract cannot resume old output.
         if getattr(params, "structured_output", "auto") != "off":
-            settings["response_schema"] = ATTRIBUTION_RESPONSE_SCHEMA
+            settings["response_schema"] = get_attribution_response_schema(speaker_traits)
     encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return {"source_sha256": digest, "settings_sha256": hashlib.sha256(encoded).hexdigest(),
             "model_name": model_name, "pipeline": "three_pass"}
@@ -1939,7 +1972,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    vote_temperature=0.3, first_person_narrator=None,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
-                   planned_calls=None, cast=None, keep_scope="line"):
+                   planned_calls=None, cast=None, keep_scope="line", speaker_traits=False):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -1989,7 +2022,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         attribute_prompt_texts=attribute_prompt_texts,
         cast_sha256=(cast or {}).get("sha256"),
         attribution_votes=attribution_votes, vote_temperature=vote_temperature,
-        first_person_narrator=narrator)
+        first_person_narrator=narrator, speaker_traits=speaker_traits)
     initial_binding = get_run_model_binding(client, model_name)
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
@@ -2303,6 +2336,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         votes=attribution_votes,
                         vote_temperature=vote_temperature,
                         on_exhaustion=on_exhaustion, keep_scope=keep_scope,
+                        speaker_traits=speaker_traits,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         exhaustion_sink=exhausted,
@@ -2940,6 +2974,11 @@ def main():
     if (config.get("generation") or {}).get("three_pass_group_rule") is True:
         print("Group rule: on" if GROUP_RULE_7 in ((attribute_prompt_texts or {}).get("system") or "")
               else "Group rule: on, but this prompt has no standard rule 7 to replace; not applied")
+    speaker_traits = is_speaker_traits_prompt(attribute_prompt_texts)
+    if (config.get("generation") or {}).get("three_pass_speaker_traits") is True:
+        print("Speaker gender/age per line: on" if speaker_traits else
+              "Speaker gender/age per line: on, but this prompt has no standard answer shape "
+              "to extend; not applied")
     if attribute_prompt_variant not in VARIANTS:
         raise SystemExit(f"unknown prompt variant {attribute_prompt_variant!r}; expected one of {VARIANTS}")
     problem = validate_preset_texts(attribute_prompt_variant, attribute_prompt_texts)
@@ -2971,6 +3010,7 @@ def main():
     run_options = MappingProxyType({
         "on_exhaustion": args.pass2_on_exhaustion,
         "keep_scope": keep_scope,
+        "speaker_traits": speaker_traits,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "endpoint": base_url,

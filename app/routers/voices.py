@@ -48,6 +48,7 @@ from core import (
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
+from speaker_traits import get_speaker_trait_summary
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -241,8 +242,22 @@ async def get_voices():
 def get_voice_rows(script_data, voice_config):
     """Build one backend eligibility/roster view for legacy and guarded reads."""
     roster = sorted({name for entry in script_data if (name := get_script_speaker(entry))})
-    return [{"name": name, "config": voice_config.get(name, {}),
-             "persona_pending": not voice_is_set(voice_config.get(name))} for name in roster]
+    lines = {name: [] for name in roster}
+    for entry in script_data:
+        name = get_script_speaker(entry)
+        if name in lines and isinstance(entry, dict):
+            lines[name].append(entry)
+    rows = []
+    for name in roster:
+        row = {"name": name, "config": voice_config.get(name, {}),
+               "persona_pending": not voice_is_set(voice_config.get(name))}
+        # Per-line gender/age from pass 2, only when the run asked for them, so
+        # a book generated without the switch gets exactly the old rows.
+        traits = get_speaker_trait_summary(lines[name])
+        if traits:
+            row["traits"] = traits
+        rows.append(row)
+    return rows
 
 
 def _ensure_voice_listing():
