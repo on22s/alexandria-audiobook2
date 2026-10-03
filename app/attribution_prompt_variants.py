@@ -264,15 +264,20 @@ def rolling_summary(client, model_name, params, previous_summary, passage):
     return text
 
 
-def roster_line(roster, alias_groups=None):
-    """Roster with each name's aliases, from alias groups that mention it."""
+def roster_line(roster, alias_groups=None, roster_traits=None):
+    """Roster with each name's aliases, from alias groups that mention it, and
+    - only when per-line traits are on - the [gender, age group, ageless]
+    earlier passages established (speaker_traits.get_established_traits), so a
+    later batch keeps a character's voice age instead of re-deciding it."""
     parts = []
     for name in roster:
         extra = []
         for group in alias_groups or []:
             if name in group:
                 extra += [a for a in group if a != name and a not in extra]
-        parts.append(f"{name} (also: {', '.join(sorted(extra))})" if extra else name)
+        part = f"{name} (also: {', '.join(sorted(extra))})" if extra else name
+        traits = (roster_traits or {}).get(str(name).strip().upper())
+        parts.append(f"{part} [{traits}]" if traits else part)
     return ", ".join(parts) or "(none yet)"
 
 
@@ -415,7 +420,8 @@ def _texts_for(variant, texts):
 
 
 def build_variant_request(variant, frozen_batch, params, roster, alias_groups=None,
-                          neighbor_contexts=None, surround=None, memory=None, texts=None):
+                          neighbor_contexts=None, surround=None, memory=None, texts=None,
+                          roster_traits=None):
     """-> (system_prompt, user_body) for one window under `variant`, with the
     preset `texts` ({"system", "user", "example"}; None = the variant's
     builtin) in place. Pure: this is what the provider sends and what the
@@ -426,7 +432,7 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
     t = _texts_for(variant, texts)
     michel2_family = variant.startswith("michel2")
     if variant in ("aliases", "michel") or michel2_family:
-        roster_str = roster_line(roster, alias_groups)
+        roster_str = roster_line(roster, alias_groups, roster_traits)
     else:
         roster_str = ", ".join(roster) or "(none yet)"
     sys_prompt = t["system"]
@@ -483,11 +489,12 @@ def make_provider(variant, alias_groups=None, texts=None):
 
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
-                 roster=None, neighbor_contexts=None, surround=None, **_ignored):
+                 roster=None, neighbor_contexts=None, surround=None, roster_traits=None,
+                 **_ignored):
         michel2_family = variant.startswith("michel2")
         sys_prompt, body = build_variant_request(
             variant, frozen_batch, params, roster, alias_groups, neighbor_contexts,
-            surround, memory, texts)
+            surround, memory, texts, roster_traits)
         validator = validate_entries
         if variant == "judge":
             from dataclasses import replace
