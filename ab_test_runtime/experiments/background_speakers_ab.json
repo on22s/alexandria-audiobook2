@@ -1,0 +1,393 @@
+{
+ "rows": [
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "base",
+   "model": "deepseek-v4-pro",
+   "located": 459,
+   "gold_rows": 640,
+   "named": {
+    "n": 426,
+    "strict": 369,
+    "cast_alias": 369
+   },
+   "descriptive": {
+    "n": 33,
+    "strict": 0,
+    "cast_alias": 0
+   },
+   "unknown_lines": 66,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "cast",
+   "model": "deepseek-v4-pro",
+   "located": 459,
+   "gold_rows": 640,
+   "named": {
+    "n": 426,
+    "strict": 365,
+    "cast_alias": 418
+   },
+   "descriptive": {
+    "n": 33,
+    "strict": 29,
+    "cast_alias": 29
+   },
+   "unknown_lines": 22,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_thesportofthegods",
+   "arm": "cast_roles",
+   "model": "deepseek-v4-pro",
+   "located": 459,
+   "gold_rows": 640,
+   "named": {
+    "n": 426,
+    "strict": 367,
+    "cast_alias": 420
+   },
+   "descriptive": {
+    "n": 33,
+    "strict": 30,
+    "cast_alias": 30
+   },
+   "unknown_lines": 23,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "base",
+   "model": "deepseek-v4-pro",
+   "located": 255,
+   "gold_rows": 799,
+   "named": {
+    "n": 219,
+    "strict": 195,
+    "cast_alias": 195
+   },
+   "descriptive": {
+    "n": 16,
+    "strict": 0,
+    "cast_alias": 0
+   },
+   "title_name": {
+    "n": 20,
+    "strict": 17,
+    "cast_alias": 17
+   },
+   "unknown_lines": 115,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "cast",
+   "model": "deepseek-v4-pro",
+   "located": 255,
+   "gold_rows": 799,
+   "named": {
+    "n": 219,
+    "strict": 180,
+    "cast_alias": 217
+   },
+   "descriptive": {
+    "n": 16,
+    "strict": 7,
+    "cast_alias": 8
+   },
+   "title_name": {
+    "n": 20,
+    "strict": 20,
+    "cast_alias": 20
+   },
+   "unknown_lines": 2,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_themanwhowasthursday",
+   "arm": "cast_roles",
+   "model": "deepseek-v4-pro",
+   "located": 255,
+   "gold_rows": 799,
+   "named": {
+    "n": 219,
+    "strict": 180,
+    "cast_alias": 217
+   },
+   "descriptive": {
+    "n": 16,
+    "strict": 7,
+    "cast_alias": 8
+   },
+   "title_name": {
+    "n": 20,
+    "strict": 20,
+    "cast_alias": 20
+   },
+   "unknown_lines": 3,
+   "unchecked_lines": 0
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "base",
+   "model": "deepseek-v4-pro",
+   "located": 489,
+   "gold_rows": 904,
+   "named": {
+    "n": 230,
+    "strict": 166,
+    "cast_alias": 215
+   },
+   "title_name": {
+    "n": 221,
+    "strict": 188,
+    "cast_alias": 188
+   },
+   "descriptive": {
+    "n": 38,
+    "strict": 0,
+    "cast_alias": 0
+   },
+   "unknown_lines": 187,
+   "unchecked_lines": 3
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "cast",
+   "model": "deepseek-v4-pro",
+   "located": 489,
+   "gold_rows": 904,
+   "named": {
+    "n": 230,
+    "strict": 171,
+    "cast_alias": 223
+   },
+   "title_name": {
+    "n": 221,
+    "strict": 214,
+    "cast_alias": 214
+   },
+   "descriptive": {
+    "n": 38,
+    "strict": 33,
+    "cast_alias": 33
+   },
+   "unknown_lines": 21,
+   "unchecked_lines": 1
+  },
+  {
+   "book": "pdnc_theinvisibleman",
+   "arm": "cast_roles",
+   "model": "deepseek-v4-pro",
+   "located": 489,
+   "gold_rows": 904,
+   "named": {
+    "n": 230,
+    "strict": 170,
+    "cast_alias": 221
+   },
+   "title_name": {
+    "n": 221,
+    "strict": 215,
+    "cast_alias": 215
+   },
+   "descriptive": {
+    "n": 38,
+    "strict": 32,
+    "cast_alias": 32
+   },
+   "unknown_lines": 23,
+   "unchecked_lines": 1
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "base",
+   "model": "deepseek-v4-pro",
+   "located": 1928,
+   "gold_rows": 2337,
+   "named": {
+    "n": 1886,
+    "strict": 1500,
+    "cast_alias": 1504
+   },
+   "descriptive": {
+    "n": 42,
+    "strict": 0,
+    "cast_alias": 0
+   },
+   "unknown_lines": 163,
+   "unchecked_lines": 3
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "cast",
+   "model": "deepseek-v4-pro",
+   "located": 1928,
+   "gold_rows": 2337,
+   "named": {
+    "n": 1886,
+    "strict": 1305,
+    "cast_alias": 1749
+   },
+   "descriptive": {
+    "n": 42,
+    "strict": 25,
+    "cast_alias": 30
+   },
+   "unknown_lines": 27,
+   "unchecked_lines": 2
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "arm": "cast_roles",
+   "model": "deepseek-v4-pro",
+   "located": 1928,
+   "gold_rows": 2337,
+   "named": {
+    "n": 1886,
+    "strict": 1301,
+    "cast_alias": 1746
+   },
+   "descriptive": {
+    "n": 42,
+    "strict": 29,
+    "cast_alias": 35
+   },
+   "unknown_lines": 24,
+   "unchecked_lines": 4
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "base",
+   "model": "deepseek-v4-pro",
+   "located": 1761,
+   "gold_rows": 2610,
+   "named": {
+    "n": 1718,
+    "strict": 809,
+    "cast_alias": 809
+   },
+   "descriptive": {
+    "n": 43,
+    "strict": 0,
+    "cast_alias": 0
+   },
+   "unknown_lines": 191,
+   "unchecked_lines": 1
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "cast",
+   "model": "deepseek-v4-pro",
+   "located": 1761,
+   "gold_rows": 2610,
+   "named": {
+    "n": 1718,
+    "strict": 1568,
+    "cast_alias": 1568
+   },
+   "descriptive": {
+    "n": 43,
+    "strict": 7,
+    "cast_alias": 23
+   },
+   "unknown_lines": 19,
+   "unchecked_lines": 2
+  },
+  {
+   "book": "pdnc_thesunalsorises",
+   "arm": "cast_roles",
+   "model": "deepseek-v4-pro",
+   "located": 1761,
+   "gold_rows": 2610,
+   "named": {
+    "n": 1718,
+    "strict": 1560,
+    "cast_alias": 1560
+   },
+   "descriptive": {
+    "n": 43,
+    "strict": 8,
+    "cast_alias": 25
+   },
+   "unknown_lines": 11,
+   "unchecked_lines": 2
+  }
+ ],
+ "summary": {
+  "base": {
+   "descriptive_strict_pct": 0.0,
+   "descriptive_cast_alias_pct": 0.0,
+   "named_strict_pct": 67.8,
+   "named_cast_alias_pct": 69.0,
+   "title_name_strict_pct": 85.1,
+   "title_name_cast_alias_pct": 85.1,
+   "descriptive_n": 172,
+   "named_n": 4479,
+   "title_name_n": 241,
+   "unknown_lines": 722,
+   "unchecked_lines": 7
+  },
+  "cast": {
+   "descriptive_strict_pct": 58.7,
+   "descriptive_cast_alias_pct": 71.5,
+   "named_strict_pct": 80.1,
+   "named_cast_alias_pct": 93.2,
+   "title_name_strict_pct": 97.1,
+   "title_name_cast_alias_pct": 97.1,
+   "descriptive_n": 172,
+   "named_n": 4479,
+   "title_name_n": 241,
+   "unknown_lines": 91,
+   "unchecked_lines": 5
+  },
+  "cast_roles": {
+   "descriptive_strict_pct": 61.6,
+   "descriptive_cast_alias_pct": 75.6,
+   "named_strict_pct": 79.9,
+   "named_cast_alias_pct": 93.0,
+   "title_name_strict_pct": 97.5,
+   "title_name_cast_alias_pct": 97.5,
+   "descriptive_n": 172,
+   "named_n": 4479,
+   "title_name_n": 241,
+   "unknown_lines": 84,
+   "unchecked_lines": 7
+  }
+ },
+ "provenance": {
+  "script": "background_speakers.py",
+  "written": "2026-10-03T03:20:38",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
+   "branch": "issue-653-background-chars",
+   "dirty": false,
+   "source_state": "clean",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "228c74b992fbdf4cbbda4806d19d8031f1c9e88d9dea3668e9c89c593247beaa"
+  },
+  "args": {
+   "fixtures": "fixtures",
+   "command": "ab",
+   "runs": "out",
+   "casts": "casts",
+   "books": [
+    "pdnc_thesportofthegods",
+    "pdnc_themanwhowasthursday",
+    "pdnc_theinvisibleman",
+    "pdnc_ahandfulofdust",
+    "pdnc_thesunalsorises"
+   ],
+   "arms": [
+    "base",
+    "cast",
+    "cast_roles"
+   ],
+   "output": "ab_test_runtime/experiments/background_speakers_ab.json"
+  }
+ }
+}

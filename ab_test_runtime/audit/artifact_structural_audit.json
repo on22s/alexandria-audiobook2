@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 1003,
+    "supported_structure": 1004,
     "exploratory": 427,
     "provisional": 381,
     "artifacts_that_generated_nothing": 15
@@ -1157,9 +1157,27 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "background_speakers_ab.json",
+      "bytes": 7447,
+      "sha256": "bfd407c2af59706468d7257a238346c4de12efbb4a3b5102d7456f1ecdc7ba63",
+      "completeness": "unknown",
+      "stored_summary_problems": [],
+      "arms_that_generated_nothing": {},
+      "seed": null,
+      "status": null,
+      "row_count": 15,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-10-03T03:20:38",
+      "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "background_speakers_eval.json",
       "bytes": 197507,
-      "sha256": "092e973e2f0469e7a23a3758f3d706407d38a51f3f8320915f71e022e6c98cb2",
+      "sha256": "b3120a9f19e62d33b5e32054e518e8cf1b5c0021a1e27122b56650326929d5c0",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -1168,8 +1186,8 @@
       "row_count": 115,
       "has_rows": true,
       "identity_contract": "tts_provenance",
-      "written": "2026-10-02T21:27:07",
-      "commit": "443c9895811ab524a34c44271b02e0d841528dd5",
+      "written": "2026-10-03T03:20:44",
+      "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -1177,7 +1195,7 @@
     {
       "artifact": "background_speakers_threepass.json",
       "bytes": 14831,
-      "sha256": "f20b099d9a5f4761140db021157ae9c9a359a3dbc15c0d3d13333c9672eab02b",
+      "sha256": "7e80c94574cb8e291bc67ba41b2c78921a1fe268f7154b6e005a1b44a8a4ffac",
       "completeness": "unknown",
       "stored_summary_problems": [],
       "arms_that_generated_nothing": {},
@@ -1186,8 +1204,8 @@
       "row_count": 6,
       "has_rows": true,
       "identity_contract": "tts_provenance",
-      "written": "2026-10-02T21:27:08",
-      "commit": "443c9895811ab524a34c44271b02e0d841528dd5",
+      "written": "2026-10-03T03:20:44",
+      "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"

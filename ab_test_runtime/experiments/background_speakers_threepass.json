@@ -562,16 +562,16 @@
  ],
  "provenance": {
   "script": "background_speakers.py",
-  "written": "2026-10-02T21:27:08",
+  "written": "2026-10-03T03:20:44",
   "host": "mitch-linux",
   "git": {
-   "commit": "443c9895811ab524a34c44271b02e0d841528dd5",
+   "commit": "93584c4be186d9d6c8163c51523fff3696387cc9",
    "branch": "issue-653-background-chars",
    "dirty": false,
    "source_state": "clean",
    "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "9cb8f1995bf80c0aaaea0368c111e6c8a9ab5db97f06788888f890acc26fe4d7"
+   "harness_sha256": "228c74b992fbdf4cbbda4806d19d8031f1c9e88d9dea3668e9c89c593247beaa"
   },
   "args": {
    "fixtures": "fixtures",
