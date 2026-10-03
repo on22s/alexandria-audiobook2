@@ -28,6 +28,15 @@ generation.three_pass_speaker_traits on:
   3. No character with >= 10 lines flips A -> B -> A by 2+ bands more than once.
   4. Reported, not gated: post-prologue Rudeus lines labelled ADULT or older.
 Per-state voices (PR 2) is built on per-line age only if 1-3 pass.
+
+OUTCOME AND OWNER DECISION (2026-10-03). Three design rounds (v1-v3 artifacts):
+checks 1-2 pass on the final design in both runs; check 3 (raw per-line
+flicker) never passed - 2 flips per run remained, each a single stray stretch
+shorter than the 10-line persistence threshold (8 'adult' lines while Rudeus
+lectures Sylphie; 7 'young_adult' at a volume's end). The owner decided, after
+seeing these data, that per-state voices are judged by SETTLED states: checks
+1-2 plus "no wrong settled state". This criterion was changed post hoc and is
+labelled as such wherever it is cited.
 """
 import argparse
 import collections
