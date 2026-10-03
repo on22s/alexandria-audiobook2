@@ -35,7 +35,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 
 APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -137,7 +136,14 @@ def main(argv=None):
     checkpoint = three_pass_generate.three_pass_checkpoint_path(args.output)
     if not os.path.exists(checkpoint):
         os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-        shutil.copyfile(args.pass1_checkpoint, checkpoint)
+        # Through the loader, not copyfile: a checkpoint written by a current
+        # run is an indexed-delta header whose shards belong to ITS path, and
+        # a copied header fails "shard ownership" on load. The copy is written
+        # as a plain snapshot, which the loader accepts as legacy.
+        data = three_pass_generate.load_generation_delta_checkpoint(
+            args.pass1_checkpoint)
+        with open(checkpoint, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False)
     with open(args.output + ".ab_provenance.json", "w", encoding="utf-8") as handle:
         json.dump(provenance(__file__, args, passthrough=passthrough), handle,
                   indent=1)
