@@ -91,6 +91,11 @@ class SummaryTest(unittest.TestCase):
                  + [None, {"speaker": "NARRATOR", "text": "x"}])
         self.assertEqual({"ROXY": "female, teen, ageless"}, st.get_established_traits(named))
 
+    def test_children_get_no_age_anchor_adults_and_teens_do(self):
+        named = ([dict(_line("male", "toddler"), speaker="RUDY")] * 12
+                 + [dict(_line("male", "adult"), speaker="PAUL")] * 12)
+        self.assertEqual({"RUDY": "male", "PAUL": "male, adult"}, st.get_established_traits(named))
+
     def test_no_per_line_data_means_no_summary(self):
         self.assertIsNone(st.get_speaker_trait_summary([{"speaker": "X", "text": "hi"}]))
 

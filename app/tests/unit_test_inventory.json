@@ -6816,6 +6816,7 @@
     "tests.test_speaker_traits.SummaryTest.test_a_sustained_jump_settles_and_becomes_current",
     "tests.test_speaker_traits.SummaryTest.test_a_time_skip_is_a_state_change",
     "tests.test_speaker_traits.SummaryTest.test_ageless_is_a_flag_beside_the_age",
+    "tests.test_speaker_traits.SummaryTest.test_children_get_no_age_anchor_adults_and_teens_do",
     "tests.test_speaker_traits.SummaryTest.test_established_traits_are_the_settled_current_state",
     "tests.test_speaker_traits.SummaryTest.test_no_per_line_data_means_no_summary",
     "tests.test_speaker_traits.SummaryTest.test_stray_labels_never_become_a_state",
