@@ -599,6 +599,22 @@
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_marker_sets_paused_and_the_resume_line_clears_it",
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_ordinary_output_leaves_paused_alone"
   ],
+  "test_background_speakers": [
+    "tests.test_background_speakers.AbScoringTest.test_cast_alias_credits_full_name_strict_does_not",
+    "tests.test_background_speakers.AbScoringTest.test_incomplete_pass_two_is_refused",
+    "tests.test_background_speakers.DescriptiveLabelTest.test_descriptive_forms",
+    "tests.test_background_speakers.DescriptiveLabelTest.test_names_and_titled_names_are_not_descriptive",
+    "tests.test_background_speakers.GoldClassTest.test_bare_role_alias_does_not_make_an_extra_named",
+    "tests.test_background_speakers.GoldClassTest.test_descriptor_of_a_named_person_is_its_own_class",
+    "tests.test_background_speakers.GoldClassTest.test_missing_gold_count_raises_instead_of_banding_as_zero",
+    "tests.test_background_speakers.GoldClassTest.test_title_used_as_name",
+    "tests.test_background_speakers.OutcomeTest.test_outcomes_are_exhaustive",
+    "tests.test_background_speakers.SameSpeakerTest.test_alias_still_credited",
+    "tests.test_background_speakers.SameSpeakerTest.test_article_and_also_suffix_carry_no_identity",
+    "tests.test_background_speakers.SameSpeakerTest.test_loose_form_shared_by_two_gold_people_is_not_credited",
+    "tests.test_background_speakers.SameSpeakerTest.test_wrong_people_stay_wrong",
+    "tests.test_background_speakers.VolumeTest.test_repeat_generations_group_into_one_volume"
+  ],
   "test_basic_auth_scheme_case": [
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_all_basic_scheme_cases_accept_same_exact_unicode_credentials",
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_wrong_scheme_and_malformed_payload_still_reject"
