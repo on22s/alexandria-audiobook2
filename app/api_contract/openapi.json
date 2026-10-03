@@ -266,6 +266,11 @@
       },
       "BatchScriptRequest": {
         "properties": {
+          "build_cast_lists": {
+            "default": false,
+            "title": "Build Cast Lists",
+            "type": "boolean"
+          },
           "collision_policy": {
             "default": "cancel",
             "enum": [
@@ -498,6 +503,35 @@
           "name"
         ],
         "title": "CastCreateRequest",
+        "type": "object"
+      },
+      "CastListBuildRequest": {
+        "properties": {
+          "strip_front_matter": {
+            "default": true,
+            "title": "Strip Front Matter",
+            "type": "boolean"
+          }
+        },
+        "title": "CastListBuildRequest",
+        "type": "object"
+      },
+      "CastListUpdate": {
+        "properties": {
+          "cast": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 2000,
+            "title": "Cast",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cast"
+        ],
+        "title": "CastListUpdate",
         "type": "object"
       },
       "CastMatchBulkRequest": {
@@ -3896,6 +3930,132 @@
           }
         },
         "summary": "Cancel Persona"
+      }
+    },
+    "/api/cast_list": {
+      "delete": {
+        "operationId": "delete_cast_list_api_cast_list_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Cast List"
+      },
+      "get": {
+        "description": "The selected book's cast list, or {\"cast\": null} when it has none.",
+        "operationId": "get_cast_list_api_cast_list_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Cast List"
+      },
+      "post": {
+        "description": "Save a hand-edited list. Refused, and nothing written, if generation\nwould refuse it.",
+        "operationId": "save_cast_list_endpoint_api_cast_list_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastListUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Cast List Endpoint"
+      }
+    },
+    "/api/cast_list/build": {
+      "post": {
+        "description": "Ask the model for everyone who speaks in the selected book, unnamed people\nincluded, and save it where generation will find it (#653).",
+        "operationId": "build_cast_list_endpoint_api_cast_list_build_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CastListBuildRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Cast List Endpoint"
+      }
+    },
+    "/api/cast_list/cancel": {
+      "post": {
+        "operationId": "cast_list_cancel_api_cast_list_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cast List Cancel"
       }
     },
     "/api/chapter_exports": {

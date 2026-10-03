@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import three_pass_generate as tp
 from generate_script import LLMGenParams
 from pass_quality import validate_attribution
-from experiments.build_cast_list import parse_cast, request_cast
+from cast_list import parse_cast_list as parse_cast, request_cast_list as request_cast
 from tests.test_three_pass_keep_exhausted import DURGAN_LINE, DURGAN_SOURCE, _client_always
 
 # "the stranger" only ever mid-sentence and lowercase, as in the novel; long enough

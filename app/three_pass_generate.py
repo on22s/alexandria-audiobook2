@@ -360,18 +360,28 @@ def load_cast(path):
     lost 99 lines to UNKNOWN in stage 0 (2026-09-28). A malformed file raises.
     """
     raw = open(path, "rb").read()
-    data = json.loads(raw.decode("utf-8"))
-    if isinstance(data, dict):          # build_cast_list.py output: {"cast": [...], "provenance"}
+    try:
+        cast = get_cast_from_data(json.loads(raw.decode("utf-8")))
+    except ValueError as exc:
+        raise ValueError(f"cast file {path}: {exc}") from exc
+    return {**cast, "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def get_cast_from_data(data):
+    """The one cast validator, for a file (load_cast) and an edited list (the
+    app's PUT /api/cast_list) alike. Returns load_cast's dict without the
+    file hash, which only a file has."""
+    if isinstance(data, dict):          # cast_list.py output: {"cast": [...], "provenance"}
         data = data.get("cast")
     if not isinstance(data, list) or not data:
-        raise ValueError(f"cast file {path} must be a non-empty JSON list")
+        raise ValueError("must be a non-empty JSON list")
     names, groups, alias_to_name = [], [], {}
     for item in data:
         if (not isinstance(item, dict) or not isinstance(item.get("name"), str)
                 or not item["name"].strip()
                 or not isinstance(item.get("aliases", []), list)
                 or not all(isinstance(a, str) for a in item.get("aliases", []))):
-            raise ValueError(f"cast file {path}: bad entry {item!r}")
+            raise ValueError(f"bad entry {item!r}")
         name = item["name"].strip().upper()
         if name in names:
             continue
@@ -382,8 +392,7 @@ def load_cast(path):
         for alias in aliases:
             alias_to_name.setdefault(alias, name)
     return {"names": names, "alias_groups": groups, "alias_to_name": alias_to_name,
-            "known_names": frozenset(names) | frozenset(alias_to_name),
-            "sha256": hashlib.sha256(raw).hexdigest()}
+            "known_names": frozenset(names) | frozenset(alias_to_name)}
 
 
 def default_instruct(entry):
@@ -2707,6 +2716,40 @@ def get_output_paths(data_dir, requested_output=None):
             os.path.join(data_dir, "chunks.json"))
 
 
+def get_prepared_source(path, strip_front_matter=True, report=lambda message: None):
+    """-> (text, unicode_report): the source exactly as generation sees it.
+
+    One sequence for every caller that sends the book to a model - generation
+    and the whole-book cast list (cast_list.py) - so a cast is never built from
+    text pass 2 does not receive (front matter, repaired encoding). `report`
+    receives the same notices main() has always printed. Raises ValueError for
+    a source the shared gate refuses.
+    """
+    book, source_encoding = read_source_text(path)
+    if source_encoding != "utf-8":
+        report(f"Read {path} as {source_encoding} (not valid UTF-8)")
+    book, preprocessing = get_preprocessed_source(
+        book, strip_front_matter=strip_front_matter)
+    if preprocessing["source_normalizations"]:
+        report(f"Normalized {len(preprocessing['source_normalizations'])} known source "
+               "corruption(s) in memory; the upload was not modified.")
+    publisher = preprocessing["publisher_matter"]
+    if publisher["front_paragraphs"] or publisher["back_paragraphs"]:
+        report(f"Stripped publisher matter: {publisher['front_paragraphs']} "
+               f"paragraph(s) from the front, {publisher['back_paragraphs']} "
+               "from the back (copyright page / colophon, not narration)")
+    book, unicode_report = prepare_source_text(book)
+    require_nonempty_source(book)
+    if unicode_report["repaired"] or unicode_report["residual"]:
+        report(f"Repaired {unicode_report['repaired']} destroyed character(s); "
+               f"neutralized {unicode_report['residual']} unrecoverable one(s). "
+               "The source file was not modified.")
+    if unicode_report["unresolved"]:
+        report(f"Retained {unicode_report['unresolved']} unresolved replacement character(s); "
+               "the shared source gate admits this remaining load.")
+    return book, unicode_report
+
+
 def main():
     parser = argparse.ArgumentParser(description="Three-pass annotated script generation.")
     parser.add_argument("input_file")
@@ -2763,32 +2806,12 @@ def main():
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
 
-    book, source_encoding = read_source_text(args.input_file)
-    if source_encoding != "utf-8":
-        print(f"Read {args.input_file} as {source_encoding} (not valid UTF-8)")
-    book, preprocessing = get_preprocessed_source(
-        book, strip_front_matter=args.strip_front_matter)
-    if preprocessing["source_normalizations"]:
-        print(f"Normalized {len(preprocessing['source_normalizations'])} known source "
-              "corruption(s) in memory; the upload was not modified.")
-    publisher = preprocessing["publisher_matter"]
-    if publisher["front_paragraphs"] or publisher["back_paragraphs"]:
-        print(f"Stripped publisher matter: {publisher['front_paragraphs']} "
-              f"paragraph(s) from the front, {publisher['back_paragraphs']} "
-              "from the back (copyright page / colophon, not narration)")
     try:
-        book, unicode_report = prepare_source_text(book)
-        require_nonempty_source(book)
+        book, unicode_report = get_prepared_source(
+            args.input_file, args.strip_front_matter, report=print)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
-    if unicode_report["repaired"] or unicode_report["residual"]:
-        print(f"Repaired {unicode_report['repaired']} destroyed character(s); "
-              f"neutralized {unicode_report['residual']} unrecoverable one(s). "
-              "The source file was not modified.")
-    if unicode_report["unresolved"]:
-        print(f"Retained {unicode_report['unresolved']} unresolved replacement character(s); "
-              "the shared source gate admits this remaining load.")
     try:
         narrator = get_valid_narrator_name(args.first_person_narrator)
     except ValueError as exc:

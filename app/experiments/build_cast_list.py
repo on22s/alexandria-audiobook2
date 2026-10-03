@@ -1,117 +1,23 @@
-"""Build a cast list for three_pass_generate.py --cast-file, from the whole book in one call.
+"""Build a cast list for three_pass_generate.py --cast-file (kept for existing runbooks).
 
-Why: pass 2's roster admits only names the text capitalises three or more times, so a
-character the book never names ("the stranger", The Invisible Man's protagonist) can never
-be on it, and the model answers UNKNOWN - 99 of The Invisible Man's lines in stage 0 of the
-DeepSeek labelling plan (2026-09-28). One call over the whole text listed him as THE STRANGER
-(also THE INVISIBLE MAN, GRIFFIN), and its names and aliases covered 903 of 904 PDNC gold
-lines, for $0.047.
-
-Uses the active profile (ALEXANDRIA_DATA_DIR / config.json), including any provider body
-(thinking on or off as configured). Refuses a source that would not fit the context rather
-than truncating it. Writes {"cast": [...], "provenance": {...}}; three_pass_generate reads
-the "cast" list (or a bare list).
+The request, parser and retry policy moved to app/cast_list.py when the app gained a
+"Build cast list" step (#653); this entry point is that module's CLI, unchanged in
+use:
 
     ALEXANDRIA_DATA_DIR=... python experiments/build_cast_list.py book.txt --out book.cast.json
+
+The source now goes through the same preparation as generation
+(three_pass_generate.get_prepared_source), so a cast is built from the text pass 2 sees.
 """
-import argparse
-import hashlib
-import json
 import os
-import re
 import sys
-import time
 
 APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, APP)
 
-PROMPT = ("Below is a complete novel. List every character who SPEAKS a quoted line at least "
-          "once. Give each as the name a reader would use for them; if the text never names "
-          "them, use the description the text uses (for example \"THE STRANGER\", \"THE "
-          "LANDLADY\"). For each character give every other name or description the text uses "
-          "for the same person. Answer with only JSON: "
-          '[{"name": "...", "aliases": ["...", ...]}, ...], UPPERCASE.\n\n')
-
-
-def parse_cast(content):
-    """The JSON list from a reply, with or without a code fence; raises if there is none."""
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (content or "").strip())
-    data = json.loads(text)
-    if not isinstance(data, list) or not all(isinstance(x, dict) and x.get("name") for x in data):
-        raise ValueError("reply is not a list of {name, aliases}")
-    return [{"name": str(x["name"]).strip().upper(),
-             "aliases": [str(a).strip().upper() for a in x.get("aliases") or [] if str(a).strip()]}
-            for x in data]
-
-
-MAX_ATTEMPTS = 3
-
-
-def request_cast(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS):
-    """(cast, response, attempts) from one call, retried when the reply ran to the token cap.
-
-    A reply that stops at max_tokens is a runaway (Anne of Green Gables, 2026-09-29: 40 names
-    cycled 6.5 times until the cap cut a string in half; the same call at temperature 0 later
-    answered with 70 characters in 2,295 tokens), so raising the cap does not help and the
-    reply is never parsed or repaired. One policy on every attempt: length -> discard and ask
-    again; any other finish reason is parsed and a bad parse raises at once. Raises after
-    max_attempts truncated replies, saying so.
-    """
-    for attempt in range(1, max_attempts + 1):
-        r = client.chat.completions.create(model=model, temperature=0, max_tokens=max_tokens,
-                                           messages=[{"role": "user", "content": PROMPT + text}])
-        if r.choices[0].finish_reason != "length":
-            return parse_cast(r.choices[0].message.content), r, attempt
-        print(f"attempt {attempt}/{max_attempts}: reply hit max_tokens={max_tokens}; discarded",
-              file=sys.stderr)
-    raise RuntimeError(f"cast list truncated at max_tokens={max_tokens} on all {max_attempts} "
-                       "attempts (finish_reason=length); not parsing a cut-off reply")
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("source")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--max-tokens", type=int, default=8000)
-    ap.add_argument("--max-source-chars", type=int, default=1_200_000,
-                    help="refuse longer sources (about 300k tokens) instead of truncating")
-    a = ap.parse_args()
-    from config_settings import load_app_config
-    from core import llm_timeout_seconds
-    from llm_provider import make_run_client
-    from lmstudio_settings import get_active_llm_config
-    from utils import get_app_config_path, get_runtime_data_dir
-
-    text = open(a.source, encoding="utf-8").read()
-    if len(text) > a.max_source_chars:
-        sys.exit(f"REFUSING: {len(text)} chars is over --max-source-chars {a.max_source_chars}")
-    root = os.path.dirname(APP)
-    config = load_app_config(get_app_config_path(get_runtime_data_dir(root), root, APP))
-    llm = get_active_llm_config(config)
-    client = make_run_client(config, llm, llm_timeout_seconds())
-    t0 = time.time()
-    cast, r, attempts = request_cast(client, llm.get("model_name"), text, a.max_tokens)
-    usage = getattr(r, "usage", None)
-    from experiments.provenance import provenance
-    out = {"cast": cast, "provenance": provenance(
-        __file__, a,
-        model=llm.get("model_name"), base_url=llm.get("base_url"),
-        provider_extra_body=llm.get("provider_extra_body"),
-        prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest(),
-        source=os.path.abspath(a.source),
-        source_sha256=hashlib.sha256(text.encode()).hexdigest(),
-        finish_reason=r.choices[0].finish_reason, attempts=attempts,
-        usage={"prompt_tokens": getattr(usage, "prompt_tokens", None),
-               "completion_tokens": getattr(usage, "completion_tokens", None)},
-        elapsed_s=round(time.time() - t0, 1))}
-    tmp = a.out + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(out, f, indent=1, ensure_ascii=False)
-    os.replace(tmp, a.out)
-    print(f"{len(cast)} characters -> {a.out} "
-          f"(prompt {out['provenance']['usage']['prompt_tokens']}, "
-          f"completion {out['provenance']['usage']['completion_tokens']})")
-
+from cast_list import (MAX_ATTEMPTS, PROMPT, main,                     # noqa: E402,F401
+                       parse_cast_list as parse_cast,
+                       request_cast_list as request_cast)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

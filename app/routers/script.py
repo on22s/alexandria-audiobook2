@@ -26,7 +26,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from math import ceil
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
@@ -57,6 +57,7 @@ from three_pass_generate import (build_attribute_request,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
 from merge_integrity import get_source_integrity
+from cast_list import get_cast_list_path, save_cast_list
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (split_outer_quote_regions, validate_attribution,
@@ -1009,7 +1010,8 @@ def start_book_preflight(background_tasks, request):
             source_copy, output_path=output,
             strip_front_matter=request is None or request.strip_front_matter,
             first_person_narrator=request.first_person_narrator if request else None,
-            reasoning_effort=get_active_llm_config(config).get("reasoning_effort"))
+            reasoning_effort=get_active_llm_config(config).get("reasoning_effort"),
+            cast_file=get_existing_cast_list(source_path))
         command.append("--preflight")
         job_id = uuid.uuid4().hex
         receipt = {"job_id": job_id, "status": "running", "book_id": source_book,
@@ -1088,10 +1090,38 @@ def get_active_reasoning_effort() -> Optional[str]:
     return get_active_llm_config(load_app_config(CONFIG_PATH)).get("reasoning_effort") or None
 
 
+# The cast list a single run started with, frozen so that editing the book's
+# list after a failure cannot change the resume fingerprint (the cast hash is
+# part of it) and silently send Retry back to chunk 1.
+def get_run_cast_path() -> str:
+    return os.path.join(DATA_DIR, "script_run_cast.json")
+
+
+def get_file_sha256(path: str) -> Optional[str]:
+    """sha256 of a file's bytes, or None when it does not exist."""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return None
+
+
+def get_existing_cast_list(input_file: str) -> Optional[str]:
+    """The cast list built for this source's bytes, if there is one (#653).
+
+    A source that is not there has no list; generation reports the missing
+    file itself, in its own words, rather than failing here first."""
+    try:
+        path = get_cast_list_path(input_file, DATA_DIR)
+    except FileNotFoundError:
+        return None
+    return path if os.path.isfile(path) else None
+
+
 def build_generate_script_command(input_file: str, output_path: Optional[str] = None,
                                   strip_front_matter: bool = True,
                                   first_person_narrator: Optional[str] = None,
-                                  reasoning_effort: Optional[str] = None) -> List[str]:
+                                  reasoning_effort: Optional[str] = None,
+                                  cast_file: Optional[str] = None) -> List[str]:
     """Build the one production command used by single and batch generation.
 
     `reasoning_effort` is passed explicitly so three_pass_generate records it
@@ -1108,6 +1138,8 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
     narrator = get_valid_narrator_name(first_person_narrator)
     if narrator:
         command.extend(["--first-person-narrator", narrator])
+    if cast_file:
+        command.extend(["--cast-file", cast_file])
     return command
 
 
@@ -1259,12 +1291,25 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
+    if require_recovery:
+        stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+        stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
+        options["cast_sha256"] = stored.get("cast_sha256")
+        if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
+            raise HTTPException(status_code=409, detail=(
+                "The cast list this run started with is missing or changed, so it cannot "
+                "resume; start a new run."))
+        cast_source = None
+    else:
+        cast_source = get_existing_cast_list(input_file)
+    uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
     try:
         command = build_generate_script_command(
             input_file,
             strip_front_matter=options["strip_front_matter"],
             first_person_narrator=options["first_person_narrator"],
             reasoning_effort=get_active_reasoning_effort(),
+            cast_file=get_run_cast_path() if uses_cast else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1273,6 +1318,16 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
         if request is not None and request.start_over and not require_recovery:
             discard_script_progress(locked=True)
+        if not require_recovery:
+            if cast_source:
+                cast_bytes = Path(cast_source).read_bytes()
+                temporary = get_run_cast_path() + ".tmp"
+                Path(temporary).write_bytes(cast_bytes)
+                os.replace(temporary, get_run_cast_path())
+                options["cast_sha256"] = hashlib.sha256(cast_bytes).hexdigest()
+            else:
+                Path(get_run_cast_path()).unlink(missing_ok=True)
+                options["cast_sha256"] = None
         state_path = os.path.join(DATA_DIR, "state.json")
         state = safe_load_json(state_path, {})
         if isinstance(state, dict):
@@ -1775,6 +1830,81 @@ async def save_character_aliases(aliases: Dict[str, str]):
     return {"status": "saved", "count": len(cleaned)}
 
 
+class CastListBuildRequest(BaseModel):
+    strip_front_matter: bool = True
+
+
+class CastListUpdate(BaseModel):
+    cast: List[Dict[str, Any]] = Field(max_length=2000)
+
+
+def get_current_cast_list_target():
+    """-> (input file, its cast-list path) for the book selected on the Script tab."""
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    input_file = state.get("input_file_path") if isinstance(state, dict) else None
+    if not input_file or not os.path.isfile(input_file):
+        raise HTTPException(status_code=400, detail="No input file selected")
+    return input_file, get_cast_list_path(input_file, DATA_DIR)
+
+
+@router.post("/api/cast_list/build")
+async def build_cast_list_endpoint(background_tasks: BackgroundTasks,
+                                   request: Optional[CastListBuildRequest] = None):
+    """Ask the model for everyone who speaks in the selected book, unnamed people
+    included, and save it where generation will find it (#653)."""
+    input_file, path = await asyncio.to_thread(get_current_cast_list_target)
+    cmd = [sys.executable, "-u", "cast_list.py", input_file, "--out", path]
+    if request is not None and not request.strip_front_matter:
+        cmd.append("--no-strip-front-matter")
+    schedule_claimed_background_task(background_tasks, "cast_list", run_process, cmd, "cast_list")
+    return {"status": "started"}
+
+
+@router.post("/api/cast_list/cancel")
+async def cast_list_cancel():
+    return _cancel_task("cast_list", "No cast list is being built.", "Cast list build already exited.")
+
+
+@router.get("/api/cast_list")
+async def get_cast_list():
+    """The selected book's cast list, or {"cast": null} when it has none."""
+    _, path = await asyncio.to_thread(get_current_cast_list_target)
+    document = safe_load_json(path, default=None)
+    if not isinstance(document, dict) or not isinstance(document.get("cast"), list):
+        return {"cast": None}
+    provenance = document.get("provenance") or {}
+    return {"cast": document["cast"], "count": len(document["cast"]),
+            "written": provenance.get("edited") or provenance.get("written"),
+            "edited": bool(provenance.get("edited"))}
+
+
+@router.post("/api/cast_list")
+async def save_cast_list_endpoint(update: CastListUpdate):
+    """Save a hand-edited list. Refused, and nothing written, if generation
+    would refuse it."""
+    _, path = await asyncio.to_thread(get_current_cast_list_target)
+    previous = safe_load_json(path, default={})
+    provenance = dict((previous.get("provenance") or {}) if isinstance(previous, dict) else {})
+    provenance["edited"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with file_lock(path):
+            save_cast_list(path, update.cast, provenance)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Cast list refused: {exc}") from exc
+    return {"status": "saved", "count": len(update.cast)}
+
+
+@router.delete("/api/cast_list")
+async def delete_cast_list():
+    _, path = await asyncio.to_thread(get_current_cast_list_target)
+    if not os.path.isfile(path):
+        return {"status": "deleted"}
+    with file_lock(path):
+        Path(path).unlink(missing_ok=True)
+    return {"status": "deleted"}
+
+
 @router.post("/api/review_script/batch/start")
 async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
     """Review multiple saved scripts from the Scripts library, in place.
@@ -2036,6 +2166,9 @@ class BatchScriptRequest(BaseModel):
     tasks: List[BatchScriptTask] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)
     collision_policy: Literal["cancel", "version", "replace"] = "cancel"
     strip_front_matter: bool = True
+    # Build a whole-book cast list for each book that has none before
+    # generating it (#653). Off by default: one extra request per book.
+    build_cast_lists: bool = False
 
 
 def _get_versioned_script_path(path: str) -> str:
@@ -2317,11 +2450,28 @@ def _run_claimed_batch_script_job(job, state, log_path, total):
     env = os.environ.copy()
     if state.get("run_id"):
         env["ALEXANDRIA_RUN_ID"] = state["run_id"]
+    if job.get("build_cast_list") and not get_existing_cast_list(job["input_path"]):
+        cast_command = [sys.executable, "-u", "cast_list.py", job["input_path"],
+                        "--out", get_cast_list_path(job["input_path"], DATA_DIR)]
+        if not job.get("strip_front_matter", True):
+            cast_command.append("--no-strip-front-matter")
+        cast_rc, _ = _stream_subprocess_to_logs(
+            cast_command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",
+            log_file=log_path, env=env)
+        if state.get("cancel"):
+            state["tasks"][index]["status"] = "cancelled"
+            return
+        if cast_rc != 0:
+            state["tasks"][index]["status"] = "failed"
+            state["logs"].append(f"[{index + 1}] Cast list failed (exit {cast_rc}); "
+                                 f"not generating {job['filename']} without it.")
+            return
     command = build_generate_script_command(
         job["input_path"], output_path=job["output_path"],
         strip_front_matter=job.get("strip_front_matter", True),
         first_person_narrator=job.get("first_person_narrator"),
         reasoning_effort=get_active_reasoning_effort(),
+        cast_file=get_existing_cast_list(job["input_path"]),
     )
     rc, _ = _stream_subprocess_to_logs(
         command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",
@@ -2431,6 +2581,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             jobs.append({"index": i, "filename": task.filename, "input_path": input_path,
                          "output_path": output_path, "safe_stem": safe_stem,
                          "strip_front_matter": request.strip_front_matter,
+                         "build_cast_list": request.build_cast_lists,
                          "first_person_narrator": prepared_jobs[i]["first_person_narrator"],
                          "prepared_source": prepared_jobs[i]["prepared_source"],
                          "collision_policy": "version" if was_reserved else request.collision_policy})

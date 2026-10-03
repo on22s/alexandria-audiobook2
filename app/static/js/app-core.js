@@ -211,6 +211,7 @@
             script: 'Script generation',
             review: 'Script review',
             nicknames: 'Nickname discovery',
+            cast_list: 'Cast list',
             persona: 'Persona generation',
             audio: 'Audio generation',
             batch_review: 'Batch review',
@@ -1511,6 +1512,8 @@
                 applyCurrentBookFilename(result.stored_filename);
                 document.getElementById('file-upload').value = '';
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Reusing: ${escapeHtml(result.stored_filename)}</span>`;
+                document.getElementById('cast-list-panel').style.display = 'none';
+                await loadCastList(false);
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger">Failed to select upload: ${escapeHtml(e.message)}</span>`;
             }
@@ -1528,6 +1531,8 @@
                 document.getElementById('existing-upload-select').value = '';
                 const verb = res.reused ? 'Reused existing copy' : 'Loaded';
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
+                document.getElementById('cast-list-panel').style.display = 'none';
+                await loadCastList(false);
                 await loadExistingScriptUploads();
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed to load file: ${escapeHtml(e.message)}</span>`;
@@ -2206,7 +2211,8 @@
                 operation.phase = 'starting';
                 await API.post('/api/generate_script/batch/start', {
                     tasks, collision_policy: collisionPolicy,
-                    strip_front_matter: _isStripFrontMatterChecked()
+                    strip_front_matter: _isStripFrontMatterChecked(),
+                    build_cast_lists: document.getElementById('script-batch-build-cast-lists').checked
                 });
                 started = true;
                 operation.phase = 'started';
@@ -2246,6 +2252,9 @@
                     renderLogs(state);
 
                     syncPauseButton('batch_script', state);
+                    // manual transport: a batch (its cast lists included) waits on
+                    // the user too; pollLogs does this for the single-book tasks
+                    renderManualRequest(state, 'batch_script');
                     if (state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
@@ -2257,6 +2266,7 @@
                 },
                 onDone: (state) => {
                     scriptBatchPoller = null;
+                    renderManualRequest({ running: false }, 'batch_script');
                     _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
                         'Inspect the log and resume failed books from their validated checkpoints.');
                     notifyJobDone('batch_script');
@@ -2542,6 +2552,139 @@
                 document.getElementById('btn-pause-nick').style.display = 'none';
                 document.getElementById('btn-cancel-nick').style.display = 'none';
                 showToast('Failed to start nickname discovery: ' + e.message, 'error');
+            }
+        }
+
+        // Cast list (#653): one request over the whole book lists everyone who
+        // speaks, people the book never names included. Generation uses it when
+        // the selected book has one; the table below edits it.
+        let castListLoaded = false;
+        let castListRequest = 0;
+
+        async function buildCastList() {
+            if (!(await confirmIfRemote('this cast list (the whole book in one request)'))) { return; }
+            const btn = document.getElementById('btn-build-cast-list');
+            const cancelBtn = document.getElementById('btn-cancel-cast-list');
+            btn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
+            try {
+                await API.post('/api/cast_list/build', { strip_front_matter: _isStripFrontMatterChecked() });
+                pollScriptLogs('cast_list', async () => {
+                    btn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                    await loadCastList(true);
+                });
+            } catch (e) {
+                btn.disabled = false;
+                cancelBtn.style.display = 'none';
+                showToast('Failed to start the cast list: ' + e.message, 'error');
+            }
+        }
+
+        window.cancelCastList = () => cancelTask('/api/cast_list/cancel', {
+            onSuccess: () => {
+                document.getElementById('btn-build-cast-list').disabled = false;
+                document.getElementById('btn-cancel-cast-list').style.display = 'none';
+            },
+        });
+
+        function renderCastListStatus(result) {
+            const status = document.getElementById('cast-list-status');
+            if (result && result.cast) {
+                const edited = result.edited ? ', edited' : '';
+                status.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Generate will use this book's cast list (${result.count} people${edited}).</span>`;
+            } else {
+                status.textContent = 'No cast list for this book. Generation finds speakers on its own; people the book never names come out as UNKNOWN.';
+            }
+        }
+
+        function getCastListRowHtml(entry) {
+            const aliases = (entry.aliases || []).join(', ');
+            return `
+                <div class="input-group input-group-sm mb-1 cast-list-row">
+                    <input type="text" class="form-control cast-list-name" placeholder="NAME or THE DESCRIPTION" value="${escapeHtml(entry.name || '')}">
+                    <input type="text" class="form-control cast-list-aliases" placeholder="other names, comma-separated" value="${escapeHtml(aliases)}">
+                    <button class="btn btn-outline-danger" type="button" onclick="this.closest('.cast-list-row').remove()"><i class="fas fa-times"></i></button>
+                </div>`;
+        }
+
+        async function loadCastList(show) {
+            const panel = document.getElementById('cast-list-panel');
+            const request = ++castListRequest;
+            castListLoaded = false;
+            let result;
+            try {
+                result = await API.get('/api/cast_list');
+            } catch (e) {
+                if (request !== castListRequest) { return; }
+                renderCastListStatus(null);
+                if (show) { showToast('Select a book first.', 'error'); }
+                return;
+            }
+            if (request !== castListRequest) { return; }
+            castListLoaded = true;
+            renderCastListStatus(result);
+            if (!show) { return; }
+            const cast = (result && result.cast) || [];
+            panel.style.display = 'block';
+            panel.innerHTML = `
+                <div class="border rounded p-2">
+                    <div class="small fw-bold mb-1">Cast list <span class="text-muted">(each person gets their own voice; aliases are the same person)</span></div>
+                    <div id="cast-list-rows">
+                        ${cast.length ? cast.map(getCastListRowHtml).join('') : '<div class="text-muted small mb-1">No cast list yet. Build one, or add people by hand.</div>'}
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addCastListRow()"><i class="fas fa-plus me-1"></i>Add</button>
+                        <button class="btn btn-sm btn-success" type="button" onclick="saveCastList()"><i class="fas fa-save me-1"></i>Save cast list</button>
+                        <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCastList()"><i class="fas fa-trash me-1"></i>Delete</button>
+                    </div>
+                </div>`;
+        }
+
+        window.addCastListRow = () => {
+            const rows = document.getElementById('cast-list-rows');
+            const placeholder = rows.querySelector('.text-muted');
+            if (placeholder) { placeholder.remove(); }
+            rows.insertAdjacentHTML('beforeend', getCastListRowHtml({ name: '', aliases: [] }));
+        };
+
+        async function saveCastList() {
+            if (!castListLoaded) {
+                showToast('Reload the cast list before saving.', 'error');
+                return;
+            }
+            const cast = [];
+            for (const row of document.querySelectorAll('#cast-list-rows .cast-list-row')) {
+                const name = row.querySelector('.cast-list-name').value.trim();
+                const aliases = row.querySelector('.cast-list-aliases').value
+                    .split(',').map(a => a.trim()).filter(a => a);
+                if (!name && aliases.length) {
+                    showToast('Every row with aliases needs a name.', 'error');
+                    return;
+                }
+                if (name) { cast.push({ name, aliases }); }
+            }
+            if (!cast.length) {
+                showToast('The cast list is empty; use Delete to remove it.', 'error');
+                return;
+            }
+            try {
+                const res = await API.post('/api/cast_list', { cast });
+                showToast(`Saved ${res.count} people. Generate will use them.`, 'success');
+                await loadCastList(true);
+            } catch (e) {
+                showToast('Save failed: ' + (e.message || ''), 'error');
+            }
+        }
+
+        async function deleteCastList() {
+            try {
+                await API.del('/api/cast_list');
+                document.getElementById('cast-list-panel').style.display = 'none';
+                await loadCastList(false);
+                showToast('Cast list deleted.', 'success');
+            } catch (e) {
+                showToast('Delete failed: ' + (e.message || ''), 'error');
             }
         }
 

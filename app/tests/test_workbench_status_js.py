@@ -73,7 +73,7 @@ for (const mode of ['running','idle','unavailable']) {
         _startPolling:(key,fetchFn,options)=>{pollers.push({key,fetchFn,options});},
         escapeHtml:String,
     };
-    for (const name of ['loadConfig','loadVoices','loadSavedScripts','loadDesignedVoices',
+    for (const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices',
                         'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus','pollLmStudioStatus']) {
         context[name] = () => {};
     }

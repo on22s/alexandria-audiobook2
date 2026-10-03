@@ -1107,6 +1107,19 @@
     "tests.test_cast_label_warnings.CastLabelWarningTests.test_secondary_timeout_preserves_committed_single_assignment",
     "tests.test_cast_label_warnings.CastLabelWarningTests.test_successful_label_recording_has_no_warning"
   ],
+  "test_cast_list": [
+    "tests.test_cast_list.CastListTest.test_a_list_generation_would_refuse_is_not_written",
+    "tests.test_cast_list.CastListTest.test_model_is_sent_the_text_generation_sees",
+    "tests.test_cast_list.CastListTest.test_path_is_keyed_by_bytes_not_name",
+    "tests.test_cast_list.CastListTest.test_source_over_the_limit_is_refused_before_any_request",
+    "tests.test_cast_list.CastListTest.test_unparseable_reply_writes_nothing"
+  ],
+  "test_cast_list_ui": [
+    "tests.test_cast_list_ui.CastListUITests.test_a_name_from_the_model_is_rendered_as_text",
+    "tests.test_cast_list_ui.CastListUITests.test_batch_poller_renders_the_manual_request",
+    "tests.test_cast_list_ui.CastListUITests.test_every_element_the_script_uses_is_on_the_page",
+    "tests.test_cast_list_ui.CastListUITests.test_every_handler_the_page_calls_exists"
+  ],
   "test_chain_artifact_scope": [
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_actual_replay_loop_commits_only_dispatched_result_and_its_checkpoint",
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_current_literal_file_commits_without_other_sessions_same_folder_wip",
@@ -6345,6 +6358,18 @@
     "tests.test_scoring_unicode_names.ScriptSurvivalTests.test_distinct_non_latin_names_stay_distinct",
     "tests.test_scoring_unicode_names.ScriptSurvivalTests.test_hanzi_survives",
     "tests.test_scoring_unicode_names.ScriptSurvivalTests.test_kana_and_kanji_survive"
+  ],
+  "test_script_cast_routes": [
+    "tests.test_script_cast_routes.BatchCastTest.test_a_failed_build_fails_the_book_without_generating",
+    "tests.test_script_cast_routes.BatchCastTest.test_asked_to_build_builds_then_generates_with_it",
+    "tests.test_script_cast_routes.BatchCastTest.test_not_asked_builds_nothing",
+    "tests.test_script_cast_routes.CastRoutesTest.test_a_book_with_a_list_generates_from_a_frozen_copy",
+    "tests.test_script_cast_routes.CastRoutesTest.test_a_book_without_a_list_generates_without_one",
+    "tests.test_script_cast_routes.CastRoutesTest.test_cast_list_is_an_llm_task_under_the_lock",
+    "tests.test_script_cast_routes.CastRoutesTest.test_command_carries_cast_file_only_when_given",
+    "tests.test_script_cast_routes.CastRoutesTest.test_retry_keeps_the_list_the_run_started_with",
+    "tests.test_script_cast_routes.CastRoutesTest.test_retry_refuses_when_the_frozen_list_changed",
+    "tests.test_script_cast_routes.CastRoutesTest.test_saving_a_bad_list_is_refused_and_writes_nothing"
   ],
   "test_script_dispatch_responsiveness": [
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_api_ping_progresses_while_single_batch_and_retry_preflight_waits",

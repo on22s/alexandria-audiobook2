@@ -517,6 +517,7 @@ process_state = {
                      "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
+    "cast_list": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "lora_training": {"running": False, "logs": [], "cancel": False, "process": None, "pid": None, "start_time": None},
     "lora_test": {"running": False, "logs": []},
     "voice_design": {"running": False, "logs": []},
@@ -542,7 +543,7 @@ GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # box across the network), these contend with each other for the endpoint
 # but not with the TTS/LoRA tasks for the card.
 LLM_TASKS = {"report_explanation", "script", "batch_script", "review", "batch_review", "persona",
-             "voices", "nicknames"} & set(process_state.keys())
+             "voices", "nicknames", "cast_list"} & set(process_state.keys())
 
 
 def is_llm_on_this_gpu(config) -> bool:

@@ -227,9 +227,10 @@ class FrontendTests(unittest.TestCase):
                 "strip_front_matter: _isStripFrontMatterChecked()"):
             self.assertIn(required, frontend)
 
-        # Single generation, batch generation, and book sample preflight
-        # all forward the same front-matter toggle.
-        self.assertEqual(3, frontend.count("strip_front_matter: _isStripFrontMatterChecked()"))
+        # Single generation, batch generation, book sample preflight and the
+        # cast-list build all forward the same front-matter toggle, so a cast
+        # is built from the same text generation receives.
+        self.assertEqual(4, frontend.count("strip_front_matter: _isStripFrontMatterChecked()"))
 
         sort_start = frontend.index("window.scriptBatchSort =")
         sort_end = frontend.index("window.cancelBatchScript", sort_start)
@@ -346,7 +347,7 @@ class FrontendTests(unittest.TestCase):
         retry = (Path(__file__).resolve().parent.parent / "generate_script.py").read_text(encoding="utf-8")
         self.assertIn('id="script-activity"', html)
         self.assertIn("function renderActivity(", js)
-        self.assertEqual({"script", "review", "nicknames"},
+        self.assertEqual({"script", "review", "nicknames", "cast_list"},
                          set(re.findall(r"pollScriptLogs\('(\w+)'", js)))
         self.assertIn("'script-logs', status => {", js)
         self.assertIn("}, 'script-activity');", js)

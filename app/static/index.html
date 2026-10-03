@@ -1259,6 +1259,14 @@
                             <label class="form-label mt-3" for="script-first-person-narrator">First-person narrator (optional)</label>
                             <input class="form-control" id="script-first-person-narrator" maxlength="100" placeholder="e.g. ALEXIS IVANOVITCH">
                             <div class="form-text">Enter the narrator's exact character name only when the book is narrated in first person.</div>
+                            <label class="form-label mt-3">Cast list (optional)</label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-outline-info btn-sm" id="btn-build-cast-list" type="button" onclick="buildCastList()"><i class="fas fa-users me-1"></i>Build cast list</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-edit-cast-list" type="button" onclick="loadCastList(true)"><i class="fas fa-pen me-1"></i>Edit cast list</button>
+                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-cast-list" type="button" style="display:none;" onclick="cancelCastList()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            </div>
+                            <div class="form-text" id="cast-list-status">One request over the whole book lists everyone who speaks, including people the book never names (<em>THE DETECTIVE</em>, <em>THE OLD WOMAN</em>). Generation then gives them their own lines instead of UNKNOWN.</div>
+                            <div id="cast-list-panel" class="mt-2" style="display:none;"></div>
                         </div>
                     </div>
 
@@ -1291,6 +1299,12 @@
                                 <option value="version">Create a new version</option>
                                 <option value="replace">Back up and replace it</option>
                             </select>
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="script-batch-build-cast-lists">
+                                <label class="form-check-label small" for="script-batch-build-cast-lists">
+                                    Build a cast list for each book first &mdash; one extra request per book that has none, so unnamed speakers get their own lines instead of UNKNOWN.
+                                </label>
+                            </div>
                         </div>
                         <div id="script-batch-queue-container" class="mb-4" style="display:none;">
                             <h6>Processing Queue</h6>

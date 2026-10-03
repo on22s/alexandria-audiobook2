@@ -888,7 +888,7 @@
             let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running]));
 
             const logGroups = [
-                { elementId: 'script-logs', tasks: ['script', 'batch_script', 'review', 'batch_review', 'nicknames'] },
+                { elementId: 'script-logs', tasks: ['script', 'batch_script', 'review', 'batch_review', 'nicknames', 'cast_list'] },
                 { elementId: 'voices-logs', tasks: ['persona'] },
                 { elementId: 'audio-logs', tasks: ['audio'] },
                 { elementId: 'voicelab-logs', tasks: ['voicelab'] },
@@ -961,6 +961,16 @@
                         await loadCharacterAliases(true);
                     });
                 },
+                cast_list: () => {
+                    disable('btn-build-cast-list');
+                    show('btn-cancel-cast-list');
+                    pollScriptLogs('cast_list', async () => {
+                        const btn = document.getElementById('btn-build-cast-list');
+                        if (btn) { btn.disabled = false; }
+                        show('btn-cancel-cast-list', 'none');
+                        await loadCastList(true);
+                    });
+                },
                 persona: () => {
                     pollPersonaStatus();
                 },
@@ -1024,6 +1034,7 @@
 
         // Init
         loadConfig();
+        loadCastList(false);
         loadVoices();
         loadSavedScripts();
         loadDesignedVoices();
