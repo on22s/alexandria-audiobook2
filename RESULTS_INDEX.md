@@ -1,12 +1,12 @@
 # Results index
 
-Generated 2026-10-02 from `ab_test_runtime/experiments/` — 1809 artifacts, 3123 arms.
+Generated 2026-10-02 from `ab_test_runtime/experiments/` — 1811 artifacts, 3123 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
-`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 988 of 4403 rows are replayable.
+`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 990 of 4405 rows are replayable.
 
-`cited_by_goal` is populated on 338 rows of 4403. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
+`cited_by_goal` is populated on 338 rows of 4405. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 
@@ -3384,6 +3384,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `attribution_hybrid__sequence_repeat_joint_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `audible_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `audio_views.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `background_speakers_eval.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `background_speakers_threepass.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `baseline_heldout__husky_baritone_40s_m_2.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `baseline_heldout__husky_baritone_40s_m_scifi.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `baseline_heldout__husky_tenor_30s_m_literary.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
