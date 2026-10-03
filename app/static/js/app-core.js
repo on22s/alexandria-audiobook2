@@ -1571,6 +1571,73 @@
             document.getElementById('btn-gen-script').disabled = false;
             document.getElementById('btn-gen-script').click();
         });
+        let bookPreflightJob = null;
+        let bookPreflightPending = false;
+
+        function renderBookPreflight(result) {
+            const panel = document.getElementById('book-preflight-result');
+            panel.style.display = '';
+            const stale = result.source_is_current === false
+                ? '<div class="text-warning">The selected source has changed. This result belongs to the earlier source.</div>' : '';
+            const summary = result.summary;
+            let details = '';
+            if (summary) {
+                const plan = summary.planned_calls || {};
+                details = `<div>Predicted full-book calls: Step 1 ${escapeHtml(plan[1] ?? 0)}, Step 2 ${escapeHtml(plan[2] ?? 0)}, Step 3 ${escapeHtml(plan[3] ?? 0)}. Retries can add calls.</div>`;
+                details += (summary.samples || []).map(sample => {
+                    const codes = Object.entries(sample.failure_codes || {}).map(([code, count]) => `${code}: ${count}`).join(', ');
+                    return `<div>${escapeHtml(sample.label)} sample, source chunk ${escapeHtml(sample.chunk_index + 1)}: ${escapeHtml(sample.status)}${codes ? ` — ${escapeHtml(codes)}` : ''}${sample.error ? ` — ${escapeHtml(sample.error)}` : ''}</div>`;
+                }).join('');
+            }
+            panel.innerHTML = `<strong>Book preflight: ${escapeHtml(result.status)}</strong> · ${escapeHtml(result.source_filename || '')}${stale}${details}${result.error ? `<div class="text-danger">${escapeHtml(result.error)}</div>` : ''}<div class="text-muted">Samples use the configured model and prompts. Passing samples does not establish full-book accuracy. Adjust settings or start generation when ready.</div>`;
+            document.getElementById('btn-cancel-book-preflight').style.display = result.status === 'running' ? '' : 'none';
+        }
+
+        window.startBookPreflight = async () => {
+            if (bookPreflightPending || bookPreflightJob) { return; }
+            const button = document.getElementById('btn-book-preflight');
+            bookPreflightPending = true;
+            button.disabled = true;
+            try {
+                if (!(await confirmIfRemote('this book sample preflight', true))) { return; }
+                const result = await API.post('/api/generate_script/preflight', {
+                    strip_front_matter: _isStripFrontMatterChecked(),
+                    first_person_narrator: document.getElementById('script-first-person-narrator').value.trim() || null
+                });
+                const job = result.job_id;
+                bookPreflightJob = job;
+                renderBookPreflight(result);
+                _startPolling('book_preflight', () => API.get(`/api/generate_script/preflight/${job}`), {
+                    doneCheck: data => data.job_id === job && data.status !== 'running',
+                    onTick: data => {
+                        if (bookPreflightJob === job && data.job_id === job) { renderBookPreflight(data); }
+                    },
+                    onDone: data => {
+                        if (bookPreflightJob !== job || data.job_id !== job) { return; }
+                        bookPreflightJob = null;
+                        button.disabled = false;
+                    }
+                });
+            } catch (error) {
+                showToast(`Book preflight: ${error.message}`, 'danger');
+            } finally {
+                bookPreflightPending = false;
+                button.disabled = bookPreflightJob !== null;
+            }
+        };
+
+        window.cancelBookPreflight = async () => {
+            const job = bookPreflightJob;
+            if (!job) { return; }
+            try {
+                await API.post(`/api/generate_script/preflight/${job}/cancel`, {});
+                showToast('Preflight cancellation queued; waiting for the worker to exit.', 'info');
+            } catch (error) {
+                showToast(`Book preflight: ${error.message}`, 'danger');
+            }
+        };
+        // End book-preflight controls.
+
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
             const startOver = _scriptStartOver;
             _scriptStartOver = false;

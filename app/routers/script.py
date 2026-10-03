@@ -19,6 +19,7 @@ import threading
 import time
 import unicodedata
 import zipfile
+import uuid
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
@@ -917,6 +918,169 @@ class GenerateScriptRequest(BaseModel):
     # stopped - by design (a crash or Cancel loses nothing), but there was no
     # way to ask for a fresh run short of changing a setting (#597).
     start_over: bool = False
+
+
+def get_book_preflight_result(job_id):
+    """Read only the latest bounded preflight receipt, bound to its exact job."""
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise HTTPException(status_code=400, detail="Invalid preflight job.")
+    receipt = safe_load_json(os.path.join(DATA_DIR, "script_preflight.json"), {})
+    if not isinstance(receipt, dict) or receipt.get("job_id") != job_id:
+        raise HTTPException(status_code=409, detail="This preflight result is no longer current.")
+    response = dict(receipt)
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    try:
+        stat = os.stat(receipt.get("_source_path", ""))
+        signature = [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+        response["source_is_current"] = (state.get("input_file_path") == receipt.get("_source_path")
+                                         and signature == receipt.get("_source_signature"))
+    except OSError:
+        response["source_is_current"] = False
+    response.pop("_source_path", None)
+    response.pop("_source_signature", None)
+    return response
+
+
+def get_completed_book_preflight_summary(output_path):
+    """Refuse missing or malformed native sample receipts rather than report success."""
+    summary = safe_load_json(output_path + ".preflight_manifest.json", None)
+    if (not isinstance(summary, dict) or summary.get("status") not in {"complete", "failed"}
+            or not isinstance(summary.get("samples"), list) or not summary["samples"]
+            or not isinstance(summary.get("planned_calls"), dict)):
+        raise ValueError("Missing or malformed preflight receipt.")
+    for sample in summary["samples"]:
+        if (not isinstance(sample, dict) or sample.get("label") not in {"first", "middle", "dialogue"}
+                or type(sample.get("chunk_index")) is not int
+                or sample["chunk_index"] < 0
+                or sample.get("status") not in {"complete", "failed"}
+                or not isinstance(sample.get("failure_codes"), dict)
+                or not isinstance(sample.get("planned_calls"), dict)):
+            raise ValueError("Malformed preflight sample receipt.")
+        native = safe_load_json(three_pass_manifest_path(
+            f"{output_path}.preflight_{sample['label']}.json"), None)
+        if not isinstance(native, dict) or native.get("status") != sample["status"]:
+            # Diagnostic incomplete is represented as a failed preflight sample.
+            if not (isinstance(native, dict) and native.get("status") == "incomplete"
+                    and sample["status"] == "failed"):
+                raise ValueError("Sample receipt does not match its native run manifest.")
+    if summary["status"] == "complete" and any(
+            sample["status"] != "complete" for sample in summary["samples"]):
+        raise ValueError("An unsuccessful sample cannot complete preflight.")
+    return summary
+
+
+def start_book_preflight(background_tasks, request):
+    """Freeze source/settings and queue the existing isolated sample CLI."""
+    # Count under one cross-process lock, including interrupted workspaces.
+    # Never delete an unknown or potentially live child's directory to make room.
+    with file_lock(os.path.join(DATA_DIR, ".script_preflight_storage")):
+        existing = [name for name in os.listdir(DATA_DIR)
+                    if name.startswith("script_preflight_")
+                    and os.path.isdir(os.path.join(DATA_DIR, name))]
+        if len(existing) >= 4:
+            raise HTTPException(status_code=409, detail=(
+                "Preflight workspace limit reached (4). Inspect interrupted "
+                "script_preflight_ directories before starting another run."))
+        private = tempfile.TemporaryDirectory(prefix="script_preflight_", dir=DATA_DIR)
+    claim = None
+    try:
+        with ensure_book_state(DATA_DIR):
+            book_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            source_path = book_state.get("input_file_path")
+            if not source_path:
+                raise HTTPException(status_code=400, detail="No input file selected.")
+            with open(source_path, "rb") as source:
+                before = os.fstat(source.fileno())
+                source_bytes = source.read(MAX_SCRIPT_UPLOAD_BYTES + 1)
+                stat = os.fstat(source.fileno())
+                if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                        stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns):
+                    raise ValueError("Source changed while preparing preflight.")
+                signature = [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+            if len(source_bytes) > MAX_SCRIPT_UPLOAD_BYTES:
+                raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+            source_copy = os.path.join(private.name, "source" + Path(source_path).suffix)
+            Path(source_copy).write_bytes(source_bytes)
+            config = load_app_config(CONFIG_PATH)
+            atomic_json_write(config, os.path.join(private.name, "config.json"))
+            source_book = get_active_book_id()
+        output = os.path.join(private.name, "sample.json")
+        command = build_generate_script_command(
+            source_copy, output_path=output,
+            strip_front_matter=request is None or request.strip_front_matter,
+            first_person_narrator=request.first_person_narrator if request else None,
+            reasoning_effort=get_active_llm_config(config).get("reasoning_effort"))
+        command.append("--preflight")
+        job_id = uuid.uuid4().hex
+        receipt = {"job_id": job_id, "status": "running", "book_id": source_book,
+                   "source_filename": os.path.basename(source_path),
+                   "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+                   "_source_path": source_path, "_source_signature": signature}
+        receipt_path = os.path.join(DATA_DIR, "script_preflight.json")
+
+        def run():
+            state = process_state["script"]
+            result = dict(receipt)
+            try:
+                if state.get("cancel"):
+                    result["status"] = "cancelled"
+                    return
+                child_env = dict(os.environ, ALEXANDRIA_DATA_DIR=private.name)
+                code, _ = _stream_subprocess_to_logs(command, BASE_DIR, state, env=child_env)
+                if state.get("cancel"):
+                    result["status"] = "cancelled"
+                else:
+                    summary = get_completed_book_preflight_summary(output)
+                    result["summary"] = summary
+                    result["status"] = "complete" if code == 0 and summary["status"] == "complete" else "failed"
+            except Exception as exc:
+                result.update(status="failed", error=str(exc))
+                state["logs"].append(f"Preflight failed: {exc}")
+            finally:
+                state["status"] = result["status"]
+                try:
+                    atomic_json_write(result, receipt_path)
+                finally:
+                    private.cleanup()
+
+        claim = schedule_claimed_background_task(background_tasks, "script",
+                                                 _run_claimed_background_task, "script", run)
+        receipt["claim_id"] = claim
+        atomic_json_write(receipt, receipt_path)
+        return {key: value for key, value in receipt.items() if not key.startswith("_")}
+    except BaseException:
+        if claim is not None:
+            import core
+            core.release_gpu_task_claim("script", claim, pending_only=True)
+        private.cleanup()
+        raise
+
+
+@router.post("/api/generate_script/preflight")
+async def book_preflight(background_tasks: BackgroundTasks,
+                         request: Optional[GenerateScriptRequest] = None):
+    try:
+        return await asyncio.to_thread(start_book_preflight, background_tasks, request)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/generate_script/preflight/{job_id}")
+async def book_preflight_status(job_id: str):
+    return await asyncio.to_thread(get_book_preflight_result, job_id)
+
+
+@router.post("/api/generate_script/preflight/{job_id}/cancel")
+async def book_preflight_cancel(job_id: str):
+    import core
+    receipt = get_book_preflight_result(job_id)
+    with core._gpu_lock:
+        owner = core._task_claims.get("script")
+        if owner is None or owner["id"] != receipt.get("claim_id"):
+            raise HTTPException(status_code=409, detail="This preflight no longer owns the Script task.")
+        process_state["script"]["cancel"] = True
+    return {"status": "cancelling"}
+
 
 
 def get_active_reasoning_effort() -> Optional[str]:

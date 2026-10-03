@@ -1305,6 +1305,11 @@
                         </div>
                     </div>
 
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-outline-primary" id="btn-book-preflight" onclick="startBookPreflight()">Preflight this book</button>
+                        <button type="button" class="btn btn-outline-danger" id="btn-cancel-book-preflight" onclick="cancelBookPreflight()" style="display:none;">Cancel preflight</button>
+                        <div id="book-preflight-result" class="alert alert-secondary small mt-2" style="display:none;"></div>
+                    </div>
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
