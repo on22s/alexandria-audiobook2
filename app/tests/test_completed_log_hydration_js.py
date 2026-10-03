@@ -60,6 +60,6 @@ resolveOld({running:false,logs:['late old restore'],start_time:100});await old;a
     def test_idle_discovery_fetches_each_full_task_status_once(self):
         self.run_js(r"""
 statuses={};await ctx.reattachRunningPollers();
-assert.strictEqual(requests.length,9);assert.strictEqual(new Set(requests).size,9);assert.strictEqual(requests[0],'/api/status');
-assert.deepStrictEqual(requests.slice(1).sort(),['script','batch_script','review','batch_review','nicknames','persona','audio','voicelab'].map(name=>'/api/status/'+name).sort());
+assert.strictEqual(requests.length,10);assert.strictEqual(new Set(requests).size,10);assert.strictEqual(requests[0],'/api/status');
+assert.deepStrictEqual(requests.slice(1).sort(),['script','batch_script','review','batch_review','nicknames','cast_list','persona','audio','voicelab'].map(name=>'/api/status/'+name).sort());
 """)
