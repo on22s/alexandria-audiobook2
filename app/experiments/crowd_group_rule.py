@@ -21,6 +21,16 @@ THE GATE, fixed before any run (2026-10-03). The group rule passes if
      (cast_alias) is no lower than the baseline minus the baseline's
      run-to-run spread, capped at 0.5 points - the rule #729 used - AND
   3. pooled unnamed accuracy (cast_alias) obeys the same bound.
+
+RESULT OF CHECK 1 (2026-10-03, 3 runs per arm): both arms 7/7 in every run,
+so it cannot discriminate. Two identical DIRECT baseline runs then gave 7/7
+and 0/7: the crowd outcome is all-or-nothing per run, and the baseline loses
+all crowd lines in some runs (2 of 6 so far). The question is that rate.
+
+SECOND TEST, registered before its runs (2026-10-03): 10 further runs per arm
+on the same shared pass 1. Count runs whose crowd score is 0/7. The group rule
+passes check 1 if it has FEWER such runs than the baseline. Checks 2 and 3
+(PDNC) are unchanged and run only if this one passes.
 """
 import argparse
 import json
