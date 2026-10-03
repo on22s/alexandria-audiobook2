@@ -489,6 +489,81 @@ def write_sheet(rows, path):
                              s["case_says_basic"], "", *ctx])
 
 
+def run_ab(args):
+    """Score the #653 A/B: every book x arm under background_speakers_ab.
+
+    Named accuracy is reported twice. `strict` uses the gold aliases only.
+    `cast_alias` also credits an answer whose group in the book's cast list
+    holds the gold speaker (BRENDA LAST for gold BRENDA) - the SAME dictionary
+    for every arm, so it cannot favour the cast arms by construction. Checked
+    by hand on 2026-10-02: about 2 of 643 such credits join two people.
+    """
+    title_names = get_title_names()
+    gold_index = load_gold_index(args.fixtures)
+    rows = []
+    for book in args.books:
+        with open(os.path.join(args.fixtures, f"attribution_gold_{book}.json"),
+                  encoding="utf-8") as handle:
+            gold = json.load(handle)
+        with open(os.path.join(args.casts, f"{book}.cast.json"),
+                  encoding="utf-8") as handle:
+            cast = json.load(handle)["cast"]
+        groups = {c["name"].upper(): {c["name"].upper(),
+                                      *(a.upper() for a in c.get("aliases", []))}
+                  for c in cast}
+        aliases, labels = gold_index["aliases"][book], gold_index["labels"][book]
+        for arm in args.arms:
+            checkpoint = load_generation_delta_checkpoint(os.path.join(
+                args.runs, f"{book}__{arm}.json.threepass_checkpoint.json"))
+            named = [e for e in checkpoint.get("named") or [] if e]
+            if len(named) != len(checkpoint.get("segmented") or []):
+                raise ValueError(f"{book}/{arm}: pass 2 incomplete")
+            occurrences = collections.Counter(
+                _normalize(e.get("text")) for e in checkpoint["segmented"])
+            speakers = {}
+            for entry in named:
+                speakers.setdefault(_normalize(entry.get("text")), entry.get("speaker"))
+            counts = collections.defaultdict(collections.Counter)
+            for entry in gold["entries"]:
+                key = _normalize(entry["line"])
+                if occurrences.get(key) != 1 or key not in speakers:
+                    continue
+                expected = entry["expected_speaker"].upper().strip()
+                predicted = (speakers[key] or "").upper().strip()
+                strict = is_same_speaker(predicted, expected, aliases, labels)
+                credited = strict or any(
+                    is_same_speaker(name, expected, aliases, labels)
+                    for name in groups.get(predicted, ()))
+                gold_class = get_gold_class(book, expected, gold_index, title_names)
+                gold_class = "named" if gold_class == "descriptor_of_named" else gold_class
+                counts[gold_class]["n"] += 1
+                counts[gold_class]["strict"] += strict
+                counts[gold_class]["cast_alias"] += credited
+            rows.append({"book": book, "arm": arm,
+                         "model": (checkpoint.get("fingerprint") or {}).get("model_name"),
+                         "located": sum(c["n"] for c in counts.values()),
+                         "gold_rows": len(gold["entries"]),
+                         **{cls: dict(c) for cls, c in counts.items()},
+                         "unknown_lines": sum(1 for e in named if (e.get("speaker") or "").upper() == "UNKNOWN"),
+                         "unchecked_lines": sum(1 for e in named if e.get("attribution_unchecked"))})
+    summary = {}
+    for arm in args.arms:
+        total = collections.defaultdict(collections.Counter)
+        for row in (r for r in rows if r["arm"] == arm):
+            for cls in ("descriptive", "named", "title_name"):
+                total[cls].update(row.get(cls, {}))
+            total["lines"].update({"unknown": row["unknown_lines"],
+                                   "unchecked": row["unchecked_lines"]})
+        summary[arm] = {
+            **{f"{cls}_{kind}_pct": round(100 * total[cls][kind] / total[cls]["n"], 1)
+               for cls in ("descriptive", "named", "title_name")
+               for kind in ("strict", "cast_alias") if total[cls]["n"]},
+            **{f"{cls}_n": total[cls]["n"] for cls in ("descriptive", "named", "title_name")},
+            "unknown_lines": total["lines"]["unknown"],
+            "unchecked_lines": total["lines"]["unchecked"]}
+    return {"rows": rows, "summary": summary}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     # Most PDNC gold is untracked (the annotations carry no licence), so a
@@ -503,6 +578,13 @@ def main(argv=None):
     p.add_argument("checkpoints", nargs="+")
     p.add_argument("--output", default=os.path.join(
         EXPERIMENTS, "background_speakers_threepass.json"))
+    p = sub.add_parser("ab")
+    p.add_argument("--runs", required=True, help="background_speakers_ab outputs")
+    p.add_argument("--casts", required=True, help="build_cast_list.py outputs")
+    p.add_argument("--books", nargs="+", required=True)
+    p.add_argument("--arms", nargs="+", required=True)
+    p.add_argument("--output", default=os.path.join(
+        EXPERIMENTS, "background_speakers_ab.json"))
     p = sub.add_parser("labels")
     p.add_argument("--scripts", required=True)
     p.add_argument("--min-entries", type=int, default=200)
@@ -516,7 +598,7 @@ def main(argv=None):
         for target in (args.output, args.sheet):
             if os.path.realpath(target).startswith(os.path.realpath(REPO) + os.sep):
                 parser.error(f"{target}: holds book text, write it outside the repo")
-    doc = {"eval": run_eval, "threepass": run_threepass,
+    doc = {"eval": run_eval, "threepass": run_threepass, "ab": run_ab,
            "labels": run_labels}[args.command](args)
     if args.command == "labels":
         write_sheet(doc["rows"], args.sheet)

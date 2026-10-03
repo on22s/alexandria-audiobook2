@@ -600,6 +600,8 @@
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_ordinary_output_leaves_paused_alone"
   ],
   "test_background_speakers": [
+    "tests.test_background_speakers.AbScoringTest.test_cast_alias_credits_full_name_strict_does_not",
+    "tests.test_background_speakers.AbScoringTest.test_incomplete_pass_two_is_refused",
     "tests.test_background_speakers.DescriptiveLabelTest.test_descriptive_forms",
     "tests.test_background_speakers.DescriptiveLabelTest.test_names_and_titled_names_are_not_descriptive",
     "tests.test_background_speakers.GoldClassTest.test_bare_role_alias_does_not_make_an_extra_named",

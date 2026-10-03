@@ -105,5 +105,60 @@ class VolumeTest(unittest.TestCase):
                          "Arc 3 - Volume 4")
 
 
+
+class AbScoringTest(unittest.TestCase):
+    """run_ab on a two-line book: one named, one unnamed speaker."""
+
+    def setUp(self):
+        import json
+        import os
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        self.book = "pdnc_tiny"
+        gold = {"entries": [
+            {"id": "1", "line": "Where is she?", "expected_speaker": "BRENDA"},
+            {"id": "2", "line": "Gone, sir.", "expected_speaker": "THE PORTER"}],
+            "aliases": []}
+        with open(os.path.join(self.dir, f"attribution_gold_{self.book}.json"), "w") as f:
+            json.dump(gold, f)
+        with open(os.path.join(self.dir, f"{self.book}.cast.json"), "w") as f:
+            json.dump({"cast": [{"name": "BRENDA LAST", "aliases": ["BRENDA"]},
+                                {"name": "THE PORTER", "aliases": []}]}, f)
+        self.write_run("cast", ["BRENDA LAST", "THE PORTER"])
+        self.write_run("base", ["BRENDA", "UNKNOWN"])
+
+    def write_run(self, arm, speakers):
+        import json
+        import os
+        lines = ["Where is she?", "Gone, sir."]
+        doc = {"segmented": [{"text": t} for t in lines],
+               "named": [{"text": t, "speaker": s} for t, s in zip(lines, speakers)]}
+        with open(os.path.join(self.dir, f"{self.book}__{arm}.json.threepass_checkpoint.json"), "w") as f:
+            json.dump(doc, f)
+
+    def score(self):
+        from types import SimpleNamespace
+        return bs.run_ab(SimpleNamespace(fixtures=self.dir, runs=self.dir, casts=self.dir,
+                                         books=[self.book], arms=["base", "cast"]))
+
+    def test_cast_alias_credits_full_name_strict_does_not(self):
+        rows = {r["arm"]: r for r in self.score()["rows"]}
+        self.assertEqual(rows["cast"]["named"]["strict"], 0)
+        self.assertEqual(rows["cast"]["named"]["cast_alias"], 1)
+        self.assertEqual(rows["cast"]["descriptive"]["strict"], 1)
+        self.assertEqual(rows["base"]["descriptive"]["cast_alias"], 0)
+        self.assertEqual(rows["base"]["unknown_lines"], 1)
+
+    def test_incomplete_pass_two_is_refused(self):
+        import json
+        import os
+        path = os.path.join(self.dir, f"{self.book}__base.json.threepass_checkpoint.json")
+        doc = json.load(open(path))
+        doc["named"] = doc["named"][:1]
+        json.dump(doc, open(path, "w"))
+        with self.assertRaises(ValueError):
+            self.score()
+
+
 if __name__ == "__main__":
     unittest.main()
