@@ -160,6 +160,150 @@ def load_pdnc_genders(pdnc_dir, book_folder):
     return genders
 
 
+def get_character_key(name, pdnc_genders):
+    """The PDNC key a predicted name or alias resolves to, or None."""
+    value = (name or "").strip().upper()
+    return value if value in pdnc_genders else None
+
+
+def score_cast_traits(cast, pdnc_genders, gold_aliases):
+    """-> {pdnc character: (gender, age_group)} from one arm-A cast list."""
+    out = {}
+    for person in cast:
+        for name in [person["name"], *person["aliases"]]:
+            key = get_character_key(name, pdnc_genders)
+            if key is None:
+                group = next((g for g in gold_aliases if name.upper() in g), None)
+                key = next((n for n in (group or ()) if n in pdnc_genders), None)
+            if key:
+                out.setdefault(get_canonical(key, gold_aliases), (person["gender"], person["age_group"]))
+                break
+    return out
+
+
+def get_canonical(key, gold_aliases):
+    group = next((g for g in gold_aliases if key in g), None)
+    return min(group) if group else key
+
+
+def score_line_traits(checkpoint_path, gold, gold_aliases, labels):
+    """-> per character: list of (gender, age) on correctly attributed lines,
+    and the per-line gender rows."""
+    from experiments.background_speakers import is_same_speaker
+    from generation_checkpoint_deltas import load_generation_delta_checkpoint
+    named = [e for e in load_generation_delta_checkpoint(checkpoint_path)["named"] if e]
+    norm = lambda t: re.sub(r"\W+", "", t or "").lower()
+    by_text = {}
+    for entry in named:
+        by_text.setdefault(norm(entry.get("text")), entry)
+    per_character = collections.defaultdict(list)
+    for entry in gold["entries"]:
+        answer = by_text.get(norm(entry["line"]))
+        expected = entry["expected_speaker"].upper()
+        if answer and is_same_speaker(answer.get("speaker"), expected, gold_aliases, labels):
+            per_character[get_canonical(expected, gold_aliases)].append(
+                (answer.get("line_gender", "unknown"), answer.get("line_age_group", "unknown")))
+    return per_character
+
+
+def get_modal(values):
+    counts = collections.Counter(v for v in values if v != "unknown")
+    return counts.most_common(1)[0][0] if counts else "unknown"
+
+
+def run_score(args):
+    import glob
+    from types import SimpleNamespace
+    from experiments.background_speakers import load_gold_index, run_ab
+    from routers.voices import _infer_character_traits
+    gold_index = load_gold_index(args.fixtures)
+    rows, pooled = [], collections.Counter()
+    age_pairs = collections.Counter()
+    for book, folder in zip(args.books, args.folders):
+        pdnc = load_pdnc_genders(args.pdnc_dir, folder)
+        aliases, labels = gold_index["aliases"][book], gold_index["labels"][book]
+        with open(os.path.join(args.fixtures, f"attribution_gold_{book}.json"), encoding="utf-8") as h:
+            gold = json.load(h)
+        truth = {}
+        for label in labels:
+            key = get_canonical(label, aliases)
+            gender = pdnc.get(label) or next((pdnc.get(n) for g in aliases if label in g for n in g
+                                              if pdnc.get(n)), None)
+            if gender:
+                truth[key] = gender
+        arm_a = [score_cast_traits(json.load(open(path, encoding="utf-8"))["cast"], pdnc, aliases)
+                 for path in sorted(glob.glob(os.path.join(args.casts_a, f"{book}__cast*.json")))]
+        arm_b = [score_line_traits(path, gold, aliases, labels) for path in sorted(
+            glob.glob(os.path.join(args.line_runs, f"{book}__line*.json.threepass_checkpoint.json")))]
+        for run_index, (a, b) in enumerate(zip(arm_a, arm_b)):
+            for character, gender in truth.items():
+                a_gender = a.get(character, ("unknown", "unknown"))[0]
+                b_values = b.get(character, [])
+                b_gender = get_modal([g for g, _ in b_values])
+                c_gender = _infer_character_traits(character, None, [])["gender"]
+                if a_gender == "unknown" or b_gender == "unknown":
+                    pooled["not_in_both"] += 1
+                    continue
+                pooled["n"] += 1
+                pooled["a_correct"] += a_gender == gender
+                pooled["b_correct"] += b_gender == gender
+                pooled["c_correct"] += c_gender == gender
+                pooled["c_unknown"] += c_gender == "unknown"
+                pooled["b_lines"] += len(b_values)
+                pooled["b_lines_correct"] += sum(g == gender for g, _ in b_values)
+                pooled["b_lines_consistent"] += sum(g == b_gender for g, _ in b_values)
+                a_age = a.get(character, ("unknown", "unknown"))[1]
+                b_age = get_modal([age for _, age in b_values])
+                age_pairs["both_known"] += a_age != "unknown" and b_age != "unknown"
+                age_pairs["agree"] += a_age == b_age != "unknown"
+                rows.append({"book": book, "run": run_index + 1, "character": character,
+                             "gold_gender": gender, "a": a_gender, "b": b_gender, "c": c_gender,
+                             "b_lines": len(b_values), "a_age": a_age, "b_age": b_age})
+    accuracy = {arm: round(100 * pooled[f"{arm}_correct"] / pooled["n"], 1) for arm in "abc"}
+    who = {}
+    for name, (runs, suffix) in {"line1": (args.line_runs, "line1"), "line2": (args.line_runs, "line2"),
+                                 "base1": (args.baseline_runs[0], "cast"),
+                                 "base2": (args.baseline_runs[1], "cast")}.items():
+        summary = run_ab(SimpleNamespace(fixtures=args.fixtures, runs=runs, casts=args.cast_lists,
+                                         books=args.books, arms=[suffix]))["summary"][suffix]
+        who[name] = summary["named_cast_alias_pct"]
+    tokens = {}
+    for name, (logs, suffix) in {"line": (args.line_logs, "line"),
+                                 "base1": (args.baseline_logs[0], "cast"),
+                                 "base2": (args.baseline_logs[1], "cast")}.items():
+        total, files = 0, 0
+        for path in glob.glob(os.path.join(logs, f"*__{suffix}*.log")):
+            if not any(os.path.basename(path).startswith(b + "__") for b in args.books):
+                continue
+            files += 1
+            for m in re.finditer(r"prompt=(\d+) completion=(\d+)", open(path, errors="replace").read()):
+                total += int(m.group(1)) + int(m.group(2))
+        tokens[name] = round(total / max(1, files) * len(args.books))
+    base_named = (who["base1"] + who["base2"]) / 2
+    line_named = (who["line1"] + who["line2"]) / 2
+    spread = abs(who["base1"] - who["base2"])
+    token_rise = round(100 * (tokens["line"] / 2 - (tokens["base1"] + tokens["base2"]) / 2)
+                       / ((tokens["base1"] + tokens["base2"]) / 2), 1)
+    gate = {"per_character_n": pooled["n"], "not_in_both": pooled["not_in_both"],
+            "gender_accuracy_pct": accuracy,
+            "b_line_gender_accuracy_pct": round(100 * pooled["b_lines_correct"] / max(1, pooled["b_lines"]), 1),
+            "b_line_consistency_pct": round(100 * pooled["b_lines_consistent"] / max(1, pooled["b_lines"]), 1),
+            "c_unknown": pooled["c_unknown"],
+            "age_agreement_a_vs_b": dict(age_pairs),
+            "who_speaks_named_pct": who, "named_delta_pts": round(line_named - base_named, 2),
+            "baseline_spread_pts": round(spread, 2), "tokens_per_run": tokens,
+            "token_rise_pct": token_rise}
+    gate["accuracy_pass"] = accuracy["b"] >= accuracy["a"]
+    gate["who_speaks_pass"] = line_named - base_named >= -min(spread, MAX_NAMED_DROP)
+    gate["cost_pass"] = token_rise <= MAX_TOKEN_RISE_PCT
+    gate["choose"] = "B (per line)" if (gate["accuracy_pass"] and gate["who_speaks_pass"]
+                                         and gate["cost_pass"]) else "A (per character)"
+    doc = {"gate": gate, "rows": rows, "provenance": provenance(__file__, args)}
+    with open(args.output, "w", encoding="utf-8") as handle:
+        json.dump(doc, handle, indent=1)
+    print(json.dumps(gate, indent=1))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -170,9 +314,23 @@ def main(argv=None):
     p.add_argument("source_dir")
     p.add_argument("target_dir")
     p = sub.add_parser("run-line", help="background_speakers_ab with per-line traits kept")
+    p = sub.add_parser("score")
+    p.add_argument("--fixtures", required=True)
+    p.add_argument("--pdnc-dir", required=True)
+    p.add_argument("--books", nargs="+", required=True)
+    p.add_argument("--folders", nargs="+", required=True)
+    p.add_argument("--casts-a", required=True)
+    p.add_argument("--line-runs", required=True)
+    p.add_argument("--line-logs", required=True)
+    p.add_argument("--baseline-runs", nargs=2, required=True)
+    p.add_argument("--baseline-logs", nargs=2, required=True)
+    p.add_argument("--cast-lists", required=True)
+    p.add_argument("--output", required=True)
     args, rest = parser.parse_known_args(argv)
     if args.command == "cast":
         run_cast(args)
+    elif args.command == "score":
+        run_score(args)
     elif args.command == "make-line-data-dir":
         make_line_data_dir(args.source_dir, args.target_dir)
     else:
