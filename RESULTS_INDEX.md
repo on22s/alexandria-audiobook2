@@ -1,12 +1,12 @@
 # Results index
 
-Generated 2026-10-03 from `ab_test_runtime/experiments/` — 1819 artifacts, 3123 arms.
+Generated 2026-10-03 from `ab_test_runtime/experiments/` — 1820 artifacts, 3123 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
-`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 998 of 4413 rows are replayable.
+`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 999 of 4414 rows are replayable.
 
-`cited_by_goal` is populated on 338 rows of 4413. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
+`cited_by_goal` is populated on 338 rows of 4414. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 
@@ -4561,6 +4561,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `tight_rebuild__warm_baritone_40s_m_1__shipped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `time_skip_traits.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `time_skip_traits_v2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `time_skip_traits_v3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `time_split__warm_baritone_30s_m_1_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `tone_spread_sensitivity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

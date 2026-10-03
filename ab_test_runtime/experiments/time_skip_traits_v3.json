@@ -1,0 +1,258 @@
+{
+ "runs": [
+  {
+   "run": "run5.json.threepass_checkpoint.json",
+   "per_chapter": {
+    "2": {
+     "lines": 1,
+     "modal": "infant",
+     "expected": [
+      "infant"
+     ],
+     "within_one_band": true
+    },
+    "3": {
+     "lines": 15,
+     "modal": "toddler",
+     "expected": [
+      "toddler"
+     ],
+     "within_one_band": true
+    },
+    "4": {
+     "lines": 60,
+     "modal": "child",
+     "expected": [
+      "toddler",
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "5": {
+     "lines": 29,
+     "modal": "young_child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "6": {
+     "lines": 26,
+     "modal": "child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "7": {
+     "lines": 96,
+     "modal": "child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "8": {
+     "lines": 41,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "9": {
+     "lines": 32,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "10": {
+     "lines": 45,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "11": {
+     "lines": 60,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    }
+   },
+   "chapter_share": 1.0,
+   "protagonist_states": [
+    {
+     "gender": "male",
+     "age_group": "toddler"
+    },
+    {
+     "gender": "male",
+     "age_group": "child"
+    }
+   ],
+   "grew": true,
+   "fell_two_bands": false,
+   "flips": {
+    "PAUL": 0,
+    "UNKNOWN": 0,
+    "ZENITH": 0,
+    "RUDY": 2,
+    "LILIA": 0,
+    "ROXY": 0,
+    "SYLPH": 0,
+    "LAWS": 0,
+    "GHISLAINE": 0
+   },
+   "adult_lines_after_prologue": 8,
+   "checks": {
+    "1_timeline": true,
+    "2_growth": true,
+    "3_no_flicker": false
+   }
+  },
+  {
+   "run": "run6.json.threepass_checkpoint.json",
+   "per_chapter": {
+    "2": {
+     "lines": 2,
+     "modal": "infant",
+     "expected": [
+      "infant"
+     ],
+     "within_one_band": true
+    },
+    "3": {
+     "lines": 16,
+     "modal": "toddler",
+     "expected": [
+      "toddler"
+     ],
+     "within_one_band": true
+    },
+    "4": {
+     "lines": 62,
+     "modal": "child",
+     "expected": [
+      "toddler",
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "5": {
+     "lines": 30,
+     "modal": "child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "6": {
+     "lines": 29,
+     "modal": "child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "7": {
+     "lines": 94,
+     "modal": "child",
+     "expected": [
+      "young_child"
+     ],
+     "within_one_band": true
+    },
+    "8": {
+     "lines": 64,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "9": {
+     "lines": 33,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "10": {
+     "lines": 45,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    },
+    "11": {
+     "lines": 51,
+     "modal": "child",
+     "expected": [
+      "child"
+     ],
+     "within_one_band": true
+    }
+   },
+   "chapter_share": 1.0,
+   "protagonist_states": [
+    {
+     "gender": "male",
+     "age_group": "infant"
+    },
+    {
+     "gender": "male",
+     "age_group": "child"
+    }
+   ],
+   "grew": true,
+   "fell_two_bands": false,
+   "flips": {
+    "PAUL": 0,
+    "UNKNOWN": 0,
+    "ZENITH": 0,
+    "RUDY": 2,
+    "LILIA": 0,
+    "ROXY": 0,
+    "SYLPH": 0,
+    "LAWS": 0,
+    "GHISLAINE": 0
+   },
+   "adult_lines_after_prologue": 0,
+   "checks": {
+    "1_timeline": true,
+    "2_growth": true,
+    "3_no_flicker": false
+   }
+  }
+ ],
+ "per_state_voices_supported": false,
+ "provenance": {
+  "script": "time_skip_traits.py",
+  "written": "2026-10-03T10:24:23",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1d5a1911110b4fb9eaae9e3aeebee206b1ffda96",
+   "branch": "speaker-traits-consistency",
+   "dirty": false,
+   "source_state": "clean",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "d1450f3ee60b98ffcd8a0cc7641efab0806860976d4edc491b3705c6add37bca"
+  },
+  "args": {
+   "run": [
+    "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/473a68de-a26e-4243-8b6c-7bf350fa0bbe/scratchpad/mushoku/run5.json.threepass_checkpoint.json",
+    "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/473a68de-a26e-4243-8b6c-7bf350fa0bbe/scratchpad/mushoku/run6.json.threepass_checkpoint.json"
+   ],
+   "output": "../ab_test_runtime/experiments/time_skip_traits_v3.json"
+  }
+ }
+}
