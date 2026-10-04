@@ -142,8 +142,7 @@ still holds ~62 GB of bf16 experts.
 **Naming rule.** The stored value (`auto`, `quotes`, `lexical`, `llm`) is what `config.json`, model profiles, the
 `--segmentation` flag and old results contain, so it never changes without a migration. Everything a person reads - the
 Setup dropdown, help text, reports, issues - uses the "name users see" column. `auto` in particular is never shown
-as "Auto": it mostly does not use the model (the table above has 93%; measured 2026-10-04 on Re:Zero volumes 1-3 at chunk size 3,000,
-409 of 414 chunks are settled by the quote marks), and "Auto" hides that. Where code uses a stored value, a comment names the user-facing text; `app/tests/test_segmentation_mode_names.py`
+as "Auto": it mostly does not use the model (the table above: the marks settle about 93% of chunks), and "Auto" hides that. Where code uses a stored value, a comment names the user-facing text; `app/tests/test_segmentation_mode_names.py`
 fails if this table and the Setup dropdown disagree.
 
 Not yet measured: pass-2 accuracy under `quotes` against `auto` on the same
