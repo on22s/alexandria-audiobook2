@@ -51,7 +51,10 @@ def make_batch_fixture():
 
 class TrainingMinibatchTests(unittest.TestCase):
     def test_variable_length_batch_matches_frame_weighted_individual_losses_and_gradients(self):
-        samples,model,talker,transformer,parameters=make_batch_fixture()
+        # Keep float32 reduction comparisons independent of preceding tests' RNG state.
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(0)
+            samples,model,talker,transformer,parameters=make_batch_fixture()
         before=copy.deepcopy(samples);oracle=[];losses=[];frames=[]
         for sample in samples:
             for parameter in parameters:parameter.grad=None
