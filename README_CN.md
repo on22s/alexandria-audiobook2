@@ -164,7 +164,7 @@ docker compose up --build
 
 需要 [Docker](https://docs.docker.com/get-docker/) 和 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。界面在 `http://localhost:4200`；TTS 权重首次使用时下载到卷里；上传、声音配置、适配器和音频通过绑定挂载持久化。
 
-> Compose 默认只发布在 `127.0.0.1`。容器内部绑定 `0.0.0.0`（Docker 转发需要）。如果你把宿主机端口发布到 `0.0.0.0`，请同时设置 `ALEXANDRIA_AUTH_PASSWORD`——见英文页的 [Authentication](README.md#authentication-optional)。
+> Compose 默认只发布在 `127.0.0.1`。容器内部绑定 `0.0.0.0`（Docker 转发需要）。如果你把宿主机端口发布到 `0.0.0.0`，请同时设置 `ALEXANDRIA_AUTH_PASSWORD`——见英文页的 [Authentication](README.md#authentication-optional)。如果通过域名访问（例如 `audiobooks.example.com`），还需设置 `ALEXANDRIA_ALLOWED_HOSTS`，否则请求会被拒绝（防 DNS 重绑定）——见英文页的 [Requests from other sites](README.md#requests-from-other-sites)。
 
 ## 首次启动——必读
 

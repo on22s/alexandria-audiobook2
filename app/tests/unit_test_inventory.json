@@ -5974,6 +5974,23 @@
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_future_context_cannot_be_reported_as_fitting_from_fixed_allowance",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_known_large_roster_and_tail_are_fully_included_without_input_mutation"
   ],
+  "test_request_origin": [
+    "tests.test_request_origin.AppGateTests.test_a_cors_preflight_is_still_answered",
+    "tests.test_request_origin.AppGateTests.test_a_rebinding_host_is_refused_even_for_reads_and_static_files",
+    "tests.test_request_origin.AppGateTests.test_a_refused_request_changes_nothing_and_an_allowed_one_does",
+    "tests.test_request_origin.AppGateTests.test_the_advisory_routes_are_refused_before_their_handlers",
+    "tests.test_request_origin.AuthOrderTests.test_the_gate_runs_before_basic_auth_and_auth_still_applies",
+    "tests.test_request_origin.HostTests.test_a_configured_hostname_is_allowed",
+    "tests.test_request_origin.HostTests.test_ip_localhost_and_dotless_hosts_are_allowed",
+    "tests.test_request_origin.HostTests.test_rebinding_hostnames_are_refused_on_every_method",
+    "tests.test_request_origin.OriginTests.test_a_cross_site_referer_alone_is_refused",
+    "tests.test_request_origin.OriginTests.test_a_local_referer_is_allowed_and_no_origin_or_referer_is_a_non_browser_client",
+    "tests.test_request_origin.OriginTests.test_a_same_name_on_another_port_is_not_same_origin",
+    "tests.test_request_origin.OriginTests.test_configured_origins_are_allowed",
+    "tests.test_request_origin.OriginTests.test_cross_site_unsafe_requests_are_refused",
+    "tests.test_request_origin.OriginTests.test_safe_methods_are_not_origin_checked",
+    "tests.test_request_origin.OriginTests.test_same_origin_and_local_sources_are_allowed"
+  ],
   "test_research_chain_pause": [
     "tests.test_research_chain_pause.ResearchChainPauseTests.test_configured_pause_flag_uses_same_override_as_gpu_wrapper",
     "tests.test_research_chain_pause.ResearchChainPauseTests.test_default_pause_waits_before_worker_and_resumes_after_release",

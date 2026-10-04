@@ -989,6 +989,27 @@ fetch("http://localhost:4200/api/config", {headers: {Authorization: "Basic " + b
 
 `GET /api/config` never returns API keys; they are redacted.
 
+### Requests from other sites
+
+Whether or not auth is on, the app refuses two kinds of request a web page you visit could
+otherwise make to it:
+
+- **A changing request (POST, PUT, PATCH, DELETE) from another site** gets `403`. Requests
+  from the app's own page, from `localhost` / `*.localhost` (Pinokio's proxy), and from
+  loopback or private-network IPs are allowed. So are clients that send no `Origin` or
+  `Referer` at all, such as curl and scripts.
+- **A request whose `Host` is an unknown domain name** (DNS rebinding) gets `400`. IP
+  addresses, `localhost`, `*.localhost` and names without a dot (`mybox`) are allowed.
+
+If you reach the app some other way, list it:
+
+```bash
+export ALEXANDRIA_ALLOWED_HOSTS=audiobooks.example.com          # a hostname you browse to
+export ALEXANDRIA_ALLOWED_ORIGINS=https://audiobooks.example.com # a page that calls the API
+```
+
+`CORS_ORIGINS` origins are allowed too.
+
 ### The core flow, by hand
 
 ```bash

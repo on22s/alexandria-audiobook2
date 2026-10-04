@@ -34,6 +34,8 @@ RUN mkdir -p /alexandria/runtime
 # Bind to 0.0.0.0 inside the container. This makes the app reachable from
 # outside the container/host — if that network isn't trusted, enable the auth
 # gate by passing -e ALEXANDRIA_AUTH_PASSWORD=... to `docker run` (see README).
+# Reached by a domain name? Also pass -e ALEXANDRIA_ALLOWED_HOSTS=<name>, or
+# the DNS-rebinding check refuses it (IPs and dotless names need nothing).
 ENV ALEXANDRIA_HOST=0.0.0.0
 ENV ALEXANDRIA_DATA_DIR=/alexandria/runtime
 EXPOSE 4200

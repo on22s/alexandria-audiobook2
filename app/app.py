@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from request_origin import get_request_refusal
 from fastapi.staticfiles import StaticFiles
 from adapter_static import AdapterStaticFiles
 
@@ -121,6 +122,26 @@ if _AUTH_PASSWORD:
 
 # CORS — allow configurable origins via env var, defaulting to localhost for security
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://127.0.0.1:4200,http://localhost:4200").split(",")]
+
+# Cross-site and DNS-rebinding refusal (GHSA-vp9p-437w-q5x9). CORS only stops a
+# page READING a response; this stops a page the owner visits from SENDING one.
+# Registered after the auth gate so it runs first, and before CORS so CORS
+# still answers preflights and labels the refusal. See request_origin.py.
+_allowed_origins = _cors_origins + [o.strip() for o in os.environ.get("ALEXANDRIA_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+_allowed_hosts = [h.strip() for h in os.environ.get("ALEXANDRIA_ALLOWED_HOSTS", "").split(",") if h.strip()]
+
+
+@app.middleware("http")
+async def _request_origin_gate(request, call_next):
+    refusal = get_request_refusal(request.method, request.headers.get("host"),
+                                  request.headers.get("origin"), request.headers.get("referer"),
+                                  _allowed_origins, _allowed_hosts)
+    if refusal:
+        from starlette.responses import PlainTextResponse
+        kind, reason = refusal
+        return PlainTextResponse(reason, status_code=400 if kind == "host" else 403)
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
