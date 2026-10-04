@@ -27,7 +27,7 @@ const context = {document:{getElementById: id => {
 API:{post: (url, payload) => new Promise((resolve,reject) => {
     assert.strictEqual(JSON.stringify(payload), '{}'); requests.push({url,resolve,reject});
 })}};
-vm.createContext(context);
+vm.createContext(context);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
 vm.runInContext(source.slice(start, end), context);
 const clean = {counts:{blocking:0,manual_review:0}, findings:[]};
 const risk = {counts:{blocking:1,manual_review:2},findings:[{code:'nonprose_speech_risk',
@@ -78,10 +78,10 @@ assert.match(panel.className, /alert-success/);
 const older = context.auditSavedScript('older');
 const latest = context.auditSavedScript('latest');
 requests[3].reject(new Error('latest unavailable')); await latest;
-assert.strictEqual(panel.textContent, 'Audit failed: latest unavailable');
+assert(panel.textContent.includes('Saved-script audit could not finish'));assert(panel.textContent.includes('then use Audit again'));assert(panel.textContent.includes('latest unavailable'));assert(panel.textContent.includes('does not establish whether this script is ready'));
 assert.match(panel.className, /alert-danger/);
 requests[2].resolve(clean); await older;
-assert.strictEqual(panel.textContent, 'Audit failed: latest unavailable');
+assert(panel.textContent.includes('Saved-script audit could not finish'));assert(panel.textContent.includes('then use Audit again'));assert(panel.textContent.includes('latest unavailable'));assert(panel.textContent.includes('does not establish whether this script is ready'));
 """)
 
     def test_reauditing_same_name_still_rejects_an_older_response(self):

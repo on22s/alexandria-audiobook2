@@ -1,0 +1,27 @@
+"""Exercise native preset dialog validation, cancellation and listener cleanup."""
+from pathlib import Path
+import subprocess
+import unittest
+
+SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+
+class PresetEditorModalJsTests(unittest.TestCase):
+    def test_validation_cancel_duplicate_open_and_cleanup(self):
+        script = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),s=fs.readFileSync(process.argv[1],'utf8');const fields={};let disposed=0;
+const el=id=>fields[id]||(fields[id]={value:'',textContent:'',hidden:false,listeners:new Map(),attrs:{},addEventListener(k,v){this.listeners.set(k,v);},removeEventListener(k,v){if(this.listeners.get(k)===v){this.listeners.delete(k);}},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},focus(){this.focused=true;}});
+class Modal{constructor(element){this.element=element;}show(){this.element.listeners.get('shown.bs.modal')();}hide(){this.element.listeners.get('hidden.bs.modal')();}dispose(){disposed++;}}
+const c={confirmQueue:Promise.resolve(),document:{getElementById:el},bootstrap:{Modal}};vm.createContext(c);const a=s.indexOf('let presetEditorPending =');vm.runInContext(s.slice(a,s.indexOf('async function reloadPageAfterConfirmation(',a)),c);
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
+let pending=c.showPresetEditor({title:'Save attribution preset',name:'mine',description:'old',validateName:name=>name==='builtin'?'Reserved built-in name.':''});await Promise.resolve();assert.strictEqual(el('preset-editor-name').value,'mine');assert(el('preset-editor-name').focused);assert.strictEqual(await c.showPresetEditor({title:'duplicate'}),null);
+const submit=()=>el('preset-editor-form').listeners.get('submit')({preventDefault(){}});el('preset-editor-name').value=' ';submit();assert.strictEqual(el('preset-editor-error').textContent,'Enter a preset name.');assert.strictEqual(el('preset-editor-name').attrs['aria-invalid'],'true');el('preset-editor-name').value='builtin';submit();assert.strictEqual(el('preset-editor-error').textContent,'Reserved built-in name.');assert.strictEqual(disposed,0);
+el('preset-editor-name').value=' new ';el('preset-editor-description').value=' useful ';submit();assert.strictEqual(JSON.stringify(await pending),JSON.stringify({name:'new',description:'useful'}));assert.strictEqual(disposed,1);assert.strictEqual(el('preset-editor-form').listeners.size,0);assert.strictEqual(el('presetEditorModal').listeners.size,0);
+pending=c.showPresetEditor({title:'Save snapshot',includeDescription:false,nameLabel:'Snapshot name',actionLabel:'Save snapshot',helperText:'Finished part only'});await Promise.resolve();assert(el('preset-editor-description-group').hidden);assert.strictEqual(el('preset-editor-name-label').textContent,'Snapshot name');assert.strictEqual(el('preset-editor-submit').textContent,'Save snapshot');assert.strictEqual(el('preset-editor-help').textContent,'Finished part only');assert.strictEqual(el('preset-editor-name').attrs['aria-invalid'],undefined);assert.strictEqual(el('preset-editor-error').textContent,'');el('preset-editor-cancel').listeners.get('click')();assert.strictEqual(await pending,null);assert.strictEqual(disposed,2);
+pending=c.showPresetEditor({title:'Escape'});await Promise.resolve();assert.strictEqual(el('preset-editor-name-label').textContent,'Preset name');assert.strictEqual(el('preset-editor-submit').textContent,'Save preset');el('presetEditorModal').listeners.get('hidden.bs.modal')();assert.strictEqual(await pending,null);assert.strictEqual(disposed,3);
+let reject,resolve,calls=0;pending=c.showPresetEditor({title:'Create dataset',nameLabel:'Dataset name',actionLabel:'Create',includeDescription:false,submitValues:values=>{calls++;return new Promise((a,b)=>{resolve=a;reject=b;});}});await Promise.resolve();el('preset-editor-name').value='existing';submit();assert(el('preset-editor-submit').disabled);assert(el('preset-editor-cancel').disabled);submit();el('preset-editor-cancel').listeners.get('click')();assert.strictEqual(calls,1);let prevented=false;el('presetEditorModal').listeners.get('hide.bs.modal')({preventDefault(){prevented=true;}});assert(prevented);reject(Error('Project already exists'));await new Promise(setImmediate);assert.strictEqual(el('preset-editor-error').textContent,'Project already exists');assert(!el('preset-editor-name').disabled);assert.strictEqual(disposed,3);el('preset-editor-name').value='new dataset';submit();assert.strictEqual(calls,2);resolve({name:'new dataset'});const accepted=await pending;assert.strictEqual(accepted.name,'new dataset');assert.strictEqual(accepted.receipt.name,'new dataset');assert.strictEqual(disposed,4);assert.strictEqual(el('presetEditorModal').listeners.size,0);
+pending=c.showPresetEditor({title:'Remove change point',allowEmptyName:true,includeDescription:false});await Promise.resolve();el('preset-editor-name').value=' ';submit();assert.strictEqual((await pending).name,'');
+pending=c.showPresetEditor({title:'Required again'});await Promise.resolve();el('preset-editor-name').value='';submit();assert.strictEqual(el('preset-editor-error').textContent,'Enter a preset name.');el('preset-editor-cancel').listeners.get('click')();assert.strictEqual(await pending,null);finished=true;
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+        result=subprocess.run(['node','-e',script,str(SOURCE)],capture_output=True,text=True,timeout=10)
+        self.assertEqual(0,result.returncode,result.stderr)

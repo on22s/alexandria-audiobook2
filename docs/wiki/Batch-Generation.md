@@ -95,7 +95,7 @@ codec compilation.
   not the sum.
 - If you run out of memory, lower **Parallel Workers** and **Max Items/Batch**.
 - A language model on the same card takes memory from the TTS. If yours is hosted elsewhere,
-  untick **Runs on this machine's GPU** in Setup.
+  open **Provider request options** and set **Runs on this machine's GPU?** to **No** in Setup.
 
 ## Codec compilation
 

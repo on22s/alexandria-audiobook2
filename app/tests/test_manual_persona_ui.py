@@ -42,18 +42,19 @@ const vm = require('vm');
 const core = fs.readFileSync(process.argv[1], 'utf8');
 const workbench = fs.readFileSync(process.argv[2], 'utf8');
 const slice = (source, start, end) => source.slice(source.indexOf(start), source.indexOf(end));
-const elements = {};
+let finished=false;process.on('beforeExit',()=>assert(finished,'all native manual-request assertions must finish'));
+const elements = {};const announcements=[],notifications=[];
 for (const id of ['manual-llm-panel', 'manual-llm-title', 'manual-llm-hint',
-                 'manual-llm-prompt', 'manual-llm-reply', 'manual-llm-submit',
-                 'voices-logs', 'script-logs', 'persona-status', 'btn-cancel-personas']) {
-    elements[id] = {value: '', hidden: true, disabled: false, style: {}, textContent: ''};
+                 'manual-llm-prompt', 'manual-llm-reply', 'manual-llm-submit', 'manual-llm-status', 'manual-llm-retained-replies',
+                 'voices-logs', 'script-logs', 'persona-status', 'btn-cancel-personas', 'persona-refresh-status', 'persona-refresh-retry']) {
+    elements[id] = {value: '', hidden: true, disabled: false, style: {}, textContent: '', children: [], appendChild(node){this.children.push(node);}};
 }
 let poll, pending, copied, failSubmit = false, runningTask = 'persona';
 const posts = [], statusFetches = [];let registryFetches=0;
 const context = {
     currentIsRemote:false, failoverIsRemote:false,
     window: {prompt: () => 'teen'}, console,
-    document: {getElementById: id => elements[id] || null},
+    document: {getElementById: id => elements[id] || null,createElement:tag=>({tag,children:[],setAttribute(name,value){this[name]=value;},append(...nodes){this.children.push(...nodes);}})},
     API: {
         get: async path => {
             if (path === '/api/status') {registryFetches++;return {persona:{running:runningTask==='persona'},script:{running:runningTask==='script'}};}
@@ -70,11 +71,11 @@ const context = {
         }
     },
     _startPolling: (key, fetch, options) => { poll = {key, fetch, ...options}; },
-    showToast() {}, loadVoices: async () => {}, copyToClipboard: async text => {copied = text;},
+    currentBookFilename:'fixture', showPresetEditor:async()=>({name:'teen'}), showToast(...args) {announcements.push(args);}, loadVoices: async () => {}, copyToClipboard: async text => {copied = text;},
     getPersonaContextLines: () => 8, voicesScopeIsNew: () => true,
     keepCurrentVoicesIfAsked: async () => true,
     scriptBatchPoller: null,
-    syncPauseButton() {}, syncSnapshotButton() {}, renderActivity() {}, notifyJobDone() {}
+    syncPauseButton() {}, syncSnapshotButton() {}, renderActivity() {}, notifyJobDone(...args) {notifications.push(args);}
 };
 vm.createContext(context);
 vm.runInContext(
@@ -83,8 +84,9 @@ vm.runInContext(
     slice(core, 'function isTaskFailed(', '// --- Desktop notifications ---') +
     slice(core, 'function getTaskLogUpdate(', '// --- Setup Tab ---') +
     slice(core, 'async function generatePersonas()', 'async function cancelPersonas()') +
-    slice(core, 'async function pollPersonaStatus()', '// --- Voices Tab ---') +
+    slice(core, 'let personaVoiceRefreshRequest =', '// --- Voices Tab ---') +
     slice(core, 'window.regeneratePersona =', 'window.selectVoiceCandidate =') +
+    slice(core, 'const scriptCancellationRequests =', '// Same "unknown error" fallback') +
     slice(core, 'function pollScriptLogs(', '// Manual transport') +
     core.slice(core.indexOf('let _manualShown =')) +
     slice(workbench, 'function reattachTaskActivity(', '// Init'), context);
@@ -150,20 +152,29 @@ const settle = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve
     // A delayed old pending fetch cannot resurrect a completed request.
     let resolve;
     context.API.get = () => new Promise(r => {resolve = r;});
+    const beforeStale=notifications.length;
     const delayed = context.renderManualRequest(status('late'), 'persona');
     await context.renderManualRequest({running: false}, 'persona');
     resolve({pending: request('late', 5)});
     await delayed;
-    assert.strictEqual(elements['manual-llm-panel'].hidden, true);
+    assert.strictEqual(elements['manual-llm-panel'].hidden, true);assert.strictEqual(notifications.length,beforeStale);
     // Two in-flight fetches for the same request must not erase a typed reply.
-    const resolvers = [];
+    const resolvers = [];const beforeDuplicate=notifications.length;
     context.API.get = () => new Promise(r => {resolvers.push(r);});
     const first = context.renderManualRequest(status('duplicate'), 'persona');
     const second = context.renderManualRequest(status('duplicate'), 'persona');
     resolvers[0]({pending: request('duplicate', 6)}); await first;
     elements['manual-llm-reply'].value = 'keep this';
     resolvers[1]({pending: request('duplicate', 6)}); await second;
-    assert.strictEqual(elements['manual-llm-reply'].value, 'keep this');
+    assert.strictEqual(elements['manual-llm-reply'].value, 'keep this');assert.strictEqual(notifications.length,beforeDuplicate+1);assert(announcements.some(([m,t,d])=>m.includes('request 6')&&t==='warning'&&d===8000));
+    let warningWrites=0,warning='';Object.defineProperty(elements['manual-llm-status'],'textContent',{get:()=>warning,set:v=>{warning=v;warningWrites++;}});
+    context.API.get=async()=>{throw Error('offline');};await context.renderManualRequest(status('unavailable'),'persona');const once=warningWrites;await context.renderManualRequest(status('unavailable'),'persona');assert.strictEqual(warningWrites,once);assert(warning.includes('Automatic checks'));
+    context.API.get=async()=>({pending:request('new',7)});await context.renderManualRequest(status('new'),'persona');const retained=elements['manual-llm-retained-replies'].children;assert.strictEqual(retained.length,1);assert.strictEqual(retained[0].children[1].value,'keep this');assert.strictEqual(elements['manual-llm-reply'].value,'');
+    let rejectPost;context.API.post=()=>new Promise((yes,no)=>rejectPost=no);elements['manual-llm-reply'].value='pending old submission';const submitted=context.submitManualReply();await context.submitManualReply();
+    context.API.get=async()=>({pending:request('newer',8)});await context.renderManualRequest(status('newer'),'persona');assert.strictEqual(retained.at(-1).children[1].value,'pending old submission');elements['manual-llm-reply'].value='new request reply';rejectPost(Error('late failure'));await submitted;assert.strictEqual(elements['manual-llm-reply'].value,'new request reply');assert.strictEqual(elements['manual-llm-reply'].disabled,false);assert(!warning.includes('Could not confirm'));
+    await context.renderManualRequest({running:false},'persona');assert.strictEqual(elements['manual-llm-panel'].hidden,false);assert.strictEqual(elements['manual-llm-reply'].value,'new request reply');assert(elements['manual-llm-submit'].disabled);assert(warning.includes('no longer waiting'));
+    finished=true;
+
 })().catch(error => { console.error(error); process.exitCode = 1; });
 '''
         result = subprocess.run([

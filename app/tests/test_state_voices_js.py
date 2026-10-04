@@ -11,7 +11,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-core.js"
 
 PRELUDE = r'''
 const fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const calls=[];const context={window:{},calls,
+const calls=[];const context={window:{},currentBookFilename:'A',calls,
   API:{get:async u=>payload.suggestion,post:async(u,b)=>{calls.push(['POST',u,b]);return {};},del:async u=>{calls.push(['DEL',u]);return {};}},
   loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
 vm.createContext(context);
@@ -50,6 +50,25 @@ class VoiceStatesJsTests(unittest.TestCase):
     def render(self, data):
         return self.run_js("console.log(JSON.stringify(context.renderVoiceStateRows(payload.suggestion)));",
                            {"suggestion": data})
+
+    def test_voice_change_names_identify_speaker_state_and_location(self):
+        from html.parser import HTMLParser
+        class Controls(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.names = []
+            def handle_starttag(self, tag, attrs):
+                if tag in ('select', 'button'):
+                    self.names.append((tag, dict(attrs).get('aria-label')))
+        html = self.run_js("console.log(JSON.stringify(context.renderVoiceStateRows(payload.suggestion, payload.speaker)));",
+                           {"suggestion": suggestion(), "speaker": 'RUDY "< & 日本語'})
+        controls = Controls()
+        controls.feed(html)
+        selects = [name for tag, name in controls.names if tag == 'select']
+        self.assertEqual(len(selects), 3)
+        self.assertIn('Voice for RUDY "< & 日本語, male, child, from line 30', selects)
+        self.assertIn(('button', 'Apply voice changes for RUDY "< & 日本語'), controls.names)
+        self.assertIn(('button', 'Clear voice changes for RUDY "< & 日本語'), controls.names)
 
     def test_unused_library_voices_are_listed_and_preselected_before_used_ones(self):
         html = self.render(suggestion())

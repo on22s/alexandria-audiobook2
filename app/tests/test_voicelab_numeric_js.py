@@ -25,7 +25,7 @@ const body=ctx.getVoicelabRequest();assert.strictEqual(body.target_loss,.125);as
     def test_bad_numeric_input_blocks_start_before_http_and_reports_field(self):
         self.run_js(r"""
 let calls=0,toasts=[];ctx.API.post=async()=>{calls++;throw Error('unexpected request');};ctx.showToast=message=>toasts.push(message);
-const labels={'vl-target-loss':'Target loss','vl-max-epochs':'Max epochs','vl-lora-r':'LoRA rank','vl-candidate-checkpoints':'Candidate checkpoints'};
+const labels={'vl-target-loss':'Target loss','vl-max-epochs':'Max epochs','vl-lora-r':'LoRA rank','vl-candidate-checkpoints':'Eval candidates'};
 for(const [id,label] of Object.entries(labels)){
  const before=element(id).value;
  const values=['','  ','12oops','NaN','Infinity','-Infinity','1e999'];

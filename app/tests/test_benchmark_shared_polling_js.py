@@ -8,11 +8,32 @@ JS = Path(__file__).resolve().parents[1] / 'static/js'
 
 
 class BenchmarkSharedPollingTests(unittest.TestCase):
+    def test_full_reports_script_restores_after_benchmark_state_initializes(self):
+        script = r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const status={},out={},cancel={style:{}},button={disabled:false},help={};
+let calls=0,restores=0,pending;
+const context={document:{hidden:false,getElementById:id=>({
+ 'benchmark-status':status,'benchmark-output':out,'btn-benchmark-cancel':cancel,
+ 'btn-benchmark-start':button,'benchmark-start-help':help}[id])||null},
+ API:{get:async path=>{assert.strictEqual(path,'/api/benchmark/status');calls++;return {running:false,status:'idle',logs:[]};}},
+ restoreTab(){restores++;pending=context.refreshBenchmarkStatus();}};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
+(async()=>{await pending;assert.strictEqual(restores,1);assert.strictEqual(calls,1);
+ assert.strictEqual(status.textContent,'idle');assert.strictEqual(button.disabled,true);
+ assert.strictEqual(cancel.style.display,'none');})().catch(e=>{console.error(e);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', script,
+            os.environ.get('REPORT_BOOT_SOURCE', str(JS / 'app-reports.js'))],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def run_js(self, body):
         setup = r'''
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const core=fs.readFileSync(process.argv[1],'utf8'),reports=fs.readFileSync(process.argv[2],'utf8');
-const code=core.slice(core.indexOf('const _pollGen ='),core.indexOf('// A run can pause ITSELF'))+
+const code='function restoreTab() {}\n'+core.slice(core.indexOf('const _pollGen ='),core.indexOf('// A run can pause ITSELF'))+
  reports.slice(reports.indexOf('let _benchmarkPreflightId ='));
 const status={},out={textContent:'previous'},cancel={style:{}},timers=[],toasts=[];
 let calls=0,response={running:true,tasks:[{status:'done'}],logs:['working']},failure=false;
@@ -21,7 +42,7 @@ const context={document:{hidden:false,getElementById:id=>({'benchmark-status':st
  setTimeout:(fn,ms)=>{assert.strictEqual(ms,3000);timers.push(fn);return timers.length;},
  setInterval:(fn,ms)=>{timers.push(fn);return timers.length;},clearInterval:()=>{},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}}};
-vm.createContext(context);vm.runInContext(code,context);
+vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(code,context);
 async function next(){assert.strictEqual(timers.length,1,'one scheduled callback');await timers.shift()();}
 let finished=false;process.on('beforeExit',()=>{if(!finished){console.error('unfinished polling fixture');process.exitCode=1;}});
 (async()=>{

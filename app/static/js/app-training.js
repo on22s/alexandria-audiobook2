@@ -1,6 +1,16 @@
+        let loraDatasetsRequest = 0;
+        let loraModelsRequest = 0;
         async function loadLoraDatasets() {
+            const request = ++loraDatasetsRequest;
+            const status = document.getElementById('lora-datasets-refresh-status');
+            const retry = document.getElementById('lora-datasets-refresh-retry');
+            retry.disabled = true;
             try {
                 const datasets = await API.get('/api/lora/datasets');
+                if (request !== loraDatasetsRequest) { return null; }
+                if (!Array.isArray(datasets) || datasets.some(d => !d || typeof d.dataset_id !== 'string')) { throw new Error('Dataset list is malformed'); }
+                status.textContent = '';
+                retry.hidden = true;
                 const listEl = document.getElementById('lora-datasets-list');
                 const selectEl = document.getElementById('lora-dataset-select');
 
@@ -13,20 +23,30 @@
                 // Update list
                 if (!datasets.length) {
                     listEl.innerHTML = '<span class="text-muted">No datasets uploaded yet.</span>';
-                    return;
+                    return datasets;
                 }
                 listEl.innerHTML = datasets.map(d => `
                     <div class="d-flex justify-content-between align-items-center py-1">
                         <span><strong>${escapeHtml(d.dataset_id)}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
-                        <button class="btn btn-sm btn-outline-danger" data-dataset-id="${escapeHtml(d.dataset_id)}" onclick="deleteLoraDataset(this.dataset.datasetId)"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" data-dataset-id="${escapeHtml(d.dataset_id)}" onclick="deleteLoraDataset(this.dataset.datasetId)" aria-label="${escapeHtml('Delete dataset ' + d.dataset_id)}" title="${escapeHtml('Delete dataset ' + d.dataset_id)}"><i class="fas fa-trash"></i></button>
                     </div>
                 `).join('');
+                return datasets;
             } catch (e) {
                 console.error('Failed to load LoRA datasets:', e);
+                if (request === loraDatasetsRequest) {
+                    status.textContent = 'Could not load datasets. Previously loaded datasets and your selection are kept. Check that Alexandria is running, then retry the list refresh.';
+                    retry.hidden = false;
+                }
+                return null;
+            } finally {
+                if (request === loraDatasetsRequest) { retry.disabled = false; }
             }
         }
 
+        let loraDatasetUploadPending = false;
         window.uploadLoraDataset = async () => {
+            if (loraDatasetUploadPending) { return; }
             const fileInput = document.getElementById('lora-dataset-file');
             if (!fileInput.files.length) { showToast('Select a ZIP file first.', 'warning'); return; }
 
@@ -35,31 +55,53 @@
 
             const formData = new FormData();
             formData.append('file', file);
+            const button = document.getElementById('btn-lora-upload');
+            const label = button.innerHTML;
+            const status = document.getElementById('lora-upload-status');
+            const select = document.getElementById('lora-dataset-select');
+            const selected = select.value;
+            loraDatasetUploadPending = true;
+            button.disabled = true;
+            button.textContent = 'Uploading…';
+            status.textContent = `Uploading ${file.name}…`;
 
             try {
                 const res = await fetch('/api/lora/upload_dataset', { method: 'POST', body: formData });
                 if (!res.ok) {
                     const err = await res.json();
-                    showToast(err.detail || 'Upload failed.', 'error');
+                    status.textContent = 'Upload refused. Keep the ZIP and review the archive validation details before trying again.';
+                    showActionError('Dataset upload refused', {message: err.detail || 'Upload failed.', status: res.status}, 'Keep the selected ZIP. Review the archive validation details and correct the dataset before uploading again.');
                     return;
                 }
                 const result = await res.json();
                 showToast(`Dataset "${result.dataset_id}" uploaded (${result.sample_count} samples).`, 'success');
-                fileInput.value = '';
-                loadLoraDatasets();
+                if (fileInput.files[0] === file) { fileInput.value = ''; }
+                status.textContent = `Dataset "${result.dataset_id}" uploaded. Refreshing the dataset list…`;
+                const datasets = await loadLoraDatasets();
+                if (Array.isArray(datasets) && datasets.some(dataset => dataset.dataset_id === result.dataset_id) && select.value === selected) {
+                    select.value = result.dataset_id;
+                    status.textContent = `Dataset "${result.dataset_id}" uploaded and selected for training.`;
+                } else {
+                    status.textContent = `Dataset "${result.dataset_id}" uploaded. Review the dataset list and select it when you are ready to train.`;
+                }
             } catch (e) {
-                showToast('Upload error: ' + e.message, 'error');
+                status.textContent = 'Upload was not confirmed. Keep the ZIP and check the dataset list before uploading again.';
+                showActionError("Upload error", e, "Keep the ZIP file. Check the dataset list before uploading again, and review any archive validation details.");
+            } finally {
+                loraDatasetUploadPending = false;
+                button.disabled = false;
+                button.innerHTML = label;
             }
         };
 
         window.deleteLoraDataset = async (datasetId) => {
-            if (!await showConfirm(`Delete dataset "${datasetId}"?`)) { return; }
+            if (!await showConfirm(`Delete dataset "${datasetId}"?`, {title: 'Delete training dataset?', actionLabel: 'Delete dataset', danger: true})) { return; }
             try {
                 const res = await fetch(`/api/lora/datasets/${encodeURIComponent(datasetId)}`, { method: 'DELETE' });
                 await API._handleError(res);
                 loadLoraDatasets();
             } catch (e) {
-                showToast('Error deleting dataset: ' + e.message, 'error');
+                showActionError("Error deleting dataset", e, "Refresh the dataset list and check whether the dataset was deleted before trying again.");
             }
         };
 
@@ -93,11 +135,20 @@
                 document.getElementById('lora-train-status').innerHTML = '<span class="text-info">Training in progress...</span>';
                 pollLoraTraining(request.epochs);
             } catch (e) {
-                showToast('Failed to start training: ' + e.message, 'error');
+                showActionError("Failed to start training", e, "Check training status before starting again. If refused, review the selected dataset, adapter name and training settings.");
                 btn.disabled = false;
                 document.getElementById('lora-train-status').innerHTML = '';
             }
         };
+
+        function applyLoraProgress(progressBar, percentage, epoch, maxEpoch) {
+            progressBar.style.width = `${percentage}%`;
+            progressBar.innerText = `${percentage}%`;
+            progressBar.ariaValueMin = '0';
+            progressBar.ariaValueMax = '100';
+            progressBar.ariaValueNow = String(percentage);
+            progressBar.ariaValueText = `Epoch ${epoch} of ${maxEpoch}`;
+        }
 
         function pollLoraTraining(totalEpochs) {
             const logsEl = document.getElementById('lora-train-logs');
@@ -105,27 +156,24 @@
             const epochDisplay = document.getElementById('lora-epoch-display');
             const lossDisplay = document.getElementById('lora-loss-display');
 
-            let renderedLogs = null;
-            let logRunId = null;
+            const renderLogs = createTaskLogRenderer(logsEl);
+            let currentEpoch = 0;
+            let maxEpochs = totalEpochs;
+            applyLoraProgress(progressBar, 0, currentEpoch, maxEpochs);
 
             _startPolling('lora_training', () => API.get('/api/status/lora_training'), {
                 intervalMs: 2000,
                 doneCheck: status => !status.running,
                 onTick: status => {
-                    const update = getTaskLogUpdate(renderedLogs, logRunId, status.logs, status.run_id || status.start_time || null);
+                    const update = renderLogs(status);
                     if (!update.changed) { return; }
                     if (update.reset) {
-                        logsEl.innerText = update.text;
                         epochDisplay.innerText = '';
                         lossDisplay.innerText = '';
-                        progressBar.style.width = '0%';
-                        progressBar.innerText = '0%';
-                    } else {
-                        logsEl.appendChild(document.createTextNode(update.text));
+                        currentEpoch = 0;
+                        maxEpochs = totalEpochs;
+                        applyLoraProgress(progressBar, 0, currentEpoch, maxEpochs);
                     }
-                    renderedLogs = update.logs;
-                    logRunId = update.runId;
-                    logsEl.scrollTop = logsEl.scrollHeight;
 
                     // Parse latest metrics only from new lines, or all lines after a reset.
                     for (let i = status.logs.length - 1; i >= update.startIndex; i--) {
@@ -138,8 +186,9 @@
                             const pct = Math.round((epoch / maxEpoch) * 100);
                             epochDisplay.innerText = `${epoch}/${maxEpoch}`;
                             lossDisplay.innerText = loss;
-                            progressBar.style.width = `${pct}%`;
-                            progressBar.innerText = `${pct}%`;
+                            currentEpoch = epoch;
+                            maxEpochs = maxEpoch;
+                            applyLoraProgress(progressBar, pct, currentEpoch, maxEpochs);
                             break;
                         }
                         const trainMatch = line.match(/\[TRAIN\]\s*epoch=(\d+)\/(\d+)\s+step=\d+\/\d+\s+loss=([\d.]+)/);
@@ -150,33 +199,32 @@
                             const pct = Math.round(((epoch - 1) / maxEpoch) * 100);
                             epochDisplay.innerText = `${epoch}/${maxEpoch}`;
                             lossDisplay.innerText = loss;
-                            progressBar.style.width = `${pct}%`;
-                            progressBar.innerText = `${pct}%`;
+                            currentEpoch = epoch;
+                            maxEpochs = maxEpoch;
+                            applyLoraProgress(progressBar, pct, currentEpoch, maxEpochs);
                             break;
                         }
                     }
                 },
                 onDone: status => {
-                    notifyJobDone('lora_training');
+                    notifyJobDone('lora_training', '', 'finished', status);
                     const btn = document.getElementById('btn-lora-train');
                     btn.disabled = false;
                     const cancelBtn = document.getElementById('btn-lora-cancel');
                     cancelBtn.style.display = 'none';
                     cancelBtn.disabled = false;
 
+                    progressBar.classList.remove('progress-bar-animated');
                     const isDone = status.logs.some(l => l.includes('[DONE]'));
-                    const isError = status.logs.some(l => l.includes('[ERROR]'));
+                    const outcome = getTaskCompletionOutcome(status);
 
-                    if (isDone) {
+                    if (isDone && outcome === 'finished') {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Training complete!</span>';
-                        progressBar.style.width = '100%';
-                        progressBar.innerText = '100%';
-                        progressBar.classList.remove('progress-bar-animated');
+                        applyLoraProgress(progressBar, 100, maxEpochs, maxEpochs);
                         progressBar.classList.replace('bg-info', 'bg-success');
                         loadLoraModels();
-                    } else if (isError) {
+                    } else if (outcome === 'failed') {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Training failed</span>';
-                        progressBar.classList.remove('progress-bar-animated');
                         progressBar.classList.replace('bg-info', 'bg-danger');
                     } else {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Training stopped</span>';
@@ -193,7 +241,7 @@
                 document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Cancellation requested…</span>';
             } catch (e) {
                 btn.disabled = false;
-                showToast('Failed to cancel training: ' + e.message, 'error');
+                showActionError("Failed to cancel training", e, "Check training status before cancelling again; training may still be running.");
             }
         };
 
@@ -212,13 +260,17 @@
                     star.querySelector('i').className = `${result.favorite ? 'fas' : 'far'} fa-star`;
                 });
             } catch (e) {
-                showToast('Could not update favorite: ' + e.message, 'error');
+                showActionError("Could not update favorite", e, "Refresh the adapter list and check the favorite state before changing it again.");
             } finally {
                 if (button) { button.disabled = false; }
             }
         }
 
         async function loadLoraModels() {
+            const request = ++loraModelsRequest;
+            const status = document.getElementById('lora-models-refresh-status');
+            const retry = document.getElementById('lora-models-refresh-retry');
+            retry.disabled = true;
             try {
                 const [loadedModels, backupStatus] = await Promise.all([
                     API.get('/api/lora/models'),
@@ -227,6 +279,8 @@
                         return { backups: [], total_size_bytes: 0, free_bytes: 0, low_space_warning: false };
                     }),
                 ]);
+                if (request !== loraModelsRequest) { return; }
+                if (!Array.isArray(loadedModels) || loadedModels.some(m => !m || typeof m.id !== 'string')) { throw new Error('Adapter list is malformed'); }
                 const backupsByAdapter = new Map();
                 backupStatus.backups.forEach(backup => {
                     const adapterId = backup.adapter_id;
@@ -237,6 +291,8 @@
                 const models = loadedModels.map(model => ({
                     ...model, rollback_backup: backupsByAdapter.get(model.id) || null,
                 }));
+                status.textContent = '';
+                retry.hidden = true;
                 window._loraModelsCache = models;
                 const container = document.getElementById('lora-models-list');
                 const testForm = document.getElementById('lora-test-form');
@@ -291,7 +347,7 @@
                     return `<div class="text-muted small mt-1"><i class="fas fa-user me-1"></i>${r.count} human review${r.count === 1 ? '' : 's'}${parts.length ? ` · ${escapeHtml(parts.join(', '))}` : ''}</div>`;
                 };
                 container.innerHTML = `${backupSummary}
-                    <table class="table table-sm table-hover mb-0">
+                    <div class="table-responsive"><table class="table table-sm table-hover mb-0">
                         <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Evaluation</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
                         <tbody>
                             ${models.map(m => `
@@ -318,7 +374,7 @@
                                 </tr>
                             `).join('')}
                         </tbody>
-                    </table>`;
+                    </table></div>`;
 
                 // Populate test dropdown
                 const dropdown = document.getElementById('lora-test-adapter');
@@ -330,6 +386,12 @@
                 testForm.style.display = '';
             } catch (e) {
                 console.error('Failed to load LoRA models:', e);
+                if (request === loraModelsRequest) {
+                    status.textContent = 'Could not load adapters. Previously loaded adapters and your selection are kept. Check that Alexandria is running, then retry the list refresh.';
+                    retry.hidden = false;
+                }
+            } finally {
+                if (request === loraModelsRequest) { retry.disabled = false; }
             }
         }
 
@@ -368,7 +430,7 @@
                     </div>`;
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
-                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">Comparison unavailable: ${escapeHtml(e.message)}</div>`;
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("Comparison unavailable", e, "Check the selected adapter and candidate, then reopen Compare."))}</div>`;
             }
         };
 
@@ -424,7 +486,7 @@
                     </div>`;
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
-                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">Blind review unavailable: ${escapeHtml(e.message)}</div>`;
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("Blind review unavailable", e, "Check the selected adapter and review candidates, then reopen blind review."))}</div>`;
             }
         };
 
@@ -449,7 +511,7 @@
                 renderBlindReviewResult(result);
             } catch (e) {
                 if (submitBtn) { submitBtn.disabled = false; }
-                showToast('Could not record review: ' + e.message, 'error');
+                showActionError("Could not record review", e, "Keep your rating and notes. Reopen review history to check whether the decision was saved before submitting again.");
             }
         };
 
@@ -485,7 +547,7 @@
                 const data = await API.get(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews`);
                 renderLoraReviewHistory(adapterId, data.reviews || []);
             } catch (e) {
-                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">History unavailable: ${escapeHtml(e.message)}</div>`;
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("History unavailable", e, "Check the selected adapter, then reopen review history. An unavailable history is not an empty history."))}</div>`;
             }
         };
 
@@ -516,14 +578,14 @@
         }
 
         window.clearLoraReviewHistory = async (adapterId) => {
-            if (!await showConfirm('Delete all human review history for this adapter?')) { return; }
+            if (!await showConfirm('Delete all human review history for this adapter?', {title: 'Delete review history?', actionLabel: 'Delete history', danger: true})) { return; }
             try {
                 const result = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews/cleanup`, {});
                 const freedKb = (result.freed_bytes / 1024).toFixed(1);
                 showToast(`Cleared ${result.removed_count} review(s), freed ${freedKb} KB.`, 'success');
                 openLoraReviewHistory(adapterId);
             } catch (e) {
-                showToast('Could not clear history: ' + e.message, 'error');
+                showActionError("Could not clear history", e, "Reopen review history to check whether it was cleared before trying again.");
             }
         };
 
@@ -532,7 +594,7 @@
                 showToast('Refresh the candidate list before promoting.', 'warning');
                 return;
             }
-            if (!await showConfirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`)) {
+            if (!await showConfirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`, {title: 'Promote checkpoint?', actionLabel: 'Promote', danger: false})) {
                 return;
             }
             try {
@@ -540,12 +602,12 @@
                 showToast(`Promoted ${candidateId}. Production backup retained.`, 'success');
                 await loadLoraModels();
             } catch (e) {
-                showToast('Promotion failed: ' + e.message, 'error');
+                showActionError("Promotion failed", e, "Refresh the adapter list and checkpoint history to check production and backup state before promoting again.");
             }
         };
 
         window.rollbackLoraPromotion = async (adapterId) => {
-            if (!await showConfirm('Restore the production checkpoint saved before promotion?')) {
+            if (!await showConfirm('Restore the production checkpoint saved before promotion?', {title: 'Restore production checkpoint?', actionLabel: 'Restore', danger: false})) {
                 return;
             }
             try {
@@ -553,12 +615,12 @@
                 showToast('Previous production checkpoint restored.', 'success');
                 await loadLoraModels();
             } catch (e) {
-                showToast('Rollback failed: ' + e.message, 'error');
+                showActionError("Rollback failed", e, "Refresh the adapter list and checkpoint history to check production and backup state before rolling back again.");
             }
         };
 
         window.recoverLoraCheckpointSwap = async (adapterId) => {
-            if (!await showConfirm('Recover production from the checkpoint saved before the interrupted operation?')) {
+            if (!await showConfirm('Recover production from the checkpoint saved before the interrupted operation?', {title: 'Recover production checkpoint?', actionLabel: 'Recover', danger: false})) {
                 return;
             }
             try {
@@ -566,12 +628,12 @@
                 showToast('Interrupted checkpoint operation recovered.', 'success');
                 await loadLoraModels();
             } catch (e) {
-                showToast('Recovery failed: ' + e.message, 'error');
+                showActionError("Recovery failed", e, "Refresh the adapter list and checkpoint history before recovering again. Review any refusal about changed checkpoint files.");
             }
         };
 
         window.deleteLoraRollbackBackup = async (adapterId) => {
-            if (!await showConfirm('Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint.')) {
+            if (!await showConfirm('Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint.', {title: 'Delete rollback backup?', actionLabel: 'Delete backup', danger: true})) {
                 return;
             }
             try {
@@ -580,7 +642,7 @@
                 showToast('Rollback backup deleted.', 'success');
                 await loadLoraModels();
             } catch (e) {
-                showToast('Backup deletion failed: ' + e.message, 'error');
+                showActionError("Backup deletion failed", e, "Refresh checkpoint history and check whether the rollback backup was deleted before trying again.");
             }
         };
 
@@ -598,20 +660,23 @@
                 btn.title = 'Play preview';
                 btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
             } catch (e) {
-                showToast('Preview failed: ' + e.message, 'error');
+                showActionError("Preview failed", e, "Check that the adapter has preview audio and that the app connection is available, then play the preview again.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
             }
         };
 
+        let loraTestPending = false;
         window.testLoraModel = (adapterId) => {
+            if (loraTestPending) { showToast('Wait for the current voice test to finish.', 'warning'); return; }
             document.getElementById('lora-test-adapter').value = adapterId;
             document.getElementById('lora-test-form').style.display = '';
             document.getElementById('lora-test-text').focus();
         };
 
         window.runLoraTest = async () => {
+            if (loraTestPending) { return; }
             const adapterId = document.getElementById('lora-test-adapter').value;
             const text = document.getElementById('lora-test-text').value.trim();
             const instruct = document.getElementById('lora-test-instruct').value.trim();
@@ -619,7 +684,15 @@
             if (!text) { showToast('Enter text to synthesize.', 'warning'); return; }
 
             const statusEl = document.getElementById('lora-test-status');
-            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+            const button = document.getElementById('btn-lora-test-generate');
+            const label = button.innerHTML;
+            const controls = ['lora-test-adapter', 'lora-test-text', 'lora-test-instruct', 'btn-lora-test-generate']
+                .map(id => { const field = document.getElementById(id); return {field, disabled: field.disabled}; });
+            loraTestPending = true;
+            controls.forEach(({field}) => { field.disabled = true; });
+            button.textContent = 'Generating…';
+            statusEl.textContent = `Generating test audio for ${adapterId}…`;
+            document.getElementById('lora-test-audio').innerHTML = '';
 
             try {
                 const result = await API.post('/api/lora/test', {
@@ -632,18 +705,22 @@
                 const audioDiv = document.getElementById('lora-test-audio');
                 audioDiv.innerHTML = `<audio controls autoplay src="${escapeHtml(result.audio_url)}?t=${Date.now()}"></audio>`;
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Failed: ${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Test audio did not finish', e, 'Check the selected adapter and test task status before generating again. Your test text is retained.'))}</span>`;
+            } finally {
+                loraTestPending = false;
+                controls.forEach(({field, disabled}) => { field.disabled = disabled; });
+                button.innerHTML = label;
             }
         };
 
         window.deleteLoraModel = async (adapterId) => {
-            if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) { return; }
+            if (!await showConfirm('Delete this trained adapter? This cannot be undone.', {title: 'Delete trained adapter?', actionLabel: 'Delete adapter', danger: true})) { return; }
             try {
                 const res = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}`, { method: 'DELETE' });
                 await API._handleError(res);
                 loadLoraModels();
             } catch (e) {
-                showToast('Error deleting adapter: ' + e.message, 'error');
+                showActionError("Error deleting adapter", e, "Refresh the adapter list and check whether the adapter was deleted before trying again.");
             }
         };
 
@@ -658,7 +735,7 @@
                 showToast('Adapter downloaded successfully.', 'success');
                 loadLoraModels();
             } catch (e) {
-                showToast('Download failed: ' + e.message, 'error');
+                showActionError("Download failed", e, "Refresh the adapter list and check whether the download completed before downloading again.");
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
             }

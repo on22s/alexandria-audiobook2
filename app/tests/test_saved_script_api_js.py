@@ -12,9 +12,9 @@ const turn=()=>new Promise(setImmediate);
 function client(){
  const fields={},calls=[],toasts=[],effects=[];let response=new Response('{}'),flush=Promise.resolve(),choice=true;
  const el=id=>fields[id]||(fields[id]={value:id==='save-script-name'?'Book #? 日本':'',style:{}});
- const ctx={document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,flushVoiceSaves:()=>flush,showToast:(...args)=>toasts.push(args),
+ const ctx={document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:()=>flush,showToast:(...args)=>toasts.push(args),
  applyCurrentBookFilename:name=>effects.push(['book',name]),clearCharacterAliases:()=>effects.push(['aliases']),resetDesignerForm:()=>effects.push(['designer']),clearVoiceSuggestions:()=>effects.push(['suggestions']),loadCharacterAliases:async()=>effects.push(['alias-load']),loadChunks:async()=>effects.push(['chunks']),loadVoices:async()=>effects.push(['voices']),loadDesignedVoices:()=>effects.push(['designs'])};
- vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('const API ='),core.indexOf('function getTaskLogUpdate(')),ctx);
+ vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(core.slice(core.indexOf('const API ='),core.indexOf('function getTaskLogUpdate(')),ctx);
  vm.runInContext(source.slice(source.indexOf('async function saveScript()'),source.indexOf('// --- Voice Designer ---')),ctx);ctx.loadSavedScripts=()=>effects.push(['saved-list']);
  return {ctx,el,calls,toasts,effects,setResponse:value=>response=value,setFlush:value=>flush=value,setChoice:value=>choice=value};
 }

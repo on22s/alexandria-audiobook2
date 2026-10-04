@@ -13,6 +13,7 @@ ctx.currentLlmMode='local';ctx.llmProfiles={local:{base_url:'old cached URL'},re
 ctx.document.createElement=()=>({});element('llm-model-options').children=[];element('llm-model-options').appendChild=option=>element('llm-model-options').children.push(option);
 Object.defineProperty(element('llm-model-options'),'innerHTML',{get:()=>'',set:()=>element('llm-model-options').children=[]});
 element('llm-model-refresh').addEventListener=()=>{};element('llm-model').addEventListener=()=>{};
+const validationStart=core.indexOf('function getConfigValidationError(');vm.runInContext(core.slice(validationStart,core.indexOf('function getIntListInput(',validationStart)),ctx);
 const profileStart=core.indexOf('function populateLlmInputs('),profileEnd=core.indexOf('// Reflects the last-SAVED',profileStart);vm.runInContext(core.slice(profileStart,profileEnd),ctx);
 const modelStart=core.indexOf('let llmModelRequestSequence =')>=0?core.indexOf('let llmModelRequestSequence ='):core.indexOf('async function refreshLlmModels()');vm.runInContext(core.slice(modelStart,core.indexOf('// --- Theme ---',modelStart)),ctx);
 const testStart=core.indexOf('async function testLlmConnection()'),testEnd=core.indexOf('const generationControlFields =',testStart)>=0?core.indexOf('const generationControlFields =',testStart):core.indexOf('async function loadConfig()',testStart);vm.runInContext(core.slice(testStart,testEnd),ctx);

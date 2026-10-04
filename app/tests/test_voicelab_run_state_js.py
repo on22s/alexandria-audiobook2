@@ -10,14 +10,14 @@ const elements={};
 function element(id){return elements[id]||(elements[id]={value:'',checked:false,disabled:false,style:{display:'none'},innerHTML:'',innerText:'',scrollHeight:0});}
 const ctx={window:null,document:{getElementById:element,querySelectorAll:()=>[{value:'name'}]},
  API:{},_makePauseResumeHandler:()=>()=>{},_resetPauseBtn:()=>{},showToast:()=>{},
- confirm:()=>true,escapeHtml:x=>String(x),cancelTask:()=>{},notifyJobDone:()=>{},
+ showConfirm:async()=>true,escapeHtml:x=>String(x),cancelTask:()=>{},notifyJobDone:()=>{},
  _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};},console,Date};ctx.window=ctx;
 element('vl-zips_dir').value='A';
 for(const [id,value] of Object.entries({'vl-target-loss':'4.15','vl-max-epochs':'6','vl-lora-r':'64','vl-candidate-checkpoints':'2'})){element(id).value=value;}
 vm.createContext(ctx);
 const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');
 const helper=core.slice(core.indexOf('        function getTaskLogUpdate('),core.indexOf('        // --- Setup Tab ---'));
-vm.runInContext(helper,ctx);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(helper,ctx);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const flush=async()=>{for(let i=0;i<8;i++){await Promise.resolve();}};
 (async()=>{
@@ -37,6 +37,7 @@ const pre=deferred(),start=deferred();let preCalls=0,startCalls=0;
 ctx.API.post=(path)=>{if(path.endsWith('/preflight')){preCalls++;return pre.promise;}startCalls++;return start.promise;};
 const attempt=ctx.startVoicelab();await flush();
 assert(element('btn-vl-start').disabled);assert.strictEqual(element('btn-vl-cancel').style.display,'none');
+assert.strictEqual(element('btn-vl-start').textContent,'Preflighting…');assert(element('voicelab-status').textContent.includes('Checking configuration'));
 await ctx.startVoicelab();assert.strictEqual(preCalls,1,'duplicate preflight/start refused');
 pre.resolve({ready:true,stages:['name'],preflight_id:'id'});await flush();
 assert.strictEqual(startCalls,1);assert.strictEqual(element('btn-vl-pause').style.display,'none');
@@ -48,8 +49,9 @@ assert(ctx.poll);
 ctx._vlSetRunning(false);ctx.API.post=async path=>{if(path.endsWith('/preflight')){return {ready:true,stages:['name'],preflight_id:'id'};}throw Error('rejected');};
 await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);assert.strictEqual(element('btn-vl-cancel').style.display,'none');
 assert(element('voicelab-status').innerHTML.includes('rejected'));
-ctx.API.post=async()=>({ready:false,stages:['name']});await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);
-ctx.API.post=async()=>({ready:true,stages:['name']});ctx.confirm=()=>false;await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);
+ctx.API.post=async()=>({ready:false,stages:['name']});await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);assert(element('voicelab-status').textContent.includes('blocked'));
+ctx.API.post=async()=>({ready:true,stages:['name']});ctx.showConfirm=()=>false;await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);assert(element('voicelab-status').textContent.includes('cancelled'));
+ctx.API.post=async()=>{throw Error('offline');};await ctx.startVoicelab();assert(!element('btn-vl-start').disabled);assert(element('voicelab-status').textContent.includes('configured paths, stages and numeric fields'));
 """)
 
     def test_completion_inspects_run_root_and_empty_status_clears_badges(self):
@@ -64,6 +66,16 @@ ctx.poll.options.onDone({running:false,status:'done'});await flush();
 assert(paths.includes('/api/voicelab/inspect?zips_dir=%2Fserver%2FA'));
 // Manual Inspect still follows the editable form.
 paths.length=0;await ctx.voicelabInspect();assert(paths.includes('/api/voicelab/inspect?zips_dir=B'));
+""")
+
+    def test_log_append_and_rotation_preserve_reader_position(self):
+        self.run_js(r"""
+ctx.document.createTextNode=text=>({textContent:text});const el=element('voicelab-logs');el.clientHeight=100;el.scrollHeight=1000;el.scrollTop=0;el.appendChild=node=>{el.innerText+=node.textContent;};
+ctx.pollVoicelab('A');const tick=ctx.poll.options.onTick;
+tick({run_id:'one',running:true,logs:['a','b']});assert.strictEqual(el.scrollTop,1000);
+el.scrollTop=200;tick({run_id:'one',running:true,logs:['a','b','c']});assert.strictEqual(el.innerText,'a\nb\nc');assert.strictEqual(el.scrollTop,200);
+tick({run_id:'one',running:true,logs:['b','c','d']});assert.strictEqual(el.innerText,'b\nc\nd');assert.strictEqual(el.scrollTop,200);
+el.scrollTop=880;tick({run_id:'one',running:true,logs:['b','c','d','e']});assert.strictEqual(el.scrollTop,1000);
 """)
 
     def test_empty_status_clears_previous_stage_badges(self):

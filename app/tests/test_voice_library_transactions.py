@@ -47,6 +47,21 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
             async def ping():return {'alive':True}
             yield root,api
 
+    def test_bulk_saved_book_update_preserves_same_book_active_voice_copy(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            book_id = routes._get_saved_book_id('one')
+            atomic_json_write({'active_book_id': book_id}, str(root / 'state.json'))
+            active = root / 'voices.json'
+            before = active.read_bytes()
+            response = client.post('/api/voice_library/apply_bulk', json={
+                'cast': 'series', 'mapping': {'Hero': 'hero'}, 'script_names': ['one']})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()['results'][0]['count'], 1)
+            saved = json.loads((root / 'scripts/one.voice_config.json').read_bytes())
+            self.assertEqual(saved['Hero']['voice'], 'old')
+            self.assertEqual(saved['Other']['voice'], 'preserve')
+            self.assertEqual(active.read_bytes(), before)
+
     def test_bulk_revalidates_deleted_cast_member_and_changed_voice_between_books(self):
         for change in ('cast','member','voice'):
             with self.subTest(change=change), self.fixture() as (root,api), TestClient(api) as client:

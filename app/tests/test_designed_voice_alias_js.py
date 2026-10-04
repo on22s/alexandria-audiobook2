@@ -15,10 +15,10 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const reset = source.slice(source.indexOf('function invalidateDesignerWork()'), source.indexOf('window.generateDesignPreview ='));
+const reset = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview ='));
 const open = source.slice(source.indexOf('window.openVoiceDesignEditor ='), source.indexOf('window.onDesignedVoiceSelect ='));
 const elements = {};
-const context = {
+const context = {showConfirm:async()=>true,showToast:()=>{},
     window: {_currentPreviewFile:'A.wav',_editingDesignedVoiceId:'A'},
     document: {
         getElementById(id) {
@@ -31,7 +31,7 @@ const context = {
 context.document.getElementById('design-sample-text');
 context.document.getElementById('design-alias-select');
 vm.runInNewContext(reset + open, context);
-for (const alias of ['TARGET B', '']) {
+(async()=>{for (const alias of ['TARGET B', '']) {
     const card = {querySelector(selector) {
         return {
             '.design-description':{value:'B description'},
@@ -40,7 +40,7 @@ for (const alias of ['TARGET B', '']) {
         }[selector];
     }};
     const button = {closest: selector => selector === '.card-body' ? card : {dataset:{voice:'B'}}};
-    context.window.openVoiceDesignEditor(button);
+    await context.window.openVoiceDesignEditor(button);
     assert.strictEqual(elements['design-voice-name'].value, 'B');
     assert.strictEqual(elements['design-source-name'].value, 'B');
     assert.strictEqual(elements['design-description'].value, 'B description');
@@ -50,7 +50,7 @@ for (const alias of ['TARGET B', '']) {
     assert.strictEqual(elements['design-alias-select'].dataset.aliasLookupFailed, 'false');
     assert.strictEqual(context.window._currentPreviewFile, null);
     assert.strictEqual(context.window._editingDesignedVoiceId, null);
-}
+}})().catch(error=>{console.error(error);process.exitCode=1;});
 '''
         result = subprocess.run(["node", "-e", script, str(SOURCE)],
                                 capture_output=True, text=True)
@@ -62,9 +62,9 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const save = source.slice(source.indexOf('window.saveDesignedVoice ='), source.indexOf('window.playDesignedVoice ='));
+const save = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview =')) + source.slice(source.indexOf('function getDesignerSaveSnapshot()'), source.indexOf('window.playDesignedVoice ='));
 const open = source.slice(source.indexOf('window.openDesignedVoiceForEdit ='), source.indexOf('window.openVoiceDesignEditor ='));
-const identity = source.slice(source.indexOf('function invalidateDesignerWork()'), source.indexOf('function resetDesignerForm()'));
+const identity = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview ='));
 
 async function run(lookupFails) {
     const elements = {};
@@ -83,15 +83,15 @@ async function run(lookupFails) {
     });
     select.appendChild = option => select.options.push(option);
     const aliasCard = {value: 'Old'};
+    const sourceCard = {querySelector: () => aliasCard};
     let autosaves = 0;
     const context = {
+        CSS: {escape:value=>value},
         window: {_designedVoicesCache: [{id: 'id1', name: 'Voice', filename: 'voice.wav'}], _voicesNames: ['Stale']},
         document: {
-            getElementById: id => elements[id],
+            getElementById: id => elements[id] || (elements[id]={value:'',style:{},dataset:{},innerHTML:''}),
             createElement: () => ({value: '', text: ''}),
-            querySelector: selector => selector === '[data-tab="designer"]' ? {click() {}} : {
-                querySelector: () => aliasCard
-            }
+            querySelector: selector => selector === '[data-tab="designer"]' ? {click() {}} : sourceCard
         },
         API: {get: async () => { if (lookupFails) { throw new Error('offline'); }
             return [{name: 'Voice', config: {alias_of: 'Old'}}, {name: 'Old', config: {}}];
@@ -124,7 +124,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const save = source.slice(source.indexOf('window.saveDesignedVoice ='), source.indexOf('window.playDesignedVoice ='));
+const save = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview =')) + source.slice(source.indexOf('function getDesignerSaveSnapshot()'), source.indexOf('window.playDesignedVoice ='));
 async function run(name, escaped) {
     const fields = {
         'design-voice-name': {value:name}, 'design-source-name': {value:name},
@@ -132,16 +132,17 @@ async function run(name, escaped) {
         'design-alias-select': {value:'TARGET',dataset:{}}
     };
     const alias = {value:'OLD'};
+    const sourceCard = {querySelector: selector => { assert.strictEqual(selector, '.alias-select'); return alias; }};
     const posts = [], toasts = [], escapes = [];
     let saves = 0;
     const context = {
         window: {_currentPreviewFile:'preview.wav', _designedVoicesCache:[]},
         CSS: {escape(value) { escapes.push(value); assert.strictEqual(value, name); return escaped; }},
         document: {
-            getElementById: id => fields[id],
+            getElementById: id => fields[id] || (fields[id]={value:'',style:{},dataset:{},innerHTML:''}),
             querySelector(selector) {
                 assert.strictEqual(selector, `.voice-card[data-voice="${escaped}"]`);
-                return {querySelector: selector => { assert.strictEqual(selector, '.alias-select'); return alias; }};
+                return sourceCard;
             }
         },
         API: {post: async (path,data) => { posts.push({path,data}); }},
@@ -150,8 +151,8 @@ async function run(name, escaped) {
     };
     vm.runInNewContext(save, context);
     await context.window.saveDesignedVoice();
-    assert.deepStrictEqual(toasts, []);
-    assert.deepStrictEqual(escapes, [name]);
+    assert.deepStrictEqual(toasts, [{message:`Saved "${name}" to the voice library.`,kind:'success'}]);
+    assert.deepStrictEqual(escapes, [name,name]);
     assert.strictEqual(alias.value, 'TARGET');
     assert.strictEqual(saves, 1);
     assert.strictEqual(posts.length, 1);
@@ -175,16 +176,16 @@ class DesignedVoiceSaveGuardJsTests(unittest.TestCase):
         script = r"""
 const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const code = source.slice(source.indexOf('window.saveDesignedVoice ='), source.indexOf('window.playDesignedVoice ='));
+const code = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview =')) + source.slice(source.indexOf('function getDesignerSaveSnapshot()'), source.indexOf('window.playDesignedVoice ='));
 function deferred() { let resolve, reject; const promise = new Promise((a,b) => {resolve=a; reject=b;}); return {promise,resolve,reject}; }
 async function run(fail) {
  const elements = {'design-voice-name':{value:'Voice'},'design-description':{value:'Calm'},
   'design-sample-text':{value:'Sample'},'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
  const requests=[], toasts=[]; let reloads=0; let pending=deferred();
  const context={window:{_currentPreviewFile:'preview.wav',_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
-  document:{getElementById:id=>elements[id]}, API:{post(path,payload){requests.push({path,payload});return pending.promise;}},
+  document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})}, API:{post(path,payload){requests.push({path,payload});return pending.promise;}},
   showToast:(...args)=>toasts.push(args),loadDesignedVoices(){reloads++;}};
- vm.runInNewContext(code,context);
+ const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
  const first=context.window.saveDesignedVoice();
  assert.strictEqual(requests.length,1);
  const duplicate=context.window.saveDesignedVoice();
@@ -197,9 +198,11 @@ async function run(fail) {
  assert.strictEqual(reloads,fail?0:1);
  assert.strictEqual(elements['design-voice-name'].value,fail?'Voice':'');
  assert.strictEqual(context.window._editingDesignedVoiceId,fail?'existing':null);
- assert.strictEqual(toasts.length,fail?1:0);
+ assert.strictEqual(toasts.length,1);
+ if(!fail){assert.strictEqual(toasts[0][1],'success');assert(toasts[0][0].includes('Voice'));}
  if(fail){assert.strictEqual(toasts[0][1],'error');assert(toasts[0][0].includes('save offline'));}
  elements['design-voice-name'].value='Retry Voice';pending=deferred();
+ if(!fail){await context.window.saveDesignedVoice();assert.strictEqual(requests.length,1,'successful save disarms old preview');context.window._currentPreviewFile='fresh.wav';}
  const retry=context.window.saveDesignedVoice();assert.strictEqual(requests.length,2);
  assert.strictEqual(requests[1].payload.name,'Retry Voice');
  pending.resolve({status:'saved'});await retry;
@@ -215,13 +218,13 @@ async function run(fail) {
         script = r"""
 const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const code = source.slice(source.indexOf('window.saveDesignedVoice ='), source.indexOf('window.playDesignedVoice ='));
+const code = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview =')) + source.slice(source.indexOf('function getDesignerSaveSnapshot()'), source.indexOf('window.playDesignedVoice ='));
 const elements={'design-voice-name':{value:''},'design-description':{value:'Calm'},'design-sample-text':{value:'Sample'},
  'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
 const requests=[],toasts=[];
-const context={window:{_currentPreviewFile:'preview.wav',_designedVoicesCache:[]},document:{getElementById:id=>elements[id]},
+const context={window:{_currentPreviewFile:'preview.wav',_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
  API:{post:async(path,payload)=>{requests.push({path,payload});return {}; }},showToast:(...args)=>toasts.push(args),loadDesignedVoices(){}};
-vm.runInNewContext(code,context);
+const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
 (async()=>{
  await context.window.saveDesignedVoice();assert.strictEqual(requests.length,0);
  elements['design-voice-name'].value='Voice';context.window._currentPreviewFile=null;

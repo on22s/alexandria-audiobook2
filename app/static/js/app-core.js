@@ -1,7 +1,7 @@
         // --- Toast & Confirm utilities ---
         let toastSequence = 0;
         let confirmQueue = Promise.resolve();
-        function showToast(message, type = 'info', duration = 4000) {
+        function showToast(message, type = 'info', duration = type === 'error' ? 10000 : 4000) {
             const container = document.getElementById('toast-container');
             const bgClass = type === 'success' ? 'bg-success' :
                            type === 'error' ? 'bg-danger' :
@@ -23,7 +23,20 @@
             el.addEventListener('hidden.bs.toast', () => el.remove());
         }
 
-        function showConfirm(message) {
+        function showActionError(action, error, recovery, type = 'error') {
+            showToast(getActionErrorMessage(action, error, recovery), type, 10000);
+        }
+
+        function getActionErrorMessage(action, error, recovery) {
+            const detail = error?.message || String(error);
+            const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(detail);
+            const guidance = unreachable
+                ? `Could not reach Alexandria. Check that the app is running and the connection is available. Review the current status before retrying; a request may have completed even if its reply was lost. ${recovery}`
+                : recovery;
+            return `${action}. ${guidance} Details: ${detail}`;
+        }
+
+        function showConfirm(message, {title = 'Confirm action', actionLabel = 'Continue', danger = false} = {}) {
             const confirmation = confirmQueue.then(() => new Promise((resolve, reject) => {
                 const body = document.getElementById('confirmModalBody');
                 body.textContent = message;
@@ -31,6 +44,10 @@
                 const modal = new bootstrap.Modal(modalElement);
                 const okBtn = document.getElementById('confirmModalOk');
                 const cancelBtn = document.getElementById('confirmModalCancel');
+                document.getElementById('confirmModalTitle').textContent = title;
+                okBtn.textContent = actionLabel;
+                okBtn.classList.toggle('btn-danger', danger);
+                okBtn.classList.toggle('btn-primary', !danger);
                 let shown = false;
                 let answered = false;
                 let decision = false;
@@ -77,28 +94,146 @@
             return confirmation;
         }
 
-        // Big/long-running jobs (batch review, batch script generation) bill a
-        // remote GPU by the hour while they run - confirm before committing to
-        // that, since there's no way for the app to check your actual Thunder
-        // balance automatically. Local has no cloud cost, so it's a no-op there.
+        let presetEditorPending = false;
+        async function showPresetEditor({title, name = '', description = '', includeDescription = true, validateName = () => '', nameLabel = 'Preset name', descriptionLabel = 'Description (optional)', descriptionPlaceholder = 'When should it be used?', actionLabel = 'Save preset', helperText = 'Enter a name for this preset. Using an existing name replaces that saved preset.', submitValues = null, allowEmptyName = false}) {
+            if (presetEditorPending) { return null; }
+            presetEditorPending = true;
+            const editing = confirmQueue.then(() => new Promise((resolve, reject) => {
+                const element = document.getElementById('presetEditorModal');
+                const form = document.getElementById('preset-editor-form');
+                const nameField = document.getElementById('preset-editor-name');
+                const descriptionField = document.getElementById('preset-editor-description');
+                const error = document.getElementById('preset-editor-error');
+                const cancel = document.getElementById('preset-editor-cancel');
+                document.getElementById('presetEditorTitle').textContent = title;
+                document.getElementById('preset-editor-name-label').textContent = nameLabel;
+                document.getElementById('preset-editor-description-label').textContent = descriptionLabel;
+                document.getElementById('preset-editor-submit').textContent = actionLabel;
+                document.getElementById('preset-editor-help').textContent = helperText;
+                descriptionField.placeholder = descriptionPlaceholder;
+                document.getElementById('preset-editor-description-group').hidden = !includeDescription;
+                nameField.value = name;
+                descriptionField.value = description;
+                nameField.removeAttribute('aria-invalid');
+                error.textContent = '';
+                const modal = new bootstrap.Modal(element);
+                let result = null;
+                let answered = false;
+                let shown = false;
+                let submitting = false;
+                const submitButton = document.getElementById('preset-editor-submit');
+                function setSubmitting(pending) {
+                    submitting = pending;
+                    nameField.disabled = descriptionField.disabled = cancel.disabled = submitButton.disabled = pending;
+                }
+                setSubmitting(false);
+                function onHide(event) { if (submitting) { event.preventDefault(); } }
+                async function submit(values) {
+                    setSubmitting(true);
+                    error.textContent = '';
+                    nameField.removeAttribute('aria-invalid');
+                    try {
+                        const receipt = await submitValues(values);
+                        setSubmitting(false);
+                        finish({...values, receipt});
+                    } catch (failure) {
+                        console.error('Text dialog submission failed', failure);
+                        error.textContent = failure.message || 'The change was not confirmed. Check the app connection before trying again.';
+                    } finally { setSubmitting(false); }
+                }
+                function cleanup() {
+                    element.removeEventListener('hide.bs.modal', onHide);
+                    form.removeEventListener('submit', onSubmit);
+                    cancel.removeEventListener('click', onCancel);
+                    element.removeEventListener('shown.bs.modal', onShown);
+                    element.removeEventListener('hidden.bs.modal', onHidden);
+                }
+                function finish(value) {
+                    if (answered || submitting) { return; }
+                    answered = true;
+                    result = value;
+                    if (shown) { modal.hide(); }
+                }
+                function onSubmit(event) {
+                    event.preventDefault();
+                    if (answered || submitting) { return; }
+                    const value = nameField.value.trim();
+                    const message = value || allowEmptyName ? validateName(value) : `Enter ${/^[aeiou]/i.test(nameLabel) ? 'an' : 'a'} ${nameLabel.toLowerCase()}.`;
+                    if (message) {
+                        error.textContent = message;
+                        nameField.setAttribute('aria-invalid', 'true');
+                        nameField.focus();
+                        return;
+                    }
+                    const values = {name: value, description: includeDescription ? descriptionField.value.trim() : ''};
+                    if (submitValues) { submit(values); } else { finish(values); }
+                }
+                function onCancel() { finish(null); }
+                function onShown() {
+                    shown = true;
+                    if (answered) { modal.hide(); }
+                    else { nameField.focus(); }
+                }
+                function onHidden() {
+                    cleanup();
+                    modal.dispose();
+                    resolve(result);
+                }
+                element.addEventListener('hide.bs.modal', onHide);
+                form.addEventListener('submit', onSubmit);
+                cancel.addEventListener('click', onCancel);
+                element.addEventListener('shown.bs.modal', onShown);
+                element.addEventListener('hidden.bs.modal', onHidden);
+                try { modal.show(); }
+                catch (error) { cleanup(); modal.dispose(); reject(error); }
+            }));
+            confirmQueue = editing.catch(() => {});
+            try { return await editing; }
+            finally { presetEditorPending = false; }
+        }
+
+        async function reloadPageAfterConfirmation() {
+            if (!await showConfirm('Reload the page? Unsaved changes may be lost.', {title: 'Reload page?', actionLabel: 'Reload', danger: true})) { return; }
+            location.reload();
+        }
+
+        // Confirm remote usage before starting long-running jobs. The app does
+        // not know the provider's pricing or account balance.
         async function confirmIfRemote(taskLabel, failoverOnly = false) {
             if (failoverOnly && !failoverIsRemote) { return true; }
             if (currentIsRemote) {
                 return await showConfirm(
-                    `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
-                    `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
-                    `to Local in Setup first?`
-                );
+                    `This will run ${taskLabel} on your REMOTE LLM profile and may incur usage ` +
+                    `charges from your provider. Continue on remote, or Cancel and switch ` +
+                    `to Local in Setup first?`,
+                    {title: 'Remote usage charges', actionLabel: 'Continue on remote', danger: false});
             }
             if (failoverIsRemote) {
                 // Server-computed: failover is on and the other profile is remote.
                 return await showConfirm(
                     `${taskLabel} runs on Local, but failover is on: if Local gives up (retries run out ` +
                     `or a content-policy refusal) the rest of the run switches to your REMOTE LLM and ` +
-                    `bills your account. Continue, or Cancel and turn failover off in Setup?`
-                );
+                    `may incur usage charges from your provider. Continue, or Cancel and turn failover off in Setup?`,
+                    {title: 'Remote failover charges', actionLabel: 'Continue with failover', danger: false});
             }
             return true;
+        }
+
+        async function ensureScriptStartConfirmed(taskLabel, failoverOnly = false) {
+            const button = document.getElementById('btn-gen-script');
+            if (button.disabled) { return false; }
+            button.disabled = true;
+            let approved = false;
+            try {
+                approved = await confirmIfRemote(taskLabel, failoverOnly);
+                return approved;
+            } catch (error) {
+                console.error('Script start confirmation failed:', error);
+                showToast('Could not confirm this script run. Check the connection and try again.', 'error');
+                return false;
+            } finally {
+                if (!approved) { button.disabled = false; }
+            }
         }
 
         // navigator.clipboard exists only in a secure context (https, or
@@ -108,6 +243,46 @@
         // the modern API where it exists, the old execCommand path where it
         // doesn't, and if both fail the text is put where the user can copy
         // it by hand rather than a toast that says it cannot be done.
+        function showManualCopy(text, what) {
+            const copying = confirmQueue.then(() => new Promise((resolve, reject) => {
+                const element = document.getElementById('manualCopyModal');
+                const field = document.getElementById('manual-copy-text');
+                const close = document.getElementById('manual-copy-close');
+                document.getElementById('manualCopyTitle').textContent = `Copy ${what} manually`;
+                field.value = text;
+                const modal = new bootstrap.Modal(element);
+                let shown = false;
+                let closing = false;
+                function onShown() {
+                    shown = true;
+                    if (closing) { modal.hide(); }
+                    else { field.focus(); field.select(); }
+                }
+                function onClose() {
+                    closing = true;
+                    if (shown) { modal.hide(); }
+                }
+                function cleanup() {
+                    element.removeEventListener('shown.bs.modal', onShown);
+                    element.removeEventListener('hidden.bs.modal', onHidden);
+                    close.removeEventListener('click', onClose);
+                    field.value = '';
+                }
+                function onHidden() {
+                    cleanup();
+                    modal.dispose();
+                    resolve();
+                }
+                element.addEventListener('shown.bs.modal', onShown);
+                element.addEventListener('hidden.bs.modal', onHidden);
+                close.addEventListener('click', onClose);
+                try { modal.show(); }
+                catch (error) { cleanup(); modal.dispose(); reject(error); }
+            }));
+            confirmQueue = copying.catch(() => {});
+            return copying;
+        }
+
         async function copyToClipboard(text, what = 'Text') {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 try {
@@ -130,7 +305,7 @@
                 showToast(`${what} copied to the clipboard.`, 'success');
                 return true;
             }
-            window.prompt(`${what} - the browser refused clipboard access here, so select and copy it by hand:`, text);
+            await showManualCopy(text, what);
             return false;
         }
 
@@ -170,16 +345,40 @@
 
         // "2000, 4000, 6000" -> [2000, 4000, 6000]; an empty box means the default,
         // anything that is not a positive integer is an error, not a silent drop.
+        function getConfigValidationError(id, message) {
+            const error = new Error(message);
+            error.fieldId = id;
+            return error;
+        }
+
+        function showConfigValidationError(error) {
+            const field = error.fieldId ? document.getElementById(error.fieldId) : null;
+            if (field) {
+                const focusField = () => { field.focus(); field.scrollIntoView({block: 'center'}); };
+                let waiting = false;
+                for (let parent = field.parentElement; parent; parent = parent.parentElement) {
+                    if (parent.tagName === 'DETAILS') { parent.open = true; }
+                    if (parent.classList.contains('collapse') && !parent.classList.contains('show')) {
+                        waiting = true;
+                        parent.addEventListener('shown.bs.collapse', focusField, {once: true});
+                        bootstrap.Collapse.getOrCreateInstance(parent, {toggle: false}).show();
+                    }
+                }
+                if (!waiting) { focusField(); }
+            }
+            showToast(error.message, 'error');
+        }
+
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
             const tokens = raw.split(',').map(t => t.trim());
             if (tokens.some(t => !/^[1-9]\d*$/.test(t))) {
-                throw new Error(`${label}: use positive whole numbers separated by commas.`);
+                throw getConfigValidationError(id, `${label}: use positive whole numbers separated by commas.`);
             }
             const values = tokens.map(Number);
             if (values.some(v => !Number.isSafeInteger(v))) {
-                throw new Error(`${label}: use positive whole numbers separated by commas.`);
+                throw getConfigValidationError(id, `${label}: use positive whole numbers separated by commas.`);
             }
             return values;
         }
@@ -221,97 +420,164 @@
             preparer: 'Dataset preparer',
             batch_preparer: 'Dataset preparer batch',
             dataset_builder: 'Dataset builder batch',
+            book_preflight: 'Book test',
+            benchmark: 'Benchmark',
+            audacity_export: 'Audacity export',
+            m4b_export: 'M4B export',
         };
 
         // Notify the user that a long-running job finished, but only if they've
         // navigated away from the tab (no point popping up a notification for
         // something they're already watching).
-        function notifyJobDone(taskName, detail = '', outcome = 'finished') {
+        function getTaskCompletionOutcome(status) {
+            if (isTaskFailed(status)) { return 'failed'; }
+            if (status.status === 'cancelled' || (status.tasks || []).some(task => task.status === 'cancelled')) { return 'cancelled'; }
+            for (const line of (status.logs || []).slice().reverse()) {
+                if (/^Task \S+ completed successfully\.$/i.test(String(line).trim())) { return 'finished'; }
+                if (/^Task \S+ (?:cancelled\.|was cancelled\s*\()/i.test(String(line).trim())) { return 'cancelled'; }
+            }
+            return 'finished';
+        }
+
+        function notifyJobDone(taskName, detail = '', outcome = 'finished', status = null) {
             if (!('Notification' in window) || Notification.permission !== 'granted') { return; }
             if (document.visibilityState === 'visible' && document.hasFocus()) { return; }
-            const title = `${TASK_LABELS[taskName] || taskName} ${outcome}`;
+            const completion = status ? getTaskCompletionOutcome(status) : outcome;
+            const title = `${TASK_LABELS[taskName] || taskName} ${completion}`;
+            const message = detail || (completion === 'failed' || completion === 'cancelled'
+                ? 'Open Alexandria to review the activity log and your recovery options.'
+                : 'Switch back to Alexandria to see the results.');
             try {
-                new Notification(title, { body: detail || 'Switch back to Alexandria to see the results.', icon: '/favicon.ico' });
+                new Notification(title, { body: message, icon: '/favicon.ico' });
             } catch (e) { /* notifications are a nice-to-have */ }
         }
 
-        // Ask for permission the first time the user interacts with the page —
-        // most browsers require a user gesture before the prompt will appear.
-        if ('Notification' in window && Notification.permission === 'default') {
-            document.addEventListener('click', function requestNotificationPermission() {
-                Notification.requestPermission();
-                document.removeEventListener('click', requestNotificationPermission);
-            }, { once: true });
+        // Ask for permission only from the dedicated notification control.
+        let notificationPermissionPending = false;
+
+        function renderNotificationPermission() {
+            const button = document.getElementById('notification-enable');
+            const status = document.getElementById('notification-status');
+            if (!button || !status) { return; }
+            const supported = 'Notification' in window;
+            const permission = supported ? Notification.permission : 'unsupported';
+            button.disabled = notificationPermissionPending || permission !== 'default';
+            button.textContent = notificationPermissionPending ? 'Requesting notifications…'
+                : permission === 'granted' ? 'Notifications enabled' : 'Enable task notifications';
+            status.textContent = permission === 'granted'
+                ? 'Task updates appear when you are away from Alexandria.'
+                : permission === 'denied' ? 'Notifications are blocked. Change this site’s browser permissions to enable them.'
+                    : permission === 'unsupported' ? 'This browser does not support desktop notifications.'
+                        : 'Optional: receive desktop updates when tasks finish.';
         }
+
+        async function requestTaskNotifications() {
+            if (notificationPermissionPending || !('Notification' in window) || Notification.permission !== 'default') { return; }
+            notificationPermissionPending = true;
+            renderNotificationPermission();
+            try {
+                await Notification.requestPermission();
+            } catch (error) {
+                showToast('Could not request notifications. Check this site’s browser permissions and try again.', 'warning');
+            } finally {
+                notificationPermissionPending = false;
+                renderNotificationPermission();
+            }
+        }
+
+        renderNotificationPermission();
 
         // --- Navigation ---
         // Remember the open tab across reloads. restoreTab() runs at the end of
         // app-reports.js (the last script), synchronously during page load, so
         // the Setup tab never gets a frame to flash.
         const TAB_STORAGE_KEY = 'alexandria.activeTab';
+        let currentTabName = 'setup';
         function rememberTab(name) {
             try { localStorage.setItem(TAB_STORAGE_KEY, name); } catch (e) { /* private mode */ }
         }
+        function getTabLink(name) {
+            return Array.from(document.querySelectorAll('.nav-link')).find(link => link.dataset.tab === name);
+        }
+        function getUrlTabName() {
+            const name = window.location.hash.slice(1);
+            return getTabLink(name) ? name : null;
+        }
+        function activateTab(name, updateHistory = true) {
+            const selectedLink = getTabLink(name);
+            if (!selectedLink) { return; }
+            const target = document.getElementById(name + '-tab');
+            if (!target) { return; }
+            if (updateHistory && window.location.hash !== '#' + name) {
+                window.history.pushState(null, '', '#' + name);
+            }
+            currentTabName = name;
+            rememberTab(name);
+            // Remove active class from all links
+            document.querySelectorAll('.nav-link').forEach(l => {
+                l.classList.remove('active');
+                l.removeAttribute('aria-current');
+            });
+            // Add active to clicked
+            selectedLink.classList.add('active');
+            selectedLink.setAttribute('aria-current', 'page');
+
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            // Show target tab
+            target.style.display = 'block';
+
+            const nav = document.getElementById('navbarNav');
+            if (nav.classList.contains('show') && window.innerWidth < 768) {
+                bootstrap.Collapse.getOrCreateInstance(nav).hide();
+            }
+
+            // Trigger tab specific loads
+            if (selectedLink.dataset.tab === 'setup') {
+                pollLmStudioStatus();
+            } else if (selectedLink.dataset.tab === 'editor') {
+                loadChunks();
+            } else if (selectedLink.dataset.tab === 'voices') {
+                loadVoices(false);
+            } else if (selectedLink.dataset.tab === 'designer') {
+                loadDesignedVoices();
+            } else if (selectedLink.dataset.tab === 'training') {
+                loadLoraDatasets();
+                loadLoraModels();
+            } else if (selectedLink.dataset.tab === 'dataset-builder') {
+                dsbLoadProjects(dsbCurrentProject);
+            } else if (selectedLink.dataset.tab === 'preparer') {
+                loadPreparerOutputs();
+            } else if (selectedLink.dataset.tab === 'voicelab') {
+                loadVoicelabConfig();
+                voicelabInspect();
+                refreshVoicelabHealth();
+            } else if (selectedLink.dataset.tab === 'reports') {
+                loadReports();
+                loadCheckpoints();
+                loadRunHistory();
+                refreshBenchmarkStatus();
+            }
+        }
         function restoreTab() {
-            let name = null;
-            try { name = localStorage.getItem(TAB_STORAGE_KEY); } catch (e) { return; }
-            if (!name || name === 'setup') { return; }
-            const link = Array.from(document.querySelectorAll('.nav-link')).find(link => link.dataset.tab === name);
-            if (link) { link.click(); }
+            let saved = null;
+            try { saved = localStorage.getItem(TAB_STORAGE_KEY); } catch (e) { /* private mode */ }
+            const name = getUrlTabName() || (getTabLink(saved) ? saved : 'setup');
+            window.history.replaceState(null, '', '#' + name);
+            if (name !== currentTabName) { activateTab(name, false); }
+        }
+        function onTabHistoryChange() {
+            const name = getUrlTabName() || 'setup';
+            if (name !== currentTabName) { activateTab(name, false); }
         }
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const selectedLink = e.currentTarget;
-                if (selectedLink.dataset.tab) { rememberTab(selectedLink.dataset.tab); }
-                // Remove active class from all links
-                document.querySelectorAll('.nav-link').forEach(l => {
-                    l.classList.remove('active');
-                    l.removeAttribute('aria-current');
-                });
-                // Add active to clicked
-                selectedLink.classList.add('active');
-                selectedLink.setAttribute('aria-current', 'page');
-
-                // Hide all tabs
-                document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-                // Show target tab
-                const targetId = selectedLink.dataset.tab + '-tab';
-                document.getElementById(targetId).style.display = 'block';
-
-                const nav = document.getElementById('navbarNav');
-                if (nav.classList.contains('show')) {
-                    bootstrap.Collapse.getOrCreateInstance(nav).hide();
-                }
-
-                // Trigger tab specific loads
-                if (selectedLink.dataset.tab === 'setup') {
-                    pollLmStudioStatus();
-                } else if (selectedLink.dataset.tab === 'editor') {
-                    loadChunks();
-                } else if (selectedLink.dataset.tab === 'voices') {
-                    loadVoices(false);
-                } else if (selectedLink.dataset.tab === 'designer') {
-                    loadDesignedVoices();
-                } else if (selectedLink.dataset.tab === 'training') {
-                    loadLoraDatasets();
-                    loadLoraModels();
-                } else if (selectedLink.dataset.tab === 'dataset-builder') {
-                    dsbLoadProjects(dsbCurrentProject);
-                } else if (selectedLink.dataset.tab === 'preparer') {
-                    loadPreparerOutputs();
-                } else if (selectedLink.dataset.tab === 'voicelab') {
-                    loadVoicelabConfig();
-                    voicelabInspect();
-                    refreshVoicelabHealth();
-                } else if (selectedLink.dataset.tab === 'reports') {
-                    loadReports();
-                    loadCheckpoints();
-                    loadRunHistory();
-                    refreshBenchmarkStatus();
-                }
+                activateTab(e.currentTarget.dataset.tab);
             });
         });
+        window.addEventListener('popstate', onTabHistoryChange);
+        window.addEventListener('hashchange', onTabHistoryChange);
 
         // --- LLM model picker: ask the Base URL what it serves ---
         let llmModelRequestSequence = 0;
@@ -352,6 +618,15 @@
         document.getElementById('llm-model').addEventListener('focus', () => {
             if (!document.getElementById('llm-model-options').children.length) { refreshLlmModels(); }
         });
+        function toggleLlmKeyVisibility() {
+            const input = document.getElementById('llm-key');
+            const button = document.getElementById('llm-key-toggle');
+            const visible = input.type === 'password';
+            input.type = visible ? 'text' : 'password';
+            button.textContent = visible ? 'Hide key' : 'Show key';
+            button.setAttribute('aria-pressed', String(visible));
+        }
+
         // --- Theme ---
         const THEMES = [
             { key: 'light',       icon: 'fa-sun',      label: 'Light'      },
@@ -369,7 +644,12 @@
             }
             const t = THEMES.find(t => t.key === key) || THEMES[0];
             document.getElementById('theme-icon').className = `fas ${t.icon}`;
-            document.getElementById('theme-label').textContent = t.label;
+            document.getElementById('theme-label').textContent = `Theme: ${t.label}`;
+            const next = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
+            const action = `Current theme: ${t.label}. Switch to ${next.label}.`;
+            const button = document.getElementById('theme-toggle');
+            button.title = action;
+            button.setAttribute('aria-label', action);
             try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
         }
 
@@ -543,7 +823,10 @@
                 if (!element) { return; }
                 const update = getTaskLogUpdate(previousLogs, previousRunId,
                     status.logs || [], status.run_id || status.start_time || null);
-                if (!update.changed) { return; }
+                if (!update.changed) { return update; }
+                const followTail = previousLogs === null
+                    || element.scrollHeight - element.clientHeight - element.scrollTop <= 24;
+                const scrollPosition = element.scrollTop;
                 element.style.whiteSpace = 'pre-wrap';
                 if (update.reset) {
                     element.innerText = update.text;
@@ -552,7 +835,8 @@
                 }
                 previousLogs = update.logs;
                 previousRunId = update.runId;
-                element.scrollTop = element.scrollHeight;
+                element.scrollTop = followTail ? element.scrollHeight : scrollPosition;
+                return update;
             };
         }
 
@@ -584,11 +868,11 @@
 
                 const banner = document.getElementById('auto-config-banner');
                 document.getElementById('auto-config-msg').innerHTML =
-                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
+                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Suggested settings:</strong> ${escapeHtml(summary)}.${settings.ttsMode === 'external' ? ' External TTS selected: start a compatible TTS server and enter its URL below before generating audio.' : ''} Review the TTS settings below, then click Save to apply.`;
                 banner.style.display = '';
                 banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
-                showToast('Hardware detection failed: ' + e.message, 'error');
+                showActionError('Hardware detection failed', e, 'Review the hardware details and TTS settings before trying Auto-Configure again.');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
@@ -619,7 +903,7 @@
                 // the label differs, so the two cases share one branch instead of
                 // two copies of an identical settings object.
                 tier = stats.gpu_mismatch
-                    ? 'GPU detected but unusable by torch (wrong build) - defaulting to safe CPU settings'
+                    ? 'GPU detected but unusable by torch (wrong build) - selecting External TTS'
                     : 'No GPU / insufficient VRAM';
                 settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
                     batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
@@ -731,6 +1015,49 @@
             return {active: name, own};
         }
 
+        const pendingPromptPresetSwitches = new Set();
+
+        async function onPromptPresetChange(pass, index) {
+            const attribution = pass === 'attribution';
+            const presets = attribution ? promptPresets : passPromptPresets[pass];
+            const active = attribution ? activePromptPreset : activePassPromptPreset[pass];
+            const select = document.getElementById(attribution ? 'prompt-preset-select' : `${pass}-prompt-preset-select`);
+            const previousIndex = presets.findIndex(preset => preset.name === active);
+            select.value = String(previousIndex);
+            if (pendingPromptPresetSwitches.has(pass)) { return; }
+            if (configSavePending) {
+                showToast('Wait for the configuration save before switching prompt presets.', 'warning');
+                return;
+            }
+            const target = presets[index];
+            if (attribution && !target) { return; }
+            const current = presets[previousIndex];
+            const defaults = attribution ? {} : passPromptDefaults[pass];
+            const boxes = getPromptEditorBoxes(pass);
+            const edited = Object.entries(boxes).some(([key, value]) => value !== (current?.[key] || defaults[key] || ''));
+            pendingPromptPresetSwitches.add(pass);
+            try {
+                if (edited) {
+                    const snapshot = getPromptPresetEditorSnapshot(pass);
+                    const defaultSnapshot = JSON.stringify(defaults);
+                    if (!await showConfirm(`Switch to prompt preset "${target?.name || 'Default'}"? This replaces the current prompt text. Discard your unsaved prompt edits?`, {title: 'Replace edited prompt?', actionLabel: 'Switch preset', danger: true})) { return; }
+                    if (snapshot !== getPromptPresetEditorSnapshot(pass)
+                        || defaultSnapshot !== JSON.stringify(attribution ? {} : passPromptDefaults[pass])) {
+                        showToast('The prompt edits or presets changed. Review them before switching.', 'warning');
+                        return;
+                    }
+                }
+                select.value = String(index);
+                if (attribution) { applyPromptPreset(index); }
+                else { applyPassPromptPreset(pass, index); }
+            } catch (error) {
+                console.error('Prompt preset switch failed:', error);
+                showToast('Could not confirm the preset switch. Your prompt edits were kept; try again.', 'error');
+            } finally {
+                pendingPromptPresetSwitches.delete(pass);
+            }
+        }
+
         function renderPassPromptPresets(pass, presets, activeName) {
             passPromptPresets[pass] = Array.isArray(presets) ? presets : [];
             activePassPromptPreset[pass] = activeName || 'default';
@@ -747,7 +1074,7 @@
                 option.textContent = preset.name;
                 select.appendChild(option);
             });
-            select.onchange = () => applyPassPromptPreset(pass, Number(select.value));
+            select.onchange = () => onPromptPresetChange(pass, Number(select.value));
             const index = passPromptPresets[pass].findIndex(p => p.name === activePassPromptPreset[pass]);
             select.value = index >= 0 ? String(index) : '-1';
             applyPassPromptPreset(pass, index);
@@ -764,9 +1091,15 @@
 
         window.savePassPromptPreset = async (pass) => {
             const fields = passPromptFields(pass);
-            const name = window.prompt('Preset name:', activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass]);
-            if (!name || !name.trim()) { return; }
-            const description = window.prompt('When should it be used?', '') || '';
+            const snapshot = getPromptPresetEditorSnapshot(pass);
+            const values = await showPresetEditor({title: `Save ${pass} prompt preset`,
+                name: activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass]});
+            if (!values) { return; }
+            if (getPromptPresetEditorSnapshot(pass) !== snapshot) {
+                showToast('The prompt or preset selection changed. Review it before saving a preset.', 'warning');
+                return;
+            }
+            const {name, description} = values;
             const preset = {name: name.trim(), description: description.trim(),
                 system_prompt: document.getElementById(fields.system).value,
                 user_prompt: document.getElementById(fields.user).value};
@@ -777,23 +1110,52 @@
             try {
                 await persistPromptPresets({prompts: {[`${pass}_preset`]: preset.name, [`${pass}_prompt_presets`]: presets}},
                     () => applyPromptPresetSave(pass, presets, preset.name, submitted));
-                showToast(`${pass} prompt preset saved.`, 'success');
-            } catch (e) { showToast('Could not save prompt preset: ' + e.message, 'error'); }
+                showToast(`${pass === 'pass1' ? 'Step 1' : 'Step 3'} prompt preset saved.`, 'success');
+            } catch (e) { showActionError('Could not save prompt preset', e, 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.'); }
         };
+
+        const pendingPromptPresetDeletions = new Set();
+
+        function getPromptPresetEditorSnapshot(pass) {
+            const attribution = pass === 'attribution';
+            return JSON.stringify({
+                selected: attribution ? selectedPromptPreset()?.name : activePassPromptPreset[pass],
+                presets: attribution ? promptPresets : passPromptPresets[pass],
+                editor: getPromptEditorBoxes(pass),
+            });
+        }
+
+        async function applyConfirmedPromptPresetDeletion(pass, message, remove) {
+            if (pendingPromptPresetDeletions.has(pass)) { return; }
+            pendingPromptPresetDeletions.add(pass);
+            const snapshot = getPromptPresetEditorSnapshot(pass);
+            try {
+                if (!await showConfirm(message, {title: 'Delete prompt preset?', actionLabel: 'Delete preset and save Setup', danger: true})) { return; }
+                if (getPromptPresetEditorSnapshot(pass) !== snapshot) {
+                    showToast('The preset selection or prompt edits changed. Review them before deleting.', 'warning');
+                    return;
+                }
+                await remove();
+            } finally {
+                pendingPromptPresetDeletions.delete(pass);
+            }
+        }
 
         window.deletePassPromptPreset = async (pass) => {
             const presets = passPromptPresets[pass].map(item => ({...item}));
             const index = presets.findIndex(p => p.name === activePassPromptPreset[pass]);
             if (index < 0) { showToast('Select a saved preset first.', 'warning'); return; }
-            if (!window.confirm(`Delete preset "${presets[index].name}"?`)) { return; }
-            presets.splice(index, 1);
-            const submitted = getPromptEditorBoxes(pass);
             try {
-                await persistPromptPresets({prompts: {[`${pass}_preset`]: 'default', [`${pass}_prompt_presets`]: presets}},
-                    () => applyPromptPresetSave(pass, presets, 'default', submitted));
-                showToast('Prompt preset deleted.', 'success');
+                await applyConfirmedPromptPresetDeletion(pass,
+                    `Delete preset "${presets[index].name}" and switch the active ${pass} prompt to the checked-in default? This also saves your current Setup settings.`, async () => {
+                        presets.splice(index, 1);
+                        const submitted = getPromptEditorBoxes(pass);
+                        await persistPromptPresets({prompts: {[`${pass}_preset`]: 'default', [`${pass}_prompt_presets`]: presets}},
+                            () => applyPromptPresetSave(pass, presets, 'default', submitted));
+                        showToast('Prompt preset deleted.', 'success');
+                    });
             } catch (e) {
-                showToast('Could not delete prompt preset: ' + e.message, 'error');
+                showActionError('Could not delete prompt preset', e, 'Review the saved preset list to check whether it was deleted before trying Delete again.');
             }
         };
 
@@ -830,7 +1192,7 @@
             });
             select.appendChild(builtins);
             if (mine.childElementCount) { select.appendChild(mine); }
-            select.onchange = () => applyPromptPreset(Number(select.value));
+            select.onchange = () => onPromptPresetChange('attribution', Number(select.value));
             let index = promptPresets.findIndex(p => p.name === (activeName || activePromptPreset));
             if (index < 0) { index = promptPresets.findIndex(p => p.name === 'michel2_full'); }
             if (index < 0 && promptPresets.length) { index = 0; }
@@ -884,10 +1246,27 @@
         async function saveConfigPayload(payload, onSaved = null) {
             if (configSavePending) { throw new Error('Wait for the current configuration save to finish.'); }
             configSavePending = true;
+            const controls = Array.from(document.getElementById('config-form')?.querySelectorAll?.('[data-config-save-action]') || [])
+                .map(button => ({button, disabled: button.disabled}));
+            controls.forEach(({button}) => { button.disabled = true; });
+            const saveButtons = ['config-save-button', 'config-save-button-top']
+                .map(id => document.getElementById(id)).filter(Boolean)
+                .map(button => ({button, label: button.innerHTML}));
+            saveButtons.forEach(({button}) => { button.innerHTML = 'Saving…'; });
+            const status = document.getElementById('config-save-status');
+            if (status) { status.textContent = 'Saving configuration…'; }
             try {
                 await API.post('/api/config', payload);
                 if (onSaved) { await onSaved(); }
-            } finally { configSavePending = false; }
+                if (status) { status.textContent = 'Configuration saved.'; }
+            } catch (error) {
+                if (status) { status.textContent = 'Save was not confirmed. Your form fields are kept. Review the error and current saved settings before trying again.'; }
+                throw error;
+            } finally {
+                configSavePending = false;
+                controls.forEach(({button, disabled}) => { button.disabled = disabled; });
+                saveButtons.forEach(({button, label}) => { button.innerHTML = label; });
+            }
         }
 
         function getPromptEditorBoxes(pass) {
@@ -917,21 +1296,68 @@
             await saveConfigPayload(payload, onSaved);
         }
 
-        async function reloadPromptPresets(activeName, savedConfig = null) {
+        async function reloadPromptPresets(activeName, savedConfig = null, editorSnapshot = getPromptPresetEditorSnapshot('attribution')) {
             const config = savedConfig || await API.get('/api/config');
+            if (!Array.isArray(config.prompt_presets)) { throw new Error('Saved prompt preset list is unavailable'); }
+            if (editorSnapshot !== getPromptPresetEditorSnapshot('attribution')) { return false; }
             activePromptPreset = activeName || (config.prompts && config.prompts.attribution_preset) || 'default';
-            renderPromptPresets(config.prompt_presets || [], activePromptPreset);
+            renderPromptPresets(config.prompt_presets, activePromptPreset);
+            return true;
+        }
+
+        let savedConfigRefreshPending = false;
+        let savedConfigRefreshRequest = 0;
+        let savedConfigPromptSnapshot = null;
+        async function refreshSavedConfigFeedback(afterSave = false) {
+            if (savedConfigRefreshPending && !afterSave) { return; }
+            const request = ++savedConfigRefreshRequest;
+            const promptSnapshot = savedConfigPromptSnapshot;
+            const status = document.getElementById('config-refresh-status');
+            const retry = document.getElementById('config-refresh-retry');
+            savedConfigRefreshPending = true;
+            retry.disabled = true;
+            status.textContent = 'Configuration saved. Refreshing saved status…';
+            try {
+                const config = await API.get('/api/config');
+                if (request !== savedConfigRefreshRequest) { return; }
+                if (!config || !['local', 'remote'].includes(config.llm_mode)) { throw new Error('Saved profile status is unavailable'); }
+                currentIsRemote = !!config.is_remote;
+                failoverIsRemote = !!config.failover_is_remote;
+                savedLlmMode = config.llm_mode;
+                renderActiveLlmModeBadge();
+                renderConfigWarnings(config);
+                const refreshed = await reloadPromptPresets(undefined, config, promptSnapshot);
+                if (request !== savedConfigRefreshRequest) { return; }
+                status.textContent = refreshed ? ''
+                    : 'Configuration saved. Your later prompt edits were kept, so the saved preset list was not reloaded. Review your edits before saving again.';
+                retry.hidden = true;
+            } catch (error) {
+                if (request !== savedConfigRefreshRequest) { return; }
+                console.debug('Saved configuration refresh failed', error);
+                status.textContent = 'Configuration saved, but saved profile or preset status could not be refreshed. Your current fields are kept. Check that Alexandria is running, then retry the status refresh; this does not save again.';
+                retry.hidden = false;
+            } finally {
+                if (request === savedConfigRefreshRequest) {
+                    savedConfigRefreshPending = false;
+                    retry.disabled = false;
+                }
+            }
         }
 
         window.savePromptPreset = async () => {
             const current = selectedPromptPreset();
-            const name = window.prompt('Preset name:', current && !current.builtin ? current.name : '');
-            if (!name || !name.trim()) { return; }
-            if (promptPresets.some(p => p.builtin && p.name === name.trim())) {
-                showToast('That name belongs to a built-in prompt; choose another.', 'warning');
+            const snapshot = getPromptPresetEditorSnapshot('attribution');
+            const values = await showPresetEditor({title: 'Save attribution prompt preset',
+                name: current && !current.builtin ? current.name : '',
+                description: current?.description || '',
+                validateName: name => promptPresets.some(p => p.builtin && p.name === name)
+                    ? 'That name belongs to a built-in prompt; choose another.' : ''});
+            if (!values) { return; }
+            if (getPromptPresetEditorSnapshot('attribution') !== snapshot) {
+                showToast('The prompt or preset selection changed. Review it before saving a preset.', 'warning');
                 return;
             }
-            const description = window.prompt('When should it be used?', current ? (current.description || '') : '') || '';
+            const {name, description} = values;
             const preset = {name: name.trim(), description: description.trim(),
                 variant: (current && current.variant) || 'default', ...promptBoxes(), builtin: false};
             const presets = promptPresets.map(item => ({...item}));
@@ -943,21 +1369,23 @@
                 await persistPromptPresets({prompts: {attribution_preset: preset.name}, prompt_presets: presets.filter(item => !item.builtin)},
                     () => applyPromptPresetSave('attribution', presets, preset.name, submitted));
                 showToast('Prompt preset saved and selected.', 'success');
-            } catch (e) { showToast('Could not save prompt preset: ' + e.message, 'error'); }
+            } catch (e) { showActionError('Could not save prompt preset', e, 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.'); }
         };
 
         window.deletePromptPreset = async () => {
             const preset = selectedPromptPreset();
             if (!preset || preset.builtin) { showToast('Built-in prompts cannot be deleted.', 'warning'); return; }
-            if (!window.confirm(`Delete preset "${preset.name}"?`)) { return; }
-            const presets = promptPresets.filter(p => p !== preset).map(item => ({...item}));
-            const submitted = promptBoxes();
             try {
-                await persistPromptPresets({prompts: {attribution_preset: 'michel2_full'}, prompt_presets: presets.filter(item => !item.builtin)},
-                    () => applyPromptPresetSave('attribution', presets, 'michel2_full', submitted));
-                showToast('Prompt preset deleted.', 'success');
+                await applyConfirmedPromptPresetDeletion('attribution',
+                    `Delete preset "${preset.name}" and switch the active attribution prompt to "michel2_full"? This also saves your current Setup settings.`, async () => {
+                        const presets = promptPresets.filter(p => p !== preset).map(item => ({...item}));
+                        const submitted = promptBoxes();
+                        await persistPromptPresets({prompts: {attribution_preset: 'michel2_full'}, prompt_presets: presets.filter(item => !item.builtin)},
+                            () => applyPromptPresetSave('attribution', presets, 'michel2_full', submitted));
+                        showToast('Prompt preset deleted.', 'success');
+                    });
             }
-            catch (e) { showToast('Could not delete prompt preset: ' + e.message, 'error'); }
+            catch (e) { showActionError('Could not delete prompt preset', e, 'Review the saved preset list to check whether it was deleted before trying Delete again.'); }
         };
 
         window.previewAttributionPrompt = async () => {
@@ -970,7 +1398,7 @@
                 document.getElementById('prompt-preview-system').textContent = preview.system_prompt || '';
                 document.getElementById('prompt-preview-user').textContent = preview.user_message || '';
                 document.getElementById('prompt-preview-panel').hidden = false;
-            } catch (e) { showToast('Could not render the prompt: ' + e.message, 'error'); }
+            } catch (e) { showActionError('Could not render the prompt', e, 'Check the prompt templates and provider settings, then try What the model will see again.'); }
         };
 
         function renderConfigWarnings(config) {
@@ -1036,10 +1464,10 @@
             try {
                 parsed = JSON.parse(raw);
             } catch (e) {
-                throw new Error(label + ' must be valid JSON.');
+                throw getConfigValidationError(id, label + ' must be valid JSON.');
             }
             if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-                throw new Error(label + ' must be a JSON object.');
+                throw getConfigValidationError(id, label + ' must be a JSON object.');
             }
             return parsed;
         }
@@ -1049,7 +1477,7 @@
             if (!raw) { return null; }
             const value = Number(raw);
             if (!Number.isFinite(value)) {
-                throw new Error(label + ' must be a number.');
+                throw getConfigValidationError(id, label + ' must be a number.');
             }
             return value;
         }
@@ -1086,7 +1514,9 @@
         function renderActiveLlmModeBadge() {
             const badge = document.getElementById('llm-active-mode-badge');
             if (!badge) { return; }
-            badge.textContent = 'Active: ' + (savedLlmMode === 'remote' ? 'Remote (Thunder / network)' : 'Local');
+            const labels = { local: 'Local', remote: 'Remote (Thunder / network)' };
+            badge.textContent = 'Active: ' + labels[savedLlmMode] + (currentLlmMode !== savedLlmMode
+                ? ' · Selected: ' + labels[currentLlmMode] + ' — Save to apply' : '');
         }
 
         function onLlmModeChange(isInit) {
@@ -1096,7 +1526,7 @@
                     syncCurrentLlmProfile();       // stash the mode we're leaving
                 } catch (e) {
                     document.getElementById('llm-mode').value = currentLlmMode;
-                    showToast(e.message, 'error');
+                    showConfigValidationError(e);
                     return;
                 }
                 currentLlmMode = newMode;
@@ -1105,6 +1535,7 @@
             document.getElementById('llm-ssh-group').style.display =
                 (newMode === 'remote') ? '' : 'none';
             document.getElementById('llm-test-result').innerHTML = '';
+            renderActiveLlmModeBadge();
         }
 
         async function testLlmConnection() {
@@ -1130,8 +1561,8 @@
                     const modeLabel = res.is_remote ? 'Remote' : 'Local';
                     const banner = document.getElementById('auto-config-banner');
                     document.getElementById('auto-config-msg').innerHTML =
-                        `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ` +
-                        `${modeLabel} LLM connected (${escapeHtml(res.base_url)}, model "${escapeHtml(res.model)}") — click Save to apply.`;
+                        `<i class="fas fa-check-circle me-1 text-success"></i><strong>Connection check:</strong> ` +
+                        `${modeLabel} LLM connected (${escapeHtml(res.base_url)}, model "${escapeHtml(res.model)}"). This check does not save or apply settings. Click Save Configuration to apply edits.`;
                     banner.style.display = '';
                     banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 } else {
@@ -1181,6 +1612,56 @@
             return currentBookFilename.trim().replace(/\.[^.]+$/, '') || fallback;
         }
 
+        let promptDefaultsLoadPending = false;
+        async function loadMissingPromptDefaults() {
+            if (promptDefaultsLoadPending) { return; }
+            const status = document.getElementById('prompt-defaults-status');
+            const retry = document.getElementById('prompt-defaults-retry');
+            const fields = {
+                'review-system-prompt': 'review_system_prompt',
+                'review-user-prompt': 'review_user_prompt',
+                'persona-system-prompt': 'persona_system_prompt',
+                'persona-user-prompt': 'persona_user_prompt',
+                'persona-advanced-prompt': 'persona_advanced_prompt',
+                'pass1-system-prompt': 'pass1_system_prompt',
+                'pass1-user-prompt': 'pass1_user_prompt',
+                'pass3-system-prompt': 'pass3_system_prompt',
+                'pass3-user-prompt': 'pass3_user_prompt'
+            };
+            const before = Object.fromEntries(Object.keys(fields).map(id => [id, document.getElementById(id).value]));
+            const selected = {...activePassPromptPreset};
+            promptDefaultsLoadPending = true;
+            retry.disabled = true;
+            status.textContent = 'Loading default prompts… Your current edits will be kept.';
+            try {
+                const defaults = await API.get('/api/default_prompts');
+                const required = Object.entries(fields).filter(([id]) => id !== 'persona-advanced-prompt' && (!before[id] || id.startsWith('pass')));
+                if (!defaults || required.some(([, key]) => typeof defaults[key] !== 'string' || !defaults[key].trim())) {
+                    throw new Error('Default prompt response is incomplete');
+                }
+                for (const pass of ['pass1', 'pass3']) {
+                    passPromptDefaults[pass] = {system_prompt: defaults[`${pass}_system_prompt`], user_prompt: defaults[`${pass}_user_prompt`]};
+                }
+                for (const [id, key] of Object.entries(fields)) {
+                    const field = document.getElementById(id);
+                    const pass = id.startsWith('pass1-') ? 'pass1' : id.startsWith('pass3-') ? 'pass3' : null;
+                    if (!before[id] && field.value === before[id] && typeof defaults[key] === 'string'
+                        && (!pass || (selected[pass] === 'default' && activePassPromptPreset[pass] === selected[pass]))) {
+                        field.value = defaults[key];
+                    }
+                }
+                status.textContent = 'Default prompts loaded. Existing edits and preset choices were kept.';
+                retry.hidden = true;
+            } catch (error) {
+                console.warn('Could not fetch default prompts', error);
+                status.textContent = 'Could not load default prompts. Your current fields are unchanged. Check that Alexandria is running, then retry loading prompts; review the prompts before saving or starting a task.';
+                retry.hidden = false;
+            } finally {
+                promptDefaultsLoadPending = false;
+                retry.disabled = false;
+            }
+        }
+
         async function loadConfig() {
             try {
                 const config = await API.get('/api/config');
@@ -1201,7 +1682,7 @@
                 document.getElementById('llm-ssh').value = config.llm_remote_ssh || '';
                 populateLlmInputs(currentLlmMode);
                 onLlmModeChange(true);
-                document.getElementById('tts-mode').value = config.tts.mode || 'external';
+                document.getElementById('tts-mode').value = config.tts.mode || 'local';
                 document.getElementById('tts-url').value = config.tts.url || 'http://127.0.0.1:7860';
                 document.getElementById('tts-external-urls').value = (config.tts.external_urls || []).join('\n');
                 if (config.tts.external_timeout_seconds != null) { document.getElementById('tts-external-timeout').value = config.tts.external_timeout_seconds; }
@@ -1270,34 +1751,7 @@
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
                     || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
                     || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt) {
-                    try {
-                        const defaults = await API.get('/api/default_prompts');
-                        passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
-                        passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
-                        passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
-                        passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
-                        if (!document.getElementById('review-system-prompt').value && defaults.review_system_prompt) {
-                            document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
-                        }
-                        if (!document.getElementById('review-user-prompt').value && defaults.review_user_prompt) {
-                            document.getElementById('review-user-prompt').value = defaults.review_user_prompt;
-                        }
-                        if (!document.getElementById('persona-system-prompt').value && defaults.persona_system_prompt) {
-                            document.getElementById('persona-system-prompt').value = defaults.persona_system_prompt;
-                        }
-                        if (!document.getElementById('persona-user-prompt').value && defaults.persona_user_prompt) {
-                            document.getElementById('persona-user-prompt').value = defaults.persona_user_prompt;
-                        }
-                        if (!document.getElementById('persona-advanced-prompt').value && defaults.persona_advanced_prompt) {
-                            document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
-                        }
-                        renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
-                            config.prompts?.pass1_preset || 'default');
-                        renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
-                            config.prompts?.pass3_preset || 'default');
-                    } catch (e) {
-                        console.warn("Could not fetch default prompts", e);
-                    }
+                    await loadMissingPromptDefaults();
                 }
 
                 // Load generation settings
@@ -1329,6 +1783,8 @@
                     throw new Error('Generation defaults are unavailable');
                 }
 
+                if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
+
                 document.getElementById('system-prompt').value = defaults.system_prompt;
                 document.getElementById('user-prompt').value = defaults.user_prompt;
                 passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
@@ -1353,9 +1809,10 @@
                     document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                 }
                 applyGenerationSettings(g);
+                showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
             } catch (e) {
                 console.error("Failed to fetch default prompts", e);
-                showToast("Failed to load default prompts from server.", 'error');
+                showToast("Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.", 'error');
             }
         };
 
@@ -1449,6 +1906,7 @@
 
         document.getElementById('config-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (configSavePending) { return; }
 
             // Validate parallel workers
             let parallelWorkers = parseInt(document.getElementById('parallel-workers').value) || 2;
@@ -1460,43 +1918,39 @@
             try {
                 syncCurrentLlmProfile();
             } catch (e) {
-                showToast(e.message, 'error');
+                showConfigValidationError(e);
                 return;
             }
             let config;
             try {
                 config = buildConfigPayload(parallelWorkers);
             } catch (e) {
-                showToast(e.message, 'error');
+                showConfigValidationError(e);
                 return;
             }
             try {
+                const promptSnapshot = getPromptPresetEditorSnapshot('attribution');
                 await saveConfigPayload(config, async () => {
-                    savedLlmMode = currentLlmMode;
+                    savedLlmMode = config.llm_mode;
+                    savedConfigPromptSnapshot = promptSnapshot;
                     renderActiveLlmModeBadge();
-                    // Refresh is_remote from the now-active saved config (not a
-                    // full loadConfig() - that resets unrelated fields to
-                    // hardcoded defaults).
-                    let savedConfig = null;
-                    try {
-                        savedConfig = await API.get('/api/config');
-                        currentIsRemote = !!savedConfig.is_remote;
-                        failoverIsRemote = !!savedConfig.failover_is_remote;
-                        renderConfigWarnings(savedConfig);
-                    }
-                    catch (e) { console.debug('is_remote refresh after save failed', e); }
                     showToast('Configuration Saved!', 'success');
-                    try { await reloadPromptPresets(undefined, savedConfig); } catch (e) { console.debug('preset reload after save failed', e); }
+                    await refreshSavedConfigFeedback(true);
                 });
             } catch (e) {
-                showToast('Error saving config: ' + e.message, 'error');
+                showActionError('Configuration save was not confirmed', e, 'Review the current saved settings and the error details before saving again. Your form fields remain available.');
             }
         });
 
         // --- Script Tab ---
+        let existingUploadsLoadRequest = 0;
+
         async function loadExistingScriptUploads() {
+            const request = ++existingUploadsLoadRequest;
+            const status = document.getElementById('existing-uploads-status');
             try {
                 const uploads = await API.get('/api/uploads');
+                if (request !== existingUploadsLoadRequest) { return; }
                 const options = uploads.map(item =>
                     `<option value="${escapeHtml(item.filename)}">${escapeHtml(item.filename)} (${Math.ceil(item.size / 1024)} KB)</option>`
                 ).join('');
@@ -1504,24 +1958,36 @@
                     '<option value="">Choose an existing TXT/MD file…</option>' + options;
                 scriptBatchUploads = uploads;
                 renderScriptBatchUploads();
+                if (status) { status.innerHTML = ''; }
             } catch (e) {
+                if (request !== existingUploadsLoadRequest) { return; }
                 console.debug('Existing upload list unavailable', e);
+                if (status) {
+                    status.innerHTML = '<span class="text-warning">Could not refresh existing uploads. The displayed list may be out of date. Check that Alexandria is running, then retry.</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadExistingScriptUploads()">Retry uploads</button>';
+                }
             }
         }
 
         window.selectExistingScriptUpload = async () => {
             const select = document.getElementById('existing-upload-select');
             if (!select.value) { return; }
+            const filename = select.value;
+            if (!await ensureCastListEditsDiscardable()) {
+                if (select.value === filename) { select.value = currentBookFilename; }
+                return;
+            }
+            if (select.value !== filename) { return; }
             const statusEl = document.getElementById('upload-status');
             try {
-                const result = await API.post('/api/uploads/select', { filename: select.value });
+                const result = await API.post('/api/uploads/select', { filename });
                 applyCurrentBookFilename(result.stored_filename);
                 document.getElementById('file-upload').value = '';
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Reusing: ${escapeHtml(result.stored_filename)}</span>`;
                 document.getElementById('cast-list-panel').style.display = 'none';
+                clearCastListEditor();
                 await loadCastList(false);
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Failed to select upload: ${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Book selection was not confirmed', e, 'Check the current loaded book before selecting another upload.'))}</span>`;
             }
         };
 
@@ -1529,19 +1995,23 @@
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
             if (fileInput.files.length === 0) { return; }
+            const file = fileInput.files[0];
+            if (!await ensureCastListEditsDiscardable()) { fileInput.value = ''; return; }
+            if (fileInput.files[0] !== file) { return; }
 
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
-                const res = await API.upload(fileInput.files[0]);
+                const res = await API.upload(file);
                 applyCurrentBookFilename(res.stored_filename);
                 document.getElementById('existing-upload-select').value = '';
                 const verb = res.reused ? 'Reused existing copy' : 'Loaded';
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
                 document.getElementById('cast-list-panel').style.display = 'none';
+                clearCastListEditor();
                 await loadCastList(false);
                 await loadExistingScriptUploads();
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed to load file: ${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
             }
         });
 
@@ -1563,12 +2033,25 @@
             return false;
         }
         document.getElementById('btn-gen-script-fresh').addEventListener('click', async () => {
+            if (document.getElementById('script-batch-mode')?.checked) {
+                showToast('Start over applies to a single book. Turn off Batch Mode to use it.', 'warning');
+                return;
+            }
+            const book = currentBookFilename;
+            const batch = !!document.getElementById('script-batch-mode')?.checked;
+            const isCurrent = () => book === currentBookFilename && batch === !!document.getElementById('script-batch-mode')?.checked;
             let running = false;
-            try { running = !!(await API.get('/api/status/script')).running; } catch (e) { running = false; }
+            try { running = !!(await API.get('/api/status/script')).running; }
+            catch (e) {
+                console.error('Could not check Script status before starting over:', e);
+                showToast('Script status could not be checked. Check that Alexandria is running, then try Start over again.', 'warning');
+                return;
+            }
             const question = running
                 ? 'Cancel the current run, discard its saved progress, and start again from chunk 1?'
                 : 'Discard the saved progress for this text and start again from chunk 1?';
-            if (!confirm(question)) { return; }
+            if (!await showConfirm(question, {title: 'Discard script progress?', actionLabel: 'Start over', danger: true})) { return; }
+            if (!isCurrent()) { showToast('The book or Batch Mode changed. Review it before starting over.', 'warning'); return; }
             if (running) {
                 await cancelTask('/api/generate_script/cancel', { onSuccess: () => _resetPauseBtn('btn-pause-script') });
                 if (!(await waitForScriptToStop())) {
@@ -1576,6 +2059,7 @@
                     return;
                 }
             }
+            if (!isCurrent()) { showToast('The book or Batch Mode changed. Review it before starting over.', 'warning'); return; }
             _scriptStartOver = true;
             // the page's own poller re-enables Generate a tick after the run
             // stops; a click on a still-disabled button is silently dropped
@@ -1584,6 +2068,14 @@
         });
         let bookPreflightJob = null;
         let bookPreflightPending = false;
+
+        function renderBookPreflightVisibility() {
+            const batch = !!document.getElementById('script-batch-mode')?.checked;
+            document.getElementById('btn-gen-script-fresh').style.display = batch ? 'none' : '';
+            const controls = document.getElementById('book-preflight-controls');
+            if (controls) { controls.hidden = batch && !bookPreflightPending && !bookPreflightJob; }
+            document.getElementById('btn-book-preflight').style.display = batch ? 'none' : '';
+        }
 
         function renderBookPreflight(result) {
             const panel = document.getElementById('book-preflight-result');
@@ -1600,17 +2092,33 @@
                     return `<div>${escapeHtml(sample.label)} sample, source chunk ${escapeHtml(sample.chunk_index + 1)}: ${escapeHtml(sample.status)}${codes ? ` — ${escapeHtml(codes)}` : ''}${sample.error ? ` — ${escapeHtml(sample.error)}` : ''}</div>`;
                 }).join('');
             }
-            panel.innerHTML = `<strong>Book preflight: ${escapeHtml(result.status)}</strong> · ${escapeHtml(result.source_filename || '')}${stale}${details}${result.error ? `<div class="text-danger">${escapeHtml(result.error)}</div>` : ''}<div class="text-muted">Samples use the configured model and prompts. Passing samples does not establish full-book accuracy. Adjust settings or start generation when ready.</div>`;
+            panel.innerHTML = `<strong>Book test: ${escapeHtml(result.status)}</strong> · ${escapeHtml(result.source_filename || '')}${stale}${details}${result.error ? `<div class="text-danger">${escapeHtml(result.error)}</div>` : ''}<div class="text-muted">Samples use the configured model and prompts. Passing samples does not establish full-book accuracy. Adjust settings or start generation when ready.</div>`;
             document.getElementById('btn-cancel-book-preflight').style.display = result.status === 'running' ? '' : 'none';
+            renderBookPreflightVisibility();
+        }
+
+        function getLoadedScriptSourceFilename() {
+            return document.getElementById('upload-status')?.innerHTML.includes('text-success')
+                ? currentBookFilename : '';
         }
 
         window.startBookPreflight = async () => {
             if (bookPreflightPending || bookPreflightJob) { return; }
+            if (document.getElementById('script-batch-mode')?.checked) {
+                showToast('Switch off Batch Mode to test one book with the LLM.', 'warning');
+                return;
+            }
+            const source = getLoadedScriptSourceFilename();
+            if (!source) { showToast('Select or upload a book before running preflight.', 'warning'); return; }
             const button = document.getElementById('btn-book-preflight');
             bookPreflightPending = true;
             button.disabled = true;
             try {
-                if (!(await confirmIfRemote('this book sample preflight', true))) { return; }
+                if (!(await confirmIfRemote('this book sample test', true))) { return; }
+                if (document.getElementById('script-batch-mode')?.checked) { return; }
+                if (source !== getLoadedScriptSourceFilename()) {
+                    showToast('The loaded book changed. Review it before running preflight.', 'warning'); return;
+                }
                 const result = await API.post('/api/generate_script/preflight', {
                     strip_front_matter: _isStripFrontMatterChecked(),
                     first_person_narrator: document.getElementById('script-first-person-narrator').value.trim() || null
@@ -1627,13 +2135,15 @@
                         if (bookPreflightJob !== job || data.job_id !== job) { return; }
                         bookPreflightJob = null;
                         button.disabled = false;
+                        renderBookPreflightVisibility();
                     }
                 });
             } catch (error) {
-                showToast(`Book preflight: ${error.message}`, 'danger');
+                showActionError('Book test was not confirmed', error, 'Review the current book-test status and selected source before testing or cancelling again.');
             } finally {
                 bookPreflightPending = false;
                 button.disabled = bookPreflightJob !== null;
+                renderBookPreflightVisibility();
             }
         };
 
@@ -1642,14 +2152,15 @@
             if (!job) { return; }
             try {
                 await API.post(`/api/generate_script/preflight/${job}/cancel`, {});
-                showToast('Preflight cancellation queued; waiting for the worker to exit.', 'info');
+                showToast('Book-test cancellation queued; waiting for the worker to exit.', 'info');
             } catch (error) {
-                showToast(`Book preflight: ${error.message}`, 'danger');
+                showActionError('Book test was not confirmed', error, 'Review the current book-test status and selected source before testing or cancelling again.');
             }
         };
         // End book-preflight controls.
 
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
+            if (document.getElementById('btn-gen-script').disabled) { return; }
             const startOver = _scriptStartOver;
             _scriptStartOver = false;
             if (document.getElementById('script-batch-mode').checked) {
@@ -1668,7 +2179,7 @@
             // Single-book runs were never gated: a remote ACTIVE profile is a
             // visible choice in Setup. A remote FAILOVER target is not, so the
             // same prompt covers it here.
-            if (!(await confirmIfRemote('this script generation', true))) { return; }
+            if (!(await ensureScriptStartConfirmed('this script generation', true))) { return; }
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
@@ -1704,7 +2215,7 @@
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
                 } else {
-                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(detail)}</span>`;
+                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Script generation start was not confirmed', e, 'Check the Script task state, selected book and Test Connection in Setup before starting again.'))}</span>`;
                 }
             }
         });
@@ -1718,6 +2229,12 @@
         // every click on Windows).
         function applyPauseSupport(capabilities) {
             if (!capabilities || capabilities.pause_resume !== false) { return; }
+            const scriptHint = document.getElementById('script-pause-unavailable-help');
+            if (scriptHint) { scriptHint.hidden = false; }
+            ['btn-pause-script', 'btn-pause-batch-script'].forEach((id) => {
+                const btn = document.getElementById(id);
+                if (btn) { btn.setAttribute('aria-describedby', 'script-pause-unavailable-help'); }
+            });
             document.querySelectorAll('button[onclick^="pauseResume"]').forEach((btn) => {
                 btn.disabled = true;
                 btn.title = 'Pause is not available on Windows. Use Cancel; a cancelled run resumes from its checkpoint.';
@@ -1742,7 +2259,7 @@
         // copy the try/catch+toast pattern by hand.
         async function cancelTask(url, {
             onSuccess,
-            errorMessage = (e) => 'Cancel failed: ' + (e.message || 'unknown error'),
+            errorMessage = (e) => getActionErrorMessage('Cancellation was not confirmed', e, 'Check the current task state before cancelling again; work may still be running.'),
             toastType = 'warning',
         } = {}) {
             try {
@@ -1755,11 +2272,45 @@
             }
         }
 
+        const scriptCancellationRequests = new Map();
+
+        function clearScriptCancellation(taskName) {
+            const operation = scriptCancellationRequests.get(taskName);
+            if (!operation) { return; }
+            scriptCancellationRequests.delete(taskName);
+            operation.button.disabled = false;
+            operation.hint.hidden = true;
+        }
+
+        async function requestScriptCancellation(taskName, url, buttonId, pauseId, label) {
+            if (scriptCancellationRequests.get(taskName)?.pending) { return false; }
+            const button = document.getElementById(buttonId);
+            const hint = document.getElementById('script-cancellation-status');
+            const operation = { button, hint, pending: true };
+            scriptCancellationRequests.set(taskName, operation);
+            button.disabled = true;
+            hint.hidden = false;
+            hint.textContent = `Requesting cancellation of ${label}…`;
+            const accepted = await cancelTask(url, {
+                onSuccess: () => {
+                    if (scriptCancellationRequests.get(taskName) !== operation) { return; }
+                    _resetPauseBtn(pauseId);
+                    hint.textContent = `Cancelling ${label}… Waiting for the worker to stop.`;
+                },
+            });
+            if (!accepted && scriptCancellationRequests.get(taskName) === operation) {
+                operation.pending = false;
+                button.disabled = false;
+                hint.textContent = `Cancellation of ${label} was not confirmed. Check the task activity before trying again; work may still be running.`;
+            }
+            return accepted;
+        }
+
         // Same "unknown error" fallback cancelTask's default errorMessage
         // uses, for callers (debounced autosaves) that POST a real body and
         // so can't go through cancelTask itself, which always posts {}.
         function _toastSaveError(action, e) {
-            showToast(`Failed to save ${action}: ` + (e.message || 'unknown error'), 'warning');
+            showActionError(`Failed to save ${action}`, e, 'Review the current saved settings and task state before retrying this action.', 'warning');
         }
 
         function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
@@ -1792,7 +2343,7 @@
                         const status = await API.get(`/api/status/${taskName}`);
                         paused = !!status.paused;
                     } catch (e) {
-                        showToast('Task status check failed: ' + (e.message || 'unknown error'), 'warning');
+                        showActionError('Task status check failed', e, 'Wait for a current status update before trying Pause or Resume again.', 'warning');
                         return;
                     }
                     if (!paused) {
@@ -1807,7 +2358,7 @@
                         btn.classList.add('btn-outline-warning');
                     }
                 } catch (e) {
-                    showToast((paused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+                    showActionError((paused ? 'Resume' : 'Pause') + ' was not confirmed', e, 'Check the current task state before trying Pause or Resume again.', 'warning');
                 } finally {
                     btn.disabled = false;
                 }
@@ -1825,19 +2376,23 @@
         // so the toast says how to use it.
         window.snapshotScript = async () => {
             const suggested = `${getCurrentBookName()} snapshot ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
-            const name = prompt('Save the finished part of this run to the library as:', suggested);
-            if (!name) { return; }
+            const book = currentBookFilename;
+            const values = await showPresetEditor({title: 'Save snapshot', name: suggested, includeDescription: false,
+                nameLabel: 'Snapshot name', actionLabel: 'Save snapshot',
+                helperText: 'Save the finished part of this run to the library as:'});
+            if (!values) { return; }
+            if (book !== currentBookFilename) { showToast('The book changed. Review it before saving a snapshot.', 'warning'); return; }
+            const name = values.name;
             try {
                 const res = await API.post('/api/generate_script/snapshot', { name });
                 showToast(`Snapshot "${res.name}" saved: ${res.entries} finished lines (${res.chunks_done} chunks split). To work on it now, cancel this run (Generate resumes it later) and load the snapshot from the library.`, 'success', 12000);
             } catch (e) {
-                showToast('Snapshot not saved: ' + (e.message || 'unknown error'), 'warning');
+                showActionError('Snapshot save was not confirmed', e, 'Check the saved snapshots before saving another copy.', 'warning');
             }
         };
 
-        window.cancelScript = () => cancelTask('/api/generate_script/cancel', {
-            onSuccess: () => _resetPauseBtn('btn-pause-script'),
-        });
+        window.cancelScript = () => requestScriptCancellation('script', '/api/generate_script/cancel',
+            'btn-cancel-script', 'btn-pause-script', 'script generation');
         window.pauseResumeScript      = _scriptPauseResume;
 
         async function refreshScriptRecovery() {
@@ -1901,11 +2456,13 @@
             const skipLabel = isAttribute ? 'Mark speakers UNKNOWN' : 'Narrate as-is';
             panel.style.display = '';
             panel.innerHTML = `
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header"><strong>Script generation needs your help</strong></div>
+                <div class="card-body">
+                    <p>Generation stopped because the model did not return a usable result. Review this section, then retry, use Copy prompt with another model, paste a result for validation, or use the fallback action below.</p>
+                    <details class="mb-3">
+                        <summary>Technical details</summary>
                     <strong><i class="fas fa-triangle-exclamation me-1"></i>Generation stopped at ${escapeHtml(detail.failed_pass || 'segment')} · ${where}</strong>
                     <span class="small text-muted">${escapeHtml(String(detail.chunks_done))} chunks accepted · retries ${escapeHtml(String(profile.api_retry_limit ?? 'default'))}, backoff ${escapeHtml(String(profile.retry_initial_delay_seconds))}s ×${escapeHtml(String(profile.retry_multiplier))} ±${Math.round((profile.retry_jitter || 0) * 100)}%, on exhaustion: ${escapeHtml(profile.on_api_exhaustion || 'fail')}</span>
-                </div>
-                <div class="card-body">
                     <div class="small mb-2">Last error: <strong>${escapeHtml(last.category || (detail.failure_codes || []).join(', ') || detail.reason || 'unknown')}</strong>${last.http_status != null ? ` (HTTP ${escapeHtml(String(last.http_status))})` : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}${isAttribute && detail.roster ? `<br>Roster: ${escapeHtml(detail.roster.join(', '))}` : ''}</div>
                     <div class="table-responsive mb-2">
                         <table class="table table-sm small mb-0">
@@ -1913,6 +2470,7 @@
                             <tbody>${attemptRows || '<tr><td colspan="7" class="text-muted">No attempt records for this chunk.</td></tr>'}</tbody>
                         </table>
                     </div>
+                    </details>
                     <div class="row g-2">
                         <div class="col-md-6">
                             <label class="form-label small mb-1">${isAttribute ? 'Batch entries' : 'Source chunk'}</label>
@@ -1990,11 +2548,16 @@
             const question = detail.failed_pass === 'attribute'
                 ? 'Label every spoken line in this batch UNKNOWN and continue? You can fix speakers in the Editor afterwards.'
                 : `Put chunk ${detail.failed_chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.`;
-            if (!confirm(question)) {
-                return;
+            const book = currentBookFilename;
+            const chunk = detail.failed_chunk;
+            const pass = detail.failed_pass;
+            if (!await showConfirm(question, {title: 'Continue with fallback script?', actionLabel: 'Use fallback', danger: false})) { return; }
+            if (book !== currentBookFilename || window._scriptRecoveryDetail !== detail
+                || detail.failed_chunk !== chunk || detail.failed_pass !== pass) {
+                showToast('The book or recovery section changed. Review the latest recovery details before continuing.', 'warning'); return;
             }
             try {
-                const result = await API.post('/api/generate_script/skip', { chunk: detail.failed_chunk });
+                const result = await API.post('/api/generate_script/skip', { chunk });
                 showToast(`Accepted (${result.resolution}). Resume to continue.`, 'success');
                 await refreshScriptRecovery();
             } catch (e) {
@@ -2023,7 +2586,7 @@
                     refreshScriptRecovery();
                 });
             } catch (e) {
-                showToast('Resume failed: ' + (e.message || 'unknown error'), 'warning');
+                showActionError('Script resume was not confirmed', e, 'Check the Script task state, recovery panel and Test Connection in Setup before resuming again.', 'warning');
                 refreshScriptRecovery();
             } finally {
                 retryBtn.disabled = false;
@@ -2058,6 +2621,7 @@
             document.getElementById('script-single-area').style.display = isBatch ? 'none' : 'block';
             document.getElementById('script-batch-area').style.display  = isBatch ? 'block' : 'none';
             document.getElementById('script-batch-status-msg').style.display = isBatch ? '' : 'none';
+            renderBookPreflightVisibility();
         };
 
         window.onScriptBatchFilesChange = () => {
@@ -2078,7 +2642,7 @@
             [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
+                    <td title="${escapeHtml(file.name)}" style="max-width:350px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(file.name)}</td>
                     <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="Exact character name"></td>
                     <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
@@ -2089,7 +2653,7 @@
                 const i = scriptBatchQueue.length;
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(checkbox.dataset.name)} <span class="text-muted">(existing)</span></td>
+                    <td title="${escapeHtml(checkbox.dataset.name)}" style="max-width:350px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(checkbox.dataset.name)} <span class="text-muted">(existing)</span></td>
                     <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="Exact character name"></td>
                     <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
@@ -2126,9 +2690,8 @@
                     '<span class="text-muted">Cancelling batch preparation…</span>';
                 return;
             }
-            return cancelTask('/api/generate_script/batch/cancel', {
-                onSuccess: () => _resetPauseBtn('btn-pause-batch-script'),
-            });
+            return requestScriptCancellation('batch_script', '/api/generate_script/batch/cancel',
+                'btn-cancel-batch-script', 'btn-pause-batch-script', 'batch script generation');
         };
 
         window.pauseResumeBatchScript = _batchPauseResume;
@@ -2137,7 +2700,7 @@
         async function _startBatchScript() {
             if (scriptBatchStartOperation) { return; }
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch script generation'))) { return; }
+            if (!(await ensureScriptStartConfirmed('this batch script generation'))) { return; }
             if (scriptBatchStartOperation) { return; }
             const operation = { cancelled: false, phase: 'preparing' };
             scriptBatchStartOperation = operation;
@@ -2202,8 +2765,8 @@
                     `Concurrency: ${preflight.workers} (LM Studio loaded for ${preflight.loaded_parallel})\n` +
                     `Context per worker: ${preflight.per_slot_context.toLocaleString()} tokens\n` +
                     `Largest predicted request: ${preflight.worst_request_tokens.toLocaleString()} tokens\n` +
-                    `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`
-                );
+                    `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`,
+                    {title: 'Start batch generation?', actionLabel: 'Start generation', danger: false});
                 if (operation.cancelled) { return; }
                 if (!approved) {
                     statusMsg.innerHTML = '<span class="text-muted">Batch cancelled after preflight.</span>';
@@ -2226,7 +2789,7 @@
                 _pollScriptBatchLogs();
                 if (operation.cancelled) { await cancelBatchScript(); }
             } catch (e) {
-                if (!operation.cancelled) { showToast('Failed to start batch: ' + e.message, 'error'); }
+                if (!operation.cancelled) { showActionError("Failed to start batch", e, "Check the batch task state, selected books and Test Connection in Setup before starting another batch."); }
             } finally {
                 if (scriptBatchStartOperation === operation) { scriptBatchStartOperation = null; }
                 if (!started) {
@@ -2272,10 +2835,11 @@
                 },
                 onDone: (state) => {
                     scriptBatchPoller = null;
+                    clearScriptCancellation('batch_script');
                     renderManualRequest({ running: false }, 'batch_script');
                     _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
                         'Inspect the log and resume failed books from their validated checkpoints.');
-                    notifyJobDone('batch_script');
+                    notifyJobDone('batch_script', '', 'finished', state);
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';
@@ -2339,15 +2903,23 @@
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
-                showToast("Failed to start review: " + e.message, 'error');
+                showActionError("Failed to start review", e, "Check the current review task state and Test Connection in Setup before starting another review.");
             }
         });
+
+        function applyReviewContextWindow(field, minimum, defaultValue) {
+            const rawWindow = parseInt(field.value, 10);
+            const windowSize = Number.isFinite(rawWindow) ? Math.max(minimum, Math.min(rawWindow, 12)) : defaultValue;
+            const corrected = !Number.isFinite(rawWindow) || Number(field.value) !== windowSize;
+            field.value = String(windowSize);
+            if (corrected) { showToast(`Context Window must be ${minimum}–12; using ${windowSize}`, 'warning'); }
+            return windowSize;
+        }
 
         document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
             try {
                 if (!(await confirmIfRemote('this contextual review', true))) { return; }
-                const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
-                const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
+                const windowSize = applyReviewContextWindow(document.getElementById('review-context-window'), 1, 4);
                 _disableReviewButtons(true);
                 _showReviewControls(true);
                 const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
@@ -2360,7 +2932,7 @@
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
-                showToast("Failed to start contextual review: " + e.message, 'error');
+                showActionError("Failed to start contextual review", e, "Check the review task state, context window and Test Connection in Setup before starting another review.");
             }
         });
 
@@ -2400,7 +2972,7 @@
                 const scripts = await API.get('/api/scripts');
                 onLoaded(scripts);
             } catch (e) {
-                container.innerHTML = `<span class="text-danger small">${escapeHtml(e.message || String(e))}</span>`;
+                container.innerHTML = `<span class="text-danger small">${escapeHtml(getActionErrorMessage('Could not load saved scripts', e, 'Check that Alexandria is running, then refresh the saved-script list before choosing a book.'))}</span>`;
             }
         }
 
@@ -2496,8 +3068,7 @@
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
             if (!(await confirmIfRemote('this batch review'))) { return; }
             reviewBatchSelected = names;
-            const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
-            const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
+            const contextWindow = applyReviewContextWindow(document.getElementById('review-batch-context-window'), 0, 0);
 
             const startBtn = document.getElementById('btn-review-batch-start');
             const pauseBtn = document.getElementById('btn-pause-batch-review');
@@ -2524,7 +3095,7 @@
                 startBtn.disabled = false;
                 pauseBtn.style.display = 'none';
                 cancelBtn.style.display = 'none';
-                statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+                statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Batch review start was not confirmed', e, 'Check the batch review task state, selected books and Test Connection in Setup before starting again.'))}</span>`;
             }
         }
 
@@ -2557,7 +3128,7 @@
                 btn.disabled = false;
                 document.getElementById('btn-pause-nick').style.display = 'none';
                 document.getElementById('btn-cancel-nick').style.display = 'none';
-                showToast('Failed to start nickname discovery: ' + e.message, 'error');
+                showActionError("Failed to start nickname discovery", e, "Check the nickname task state and Test Connection in Setup before starting nickname discovery again.");
             }
         }
 
@@ -2566,9 +3137,55 @@
         // the selected book has one; the table below edits it.
         let castListLoaded = false;
         let castListRequest = 0;
+        let castListEditorSnapshot = null;
+        let castListMutationPending = false;
+
+        function applyCastListMutationState(pending, message = '') {
+            castListMutationPending = pending;
+            const fields = document.getElementById('cast-list-fields');
+            if (fields) { fields.disabled = pending; fields.ariaBusy = String(pending); }
+            const status = document.getElementById('cast-list-editor-status');
+            if (status) { status.textContent = message; }
+        }
+
+        function getCastListEditorSnapshot() {
+            return JSON.stringify(Array.from(document.querySelectorAll('#cast-list-rows .cast-list-row'), row => [
+                row.querySelector('.cast-list-name').value,
+                row.querySelector('.cast-list-aliases').value,
+            ]));
+        }
+
+        function clearCastListEditor() {
+            castListRequest++;
+            castListLoaded = false;
+            castListEditorSnapshot = null;
+            document.getElementById('cast-list-panel').innerHTML = '';
+        }
+
+        async function ensureCastListEditsDiscardable() {
+            if (castListMutationPending) {
+                showToast('Wait for the cast-list request to finish before switching books.', 'warning');
+                return false;
+            }
+            if (castListEditorSnapshot === null || document.getElementById('cast-list-panel').style.display === 'none') { return true; }
+            const snapshot = getCastListEditorSnapshot();
+            if (snapshot === castListEditorSnapshot) { return true; }
+            const book = currentBookFilename;
+            if (!await showConfirm('Discard unsaved cast-list changes?', {title: 'Discard cast edits?', actionLabel: 'Discard edits', danger: true})) { return false; }
+            if (book !== currentBookFilename || snapshot !== getCastListEditorSnapshot()) {
+                showToast('The book or cast edits changed. Review them before switching books.', 'warning');
+                return false;
+            }
+            return true;
+        }
 
         async function buildCastList() {
+            const source = getLoadedScriptSourceFilename();
+            if (!source) { showToast('Select or upload a book before building its cast list.', 'warning'); return; }
             if (!(await confirmIfRemote('this cast list (the whole book in one request)'))) { return; }
+            if (source !== getLoadedScriptSourceFilename()) {
+                showToast('The loaded book changed. Review it before building its cast list.', 'warning'); return;
+            }
             const btn = document.getElementById('btn-build-cast-list');
             const cancelBtn = document.getElementById('btn-cancel-cast-list');
             btn.disabled = true;
@@ -2583,7 +3200,7 @@
             } catch (e) {
                 btn.disabled = false;
                 cancelBtn.style.display = 'none';
-                showToast('Failed to start the cast list: ' + e.message, 'error');
+                showActionError("Failed to start the cast list", e, "Check the cast-list task state, selected book and Test Connection in Setup before starting again.");
             }
         }
 
@@ -2608,33 +3225,43 @@
             const aliases = (entry.aliases || []).join(', ');
             return `
                 <div class="input-group input-group-sm mb-1 cast-list-row">
-                    <input type="text" class="form-control cast-list-name" placeholder="NAME or THE DESCRIPTION" value="${escapeHtml(entry.name || '')}">
-                    <input type="text" class="form-control cast-list-aliases" placeholder="other names, comma-separated" value="${escapeHtml(aliases)}">
-                    <button class="btn btn-outline-danger" type="button" onclick="this.closest('.cast-list-row').remove()"><i class="fas fa-times"></i></button>
+                    <input type="text" class="form-control cast-list-name" aria-label="Cast name" placeholder="NAME or THE DESCRIPTION" value="${escapeHtml(entry.name || '')}">
+                    <input type="text" class="form-control cast-list-aliases" aria-label="${escapeHtml('Aliases for ' + (entry.name || 'new cast member'))}" placeholder="other names, comma-separated" value="${escapeHtml(aliases)}">
+                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml('Remove ' + (entry.name || 'new member') + ' from cast')}" onclick="this.closest('.cast-list-row').remove()"><i class="fas fa-times"></i></button>
                 </div>`;
         }
 
         async function loadCastList(show) {
             const panel = document.getElementById('cast-list-panel');
+            const editorSnapshot = getCastListEditorSnapshot();
+            if (show && (castListMutationPending || (castListEditorSnapshot !== null && panel.style.display !== 'none' && editorSnapshot !== castListEditorSnapshot))) {
+                showToast('Your cast-list edits are still here. Save them before refreshing the editor.', 'warning');
+                return;
+            }
+            const book = currentBookFilename;
             const request = ++castListRequest;
             castListLoaded = false;
             let result;
             try {
                 result = await API.get('/api/cast_list');
             } catch (e) {
-                if (request !== castListRequest) { return; }
+                if (request !== castListRequest || book !== currentBookFilename) { return; }
                 renderCastListStatus(null);
                 if (show) { showToast('Select a book first.', 'error'); }
                 return;
             }
-            if (request !== castListRequest) { return; }
+            if (request !== castListRequest || book !== currentBookFilename) { return; }
             castListLoaded = true;
             renderCastListStatus(result);
             if (!show) { return; }
+            if (castListMutationPending || editorSnapshot !== getCastListEditorSnapshot()) {
+                showToast('Your cast-list edits changed while loading. They have been kept.', 'warning');
+                return;
+            }
             const cast = (result && result.cast) || [];
             panel.style.display = 'block';
             panel.innerHTML = `
-                <div class="border rounded p-2">
+                <fieldset id="cast-list-fields" class="border rounded p-2">
                     <div class="small fw-bold mb-1">Cast list <span class="text-muted">(each person gets their own voice; aliases are the same person)</span></div>
                     <div id="cast-list-rows">
                         ${cast.length ? cast.map(getCastListRowHtml).join('') : '<div class="text-muted small mb-1">No cast list yet. Build one, or add people by hand.</div>'}
@@ -2644,7 +3271,9 @@
                         <button class="btn btn-sm btn-success" type="button" onclick="saveCastList()"><i class="fas fa-save me-1"></i>Save cast list</button>
                         <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCastList()"><i class="fas fa-trash me-1"></i>Delete</button>
                     </div>
-                </div>`;
+                    <div id="cast-list-editor-status" class="small mt-1" role="status"></div>
+                </fieldset>`;
+            castListEditorSnapshot = getCastListEditorSnapshot();
         }
 
         window.addCastListRow = () => {
@@ -2655,6 +3284,7 @@
         };
 
         async function saveCastList() {
+            if (castListMutationPending) { return; }
             if (!castListLoaded) {
                 showToast('Reload the cast list before saving.', 'error');
                 return;
@@ -2674,23 +3304,41 @@
                 showToast('The cast list is empty; use Delete to remove it.', 'error');
                 return;
             }
+            const book = currentBookFilename;
+            const savedSnapshot = getCastListEditorSnapshot();
             try {
+                applyCastListMutationState(true, 'Saving cast list…');
                 const res = await API.post('/api/cast_list', { cast });
+                if (book !== currentBookFilename) { return; }
+                castListEditorSnapshot = savedSnapshot;
+                renderCastListStatus({ cast, count: res.count, edited: true });
                 showToast(`Saved ${res.count} people. Generate will use them.`, 'success');
-                await loadCastList(true);
             } catch (e) {
-                showToast('Save failed: ' + (e.message || ''), 'error');
+                showActionError('Cast-list save was not confirmed', e, 'Keep your edited rows and check the saved cast list before saving again.');
+            } finally {
+                applyCastListMutationState(false);
             }
         }
 
         async function deleteCastList() {
+            if (castListMutationPending) { return; }
+            const book = currentBookFilename;
             try {
+                applyCastListMutationState(true, 'Confirming cast deletion…');
+                if (!await showConfirm('Delete this book’s cast list? Generation will find speakers on its own, and unnamed speakers may be labelled UNKNOWN.', {title: 'Delete book cast list?', actionLabel: 'Delete cast list', danger: true})) { return; }
+                if (book !== currentBookFilename) {
+                    showToast('The current book changed. Review its cast list before deleting.', 'warning');
+                    return;
+                }
+                applyCastListMutationState(true, 'Deleting cast list…');
                 await API.del('/api/cast_list');
                 document.getElementById('cast-list-panel').style.display = 'none';
                 await loadCastList(false);
                 showToast('Cast list deleted.', 'success');
             } catch (e) {
-                showToast('Delete failed: ' + (e.message || ''), 'error');
+                showActionError('Cast-list deletion was not confirmed', e, 'Reload the cast list to check whether it was deleted before trying Delete again.');
+            } finally {
+                applyCastListMutationState(false);
             }
         }
 
@@ -2713,7 +3361,7 @@
             } catch (e) {
                 if (request !== characterAliasesRequest) { return; }
                 console.error('Failed to load character aliases:', e);
-                showToast('Failed to load character aliases: ' + (e.message || String(e)), 'error');
+                showActionError('Could not load character aliases', e, 'Retry loading aliases before editing or saving them. The displayed list may be out of date.');
                 return;
             }
             if (request !== characterAliasesRequest) { return; }
@@ -2722,10 +3370,10 @@
             if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `
                 <div class="input-group input-group-sm mb-1 nick-alias-row">
-                    <input type="text" class="form-control nick-alias" placeholder="alias / nickname" value="${escapeHtml(a)}">
+                    <input type="text" class="form-control nick-alias" aria-label="Alias or nickname" placeholder="alias / nickname" value="${escapeHtml(a)}">
                     <span class="input-group-text">&rarr;</span>
-                    <input type="text" class="form-control nick-canonical" placeholder="canonical name" value="${escapeHtml(c)}">
-                    <button class="btn btn-outline-danger" type="button" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>
+                    <input type="text" class="form-control nick-canonical" aria-label="Canonical character name" placeholder="canonical name" value="${escapeHtml(c)}">
+                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml('Remove alias ' + a)}" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>
                 </div>`;
             panel.innerHTML = `
                 <div class="border rounded p-2">
@@ -2747,10 +3395,10 @@
             const div = document.createElement('div');
             div.className = 'input-group input-group-sm mb-1 nick-alias-row';
             div.innerHTML = `
-                <input type="text" class="form-control nick-alias" placeholder="alias / nickname">
+                <input type="text" class="form-control nick-alias" aria-label="Alias or nickname" placeholder="alias / nickname">
                 <span class="input-group-text">&rarr;</span>
-                <input type="text" class="form-control nick-canonical" placeholder="canonical name">
-                <button class="btn btn-outline-danger" type="button" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>`;
+                <input type="text" class="form-control nick-canonical" aria-label="Canonical character name" placeholder="canonical name">
+                <button class="btn btn-outline-danger" type="button" aria-label="Remove new alias" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>`;
             rows.appendChild(div);
         };
 
@@ -2773,7 +3421,7 @@
                 const res = await API.post('/api/character_aliases', map);
                 showToast(`Saved ${res.count} alias${res.count !== 1 ? 'es' : ''}. Run Review to apply.`, 'success');
             } catch (e) {
-                showToast('Save failed: ' + (e.message || ''), 'error');
+                showActionError('Alias save was not confirmed', e, 'Keep your edited rows and check the saved aliases before saving again.');
             }
         }
 
@@ -2870,7 +3518,7 @@
                 onDone: (state) => {
                     _showTaskRecoveryPanel('review-batch-recovery-panel', 'batch_review', state,
                         'Inspect the failed books and retry the batch.');
-                    notifyJobDone('batch_review');
+                    notifyJobDone('batch_review', '', 'finished', state);
                     document.getElementById('btn-review-batch-start').disabled = false;
                     document.getElementById('btn-pause-batch-review').style.display = 'none';
                     document.getElementById('btn-cancel-batch-review').style.display = 'none';
@@ -2966,7 +3614,7 @@
                 if (typeof loadCastLibrary === 'function') { try { await loadCastLibrary(); } catch (e) { /* display only */ } }
                 return !!res;
             } catch (e) {
-                showToast('Not started: could not save the current voices to the library first (' + (e.message || 'unknown error') + ').', 'error');
+                showActionError('Not started: saving current voices to the library failed', e, 'Check the cast library for the saved voices before starting again. Keep the save-to-library option enabled to protect the current assignments.');
                 return false;
             }
         }
@@ -2993,7 +3641,7 @@
                 started = true;
                 pollPersonaStatus();
             } catch (e) {
-                showToast('Failed to start persona generation: ' + e.message, 'error');
+                showActionError("Failed to start persona generation", e, "Check the persona task status before starting again. For an LLM refusal, use Setup → Test Connection and review the selected model.");
                 statusSpan.innerText = '';
                 if (cancelButton) {
                     cancelButton.style.display = 'none';
@@ -3009,7 +3657,7 @@
                     const statusSpan = document.getElementById('persona-status');
                     if (statusSpan) { statusSpan.innerText = 'Cancelling...'; }
                 },
-                errorMessage: (e) => 'Failed to cancel persona generation: ' + e.message,
+                errorMessage: (e) => getActionErrorMessage('Persona cancellation is unconfirmed', e, 'Check the persona task status before cancelling again; generation may still be running.'),
                 toastType: 'error',
             });
         }
@@ -3028,8 +3676,8 @@
             await loadVoices();
             showToast(`Persona recovered for ${speaker}.`, 'success');
         } catch (e) {
-            if (status) { status.textContent = 'Validation failed: ' + e.message; }
-            showToast('Persona recovery failed: ' + e.message, 'error');
+            if (status) { status.textContent = getActionErrorMessage('Persona recovery failed', e, 'Keep the pasted JSON. Check the speaker and validation details before correcting and submitting it again.'); }
+            showActionError("Persona recovery failed", e, "Keep the pasted persona JSON. Check the speaker and validation details, then correct the JSON before submitting again.");
         }
     };
 
@@ -3045,6 +3693,62 @@
             .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}`;
         await copyToClipboard(prompt, 'Persona prompt');
     };
+
+        let personaVoiceRefreshRequest = 0;
+        let personaVoiceRefreshPending = false;
+        async function refreshPersonaVoiceResources(afterTask = false) {
+            if (personaVoiceRefreshPending && !afterTask) { return false; }
+            const request = ++personaVoiceRefreshRequest;
+            const book = currentBookFilename;
+            const isCurrent = () => request === personaVoiceRefreshRequest && book === currentBookFilename;
+            const status = document.getElementById('persona-refresh-status');
+            const retry = document.getElementById('persona-refresh-retry');
+            personaVoiceRefreshPending = true;
+            retry.disabled = true;
+            status.textContent = 'Refreshing Voices after the persona task…';
+            let refreshedResources = [];
+            const failedResources = new Set();
+            try {
+                try {
+                    const result = await loadVoices();
+                    if (!result) { throw new Error('Voice refresh did not return a result'); }
+                    refreshedResources = result.refreshedResources;
+                    (result.failedResources || []).forEach(path => failedResources.add(path));
+                } catch (error) {
+                    failedResources.add('/api/voice_config/snapshot');
+                    console.debug('voices refresh failed', error);
+                }
+                for (const [key, path] of [['_designedVoicesCache', '/api/voice_design/list'], ['_cloneVoicesCache', '/api/clone_voices/list']]) {
+                    if (!isCurrent()) { return false; }
+                    if (refreshedResources.includes(path)) { continue; }
+                    try {
+                        const list = await API.get(path);
+                        if (!isCurrent()) { return false; }
+                        if (!Array.isArray(list)) { throw new Error('Voice resource list is malformed'); }
+                        window[key] = list;
+                        failedResources.delete(path);
+                    } catch (error) {
+                        failedResources.add(path);
+                        console.debug('persona voice resource refresh failed', error);
+                    }
+                }
+                if (!isCurrent()) { return false; }
+                const complete = failedResources.size === 0;
+                status.textContent = complete ? ''
+                    : 'The persona task has ended, but Voices or its reference lists could not be fully refreshed. Previously loaded lists are kept. Check that Alexandria is running, then retry the Voices refresh; this does not regenerate personas.';
+                retry.hidden = complete;
+                return complete;
+            } finally {
+                if (request === personaVoiceRefreshRequest) {
+                    personaVoiceRefreshPending = false;
+                    retry.disabled = false;
+                    if (book !== currentBookFilename) {
+                        status.textContent = 'The book changed during the Voices refresh. Review the current book, then retry the Voices refresh.';
+                        retry.hidden = false;
+                    }
+                }
+            }
+        }
 
         async function pollPersonaStatus() {
             claimTaskStart('persona');
@@ -3066,7 +3770,7 @@
                 },
                 onDone: async (status) => {
                     releaseTaskStart('persona');
-                    notifyJobDone('persona');
+                    notifyJobDone('persona', '', 'finished', status);
                     renderManualRequest({ running: false }, 'persona');
                     const failed = isTaskFailed(status);
                     const recoveryPanel = document.getElementById('persona-recovery-panel');
@@ -3083,16 +3787,9 @@
                             recoveryStatus.textContent = 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.';
                         }
                     }
-                    // Refresh voices and caches
-                    let refreshedResources = [];
-                    try { refreshedResources = (await loadVoices()).refreshedResources; } catch (e) { console.debug('voices refresh failed', e); }
-                    if (!refreshedResources.includes('/api/voice_design/list')) {
-                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
-                    }
-                    if (!refreshedResources.includes('/api/clone_voices/list')) {
-                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
-                    }
-                    showToast(failed ? 'Persona generation stopped; manual recovery is available.' : 'Persona generation finished', failed ? 'warning' : 'success');
+                    const refreshed = await refreshPersonaVoiceResources(true);
+                    showToast(failed ? 'Persona generation stopped; manual recovery is available.'
+                        : refreshed ? 'Persona task ended. Voices refreshed.' : 'Persona task ended; the Voices refresh needs attention.', failed || !refreshed ? 'warning' : 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
                         cancelButton.style.display = 'none';
@@ -3105,7 +3802,7 @@
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
         function getVoiceCandidateMarkup(candidates) {
-            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
+            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
         }
 
         function getLibraryVoiceReference(refAudio) {
@@ -3131,7 +3828,7 @@
             const text = states.length ? states.join(' → ') : label(traits);
             if (!text && !traits.ageless) { return ''; }
             const shown = [text, traits.ageless ? 'ageless' : ''].filter(part => part).join(' · ');
-            return `<span class="badge bg-light text-dark border ms-2" title="From the script: ${Number(traits.lines) || 0} lines with gender/age">${escapeHtml(shown)}</span>`;
+            return `<span class="badge bg-light text-dark border ms-2" title="Model-inferred from ${Number(traits.lines) || 0} script lines; review against the source">Script estimate: ${escapeHtml(shown)}</span>`;
         }
 
         function createVoiceCard(voice, index) {
@@ -3148,11 +3845,11 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
-                                <div class="small text-muted">Persona: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice: ${escapeHtml(config.voice_status || 'unassigned')}</div>
-                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
-                                <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status">
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Regenerate persona for ' + voice.name)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + voice.name)}" onclick="generateAgeVersion(this)"><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
+                                <div class="small text-muted">Persona review: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice review: ${escapeHtml(config.voice_status || 'unassigned')}</div>
+                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml('Edit persona-to-voice audit for ' + voice.name)}" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
+                                <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Approval status" aria-describedby="voice-approval-help">
                                     <button class="btn btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
                                     <button class="btn btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">Mark persona reviewed</button>
                                     <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">Reject persona</button>
@@ -3161,21 +3858,22 @@
                                     <button class="btn btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">Reject voice</button>
                                 </div>
                                 <div class="input-group input-group-sm mt-2">
-                                    <select class="form-select voice-version-select" onchange="selectVoiceVersion(this)">
-                                        <option value="">Active version</option>
+                                    <select class="form-select voice-version-select" aria-label="${escapeHtml('Voice version for ' + voice.name)}" onchange="selectVoiceVersion(this)">
+                                        <option value="" disabled>Choose a saved version</option>
                                         ${Object.entries(config.versions || {}).map(([id, version]) => `<option value="${escapeHtml(id)}" ${config.active_version === id ? 'selected' : ''}>${escapeHtml(id)}${version.age_group ? ` · ${escapeHtml(version.age_group)}` : ''}</option>`).join('')}
                                     </select>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="addVoiceVersion(this)">Version</button>
+                                    <button class="btn btn-outline-secondary" type="button" aria-label="${escapeHtml('Add voice version for ' + voice.name)}" onclick="addVoiceVersion(this)">Version</button>
                                 </div>
-                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>Voice changes (${voice.traits.states.length} states)</button><div class="voice-state-rows"></div></div>` : ''}
-                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
+                                <div class="form-text">Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.</div>
+                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml('Load voice changes for ' + voice.name)}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>Voice changes (${voice.traits.states.length - 1} change${voice.traits.states.length === 2 ? '' : 's'})</button><div class="form-text">Review which voice is used before and after each change.</div><div class="voice-state-rows"></div></div>` : ''}
+                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml('Generate more voice candidates for ' + voice.name)}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
                                 <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates)}</div>
                                 <div class="form-check form-switch small">
-                                    <input class="form-check-input voice-ready" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
+                                    <input class="form-check-input voice-ready" aria-label="${escapeHtml('Ready for audio generation for ' + voice.name)}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
                                 </div>
                                 <div class="form-text small text-muted mt-1">Alias of:</div>
-                                <select class="form-select form-select-sm alias-select mt-1">
+                                <select class="form-select form-select-sm alias-select mt-1" aria-label="${escapeHtml('Alias target for ' + voice.name)}">
                                     <option value="">-- None --</option>
                                     ${(() => {
                                         const names = (window._voicesNames || []).filter(n => n !== voice.name);
@@ -3186,28 +3884,28 @@
                             <div class="col-md-9">
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="custom" ${voiceType === 'custom' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">Custom Voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="custom" id="voice-type-${index}-custom" aria-label="${escapeHtml('Custom voice for ' + voice.name)}" ${voiceType === 'custom' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-custom">Custom voice</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="builtin_lora" ${voiceType === 'builtin_lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">Built-in Voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="builtin_lora" id="voice-type-${index}-builtin_lora" aria-label="${escapeHtml('Built-in LoRA voice for ' + voice.name)}" ${voiceType === 'builtin_lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-builtin_lora">Built-in LoRA voice</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="clone" ${voiceType === 'clone' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">Voice Clone</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="clone" id="voice-type-${index}-clone" aria-label="${escapeHtml('Clone voice for ' + voice.name)}" ${voiceType === 'clone' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-clone">Clone voice</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="lora" ${voiceType === 'lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">LoRA Voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="lora" id="voice-type-${index}-lora" aria-label="${escapeHtml('LoRA voice for ' + voice.name)}" ${voiceType === 'lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-lora">LoRA voice</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">Voice Design</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" id="voice-type-${index}-design" aria-label="${escapeHtml('Voice Design for ' + voice.name)}" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-design">Voice Design</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label">Together</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" id="voice-type-${index}-ensemble" aria-label="${escapeHtml('Character ensemble for ' + voice.name)}" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-ensemble">Character ensemble</label>
                                     </div>
                                 </div>
 
@@ -3215,12 +3913,12 @@
                                 <div class="custom-opts" style="display: ${voiceType === 'custom' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select voice-select">
+                                            <select class="form-select voice-select" aria-label="${escapeHtml('Custom voice for ' + voice.name)}">
                                                 ${customVoices.map(v => `<option value="${escapeHtml(v)}" ${config.voice === v ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
+                                            <input type="text" class="form-control character-style" aria-label="${escapeHtml('Custom voice style for ' + voice.name)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
                                             ${renderStyleTimeline(voice.name, config)}
                                         </div>
                                     </div>
@@ -3230,7 +3928,7 @@
                                 <div class="builtin-lora-opts" style="display: ${voiceType === 'builtin_lora' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select builtin-lora-select">
+                                            <select class="form-select builtin-lora-select" aria-label="${escapeHtml('Built-in LoRA voice for ' + voice.name)}">
                                                 <option value="">-- Select built-in voice --</option>
                                                 ${(() => {
                                                     const models = (window._loraModelsCache || []).filter(m => m.builtin);
@@ -3252,7 +3950,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control builtin-lora-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
+                                            <input type="text" class="form-control builtin-lora-style" aria-label="${escapeHtml('Built-in LoRA voice style for ' + voice.name)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                     <small class="text-muted mt-1 d-block">Grayed-out voices need to be downloaded first. Go to the <strong>Training</strong> tab to download them.</small>
@@ -3262,7 +3960,7 @@
                                 <div class="clone-opts" style="display: ${voiceType === 'clone' ? 'block' : 'none'}">
                                     <div class="row g-2 mb-2 align-items-center">
                                         <div class="col">
-                                            <select class="form-select designed-voice-select" onchange="onDesignedVoiceSelect(this)">
+                                            <select class="form-select designed-voice-select" aria-label="${escapeHtml('Reference voice for ' + voice.name)}" onchange="onDesignedVoiceSelect(this)">
                                                 <option value="">-- Select voice or enter path manually --</option>
                                                 ${(window._cloneVoicesCache || []).length ? `<optgroup label="Uploaded Voices">
                                                     ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${escapeHtml(v.id)}" ${reference?.type === 'clone' && reference.id === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
@@ -3274,15 +3972,15 @@
                                             </select>
                                         </div>
                                         <div class="col-auto">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="uploadCloneVoice(this)" title="Upload audio file"><i class="fas fa-upload"></i> Upload</button>
-                                            <input type="file" class="clone-voice-file-input" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
+                                            <button class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml('Upload reference audio for ' + voice.name)}" onclick="uploadCloneVoice(this)" title="Upload audio file"><i class="fas fa-upload"></i> Upload</button>
+                                            <input type="file" class="clone-voice-file-input" aria-label="${escapeHtml('Upload reference audio for ' + voice.name)}" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
                                         </div>
                                     </div>
-                                    <input type="text" class="form-control ref-text mb-2" placeholder="Reference Text" value="${escapeHtml(config.ref_text || '')}">
+                                    <input type="text" class="form-control ref-text mb-2" aria-label="${escapeHtml('Reference transcript for ' + voice.name)}" placeholder="Reference Text" value="${escapeHtml(config.ref_text || '')}">
                                     <div class="input-group">
-                                        <input type="text" class="form-control ref-audio" placeholder="Path to audio file" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
-                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" onclick="playCloneVoice(this)" title="Play reference audio" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger clone-delete-btn" onclick="deleteCloneVoice(this)" title="Delete uploaded voice" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
+                                        <input type="text" class="form-control ref-audio" aria-label="${escapeHtml('Reference audio path for ' + voice.name)}" placeholder="Path to audio file" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
+                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" aria-label="${escapeHtml('Play reference audio for ' + voice.name)}" onclick="playCloneVoice(this)" title="Play reference audio" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger clone-delete-btn" aria-label="${escapeHtml('Delete uploaded reference voice for ' + voice.name)}" onclick="deleteCloneVoice(this)" title="Delete uploaded voice" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
 
@@ -3290,23 +3988,23 @@
                                 <div class="lora-opts" style="display: ${voiceType === 'lora' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select lora-adapter-select">
+                                            <select class="form-select lora-adapter-select" aria-label="${escapeHtml('Trained LoRA voice for ' + voice.name)}">
                                                 <option value="">-- Select trained adapter --</option>
                                                 ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control lora-character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
+                                            <input type="text" class="form-control lora-character-style" aria-label="${escapeHtml('LoRA voice style for ' + voice.name)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
-                                    <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
+                                    <input type="text" class="form-control design-description mb-1" aria-label="${escapeHtml('Base voice description for ' + voice.name)}" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
                                     <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openVoiceDesignEditor(this)">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml('Re-design voice for ' + voice.name)}" onclick="openVoiceDesignEditor(this)">
                                             <i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice
                                         </button>
                                     </div>
@@ -3343,7 +4041,7 @@
             const selected = new Set(members && members.length ? members : suggestEnsembleMembers(name));
             return names.map(n => `
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input ensemble-member" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
+                    <input class="form-check-input ensemble-member" aria-label="${escapeHtml(`Include ${n} in voices together for ${name}`)}" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
                     <label class="form-check-label">${escapeHtml(n)}</label>
                 </div>
             `).join('');
@@ -3413,17 +4111,65 @@
                 await loadVoices(false);
                 showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000);
             } catch (e) {
-                showToast('Stable seed repair failed: ' + e.message, 'error');
+                showActionError("Stable seed repair failed", e, "Reload Voices and review the current seed suggestions before applying again; the book or voice settings may have changed.");
             } finally {
                 _voiceSeedRepairPending = false;
             }
         };
+
+        function getVoicePanelSnapshot(container, bookToken) {
+            const panels = [...(container.querySelectorAll?.('.voice-card') || [])].map(card => {
+                const panel = card.querySelector('.voice-state-rows');
+                if (!panel || !panel.innerHTML.trim()
+                    || (typeof pendingVoiceStateLoads !== 'undefined' && pendingVoiceStateLoads.has(panel))
+                    || (typeof pendingVoiceStateSaves !== 'undefined'
+                        && pendingVoiceStateSaves.has(`${currentBookFilename}\0${card.dataset.voice}`))) { return null; }
+                return {speaker: card.dataset.voice, panel};
+            }).filter(Boolean);
+            return {bookToken, panels};
+        }
+
+        function restoreVoicePanels(container, snapshot, bookToken) {
+            if (snapshot.bookToken !== bookToken) { return; }
+            for (const {speaker, panel} of snapshot.panels) {
+                const card = [...(container.querySelectorAll?.('.voice-card') || [])]
+                    .find(row => row.dataset.voice === speaker);
+                const replacement = card?.querySelector('.voice-state-rows');
+                if (replacement) { replacement.replaceWith(panel); }
+            }
+        }
+
+        function getVoiceListFocusSnapshot(container, bookToken) {
+            const control = document.activeElement;
+            if (!control || !container.contains(control)) { return null; }
+            const card = control.closest('.voice-card');
+            if (!card) { return null; }
+            return {control, bookToken, speaker: card.dataset.voice, tag: control.tagName,
+                key: control.getAttribute('data-voice-focus-key'), label: control.getAttribute('aria-label'),
+                action: control.getAttribute('onclick') || control.getAttribute('onchange')};
+        }
+
+        function restoreVoiceListFocus(container, snapshot, bookToken) {
+            if (!snapshot || snapshot.bookToken !== bookToken
+                || (document.activeElement !== document.body && document.activeElement !== snapshot.control)) { return; }
+            const card = Array.from(container.querySelectorAll('.voice-card')).find(row => row.dataset.voice === snapshot.speaker);
+            if (!card) { return; }
+            const control = Array.from(card.querySelectorAll('button,input,select,textarea')).find(field => field.tagName === snapshot.tag
+                && (snapshot.key ? field.getAttribute('data-voice-focus-key') === snapshot.key
+                    : snapshot.label ? field.getAttribute('aria-label') === snapshot.label
+                        : snapshot.action && (field.getAttribute('onclick') || field.getAttribute('onchange')) === snapshot.action));
+            const target = control && !control.disabled && control.getClientRects().length ? control : card.querySelector('h5');
+            if (!target || !target.getClientRects().length) { return; }
+            if (target !== control) { target.tabIndex = -1; }
+            target.focus({preventScroll: true});
+        }
 
         async function loadVoices(refreshResources = true) {
             await flushVoiceSaves();
             const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
             let resourcesComplete = true;
             const refreshedResources = [];
+            const failedResources = [];
             if (!reuseResources) { _voiceResourcesRefreshedAt = -Infinity; }
             // Fetch independent lists together; render only after dropdowns and
             // per-character cast counts are ready. Keep old optional lists on error.
@@ -3433,21 +4179,23 @@
                 ['_loraModelsCache', '/api/lora/models', 'lora-models'],
             ].map(async ([key, path, label]) => {
                 try {
-                    window[key] = await API.get(path);
+                    const list = await API.get(path);
+                    if (!Array.isArray(list)) { throw new Error('Voice resource list is malformed'); }
+                    window[key] = list;
                     refreshedResources.push(path);
                 }
-                catch (e) { resourcesComplete = false; console.debug(`${label} cache refresh failed`, e); }
+                catch (e) { resourcesComplete = false; failedResources.push(path); console.debug(`${label} cache refresh failed`, e); }
             });
             const [voices] = await Promise.all([
                 refreshVoiceMetadata(), ...resources,
-                ...(reuseResources ? [] : [loadCastLibrary().catch(e => { resourcesComplete = false; console.debug('cast library refresh failed', e); })]),
+                ...(reuseResources ? [] : [loadCastLibrary().catch(e => { resourcesComplete = false; failedResources.push('/api/voice_library'); console.debug('cast library refresh failed', e); })]),
             ]);
             if (!reuseResources) {
                 _voiceResourcesRefreshedAt = resourcesComplete ? performance.now() : -Infinity;
             }
             if (reuseResources && _voiceCardsRevision === _voiceSaveSnapshot.revision
                     && _voiceCardsBookToken === _voiceSaveSnapshot.book_token) {
-                return {refreshedResources};
+                return {refreshedResources, failedResources};
             }
             refreshVoicesScope();
             const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
@@ -3457,11 +4205,13 @@
             }
             updateNarratorPreviewFields();
             const container = document.getElementById('voices-list');
+            const focus = getVoiceListFocusSnapshot(container, _voiceCardsBookToken);
+            const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
                 _voiceCardsRevision = _voiceSaveSnapshot.revision;
                 _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
-                return {refreshedResources};
+                return {refreshedResources, failedResources};
             }
             container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + voices.map((v, i) => createVoiceCard(v, i)).join('');
             _voiceCardsRevision = _voiceSaveSnapshot.revision;
@@ -3478,7 +4228,9 @@
             if (window._voiceSuggestions && Object.keys(window._voiceSuggestions).length) {
                 renderVoiceSuggestions();
             }
-            return {refreshedResources};
+            restoreVoicePanels(container, panels, _voiceCardsBookToken);
+            restoreVoiceListFocus(container, focus, _voiceCardsBookToken);
+            return {refreshedResources, failedResources};
         }
 
         window.selectVoiceVersion = async function selectVoiceVersion(select) {
@@ -3489,23 +4241,34 @@
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`, {});
                 await loadVoices();
                 showToast(`Selected ${versionId} for ${speaker}.`, 'success');
-            } catch (e) { showToast('Version selection failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Version selection failed", e, "Reload Voices to check the active saved version before selecting again."); }
         };
 
         window.addVoiceVersion = async function addVoiceVersion(button) {
-            const speaker = button.closest('.voice-card')?.dataset.voice;
-            const versionId = window.prompt('Version ID (for example teen or elderly):');
-            if (!versionId || !versionId.trim()) { return; }
-            const ageInput = window.prompt('Age group:');
-            if (ageInput === null) { return; }
-            const ageGroup = ageInput || 'adult';
+            if (button.disabled) { return; }
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const book = currentBookFilename;
+            button.disabled = true;
             try {
+                const values = await showPresetEditor({title: `Add voice version for ${speaker}`, nameLabel: 'Version ID',
+                    descriptionLabel: 'Age group', description: 'adult', descriptionPlaceholder: '', actionLabel: 'Add version',
+                    helperText: 'Use a version ID such as teen or elderly. The new version starts from this character’s current voice settings. Leave Age group empty to use adult.'});
+                if (!values) { return; }
+                if (book !== currentBookFilename || card?.isConnected === false) {
+                    showToast('The book changed. Review it before adding a voice version.', 'warning'); return;
+                }
+                await flushVoiceSaves();
+                if (book !== currentBookFilename || card?.isConnected === false) {
+                    showToast('The book changed. Review it before adding a voice version.', 'warning'); return;
+                }
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
-                    version_id: versionId.trim(), age_group: ageGroup.trim(), config: {type: 'custom', voice: 'Ryan'}
+                    version_id: values.name, age_group: values.description || 'adult'
                 });
                 showToast(`Version saved for ${speaker}.`, 'success');
-                await loadVoices();
-            } catch (e) { showToast('Version save failed: ' + e.message, 'error'); }
+                if (book === currentBookFilename) { await loadVoices(); }
+            } catch (e) { showActionError("Version save failed", e, "Reload Voices to check whether the version was saved before adding it again."); }
+            finally { button.disabled = false; }
         };
 
         window.saveNarratorStrategy = async function saveNarratorStrategy(strategy) {
@@ -3513,7 +4276,7 @@
             try {
                 await API.post('/api/narrator/strategy', {strategy});
                 showToast('Narrator strategy saved.', 'success');
-            } catch (e) { showToast('Narrator strategy failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Narrator strategy failed", e, "Reload Voices to check the saved narrator strategy before changing it again."); }
         };
 
         window.updateNarratorPreviewFields = function updateNarratorPreviewFields() {
@@ -3555,7 +4318,7 @@
                 });
                 const selected = result.selected || {};
                 status.textContent = `Selected ${selected.adapter_id || selected.voice || selected.type || 'default'}.`;
-            } catch (e) { showToast('Narrator preview failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Narrator preview failed", e, "Check the narrator strategy, selected speaker and saved version, then preview again."); }
         };
 
         window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
@@ -3564,27 +4327,37 @@
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
                 await loadVoices();
                 showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} marked ${status} for ${speaker}.`, 'success');
-            } catch (e) { showToast('Approval update failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError('Approval update failed', e, 'Reload Voices to check the current approval before trying again. Your voice assignments remain available.'); }
         };
 
         window.editPersonaVoiceAudit = async function editPersonaVoiceAudit(button) {
+            if (button.disabled) { return; }
             const card = button.closest('.voice-card');
             const speaker = card?.dataset.voice;
+            if (!speaker) { return; }
+            const book = currentBookFilename;
             const current = window._voicesByName?.[speaker]?.config?.persona_voice_audit || {};
-            const reason = window.prompt('Why this voice was suggested (optional):', current.suggestion_reason || '');
-            if (reason === null) { return; }
-            const adapter = window.prompt('Voice adapter ID (optional):', current.voice_adapter_id || '');
-            if (adapter === null) { return; }
+            button.disabled = true;
             try {
+                const values = await showPresetEditor({title: `Edit voice audit for ${speaker}`,
+                    nameLabel: 'Suggestion reason (optional)', name: current.suggestion_reason || '', allowEmptyName: true,
+                    descriptionLabel: 'Voice adapter ID (optional)', description: current.voice_adapter_id || '',
+                    descriptionPlaceholder: '', actionLabel: 'Save audit',
+                    helperText: 'Correct the assignment notes. Empty fields leave existing saved values unchanged.'});
+                if (!values) { return; }
+                if (book !== currentBookFilename || card?.isConnected === false || card?.dataset.voice !== speaker) {
+                    showToast('The book or voice changed. Review it before saving the audit.', 'warning'); return;
+                }
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/persona-voice-audit`, {
                     persona_ref: current.persona_ref || null,
                     persona_description: current.persona_description || null,
-                    voice_adapter_id: adapter,
-                    suggestion_reason: reason,
+                    voice_adapter_id: values.description,
+                    suggestion_reason: values.name,
                 });
-                await loadVoices();
+                if (book === currentBookFilename) { await loadVoices(); }
                 showToast(`Persona-to-voice audit updated for ${speaker}.`, 'success');
-            } catch (e) { showToast('Audit update failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Audit update failed", e, "Reload Voices and check the current persona-to-voice audit before saving it again."); }
+            finally { button.disabled = false; }
         };
 
         window.regeneratePersona = async function regeneratePersona(button) {
@@ -3598,22 +4371,37 @@
                 });
                 pollPersonaStatus();
                 showToast(`Persona regeneration started for ${speaker}.`, 'success');
-            } catch (e) { showToast('Persona regeneration failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Persona regeneration failed", e, "Check the persona task status before regenerating again. For an LLM refusal, use Setup → Test Connection."); }
         };
 
         window.generateAgeVersion = async function generateAgeVersion(button, presetAge) {
-            const speaker = button.closest('.voice-card')?.dataset.voice;
-            const ageGroup = window.prompt('Age profile (infant, toddler, young_child, child, teen, young_adult, adult, middle_aged, elderly):', presetAge || '');
-            if (!ageGroup || !ageGroup.trim()) { return; }
+            if (button.disabled) { return; }
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            if (!speaker) { return; }
+            const book = currentBookFilename;
+            const isCurrent = () => book === currentBookFilename && card?.isConnected !== false && card?.dataset.voice === speaker;
+            button.disabled = true;
             try {
+                const values = await showPresetEditor({title: `Generate age version for ${speaker}`, nameLabel: 'Age profile',
+                    name: presetAge || '', includeDescription: false, actionLabel: 'Generate age version',
+                    helperText: 'Use infant, toddler, young_child, child, teen, young_adult, adult, middle_aged or elderly.'});
+                if (!values) { return; }
+                if (!isCurrent()) {
+                    showToast('The book or voice changed. Review it before generating an age version.', 'warning'); return;
+                }
                 if (!(await confirmIfRemote('this age-version generation', true))) { return; }
+                if (!isCurrent()) {
+                    showToast('The book or voice changed. Review it before generating an age version.', 'warning'); return;
+                }
                 await API.post('/api/generate_personas', {
-                    speaker, age_group: ageGroup.trim(), advanced: false,
+                    speaker, age_group: values.name, advanced: false,
                     context_lines: getPersonaContextLines(),
                 });
                 pollPersonaStatus();
-                showToast(`Generating ${ageGroup.trim()} version for ${speaker}.`, 'success');
-            } catch (e) { showToast('Age version generation failed: ' + e.message, 'error'); }
+                showToast(`Generating ${values.name} version for ${speaker}.`, 'success');
+            } catch (e) { showActionError("Age version generation failed", e, "Check the persona task status and saved age versions before generating again. Use an age profile listed in the dialog."); }
+            finally { button.disabled = false; }
         };
 
         window.selectVoiceCandidate = async function selectVoiceCandidate(button, candidateId) {
@@ -3622,16 +4410,36 @@
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/select`, {});
                 await loadVoices();
                 showToast(`Selected ${candidateId} for ${speaker}.`, 'success');
-            } catch (e) { showToast('Candidate selection failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Candidate selection failed", e, "Reload Voices to check the selected candidate before selecting again."); }
         };
+
+        async function applyConfirmedVoiceRemoval(button, message, remove) {
+            if (button?.disabled) { return; }
+            const book = currentBookFilename;
+            const wasDisabled = button?.disabled;
+            if (button) { button.disabled = true; }
+            try {
+                if (!await showConfirm(message, {title: 'Remove voice setting?', actionLabel: 'Remove', danger: true})) { return; }
+                if (book !== currentBookFilename) {
+                    showToast('The book changed. Review the current voice before removing anything.', 'warning');
+                    return;
+                }
+                await remove();
+            } finally {
+                if (button) { button.disabled = wasDisabled; }
+            }
+        }
 
         window.deleteVoiceCandidate = async function deleteVoiceCandidate(button, candidateId) {
             const speaker = button.closest('.voice-card')?.dataset.voice;
+            if (!speaker) { return; }
             try {
-                await API.del(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}`);
-                await loadVoices();
-                showToast(`Removed candidate ${candidateId}.`, 'success');
-            } catch (e) { showToast('Candidate removal failed: ' + e.message, 'error'); }
+                await applyConfirmedVoiceRemoval(button, `Delete saved candidate "${candidateId}" for ${speaker}? This cannot be undone.`, async () => {
+                    await API.del(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}`);
+                    await loadVoices();
+                    showToast(`Removed candidate ${candidateId}.`, 'success');
+                });
+            } catch (e) { showActionError("Candidate removal failed", e, "Refresh the saved candidate pool to check whether removal completed before deleting again."); }
         };
 
         window.favoriteVoiceCandidate = async function favoriteVoiceCandidate(button, candidateId, favorite) {
@@ -3639,7 +4447,7 @@
             try {
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates/${encodeURIComponent(candidateId)}/favorite`, {favorite});
                 await loadVoices();
-            } catch (e) { showToast('Candidate favorite update failed: ' + e.message, 'error'); }
+            } catch (e) { showActionError("Candidate favorite update failed", e, "Refresh the saved candidate pool to check its favorite status before changing it again."); }
         };
 
         // --- Auto-suggest best LoRA voice per character ---
@@ -3662,7 +4470,16 @@
                 if (!characterNames && !onlyUnset && !(await keepCurrentVoicesIfAsked())) { return; }
                 status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing characters and matching voices...';
                 // Make sure lora caches are fresh so we can resolve suggested adapters in the dropdowns
-                try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { console.debug('lora-models cache refresh failed', e); }
+                const catalogStatus = document.getElementById('suggest-catalog-status');
+                try {
+                    const models = await API.get('/api/lora/models');
+                    if (!Array.isArray(models)) { throw new Error('Invalid voice catalog response'); }
+                    window._loraModelsCache = models;
+                    catalogStatus.textContent = '';
+                } catch (e) {
+                    catalogStatus.textContent = 'The downloaded voice list could not be refreshed. Suggestions may have incomplete voice type and download details. Check the app connection and run Suggest LoRA Voices again.';
+                    console.debug('lora-models cache refresh failed', e);
+                }
                 const res = await API.post('/api/suggest_voices', {
                     only_unset: onlyUnset,
                     cast: window._selectedCast || null,
@@ -3736,7 +4553,7 @@
                 }
                 renderVoiceSuggestions();
             } catch (e) {
-                status.innerHTML = `<i class="fas fa-times text-danger me-1"></i>${escapeHtml(e.message || String(e))}`;
+                status.innerHTML = `<i class="fas fa-times text-danger me-1"></i>${escapeHtml(getActionErrorMessage('Voice suggestions failed', e, 'Use Setup → Test Connection and check the selected model. Review the saved candidate pool before requesting more suggestions.'))}`;
             } finally {
                 releaseTaskStart('voices');
             }
@@ -3841,7 +4658,7 @@
                 applySuggestionToCard(name);
                 await loadCastLibrary();
             } catch (e) {
-                showToast('Failed to apply suggestion: ' + (e.message || String(e)), 'error');
+                showActionError("Failed to apply suggestion", e, "Check the current character voice and cast library before applying the suggestion again.");
             }
         }
 
@@ -3855,7 +4672,7 @@
                 Object.keys(pending).forEach(name => applySuggestionToCard(name));
                 await loadCastLibrary();
             } catch (e) {
-                showToast('Failed to apply suggestions: ' + (e.message || String(e)), 'error');
+                showActionError("Failed to apply suggestions", e, "Check the current character voices and cast library before applying the suggestions again.");
             }
         }
 
@@ -3937,7 +4754,7 @@
                         <span class="text-muted">(${escapeHtml(m.type || 'custom')}${m.line_count ? ', ' + m.line_count + ' lines' : ''})</span>
                         ${m.character_style ? `<span class="d-block text-muted">${escapeHtml(m.character_style)}</span>` : ''}
                         ${_castKnownAsLine(m)}</span>
-                    <button class="btn btn-sm btn-link text-danger p-0" title="Remove from library" data-cast="${escapeHtml(castName)}" data-key="${escapeHtml(m.key)}" onclick="deleteCastMember(this.dataset.cast, this.dataset.key)"><i class="fas fa-times"></i></button>
+                    <button class="btn btn-sm btn-link text-danger p-0" title="Remove from library" data-cast="${escapeHtml(castName)}" data-key="${escapeHtml(m.key)}" onclick="deleteCastMember(this.dataset.cast, this.dataset.key, this)"><i class="fas fa-times"></i></button>
                 </li>`;
             const members = (cast && cast.members) || [];
             const usageRows = Object.entries((cast && cast.adapter_usage) || {}).sort((a, b) => b[1].character_count - a[1].character_count);
@@ -3961,32 +4778,51 @@
         }
 
         async function createCast() {
-            const name = (prompt('Name this cast (e.g. the series title):') || '').trim();
-            if (!name) { return; }
+            const selected = window._selectedCast;
+            const book = currentBookFilename;
+            const values = await showPresetEditor({title: 'Create cast', nameLabel: 'Cast name', includeDescription: false,
+                actionLabel: 'Create cast', helperText: 'Name this cast, for example with the series title.'});
+            if (!values) { return; }
+            if (selected !== window._selectedCast || book !== currentBookFilename) {
+                setCastStatus('The book or selected cast changed. Review it before creating a cast.', true); return;
+            }
+            const name = values.name;
             try {
                 await API.post('/api/voice_library/casts', { name });
+                if (selected !== window._selectedCast || book !== currentBookFilename) {
+                    showToast(`Cast "${name}" was created. Your later selection was kept. Refresh the cast library to see it.`, 'success'); return;
+                }
                 window._selectedCast = name;
                 await loadCastLibrary();
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Created cast "${escapeHtml(name)}"`);
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Cast creation failed", e, "Refresh the cast library and check whether the named cast was created before creating it again.")), true); }
         }
 
         async function deleteCast() {
-            if (!window._selectedCast) { return; }
-            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) { return; }
+            const cast = window._selectedCast;
+            if (!cast) { return; }
+            const button = document.getElementById('btn-cast-delete');
             try {
-                await API.del(`/api/voice_library/casts/${encodeURIComponent(window._selectedCast)}`);
-                window._selectedCast = '';
-                await loadCastLibrary();
-                setCastStatus('<i class="fas fa-check text-success me-1"></i>Cast deleted');
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+                await applyConfirmedVoiceRemoval(button, `Delete cast "${cast}"? Cast-only members will be removed; shared characters will be kept.`, async () => {
+                    if (window._selectedCast !== cast) {
+                        setCastStatus('The selected cast changed. Review it before deleting.', true);
+                        return;
+                    }
+                    await API.del(`/api/voice_library/casts/${encodeURIComponent(cast)}`);
+                    if (window._selectedCast === cast) { window._selectedCast = ''; }
+                    await loadCastLibrary();
+                    setCastStatus('<i class="fas fa-check text-success me-1"></i>Cast deleted');
+                });
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Cast deletion failed", e, "Refresh the cast library and check whether the cast was deleted before deleting again.")), true); }
         }
 
-        async function deleteCastMember(cast, key) {
+        async function deleteCastMember(cast, key, button = null) {
             try {
-                await API.del(`/api/voice_library/casts/${encodeURIComponent(cast)}/members/${encodeURIComponent(key)}`);
-                await loadCastLibrary();
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+                await applyConfirmedVoiceRemoval(button, `Remove "${key}" from cast "${cast}"?`, async () => {
+                    await API.del(`/api/voice_library/casts/${encodeURIComponent(cast)}/members/${encodeURIComponent(key)}`);
+                    await loadCastLibrary();
+                });
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Cast member removal failed", e, "Refresh the selected cast and check whether the member was removed before trying again.")), true); }
         }
 
         // Save current-book characters into the selected cast
@@ -4003,13 +4839,13 @@
                 const isNarrator = c.name.trim().toLowerCase() === 'narrator';
                 const checked = isNarrator || c.line_count >= defaultThreshold ? 'checked' : '';
                 const scopeCell = isNarrator
-                    ? `<select class="form-select form-select-sm cast-save-scope" data-name="${escapeHtml(c.name)}" style="width:auto;">
+                    ? `<select class="form-select form-select-sm cast-save-scope" aria-label="${escapeHtml('Narrator scope for ' + c.name)}" data-name="${escapeHtml(c.name)}" style="width:auto;">
                            <option value="shared" selected>shared (whole series)</option>
                            <option value="cast">this cast only (different narrator)</option>
                        </select>`
                     : '';
                 return `<tr>
-                    <td><input type="checkbox" class="cast-save-check" data-name="${escapeHtml(c.name)}" ${checked}></td>
+                    <td><input type="checkbox" class="cast-save-check" aria-label="${escapeHtml('Save voice for ' + c.name + ' to cast')}" data-name="${escapeHtml(c.name)}" ${checked}></td>
                     <td class="small">${escapeHtml(c.name)}</td>
                     <td class="small text-muted">${c.line_count}</td>
                     <td>${scopeCell}</td>
@@ -4020,7 +4856,7 @@
                     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                         <span class="small fw-bold">Save to "${escapeHtml(window._selectedCast)}"</span>
                         <span class="small text-muted">Pre-select characters with ≥</span>
-                        <input type="number" id="cast-save-threshold" class="form-control form-control-sm" style="width:70px;" value="${defaultThreshold}" min="0" onchange="reapplyCastSaveThreshold()">
+                        <input type="number" id="cast-save-threshold" aria-label="Minimum lines for pre-selecting cast voices" class="form-control form-control-sm" style="width:70px;" value="${defaultThreshold}" min="0" onchange="reapplyCastSaveThreshold()">
                         <span class="small text-muted">lines</span>
                     </div>
                     <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>Only characters you've already configured will be saved. The narrator is stored as a shared voice for the whole series.</div>
@@ -4064,7 +4900,7 @@
                 if (ns) { msg += `, ${ns} shared`; }
                 if (skipped > 0) { msg += ` (${skipped} skipped — not configured)`; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Saving voices to the cast failed", e, "Refresh the cast library and check the saved voices before saving them again.")), true); }
         }
 
         // Build the candidate-member pool for the current cast (shared + cast-specific)
@@ -4100,10 +4936,10 @@
                 const fuzzy = m && !m.exact;
                 const badge = _castMatchBadge(m);
                 return `<tr class="${fuzzy ? 'table-warning' : ''}">
-                    <td><input type="checkbox" class="cast-apply-check" data-char="${escapeHtml(p.character)}" ${m ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="cast-apply-check" aria-label="${escapeHtml('Apply cast voice to ' + p.character)}" data-char="${escapeHtml(p.character)}" ${m ? 'checked' : ''}></td>
                     <td class="small">${escapeHtml(p.character)} <span class="text-muted">(${p.line_count})</span></td>
                     <td>${badge}</td>
-                    <td><select class="form-select form-select-sm cast-apply-target" data-char="${escapeHtml(p.character)}">${optionsFor(m ? m.key : '')}</select></td>
+                    <td><select class="form-select form-select-sm cast-apply-target" aria-label="${escapeHtml('Cast voice for ' + p.character)}" data-char="${escapeHtml(p.character)}">${optionsFor(m ? m.key : '')}</select></td>
                 </tr>`;
             }).join('');
         }
@@ -4116,7 +4952,7 @@
             let res;
             try {
                 res = await API.post('/api/voice_library/match', { name: window._selectedCast });
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Matching cast voices failed", e, "Check the selected cast and current book, then reopen Apply cast.")), true); renderCastMembers(); return; }
 
             const pool = _getCastMatchPool();
             const anyMatch = res.proposals.some(p => p.match);
@@ -4165,7 +5001,7 @@
                 const res = await API.post('/api/voice_library/apply', { cast: window._selectedCast, mapping });
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}${getCastApplyWarningsHtml(res.warnings)}`);
                 await loadVoices();  // re-render cards with the applied configs
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast voices failed", e, "Reload Voices and review the current book assignments before applying again.")), true); }
         }
 
         // --- Apply a cast to multiple saved books at once ---
@@ -4232,7 +5068,7 @@
             let res;
             try {
                 res = await API.post('/api/voice_library/match_bulk', { name: window._selectedCast, script_names });
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Matching cast voices to saved books failed", e, "Check the selected cast and saved books, then reopen the matching step.")), true); renderCastMembers(); return; }
 
             const pool = _getCastMatchPool();
             const anyMatch = res.proposals.some(p => p.match);
@@ -4272,12 +5108,12 @@
                 panel.innerHTML = `
                     <div class="border rounded p-2">
                         <div class="small fw-bold mb-1">Applied "${escapeHtml(window._selectedCast)}" to ${res.results.length} book${res.results.length !== 1 ? 's' : ''}</div>
-                        <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>${total} voice${total !== 1 ? 's' : ''} applied in total, across each book's saved <code>voice_config.json</code>. If one of these books is currently loaded in Step 2/3, reload it (Saved Scripts → Load) to see the updated voices.</div>
+                        <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>${total} voice${total !== 1 ? 's' : ''} applied in total, across the selected saved books. Your currently loaded book's voice settings and audio are unchanged. To use a saved book's updated voices, load it from Saved Scripts; loading replaces the current script and chunks.</div>
                         <ul class="list-group list-group-flush border rounded mb-2">${rows || '<li class="list-group-item small text-muted py-2 px-2">No books updated.</li>'}</ul>
                         <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Done</button>
                     </div>`;
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied to ${res.results.length} book${res.results.length !== 1 ? 's' : ''}`);
-            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast to saved books failed", e, "Review the selected saved books and their voice assignments before applying again; some books may already have been updated.")), true); }
         }
 
         // Identity anchors that take over from a line onward (#603): shown under
@@ -4287,15 +5123,17 @@
             if (!points.length) { return ''; }
             return `<div class="small text-muted mt-1">Changes:` + points.map(p =>
                 ` <span class="badge bg-light text-dark border">from line ${p.from_index + 1}: ${escapeHtml(p.character_style)}` +
-                ` <a href="#" title="Remove" onclick="removeStylePoint(${getInlineStringArgument(name)}, ${p.from_index}); return false;">&times;</a></span>`).join('') + `</div>`;
+                ` <a href="#" title="Remove" onclick="removeStylePoint(${getInlineStringArgument(name)}, ${p.from_index}, this); return false;">&times;</a></span>`).join('') + `</div>`;
         }
 
-        async function removeStylePoint(name, fromIndex) {
+        async function removeStylePoint(name, fromIndex, button = null) {
             try {
-                await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`);
-                await loadVoices();
+                await applyConfirmedVoiceRemoval(button, `Remove the voice-style change for ${name} from line ${fromIndex + 1}? Existing rendered audio is not changed.`, async () => {
+                    await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`);
+                    await loadVoices();
+                });
             } catch (e) {
-                showToast('Could not remove: ' + (e.message || 'unknown error'), 'error');
+                showActionError("Could not remove", e, "Reload Voices to check whether the voice-style change was removed before trying again.");
             }
         }
 
@@ -4314,9 +5152,9 @@
             return 'main';
         }
 
-        function renderVoiceStateRows(data) {
+        function renderVoiceStateRows(data, speaker = 'this character') {
             const states = (data && data.states) || [];
-            if (!states.length) { return '<div class="small text-muted">No settled change of age or gender for this character.</div>'; }
+            if (!states.length) { return '<div class="small text-muted">No detected change in age or gender for this character.</div>'; }
             const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
             const rows = states.map((state, index) => {
                 const sources = state.sources || {};
@@ -4336,22 +5174,85 @@
                     ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">Generate ${escapeHtml(state.age_group.replace(/_/g, ' '))} version</button>` : '';
                 return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-age="${escapeHtml(state.age_group)}">`
                     + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${where})</span></div>`
-                    + `<select class="form-select form-select-sm voice-state-source"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
+                    + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(`Voice for ${speaker}, ${state.gender}, ${state.age_group.replace(/_/g, ' ')}, ${where}`)}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
             }).join('');
-            return rows + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearVoiceStates(this)">Clear</button></div>`;
+            return rows + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(`Apply voice changes for ${speaker}`)}" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Clear voice changes for ${speaker}`)}" onclick="clearVoiceStates(this)">Clear</button></div>`;
+        }
+
+        const pendingVoiceStateLoads = new WeakMap();
+        function getVoiceStateEditorSnapshot(target) {
+            return JSON.stringify({html: target.innerHTML,
+                choices: [...(target.querySelectorAll?.('.voice-state-source') || [])].map(select => select.value)});
         }
 
         async function openVoiceStates(button) {
             const card = button.closest('.voice-card');
             const speaker = card?.dataset.voice;
             const target = card?.querySelector('.voice-state-rows');
-            if (!speaker || !target) { return; }
+            if (!speaker || !target || pendingVoiceStateLoads.has(target)) { return; }
+            const book = currentBookFilename;
+            if (pendingVoiceStateSaves.has(`${book}\0${speaker}`)) {
+                showToast('Wait for these voice changes to finish saving before refreshing the panel.', 'warning');
+                return;
+            }
+            const wasDisabled = button.disabled;
+            const empty = !target.innerHTML.trim();
+            pendingVoiceStateLoads.set(target, true);
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            if (empty) { target.innerHTML = '<div class="small text-muted" role="status">Loading voice changes…</div>'; }
+            const snapshot = getVoiceStateEditorSnapshot(target);
+            const isCurrent = () => book === currentBookFilename && card.isConnected !== false && target.isConnected !== false;
             try {
                 const data = await API.get(`/api/voices/${encodeURIComponent(speaker)}/state_timeline`);
+                if (!isCurrent()) { return; }
+                if (getVoiceStateEditorSnapshot(target) !== snapshot) {
+                    showToast('Voice changes were edited while loading. Your current choices were kept; reopen the panel when ready to refresh.', 'warning');
+                    return;
+                }
                 window._voiceStateSuggestions = window._voiceStateSuggestions || {};
                 window._voiceStateSuggestions[speaker] = data;
-                target.innerHTML = renderVoiceStateRows(data);
-            } catch (e) { showToast('Could not load voice changes: ' + (e.message || 'unknown error'), 'error'); }
+                target.innerHTML = renderVoiceStateRows(data, speaker);
+            } catch (e) {
+                console.debug('Could not load voice changes:', e);
+                if (!isCurrent()) { return; }
+                const message = 'Voice changes could not be loaded. Check that Alexandria is running, then retry.';
+                if (empty && getVoiceStateEditorSnapshot(target) === snapshot) {
+                    target.innerHTML = `<div class="small text-warning" role="status">${message} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openVoiceStates(this)">Retry voice changes</button></div>`;
+                }
+                showToast(message, 'warning');
+            } finally {
+                pendingVoiceStateLoads.delete(target);
+                button.disabled = wasDisabled;
+                button.removeAttribute('aria-busy');
+            }
+        }
+
+        const pendingVoiceStateSaves = new Set();
+        async function applyVoiceStateSave(button, speaker, label, save, confirmation = null) {
+            const card = button.closest('.voice-card');
+            const book = currentBookFilename;
+            const key = `${book}\0${speaker}`;
+            if (pendingVoiceStateSaves.has(key) || button.disabled) { return; }
+            pendingVoiceStateSaves.add(key);
+            const controls = [...(card.querySelectorAll?.('.voice-state-rows button, .voice-state-source') || []), button]
+                .filter((field, index, all) => all.indexOf(field) === index)
+                .map(field => ({field, disabled: field.disabled}));
+            const original = button.innerHTML;
+            controls.forEach(({field}) => { field.disabled = true; });
+            button.textContent = label;
+            button.setAttribute?.('aria-busy', 'true');
+            const isCurrent = () => currentBookFilename === book && card.isConnected !== false;
+            try {
+                if (confirmation && !await showConfirm(confirmation, {title: 'Replace voice changes?', actionLabel: 'Clear voice changes', danger: true})) { return; }
+                if (!isCurrent()) { showToast('The book changed. Review the current voice changes before saving.', 'warning'); return; }
+                await save(isCurrent);
+            } finally {
+                pendingVoiceStateSaves.delete(key);
+                controls.forEach(({field, disabled}) => { field.disabled = disabled; });
+                button.innerHTML = original;
+                button.removeAttribute?.('aria-busy');
+            }
         }
 
         async function applyVoiceStates(button) {
@@ -4362,15 +5263,20 @@
             const candidates = new Map();
             for (const state of data.states || []) {
                 for (const c of [...(state.sources?.library_unused || []), ...(state.sources?.library_used || [])]) {
-                    candidates.set(c.adapter_id, c);
+                    candidates.set(c.adapter_id, JSON.parse(JSON.stringify(c)));
                 }
             }
+            const rows = [...card.querySelectorAll('.voice-state-row')].map(row => ({
+                fromIndex: row.dataset.fromIndex, age: row.dataset.age,
+                value: row.querySelector('.voice-state-source')?.value || 'main'}));
             const points = [];
             try {
-                for (const row of card.querySelectorAll('.voice-state-row')) {
-                    const value = row.querySelector('.voice-state-source')?.value || 'main';
-                    if (row.dataset.fromIndex === '') { continue; }
-                    const fromIndex = Number(row.dataset.fromIndex);
+                await applyVoiceStateSave(button, speaker, 'Applying…', async isCurrent => {
+                for (const row of rows) {
+                    if (!isCurrent()) { throw new Error('The book changed; remaining voice changes were not saved.'); }
+                    const value = row.value;
+                    if (row.fromIndex === '') { continue; }
+                    const fromIndex = Number(row.fromIndex);
                     if (value === 'main') {
                         if (points.length) { points.push({from_index: fromIndex, version_id: null}); }
                     } else if (value.startsWith('version:')) {
@@ -4378,32 +5284,38 @@
                     } else if (value.startsWith('library:')) {
                         const chosen = candidates.get(value.slice(8));
                         if (!chosen) { continue; }
-                        const versionId = `${row.dataset.age}-${chosen.adapter_id}`.slice(0, 80);
+                        const versionId = `${row.age}-${chosen.adapter_id}`.slice(0, 80);
                         await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
-                            version_id: versionId, age_group: row.dataset.age, config: chosen.config});
+                            version_id: versionId, age_group: row.age, config: chosen.config});
                         points.push({from_index: fromIndex, version_id: versionId});
                     }
                 }
+                if (!isCurrent()) { throw new Error('The book changed; the voice timeline was not saved.'); }
                 if (points.length) {
                     await API.post(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`, {points});
                 } else {
                     await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`);
                 }
+                if (!isCurrent()) { return; }
                 await loadVoices();
                 const first = points.length ? Math.min(...points.map(p => p.from_index)) + 1 : null;
                 showToast(first ? `Voice changes saved for ${speaker}. Lines already generated from line ${first} on keep the old voice: regenerate them in the Editor.`
                     : `${speaker} uses the main voice throughout.`, 'success');
-            } catch (e) { showToast('Could not apply voice changes: ' + (e.message || 'unknown error'), 'error'); }
+                });
+            } catch (e) { showActionError("Could not apply voice changes", e, "Review the current book and saved voice changes before applying again; some version writes may have completed."); }
         }
 
         async function clearVoiceStates(button) {
             const speaker = button.closest('.voice-card')?.dataset.voice;
             if (!speaker) { return; }
             try {
-                await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`);
-                await loadVoices();
-                showToast(`${speaker} uses the main voice throughout. Regenerate lines already made with a state voice.`, 'success');
-            } catch (e) { showToast('Could not clear voice changes: ' + (e.message || 'unknown error'), 'error'); }
+                await applyVoiceStateSave(button, speaker, 'Clearing…', async isCurrent => {
+                    await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`);
+                    if (!isCurrent()) { return; }
+                    await loadVoices();
+                    showToast(`${speaker} uses the main voice throughout. Regenerate lines already made with a state voice.`, 'success');
+                }, `Clear all saved voice changes for ${speaker}? Existing rendered audio is not changed.`);
+            } catch (e) { showActionError("Could not clear voice changes", e, "Reload Voices to check whether the saved changes were cleared before trying again."); }
         }
 
         // Editor: from this line on, this character sounds different (an aged
@@ -4412,17 +5324,25 @@
         // over a run where per-line instructs alone wander 3.5.
         async function voiceChangesHere(chunkId) {
             const row = document.querySelector(`#chunks-table-body tr[data-id="${chunkId}"]`);
-            const speaker = row ? (row.querySelector('.chunk-speaker')?.value || row.querySelector('select')?.value || '') : '';
+            const getSpeaker = () => row ? (row.querySelector('.chunk-speaker')?.value || row.querySelector('select')?.value || '') : '';
+            const speaker = getSpeaker();
             if (!speaker) { showToast('Pick the line\'s speaker first.', 'warning'); return; }
+            const book = currentBookFilename;
             const current = (window._voicesByName && window._voicesByName[speaker])?.config || {};
-            const style = prompt(`From line ${chunkId + 1} on, ${speaker} sounds like:`, current.character_style || current.default_style || '');
-            if (style === null) { return; }
             try {
-                await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, { from_index: chunkId, character_style: style });
-                await loadVoices();
-                showToast(style.trim() ? `${speaker} changes from line ${chunkId + 1}. Regenerate the later lines to hear it.` : `Change point at line ${chunkId + 1} removed.`, 'success', 8000);
+                const values = await showPresetEditor({title: `Voice change from line ${chunkId + 1} for ${speaker}`,
+                    nameLabel: 'Character style', name: current.character_style || current.default_style || '',
+                    allowEmptyName: true, includeDescription: false, actionLabel: 'Save change point',
+                    helperText: 'Describe how the character sounds from this line on. Leave empty to remove this change point. Regenerate later lines to hear the change.'});
+                if (!values) { return; }
+                if (book !== currentBookFilename || row?.isConnected === false || getSpeaker() !== speaker) {
+                    showToast('The book or line speaker changed. Review it before saving the change point.', 'warning'); return;
+                }
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, { from_index: chunkId, character_style: values.name });
+                if (book === currentBookFilename) { await loadVoices(); }
+                showToast(values.name ? `${speaker} changes from line ${chunkId + 1}. Regenerate the later lines to hear it.` : `Change point at line ${chunkId + 1} removed.`, 'success', 8000);
             } catch (e) {
-                showToast('Could not save the change: ' + (e.message || 'unknown error'), 'error');
+                showActionError("Could not save the change", e, "Review the current book, line speaker and saved change point before saving again.");
             }
         }
 
@@ -4616,18 +5536,18 @@
                 showToast('Saved voices have changed since this draft. View the saved edits and copy the changes you want into the current voices; the draft has been retained.', 'warning');
                 return;
             }
-            if (!await showConfirm('Recover these voice edits?\n' + JSON.stringify(record.voices, null, 2))) { return; }
+            if (!await showConfirm('Recover these voice edits?\n' + JSON.stringify(record.voices, null, 2), {title: 'Recover saved voice draft?', actionLabel: 'Recover edits', danger: false})) { return; }
             if (voiceSaveQueue.getRevision() !== localRevision || _voiceSaveSnapshot !== snapshot) {
                 showToast('Voices changed during recovery. The draft has been retained.', 'warning'); return;
             }
             enqueueVoiceDraft(record.voices, record);
             try { await flushVoiceSaves(); await loadVoices(); }
-            catch (error) { showToast(error.message || 'Could not recover edits. The draft has been retained.', 'warning'); }
+            catch (error) { showActionError('Voice draft recovery failed', error, 'The draft is retained. Check the current book and saved voices before recovering the draft again.', 'warning'); }
         }
 
         async function discardStoredVoiceDraft(index) {
             const record = _voiceRecoveryDrafts[index];
-            if (!record || !await showConfirm('Discard this saved voice draft?\n' + JSON.stringify(record.voices, null, 2))) { return; }
+            if (!record || !await showConfirm('Discard this saved voice draft?\n' + JSON.stringify(record.voices, null, 2), {title: 'Discard saved voice draft?', actionLabel: 'Discard draft', danger: true})) { return; }
             removeVoiceDraftRecord(record);
             renderVoiceDrafts();
         }
@@ -4665,7 +5585,7 @@
                 const statusEl = document.getElementById('voice-save-status');
                 if (statusEl) {
                     statusEl.innerHTML = _voiceDraftStorageError ? 'saved — browser draft cleanup failed' : '<i class="fas fa-check text-success me-1"></i>saved';
-                    if (!_voiceDraftStorageError) { _voiceStatusClearTimer = setTimeout(() => { statusEl.innerHTML = ''; }, 2000); }
+                    if (!_voiceDraftStorageError) { _voiceStatusClearTimer = setTimeout(() => { statusEl.innerHTML = ''; }, 4000); }
                 }
             },
             onError: error => {
@@ -4691,13 +5611,13 @@
         }
 
         async function discardVoiceEditsAndReload() {
-            if (!await showConfirm('Discard all unsaved voice edits and reload the saved voices?')) { return; }
+            if (!await showConfirm('Discard all unsaved voice edits and reload the saved voices?', {title: 'Discard unsaved voice edits?', actionLabel: 'Discard edits', danger: true})) { return; }
             try {
                 await voiceSaveQueue.discard();
                 if (_voiceDraftRecord) { removeVoiceDraftRecord(_voiceDraftRecord); _voiceDraftRecord = null; }
                 await loadVoices();
             } catch (error) {
-                showToast(error.message || 'Could not reload voices. Your new edits were retained.', 'warning');
+                showActionError('Voice reload failed', error, 'Check the current book and saved voices before retrying. Review any unsaved edits shown in Voices.', 'warning');
             }
         }
 
@@ -4771,7 +5691,7 @@
                 : report.status === 'differences'
                     ? `${report.hunks.length} word differences are shown in Text integrity. Continue with this exact text? Cancel to fix them first.`
                     : `Source comparison unavailable: ${report.reason || 'No original source is on record.'} Continue without a verified source match?`;
-            if (!await showConfirm(message)) { return null; }
+            if (!await showConfirm(message, {title: 'Continue with this source text?', actionLabel: 'Continue with text', danger: false})) { return null; }
             return report.snapshot;
         }
 
@@ -4791,7 +5711,7 @@
                 renderTextDiff(diff);
             } catch (e) {
                 summary.textContent = '';
-                showToast('Text integrity unavailable: ' + e.message, 'error');
+                showActionError("Text integrity unavailable", e, "Refresh the Editor and run Text integrity again. A failed check does not establish that the source matches.", "error");
             }
         }
 
@@ -4833,6 +5753,18 @@
             if (!tr) {
                 showToast(`Entry ${id + 1} is not in the table yet.`, 'warning');
                 return;
+            }
+            if (tr.style.display === 'none') {
+                const filter = document.getElementById('chk-drift-only');
+                if (filter?.checked) {
+                    filter.checked = false;
+                    applyDriftFilter();
+                    showToast(`Showing all chunks to reveal entry ${id + 1}.`, 'info');
+                }
+                if (tr.style.display === 'none') {
+                    showToast(`Entry ${id + 1} is hidden. Show all chunks, then try its link again.`, 'warning');
+                    return;
+                }
             }
             tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
             tr.classList.add('table-info');
@@ -4915,7 +5847,7 @@
                 });
             } catch (e) {
                 if (btn) { btn.disabled = false; }
-                showToast('Voice check failed: ' + e.message, 'error');
+                showActionError("Voice check failed", e, "Check the Voice Lab interpreter and speechbrain setup, then check the voice-check task status before starting again.", "error");
             }
         }
 
@@ -4951,7 +5883,7 @@
                         progressBar.className = 'progress';
                         progressBar.style.width = '100px';
                         progressBar.style.height = '20px';
-                        progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 100%"></div>';
+                        progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>';
                         actionContainer.replaceChild(progressBar, existingBtn);
                     }
                 } else {
@@ -5019,7 +5951,7 @@
             panel.style.display = info.count || deliveryRetryClaim ? '' : 'none';
             const rows = info.rows.map(row => `<li><strong>Entry ${escapeHtml(String(row.entry))} · ${escapeHtml(row.speaker)}</strong>: ${escapeHtml(row.text)}<br><small>${escapeHtml(row.instruct)}</small></li>`).join('');
             panel.innerHTML = `<strong>Needs delivery review: ${info.count} entries</strong>
-                <p class="small mb-2">Pass 3 exhausted its retries for these entries and used generic delivery instructions. Text and speakers were retained.</p>
+                <p class="small mb-2">Step 3 exhausted its retries for these entries and used generic delivery instructions. Text and speakers were retained.</p>
                 <div style="max-height:16rem;overflow:auto"><ol>${rows}</ol></div>
                 ${info.retry_refusal ? `<p class="small">${escapeHtml(info.retry_refusal)}</p>` : ''}
                 <button class="btn btn-sm btn-outline-warning" onclick="retryDeliveryInstructions()" ${!info.retry_available || deliveryRetryPending || deliveryRetryClaim ? 'disabled' : ''}>Retry delivery only</button>
@@ -5059,11 +5991,11 @@
                         deliveryRetryClaim = null;
                         await loadChunks(true);
                         await refreshDeliveryReview();
-                        showToast('Delivery retry stopped. Review any remaining flagged entries.', 'info');
+                        showToast('Delivery retry is no longer running. Review the refreshed flagged entries before generating audio.', 'info');
                     },
                 });
             } catch (e) {
-                showToast('Delivery retry failed: ' + e.message, 'warning');
+                showActionError("Delivery retry failed", e, "Check the delivery retry status and refreshed flagged entries before retrying. For an LLM refusal, use Setup \u2192 Test Connection.", "warning");
             } finally {
                 deliveryRetryPending = false;
                 await refreshDeliveryReview();
@@ -5077,7 +6009,7 @@
                 await API.post('/api/annotated_script/delivery_review/cancel', {claim_id: claim});
                 showToast('Cancellation queued; the provider call must return before ownership is released.', 'info');
             } catch (e) {
-                showToast('Delivery cancellation failed: ' + e.message, 'warning');
+                showActionError("Delivery cancellation failed", e, "Check delivery retry status before cancelling again; the provider call may still be running.", "warning");
             }
         };
 
@@ -5086,15 +6018,22 @@
             ++deliveryReviewView;
             try {
                 const chunks = await ensureChunkRefresh(forceFullRedraw);
+                const status = document.getElementById('chunk-load-status');
+                if (status) { status.innerHTML = ''; }
                 void refreshEditorIntegrity();
                 await refreshDeliveryReview();
                 return chunks;
             } catch (e) {
                 console.error("Error loading chunks:", e);
+                const status = document.getElementById('chunk-load-status');
+                if (status) {
+                    status.innerHTML = '<span class="text-warning">Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">Retry chunks</button>';
+                }
             }
         }
 
         async function refreshChunkSnapshot(forceFullRedraw = false) {
+            const refreshBook = currentBookFilename;
             // Cancel any pending poll so re-entrant calls don't stack up
             if (loadChunksTimer) {
                 clearTimeout(loadChunksTimer);
@@ -5185,6 +6124,14 @@
                     }
                 });
             } else {
+                // Keep an unchanged audition when rebuilding the surrounding rows.
+                const playingAudio = Array.from(document.querySelectorAll('#chunks-table-body .chunk-audio'))
+                    .find(audio => !audio.paused && !audio.ended);
+                const playingChunk = playingAudio
+                    ? cachedChunks.find(chunk => String(chunk.id) === playingAudio.dataset.id) : null;
+                const retainedChunk = refreshBook === currentBookFilename && playingChunk?.uid && chunks.find(chunk => chunk.uid === playingChunk.uid
+                    && chunk.audio_path && chunk.audio_path === playingChunk.audio_path);
+                const playbackTime = playingAudio?.currentTime;
                 // Full redraw needed
                 tbody.innerHTML = chunks.map(chunk => {
                     const statusColor = chunk.status === 'done' ? 'success' :
@@ -5197,7 +6144,7 @@
 
                     const actionArea = chunk.status === 'generating' ?
                         `<div class="progress" style="width: 100px; height: 20px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 100%"></div>
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>
                          </div>` :
                         `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> Gen</button>`;
 
@@ -5209,7 +6156,7 @@
                             <td>${buildSpeakerSelect(chunk)}</td>
                             <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
                             <td>
-                                <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Short TTS direction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
+                                <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Delivery instruction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
                                 <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
                                     <small class="text-muted text-nowrap">Pause after (ms):</small>
                                     <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0" step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
@@ -5225,6 +6172,24 @@
                         </tr>
                     `;
                 }).join('');
+                if (retainedChunk) {
+                    const replacement = tbody.querySelector(`audio.chunk-audio[data-id="${retainedChunk.id}"]`);
+                    if (replacement) {
+                        playingAudio.dataset.id = String(retainedChunk.id);
+                        playingAudio.setAttribute('onplay', `stopOthers(${retainedChunk.id})`);
+                        playingAudio.addEventListener('loadedmetadata', () => {
+                            if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { return; }
+                            playingAudio.currentTime = playbackTime;
+                            void playingAudio.play().then(() => {
+                                if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { playingAudio.pause(); }
+                            }).catch(() => {
+                                showToast('The editor refreshed, but playback could not resume. Press Play on the chunk to continue listening.', 'warning');
+                            });
+                        }, {once: true});
+                        replacement.replaceWith(playingAudio);
+                        playingAudio.load();
+                    }
+                }
             }
 
             cachedChunks = chunks;
@@ -5273,7 +6238,7 @@
                 await API.post(`/api/chunks/${id}/insert`, {});
                 await loadChunks(true);
             } catch (e) {
-                showToast('Failed to insert line: ' + e.message, 'error');
+                showActionError("Failed to insert line", e, "Refresh the Editor and check whether the new line exists before inserting again.", "error");
             }
         };
 
@@ -5321,7 +6286,7 @@
 
                 await loadChunks(true);
             } catch (e) {
-                showToast('Failed to delete line: ' + e.message, 'error');
+                showActionError("Failed to delete line", e, "Refresh the Editor and check whether the line was removed before deleting again. Use Undo if the completed deletion is still offered.", "error");
             }
         };
 
@@ -5352,7 +6317,7 @@
                 showToast('Line restored', 'success');
                 await loadChunks(true);
             } catch (e) {
-                showToast('Undo failed: ' + e.message, 'error');
+                showActionError("Undo failed", e, "Refresh the Editor and check whether the deleted line was restored before using Undo again.", "error");
             }
         };
 
@@ -5590,7 +6555,7 @@
                          progressBar.className = 'progress';
                          progressBar.style.width = '100px';
                          progressBar.style.height = '20px';
-                         progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 100%"></div>';
+                         progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>';
                          container.replaceChild(progressBar, btn);
                     }
                 }
@@ -5600,7 +6565,7 @@
                 // Start polling with incremental updates (no full redraw)
                 setTimeout(() => loadChunks(false), 1000);
             } catch (e) {
-                showToast("Failed to start generation: " + e.message, 'error');
+                showActionError("Failed to start generation", e, "Check the audio task status and the line audio before starting again. If refused, review the selected voice and TTS configuration.", "error");
                 loadChunks(true); // Revert UI with full redraw
             }
         };
@@ -5629,6 +6594,7 @@
         // endpoints return different fields, so that can't be a static
         // template). See FIXED.md F-065.
         async function _runBatchRender(endpoint, regenerateAll, { label, describeStart }) {
+            let rowsMarked = false;
             isRenderingAll = true;
             document.getElementById('btn-batch-fast').style.display = 'none';
             document.getElementById('btn-regen-all').style.display = 'none';
@@ -5647,7 +6613,7 @@
                 }
 
                 if (regenerateAll) {
-                    if (!await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
+                    if (!await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`, {title: 'Replace all rendered audio?', actionLabel: 'Regenerate all', danger: true})) {
                         cancelRender(true);
                         return;
                     }
@@ -5660,6 +6626,7 @@
                     toProcess = freshChunks.filter(c => c.text && c.text.trim());
                 }
 
+                rowsMarked = true;
                 // Mark all chunks as generating in UI
                 const indices = toProcess.map(c => c.id);
                 for (const id of indices) {
@@ -5707,8 +6674,9 @@
 
             } catch (e) {
                 console.error(`${label} error:`, e);
-                showToast("Error during batch rendering: " + e.message, 'error');
+                showActionError("Error during batch rendering", e, "Check the audio task status and refreshed chunks before starting another render; some audio may already have been generated.", "error");
                 cancelRender(true);
+                if (rowsMarked) { await loadChunks(true); }
             }
         }
 
@@ -5733,7 +6701,7 @@
                  cancelBtn.style.display = '';
                  pollLogs('audio', 'audio-logs', () => { cancelBtn.style.display = 'none'; });
              } catch (e) {
-                 showToast("Merge failed: " + e.message, 'error');
+                 showActionError("Merge failed", e, "Check the audio task status and Result output before merging again. Review any source-match refusal below.", "error");
              }
         });
         document.getElementById('btn-cancel-merge').addEventListener('click', async () => {
@@ -5801,7 +6769,7 @@
                 pollExport('audacity_export');
             } catch (e) {
                 releaseTaskStart('audacity_export');
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Audacity export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
             }
         };
 
@@ -5842,10 +6810,27 @@
                 document.getElementById('chapter-selection').value = preset.selection || '';
             }
         };
-        window.saveChapterTemplatePreset = function saveChapterTemplatePreset() {
-            const name = window.prompt('Preset name:');
-            if (!name || !name.trim()) { return; }
+        window.saveChapterTemplatePreset = async function saveChapterTemplatePreset() {
+            const getSnapshot = () => JSON.stringify({presets: getChapterTemplatePresets(),
+                template: document.getElementById('chapter-template').value,
+                padding: document.getElementById('chapter-padding').value,
+                selection: document.getElementById('chapter-selection').value});
+            const snapshot = getSnapshot();
+            const values = await showPresetEditor({title: 'Save chapter filename preset', includeDescription: false});
+            if (!values) { return; }
+            if (getSnapshot() !== snapshot) {
+                showToast('The chapter settings or presets changed. Review them before saving.', 'warning');
+                return;
+            }
+            const {name} = values;
             const presets = getChapterTemplatePresets();
+            if (Object.hasOwn(presets, name.trim())) {
+                if (!await showConfirm(`Replace chapter filename preset "${name.trim()}"? Its saved template, padding and chapter selection will be replaced.`, {title: 'Replace chapter filename preset?', actionLabel: 'Replace preset', danger: true})) { return; }
+                if (getSnapshot() !== snapshot) {
+                    showToast('The chapter settings or presets changed. Review them before saving.', 'warning');
+                    return;
+                }
+            }
             presets[name.trim()] = {
                 template: document.getElementById('chapter-template').value.trim(),
                 padding: parseInt(document.getElementById('chapter-padding').value, 10),
@@ -5857,16 +6842,30 @@
                 showToast('Chapter filename preset saved.', 'success');
             } else { showToast('Could not save preset: browser storage is unavailable.', 'error'); }
         };
-        window.deleteChapterTemplatePreset = function deleteChapterTemplatePreset() {
+        let chapterPresetDeletePending = false;
+        window.deleteChapterTemplatePreset = async function deleteChapterTemplatePreset() {
+            if (chapterPresetDeletePending) { return; }
             const select = document.getElementById('chapter-template-preset');
             const name = select?.value;
             if (!name) { return; }
             const presets = getChapterTemplatePresets();
-            delete presets[name];
-            if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
-                renderChapterTemplatePresets();
-                showToast('Chapter filename preset deleted.', 'success');
-            } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
+            if (!Object.hasOwn(presets, name)) { return; }
+            const snapshot = JSON.stringify(presets);
+            chapterPresetDeletePending = true;
+            try {
+                if (!await showConfirm(`Delete chapter filename preset "${name}"? This cannot be undone unless you exported your presets.`, {title: 'Delete chapter filename preset?', actionLabel: 'Delete preset', danger: true})) { return; }
+                if (select.value !== name || JSON.stringify(getChapterTemplatePresets()) !== snapshot) {
+                    showToast('The presets changed. Review the current selection before deleting.', 'warning');
+                    return;
+                }
+                delete presets[name];
+                if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
+                    renderChapterTemplatePresets();
+                    showToast('Chapter filename preset deleted.', 'success');
+                } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
+            } finally {
+                chapterPresetDeletePending = false;
+            }
         };
         window.exportChapterTemplatePresets = function exportChapterTemplatePresets() {
             const blob = new Blob([JSON.stringify(getChapterTemplatePresets(), null, 2)], {type: 'application/json'});
@@ -5893,7 +6892,7 @@
                     if (!setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(merged))) { throw new Error('browser storage is unavailable'); }
                     renderChapterTemplatePresets();
                     showToast(`Imported ${Object.keys(valid).length} chapter preset(s).`, 'success');
-                } catch (e) { showToast('Could not import presets: ' + e.message, 'error'); }
+                } catch (e) { showActionError("Could not import presets", e, "Keep the preset file. Check that it contains valid chapter presets and that browser storage is available, then import again.", "error"); }
             };
             reader.onerror = () => showToast('Could not import presets: file could not be read.', 'error');
             reader.readAsText(file);
@@ -5954,33 +6953,53 @@
                 if (m.chapters && m.chapters.length) { renderChapterList(m.chapters, true); }
             } catch (e) { /* nothing exported yet */ }
         }
+        async function getChapterExportPreview(params) {
+            const q = new URLSearchParams({ format: params.format, per_chunk_chapters: params.per_chunk_chapters, template: params.template,
+                padding: params.padding, book_name: params.book_name, series_name: params.series_name, volume_number: params.volume_number,
+                changed_only: params.changed_only, require_ready: params.require_ready });
+            if (params.chapters !== null) {
+                params.chapters.forEach(index => q.append('chapters', index));
+            }
+            return API.get('/api/export_chapters/preview?' + q.toString());
+        }
+        let chapterPreviewRequest = 0;
         document.getElementById('chapter-preview-btn').addEventListener('click', async () => {
+            const request = ++chapterPreviewRequest;
+            const book = currentBookFilename;
             try {
-                const p = chapterExportParams();
-                const q = new URLSearchParams({ format: p.format, per_chunk_chapters: p.per_chunk_chapters, template: p.template,
-                                                padding: p.padding, book_name: p.book_name, series_name: p.series_name, volume_number: p.volume_number,
-                                                changed_only: p.changed_only, require_ready: p.require_ready });
-                if (p.chapters !== null) {
-                    p.chapters.forEach(index => q.append('chapters', index));
+                const params = chapterExportParams();
+                const result = await getChapterExportPreview(params);
+                if (request !== chapterPreviewRequest || book !== currentBookFilename ||
+                    JSON.stringify(params) !== JSON.stringify(chapterExportParams())) { return; }
+                renderChapterList(result.chapters, false);
+                document.getElementById('chapter-status').textContent = `${result.chapters.length} chapter(s) would be written${params.changed_only ? ' with Changed only enabled' : ''}.`;
+            } catch (e) {
+                if (request === chapterPreviewRequest && book === currentBookFilename) {
+                    showActionError("Preview failed", e, "Review the chapter range and filename template, then preview the export again.", "error");
                 }
-                const r = await API.get('/api/export_chapters/preview?' + q.toString());
-                renderChapterList(r.chapters, false);
-                document.getElementById('chapter-status').textContent = `${r.chapters.length} chapter(s) would be written.`;
-            } catch (e) { showToast('Preview failed: ' + e.message, 'error'); }
+            }
         });
         document.getElementById('chapter-export-btn').addEventListener('click', async () => {
             if (!claimTaskStart('chapter_export')) { return; }
+            chapterPreviewRequest += 1;
             const statusEl = document.getElementById('chapter-status');
             const cancelBtn = document.getElementById('chapter-cancel-btn');
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting...</span>';
             cancelBtn.style.display = '';
             try {
-                await API.post('/api/export_chapters', chapterExportParams());
+                const book = currentBookFilename;
+                const params = chapterExportParams();
+                const preview = await getChapterExportPreview(params);
+                if (book !== currentBookFilename || JSON.stringify(params) !== JSON.stringify(chapterExportParams())) {
+                    throw new Error('The book or chapter settings changed. Preview the current selection before exporting.');
+                }
+                statusEl.textContent = `Exporting ${preview.chapters.length} chapter(s)${params.changed_only ? ' with Changed only enabled' : ''}…`;
+                await API.post('/api/export_chapters', params);
                 pollExport('chapter_export');
             } catch (e) {
                 releaseTaskStart('chapter_export');
                 cancelBtn.style.display = 'none';
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Chapter export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
             }
         });
         document.getElementById('chapter-cancel-btn').addEventListener('click', async () => {
@@ -6043,7 +7062,7 @@
                 pollExport('m4b_export');
             } catch (e) {
                 releaseTaskStart('m4b_export');
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('M4B export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
             }
         };
 
@@ -6059,7 +7078,7 @@
         // Also generalizes pollLogs's stale-response generation-counter guard
         // to any poller. See FIXED.md F-053/058/072/073/079.
         const _pollGen = {};
-        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false } = {}) {
+        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false, displayLabel = null } = {}) {
             const myGen = (_pollGen[key] = (_pollGen[key] || 0) + 1);
             let consecutiveErrors = 0;
             const MAX_SILENT_ERRORS = 3;
@@ -6088,7 +7107,9 @@
                     // broken endpoint would otherwise warn once and then go
                     // silent for the rest of the failure streak.
                     if (consecutiveErrors % MAX_SILENT_ERRORS === 0) {
-                        showToast(`Having trouble reaching the server for "${key}" status updates — still retrying...`, 'warning');
+                        const taskKey = key.replace(/^reattach:/, '');
+                        const label = displayLabel || (typeof TASK_LABELS !== 'undefined' && TASK_LABELS[taskKey]) || 'Task';
+                        showToast(`Having trouble reaching Alexandria for ${label} status updates. It is still retrying and has not cancelled the run from this page. Save your work, check that Alexandria is still running, then reopen the page if this continues.`, 'warning');
                     }
                 } finally {
                     pending = false;
@@ -6151,11 +7172,12 @@
                 if (marker !== null && line.startsWith('Step')) { break; }
             }
             const quietMs = now - (track.changedAt || now);
-            const parts = ['Working'];
+            const waitingForReply = !!status.manual_request;
+            const parts = [waitingForReply ? 'Waiting for your reply (manual reply panel at the top of the page)' : 'Working'];
             if (marker) { parts.push(marker); }
             if (retry && (!marker || logs.lastIndexOf(retry) > logs.lastIndexOf(marker))) { parts.push(retry); }
-            if (status.eta && status.eta.eta_seconds != null) { parts.push(`about ${formatDuration(status.eta.eta_seconds)} left`); }
-            if (quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
+            if (!waitingForReply && status.eta && status.eta.eta_seconds != null) { parts.push(`about ${formatDuration(status.eta.eta_seconds)} left`); }
+            if (!waitingForReply && quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
             el.textContent = parts.join(' \u00b7 ');
             el.hidden = false;
         }
@@ -6174,6 +7196,7 @@
         function pollScriptLogs(taskName, onDone) {
             return pollLogs(taskName, 'script-logs', status => {
                 syncSnapshotButton({ running: false });
+                if (taskName === 'script') { clearScriptCancellation('script'); }
                 if (onDone) { onDone(status); }
             }, 'script-activity');
         }
@@ -6184,6 +7207,10 @@
         let _manualShown = null;
         let _manualTask = null;
         let _manualRequested = null;
+        let _manualLoadWarningFor = null;
+        let _manualReplyFor = null;
+        let _manualReplySubmitting = null;
+        let _manualReplyAcknowledged = null;
         async function renderManualRequest(status, taskName) {
             const panel = document.getElementById('manual-llm-panel');
             if (!panel) { return; }
@@ -6194,14 +7221,26 @@
                 _manualRequested = null;
                 _manualShown = null;
                 window._manualPending = null;
-                panel.hidden = true;
+                const reply = document.getElementById('manual-llm-reply');
+                const retained = document.getElementById('manual-llm-retained-replies');
+                panel.hidden = !reply.value.trim() && !retained.children.length;
+                document.getElementById('manual-llm-submit').disabled = true;
+                reply.disabled = false;
+                document.getElementById('manual-llm-status').textContent = 'The pipeline is no longer waiting for this request. Any reply text is retained below; check the task activity before continuing.';
                 return;
             }
             _manualTask = taskName;
             _manualRequested = req.id;
             if (_manualShown === req.id) { return; }
             let full;
-            try { full = (await API.get('/api/manual_llm/pending')).pending; } catch (e) { return; }
+            try { full = (await API.get('/api/manual_llm/pending')).pending; } catch (e) {
+                if (_manualRequested === req.id && _manualTask === taskName && _manualLoadWarningFor !== req.id && _manualShown !== req.id) {
+                    _manualLoadWarningFor = req.id;
+                    document.getElementById('manual-llm-status').textContent = 'Could not load this model request. Automatic checks will continue; if it does not appear, check that Alexandria is still running.';
+                }
+                console.error('Failed to load manual model request:', e);
+                return;
+            }
             if (!full || full.id !== req.id || _manualRequested !== req.id ||
                 _manualTask !== taskName || _manualShown === req.id) { return; }
             _manualShown = req.id;
@@ -6210,10 +7249,28 @@
             document.getElementById('manual-llm-hint').textContent = full.stage_hint || '';
             document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
             const reply = document.getElementById('manual-llm-reply');
+            if (reply.value.trim() && _manualReplyFor !== full.id && _manualReplyAcknowledged !== _manualReplyFor) {
+                const retained = document.createElement('details');
+                const title = document.createElement('summary');
+                title.textContent = 'Retained reply from an earlier request';
+                const draft = document.createElement('textarea');
+                draft.value = reply.value;
+                draft.readOnly = true;
+                draft.className = 'form-control form-control-sm';
+                draft.setAttribute('aria-label', 'Retained earlier model reply');
+                retained.append(title, draft);
+                document.getElementById('manual-llm-retained-replies').appendChild(retained);
+            }
+            _manualReplyFor = full.id;
+            _manualLoadWarningFor = null;
             reply.value = '';
             reply.disabled = false;
             document.getElementById('manual-llm-submit').disabled = false;
             panel.hidden = false;
+            document.getElementById('manual-llm-status').textContent = `Your turn: request ${full.sequence}. Paste the model’s answer and submit it. Earlier unsent replies, if any, are retained below.`;
+            const message = `The pipeline needs your reply to request ${full.sequence}. Use the manual reply panel at the top of the page.`;
+            showToast(message, 'warning', 8000);
+            notifyJobDone(taskName, message, 'needs your reply');
         }
 
         function manualPromptText(req) {
@@ -6230,16 +7287,32 @@
             const req = window._manualPending;
             const reply = document.getElementById('manual-llm-reply');
             const btn = document.getElementById('manual-llm-submit');
-            if (!req || !reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            if (_manualReplySubmitting) { return; }
+            if (!req || req.id !== _manualRequested || _manualReplyFor !== req.id) {
+                showToast('This request is no longer waiting. Your reply is still here; check the task activity.', 'warning');
+                return;
+            }
+            if (!reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            _manualReplySubmitting = req.id;
             btn.disabled = true;
             reply.disabled = true;
             try {
                 await API.post('/api/manual_llm/response', { id: req.id, content: reply.value });
+                _manualReplyAcknowledged = req.id;
+                if (window._manualPending?.id === req.id) {
+                    document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
+                }
                 showToast(`Reply to request ${req.sequence} sent to the pipeline.`, 'success');
             } catch (e) {
-                showToast('Could not submit: ' + (e.message || 'unknown error'), 'error');
+                console.error('Failed to submit manual model reply:', e);
+                if (window._manualPending?.id !== req.id) { return; }
+                const message = 'Could not confirm submission. Your text is still here. Check the task activity; if it is still waiting for this request, select Submit reply again.';
+                document.getElementById('manual-llm-status').textContent = message;
+                showToast(message, 'error');
                 btn.disabled = false;
                 reply.disabled = false;
+            } finally {
+                _manualReplySubmitting = null;
             }
         }
 
@@ -6260,13 +7333,14 @@
                 onDone: status => {
                     if (activityEl) { activityEl.hidden = true; }
                     if (activityId) { renderManualRequest({ running: false }, taskName); }
-                    notifyJobDone(taskName);
+                    notifyJobDone(taskName, '', 'finished', status);
                     if (onDone) { onDone(status); }
-                    if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
+                    if (taskName === 'audio' && getTaskCompletionOutcome(status) === 'finished' && status.logs.some(l => l.includes("complete"))) {
                         // Load audio player
                         const audio = document.getElementById('main-audio');
                         audio.src = `/api/audiobook?t=${new Date().getTime()}`;
                         document.getElementById('audio-player-container').style.display = 'block';
+                        document.getElementById('audio-empty-state').style.display = 'none';
                         document.getElementById('download-link').href = audio.src;
                     }
                     // Refresh editor chunks when script generation or review completes

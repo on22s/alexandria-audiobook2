@@ -14,7 +14,7 @@ from attribution_prompt_variants import builtin_presets
 
 FIELDS={'max-tokens':'max_tokens','temperature':'temperature','top-p':'top_p','top-k':'top_k','min-p':'min_p','presence-penalty':'presence_penalty','tp-chunk-size':'three_pass_chunk_size','tp-attribute-batch-size':'three_pass_attribute_batch_size','tp-attribute-context-chars':'three_pass_attribute_context_chars','tp-segment-output-ratio':'three_pass_segment_output_ratio','tp-segment-temperature':'three_pass_segment_temperature','tp-attribute-temperature':'three_pass_attribute_temperature','tp-instruct-temperature':'three_pass_instruct_temperature','tp-segmentation':'three_pass_segmentation','context-rescue-retries':'context_rescue_retries'}
 SETUP=r'''
-seed();const helper=source.indexOf('const generationControlFields =');if(helper>=0){run(source.slice(helper,source.indexOf('async function loadConfig()',helper)));}
+seed();context.showConfirm=async()=>true;const helper=source.indexOf('const generationControlFields =');if(helper>=0){run(source.slice(helper,source.indexOf('async function loadConfig()',helper)));}
 run(source.slice(source.indexOf('window.resetPrompts ='),source.indexOf('// Toggle chevron')));
 for(const id of Object.keys(fields)){const el=element(id);let stored=el.value;Object.defineProperty(el,'value',{enumerable:true,get:()=>stored,set:value=>stored=String(value)});el.value=id==='tp-segmentation'?'llm':'99';}element('banned-tokens').value='old token';element('context-rescue-windows').value='100';element('merge-narrators').checked=true;element('tp-quoted-must-be-spoken').checked=false;element('tp-unquoted-must-be-narrator').checked=false;element('tp-keep-whole-batch').checked=true;element('tp-group-rule').checked=true;element('tp-speaker-traits').checked=true;run('legacyChunkSize=9999;');
 const state=()=>JSON.stringify({elements,legacy:run('legacyChunkSize'),cache:snapshot()});
@@ -43,6 +43,14 @@ console.log(JSON.stringify(context.buildConfigPayload(2)));
         code='const fields='+json.dumps(FIELDS)+';'+SETUP+r'''
 const before=state();context.API.get=async()=>{throw Error('fixture defaults unavailable');};await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(toasts.at(-1)[1],'error');
 context.API.get=async()=>({system_prompt:'should not apply',generation:{}});await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(toasts.at(-1)[1],'error');
+'''
+        actions.PromptPresetTransactionTests().run_case(code)
+
+    def test_cancelled_reset_preserves_edits_and_confirmed_reset_only_changes_form(self):
+        defaults=GenerationConfig().model_dump()
+        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults})+';'+SETUP+r'''
+context.API.get=async()=>defaults;let confirmations=0;context.showConfirm=async message=>{confirmations++;assert(message.includes('current form edits will be replaced'));assert(message.includes('Save Configuration'));return false;};const before=state();await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(confirmations,1);assert.strictEqual(toasts.length,0);
+context.API.post=async()=>{throw Error('reset must not persist');};context.showConfirm=async()=>true;await context.window.resetPrompts();assert.strictEqual(element('system-prompt').value,'factory');assert.strictEqual(element('temperature').value,String(defaults.generation.temperature));assert(toasts.at(-1)[0].includes('Click Save Configuration to keep them.'));assert.strictEqual(toasts.at(-1)[1],'success');
 '''
         actions.PromptPresetTransactionTests().run_case(code)
 

@@ -78,13 +78,13 @@ class ChapterPreviewSelectionTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const marker="document.getElementById('chapter-preview-btn').addEventListener";
-const start=source.indexOf(marker),end=source.indexOf("document.getElementById('chapter-export-btn')",start);
+const start=source.indexOf('async function getChapterExportPreview('),end=source.indexOf("document.getElementById('chapter-export-btn')",start);
 assert(start>=0&&end>start);
 let handler, seen, finished=false;
 process.on('beforeExit',()=>assert(finished));
 const nodes=new Map(), node=id=>{if(!nodes.has(id)){nodes.set(id,{textContent:'',innerHTML:'',style:{},addEventListener:(event,fn)=>handler=fn});}return nodes.get(id);};
 let options={format:'wav',per_chunk_chapters:false,template:'{chapter_number} - {chapter_name}',padding:2,book_name:'Book',series_name:'Series',volume_number:'1',chapters:[0,2],changed_only:true};
-const context={document:{getElementById:node},chapterExportParams:()=>options,URLSearchParams,
+const context={document:{getElementById:node},chapterExportParams:()=>options,currentBookFilename:'fixture.txt',URLSearchParams,
  API:{get:async url=>{seen=new URL(url,'http://fixture');return{chapters:[]};}},escapeHtml:value=>value,showToast:message=>{throw Error(message);}};
 vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('function renderChapterList('),source.indexOf('async function loadChapterExports(')),context);

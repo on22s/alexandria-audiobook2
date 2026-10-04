@@ -8,7 +8,7 @@ SOURCE = Path(os.environ.get('INSPECT_SOURCE', Path(__file__).resolve().parent.p
 SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const fields={},requests=[];const el=id=>fields[id]||(fields[id]={value:'',innerHTML:''});
-const ctx={window:null,document:{getElementById:el},escapeHtml:text=>String(text).replaceAll('<','&lt;'),API:{get:url=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,resolve,reject});return promise;}}};ctx.window=ctx;vm.createContext(ctx);
+const ctx={window:null,document:{getElementById:el},escapeHtml:text=>String(text).replaceAll('<','&lt;'),API:{get:url=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,resolve,reject});return promise;}}};ctx.window=ctx;vm.createContext(ctx);{const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 const first=source.includes('let _voicelabInspectRequest =')?source.indexOf('let _voicelabInspectRequest ='):source.indexOf('window.voicelabInspect =');vm.runInContext(source.slice(first,source.indexOf('function _vlSetRunning(',first)),ctx);
 const result=count=>({narrator_count:count,manifest:{trained:count,profiled:count},quality:{zip_count:count}});
 '''

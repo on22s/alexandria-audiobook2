@@ -14,7 +14,7 @@ const {File}=require('buffer');context.FormData=FormData;
 context.getNumFieldValue=(_id,fallback)=>fallback;
 context.document.createElement=()=>({innerHTML:'',textContent:''});
 elements['prep-batch-queue-body']={innerHTML:'',appendChild(){}};
-elements['preparer-logs']={appendChild(){},scrollHeight:0};
+elements['preparer-logs']={style:{},innerText:'',scrollTop:0,clientHeight:0,appendChild(node){this.innerText+=node.textContent;},scrollHeight:0};
 elements['prep-audio-file']={files:[new File(['single bytes'],'single.wav')]};
 elements['prep-source-file']={files:[]};
 elements['prep-batch-files']={files:[new File(['batch bytes'],'batch.wav')]};
@@ -92,7 +92,7 @@ for(const batch of [false,true]){
   if(failure==='network'){throw Error('offline');}return new Response('proxy failed',{status:503,statusText:'Service Unavailable'});};
  await context.startPreparer();assert.strictEqual(elements['btn-prep-start'].disabled,false);
  assert.strictEqual(elements['btn-prep-cancel'].style.display,'none');assert.strictEqual(polls.length,0);
- assert(toasts.at(-1)[0].startsWith(batch?'Failed to start batch:':'Failed to start:'));
+ assert(toasts.at(-1)[0].startsWith(batch?'Batch preparer start is unconfirmed':'Preparer start is unconfirmed'));
  }
 }
 assert.deepStrictEqual(dispatch,['preparer','preparer','batch_preparer','batch_preparer']);
@@ -110,7 +110,24 @@ for(const status of [attack,'constructor','done']){
 }
 polls.at(-1).options.onDone({running:false,logs:[],status:'done'});
 context._pollPreparerLogs('preparer');polls.at(-1).options.onDone({running:false,logs:[],status:attack});
-assert(!elements['prep-status-msg'].innerHTML.includes('<img'));assert(elements['prep-status-msg'].innerHTML.includes('&lt;img'));
+assert(!elements['prep-status-msg'].innerHTML.includes('<img'));assert(elements['prep-status-msg'].innerHTML.includes('Preparation finished'));
+""")
+
+    def test_logs_keep_reader_position_and_show_rotating_ring(self):
+        self.run_scenario(SETUP + r"""
+const el=elements['preparer-logs'];el.style={};el.clientHeight=100;el.scrollHeight=1000;el.scrollTop=0;el.innerText='';el.appendChild=node=>{el.innerText+=node.textContent;};
+context._pollPreparerLogs('preparer');const tick=polls.at(-1).options.onTick;
+tick({run_id:'one',running:true,logs:['a','b','c']});assert.strictEqual(el.innerText,'a\nb\nc');assert.strictEqual(el.scrollTop,1000);
+el.scrollTop=200;tick({run_id:'one',running:true,logs:['b','c','d']});assert.strictEqual(el.innerText,'b\nc\nd','same-length rotation must show new lines');assert.strictEqual(el.scrollTop,200);
+tick({run_id:'one',running:true,logs:['b','c','d','e']});assert.strictEqual(el.innerText,'b\nc\nd\ne');assert.strictEqual(el.scrollTop,200);
+context._pollPreparerLogs('batch_preparer');tick({run_id:'one',running:true,logs:['stale']});assert.strictEqual(el.innerText,'b\nc\nd\ne','previous task cannot overwrite current task logs');
+""")
+
+    def test_completion_feedback_reports_failed_cancelled_and_mixed_batches(self):
+        self.run_scenario(SETUP + r"""
+for(const task of ['preparer','batch_preparer']){for(const [state,tone,text] of [[{status:'done',logs:[]},'text-success','finished'],[{status:'failed',logs:[]},'text-danger','failed'],[{status:'cancelled',logs:[]},'text-warning','cancelled'],[{status:'done',logs:[],tasks:[{status:'failed'}]},'text-danger','failed'],[{status:'done',logs:[],tasks:[{status:'cancelled'}]},'text-warning','cancelled']]){
+context._pollPreparerLogs(task);polls.at(-1).options.onDone({...state,running:false});const html=elements['prep-status-msg'].innerHTML;assert(html.includes(tone));assert(html.includes(text));assert(html.includes(task==='preparer'?'Preparation':'Batch preparation'));if(text==='failed'){assert(html.includes('Review the activity log before retrying'));}assert(!elements['btn-prep-start'].disabled);
+}}
 """)
 
     def test_older_poll_completion_cannot_clear_new_task_controls(self):

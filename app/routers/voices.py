@@ -48,7 +48,7 @@ from core import (
 )
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
-from tts import get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
+from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
                             get_normalized_age_group,
                             get_speaker_trait_summary, get_state_timeline)
@@ -287,11 +287,13 @@ def _ensure_voice_listing():
 @router.post("/api/voices/{speaker}/versions")
 async def save_voice_version(speaker: str, request: VoiceVersionRequest):
     await asyncio.to_thread(_require_script_speaker, speaker)
-    if request.config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
-        raise HTTPException(status_code=422, detail="Unsupported voice version type")
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, lambda current: current.setdefault("versions", {}).update({
-        request.version_id: {**request.config, "age_group": request.age_group}
-    }))
+    def save_version(current):
+        config = request.config or {key: value for key, value in current.items()
+                                    if key not in VERSION_OVERLAY_EXCLUDED}
+        if config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
+            raise HTTPException(status_code=422, detail="Unsupported voice version type")
+        current.setdefault("versions", {})[request.version_id] = {**config, "age_group": request.age_group}
+    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, save_version)
     return {"status": "saved", "speaker": speaker, "version_id": request.version_id,
             "versions": entry.get("versions", {})}
 

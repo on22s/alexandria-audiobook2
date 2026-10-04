@@ -27,7 +27,7 @@ class DesignerResourceIdentityJsTests(unittest.TestCase):
 const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};
 s.context.window._designedVoicesCache=[{id:'resource',name:'Saved voice',filename:'saved.wav'}];const opening=s.context.window.openDesignedVoiceForEdit('resource');s.gets[0].resolve([]);await opening;
 s.context.window._designedVoicesCache=[];s.context.window._currentPreviewFile='edited.wav';const saving=s.context.window.saveDesignedVoice();assert.strictEqual(s.posts[0].args[1].voice_id,'resource','refreshing cache must not turn update into create');s.posts[0].reject(Error('resource was deleted'));await saving;assert.strictEqual(s.context.window._editingDesignedVoiceId,'resource');assert.strictEqual(s.elements['design-voice-name'].value,'Saved voice');
-s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};s.select('resource');assert.strictEqual(s.context.window._editingDesignedVoiceId,null);assert.strictEqual(s.elements['design-source-name'].value,'resource');
+s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};await s.select('resource');assert.strictEqual(s.context.window._editingDesignedVoiceId,null);assert.strictEqual(s.elements['design-source-name'].value,'resource');
 s.context.window._designedVoicesCache=[{id:'resource',name:'Unrelated resource'}];s.context.window._currentPreviewFile='persona.wav';const create=s.context.window.saveDesignedVoice();assert.strictEqual(s.posts[1].args[1].voice_id,null,'character name must not name a resource to update');s.posts[1].resolve({});await create;
 ''')
 
@@ -35,7 +35,7 @@ s.context.window._designedVoicesCache=[{id:'resource',name:'Unrelated resource'}
         packets = json.loads(self.run_js(r'''
 const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};s.context.window._designedVoicesCache=[{id:'resource',name:'Existing',filename:'saved.wav'}];
 const opening=s.context.window.openDesignedVoiceForEdit('resource');s.gets[0].resolve([]);await opening;s.context.window._designedVoicesCache=[];s.context.window._currentPreviewFile='edited.wav';s.elements['design-voice-name'].value='Updated resource';const update=s.context.window.saveDesignedVoice();const a=s.posts[0].args[1];s.posts[0].resolve({});await update;
-s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};s.select('resource');s.context.window._designedVoicesCache=[{id:'resource',name:'Updated resource',filename:'saved.wav'}];s.context.window._currentPreviewFile='persona.wav';const create=s.context.window.saveDesignedVoice();const b=s.posts[1].args[1];s.posts[1].resolve({});await create;console.log(JSON.stringify([a,b]));
+s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};await s.select('resource');s.context.window._designedVoicesCache=[{id:'resource',name:'Updated resource',filename:'saved.wav'}];s.context.window._currentPreviewFile='persona.wav';const create=s.context.window.saveDesignedVoice();const b=s.posts[1].args[1];s.posts[1].resolve({});await create;console.log(JSON.stringify([a,b]));
 '''))
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

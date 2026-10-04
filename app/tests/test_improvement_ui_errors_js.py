@@ -22,7 +22,7 @@ const ctx={legacyChunkSize:123,console:{error:(...args)=>errors.push(args),warn:
  passPromptDefaults:{pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},
  API:{get:async path=>{assert.strictEqual(path,'/api/config');if(fail){throw Error('HTTP 503 <img src=x>');}return {tts:{mode:'local'}};}}};
 for(const name of ['applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets','applyCurrentBookFilename']){ctx[name]=()=>{};}
-vm.createContext(ctx);
+vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(source.slice(source.indexOf('function renderConfigWarnings('),source.indexOf('function populateLlmInputs(')),ctx);
 vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),source.indexOf('// Reset prompts and generation settings to factory defaults')),ctx);
 (async()=>{
@@ -52,7 +52,7 @@ const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:f
  document:{getElementById:id=>({value:id==='dsb-description'?'Fixture voice':'-1'})},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}},dsbRenderTable:()=>{},
  isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
-vm.createContext(ctx);
+vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(source.slice(source.indexOf('function dsbBuildRowHtml('),source.indexOf('function dsbRenderTable(')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.dsbGenSample ='),source.indexOf('// Batch generation')),ctx);

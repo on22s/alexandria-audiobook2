@@ -3,6 +3,7 @@ per-character summary that follows a time skip but ignores a one-band drift."""
 import contextlib
 import io
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -179,7 +180,9 @@ class SettingAndPageTest(unittest.TestCase):
     def test_switch_is_off_by_default_and_saved(self):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         js = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
-        self.assertIn('id="tp-speaker-traits">', html)
+        tag = re.search(r'<input\b[^>]*id="tp-speaker-traits"[^>]*>', html).group(0)
+        self.assertIn('type="checkbox"', tag)
+        self.assertNotRegex(tag, r'\bchecked(?:\s|=|>)')
         self.assertIn("three_pass_speaker_traits: document.getElementById('tp-speaker-traits').checked", js)
         self.assertIn("getElementById('tp-speaker-traits').checked = g.three_pass_speaker_traits === true", js)
 

@@ -10,8 +10,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),core=fs.readFil
 const elements={},handlers={},toasts=[],suggestions=[];let selectedFilename='Book.One.txt',refuse=false;
 const decode=text=>text.replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
 function el(id){if(elements[id]){return elements[id];}let html='';const element={value:'',files:[],style:{},options:[],dataset:{},appendChild:()=>{},addEventListener:(event,callback)=>handlers[id+':'+event]=callback};Object.defineProperty(element,'innerHTML',{get:()=>html,set:value=>{html=value;element.options=[...value.matchAll(/<option value="([^"]*)"/g)].map(match=>({value:decode(match[1])}));}});Object.defineProperty(element,'textContent',{get:()=>decode(html.replace(/<[^>]*>/g,''))});elements[id]=element;return element;}
-const ctx={window:null,document:{getElementById:el},API:{post:async()=>{if(refuse){throw Error('refused');}return {stored_filename:selectedFilename};},upload:async()=>({stored_filename:selectedFilename,reused:true})},prompt:(_question,suggested)=>{suggestions.push(suggested);return null;},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,console,
- loadExistingScriptUploads:async()=>{},flushVoiceSaves:async()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadChunks:async()=>{},loadVoices:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{}};ctx.window=ctx;
+const ctx={window:null,document:{getElementById:el},API:{post:async()=>{if(refuse){throw Error('refused');}return {stored_filename:selectedFilename};},upload:async()=>({stored_filename:selectedFilename,reused:true})},showPresetEditor:async options=>{suggestions.push(options.name);return null;},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,console,
+ loadExistingScriptUploads:async()=>{},ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadChunks:async()=>{},loadVoices:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{}};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
 function load(start,end){const a=core.indexOf(start),b=core.indexOf(end,a);assert(a>=0&&b>a);run(core.slice(a,b));}
 load('function escapeHtml(', '// Parse a numeric input');
@@ -52,4 +52,12 @@ ctx._voicesNames=[];ctx._voicesByName={};ctx.updateNarratorPreviewFields();asser
 load('window.previewNarratorSelection =','window.setVoiceApproval =');const packets=[];ctx.API.post=async(url,data)=>{assert.strictEqual(url,'/api/narrator/preview');packets.push(data);return {selected:{voice:'fixture'}};};
 ctx._voicesNames=['NARRATOR','Alice'];ctx._voicesByName={NARRATOR:{config:{versions:{adult:{}}}}};el('narrator-strategy').value='chapter';ctx.updateNarratorPreviewFields();el('narrator-focus').value='Alice';el('narrator-version').value='adult';await ctx.previewNarratorSelection();assert.strictEqual(packets[0].focus_speaker,'Alice');assert.strictEqual(packets[0].narrator_version,'adult');
 ctx._voicesNames=['NARRATOR','Bob'];ctx._voicesByName={NARRATOR:{config:{versions:{older:{}}}}};await ctx.previewNarratorSelection();assert.strictEqual(packets[1].focus_speaker,null);assert.strictEqual(packets[1].narrator_version,null);assert.strictEqual(packets[1].strategy,'chapter');
+''')
+
+    def test_snapshot_modal_cancel_and_book_switch_send_no_requests(self):
+        self.run_js(r'''
+ctx.applyCurrentBookFilename('source.txt');let posts=0;ctx.API.post=async(path,body)=>{posts++;assert.strictEqual(path,'/api/generate_script/snapshot');assert.strictEqual(body.name,'my snapshot');return{name:body.name,entries:2};};
+ctx.showPresetEditor=async options=>{assert.strictEqual(options.nameLabel,'Snapshot name');assert.strictEqual(options.actionLabel,'Save snapshot');assert.strictEqual(options.includeDescription,false);return null;};await ctx.snapshotScript();assert.strictEqual(posts,0);
+ctx.showPresetEditor=async()=>{ctx.applyCurrentBookFilename('other.txt');return{name:'my snapshot'};};await ctx.snapshotScript();assert.strictEqual(posts,0);assert(toasts.at(-1)[0].includes('book changed'));
+ctx.showPresetEditor=async()=>({name:'my snapshot'});await ctx.snapshotScript();assert.strictEqual(posts,1);
 ''')

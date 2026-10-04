@@ -9,8 +9,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const elements={},notifications=[];let poll;
 function el(id){if(!elements[id]){const classes=new Set();elements[id]={style:{},value:'',innerHTML:'',innerText:'',checked:false,classList:{contains:name=>classes.has(name),add:name=>classes.add(name),remove:name=>classes.delete(name)}};}return elements[id];}
 function Notice(title,options){notifications.push({title,...options});}Notice.permission='granted';
-const ctx={window:null,Notification:Notice,document:{getElementById:el,visibilityState:'hidden',hasFocus:()=>false},console,API:{get:async()=>[]},
- _startPolling:(key,fetch,options)=>poll={key,...options},showToast:()=>{},renderManualRequest:()=>{},loadVoices:async()=>{},_resetPauseBtn:()=>{},createTaskLogRenderer:()=>()=>{}};ctx.window=ctx;
+const ctx={window:null,currentBookFilename:'book.txt',Notification:Notice,document:{getElementById:el,visibilityState:'hidden',hasFocus:()=>false},console,API:{get:async()=>[]},
+ _startPolling:(key,fetch,options)=>poll={key,...options},showToast:()=>{},renderManualRequest:()=>{},loadVoices:async()=>({refreshedResources:['/api/voice_design/list','/api/clone_voices/list'],failedResources:[]}),_resetPauseBtn:()=>{},createTaskLogRenderer:()=>()=>{}};ctx.window=ctx;
 vm.createContext(ctx);function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),ctx);}
 load('function escapeHtml(', '// Parse a numeric input');
 load('const taskStartButtons =','// --- API Helpers ---');
@@ -18,6 +18,7 @@ if(source.includes('function isTaskFailed(')){load('function isTaskFailed(', '//
 load('const TASK_LABELS =', '// --- Navigation ---');
 load('function _showReviewControls(', "document.getElementById('btn-review-script').addEventListener");
 load('function _showTaskRecoveryPanel(', 'function pollReviewBatch()');
+load('let personaVoiceRefreshRequest =', 'async function pollPersonaStatus()');
 load('async function pollPersonaStatus()', '// --- Voices Tab ---');
 load('const PAUSE_BUTTON_FOR_TASK =', '// What a run is waiting on');
 '''
@@ -54,6 +55,6 @@ ctx.document.visibilityState='visible';ctx.document.hasFocus=()=>true;ctx.notify
 
     def test_persona_completion_notifies_even_when_refresh_fails(self):
         self.run_js(r'''
-ctx.loadVoices=async()=>{throw Error('fixture refresh failure');};await ctx.pollPersonaStatus();await poll.onDone({running:false,logs:['Task persona completed successfully.']});assert.strictEqual(notifications.length,1);assert.strictEqual(notifications[0].title,'Persona generation finished');
+ctx.loadVoices=async()=>{throw Error('fixture refresh failure');};await ctx.pollPersonaStatus();await poll.onDone({running:false,logs:['Task persona completed successfully.']});assert.strictEqual(notifications.length,1);assert.strictEqual(notifications[0].title,'Persona generation finished');assert.match(el('persona-refresh-status').textContent,/could not be fully refreshed/);assert.strictEqual(el('persona-refresh-retry').hidden,false);assert.strictEqual(el('persona-refresh-retry').disabled,false);
 ctx.document.visibilityState='visible';ctx.document.hasFocus=()=>true;await ctx.pollPersonaStatus();await poll.onDone({running:false,logs:[]});assert.strictEqual(notifications.length,1);
 ''')

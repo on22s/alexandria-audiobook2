@@ -20,9 +20,10 @@ class BookPreflightJsTests(unittest.TestCase):
         harness = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),receipt=JSON.parse(process.argv[2]);
-const elements={}; for(const id of ['book-preflight-result','btn-book-preflight','btn-cancel-book-preflight','script-first-person-narrator']){elements[id]={style:{},innerHTML:'',value:' ALICE ',disabled:false};}
+const elements={}; for(const id of ['book-preflight-result','btn-book-preflight','btn-cancel-book-preflight','script-first-person-narrator','script-batch-mode','book-preflight-controls','btn-gen-script-fresh']){elements[id]={style:{},innerHTML:'',value:' ALICE ',disabled:false};}
+elements['upload-status']={innerHTML:'text-success'};
 const posts=[],toasts=[]; let poll;
-const ctx={document:{getElementById:id=>elements[id]},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),confirmIfRemote:async()=>true,_isStripFrontMatterChecked:()=>false,showToast:s=>toasts.push(s),API:{post:async(url,data)=>{posts.push({url,data});return{...receipt,status:'running'};},get:async()=>receipt},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'book_preflight');poll={fetch,options};}};
+const ctx={currentBookFilename:'book.txt',document:{getElementById:id=>elements[id]},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),confirmIfRemote:async()=>true,_isStripFrontMatterChecked:()=>false,showToast:s=>toasts.push(s),API:{post:async(url,data)=>{posts.push({url,data});return{...receipt,status:'running'};},get:async()=>receipt},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'book_preflight');poll={fetch,options};}};
 ctx.window=ctx;vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('let bookPreflightJob ='),source.indexOf('// End book-preflight controls.')));
 '''
@@ -37,4 +38,21 @@ run(source.slice(source.indexOf('let bookPreflightJob ='),source.indexOf('// End
     def test_decline_and_stale_poll_do_not_start_or_overwrite(self):
         self.run_js(r'''
 (async()=>{ctx.confirmIfRemote=async()=>false;await ctx.startBookPreflight();assert.strictEqual(posts.length,0);assert(!elements['btn-book-preflight'].disabled);ctx.confirmIfRemote=async()=>true;await ctx.startBookPreflight();const before=elements['book-preflight-result'].innerHTML;const stale={...receipt,job_id:'b'.repeat(32)};await poll.options.onTick(stale);await poll.options.onDone(stale);assert.strictEqual(elements['book-preflight-result'].innerHTML,before);assert(elements['btn-book-preflight'].disabled);assert(!poll.options.doneCheck(stale));})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_batch_hides_idle_test_but_keeps_running_cancellation(self):
+        self.run_js(r'''
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{elements['script-batch-mode'].checked=true;ctx.renderBookPreflightVisibility();assert(elements['book-preflight-controls'].hidden);await ctx.startBookPreflight();assert.strictEqual(posts.length,0);elements['script-batch-mode'].checked=false;ctx.renderBookPreflightVisibility();assert(!elements['book-preflight-controls'].hidden);await ctx.startBookPreflight();elements['script-batch-mode'].checked=true;ctx.renderBookPreflightVisibility();assert(!elements['book-preflight-controls'].hidden);assert.strictEqual(elements['btn-book-preflight'].style.display,'none');assert.strictEqual(elements['btn-cancel-book-preflight'].style.display,'');await ctx.cancelBookPreflight();assert.strictEqual(posts.length,2);await poll.options.onTick(receipt);await poll.options.onDone(receipt);assert(elements['book-preflight-controls'].hidden);elements['script-batch-mode'].checked=false;ctx.confirmIfRemote=async()=>{elements['script-batch-mode'].checked=true;return true;};await ctx.startBookPreflight();assert.strictEqual(posts.length,2,'changing to batch during confirmation cannot start single-book test');finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_unloaded_source_and_confirmation_switch_refuse_both_actions(self):
+        self.run_js(r'''
+const a=source.indexOf('async function buildCastList()');run(source.slice(a,source.indexOf('window.cancelCastList =',a)));
+elements['btn-build-cast-list']={disabled:false};elements['btn-cancel-cast-list']={style:{}};ctx.pollScriptLogs=()=>{};
+let finished=false;process.on('beforeExit',()=>assert(finished));
+(async()=>{for(const status of ['', 'text-info', 'text-danger']){elements['upload-status'].innerHTML=status;await ctx.startBookPreflight();await ctx.buildCastList();assert.strictEqual(posts.length,0);assert.strictEqual(toasts.at(-2),'Select or upload a book before running preflight.');assert.strictEqual(toasts.at(-1),'Select or upload a book before building its cast list.');}
+elements['upload-status'].innerHTML='text-success';ctx.currentBookFilename='';await ctx.startBookPreflight();await ctx.buildCastList();assert.strictEqual(posts.length,0);
+for(const name of ['startBookPreflight','buildCastList']){ctx.currentBookFilename='book-A.txt';ctx.confirmIfRemote=async()=>{ctx.currentBookFilename='book-B.txt';return true;};await ctx[name]();assert.strictEqual(posts.length,0);assert.match(toasts.at(-1),/loaded book changed/);}
+ctx.currentBookFilename='book-A.txt';ctx.confirmIfRemote=async()=>false;await ctx.startBookPreflight();await ctx.buildCastList();assert.strictEqual(posts.length,0);assert(!elements['btn-book-preflight'].disabled);
+ctx.confirmIfRemote=async()=>true;await ctx.buildCastList();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].url,'/api/cast_list/build');assert(elements['btn-build-cast-list'].disabled);finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')

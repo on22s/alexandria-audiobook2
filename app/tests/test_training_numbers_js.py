@@ -105,7 +105,7 @@ class TrainingUploadPlaybackJsTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const mode=process.argv[2];
-const upload=source.slice(source.indexOf('window.uploadLoraDataset ='),source.indexOf('window.deleteLoraDataset ='));
+const upload=source.slice(source.indexOf('let loraDatasetUploadPending ='),source.indexOf('window.deleteLoraDataset ='));
 const preview=source.slice(source.indexOf('window.playLoraPreview ='),source.indexOf('window.testLoraModel ='));
 const toasts=[],posts=[],unhandled=[];
 process.on('unhandledRejection',error=>unhandled.push(error.message));
@@ -119,7 +119,7 @@ const context={window:{},document:{getElementById(id){return id==='lora-dataset-
  loadLoraDatasets(){refreshes++;},showToast(message,kind){toasts.push({message,kind});},
  API:{post:async(path,data)=>{posts.push({path,data});return{audio_url:'/fixture.wav'};}},
  Audio:class{constructor(url){posts.push({url});}play(){return played;}},Date};
-vm.runInNewContext(upload+preview,context);
+const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+upload+preview,context);
 (async()=>{
  if(mode.startsWith('play-')){
   const pending=context.window.playLoraPreview('voice/name');
@@ -142,7 +142,10 @@ vm.runInNewContext(upload+preview,context);
         result = self.run_js('play-failure')
         self.assertTrue(result['before']['disabled'])
         self.assertEqual([], result['unhandled'])
-        self.assertEqual([{'message':'Preview failed: Playback denied','kind':'error'}], result['toasts'])
+        self.assertEqual(1, len(result['toasts']))
+        self.assertEqual('error', result['toasts'][0]['kind'])
+        self.assertIn('Check that the adapter has preview audio', result['toasts'][0]['message'])
+        self.assertIn('Details: Playback denied', result['toasts'][0]['message'])
         self.assertFalse(result['button']['disabled'])
         self.assertEqual('Play', result['button']['innerHTML'])
         self.assertEqual('Generate preview', result['button']['title'])

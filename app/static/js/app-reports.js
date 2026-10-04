@@ -26,7 +26,7 @@
                     </a>`;
                 }).join('');
             } catch (e) {
-                listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load reports: ${escapeHtml(e.message || String(e))}</div>`;
+                listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load reports", e, "Reopen Reports or refresh the report list after checking the app connection."))}</div>`;
             }
         }
 
@@ -67,7 +67,7 @@
                 }
                 listEl.innerHTML = html;
             } catch (e) {
-                listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load checkpoints: ${escapeHtml(e.message || String(e))}</div>`;
+                listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load checkpoints", e, "Reopen Reports to refresh checkpoint status. Do not treat an unavailable checkpoint list as an empty one."))}</div>`;
             }
         }
 
@@ -93,7 +93,7 @@
                 contentEl.innerHTML = DOMPurify.sanitize(html);
             } catch (e) {
                 if (viewRequest !== reportViewRequest || currentReportFilename !== filename) { return; }
-                contentEl.innerHTML = `<p class="text-danger">Failed to load report: ${escapeHtml(e.message || String(e))}</p>`;
+                contentEl.innerHTML = `<p class="text-danger">${escapeHtml(getActionErrorMessage("Failed to load report", e, "Refresh the report list and reopen the selected report; check that the file is still available."))}</p>`;
             }
         }
 
@@ -131,7 +131,7 @@
                     },
                 });
             } catch (e) {
-                showToast(`Explanation failed: ${e.message || String(e)}`, 'error');
+                showActionError('Report explanation start is unconfirmed', e, 'Check explanation status and reopen the report before starting again. For an LLM refusal, use Setup → Test Connection.');
             } finally {
                 if (!started) {
                     reportExplanationPending = false;
@@ -142,11 +142,10 @@
 
         async function onCancelReportExplanation() {
             try { await API.post('/api/reports/explanation/cancel', {run_id: reportExplanationRunId}); }
-            catch (e) { showToast(`Cancel failed: ${e.message || String(e)}`, 'error'); }
+            catch (e) { showActionError('Explanation cancellation is unconfirmed', e, 'Check explanation status before cancelling again; the provider call may still be running.'); }
         }
 
-        // Last script: every tab loader is defined now, so reopen the remembered tab.
-        restoreTab();
+        // Last script: tab restoration runs after the state below is initialized.
 
         // ── Build badge, run history, benchmark ─────────────────────────
         async function loadBuildBadge() {
@@ -192,7 +191,7 @@
                     </div>`;
                 }).join('');
             } catch (e) {
-                listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load runs: ${escapeHtml(e.message || String(e))}</div>`;
+                listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load runs", e, "Reopen Reports to refresh the run list after checking the app connection."))}</div>`;
             }
         }
 
@@ -206,11 +205,16 @@
         let _benchmarkStatusPending = false;
 
         function _applyBenchmarkStartButton() {
+            const ready = !!_benchmarkPreflightId
+                && _benchmarkPreflightManifest === document.getElementById('benchmark-manifest')?.value;
             const button = document.getElementById('btn-benchmark-start');
-            if (button) {
-                button.disabled = _benchmarkStarting || _benchmarkRunning || !_benchmarkPreflightId
-                    || _benchmarkPreflightManifest !== document.getElementById('benchmark-manifest')?.value;
-            }
+            if (button) { button.disabled = _benchmarkStarting || _benchmarkRunning || !ready; }
+            const help = document.getElementById('benchmark-start-help');
+            const message = _benchmarkStarting ? 'Starting benchmark…'
+                : _benchmarkRunning ? 'A benchmark is running. Start is available after it ends and the current manifest passes preflight.'
+                    : ready ? 'Preflight passed — ready to start.'
+                        : 'Start becomes available after a successful preflight of the current manifest. Run Preflight again after editing the manifest.';
+            if (help && help.textContent !== message) { help.textContent = message; }
         }
 
         function onBenchmarkManifestChange() {
@@ -227,7 +231,7 @@
                 if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) { throw new Error('manifest must be a JSON object'); }
                 return manifest;
             } catch (e) {
-                showToast('Manifest is not valid JSON: ' + e.message, 'error');
+                showActionError('Manifest is not valid JSON', e, 'Keep the manifest text and correct the JSON syntax. It must be an object, then pass Preflight before Start.');
                 return null;
             }
         }
@@ -249,7 +253,7 @@
                 _applyBenchmarkStartButton();
             } catch (e) {
                 if (generation !== _benchmarkPreflightGeneration || raw !== document.getElementById('benchmark-manifest').value) { return; }
-                out.textContent = 'Preflight failed: ' + (e.message || String(e));
+                out.textContent = getActionErrorMessage('Benchmark preflight failed', e, 'Keep the manifest text. Review the validation details, correct the manifest, then run Preflight again.');
             }
         }
 
@@ -272,7 +276,7 @@
                 _startBenchmarkStatusPolling();
                 refreshBenchmarkStatus();
             } catch (e) {
-                showToast('Benchmark did not start: ' + (e.message || String(e)), 'error');
+                showActionError('Benchmark start is unconfirmed', e, 'Check benchmark status before starting again. Run Preflight again for the current manifest after any refusal.');
             } finally {
                 _benchmarkStarting = false;
                 _applyBenchmarkStartButton();
@@ -283,7 +287,7 @@
             try {
                 await API.post('/api/benchmark/cancel', {});
             } catch (e) {
-                showToast(e.message || String(e), 'error');
+                showActionError('Benchmark cancellation is unconfirmed', e, 'Check benchmark status before cancelling again; work may still be running.');
             }
         }
 
@@ -331,10 +335,12 @@
                 return s;
             } catch (e) {
                 if (revision !== _benchmarkRunRevision) { return; }
-                status.textContent = 'Status unavailable: ' + (e.message || String(e));
+                status.textContent = getActionErrorMessage('Benchmark status unavailable', e, 'Status polling will retry. Check the app connection and wait for a current status before starting another benchmark.');
                 _startBenchmarkStatusPolling();
                 if (fromPoll) { throw e; }
             } finally {
                 _benchmarkStatusPending = false;
             }
         }
+
+        restoreTab();

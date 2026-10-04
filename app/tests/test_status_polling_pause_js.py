@@ -19,7 +19,7 @@ class StatusPollingPauseJsTests(unittest.TestCase):
         self.run_js(r'''const source=fs.readFileSync(process.argv[1]+'/app-workbench.js','utf8');
 const elements={},calls=[];for(const id of ['sys-gpu-val','sys-build-val','sys-build','sys-gpu','sys-disk-val','sys-disk','sys-eta','sys-eta-val','stale-build-banner']){elements[id]={style:{},textContent:'',title:'',classList:classes()};}
 const context={document:{getElementById:id=>elements[id],querySelector:()=>({content:'old123'})},API:{get:url=>{const d=deferred();calls.push({url,...d});return d.promise;}},console:{error(){}}};
-vm.createContext(context);vm.runInContext(source.slice(source.indexOf('const PAGE_BUILD ='),source.indexOf('async function refreshLmStudioStatus()')),context);
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);vm.runInContext(source.slice(source.indexOf('const PAGE_BUILD ='),source.indexOf('async function refreshLmStudioStatus()')),context);
 const stats={runtime:{short_revision:'new456',revision:'new456full',branch:'main',python:'3.10',packages:{torch:'cpu',missing:null}},gpu:{reserved_gb:2,total_gb:8,allocated_percent:95},disk:{free_gb:12,low_space:true}};
 (async()=>{
  const system=context.updateSystemStats();const eta=context.updateEtaStatus();
@@ -39,10 +39,22 @@ const stats={runtime:{short_revision:'new456',revision:'new456full',branch:'main
   calls[index].reject(new Error('offline'));await pending;
   const retry=context[name]();assert.strictEqual(calls.length,index+2);calls[index+1].resolve(name==='updateSystemStats'?{...stats,gpu:null,disk:{free_gb:100,low_space:false}}:{running:true,label:'Working',eta_seconds:null});await retry;
  }
- assert.strictEqual(elements['sys-gpu-val'].textContent,'N/A');assert(elements['sys-disk'].classList.contains('text-light'));assert.strictEqual(elements['sys-eta-val'].textContent,'Working');
+ assert.strictEqual(elements['sys-gpu-val'].textContent,'Unavailable');assert(elements['sys-disk'].classList.contains('text-light'));assert.strictEqual(elements['sys-eta-val'].textContent,'Working');
  const mismatch=context.updateSystemStats();calls.at(-1).resolve({...stats,gpu_mismatch:true,gpu_mismatch_vendor:'AMD'});await mismatch;assert.strictEqual(elements['sys-gpu-val'].textContent,'CPU fallback!');assert(elements['sys-gpu'].title.includes('AMD'));
  finished=true;
 })().catch(error=>{finished=true;console.error(error);process.exitCode=1;});''')
+
+    def test_system_readings_announce_changes_keep_last_reading_and_clear_stale_warnings(self):
+        self.run_js(r'''const source=fs.readFileSync(process.argv[1]+'/app-workbench.js','utf8');
+let writes=0,fail=false;const elements={};const el=id=>elements[id]||(elements[id]=(()=>{let value='';return{style:{},title:'',classList:classes(),get textContent(){return value;},set textContent(v){writes++;value=v;}};})());
+let stats={runtime:{short_revision:'abc'},gpu:{reserved_gb:2,total_gb:8,allocated_percent:95},disk:{free_gb:1,low_space:true}};
+const c={document:{getElementById:el},checkStaleBuild(){},API:{get:async()=>{if(fail)throw Error('offline');return stats;}},console:{error(){}}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),c);
+const a=source.indexOf('function applySystemStatusText(');vm.runInContext(source.slice(a,source.indexOf('// Format a duration',a)),c);
+(async()=>{await c.updateSystemStats();assert(el('sys-gpu-warning').textContent.includes('High'));assert(el('sys-disk-warning').textContent.includes('Low'));const initial=writes;
+for(let i=0;i<10;i++)await c.updateSystemStats();assert.strictEqual(writes,initial,'unchanged poll must not rewrite live text');
+fail=true;await c.updateSystemStats();assert.strictEqual(el('sys-gpu-val').textContent,'2.0/8.0 GB');assert(el('sys-status-error').textContent.includes('last available readings'));const failed=writes;await c.updateSystemStats();assert.strictEqual(writes,failed);
+fail=false;stats={runtime:{},gpu:null,disk:{free_gb:100,low_space:false}};await c.updateSystemStats();assert.strictEqual(el('sys-status-error').textContent,'');assert.strictEqual(el('sys-gpu-warning').textContent,'');assert.strictEqual(el('sys-disk-warning').textContent,'');assert.strictEqual(el('sys-gpu-val').textContent,'Unavailable');assert(!el('sys-gpu').classList.contains('text-danger'));finished=true;
+})().catch(e=>{console.error(e);process.exitCode=1;});''')
 
     def test_all_pause_handlers_read_fresh_server_state_before_action(self):
         self.run_js(self.get_pause_setup()+r'''(async()=>{
@@ -67,10 +79,10 @@ const stats={runtime:{short_revision:'new456',revision:'new456full',branch:'main
   const s=setup(paused,btnId);let count=0;s.context.API.post=async url=>{s.posts.push(url);if(count++<failures){throw {status:503,message:'startup'};}return {};};
   const pending=s.context.window[handler]();s.gets[0].resolve({paused,running:true});await pending;
   assert.strictEqual(s.gets.length,1);assert.deepStrictEqual(s.posts,Array(3).fill(prefix+(paused?'/resume':'/pause')));assert.deepStrictEqual(s.timers,[700,700]);assert.strictEqual(s.btn.disabled,false);
-  if(failures===3){assert(s.toasts[0][0].startsWith(paused?'Resume failed':'Pause failed'));}else{assert.strictEqual(s.toasts.length,0);}
+  if(failures===3){assert(s.toasts[0][0].startsWith(paused?'Resume was not confirmed':'Pause was not confirmed'));}else{assert.strictEqual(s.toasts.length,0);}
  }}}
  const [task,btnId,handler,prefix]=cases[0];const s=setup(true,btnId);s.context.API.post=async url=>{s.posts.push(url);throw {status:400,message:'refused'};};
- const pending=s.context.window[handler]();s.gets[0].resolve({paused:true});await pending;assert.deepStrictEqual(s.posts,[prefix+'/resume']);assert.strictEqual(s.timers.length,0);assert.strictEqual(s.btn.disabled,false);assert(s.toasts[0][0].includes('Resume failed: refused'));
+ const pending=s.context.window[handler]();s.gets[0].resolve({paused:true});await pending;assert.deepStrictEqual(s.posts,[prefix+'/resume']);assert.strictEqual(s.timers.length,0);assert.strictEqual(s.btn.disabled,false);assert(s.toasts[0][0].includes('Resume was not confirmed')&&s.toasts[0][0].includes('refused'));
  const status=setup(false,btnId);const reading=status.context.window[handler]();status.gets[0].reject({status:503,message:'status startup'});await reading;assert.strictEqual(status.posts.length,0);assert.strictEqual(status.timers.length,0);assert.strictEqual(status.gets.length,1);
  finished=true;
 })().catch(error=>{finished=true;console.error(error);process.exitCode=1;});''')
@@ -90,6 +102,6 @@ function setup(serverPaused,btnId){
  const context={window:{},document:{getElementById:id=>{assert.strictEqual(id,btnId);return btn;}},
  API:{get:url=>{const d=deferred();gets.push({url,...d});return d.promise;},post:async url=>{posts.push(url);return {}; }},
  setTimeout:(fn,ms)=>{timers.push(ms);fn();},showToast:(...args)=>toasts.push(args)};
- vm.createContext(context);vm.runInContext(factory+mapping+declarations+exports+vlStart,context);return {context,btn,gets,posts,timers,toasts};
+ vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);vm.runInContext(factory+mapping+declarations+exports+vlStart,context);return {context,btn,gets,posts,timers,toasts};
 }
 '''

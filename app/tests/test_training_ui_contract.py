@@ -13,9 +13,10 @@ const source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(proces
 const elements={},toasts=[];
 function element(id){return elements[id]||(elements[id]={value:'',innerHTML:'',style:{}});}
 const ctx={window:null,document:{getElementById:element},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,confirm:()=>true,console,Date:{now:()=>1700000000000}};ctx.window=ctx;
-vm.createContext(ctx);
+vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);
 const a=core.indexOf('const API = {'),b=core.indexOf('// --- Setup Tab ---',a);vm.runInContext(core.slice(a,b),ctx);
 const c=core.indexOf('function escapeHtml('),d=core.indexOf('// Parse a numeric input',c);vm.runInContext(core.slice(c,d),ctx);
+const outcomeStart=core.indexOf('function isTaskFailed('),outcomeEnd=core.indexOf('// Ask for permission only',outcomeStart);vm.runInContext(core.slice(outcomeStart,outcomeEnd),ctx);
 vm.runInContext(source,ctx);
 (async()=>{
 """
@@ -51,7 +52,9 @@ await ctx.loadLoraDatasets();console.log(JSON.stringify(element('lora-datasets-l
         self.assertEqual(len(ids), len(buttons))
         self.assertEqual(ids, [button.get('data-dataset-id') for button in buttons])
         for attrs in buttons:
-            self.assertEqual({'class', 'data-dataset-id', 'onclick'}, set(attrs))
+            self.assertEqual({'class', 'data-dataset-id', 'onclick', 'aria-label', 'title'}, set(attrs))
+            self.assertEqual('Delete dataset ' + attrs['data-dataset-id'], attrs['aria-label'])
+            self.assertEqual(attrs['aria-label'], attrs['title'])
             self.assertEqual('deleteLoraDataset(this.dataset.datasetId)', attrs['onclick'])
         # Run the actual decoded handler body against its decoded dataset value.
         self.run_js('const buttons=' + json.dumps(buttons) + ',expected=' + json.dumps(ids) + r""";

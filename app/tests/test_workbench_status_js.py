@@ -77,7 +77,7 @@ for (const mode of ['running','idle','unavailable']) {
                         'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus','pollLmStudioStatus']) {
         context[name] = () => {};
     }
-    vm.createContext(context);
+    vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
     const start = workbench.indexOf('function reattachTaskActivity(');
     const init = workbench.indexOf('// Init',start);
     const end = workbench.indexOf('// ── Preparer',init);

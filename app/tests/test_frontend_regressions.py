@@ -78,7 +78,7 @@ class FrontendTests(unittest.TestCase):
         frontend = _read_frontend_source()
         for required in (
                 "Generate age version", "generateAgeVersion(this)",
-                "age_group: ageGroup.trim()", "/api/generate_personas"):
+                "age_group: values.name", "/api/generate_personas"):
             self.assertIn(required, frontend)
 
     def test_narrator_preview_uses_inline_scenario_selectors(self):
@@ -336,7 +336,12 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("message.textContent", renderer)
         self.assertNotIn("message.innerHTML", renderer)
         self.assertIn("renderConfigWarnings(config);", html)
-        self.assertIn("renderConfigWarnings(savedConfig);", html)
+        start = html.index("async function refreshSavedConfigFeedback(")
+        refresh = html[start:html.index("window.savePromptPreset =", start)]
+        self.assertIn("renderConfigWarnings(config);", refresh)
+        start = html.index("document.getElementById('config-form').addEventListener")
+        save = html[start:html.index("// --- Script Tab ---", start)]
+        self.assertLess(save.index("await saveConfigPayload(config, async () =>"), save.index("await refreshSavedConfigFeedback(true)"))
 
     def test_script_tab_activity_line_shares_the_markers_with_the_pipeline(self):
         """One wording in three places: the pipeline prints it, the ETA parser
@@ -377,12 +382,13 @@ class FrontendTests(unittest.TestCase):
     def test_every_copy_button_goes_through_the_clipboard_fallback(self):
         """navigator.clipboard is undefined outside a secure context (#594:
         every Copy button failed on a non-localhost host). One helper owns
-        the modern API, the execCommand fallback and the hand-copy prompt;
+        the modern API, the execCommand fallback and the manual-copy dialog;
         no caller may touch navigator.clipboard directly."""
         js = _read_frontend_source()
         self.assertIn("async function copyToClipboard(text", js)
         self.assertIn("document.execCommand('copy')", js)
-        self.assertIn("window.prompt(", js)
+        self.assertIn("await showManualCopy(text, what);", js)
+        self.assertNotIn("window.prompt(", js)
         direct = [m.start() for m in re.finditer(r"navigator\.clipboard\.writeText", js)]
         helper_start = js.index("async function copyToClipboard(text")
         helper_end = js.index("function escapeHtml(str)")
@@ -722,7 +728,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-const code = source.slice(source.indexOf('function populateLlmInputs('), source.indexOf('async function testLlmConnection('));
+const code = source.slice(source.indexOf('function getConfigValidationError('), source.indexOf('function getIntListInput(')) + source.slice(source.indexOf('function populateLlmInputs('), source.indexOf('async function testLlmConnection('));
 for (const previous of ['local','remote']) {
     for (const [field,value,diagnostic] of [
         ['llm-request-timeout','not-a-number','Request timeout'],
@@ -734,7 +740,7 @@ for (const previous of ['local','remote']) {
         function element(id) {
             if (!elements[id]) {
                 let value = '';
-                elements[id] = {style:{display:'original'}, innerHTML:'previous result'};
+                elements[id] = {style:{display:'original'}, innerHTML:'previous result', focus(){this.focused=true;}, scrollIntoView(){}};
                 Object.defineProperty(elements[id], 'value', {get() { return value; }, set(v) { value = String(v); }});
             }
             return elements[id];
@@ -760,6 +766,7 @@ for (const previous of ['local','remote']) {
         assert.strictEqual(notifications.length, 1);
         assert.strictEqual(notifications[0].level, 'error');
         assert(notifications[0].message.includes(diagnostic));
+        assert(element(field).focused, 'invalid field must receive focus');
         assert.strictEqual(element('llm-ssh-group').style.display, 'original');
         assert.strictEqual(element('llm-test-result').innerHTML, 'previous result');
         // Correcting the input permits the same requested mode switch and saves the leaving profile.

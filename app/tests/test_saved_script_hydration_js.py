@@ -16,8 +16,8 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must
 (async()=>{
  for(const failure of ['none','confirm','flush','post','chunks']){
   const calls=[],toasts=[];let aliasDone,chunkDone;
-  const context={console:{error:()=>{}},showConfirm:async()=>failure!=='confirm',
-   flushVoiceSaves:async()=>{calls.push('flush');if(failure==='flush'){throw Error('flush failed');}},
+  const context={document:{getElementById:()=>({style:{}})},console:{error:()=>{}},showConfirm:async()=>failure!=='confirm',
+   ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{calls.push('flush');if(failure==='flush'){throw Error('flush failed');}},
    API:{post:async(url,body)=>{assert.equal(url,'/api/scripts/load');assert.equal(body.name,'book');calls.push('post');if(failure==='post'){throw Error('post failed');}return {name:'book'};}},
    applyCurrentBookFilename:name=>{assert.equal(name,'book.json');calls.push('book');},
    clearCharacterAliases:()=>calls.push('clear-aliases'),resetDesignerForm:()=>calls.push('reset'),clearVoiceSuggestions:()=>calls.push('clear-suggestions'),
@@ -25,7 +25,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must
    loadCharacterAliases:show=>{assert.equal(show,false);calls.push('aliases');return new Promise(resolve=>{aliasDone=resolve;});},
    loadChunks:force=>{assert.equal(force,true);calls.push('chunks');return new Promise((resolve,reject)=>{chunkDone=()=>failure==='chunks'?reject(Error('chunks failed')):resolve();});},
    loadVoices:async()=>calls.push('voices'),loadSavedScripts:()=>calls.push('library'),loadDesignedVoices:()=>calls.push('designed')};
-  vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+  vm.createContext(context);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(source.slice(start,end),context);
   const pending=context.loadScript('book');
   for(let i=0;i<20;i++){await Promise.resolve();}
   if(['confirm','flush','post'].includes(failure)){

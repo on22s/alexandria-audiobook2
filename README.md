@@ -150,8 +150,8 @@ must be running and reachable from the **Base URL** in the Setup tab.
 - **Ollama**: use `http://localhost:11434/v1` and the model name that `ollama list` shows.
 
 - **A hosted API**: set **LLM Location** to *Remote*, paste the URL and key (or
-  `env:DEEPSEEK_API_KEY` to read the key from an environment variable), and untick
-  **Runs on this machine's GPU** so audio can render while the hosted model works.
+  `env:DEEPSEEK_API_KEY` to read the key from an environment variable), and open
+  **Provider request options**. Set **Runs on this machine's GPU?** to **No** so audio can render while the hosted model works.
 
 **Reasoning ("thinking") models work well — better, in fact.** Set **Reasoning effort**
 to *low* and let the server cap the budget. Do not add `<think>` to the banned tokens.
@@ -284,7 +284,7 @@ running build, GPU memory in use, and a light/dark toggle.
 - **How requests are sent**: `http`, or `manual`. In manual mode the app writes each
   request to `manual_llm/pending.json`, and the Script tab shows a panel where you copy
   the prompt and paste the reply — you act as the model.
-- **Runs on this machine's GPU?** — when off, script generation and audio rendering may
+- **Runs on this machine's GPU?** — select **No** under **Provider request options**; then script generation and audio rendering may
   run at the same time.
 - **Reasoning effort** — none / low / medium / high, sent to every LLM call in the format
   each provider expects.

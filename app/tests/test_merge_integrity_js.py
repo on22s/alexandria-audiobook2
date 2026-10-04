@@ -15,7 +15,7 @@ const ctx={document:{getElementById:el,querySelector:()=>({click:()=>events.push
  pendingChunkEdits:new Map(),failedChunkEdits:new Map(),chunkEditsRevision:0,
  ensureEditorRenderSnapshot:async()=>events.push('flush'),showConfirm:async text=>{events.push(text);return decision;},showToast:text=>events.push(text),
  pollLogs:()=>events.push('poll'),escapeHtml:value=>String(value).replaceAll('<','&lt;').replaceAll('>','&gt;')};
-vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
+vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('let editorIntegrityView ='),source.indexOf('async function openTextDiff()')));
 run(source.slice(source.indexOf('function renderTextDiff('),source.indexOf('function scrollToChunkRow(')));
 const start=source.indexOf("document.getElementById('btn-merge').addEventListener");
@@ -44,7 +44,7 @@ assert.match(events.at(-1),/1 word differences.*Cancel to fix/);
 decision=true;await handlers['btn-merge']();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].body.integrity_confirmation,reports.differences.snapshot);assert.strictEqual(posts[0].url,'/api/merge');assert.ok(events.includes('poll'));
 kind='unavailable';await handlers['btn-merge']();assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.integrity_confirmation,reports.unavailable.snapshot);assert.match(el('text-diff-panel').textContent,/script JSON/);assert.ok(events.some(event=>event.includes('Continue without a verified source match')));
 kind='verified';await handlers['btn-merge']();assert.strictEqual(posts.length,3);assert.strictEqual(posts[2].body.integrity_confirmation,reports.verified.snapshot);
-ctx.ensureEditorRenderSnapshot=async()=>{throw Error('save failed');};await handlers['btn-merge']();assert.strictEqual(posts.length,3);assert.match(events.at(-1),/Merge failed: save failed/);
+ctx.ensureEditorRenderSnapshot=async()=>{throw Error('save failed');};await handlers['btn-merge']();assert.strictEqual(posts.length,3);assert.match(events.at(-1),/Merge failed\..*Check the audio task status.*Details: save failed/);
 ''')
 
     def test_badge_uses_native_status_and_discards_inflight_response_after_edit(self):

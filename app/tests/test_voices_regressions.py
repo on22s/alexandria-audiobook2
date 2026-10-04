@@ -129,6 +129,28 @@ class VoicesTests(unittest.TestCase):
         self.assertEqual("Serena", resolved["NARRATOR"]["voice"])
 
 
+    def test_empty_version_config_inherits_voice_without_nested_version_bookkeeping(self):
+        for base in [{"type": "custom", "voice": "Serena", "seed": "42"},
+                     {"type": "clone", "ref_audio": "reference.wav", "ref_text": "Words"}]:
+            with self.subTest(base=base), tempfile.TemporaryDirectory() as tmp:
+                script_path = os.path.join(tmp, "script.json")
+                voice_path = os.path.join(tmp, "voices.json")
+                Path(script_path).write_text(json.dumps([{"speaker": "Hero"}]))
+                current = {**base, "age_group": "adult", "versions": {"old": {"voice": "Ryan"}},
+                           "version_timeline": [{"from_index": 1}], "style_timeline": [],
+                           "candidates": [{"voice": "Ryan"}], "active_version": "old", "active_candidate": "c"}
+                Path(voice_path).write_text(json.dumps({"Hero": current}))
+                with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                     patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+                    result = asyncio.run(voices_module.save_voice_version(
+                        "Hero", voices_module.VoiceVersionRequest(version_id="teen", age_group="teen")))
+                self.assertEqual({**base, "age_group": "teen"}, result["versions"]["teen"])
+                saved = json.loads(Path(voice_path).read_text())["Hero"]
+                self.assertEqual(result["versions"]["teen"], saved["versions"]["teen"])
+                self.assertEqual(current["versions"]["old"], saved["versions"]["old"])
+                self.assertEqual(current["active_version"], saved["active_version"])
+                self.assertEqual(base["type"], saved["type"])
+
     def test_voice_versions_and_candidates_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "script.json")

@@ -11,7 +11,7 @@ const fields={},timers=new Map(),errors=[],updates=[];let timerId=0,draws=0,play
 const element=id=>fields[id]||(fields[id]={value:'',style:{},children:[]});
 const body=element('chunks-table-body');let html='';
 Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
-const ctx={window:null,console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
+const ctx={window:null,currentBookFilename:'A',console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
  setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
  refreshEditorIntegrity:async()=>{},invalidateEditorIntegrity:()=>{},isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
@@ -37,6 +37,14 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_forced_redraw_retains_only_same_chunk_and_audio(self):
+        self.run_js(r'''let reply={revision:'v1',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1,'done'),uid:'one',audio_path:'audio.wav'}]};ctx.API.get=async()=>reply;await ctx.loadChunks(true);
+let replaced=0,plays=0,paused=0,metadata,removed=0;const player={dataset:{id:'1'},paused:false,ended:false,currentTime:8,isConnected:true,setAttribute:(key,value)=>{assert.equal(key,'onplay');assert.equal(value,'stopOthers(2)');},addEventListener:(event,fn)=>{assert.equal(event,'loadedmetadata');metadata=fn;},removeEventListener:()=>removed++,load:()=>{player.currentTime=0;metadata();},play:()=>{plays++;return Promise.resolve();},pause:()=>paused++};
+ctx.document.querySelectorAll=()=>[player];body.querySelector=()=>({replaceWith:p=>{assert.equal(p,player);replaced++;player.currentTime=0;}});
+reply={revision:'v2',full:true,total:1,changed_ids:[2],chunks:[{...chunk(2,'done'),uid:'one',audio_path:'audio.wav'}]};await ctx.loadChunks(true);assert.equal(replaced,1);assert.equal(plays,1);assert.equal(player.currentTime,8);assert.equal(player.dataset.id,'2');
+for(const change of ['uid','path','missing','book']){replaced=plays=0;run("cachedChunks=[{id:2,uid:'one',audio_path:'audio.wav'}]");reply={revision:'next',full:true,total:1,changed_ids:[2],chunks:[{...chunk(2,'done'),uid:change==='uid'?'other':'one',audio_path:change==='path'?'replacement.wav':change==='missing'?null:'audio.wav'}]};ctx.API.get=async()=>{if(change==='book'){ctx.currentBookFilename='B';}return reply;};ctx.currentBookFilename='A';await ctx.loadChunks(true);assert.equal(replaced,0,change);assert.equal(plays,0,change);}
+''')
+
     def test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged(self):
         self.run_js(r'''run(source.slice(source.indexOf('const pendingChunkEdits ='),source.indexOf('async function ensureEditorRenderSnapshot()')));
 const urls=[];const saved={...chunk(1),uid:'one',pause_after:0};ctx.API.get=async url=>{urls.push(url);return {revision:'v1',full:!url.includes('?revision='),total:1,changed_ids:url.includes('?revision=')?[]:[1],chunks:url.includes('?revision=')?[]:[saved]};};
@@ -84,6 +92,12 @@ first.resolve([chunk(1)]);await turn();assert.strictEqual(reads,2);playing=true;
 ctx.API.get=async()=>{throw Error('fixture unavailable');};await ctx.loadChunks();assert.strictEqual(errors.length,1);
 playing=false;ctx.API.get=async()=>[chunk(3,'generating')];await ctx.loadChunks();assert.deepStrictEqual(ids(),['3']);assert.strictEqual(timers.size,1);await ctx.loadChunks();assert.strictEqual(timers.size,1);
 ctx.API.get=async()=>[chunk(3,'done')];await ctx.loadChunks();assert.strictEqual(timers.size,0);
+''')
+
+    def test_failed_refresh_keeps_rows_and_shows_persistent_retry_until_recovery(self):
+        self.run_js(r'''
+ctx.API.get=async()=>[chunk(1)];await ctx.loadChunks();const before=body.innerHTML;ctx.API.get=async()=>{throw Error('<internal exception>');};await ctx.loadChunks();assert.strictEqual(body.innerHTML,before);assert.strictEqual(run('cachedChunks[0].id'),1);assert.match(element('chunk-load-status').innerHTML,/Could not load editor chunks/);assert.match(element('chunk-load-status').innerHTML,/loadChunks\(true\)/);assert(!element('chunk-load-status').innerHTML.includes('<internal exception>'));
+ctx.API.get=async()=>[chunk(2)];await ctx.loadChunks(true);assert.strictEqual(element('chunk-load-status').innerHTML,'');assert.deepStrictEqual(ids(),['2']);
 ''')
 
     def test_actual_batch_poll_fetches_and_renders_once_without_second_timer(self):

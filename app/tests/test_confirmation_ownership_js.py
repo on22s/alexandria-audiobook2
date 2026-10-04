@@ -12,14 +12,14 @@ class ConfirmationOwnershipJsTest(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 class Element {
-  constructor(){this.listeners=new Map();this.textContent='';this.removed=false;}
+  constructor(){this.listeners=new Map();this.textContent='';this.removed=false;this.classes=new Set();this.classList={toggle:(name,on)=>{if(on){this.classes.add(name);}else{this.classes.delete(name);}}};}
   addEventListener(event,fn){if(!this.listeners.has(event)){this.listeners.set(event,new Set());}this.listeners.get(event).add(fn);}
   removeEventListener(event,fn){this.listeners.get(event)?.delete(fn);}
   emit(event){for(const fn of [...(this.listeners.get(event)||[])]){if(this.listeners.get(event).has(fn)){fn();}}}
   remove(){this.removed=true;}
 }
-const elements=Object.fromEntries(['confirmModal','confirmModalBody','confirmModalOk','confirmModalCancel'].map(id=>[id,new Element()]));
-const modals=[],toasts=[],allToasts=[];
+const elements=Object.fromEntries(['confirmModalTitle','confirmModal','confirmModalBody','confirmModalOk','confirmModalCancel'].map(id=>[id,new Element()]));
+const modals=[],toasts=[],allToasts=[],toastOptions=[];
 elements['toast-container']={insertAdjacentHTML(position,html){const id=html.match(/id="([^"]+)"/)[1];const element=new Element();allToasts.push({id,element});if(!elements[id]){elements[id]=element;}}};
 let failShow=false;
 let delayShow=false;
@@ -27,8 +27,8 @@ const context={document:{getElementById(id){return elements[id];}},Date:{now:()=
  bootstrap:{Modal:class {constructor(el){this.el=el;this.hidden=false;this.disposed=false;modals.push(this);}
  show(){if(failShow){failShow=false;throw new Error('show failed');}this.shown=!delayShow;if(this.shown){this.el.emit('shown.bs.modal');}}
  hide(){if(this.shown){this.hidden=true;}}
- dispose(){this.disposed=true;}},Toast:class {constructor(el){toasts.push(el);}show(){}}}};
-vm.runInNewContext(source.slice(0,source.indexOf('// Big/long-running jobs')),context);
+ dispose(){this.disposed=true;}},Toast:class {constructor(el,options){toasts.push(el);toastOptions.push(options);}show(){}}}};
+vm.runInNewContext(source.slice(0,source.indexOf('async function confirmIfRemote(')),context);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const click=button=>elements[button].emit('click');
 const hidden=()=>elements.confirmModal.emit('hidden.bs.modal');
@@ -51,6 +51,13 @@ const ask=message=>context.showConfirm(message).then(value=>results.push([messag
    for(const element of [elements.confirmModal,elements.confirmModalOk,elements.confirmModalCancel]){
      assert.ok([...element.listeners.values()].every(listeners=>listeners.size===0),'all listeners cleaned');
    }
+ }else if(mode==='labels'){
+   const first=context.showConfirm('Delete A?',{title:'Delete saved script?',actionLabel:'Delete script',danger:true});
+   const second=context.showConfirm('Continue B?');await tick();
+   assert.equal(elements.confirmModalTitle.textContent,'Delete saved script?');assert.equal(elements.confirmModalOk.textContent,'Delete script');assert(elements.confirmModalOk.classes.has('btn-danger'));assert(!elements.confirmModalOk.classes.has('btn-primary'));
+   click('confirmModalCancel');hidden();assert.equal(await first,false);await tick();
+   assert.equal(elements.confirmModalTitle.textContent,'Confirm action');assert.equal(elements.confirmModalOk.textContent,'Continue');assert(!elements.confirmModalOk.classes.has('btn-danger'));assert(elements.confirmModalOk.classes.has('btn-primary'));
+   click('confirmModalOk');hidden();assert.equal(await second,true);
  }else if(mode==='dismiss'){
    ask('first');ask('second');await tick();hidden();await tick();
    assert.deepEqual(results,[['first',false]]);assert.equal(elements.confirmModalBody.textContent,'second');
@@ -68,6 +75,9 @@ const ask=message=>context.showConfirm(message).then(value=>results.push([messag
    delayShow=false;hidden();await tick();assert.deepEqual(results,[['early',true]]);
    assert.equal(elements.confirmModalBody.textContent,'later');hidden();await tick();
    assert.deepEqual(results,[['early',true],['later',false]]);
+ }else if(mode==='lifetime'){
+   context.showToast('error','error');context.showToast('info');context.showToast('success','success');context.showToast('warning','warning');context.showToast('long error','error',20000);context.showToast('long info','info',12000);
+   assert.deepEqual(toastOptions.map(x=>x.delay),[10000,4000,4000,4000,20000,12000]);
  }else if(mode==='toast'){
    context.showToast('one');context.showToast('two');
    assert.equal(new Set(allToasts.map(item=>item.id)).size,2);
@@ -80,6 +90,12 @@ const ask=message=>context.showConfirm(message).then(value=>results.push([messag
         result = subprocess.run(['node', '-e', script, str(SOURCE), scenario],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_error_toasts_allow_more_reading_time_without_changing_explicit_durations(self):
+        self.run_js('lifetime')
+
+    def test_queued_action_labels_and_danger_style_reset_for_next_confirmation(self):
+        self.run_js('labels')
 
     def test_overlapping_confirmations_wait_for_individual_decisions_and_hide(self):
         self.run_js('queue')

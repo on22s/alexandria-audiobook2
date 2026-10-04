@@ -43,6 +43,7 @@ c.ctx.voiceSaveQueue.flush=()=>Promise.resolve();pending=c.ctx.loadVoices(false)
 const c=client(),loads=[];let handler;
 const link={dataset:{tab:'voices'},classList:{remove(){},add(){}},removeAttribute(){},setAttribute(){},addEventListener(name,fn){assert.strictEqual(name,'click');handler=fn;}};
 c.ctx.document.querySelectorAll=selector=>selector==='.nav-link'?[link]:[{style:{}}];c.ctx.document.getElementById=id=>({style:{},classList:{contains:()=>false}});c.ctx.rememberTab=()=>{};c.ctx.loadVoices=(...args)=>loads.push(args);
-const a=source.indexOf("document.querySelectorAll('.nav-link').forEach(link => {");const b=source.indexOf('// --- LLM model picker:',a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),c.ctx);
+c.ctx.window=c.ctx;c.ctx.location={hash:'#setup'};c.ctx.history={pushState:(_s,_t,hash)=>c.ctx.location.hash=hash};c.ctx.addEventListener=()=>{};
+const a=source.indexOf('const TAB_STORAGE_KEY =');const b=source.indexOf('// --- LLM model picker:',a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),c.ctx);
 handler({preventDefault(){},currentTarget:link});assert.deepStrictEqual(loads,[[false]]);
 """)

@@ -10,7 +10,7 @@ const source=fs.readFileSync(process.argv[1],'utf8'),elements={},posts=[],gets=[
 const el=id=>elements[id]||(elements[id]={style:{},disabled:false,innerHTML:'',textContent:''});
 const bodies={'first.md':'First report','second.md':'Second report'};
 const ctx={document:{getElementById:el,querySelectorAll:()=>[]},escapeHtml:x=>String(x),marked:{parse:x=>x},DOMPurify:{sanitize:x=>'sanitized:'+x},confirmIfRemote:async()=>true,showToast:(...x)=>toasts.push(x),fetch:async url=>({ok:true,text:async()=>bodies[decodeURIComponent(url.split('/').at(-1))]}),API:{get:async url=>{gets.push(url);return [{filename:'first.md',can_explain:true},{filename:'second.md',can_explain:false}];},post:async(url,body)=>{posts.push({url,body});return {status:'started',run_id:'run1'};}},_startPolling:(name,fetch,options)=>{poll={name,fetch,options};}};
-vm.createContext(ctx);vm.runInContext(source.slice(0,source.indexOf('// Last script:')),ctx);
+vm.createContext(ctx);{const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}vm.runInContext(source.slice(0,source.indexOf('// Last script:')),ctx);
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 '''
 

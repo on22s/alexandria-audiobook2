@@ -1,14 +1,15 @@
 """Run the four real core log callbacks on bounded windows and growing logs."""
 from pathlib import Path
+import os
 import subprocess
 import unittest
 
-SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+SOURCE = Path(os.environ.get('CORE_LOG_SOURCE', Path(__file__).resolve().parent.parent / 'static/js/app-core.js'))
 SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const elements={},polls={},pause=[],manual=[],activity=[];let notices=0;
-function element(id){if(elements[id]){return elements[id];}let text='';const stats={replaces:0,appends:0,scrolls:0};const el={value:'',style:{},stats,scrollHeight:42};
-Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{text=value;stats.replaces++;}});Object.defineProperty(el,'scrollTop',{set:()=>stats.scrolls++});el.appendChild=node=>{text+=node.textContent;stats.appends++;};elements[id]=el;return el;}
+function element(id){if(elements[id]){return elements[id];}let text='';const stats={replaces:0,appends:0,scrolls:0};let scrollPosition=0;const el={value:'',style:{},stats,scrollHeight:42,clientHeight:42};
+Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{text=value;stats.replaces++;}});Object.defineProperty(el,'scrollTop',{get:()=>scrollPosition,set:value=>{scrollPosition=value;stats.scrolls++;}});el.appendChild=node=>{text+=node.textContent;stats.appends++;};elements[id]=el;return el;}
 const ctx={window:null,console,Date,document:{getElementById:element,querySelector:()=>null,createTextNode:text=>({textContent:text}),createElement:()=>({textContent:''})},API:{get:async()=>({})},
  _startPolling:(key,fetch,options)=>polls[key]={fetch,...options},syncPauseButton:(...args)=>pause.push(args),syncSnapshotButton:()=>{},renderManualRequest:(...args)=>manual.push(args),renderActivity:(...args)=>activity.push(args),
  _updateReviewBatchTotals:()=>{},notifyJobDone:()=>notices++,_showTaskRecoveryPanel:()=>{},loadSavedScripts:()=>{},loadVoices:async()=>{},showToast:()=>{},loadChunks:()=>{}};ctx.window=ctx;
@@ -43,6 +44,20 @@ for(const [key,id,start] of cases){
  for(const current of [['same','new','newer'],['newer'],['corrected'],[]]){tick({run_id:'one',running:true,logs:current});assert.strictEqual(el.innerText,current.join('\n'));}
  tick({run_id:'two',running:true,logs:['new run']});assert.strictEqual(el.innerText,'new run');assert(!polls[key].doneCheck({running:true}));assert(polls[key].doneCheck({running:false}));
  await start();polls[key].onTick({start_time:3,running:true,logs:['reattached']});assert.strictEqual(el.innerText,'reattached');
+}
+''')
+
+    def test_reader_scroll_position_survives_append_rotation_and_new_run(self):
+        self.run_js(r'''
+for(const [key,id,start] of cases){
+ await start();const el=element(id),tick=polls[key].onTick;
+ el.scrollHeight=1000;el.clientHeight=100;
+ tick({run_id:'one',running:true,logs:['first','second']});assert.strictEqual(el.scrollTop,1000);
+ el.scrollTop=200;tick({run_id:'one',running:true,logs:['first','second','third']});assert.strictEqual(el.scrollTop,200,'reading history must not jump');
+ tick({run_id:'one',running:true,logs:['second','third','fourth']});assert.strictEqual(el.scrollTop,200,'rotated logs must not jump');
+ tick({run_id:'two',running:true,logs:['new run']});assert.strictEqual(el.scrollTop,200,'reattachment must not override reader position');
+ el.scrollTop=880;tick({run_id:'two',running:true,logs:['new run','tail']});assert.strictEqual(el.scrollTop,1000,'within 24 pixels follows tail');
+ el.scrollTop=870;tick({run_id:'two',running:true,logs:['new run','tail','next']});assert.strictEqual(el.scrollTop,870,'outside 24 pixels preserves position');
 }
 ''')
 

@@ -23,7 +23,7 @@ function client(){
  }
  batches.push({url,data:JSON.parse(JSON.stringify(data)),artifact:JSON.parse(fs.readFileSync(artifact))});return{total_chunks:1,workers:1};
  },get:async url=>{assert.strictEqual(url,'/api/chunks');gets.push(url);const snapshot=JSON.parse(fs.readFileSync(artifact));if(holdRead){await new Promise(resolve=>readRelease=resolve);holdRead=false;}return snapshot;}}};
- context.window=context;vm.createContext(context);vm.runInContext('let isRenderingAll=false;let cachedChunks=[{id:7,text:"",speaker:"OLD",instruct:"",status:"pending"}];'+edits+render,context);
+ context.window=context;vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);vm.runInContext('let isRenderingAll=false;let cachedChunks=[{id:7,text:"",speaker:"OLD",instruct:"",status:"pending"}];'+edits+render,context);
  return{context,controls,calls,errors,gates,gets,batches,setHold:x=>hold=x,setFail:x=>fail=x,holdNextRead:()=>holdRead=true,releaseRead:()=>readRelease(),getReadRelease:()=>readRelease};
 }
 let finished=false;process.on('beforeExit',()=>assert(finished,'Editor barrier assertions must finish'));

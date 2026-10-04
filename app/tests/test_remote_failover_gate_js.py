@@ -11,7 +11,7 @@ const turn=()=>new Promise(setImmediate);
 function client(activeRemote=false,failoverRemote=true){
  const elements={},handlers={},posts=[],gets=[],prompts=[],toasts=[],polls=[];let decision=false,keepCalls=0;
  const el=id=>elements[id]||(elements[id]={value:id==='review-context-window'?'5':'',files:[],style:{},checked:false,disabled:false,innerHTML:'',classList:{add(){},remove(){}},addEventListener:(_event,callback)=>handlers[id]=callback});
- const ctx={window:null,document:{getElementById:el,querySelectorAll:()=>[]},currentIsRemote:activeRemote,failoverIsRemote:failoverRemote,console,
+ const ctx={window:null,document:{getElementById:el,querySelectorAll:()=>[]},currentIsRemote:activeRemote,failoverIsRemote:failoverRemote,currentBookFilename:'book.txt',showPresetEditor:async()=>({name:'teen'}),console,
  showConfirm:async message=>{prompts.push(message);return typeof decision==='function'?await decision():decision;},showToast:(...args)=>toasts.push(args),prompt:()=> 'teen',
  API:{post:async(url,payload)=>{posts.push({url,payload});return {suggestions:{}};},get:async url=>{gets.push(url);return[];}},
  _resetPauseBtn(){},_isStripFrontMatterChecked:()=>true,_isReviewDedupeChecked:()=>true,_disableReviewButtons(){},_showReviewControls(){},_onReviewDone(){},
@@ -38,6 +38,16 @@ class RemoteFailoverGateJsTests(unittest.TestCase):
         result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_cost_warning_does_not_assume_provider_or_billing_model(self):
+        self.run_js(r'''
+for(const [remote,failover] of [[true,false],[false,true]]){
+ const c=client(remote,failover);assert.strictEqual(await c.ctx.confirmIfRemote('the selected task'),false);
+ assert.strictEqual(c.prompts.length,1);assert.doesNotMatch(c.prompts[0],/Thunder|by the hour/);assert.match(c.prompts[0],/may incur.*charges/);assert.match(c.prompts[0],/Cancel/);
+ c.setDecision(true);assert.strictEqual(await c.ctx.confirmIfRemote('the selected task'),true);assert.strictEqual(c.prompts.length,2);
+}
+const local=client(false,false);assert.strictEqual(await local.ctx.confirmIfRemote('local task'),true);assert.strictEqual(local.prompts.length,0);
+''')
+
     def test_every_real_starter_decline_prevents_requests_and_releases_claims(self):
         self.run_js(r'''
 for(let index=0;index<9;index++){
@@ -61,7 +71,7 @@ for(const index of [2,5]){
 for(const remote of [false,true]){for(let index=0;index<9;index++){
  const c=client(remote,false),[name,start,endpoint]=c.actions[index];await start();assert.strictEqual(c.prompts.length,0,name);assert.strictEqual(c.posts.length,1,name);assert.strictEqual(c.posts[0].url,endpoint,name);
 }}
-const batch=client(true,false);assert.strictEqual(await batch.ctx.confirmIfRemote('this batch review'),false);assert.strictEqual(batch.prompts.length,1);assert.match(batch.prompts[0],/REMOTE LLM/);assert.match(batch.prompts[0],/bill/);
+const batch=client(true,false);assert.strictEqual(await batch.ctx.confirmIfRemote('this batch review'),false);assert.strictEqual(batch.prompts.length,1);assert.match(batch.prompts[0],/REMOTE LLM/);assert.match(batch.prompts[0],/charges/);
 const hidden=client(false,true);assert.strictEqual(await hidden.ctx.confirmIfRemote('this batch script generation'),false);assert.match(hidden.prompts[0],/failover is on/);
 const local=client(false,false);assert.strictEqual(await local.ctx.confirmIfRemote('local batch'),true);assert.strictEqual(local.prompts.length,0);
 ''')

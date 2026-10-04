@@ -21,6 +21,36 @@ const initial=context.dsbLoadProjects();await context.dsbLoadProjects('Book');as
 resolveBoot(owner);await initial;assert.strictEqual(select.value,'Book');assert.strictEqual(run('dsbCurrentProject'),'Book');assert(run('dsbBatchRunning'));
 """)
 
+    def test_project_list_failure_retains_selection_retries_and_ignores_stale_failure(self):
+        self.run_scenario(r"""
+const select=context.document.getElementById('dsb-project-select'),status=context.document.getElementById('dsb-project-list-status');select.value='Book';select.innerHTML='old options';
+context.API.get=async()=>{throw Error('offline');};await context.dsbLoadProjects();assert.strictEqual(select.value,'Book');assert.strictEqual(select.innerHTML,'old options');assert(status.innerHTML.includes('Retry project list'));
+context.API.get=async()=>({wrong:'shape'});await context.dsbLoadProjects();assert.strictEqual(select.innerHTML,'old options');
+let reject;context.API.get=()=>new Promise((yes,no)=>reject=no);const stale=context.dsbLoadProjects();context.API.get=async()=>[{name:'Book',done_count:1,sample_count:1}];await context.dsbLoadProjects();assert.strictEqual(select.value,'Book');assert.strictEqual(status.textContent,'');reject(Error('late offline'));await stale;assert.strictEqual(status.textContent,'');
+context.API.get=async()=>[];await context.dsbLoadProjects();assert.strictEqual(select.value,'Book');assert(select.innerHTML.includes('not in current list'));assert(status.textContent.includes('loaded rows have been kept'));
+""")
+
+    def test_training_save_flushes_rows_and_marks_later_edits_or_regeneration_stale(self):
+        self.run_scenario(r"""
+run("dsbCurrentProject='Book';dsbRows=[{text:'original',emotion:'warm',seed:0,status:'done',audio_url:'/sample.wav'}];");
+let flushes=0,resolvePost;context.flush=async()=>flushes++;run('dsbSaveRowsQueue={flush};');context.showConfirm=async()=>true;context.API.post=(url,body)=>{assert.strictEqual(url,'/api/dataset_builder/save');assert.strictEqual(body.name,'Book');return new Promise(yes=>resolvePost=yes);};
+const save=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();assert.strictEqual(flushes,1);resolvePost({sample_count:1});await save;const status=context.document.getElementById('dsb-save-status');assert.strictEqual(status.textContent,'Saved! 1 samples.');
+run("dsbRows[0].status='generating';applyDatasetTrainingSaveFeedback();");assert(status.textContent.includes('saved before these changes'));
+run("dsbRows[0].status='done';applyDatasetTrainingSaveFeedback();");assert(status.textContent.includes('saved before these changes'),'regeneration completion must not resurrect old Saved');
+const next=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();run("dsbRows[0].text='newer edit';");resolvePost({sample_count:1});await next;assert(status.textContent.includes('saved before these changes'));
+run("dsbCurrentProject='Other';applyDatasetTrainingSaveFeedback();");assert.strictEqual(status.textContent,'');
+""")
+
+    def test_training_save_refuses_changed_confirmation_flush_and_old_owner_ack(self):
+        self.run_scenario(r"""
+const reset=()=>run("dsbCurrentProject='Book';dsbRows=[{text:'original',emotion:'warm',status:'done',audio_url:'/sample.wav'}];dsbSaveRowsQueue=null;");reset();let confirm,flush,post,count=0;
+context.showConfirm=()=>new Promise(yes=>confirm=yes);context.API.post=()=>{count++;return new Promise(yes=>post=yes);};
+const decision=context.dsbSave();await context.dsbSave();run("dsbRows[0].text='changed';");confirm(true);await decision;assert.strictEqual(count,0);
+reset();context.showConfirm=async()=>true;context.flush=()=>new Promise(yes=>flush=yes);run('dsbSaveRowsQueue={flush};');const saving=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();run("dsbCurrentProject='Other';");flush();await saving;assert.strictEqual(count,0);
+reset();const accepted=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();assert.strictEqual(count,1);run("dsbCurrentProject='Other';");const status=context.document.getElementById('dsb-save-status');status.textContent='Other project';post({sample_count:1});await accepted;assert.strictEqual(status.textContent,'Other project');
+reset();context.API.post=async()=>{throw Error('offline');};await context.dsbSave();assert(status.textContent.includes('could not be confirmed'));assert.strictEqual(run('dsbRows[0].text'),'original');
+""")
+
     def test_restore_active_dataset_selects_exact_owner_and_awaits_its_load(self):
         self.run_scenario(r"""
 let resolveOwner;const ownerLoad=new Promise(resolve=>resolveOwner=resolve);let pollingOwner=null;
@@ -81,7 +111,7 @@ assert.doesNotMatch(context.dsbBuildRowHtml(run('dsbRows[0]'), 0), /<textarea[^>
 
     def test_actual_project_switch_restores_idle_controls_and_stops_old_poller(self):
         self.run_scenario(r"""
-run("dsbCurrentProject='A'; dsbRows=[{text:'A'}]; dsbBatchRunning=true;");
+run("dsbCurrentProject='A'; dsbRows=[{text:'A'}]; dsbBatchRunning=false;");
 elements['dsb-project-select'] = {value:'B'};
 context.document.getElementById('dsb-btn-gen-all').style.display='none';
 context.document.getElementById('dsb-btn-regen-all').style.display='none';
@@ -105,6 +135,23 @@ assert.strictEqual(run('dsbRows[0].text'),'B');
 assert.strictEqual(posts.length,0);
 """)
 
+    def test_running_or_starting_batch_keeps_project_and_poller(self):
+        self.run_scenario(r"""
+context.showToast=()=>{};
+for(const duringFlush of [false,true]){
+ run("dsbCurrentProject='A';dsbRows=[{text:'A'}];dsbBatchRunning=false;");
+ elements['dsb-project-select']={value:'B'};
+ let cancelled=0;context.cancelled=()=>cancelled++;run('dsbPolling=cancelled;');
+ context.API.get=async()=>{throw Error('must not load another project');};
+ if(duringFlush){
+  let resolve;context.flush=()=>new Promise(done=>resolve=done);run('dsbSaveRowsQueue={flush};');
+  const pending=context.dsbOnProjectChange();run('dsbBatchRunning=true;');resolve();await pending;
+ }else{run('dsbSaveRowsQueue=null;dsbBatchRunning=true;');await context.dsbOnProjectChange();}
+ assert.strictEqual(elements['dsb-project-select'].value,'A');assert.strictEqual(run('dsbCurrentProject'),'A');
+ assert.strictEqual(run('dsbRows[0].text'),'A');assert.strictEqual(cancelled,0);assert.strictEqual(run('dsbBatchRunning'),true);
+}
+""")
+
     def test_invalid_import_types_preserve_rows_and_schedule_no_save(self):
         self.run_scenario(r"""
 const errors = [];
@@ -119,7 +166,7 @@ for (const data of [{}, [null], [1], ['text'], [[]], [true],
     [{text:'valid first'},{text:123}]]) {
     const event={target:{files:[{}],value:'dataset.json'}};
     context.dsbImport(event);
-    reader.onload({target:{result:JSON.stringify(data)}});
+    await reader.onload({target:{result:JSON.stringify(data)}});
     assert.deepStrictEqual(plain(run('dsbRows')),before,`Invalid import ${JSON.stringify(data)} must preserve rows`);
     assert.strictEqual(timers.size,0);
     assert.strictEqual(posts.length,0);
@@ -128,16 +175,60 @@ for (const data of [{}, [null], [1], ['text'], [[]], [true],
 }
 """)
 
+    def test_sample_delete_cancel_and_changed_owner_preserve_rows(self):
+        self.run_scenario(r"""
+run("dsbCurrentProject='A';dsbRows=[{text:'keep',status:'done',audio_url:'/keep.wav'}];");
+context.showConfirm=async()=>false;
+await context.dsbRemoveRow(0);
+assert.strictEqual(run('dsbRows.length'),1);assert.strictEqual(timers.size,0);
+let resolve;context.showConfirm=()=>new Promise(done=>resolve=done);
+const pending=context.dsbRemoveRow(0);
+run("dsbCurrentProject='B';dsbRows=[{text:'other'}];");resolve(true);await pending;
+assert.strictEqual(run('dsbRows[0].text'),'other');assert.strictEqual(timers.size,0);
+context.showConfirm=async()=>true;await context.dsbRemoveRow(0);
+assert.strictEqual(run('dsbRows.length'),0);assert.strictEqual(timers.size,1);
+""")
+
+    def test_import_cancel_and_project_switch_leave_audio_and_rows_untouched(self):
+        self.run_scenario(r"""
+let reader;context.FileReader=class{constructor(){reader=this;}readAsText(){}};
+run("dsbCurrentProject='A';dsbRows=[{text:'keep',status:'done',audio_url:'/keep.wav'}];");
+const before=plain(run('dsbRows'));context.showConfirm=async()=>false;
+context.dsbImport({target:{files:[{}],value:'file'}});
+await reader.onload({target:{result:'[{"text":"new"}]'}});
+assert.deepStrictEqual(plain(run('dsbRows')),before);assert.strictEqual(timers.size,0);
+context.showConfirm=async()=>true;context.dsbImport({target:{files:[{}],value:'file'}});
+run("dsbCurrentProject='B';dsbRows=[{text:'B'}];");
+await reader.onload({target:{result:'[{"text":"new"}]'}});
+assert.strictEqual(run('dsbRows[0].text'),'B');assert.strictEqual(timers.size,0);
+""")
+
+    def test_import_confirmation_refuses_changed_rows_or_new_batch(self):
+        self.run_scenario(r"""
+let reader;context.FileReader=class{constructor(){reader=this;}readAsText(){}};
+context.showToast=()=>{};
+for(const change of ['edit','batch']){
+ run("dsbCurrentProject='A';dsbRows=[{text:'keep',status:'done',audio_url:'/keep.wav'}];dsbBatchRunning=false;");
+ let resolve;context.showConfirm=()=>new Promise(done=>resolve=done);
+ context.dsbImport({target:{files:[{}],value:'file'}});
+ const pending=reader.onload({target:{result:'[{"text":"new"}]'}});
+ if(change==='edit'){run("dsbRows[0].text='edited';");}else{run('dsbBatchRunning=true;');}
+ const before=plain(run('dsbRows'));resolve(true);await pending;
+ assert.deepStrictEqual(plain(run('dsbRows')),before);assert.strictEqual(timers.size,0);
+}
+""")
+
     def test_valid_import_preserves_strings_seed_zero_and_export_round_trip(self):
         self.run_scenario(r"""
 let reader;
 context.FileReader=class {constructor(){reader=this;} readAsText(){} };
 run("dsbCurrentProject='A'; dsbRows=[{text:'old'}];");
+context.showConfirm=async()=>true;
 const data=[{text:'line',emotion:'calm',seed:0},
     {text:'legacy line',instruct:'warm',seed:'42'},
     {text:'optional'}, {text:null,emotion:null,seed:null}];
 context.dsbImport({target:{files:[{}],value:'dataset.json'}});
-reader.onload({target:{result:JSON.stringify(data)}});
+await reader.onload({target:{result:JSON.stringify(data)}});
 assert.deepStrictEqual(plain(run('dsbRows')),[
     {text:'line',emotion:'calm',seed:0,status:'pending',audio_url:null},
     {text:'legacy line',emotion:'warm',seed:'42',status:'pending',audio_url:null},
@@ -264,7 +355,7 @@ for(const failure of cases){
   return new Response(failure.body,{status:failure.status,statusText:failure.statusText});
  };
  await context.startPreparer();
- assert.deepStrictEqual(toasts.at(-1),['Failed to start: '+failure.expected,'error']);
+ assert(toasts.at(-1)[0].includes('Check preparer task status and output files'));assert(toasts.at(-1)[0].includes('Details: '+failure.expected));assert.strictEqual(toasts.at(-1)[1],'error');
  assert.strictEqual(elements['btn-prep-start'].disabled,false);
  assert.strictEqual(elements['btn-prep-cancel'].style.display,'none');
  assert.strictEqual(polls.length,0);
@@ -326,11 +417,27 @@ run('_applyPreparerControls(null)');
 elements['prep-batch-files'].files=selected;context.onPrepBatchFilesChange();
 context.fetch=async()=>new Response('proxy limit',{status:413,statusText:'Payload Too Large'});
 await context.startPreparer();
-assert.match(toasts.at(-1)[0],/Failed to start batch:.*Payload Too Large/);
+assert.match(toasts.at(-1)[0],/Batch preparer start is unconfirmed.*output files.*Payload Too Large/);
 assert.strictEqual(elements['btn-prep-start'].disabled,false);
 assert.strictEqual(elements['btn-prep-cancel'].style.display,'none');
 assert.strictEqual(polls.length,1,'failure must not start a status poll');
 """)
+
+    def test_dataset_poll_logs_append_preserve_history_and_reject_old_owner(self):
+        self.run_scenario(r'''
+let poll;context._startPolling=(key,fetch,options)=>{poll=options;return ()=>{};};
+run("dsbCurrentProject='Book';dsbBatchRunning=true;");context.dsbStartPolling('Book');
+const el=context.document.getElementById('dsb-logs');let text='',replaces=0,appends=0;
+Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{text=value;replaces++;}});
+el.appendChild=node=>{text+=node.textContent;appends++;};el.scrollHeight=1000;el.clientHeight=100;
+const tick=logs=>poll.onTick({running:true,run_id:'one',logs,samples:[]});
+tick(['first','second']);assert.strictEqual(el.scrollTop,1000);el.scrollTop=200;
+tick(['first','second','third']);assert.strictEqual(el.scrollTop,200);assert.strictEqual(appends,1);assert.strictEqual(replaces,1);
+tick(['first','second','third']);assert.strictEqual(appends,1);assert.strictEqual(replaces,1);
+tick(['second','third','fourth']);assert.strictEqual(text,'second\nthird\nfourth');assert.strictEqual(el.scrollTop,200);
+tick([]);assert.strictEqual(text,'','empty run logs clear stale text');
+run("dsbCurrentProject='Other';");tick(['old owner']);assert.strictEqual(text,'','stale owner cannot repaint logs');
+''')
 
     def run_scenario(self, scenario):
         setup = r'''
@@ -350,9 +457,9 @@ const timers = new Map();
 let nextTimer = 1;
 const context = {
     localStorage: {removeItem() {}},
-    document: {getElementById(id) {
+    document: {createTextNode: text => ({textContent:text}), getElementById(id) {
         if (!elements[id]) {
-            elements[id] = {value: '', style: {}, innerHTML: '', innerText: ''};
+            elements[id] = {value: '', style: {}, innerHTML: '', innerText: '', scrollHeight:0, clientHeight:0, scrollTop:0, appendChild(node) { this.innerText += node.textContent; }};
         }
         return elements[id];
     }},
@@ -365,10 +472,14 @@ const context = {
     clearTimeout(id) { timers.delete(id); }
 };
 context.window = context;
-vm.createContext(context);
+vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
 vm.runInContext(core.slice(queueStart, queueEnd), context);
 const escapeStart=core.indexOf('function escapeHtml('),escapeEnd=core.indexOf('// Parse a numeric input',escapeStart);
 vm.runInContext(core.slice(escapeStart,escapeEnd),context);
+const failureStart=core.indexOf('function isTaskFailed(');vm.runInContext(core.slice(failureStart,core.indexOf('// --- Desktop notifications ---',failureStart)),context);
+const outcomeStart=core.indexOf('function getTaskCompletionOutcome(');vm.runInContext(core.slice(outcomeStart,core.indexOf('function notifyJobDone(',outcomeStart)),context);
+const logsStart=core.indexOf('function getTaskLogUpdate(');
+vm.runInContext(core.slice(logsStart,core.indexOf('// --- Setup Tab ---',logsStart)),context);
 vm.runInContext(source.slice(0, end), context);
 const run = code => vm.runInContext(code, context);
 // Rendering is unrelated to request ownership; progress uses its actual renderer.
@@ -472,11 +583,25 @@ for (const fail of [false, true]) {
     if (!fail) { assert.strictEqual(run('dsbRows[0].audio_url'), '/A/current.wav'); }
     assert.strictEqual(toasts.length, fail ? 1 : 0);
     if (fail) {
-        assert.strictEqual(run('dsbRows[0].error'), 'generation failed');
-        assert.deepStrictEqual(toasts[0], ['Sample generation failed: generation failed', 'error']);
+        assert(run('dsbRows[0].error').includes('Check the sample audio and dataset task status'));assert(run('dsbRows[0].error').includes('Details: generation failed'));
+        assert.strictEqual(toasts[0][0],run('dsbRows[0].error'));assert.strictEqual(toasts[0][1],'error');
     }
 }
 ''')
+
+    def test_refresh_failure_keeps_loaded_rows_but_failed_switch_disarms_saves(self):
+        self.run_scenario(r"""
+context.showToast=()=>{};run("dsbCurrentProject='A';");
+context.API.get=async()=>({description:'voice A',samples:[{text:'A saved',status:'done',audio_url:'/A.wav'}]});
+await context.dsbLoadProject('A');const before=plain(run('dsbRows'));
+context.API.get=async()=>{throw Error('offline');};await context.dsbLoadProject('A');
+assert.strictEqual(run('dsbCurrentProject'),'A');assert.deepStrictEqual(plain(run('dsbRows')),before);
+assert.match(elements['dsb-project-load-status'].innerHTML,/last loaded version/);assert.match(elements['dsb-project-load-status'].innerHTML,/Retry/);
+run("dsbCurrentProject='B';");await context.dsbLoadProject('B');
+assert.strictEqual(run('dsbCurrentProject'),'');assert.deepStrictEqual(plain(run('dsbRows')),[]);
+context.dsbSaveRows();assert.strictEqual(timers.size,0);assert.strictEqual(posts.length,0);
+assert.match(elements['dsb-project-load-status'].innerHTML,/Could not load dataset/);
+""")
 
     def test_late_project_loads_cannot_overwrite_a_new_selection_or_reload(self):
         self.run_scenario(r'''
@@ -515,6 +640,8 @@ context._startPolling = (_key,_fetch,handlers) => { callbacks=handlers; return (
 run("dsbCurrentProject = 'A'; dsbRows = [{text:'A',status:'generating'}]; dsbBatchRunning = true;");
 context.dsbStartPolling('A');
 const oldCallbacks = callbacks;
+// A completed batch allows switching; late responses still belong to A.
+run('dsbBatchRunning = false;');
 elements['dsb-project-select'] = {value:'B'};
 context.API.get = async () => ({samples:[{text:'B',status:'pending'}],running:false});
 await context.dsbOnProjectChange();

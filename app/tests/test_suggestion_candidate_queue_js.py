@@ -53,6 +53,19 @@ const first=ctx.collectVoiceConfig();assert(reads<=2000,'one index per collectio
 ctx._loraModelsCache=[{id:'model-999',adapter_path:'/updated'}];const second=ctx.collectVoiceConfig();assert.strictEqual(second['Speaker 0'].adapter_path,'/updated');assert.strictEqual(first['Speaker 0'].adapter_path,'/first/999');
 ''')
 
+    def test_catalog_failure_retains_pool_warns_beside_success_and_clears_after_recovery(self):
+        self.run_js(r"""
+const original=[{id:'model',builtin:true,adapter_path:'/known'}];ctx._loraModelsCache=original;
+ctx.API.get=async()=>{throw Error('offline');};ctx.API.post=async(url,payload)=>{
+ if(url==='/api/suggest_voices')return{suggestions:{Hero:{adapter_id:'model'}},method:'heuristic'};
+ writes.push({url,payload});return{};
+};await ctx.suggestVoices();assert.strictEqual(ctx._loraModelsCache,original);assert.strictEqual(writes.length,1);assert.strictEqual(writes[0].payload.config.type,'builtin_lora');
+assert(el('suggest-status').innerHTML.includes('Suggested 1 voice'));assert(el('suggest-catalog-status').textContent.includes('could not be refreshed'));
+ctx.API.get=async()=>({unexpected:'shape'});await ctx.suggestVoices();assert.strictEqual(ctx._loraModelsCache,original);assert(el('suggest-catalog-status').textContent.includes('could not be refreshed'));
+ctx.API.get=async()=>[{id:'model',builtin:false,adapter_path:'/new'}];await ctx.suggestVoices();assert.strictEqual(el('suggest-catalog-status').textContent,'');assert.strictEqual(ctx._loraModelsCache[0].adapter_path,'/new');assert.strictEqual(writes.at(-1).payload.config.type,'lora');
+ctx.API.get=async()=>{throw Error('offline');};ctx.API.post=async()=>({suggestions:{},message:'No matching voices'});await ctx.suggestVoices();assert.strictEqual(el('suggest-status').textContent,'No matching voices');assert(el('suggest-catalog-status').textContent.includes('could not be refreshed'));
+""")
+
     def test_real_ranked_packets_persist_every_candidate_through_native_routes(self):
         output = self.run_js(r'''
 const suggestions=Object.fromEntries(Array.from({length:6},(_,i)=>['Speaker '+i,{ranked_adapter_ids:Array.from({length:5},(_,j)=>'model-'+j)}]));ctx.API.get=async()=>[{id:'model-0',builtin:true,adapter_path:'/builtin'}];

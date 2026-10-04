@@ -9,11 +9,11 @@ CORE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
 SETUP = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(process.argv[2],'utf8');
-class Element {constructor(){this.listeners=new Map();this.textContent='';}addEventListener(event,fn){if(!this.listeners.has(event)){this.listeners.set(event,new Set());}this.listeners.get(event).add(fn);}removeEventListener(event,fn){this.listeners.get(event)?.delete(fn);}emit(event){for(const fn of [...(this.listeners.get(event)||[])]){if(this.listeners.get(event).has(fn)){fn();}}}}
-const elements=Object.fromEntries(['confirmModal','confirmModalBody','confirmModalOk','confirmModalCancel'].map(id=>[id,new Element()])),modals=[],calls=[],toasts=[];let loads=0,history=0;
+class Element {constructor(){this.listeners=new Map();this.textContent='';this.classList={toggle(){}};}addEventListener(event,fn){if(!this.listeners.has(event)){this.listeners.set(event,new Set());}this.listeners.get(event).add(fn);}removeEventListener(event,fn){this.listeners.get(event)?.delete(fn);}emit(event){for(const fn of [...(this.listeners.get(event)||[])]){if(this.listeners.get(event).has(fn)){fn();}}}}
+const elements=Object.fromEntries(['confirmModalTitle','confirmModal','confirmModalBody','confirmModalOk','confirmModalCancel'].map(id=>[id,new Element()])),modals=[],calls=[],toasts=[];let loads=0,history=0;
 const ctx={window:null,document:{getElementById:id=>elements[id]},bootstrap:{Modal:class{constructor(el){this.el=el;modals.push(this);}show(){this.el.emit('shown.bs.modal');}hide(){}dispose(){this.disposed=true;}}},
 confirm(){throw Error('native confirm must never be used');},API:{post:async(url,data)=>{calls.push({url,data});return {freed_bytes:2048,removed_count:2};},_handleError:async response=>assert(response.ok)},fetch:async(url,request)=>{calls.push({url,method:request.method});return {ok:true};}};ctx.window=ctx;vm.createContext(ctx);
-vm.runInContext(core.slice(0,core.indexOf('// Big/long-running jobs')),ctx);vm.runInContext(source,ctx);
+vm.runInContext(core.slice(0,core.indexOf('async function confirmIfRemote(')),ctx);vm.runInContext(source,ctx);
 ctx.showToast=(...args)=>toasts.push(args);ctx.loadLoraModels=async()=>loads++;ctx.openLoraReviewHistory=()=>history++;
 const tick=()=>new Promise(setImmediate),click=id=>elements[id].emit('click'),hidden=()=>elements.confirmModal.emit('hidden.bs.modal');
 let finished=false;process.on('beforeExit',()=>assert(finished,'all dialog assertions must finish'));

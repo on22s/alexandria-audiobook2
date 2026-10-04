@@ -8,7 +8,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-reports.js"
 
 class BenchmarkUiJsTests(unittest.TestCase):
     def run_js(self, script):
-        setup = "const sharedSource = require('fs').readFileSync(process.argv[2], 'utf8'); const sharedPollingCode = sharedSource.slice(sharedSource.indexOf('const _pollGen ='), sharedSource.indexOf('// A run can pause ITSELF'));\n"
+        setup = "const sharedSource = require('fs').readFileSync(process.argv[2], 'utf8'); const sharedPollingCode = 'function restoreTab() {}\\n' + sharedSource.slice(sharedSource.indexOf('function showActionError('),sharedSource.indexOf('function showConfirm(')) + sharedSource.slice(sharedSource.indexOf('const _pollGen ='), sharedSource.indexOf('// A run can pause ITSELF'));\n"
         script = setup + script.replace('vm.runInNewContext(code,context)', 'vm.runInNewContext(sharedPollingCode + code,context)').replace("vm.runInContext(source.slice(source.indexOf('let _benchmarkPreflightId =')),ctx)", "vm.runInContext(sharedPollingCode + source.slice(source.indexOf('let _benchmarkPreflightId =')),ctx)")
         result = subprocess.run(["node", "-e", script, str(SOURCE), str(SOURCE.parent / 'app-core.js')], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -120,7 +120,7 @@ process.on('beforeExit',()=>{if(!finished){console.error('Status fixture did not
  const second=timers[0]();assert.strictEqual(requests.length,2);
  const skipped=timers[0](),skipped2=context.refreshBenchmarkStatus();assert.strictEqual(requests.length,2);
  requests[1].reject(new Error('HTTP 503'));await Promise.all([second,skipped,skipped2]);
- assert.strictEqual(status.textContent,'Status unavailable: HTTP 503');assert.strictEqual(timers.length,1);
+ assert(status.textContent.includes('Status polling will retry'));assert(status.textContent.includes('Details: HTTP 503'));assert.strictEqual(timers.length,1);
  const third=timers[0]();assert.strictEqual(requests.length,3,'rejection must release the in-flight guard');
  const skipped3=timers[0]();assert.strictEqual(requests.length,3);
  requests[2].resolve({running:false,status:'completed',tasks:[{status:'done'}],logs:['finished']});await Promise.all([third,skipped3]);

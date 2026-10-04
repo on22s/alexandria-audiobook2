@@ -127,7 +127,7 @@ voiceSaveQueue:{isDirty:()=>dirty},escapeHtml:s=>String(s).replaceAll('&','&amp;
 flushVoiceSaves:async()=>{events.push('flush');if(failFlush){throw Error('pending edit failed');}},
 loadVoices:async full=>{assert.strictEqual(full,false);events.push('load');},showToast:message=>toasts.push(message),
 API:{post:async(url,data)=>{events.push('post');posts.push({url,data});return{changes:native.seed_changes,backup:'voice_config.json.bak-fixture'};}}};
-ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
+ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(start,end),ctx);
 const markup=ctx.getVoiceSeedRepairMarkup(native);
 assert(markup.includes('&lt;ALICE&gt;&amp;'));assert(!markup.includes('<ALICE>'));
 for(const change of native.seed_changes){assert(markup.includes(change.seed));}

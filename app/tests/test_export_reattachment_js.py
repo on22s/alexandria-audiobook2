@@ -51,8 +51,9 @@ const calls=[];ctx.pollExport=task=>{calls.push(task);ctx.releaseTaskStart(task)
 await ctx.exportAudacity();await ctx.exportM4B();assert.deepStrictEqual(calls,['audacity_export','m4b_export']);
 ctx.API.post=async()=>{throw Error('admission refused');};await ctx.exportAudacity();await ctx.exportM4B();assert.strictEqual(calls.length,2);
 assert(element('audacity-status').innerHTML.includes('admission refused'));assert(element('m4b-status').innerHTML.includes('admission refused'));
+ctx.currentBookFilename='book.txt';ctx.URLSearchParams=URLSearchParams;ctx.API.get=async()=>({chapters:[]});vm.runInContext(coreSource.slice(coreSource.indexOf('async function getChapterExportPreview('),coreSource.indexOf("document.getElementById('chapter-preview-btn').addEventListener")),ctx);
 const chapter=coreSource.slice(coreSource.indexOf("document.getElementById('chapter-export-btn').addEventListener"),coreSource.indexOf("document.getElementById('chapter-cancel-btn').addEventListener"));
-let handler;element('chapter-export-btn').addEventListener=(event,fn)=>handler=fn;ctx.chapterExportParams=()=>({format:'mp3'});vm.runInContext(chapter,ctx);
+let handler;element('chapter-export-btn').addEventListener=(event,fn)=>handler=fn;ctx.chapterExportParams=()=>({format:'mp3',chapters:null});vm.runInContext(chapter,ctx);
 await handler();assert.strictEqual(calls.length,2);assert.strictEqual(element('chapter-cancel-btn').style.display,'none');
 ctx.API.post=async()=>({});await handler();assert.strictEqual(calls.at(-1),'chapter_export');
 """)

@@ -17,15 +17,27 @@ class CoreDomInputTests(unittest.TestCase):
 
     def test_tab_restore_uses_exact_existing_names_and_storage_failure_is_safe(self):
         self.run_js(r'''
-let stored='',blocked=false,clicked=[];
-const links=['setup','voices','editor'].map(name=>({dataset:{tab:name},click:()=>clicked.push(name)}));
-const ctx={localStorage:{getItem:()=>{if(blocked){throw Error('private storage');}return stored;}},document:{
- querySelector:selector=>{if(selector.includes('"x')){throw Error('invalid CSS selector');}return links.find(link=>selector===`.nav-link[data-tab="${link.dataset.tab}"]`);},
- querySelectorAll:selector=>{assert.strictEqual(selector,'.nav-link');return links;}}};
-vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf("document.querySelectorAll('.nav-link').forEach")),ctx);
-for(const name of ['', 'setup', 'unknown', '"x][data-tab="voices', 'voices"] , .nav-link', '日本語']){stored=name;assert.doesNotThrow(()=>ctx.restoreTab());assert.deepStrictEqual(clicked,[]);}
-for(const name of ['voices','editor']){stored=name;ctx.restoreTab();}assert.deepStrictEqual(clicked,['voices','editor']);
-blocked=true;assert.doesNotThrow(()=>ctx.restoreTab());assert.deepStrictEqual(clicked,['voices','editor']);
+function client(stored='',hash=''){
+ let blocked=false;const loads=[],events={},pushes=[],replaces=[],tabs={};
+ const links=['setup','voices','editor'].map(name=>({dataset:{tab:name},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){},addEventListener(_event,fn){this.click=fn;}}));
+ for(const name of ['setup','voices','editor']){tabs[name+'-tab']={style:{display:name==='setup'?'block':'none'}};}
+ const window={location:{hash},history:{pushState(_s,_t,h){pushes.push(h);window.location.hash=h;},replaceState(_s,_t,h){replaces.push(h);window.location.hash=h;}},addEventListener:(event,fn)=>events[event]=fn};
+ const ctx={window,localStorage:{getItem:()=>{if(blocked){throw Error('private storage');}return stored;},setItem:(_k,v)=>{if(blocked){throw Error('private storage');}stored=v;}},document:{
+ querySelector(){throw Error('tab data must not become a CSS selector');},querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]},pollLmStudioStatus:()=>loads.push('setup'),loadChunks:()=>loads.push('editor'),loadVoices:reuse=>{assert.strictEqual(reuse,false);loads.push('voices');}};
+ vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),ctx);
+ return {ctx,window,links,loads,pushes,replaces,tabs,events,block:()=>blocked=true};
+}
+for(const name of ['', 'setup', 'unknown', '"x][data-tab="voices', 'voices"] , .nav-link', '日本語']){
+ const c=client(name);assert.doesNotThrow(()=>c.ctx.restoreTab());assert.deepStrictEqual(c.loads,[]);assert.deepStrictEqual(c.pushes,[]);assert.deepStrictEqual(c.replaces,['#setup']);assert.strictEqual(c.tabs['setup-tab'].style.display,'block');
+}
+for(const name of ['voices','editor']){const c=client(name);c.ctx.restoreTab();assert.deepStrictEqual(c.loads,[name]);assert.deepStrictEqual(c.replaces,['#'+name]);assert.deepStrictEqual(c.pushes,[]);}
+const privateStorage=client('editor','#voices');privateStorage.block();assert.doesNotThrow(()=>privateStorage.ctx.restoreTab());assert.deepStrictEqual(privateStorage.loads,['voices']);
+const c=client('editor','#voices');c.ctx.restoreTab();assert.deepStrictEqual(c.loads,['voices'],'URL overrides remembered tab');
+c.links[2].click({currentTarget:c.links[2],preventDefault(){}});assert.deepStrictEqual(c.pushes,['#editor']);
+c.links[2].click({currentTarget:c.links[2],preventDefault(){}});assert.deepStrictEqual(c.pushes,['#editor'],'repeated current click must not add a history entry');
+c.window.location.hash='#voices';c.events.popstate();c.events.hashchange();assert.deepStrictEqual(c.loads,['voices','editor','editor','voices'],'one transition, one refresh despite both browser events');assert.deepStrictEqual(c.pushes,['#editor'],'Back must not push a new entry');
+c.window.location.hash='#bad"selector';c.events.popstate();c.events.hashchange();assert.strictEqual(c.loads.at(-1),'setup');assert.strictEqual(c.loads.filter(v=>v==='setup').length,1);assert.strictEqual(c.tabs['setup-tab'].style.display,'block');
+const old=c.loads.length;c.ctx.activateTab('unknown');assert.strictEqual(c.loads.length,old);assert.deepStrictEqual(c.pushes,['#editor']);
 ''')
 
     def test_actual_config_loader_displays_filenames_as_text(self):

@@ -132,7 +132,7 @@ meanwhile, and retrain at a learning rate of 1e-6 (see the [Training guide](Trai
 3. Turn on **Sub-batching** — less GPU time wasted on padding.
 4. Raise **Parallel Workers** if memory allows.
 5. A language model on the same card halves what the TTS can use. If yours is hosted
-   elsewhere, untick **Runs on this machine's GPU**.
+   elsewhere, open **Provider request options** and set **Runs on this machine's GPU?** to **No**.
 
 See [Batch generation](Batch-Generation.md).
 

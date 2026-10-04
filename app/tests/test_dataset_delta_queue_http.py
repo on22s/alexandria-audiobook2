@@ -39,7 +39,7 @@ class DatasetDeltaQueueHttpTests(unittest.TestCase):
                 return original(*args,**kwargs)
             code=r'''
 run(core.slice(core.indexOf('        const API = {'),core.indexOf('        // --- Setup Tab ---')));
-const base=BASE;context.fetch=(url,request)=>fetch(base+url,request);const errors=[];context._toastSaveError=(kind,error)=>errors.push(error);context.showToast=()=>{};
+const base=BASE;context.fetch=(url,request)=>fetch(base+url,request);const errors=[];context._toastSaveError=(kind,error)=>errors.push(error);context.showToast=()=>{};context.showConfirm=async()=>true;
 run("dsbCurrentProject='voice';");await context.dsbLoadProject('voice');assert.strictEqual(run('dsbRows.length'),200);
 let reads=0;for(const row of run('dsbRows')){for(const field of ['text','emotion','seed']){let value=row[field];Object.defineProperty(row,field,{enumerable:true,get:()=>{reads++;return value;},set:v=>value=v});}}
 context.dsbUpdateRow(17,'text',' changed ');assert.strictEqual(reads,4);await run('dsbSaveRowsQueue.flush()');assert(!run('dsbSaveRowsQueue.isDirty()'));
@@ -50,7 +50,7 @@ context.dsbUpdateRow(20,'text','older');const first=run('dsbSaveRowsQueue.flush(
 context.dsbUpdateRow(20,'text','newer');context.dsbUpdateRow(21,'text','second index');const joined=run('dsbSaveRowsQueue.flush()');release();await Promise.all([first,joined]);assert(!run('dsbSaveRowsQueue.isDirty()'));
 context.fetch=(url,request)=>fetch(base+url,request);
 context.dsbAddRow('happy','added',0);await run('dsbSaveRowsQueue.flush()');assert.strictEqual(run('dsbRows.length'),201);
-context.dsbUpdateRow(22,'text','after add');await run('dsbSaveRowsQueue.flush()');context.dsbRemoveRow(200);await run('dsbSaveRowsQueue.flush()');
+context.dsbUpdateRow(22,'text','after add');await run('dsbSaveRowsQueue.flush()');await context.dsbRemoveRow(200);await run('dsbSaveRowsQueue.flush()');
 let lost=true;context.fetch=async(url,request)=>{const response=await fetch(base+url,request);if(request&&lost){lost=false;throw new TypeError('fixture lost response after commit');}return response;};
 context.dsbUpdateRow(23,'text','committed without response');await run('dsbSaveRowsQueue.flush()');assert(!run('dsbSaveRowsQueue.isDirty()'));assert.strictEqual(errors.length,0);
 let releaseDifferent,arriveDifferent;const heldDifferent=new Promise(resolve=>arriveDifferent=resolve);
@@ -58,7 +58,7 @@ context.fetch=async(url,request)=>{const response=await fetch(base+url,request);
 context.dsbUpdateRow(26,'text','distinct first');const distinctFirst=run('dsbSaveRowsQueue.flush()');await heldDifferent;context.dsbUpdateRow(27,'text','distinct next');const distinctNext=run('dsbSaveRowsQueue.flush()');releaseDifferent();await Promise.all([distinctFirst,distinctNext]);assert(!run('dsbSaveRowsQueue.isDirty()'));
 let releaseStructure,arriveStructure;const heldStructure=new Promise(resolve=>arriveStructure=resolve);
 context.fetch=async(url,request)=>{const response=await fetch(base+url,request);if(request&&JSON.parse(request.body).edits?.[0].row.text==='before structure'){arriveStructure();await new Promise(resolve=>releaseStructure=resolve);}return response;};
-context.dsbUpdateRow(28,'text','before structure');const beforeStructure=run('dsbSaveRowsQueue.flush()');await heldStructure;context.dsbAddRow('happy','structural pending',0);context.dsbUpdateRow(29,'text','late structural cell');const afterStructure=run('dsbSaveRowsQueue.flush()');releaseStructure();await Promise.all([beforeStructure,afterStructure]);assert.strictEqual(run('dsbRows.length'),201);assert(!run('dsbSaveRowsQueue.isDirty()'));context.dsbRemoveRow(200);await run('dsbSaveRowsQueue.flush()');
+context.dsbUpdateRow(28,'text','before structure');const beforeStructure=run('dsbSaveRowsQueue.flush()');await heldStructure;context.dsbAddRow('happy','structural pending',0);context.dsbUpdateRow(29,'text','late structural cell');const afterStructure=run('dsbSaveRowsQueue.flush()');releaseStructure();await Promise.all([beforeStructure,afterStructure]);assert.strictEqual(run('dsbRows.length'),201);assert(!run('dsbSaveRowsQueue.isDirty()'));await context.dsbRemoveRow(200);await run('dsbSaveRowsQueue.flush()');
 context.fetch=(url,request)=>fetch(base+url,request);await fetch(base+'/fixture/conflict');context.dsbUpdateRow(25,'text','stale client');await assert.rejects(run('dsbSaveRowsQueue.flush()'),/row changed/);assert(run('dsbSaveRowsQueue.isDirty()'));assert.strictEqual(errors.length,1);
 await context.dsbLoadProject('voice');assert.strictEqual(run('dsbRows[25].text'),'stale client','failed dirty save must not be discarded by reload');
 '''.replace('BASE',json.dumps('http://127.0.0.1:'+str(server.server_port)))

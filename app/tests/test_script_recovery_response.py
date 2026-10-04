@@ -12,6 +12,30 @@ from tests import test_script_recovery_transaction as transactions
 
 
 class ScriptRecoveryResponseTests(unittest.TestCase):
+    def test_native_recovery_renderer_leads_with_choices_and_retains_diagnostics(self):
+        code = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const core=fs.readFileSync(process.argv[1],'utf8'),panel={style:{},innerHTML:''};
+const ctx={window:{},document:{getElementById:()=>panel}};vm.createContext(ctx);
+vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
+vm.runInContext(core.slice(core.indexOf('function renderScriptRecovery('),core.indexOf('async function onCopyRecoveryPrompt(')),ctx);
+for(const pass of ['segment','attribute','instruct']){
+ const detail={failed_pass:pass,source:'<script>unsafe()</script>日本語',failed_chunk:2,chunks_total:4,chunks_done:1,batch_entries:[{}],batch_indices:[8],last_error:{category:'transport',http_status:503,error:'<img onerror=unsafe()>'},attempts:[{attempt:1,http_status:503,error:'<bad>'}],retry_profile:{api_retry_limit:0,retry_initial_delay_seconds:2,retry_multiplier:2,retry_jitter:0.1}};
+ const snapshot=JSON.stringify(detail);ctx.renderScriptRecovery(detail);const h=panel.innerHTML;
+ assert(h.indexOf('model did not return a usable result')<h.indexOf('Technical details'));
+ assert(/<details class="mb-3">/.test(h));assert(!/<details[^>]*\bopen/.test(h));
+ const diagnostics=h.slice(h.indexOf('<details'),h.indexOf('</details>'));assert(diagnostics.includes('HTTP 503'));assert(diagnostics.includes('backoff 2s'));assert(diagnostics.includes('&lt;bad&gt;'));
+ assert(!h.includes('<img'));assert(!h.includes('<script>'));assert(h.includes('日本語'));
+ const actions=h.slice(h.indexOf('</details>'));
+ for(const fn of ['retryScriptGeneration','onCopyRecoveryPrompt','onInjectRecoverySegmentation','onSkipRecoveryChunk']){assert(actions.includes('onclick="'+fn+'()"'));}
+ assert(actions.includes('id="script-recovery-inject"'));assert.strictEqual(JSON.stringify(detail),snapshot);assert.strictEqual(ctx.window._scriptRecoveryDetail,detail);
+}
+ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.strictEqual(panel.style.display,'none');
+"""
+        source = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+        result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_optional_detail_matches_dedicated_endpoint_for_failed_passes(self):
         for pass_name in ('segment', 'attribute', 'instruct'):
             with self.subTest(pass_name=pass_name), transactions.ScriptRecoveryTransactionTests().fixture() as (root, path):

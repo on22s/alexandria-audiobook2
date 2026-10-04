@@ -44,7 +44,7 @@ c.gates.get('/api/voice_design/list').resolve([{id:'design'}]);await loading;ass
     def test_optional_failures_preserve_cached_options_and_successful_metadata_renders(self):
         self.run_js(r'''
 const c=client();c.saveGate.resolve();const loading=c.ctx.loadVoices();await turn();assert.strictEqual(c.reads.length,5);
-c.gates.get('/api/voice_design/list').reject(Error('optional design unavailable'));c.gates.get('/api/voice_library').reject(Error('optional cast unavailable'));c.gates.get('/api/clone_voices/list').resolve([{id:'clone'}]);c.gates.get('/api/lora/models').resolve([{id:'lora'}]);c.gates.get('/api/voice_config/snapshot').resolve(c.snapshot);await loading;
+c.gates.get('/api/voice_design/list').reject(Error('optional design unavailable'));c.gates.get('/api/voice_library').reject(Error('optional cast unavailable'));c.gates.get('/api/clone_voices/list').resolve([{id:'clone'}]);c.gates.get('/api/lora/models').resolve([{id:'lora'}]);c.gates.get('/api/voice_config/snapshot').resolve(c.snapshot);const report=await loading;assert.deepStrictEqual([...report.failedResources].sort(),['/api/voice_design/list','/api/voice_library'].sort());
 assert.strictEqual(c.el('voices-list').innerHTML,'<card>Alice:old-design:clone:lora</card>');assert.strictEqual(c.debug.length,2);assert.strictEqual(c.ctx._voicesByName.Alice.name,'Alice');
 ''')
 

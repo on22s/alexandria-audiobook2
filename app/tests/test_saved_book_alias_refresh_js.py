@@ -15,9 +15,9 @@ const context={window:{},console:{error(){}},Date,escapeHtml:String,
   return values.length?[{querySelector:s=>({value:values[s==='.nick-alias'?0:1]})}]:[];
  }},API:{get:url=>{const d=deferred();gets.push({url,...d});return d.promise;},post:async(url,data)=>{if(url==='/api/scripts/load'){return {status:'loaded',name:'Book B'};}posts.push({url,data});return {count:1};}},
  showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,
- fetch:async()=>({ok:true,json:async()=>({status:'loaded',name:'Book B'})}),flushVoiceSaves:async()=>{},resetDesignerForm(){},clearVoiceSuggestions(){},
+ fetch:async()=>({ok:true,json:async()=>({status:'loaded',name:'Book B'})}),ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{},resetDesignerForm(){},clearVoiceSuggestions(){},
  loadChunks:async()=>{},loadVoices:async()=>{},loadSavedScripts(){},loadDesignedVoices(){}};
-vm.createContext(context);
+vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
 const bookStart=core.indexOf('let currentBookFilename =');vm.runInContext(core.slice(bookStart,core.indexOf('async function loadConfig()',bookStart)),context);
 const start=core.indexOf('let characterAliasesLoaded'),end=core.indexOf('// One-line "N changes:',start);
 assert(start>=0&&end>start);vm.runInContext(core.slice(start,end),context);

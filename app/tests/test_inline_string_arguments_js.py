@@ -21,7 +21,8 @@ class InlineStringArgumentsJsTests(unittest.TestCase):
     def run_js(self,code,payload):
         script=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const context={};vm.createContext(context);
+const context={currentBookFilename:'fixture',showConfirm:async()=>true};vm.createContext(context);
+const guard=source.indexOf('async function applyConfirmedVoiceRemoval(');vm.runInContext(source.slice(guard,source.indexOf('window.deleteVoiceCandidate =',guard)),context);
 vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),context);
 const a=source.indexOf('function getVoiceCandidateMarkup('),b=source.indexOf('function getLibraryVoiceReference(',a);vm.runInContext(source.slice(a,b),context);
 const c=source.indexOf('function renderStyleTimeline('),d=source.indexOf('// Editor: from this line on',c);vm.runInContext(source.slice(c,d),context);
@@ -53,7 +54,7 @@ const output=payload.map(row=>{
         for name,row in zip(names,result):
             self.assertFalse(row['compromised'],'HTML entity decoding must not enable JavaScript injection')
             self.assertEqual([],row['errors'])
-            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,7]}],row['calls'])
+            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,7,{'tag':'button'}]}],row['calls'])
 
     def test_real_style_remove_handler_uses_exact_character_name_in_api_route(self):
         name="O'Brien \" & / café"

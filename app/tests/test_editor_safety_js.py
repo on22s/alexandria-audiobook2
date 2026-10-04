@@ -9,6 +9,51 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-core.js"
 
 
 class EditorSafetyJsTests(unittest.TestCase):
+    def test_voice_change_label_counts_transitions_and_preserves_type_values(self):
+        self.run_scenario(r"""
+load('const AVAILABLE_VOICES =', 'let _voiceResourcesRefreshedAt');
+context.renderStyleTimeline=()=>'';context.ensembleMembersMarkup=()=>'';
+const state = {gender:'female',age_group:'adult'};
+for (const [count, label] of [[2,'Voice changes (1 change)'],[3,'Voice changes (2 changes)']]) {
+    const html=context.createVoiceCard({name:'Alice 日本語',config:{},traits:{states:Array(count).fill(state)}},0);
+    assert(html.includes(label));assert(!html.includes(`${count} states`));
+    assert(html.includes('Review which voice is used before and after each change.'));
+    for (const type of ['custom','builtin_lora','clone','lora','design','ensemble']) {
+        assert(html.includes(`value="${type}"`));
+    }
+    for (const label of ['Custom voice','Built-in LoRA voice','Clone voice','LoRA voice','Voice Design','Character ensemble']) {
+        assert(html.includes(`>${label}</label>`));
+    }
+}
+for (const states of [[],[state]]) {
+    const html=context.createVoiceCard({name:'Alice',config:{},traits:{states}},0);
+    assert(!html.includes('Voice changes ('));
+}
+""")
+
+    def test_failed_batch_start_refreshes_optimistic_rows_but_not_unsaved_edits(self):
+        self.run_scenario(r"""
+run('let isRenderingAll=false;');
+load('window.cancelRender =', "document.getElementById('btn-merge').addEventListener");
+let refreshed=0,painted=false,polled=0;
+const badge={className:'badge bg-secondary',innerText:'pending'};
+context.document.querySelector=()=>({classList:{add:()=>painted=true},querySelector:()=>badge});
+context.refreshDeliveryReview=async()=>{};
+context._startPolling=()=>polled++;
+context.loadChunks=async force=>{assert.strictEqual(force,true);refreshed++;badge.innerText='pending';};
+context.ensureEditorRenderSnapshot=async()=>[{id:1,text:'Pending',status:'pending'}];
+context.API.post=async()=>{throw Error('GPU busy');};
+let completed=false;process.on('beforeExit',()=>assert(completed,'batch refusal assertions must finish'));
+for(const start of [context.renderAll,context.renderBatchFast]){
+ await start();assert.strictEqual(badge.innerText,'pending');assert.strictEqual(polled,0);
+ assert.strictEqual(elements['btn-cancel-render'].style.display,'none');
+}
+assert.strictEqual(refreshed,2);assert.strictEqual(painted,true);
+context.ensureEditorRenderSnapshot=async()=>{throw Error('unsaved edit flush failed');};
+await context.renderBatchFast();assert.strictEqual(refreshed,2,'failed save must preserve unsaved edits without reload');
+completed=true;
+""")
+
     def test_custom_voice_options_preserve_a_saved_voice_outside_the_builtin_list(self):
         self.run_scenario(r'''
 load('const AVAILABLE_VOICES =', 'let _voiceResourcesRefreshedAt');
@@ -16,7 +61,7 @@ context.renderStyleTimeline = () => '';
 context.ensembleMembersMarkup = () => '';
 function selectedValue(config) {
     const html = context.createVoiceCard({name:'ALICE',config}, 0);
-    const options = html.match(/<select class="form-select voice-select">([\s\S]*?)<\/select>/)[1];
+    const options = html.match(/<select class="form-select voice-select"[^>]*>([\s\S]*?)<\/select>/)[1];
     const selected = options.match(/<option value="([^"]*)" selected>/);
     return selected ? selected[1] : options.match(/<option value="([^"]*)"/)[1];
 }
@@ -111,26 +156,48 @@ check('clone_voices/my_voice.wav.backup', '__manual__', false, false);
 check('', '', false, false);
 ''')
 
+    def test_batch_mode_refuses_single_book_start_over(self):
+        self.run_scenario(r"""
+let freshClick,generated=0,probes=0,confirmations=0;
+context.document.getElementById('script-batch-mode');
+elements['btn-gen-script-fresh']={style:{},addEventListener:(_event,fn)=>freshClick=fn};
+elements['btn-gen-script']={disabled:true,click:()=>generated++};
+context.currentBookFilename='A';context.API.get=async()=>{probes++;return{running:false};};
+context.showConfirm=async()=>{confirmations++;return true;};
+load('let _scriptStartOver =',"document.getElementById('btn-gen-script').addEventListener");
+elements['script-batch-mode'].checked=true;
+await freshClick();assert.strictEqual(generated,0);assert.strictEqual(probes,0);assert.strictEqual(confirmations,0);assert.strictEqual(await run('_scriptStartOver'),false);
+context.renderBookPreflightVisibility();assert.strictEqual(elements['btn-gen-script-fresh'].style.display,'none');
+elements['script-batch-mode'].checked=false;context.renderBookPreflightVisibility();assert.strictEqual(elements['btn-gen-script-fresh'].style.display,'');
+await freshClick();assert.strictEqual(generated,1);assert.strictEqual(confirmations,1);
+""")
+
+    def test_async_script_confirmations_refuse_changed_targets(self):
+        self.run_scenario(r'''
+let freshClick,generated=0,cancelled=0;elements['btn-gen-script-fresh']={addEventListener:(_event,fn)=>freshClick=fn};elements['btn-gen-script']={disabled:true,click:()=>generated++};context.currentBookFilename='A';context.API.get=async()=>({running:false});context.cancelTask=async()=>cancelled++;load('let _scriptStartOver =',"document.getElementById('btn-gen-script').addEventListener");let confirmations=0;context.API.get=async()=>{throw Error('offline');};context.showConfirm=async()=>{confirmations++;return true;};await freshClick();assert.strictEqual(confirmations,0);assert.strictEqual(generated,0);assert.strictEqual(cancelled,0);assert.strictEqual(await run('_scriptStartOver'),false);assert.match(toasts.at(-1)[0],/status could not be checked/);context.API.get=async()=>({running:false});context.showConfirm=async()=>false;await freshClick();assert.strictEqual(generated,0);context.showConfirm=async()=>{context.currentBookFilename='B';return true;};await freshClick();assert.strictEqual(generated,0);assert.strictEqual(cancelled,0);assert.strictEqual(await run('_scriptStartOver'),false);
+load('async function onSkipRecoveryChunk()', 'window.retryScriptGeneration =');context.refreshScriptRecovery=async()=>{};context.renderRecoveryFindings=()=>{};context.window._scriptRecoveryDetail={failed_chunk:1,failed_pass:'attribute'};context.showConfirm=async()=>false;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>{context.window._scriptRecoveryDetail.failed_chunk=2;return true;};await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>true;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.chunk,2);
+''')
+
     def test_cancelled_age_prompt_creates_no_version(self):
         self.run_scenario(r"""
 load('window.addVoiceVersion =', 'window.saveNarratorStrategy =');
 const button = {closest: () => ({dataset:{voice:'Alice / Smith'}})};
 let refreshes = 0;
 context.loadVoices = async () => { refreshes++; };
-for (const answers of [[null], [' '], ['teen', null]]) {
-    context.prompt = () => answers.shift();
+context.currentBookFilename = 'book.txt';
+for (let cancellation = 0; cancellation < 3; cancellation++) {
+    context.showPresetEditor = async options => { assert.strictEqual(options.description, 'adult'); return null; };
     await context.addVoiceVersion(button);
     assert.strictEqual(posts.length, 0);
     assert.strictEqual(refreshes, 0);
     assert.strictEqual(toasts.length, 0);
 }
 for (const [answer, expected] of [['', 'adult'], [' teen ', 'teen']]) {
-    const answers = [' younger ', answer];
-    context.prompt = () => answers.shift();
+    context.showPresetEditor = async () => ({name:'younger', description:answer.trim()});
     await context.addVoiceVersion(button);
     assert.deepStrictEqual(plain(posts.at(-1)), {
         url:'/api/voices/Alice%20%2F%20Smith/versions',
-        data:{version_id:'younger',age_group:expected,config:{type:'custom',voice:'Ryan'}}});
+        data:{version_id:'younger',age_group:expected}});
 }
 assert.strictEqual(refreshes, 2);
 """)
@@ -140,7 +207,8 @@ assert.strictEqual(refreshes, 2);
 load('function getPersonaContextLines()', 'function onPersonaContextChange()');
 load('window.regeneratePersona =', 'window.selectVoiceCandidate =');
 const button = {closest: () => ({dataset:{voice:'Alice'}})};
-context.prompt = () => 'teen';
+context.showPresetEditor = async () => ({name:'teen'});
+context.currentBookFilename = 'book.txt';
 let polls = 0;
 context.pollPersonaStatus = () => { polls++; };
 const select = context.document.getElementById('persona-context-lines');
@@ -193,7 +261,8 @@ elements['btn-gen-script-fresh'] = {addEventListener: (event, handler) => {
 elements['btn-gen-script'] = {disabled:true,click: () => { generated++; }};
 context.Date = {now: () => now};
 context.setTimeout = (callback, delay) => { now += delay; callback(); };
-context.confirm = () => true;
+context.showConfirm = async () => true;
+context.currentBookFilename = 'book.txt';
 context._resetPauseBtn = () => {};
 context.cancelTask = async (url, options) => { cancelCalls++; options.onSuccess(); };
 load('let _scriptStartOver =', "document.getElementById('btn-gen-script').addEventListener");
@@ -233,7 +302,8 @@ for(const name of ['loadCastLibrary','refreshVoicesScope','updateNarratorPreview
 context.loadCastLibrary=async()=>{};
 context.document.querySelector=selector=>({querySelector:()=>({value:'ALICE'})});
 let promptValue='Older and warmer',gets=0;
-context.prompt=()=>promptValue;
+context.showPresetEditor=async()=>promptValue===null?null:{name:promptValue};
+context.currentBookFilename='book.txt';
 let server={name:'ALICE',config:{type:'custom',voice:'Ryan',style_timeline:[]}};
 context.API.get=async url=>{gets++;return url==='/api/voice_config/snapshot'?{revision:'0'.repeat(64),book_token:'b'.repeat(64),config:{},voices:[plain(server)]}:[];};
 context.API.post=async(url,data)=>{
@@ -269,7 +339,7 @@ context.API.post=async()=>{throw new Error('save refused');};
 await context.voiceChangesHere(2);
 assert.strictEqual(gets,previousGets);
 assert.strictEqual(elements['voices-list'].innerHTML,previousHtml);
-assert.deepStrictEqual(toasts.at(-1),['Could not save the change: save refused','error']);
+assert(toasts.at(-1)[0].includes('saved change point before saving again')); assert(toasts.at(-1)[0].includes('Details: save refused')); assert.strictEqual(toasts.at(-1)[1], 'error');
 """)
 
     def test_cancel_request_result_reaches_public_wrapper_and_failed_requests_do_not_reset_controls(self):
@@ -285,15 +355,24 @@ context.API.post=(url,data)=>{
 };
 const accepted=context.cancelScript();
 assert.deepStrictEqual(resets,[]);
+assert.strictEqual(elements['btn-cancel-script'].disabled,true);
+assert.match(elements['script-cancellation-status'].textContent,/Requesting cancellation/);
+assert.strictEqual(await context.cancelScript(),false);
+assert.strictEqual(posts.length,1);
 resolvePost({status:'cancel_requested'});
 assert.strictEqual(await accepted,true);
+assert.match(elements['script-cancellation-status'].textContent,/Waiting for the worker to stop/);
+assert.strictEqual(elements['btn-cancel-script'].disabled,true);
 assert.deepStrictEqual(resets,['btn-pause-script']);
 assert.deepStrictEqual(plain(posts.at(-1)),{url:'/api/generate_script/cancel',data:{}});
+context.clearScriptCancellation('script');
 const failed=context.cancelScript();
 rejectPost(new Error('server refused'));
 assert.strictEqual(await failed,false);
+assert.strictEqual(elements['btn-cancel-script'].disabled,false);
+assert.match(elements['script-cancellation-status'].textContent,/not confirmed/);
 assert.deepStrictEqual(resets,['btn-pause-script']);
-assert.deepStrictEqual(toasts.at(-1),['Cancel failed: server refused','warning']);
+assert.strictEqual(toasts.at(-1)[1],'warning');assert(toasts.at(-1)[0].includes('Cancellation was not confirmed'));assert(toasts.at(-1)[0].includes('current task state'));assert(toasts.at(-1)[0].includes('server refused'));
 context.API.post=async()=>{throw new Error('rate limit');};
 let success=0;
 assert.strictEqual(await context.cancelTask('/custom/cancel',{onSuccess:()=>success++,errorMessage:e=>'Stop rejected: '+e.message,toastType:'error'}),false);
@@ -302,6 +381,35 @@ assert.deepStrictEqual(toasts.at(-1),['Stop rejected: rate limit','error']);
 context.API.post=async()=>({status:'not_running'});
 assert.strictEqual(await context.cancelTask('/idle/cancel'),true);
 assert.strictEqual(success,0);
+// Terminal polling beats a late acknowledgement; it must not lock the next run.
+let lateResolve;context.API.post=()=>new Promise(resolve=>lateResolve=resolve);
+const late=context.cancelScript();context.clearScriptCancellation('script');
+lateResolve({});assert.strictEqual(await late,true);
+assert.strictEqual(elements['btn-cancel-script'].disabled,false);
+assert.strictEqual(elements['script-cancellation-status'].hidden,true);
+context._batchPauseResume=()=>{};
+load('let scriptBatchStartOperation =', 'window.pauseResumeBatchScript');
+let batchResolve;context.API.post=()=>new Promise(resolve=>batchResolve=resolve);
+const batch=context.cancelBatchScript();assert.strictEqual(elements['btn-cancel-batch-script'].disabled,true);
+assert.strictEqual(await context.cancelBatchScript(),false);
+batchResolve({});assert.strictEqual(await batch,true);
+assert.match(elements['script-cancellation-status'].textContent,/Cancelling batch script generation/);
+let terminal;context.syncSnapshotButton=()=>{};context.pollLogs=(_task,_el,done)=>terminal=done;
+load('function pollScriptLogs(', '// Manual transport');
+context.pollScriptLogs('script');terminal({running:false});
+assert.strictEqual(elements['btn-cancel-batch-script'].disabled,true,'single-book completion must not release batch cancellation');
+let batchPoll;
+context.createTaskLogRenderer=()=>()=>{};context._startPolling=(_task,_fetch,options)=>batchPoll=options;
+context.renderManualRequest=()=>{};context._showTaskRecoveryPanel=()=>{};context.notifyJobDone=()=>{};context.loadSavedScripts=()=>{};
+load('function _pollScriptBatchLogs()', '// --- Single review');
+context._pollScriptBatchLogs();batchPoll.onDone({running:false,tasks:[]});
+assert.strictEqual(elements['btn-cancel-batch-script'].disabled,false);
+assert.strictEqual(elements['script-cancellation-status'].hidden,true);
+// Actual single-book poll callback releases the request even before its response.
+let lastResolve;context.API.post=()=>new Promise(resolve=>lastResolve=resolve);
+const last=context.cancelScript();context.pollScriptLogs('script');terminal({running:false});
+lastResolve({});await last;assert.strictEqual(elements['btn-cancel-script'].disabled,false);
+assert.strictEqual(elements['script-cancellation-status'].hidden,true);
 // A true result acknowledges the HTTP request; it does not assert the task has exited.
 """)
 
@@ -340,7 +448,7 @@ assert.strictEqual(btn.disabled,true);
 rejectPost(new Error('fixture busy'));
 await rejected;
 assert.strictEqual(btn.disabled,false);
-assert.deepStrictEqual(toasts.at(-1),['Voice check failed: fixture busy','error']);
+assert(toasts.at(-1)[0].includes('Check the Voice Lab interpreter'));assert(toasts.at(-1)[0].includes('Details: fixture busy'));assert.strictEqual(toasts.at(-1)[1],'error');
 const retry = context.runDriftCheck();
 resolvePost({measured:true});
 await retry;
@@ -397,7 +505,7 @@ const context = {
     localStorage:{getItem(){return null;},setItem(){},removeItem(){}}
 };
 context.window = context;
-vm.createContext(context);
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);
 const run = code => vm.runInContext(code, context);
 function load(startMarker, endMarker) {
     const start = source.indexOf(startMarker);

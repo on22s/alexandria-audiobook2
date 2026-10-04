@@ -9,8 +9,11 @@
         let dsbSaveMetaQueue = null;
         let dsbSaveRowsQueue = null;
         let dsbCurrentProject = '';
+        let dsbLoadedProject = '';
         let dsbProjectLoadSequence = 0;
         let dsbProjectListSequence = 0;
+        let dsbTrainingSaved = null;
+        let dsbTrainingSavePending = false;
 
         // Clean up legacy localStorage
         try { localStorage.removeItem('alexandria-dsb-form'); } catch (e) { /* storage blocked */ }
@@ -28,29 +31,53 @@
             try {
                 const projects = await API.get('/api/dataset_builder/list');
                 if (sequence !== dsbProjectListSequence) { return; }
+                if (!Array.isArray(projects)) { throw new Error('Invalid dataset project list'); }
                 const select = document.getElementById('dsb-project-select');
+                const selected = selectName || select.value;
+                const missing = selected && !projects.some(project => project.name === selected);
                 select.innerHTML = '<option value="">-- Select project --</option>' +
-                    projects.map(p => getEscapedHtml`<option value="${p.name}">${p.name} (${p.done_count}/${p.sample_count})</option>`).join('');
+                    projects.map(p => getEscapedHtml`<option value="${p.name}">${p.name} (${p.done_count}/${p.sample_count})</option>`).join('') +
+                    (missing ? getEscapedHtml`<option value="${selected}">${selected} (not in current list)</option>` : '');
+                select.value = selected;
+                document.getElementById('dsb-project-list-status').textContent = missing
+                    ? 'The selected dataset is not in the latest project list. Its loaded rows have been kept; check the project before saving.' : '';
                 if (selectName) {
                     select.value = selectName;
                     await dsbOnProjectChange();
                 }
-            } catch (e) { console.error('Failed to load projects:', e); }
+            } catch (e) {
+                if (sequence !== dsbProjectListSequence) { return; }
+                document.getElementById('dsb-project-list-status').innerHTML = '<span>Dataset project list could not be refreshed. Showing the last available list. Check that Alexandria is running, then </span><button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbLoadProjects()">Retry project list</button>';
+                console.error('Failed to load projects:', e);
+            }
+        }
+
+        function ensureDatasetProjectSwitchAllowed() {
+            const select = document.getElementById('dsb-project-select');
+            if (dsbBatchRunning && select.value !== dsbCurrentProject) {
+                select.value = dsbCurrentProject;
+                showToast(`A batch is running in project "${dsbCurrentProject}". Wait for it to finish or cancel it before changing projects.`, 'warning');
+                return false;
+            }
+            return true;
         }
 
         window.dsbOnProjectChange = async () => {
+            if (!ensureDatasetProjectSwitchAllowed()) { return; }
             try {
                 await Promise.all([dsbSaveMetaQueue?.flush(), dsbSaveRowsQueue?.flush()]);
             } catch (error) {
                 document.getElementById('dsb-project-select').value = dsbCurrentProject;
                 return;
             }
+            if (!ensureDatasetProjectSwitchAllowed()) { return; }
             dsbStopBatch();
             const name = document.getElementById('dsb-project-select').value;
             const formArea = document.getElementById('dsb-form-area');
             const deleteBtn = document.getElementById('dsb-btn-delete-project');
             if (!name) {
                 dsbCurrentProject = '';
+                dsbLoadedProject = '';
                 formArea.style.display = 'none';
                 deleteBtn.style.display = 'none';
                 dsbRows = [];
@@ -72,7 +99,7 @@
             try {
                 if (dsbSaveRowsQueue?.isDirty()) { await dsbSaveRowsQueue.flush(); }
             } catch (error) {
-                showToast('Save the pending row edits before reloading this project: ' + error.message, 'error');
+                showActionError('Pending dataset edits could not be saved', error, 'Keep the current project open. Resolve the row-save error before reloading or switching projects.');
                 return;
             }
             try {
@@ -89,6 +116,8 @@
                     status: s.status || 'pending',
                     audio_url: s.audio_url || null,
                 }));
+                dsbLoadedProject = name;
+                document.getElementById('dsb-project-load-status').innerHTML = '';
                 if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
                 dsbRenderTable();
                 // Resume polling if batch is running
@@ -103,41 +132,56 @@
                 // BEFORE clearing rows so its debounced POST can't overwrite the
                 // real samples on disk with an empty row, and do NOT dsbAddRow.
                 console.error('Failed to load project:', e);
+                const retained = dsbLoadedProject === name;
+                document.getElementById('dsb-project-load-status').innerHTML = getEscapedHtml`<div class="alert alert-warning small py-2">${retained ? 'Could not refresh dataset "' + name + '". Showing the last loaded version.' : 'Could not load dataset "' + name + '". Check that Alexandria is still running, then try again.'} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbOnProjectChange()">Retry</button></div>`;
+                if (retained) { return; }
                 dsbCurrentProject = '';
+                dsbLoadedProject = '';
                 dsbRows = [];
                 dsbRenderTable();
                 document.getElementById('dsb-form-area').style.display = 'none';
                 document.getElementById('dsb-btn-delete-project').style.display = 'none';
-                showToast('Failed to load dataset "' + name + '": ' + (e.message || e));
+                showActionError('Could not load dataset "' + name + '"', e, 'Check the selected dataset and app connection, then use Retry to load it again.');
             }
         }
 
         window.dsbCreateProject = async () => {
-            const name = prompt('Dataset name:');
-            if (!name || !name.trim()) { return; }
-            try {
-                const result = await API.post('/api/dataset_builder/create', { name: name.trim() });
-                await dsbLoadProjects(result.name);
-            } catch (e) {
-                showToast('Failed to create project: ' + e.message, 'error');
+            const project = dsbCurrentProject;
+            const values = await showPresetEditor({title: 'Create dataset', nameLabel: 'Dataset name', includeDescription: false,
+                actionLabel: 'Create', helperText: 'Use a short name you will recognize later, such as “The Hobbit — narration”.',
+                submitValues: async ({name}) => {
+                    if (project !== dsbCurrentProject) { throw new Error('The selected project changed. Close this dialog and review it before creating a dataset.'); }
+                    try {
+                        return await API.post('/api/dataset_builder/create', {name});
+                    } catch (error) {
+                        console.error('Dataset creation failed', error);
+                        if (error.status === 400 || error.status === 409) { throw error; }
+                        throw new Error('Creation was not confirmed. Check that Alexandria is running, then refresh the project list before trying again.');
+                    }
+                }});
+            if (!values) { return; }
+            if (project !== dsbCurrentProject) {
+                showToast(`Dataset “${values.receipt.name}” was created. Your later project selection was kept. Refresh the list to see it.`, 'success'); return;
             }
+            await dsbLoadProjects(values.receipt.name);
         };
 
         window.dsbDeleteProject = async () => {
             if (!dsbCurrentProject || !ensureDatasetRowsEditable()) { return; }
-            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) { return; }
+            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`, {title: 'Delete project?', actionLabel: 'Delete project', danger: true})) { return; }
             if (!ensureDatasetRowsEditable()) { return; }
             try {
                 const res = await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
                 await API._handleError(res);
                 dsbCurrentProject = '';
+                dsbLoadedProject = '';
                 document.getElementById('dsb-form-area').style.display = 'none';
                 document.getElementById('dsb-btn-delete-project').style.display = 'none';
                 dsbRows = [];
                 dsbRenderTable();
                 await dsbLoadProjects();
             } catch (e) {
-                showToast('Delete failed: ' + e.message, 'error');
+                showActionError('Dataset project deletion failed', e, 'Refresh the project list to check whether the project was deleted before trying again.');
             }
         };
 
@@ -251,8 +295,13 @@
             }, 50);
         }
 
-        function dsbRemoveRow(index) {
+        async function dsbRemoveRow(index) {
             if (!ensureDatasetRowsEditable()) { return; }
+            const project = dsbCurrentProject;
+            const row = dsbRows[index];
+            if (!row) { return; }
+            if (!await showConfirm(`Delete sample ${index + 1}? This removes its text and generated audio link and cannot be undone.`, {title: 'Delete sample?', actionLabel: 'Delete sample', danger: true})) { return; }
+            if (!isDatasetProjectSelected(project) || dsbRows[index] !== row || !ensureDatasetRowsEditable()) { return; }
             dsbRows.splice(index, 1);
             dsbRenderTable();
             dsbSaveRows();
@@ -281,20 +330,35 @@
 
             return getEscapedHtml`<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
                 <td class="text-center align-middle">${i + 1}</td>
-                <td><input type="text" class="form-control form-control-sm" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
-                <td><textarea class="form-control form-control-sm" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${row.text || ''}</textarea></td>
-                <td><input type="number" class="form-control form-control-sm" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
+                <td><input type="text" class="form-control form-control-sm" aria-label="Emotion or delivery style for sample ${i + 1}" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
+                <td><textarea class="form-control form-control-sm" aria-label="Sample text for sample ${i + 1}" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${row.text || ''}</textarea></td>
+                <td><input type="number" class="form-control form-control-sm" aria-label="Seed for sample ${i + 1}; blank or -1 uses the global seed; 0 or higher overrides it" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
                 <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span>${row.status === 'error' ? row.error || '' : ''}</td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
                     ` + actionHtml + audioHtml + getEscapedHtml`
-                        <button class="btn btn-sm btn-outline-danger ms-auto" ${disabled} onclick="dsbRemoveRow(${i})" title="Delete row"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger ms-auto" aria-label="Delete sample ${i + 1}" ${disabled} onclick="dsbRemoveRow(${i})" title="Delete row"><i class="fas fa-trash"></i></button>
                     </div>
                 </td>
             </tr>`;
         }
 
+        function applyDatasetTrainingSaveFeedback() {
+            const status = document.getElementById('dsb-save-status');
+            if (!dsbTrainingSaved || dsbTrainingSaved.name !== dsbCurrentProject) {
+                status.textContent = '';
+                return;
+            }
+            if (dsbTrainingSaved.snapshot !== JSON.stringify(dsbRows)) { dsbTrainingSaved.stale = true; }
+            if (dsbTrainingSaved.stale) {
+                status.textContent = 'Training dataset saved before these changes. Save again to include them.';
+            } else {
+                status.textContent = `Saved! ${dsbTrainingSaved.count} samples.`;
+            }
+        }
+
         function dsbRenderTable(changedIndices) {
+            applyDatasetTrainingSaveFeedback();
             const tbody = document.getElementById('dsb-table-body');
 
             // Full rebuild if no specific indices or row count changed
@@ -369,7 +433,11 @@
             const doneSamples = dsbRows.map((r, i) => ({ index: i, row: r })).filter(x => x.row.status === 'done');
             select.innerHTML = doneSamples.length === 0
                 ? '<option value="0">No completed samples yet</option>'
-                : doneSamples.map(x => `<option value="${x.index}">${x.index + 1}. ${escapeHtml((x.row.emotion || 'neutral').substring(0, 30))} - "${escapeHtml((x.row.text || '').substring(0, 40))}..."</option>`).join('');
+                : doneSamples.map(x => {
+                    const emotion = x.row.emotion || 'neutral';
+                    const text = x.row.text || '';
+                    return `<option value="${x.index}">${x.index + 1}. ${escapeHtml(emotion.substring(0, 30))}${emotion.length > 30 ? '…' : ''} - "${escapeHtml(text.substring(0, 40))}"${text.length > 40 ? '…' : ''}</option>`;
+                }).join('');
         }
 
         // Single sample generation
@@ -409,8 +477,8 @@
             } catch (e) {
                 if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
                 dsbRows[index].status = 'error';
-                dsbRows[index].error = e.message || String(e);
-                showToast('Sample generation failed: ' + dsbRows[index].error, 'error');
+                dsbRows[index].error = getActionErrorMessage('Sample generation failed', e, 'Check the sample audio and dataset task status before generating again. Review the voice description and TTS configuration if the request was refused.');
+                showToast(dsbRows[index].error, 'error', 10000);
                 console.error('Sample generation failed:', e);
             }
             dsbRenderTable([index]);
@@ -433,7 +501,7 @@
                 : dsbRows.map((r, i) => i).filter(i => dsbRows[i].text.trim() && dsbRows[i].status !== 'done');
 
             if (indices.length === 0) { showToast('All samples are already generated.', 'warning'); return; }
-            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`)) { return; }
+            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`, {title: 'Replace all sample audio?', actionLabel: 'Regenerate all', danger: true})) { return; }
             if (dsbBatchRunning || !isDatasetProjectSelected(name) || dsbRows !== rows) { return; }
             const sequence = ++dsbBatchStartSequence;
             dsbPendingStart = sequence;
@@ -470,7 +538,7 @@
                 previous.forEach(({ index, row, status }) => {
                     if (dsbRows[index] === row && row.status === 'generating') { row.status = status; }
                 });
-                showToast('Batch generation failed: ' + e.message, 'error');
+                showActionError('Dataset batch generation is unconfirmed', e, 'Check dataset task status and the saved samples before starting again; some samples may already have completed.');
                 applyDatasetBatchState(false, true);
                 dsbRenderTable();
                 // A lost response can follow accepted work. Keep edits blocked
@@ -481,6 +549,8 @@
 
         function dsbStartPolling(name, admitted = true) {
             if (dsbPolling) { dsbPolling(); }
+            const logsEl = document.getElementById('dsb-logs');
+            const renderLogs = createTaskLogRenderer(logsEl);
             dsbPolling = _startPolling(`dataset_builder:${name}`, () => API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`), {
                 intervalMs: 2000,
                 doneCheck: result => !result.running,
@@ -522,17 +592,15 @@
 
                     // Update logs
                     if (result.logs && result.logs.length > 0) {
-                        const logsEl = document.getElementById('dsb-logs');
                         logsEl.style.display = '';
-                        logsEl.innerText = result.logs.join('\n');
-                        logsEl.scrollTop = logsEl.scrollHeight;
                     }
+                    renderLogs(result);
 
 
                 },
-                onDone: () => {
+                onDone: status => {
                     if (!isDatasetProjectSelected(name)) { return; }
-                    if (admitted) { notifyJobDone('dataset_builder'); }
+                    if (admitted) { notifyJobDone('dataset_builder', '', 'finished', status); }
                     dsbStopBatch();
                 }
             });
@@ -556,13 +624,17 @@
             if (!ensureDatasetRowsEditable()) { return; }
             const file = event.target.files[0];
             if (!file) { return; }
+            const project = dsbCurrentProject;
+            const rows = dsbRows;
+            const snapshot = JSON.stringify(rows);
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
+                if (!isDatasetProjectSelected(project) || dsbRows !== rows) { return; }
                 if (!ensureDatasetRowsEditable()) { return; }
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) { throw new Error('Expected JSON array'); }
-                    dsbRows = data.map((item, index) => {
+                    const importedRows = data.map((item, index) => {
                         if (!item || typeof item !== 'object' || Array.isArray(item)) {
                             throw new Error(`Sample ${index + 1} must be an object`);
                         }
@@ -582,6 +654,13 @@
                             audio_url: null,
                         };
                     });
+                    if (dsbRows.length && !await showConfirm(`Import ${importedRows.length} samples into "${project}"? This will replace the ${dsbRows.length} rows and their generated audio links in this project. Continue?`, {title: 'Replace project samples?', actionLabel: 'Import samples', danger: true})) { return; }
+                    if (!isDatasetProjectSelected(project) || dsbRows !== rows || !ensureDatasetRowsEditable()) { return; }
+                    if (JSON.stringify(dsbRows) !== snapshot) {
+                        showToast('The samples changed while importing. Select the file again to review the replacement.', 'warning');
+                        return;
+                    }
+                    dsbRows = importedRows;
                     dsbRenderTable();
                     dsbSaveRows();
                 } catch (err) {
@@ -610,27 +689,34 @@
 
         // Save as training dataset
         window.dsbSave = async () => {
+            if (dsbTrainingSavePending) { return; }
             const name = dsbCurrentProject;
             if (!name) { showToast('Select or create a project first.', 'warning'); return; }
-
-            const doneSamples = dsbRows.filter(r => r.status === 'done');
-            if (doneSamples.length === 0) { showToast('No completed samples to save. Generate some first.', 'warning'); return; }
-
+            if (!ensureDatasetRowsEditable()) { return; }
+            const doneSamples = dsbRows.filter(row => row.status === 'done');
+            if (!doneSamples.length) { showToast('No completed samples to save. Generate some first.', 'warning'); return; }
+            const snapshot = JSON.stringify(dsbRows);
             const refIdx = parseInt(document.getElementById('dsb-ref-select').value) || 0;
-
-            if (!await showConfirm(`Save "${name}" as training dataset with ${doneSamples.length} samples?`)) return;
-
-            const statusEl = document.getElementById('dsb-save-status');
-            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
-
+            const status = document.getElementById('dsb-save-status');
+            dsbTrainingSavePending = true;
             try {
-                const result = await API.post('/api/dataset_builder/save', {
-                    name,
-                    ref_index: refIdx,
-                });
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Saved! ${result.sample_count} samples.</span>`;
+                if (!await showConfirm(`Save "${name}" as training dataset with ${doneSamples.length} samples?`, {title: 'Save training dataset?', actionLabel: 'Save dataset', danger: false})) { return; }
+                const isCurrent = () => isDatasetProjectSelected(name) && snapshot === JSON.stringify(dsbRows)
+                    && refIdx === (parseInt(document.getElementById('dsb-ref-select').value) || 0) && !dsbBatchRunning;
+                if (!isCurrent()) { showToast('The dataset changed. Review the current samples before saving.', 'warning'); return; }
+                await Promise.all([dsbSaveMetaQueue?.flush(), dsbSaveRowsQueue?.flush()]);
+                if (!isCurrent()) { showToast('The dataset changed while saving edits. Review it before saving the training dataset.', 'warning'); return; }
+                status.textContent = 'Saving training dataset…';
+                const result = await API.post('/api/dataset_builder/save', { name, ref_index: refIdx });
+                dsbTrainingSaved = { name, snapshot, count: result.sample_count, stale: !isCurrent() };
+                if (isDatasetProjectSelected(name)) { applyDatasetTrainingSaveFeedback(); }
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Save failed: ${escapeHtml(e.message)}</span>`;
+                if (isDatasetProjectSelected(name)) {
+                    status.textContent = 'Training dataset save could not be confirmed. Check the Training dataset list before retrying. Your project rows are still here.';
+                }
+                console.error('Training dataset save failed:', e);
+            } finally {
+                dsbTrainingSavePending = false;
             }
         };
 
@@ -657,21 +743,23 @@
             }
         }
 
+        function applySystemStatusText(id, text) {
+            const element = document.getElementById(id);
+            if (element && element.textContent !== text) { element.textContent = text; }
+        }
+
         let _systemStatsPending = false;
         async function updateSystemStats() {
             if (_systemStatsPending) { return; }
             _systemStatsPending = true;
             try {
                 const stats = await API.get('/api/system/stats');
-                const gpuEl = document.getElementById('sys-gpu-val');
-                const buildEl = document.getElementById('sys-build-val');
                 const buildWrap = document.getElementById('sys-build');
                 const gpuWrap = document.getElementById('sys-gpu');
-                const diskEl = document.getElementById('sys-disk-val');
                 const diskWrap = document.getElementById('sys-disk');
 
                 const runtime = stats.runtime || {};
-                buildEl.textContent = runtime.short_revision ? `build ${runtime.short_revision}` : 'build unknown';
+                applySystemStatusText('sys-build-val', runtime.short_revision ? `build ${runtime.short_revision}` : 'build unknown');
                 checkStaleBuild(runtime.short_revision);
                 const packageVersions = Object.entries(runtime.packages || {})
                     .filter(item => item[1])
@@ -689,7 +777,7 @@
                     // is silently running on CPU. Worth a much louder signal than the
                     // normal VRAM-pressure red, since this is a broken install, not
                     // just "busy right now".
-                    gpuEl.textContent = 'CPU fallback!';
+                    applySystemStatusText('sys-gpu-val', 'CPU fallback!');
                     gpuWrap.title = `${stats.gpu_mismatch_vendor || 'A'} GPU was detected on this system, ` +
                         `but the installed torch build can't use it - generation/training will run on CPU ` +
                         `and be dramatically slower. This usually means torch/torchaudio is the wrong build ` +
@@ -699,7 +787,7 @@
                 } else if (stats.gpu) {
                     const used = stats.gpu.reserved_gb.toFixed(1);
                     const total = stats.gpu.total_gb.toFixed(1);
-                    gpuEl.textContent = `${used}/${total} GB`;
+                    applySystemStatusText('sys-gpu-val', `${used}/${total} GB`);
                     gpuWrap.title = '';
                     if (stats.gpu.allocated_percent > 90) {
                         gpuWrap.classList.add('text-danger');
@@ -709,11 +797,16 @@
                         gpuWrap.classList.add('text-light');
                     }
                 } else {
-                    gpuEl.textContent = 'N/A';
+                    applySystemStatusText('sys-gpu-val', 'Unavailable');
+                    gpuWrap.classList.remove('text-danger');
+                    gpuWrap.classList.add('text-light');
                     gpuWrap.title = '';
                 }
 
-                diskEl.textContent = `${stats.disk.free_gb} GB`;
+                applySystemStatusText('sys-disk-val', `${stats.disk.free_gb} GB`);
+                applySystemStatusText('sys-gpu-warning', stats.gpu_mismatch ? ' GPU unavailable; using CPU.' : stats.gpu?.allocated_percent > 90 ? ' High GPU memory usage.' : '');
+                applySystemStatusText('sys-disk-warning', stats.disk.low_space ? ' Low disk space.' : '');
+                applySystemStatusText('sys-status-error', '');
                 if (stats.disk.low_space) {
                     diskWrap.classList.add('text-danger');
                     diskWrap.classList.remove('text-light');
@@ -721,7 +814,10 @@
                     diskWrap.classList.remove('text-danger');
                     diskWrap.classList.add('text-light');
                 }
-            } catch (e) { console.error('Failed to update system stats', e); }
+            } catch (e) {
+                applySystemStatusText('sys-status-error', 'System readings could not be refreshed. Showing last available readings; check the app connection.');
+                console.error('Failed to update system stats', e);
+            }
             finally { _systemStatsPending = false; }
         }
 
@@ -747,7 +843,7 @@
             try {
                 const eta = await API.get('/api/status/eta');
                 if (!eta.running) {
-                    wrap.style.display = 'none';
+                    if (wrap.style.display !== 'none') { wrap.style.display = 'none'; }
                     return;
                 }
                 let text = eta.label;
@@ -757,11 +853,15 @@
                 } else if (eta.elapsed_seconds != null) {
                     text += ` (running ${formatDuration(eta.elapsed_seconds)})`;
                 }
-                valEl.textContent = text;
-                wrap.style.display = 'flex';
+                applySystemStatusText('sys-eta-val', text);
+                if (valEl.title) { valEl.title = ''; }
+                if (wrap.style.display !== 'flex') { wrap.style.display = 'flex'; }
             } catch (e) {
                 console.error('Failed to update ETA status', e);
-                wrap.style.display = 'none';
+                if (wrap.style.display !== 'none' && valEl.textContent) {
+                    if (!valEl.title) { valEl.title = valEl.textContent; }
+                    applySystemStatusText('sys-eta-val', 'Status unavailable — a task may still be running');
+                }
             } finally {
                 _etaStatusPending = false;
             }
@@ -821,7 +921,7 @@
                 await API.post('/api/lmstudio/optimize', { enable });
                 showToast(enable ? 'LM Studio set to VRAM-safe settings' : 'LM Studio reset to default settings', 'success');
             } catch (e) {
-                showToast('Failed to update LM Studio settings: ' + (e.message || 'unknown error'), 'error');
+                showActionError('LM Studio settings update is unconfirmed', e, 'Check the refreshed LM Studio status before changing settings again.');
                 toggle.checked = !enable;
             } finally {
                 toggle.disabled = false;
@@ -849,7 +949,7 @@
                     const message = (state.logs || []).slice(-1)[0] || `${label} finished; the original request result is unavailable after reload.`;
                     if (statusEl) { statusEl.textContent = message; }
                     else { showToast(message, 'info'); }
-                    notifyJobDone(taskName);
+                    notifyJobDone(taskName, '', 'finished', state);
                     if (afterDone) { await afterDone(); }
                 },
             });
@@ -882,7 +982,7 @@
                 if (generation !== _reattachGeneration) { return; }
             } catch (e) {
                 if (generation !== _reattachGeneration) { return; }
-                showToast('Could not restore running task controls: ' + e.message, 'warning');
+                showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
                 return;
             }
             let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running]));
@@ -1026,7 +1126,7 @@
                     try {
                         await attach();
                     } catch (e) {
-                        showToast(`Could not restore ${name.replaceAll('_', ' ')} controls: ${e.message}`, 'warning');
+                        showActionError(`Could not restore ${name.replaceAll('_', ' ')} controls`, e, 'Check the app connection and task status before starting again; the task may still be running.', 'warning');
                     }
                 }
             }));
@@ -1072,7 +1172,7 @@
             [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
+                    <td title="${escapeHtml(file.name)}" style="max-width:350px;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(file.name)}</td>
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
@@ -1109,7 +1209,7 @@
                 _pollPreparerLogs(taskName);
             } catch (e) {
                 _applyPreparerControls(null);
-                showToast(task.failure + e.message, 'error');
+                showActionError(taskName === 'batch_preparer' ? 'Batch preparer start is unconfirmed' : 'Preparer start is unconfirmed', e, 'Check preparer task status and output files before starting again. Review any input or configuration refusal below.');
             }
         }
 
@@ -1194,20 +1294,13 @@
         function _pollPreparerLogs(taskName) {
             _applyPreparerControls(taskName);
             const logEl = document.getElementById('preparer-logs');
-            let offset = 0;
+            const renderLogs = createTaskLogRenderer(logEl);
 
             _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
                 doneCheck: state => !state.running,
                 onTick: state => {
                     if (prepActiveTask !== taskName) { return; }
-                    const newLines = state.logs.slice(offset);
-                    offset = state.logs.length;
-                    newLines.forEach(line => {
-                        const div = document.createElement('div');
-                        div.textContent = line;
-                        logEl.appendChild(div);
-                    });
-                    logEl.scrollTop = logEl.scrollHeight;
+                    renderLogs(state);
 
                     // Update batch queue status badges
                     if (taskName === 'batch_preparer' && state.tasks) {
@@ -1222,10 +1315,17 @@
                 },
                 onDone: state => {
                     if (prepActiveTask !== taskName) { return; }
-                    notifyJobDone(taskName);
+                    notifyJobDone(taskName, '', 'finished', state);
                     _applyPreparerControls(null);
-                    const msg = taskName === 'preparer' ? state.status : 'Batch finished';
-                    document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${escapeHtml(msg)}</span>`;
+                    const outcome = getTaskCompletionOutcome(state);
+                    const label = taskName === 'preparer' ? 'Preparation' : 'Batch preparation';
+                    const tone = outcome === 'failed' ? 'text-danger' : outcome === 'cancelled' ? 'text-warning' : 'text-success';
+                    const msg = outcome === 'failed'
+                        ? `${label} failed. Review the activity log before retrying; completed datasets remain available below.`
+                        : outcome === 'cancelled'
+                            ? `${label} cancelled. Completed datasets remain available below.`
+                            : `${label} finished. Download completed datasets below.`;
+                    document.getElementById('prep-status-msg').innerHTML = `<span class="${tone}">${escapeHtml(msg)}</span>`;
                     loadPreparerOutputs();  // refresh the download list with any new ZIPs
                 }
             });
@@ -1255,6 +1355,6 @@
                     </div>`;
                 }).join('');
             } catch (e) {
-                el.innerHTML = `<div class="text-danger small">${escapeHtml(e.message || String(e))}</div>`;
+                el.innerHTML = `<div class="text-danger small">${escapeHtml(getActionErrorMessage('Preparer outputs unavailable', e, 'Check the app connection, then refresh the output list. A failed list request does not mean the output files are missing.'))}</div>`;
             }
         }

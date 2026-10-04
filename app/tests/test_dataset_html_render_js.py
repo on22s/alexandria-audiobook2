@@ -86,6 +86,20 @@ run(source.slice(0,source.indexOf('// Persist on input changes')));
             parsed=self.assert_no_injected_elements(html);self.assertEqual(row['status'],parsed.of('tr')[0]['data-dsb-status']);self.assertEqual(row['audio_url'],parsed.of('tr')[0]['data-dsb-audio'])
             self.assertEqual(before,path.read_bytes());self.assertEqual(before,(directory/'state.json').read_bytes())
 
+    def test_reference_labels_only_mark_truncated_text_and_keep_indices(self):
+        rows=[{'text':'A complete sentence','emotion':'Calm','status':'done'},
+              {'text':'x'*40,'emotion':'e'*30,'status':'done'},
+              {'text':'y'*41,'emotion':'f'*31,'status':'done'},
+              {'text':'<img src=x>','emotion':'" & warm','status':'done'},
+              {'text':'not done','status':'pending'}]
+        html=self.execute("run('dsbRows=[];');run('dsbRows').push(...payload);context.dsbUpdateRefDropdown();console.log(JSON.stringify(elements['dsb-ref-select'].innerHTML));",rows)
+        parsed=self.assert_no_injected_elements(html)
+        self.assertEqual(['0','1','2','3'],[o['value'] for o in parsed.of('option')])
+        self.assertIn('1. Calm - "A complete sentence"',html)
+        self.assertIn('2. '+('e'*30)+' - "'+('x'*40)+'"</option>',html)
+        self.assertIn('3. '+('f'*30)+'… - "'+('y'*40)+'"…</option>',html)
+        self.assertIn('<img src=x>',''.join(parsed.text))
+
     def test_shared_template_escapes_new_values_and_targeted_renderer_uses_same_output(self):
         row={'emotion':'happy','text':'literal <img onerror=bad>','seed':0,'status':'done','audio_url':'/clip.wav?x="&y=1'}
         output=self.execute(r'''
