@@ -6,6 +6,37 @@ import unittest
 SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
 
 class ConfigRefreshFeedbackJsTests(unittest.TestCase):
+    def test_confirmed_save_with_failed_ui_callback_and_rejected_save(self):
+        script = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),s=fs.readFileSync(process.argv[1],'utf8');
+const buttons=[{disabled:false,innerHTML:'Save'},{disabled:true,innerHTML:'Save'}],status={textContent:''};
+const fields={'config-form':{querySelectorAll:()=>buttons},'config-save-button':buttons[0],'config-save-button-top':buttons[1],'config-save-status':status,'toast-container':{insertAdjacentHTML(){}}};
+let writes=0,rejectPost=false,followups=0;const errors=[];
+const c={document:{getElementById:id=>fields[id]||{}},console:{debug:(...args)=>errors.push(args)},API:{post:async()=>{if(rejectPost){throw Error('server refused');}writes++;}}};vm.createContext(c);
+vm.runInContext('let configSavePending=false;let toastSequence=0;',c);
+for(const [start,end] of [['function showToast(', 'function showActionError('],['function escapeHtml(', 'function getInlineStringArgument('],['async function saveConfigPayload(', 'function getPromptEditorBoxes(']]){
+ const at=s.indexOf(start);vm.runInContext(s.slice(at,s.indexOf(end,at)),c);
+}
+let finished=false;process.on('beforeExit',()=>assert(finished,'asynchronous assertions must finish'));
+(async()=>{
+ // Run the native toast with Bootstrap unavailable: acknowledgement must survive a UI failure.
+ await c.saveConfigPayload({},()=>{followups++;c.showToast('Configuration Saved!','success');});
+ assert.strictEqual(writes,1);assert.strictEqual(followups,1);
+ assert.match(status.textContent,/Configuration saved, but/);assert(!status.textContent.includes('not confirmed'));
+ assert.strictEqual(errors.length,1,'keep the UI failure available for debugging');
+ assert.strictEqual(buttons[0].disabled,false);assert.strictEqual(buttons[1].disabled,true);
+ assert.strictEqual(buttons[0].innerHTML,'Save');assert.strictEqual(buttons[1].innerHTML,'Save');
+ rejectPost=true;await assert.rejects(c.saveConfigPayload({},()=>followups++),/server refused/);
+ assert.match(status.textContent,/Save was not confirmed/);assert.strictEqual(writes,1);assert.strictEqual(followups,1);
+ assert.strictEqual(buttons[0].disabled,false);assert.strictEqual(buttons[1].disabled,true);
+ rejectPost=false;await c.saveConfigPayload({},()=>followups++);
+ assert.strictEqual(writes,2);assert.strictEqual(followups,2);assert.strictEqual(status.textContent,'Configuration saved.');
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_acknowledged_save_refresh_failure_retry_and_editor_race(self):
         script = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),s=fs.readFileSync(process.argv[1],'utf8');let submit,ack,resolveRead,reads=0,posts=0,rendered=0;

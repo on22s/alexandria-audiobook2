@@ -1658,7 +1658,8 @@
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_integer_fields_preserve_exponent_and_decimal_notation"
   ],
   "test_config_refresh_feedback_js": [
-    "tests.test_config_refresh_feedback_js.ConfigRefreshFeedbackJsTests.test_acknowledged_save_refresh_failure_retry_and_editor_race"
+    "tests.test_config_refresh_feedback_js.ConfigRefreshFeedbackJsTests.test_acknowledged_save_refresh_failure_retry_and_editor_race",
+    "tests.test_config_refresh_feedback_js.ConfigRefreshFeedbackJsTests.test_confirmed_save_with_failed_ui_callback_and_rejected_save"
   ],
   "test_config_refresh_reuse_js": [
     "tests.test_config_refresh_reuse_js.ConfigRefreshReuseTests.test_actual_callback_success_and_independent_retry"

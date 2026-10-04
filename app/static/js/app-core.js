@@ -1257,8 +1257,13 @@
             if (status) { status.textContent = 'Saving configuration…'; }
             try {
                 await API.post('/api/config', payload);
-                if (onSaved) { await onSaved(); }
                 if (status) { status.textContent = 'Configuration saved.'; }
+                try {
+                    if (onSaved) { await onSaved(); }
+                } catch (error) {
+                    console.debug('Configuration saved, but saved UI feedback failed', error);
+                    if (status) { status.textContent = 'Configuration saved, but the saved status could not be displayed completely. Your form fields are kept. Reload to view the saved settings before making further changes.'; }
+                }
             } catch (error) {
                 if (status) { status.textContent = 'Save was not confirmed. Your form fields are kept. Review the error and current saved settings before trying again.'; }
                 throw error;
