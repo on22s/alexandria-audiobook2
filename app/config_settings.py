@@ -102,6 +102,9 @@ PromptVariant = Literal[
 # dialogue, the rest narration, no pass-1 calls (issue #588; a plain quote
 # segmenter finds 99.84% of PDNC's labelled quotations,
 # quote_segmenter_pdnc_20260918.json). "llm": always ask the model.
+# User-facing names for these stored values are in RECIPES.md ("Pass 1"): auto is shown as
+# "Quote marks first, model for the rest (recommended)", quotes as "Quote marks only", lexical as
+# "Quote-aware", llm as "Model only". The stored values must not change without a migration.
 SegmentationMode = Literal["auto", "quotes", "lexical", "llm"]
 
 

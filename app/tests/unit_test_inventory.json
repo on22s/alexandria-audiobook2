@@ -6674,6 +6674,13 @@
     "tests.test_seed_plumbing.TestSeedIsRead.test_negative_seed_does_not_seed",
     "tests.test_seed_plumbing.TestSeedIsRead.test_seed_is_not_a_hardcoded_constant"
   ],
+  "test_segmentation_mode_names": [
+    "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_auto_is_not_shown_as_plain_auto",
+    "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_code_that_uses_the_auto_value_names_its_user_facing_text",
+    "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_dropdown_shows_exactly_the_documented_names",
+    "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_every_stored_value_has_a_user_facing_name",
+    "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_the_checker_can_fail"
+  ],
   "test_separator_earcheck_explicit_terms": [],
   "test_serialized_save_queue": [
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows",

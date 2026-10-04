@@ -1066,6 +1066,12 @@ def _resolved_near_miss(near_miss, resolution_sink):
     return entries
 
 
+# Stored values and the names users see (RECIPES.md, "Pass 1"; the Setup dropdown uses the right-hand side):
+#   auto    -> "Quote marks first, model for the rest (recommended)"
+#   quotes  -> "Quote marks only (no Step 1 model calls)"
+#   lexical -> "Quote-aware (quoted terms as narration)"
+#   llm     -> "Model only"
+# Do not rename a stored value: config.json, model profiles and old results contain them.
 SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
 LEXICAL_QUOTE_CLASSIFIER_VERSION = 2
 
@@ -2858,7 +2864,8 @@ def main():
                              "(one of attribution_prompt_variants.VARIANTS)")
     parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
                         help="Override generation.three_pass_segmentation: auto "
-                             "(quote marks where unambiguous, else the model), quotes "
+                             "(shown to users as 'Quote marks first, model for the rest'; "
+                             "quote marks where unambiguous, else the model), quotes "
                              "(never the model), lexical (quoted terms as narration), "
                              "llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,

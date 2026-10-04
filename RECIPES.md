@@ -132,11 +132,19 @@ still holds ~62 GB of bf16 experts.
 
 ## Pass 1: dialogue detection (`generation.three_pass_segmentation`, 2026-09-18)
 
-| mode | what pass 1 does | evidence |
-|---|---|---|
-| `auto` (default; every three-pass result above was measured with it) | quote marks where they split the chunk into more than one region and the segment gate passes; the model for the rest - in practice ~7% of chunks, almost all narration-only | manifests `pipeline_repeats/run*.json.threepass_manifest.json`: 90/99 and 79/90 chunks `quote_presegmented` |
-| `quotes` (issue #588) | never the model: quoted text is dialogue, everything else narration, `quote_forced` in the manifest for chunks the gate did not vouch for; a run on a book with no quote marks in more than half its chunks is refused before it starts | a plain quote segmenter finds **99.84%** of PDNC's 44,812 hand-labelled quotation spans across all 28 novels (`quote_segmenter_pdnc_20260918.json`); 12k chars of Emma through DeepSeek: pass 1 in 0.06 s, four model calls total (`--segmentation quotes`) |
-| `llm` | always the model | the old `three_pass_presegment_quotes: false` |
+| mode (stored value) | name users see | what pass 1 does | evidence |
+|---|---|---|---|
+| `auto` (default; every three-pass result above was measured with it) | Quote marks first, model for the rest (recommended) | quote marks where they split the chunk into more than one region and the segment gate passes; the model for the rest - in practice ~7% of chunks, almost all narration-only | manifests `pipeline_repeats/run*.json.threepass_manifest.json`: 90/99 and 79/90 chunks `quote_presegmented` |
+| `quotes` (issue #588) | Quote marks only (no Step 1 model calls) | never the model: quoted text is dialogue, everything else narration, `quote_forced` in the manifest for chunks the gate did not vouch for; a run on a book with no quote marks in more than half its chunks is refused before it starts | a plain quote segmenter finds **99.84%** of PDNC's 44,812 hand-labelled quotation spans across all 28 novels (`quote_segmenter_pdnc_20260918.json`); 12k chars of Emma through DeepSeek: pass 1 in 0.06 s, four model calls total (`--segmentation quotes`) |
+| `lexical` | Quote-aware (quoted terms as narration) | the same deterministic quote split as `quotes`, but strongly signalled quoted terms (for example "known as X") are narration | no measurement recorded in this table |
+| `llm` | Model only | always the model | the old `three_pass_presegment_quotes: false` |
+
+**Naming rule.** The stored value (`auto`, `quotes`, `lexical`, `llm`) is what `config.json`, model profiles, the
+`--segmentation` flag and old results contain, so it never changes without a migration. Everything a person reads - the
+Setup dropdown, help text, reports, issues - uses the "name users see" column. `auto` in particular is never shown
+as "Auto": it mostly does not use the model (the table above has 93%; measured 2026-10-04 on Re:Zero volumes 1-3 at chunk size 3,000,
+409 of 414 chunks are settled by the quote marks), and "Auto" hides that. Where code uses a stored value, a comment names the user-facing text; `app/tests/test_segmentation_mode_names.py`
+fails if this table and the Setup dropdown disagree.
 
 Not yet measured: pass-2 accuracy under `quotes` against `auto` on the same
 rows (expected within noise, since `auto` already uses the marks on 93% of
