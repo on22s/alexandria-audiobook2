@@ -377,25 +377,6 @@ leaving the card idle), and treating `rc=3` as a failure — it is the identity
 gate's VERDICT, and counting the 18 of them as failures overstated the queue's
 failure rate by about 38%.
 
-### Rule 27 — Nothing Copyrighted Leaves the Machine
-
-Text from a work we do not have the right to republish, and anything that exists only because of that text, must not
-appear in a commit, PR, issue, comment, release note, published artifact or model card. That covers passages and line
-excerpts; per-line labels, outputs or PoCs that quote them; EPUB or text files; and gold or silver label files whose rows
-carry the source line.
-
-- **Evidence has to be reproducible from the repo.** Published numbers come from what is checked in, or from
-  public-domain or explicitly licensed text. A number measured only on local copyrighted material can be reported in the
-  conversation, but a PR, issue, RECIPES row or card says nothing more specific than "measured on a local set that is not in
-  the repo", and prefers a public-domain equivalent when one exists.
-- **Tests and fixtures use synthetic sentences or public-domain text,** never a passage lifted from a book we do not have
-  the right to publish.
-- **Check before you push.** Before opening or editing a PR, issue or doc, read the diff and the description for titles used
-  as evidence, quoted lines, and paths to local-only data. Remove them, and say so in the PR.
-
-Why: on 2026-10-04 a PR description and a RECIPES rule cited a measurement taken on a local light-novel set. No reviewer
-could reproduce it, and it put copyrighted material into a public repo as evidence. It was removed in the same PR.
-
 ## This project: Alexandria Audiobook2
 
 A FastAPI app (`app/app.py`, title "Alexandria Audiobook") for multi-voice AI
