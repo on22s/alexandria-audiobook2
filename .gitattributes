@@ -22,3 +22,6 @@ results_index.csv                               merge=ours
 LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md          merge=ours
 ab_test_runtime/audit/*.json                    merge=ours
 app/tests/unit_test_inventory.json              merge=ours
+
+# Pinned vendor hashes require identical bytes even with core.autocrlf=true.
+app/static/vendor/**                            -text

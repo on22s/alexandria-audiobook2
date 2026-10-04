@@ -2907,7 +2907,8 @@
     "tests.test_front_matter_telemetry.FrontMatterTelemetryTests.test_front_only_removal_is_reported_without_modifying_upload"
   ],
   "test_frontend_cdn_integrity": [
-    "tests.test_frontend_cdn_integrity.FrontendCdnIntegrityTests.test_every_vendor_script_has_exact_version_sha384_and_cors"
+    "tests.test_frontend_cdn_integrity.FrontendCdnIntegrityTests.test_every_vendor_script_has_exact_version_sha384_and_cors",
+    "tests.test_frontend_cdn_integrity.FrontendCdnIntegrityTests.test_windows_style_checkout_preserves_vendor_script_integrity"
   ],
   "test_frontend_exposure": [
     "tests.test_frontend_exposure.CategoryTest.test_cjk_and_accented_latin_are_separated",
