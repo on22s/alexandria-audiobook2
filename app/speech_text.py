@@ -1,5 +1,6 @@
 """Conservative speech preparation and non-prose risk classification."""
 import re
+import logging
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
@@ -50,7 +51,8 @@ def get_speech_risks(text):
     if (_LABELLED_IDENTIFIER_RE.search(value) or _COMPACT_IDENTIFIER_RE.search(value)
             or _ISBN_RE.search(value)):
         risks.append("identifier")
-    break_count = sum(value.count(mark) for mark in SPEECH_BREAKS)
+    structural = re.sub(r"(?<!\w)(\*{1,3}|_{1,3})(?=\S)([^\n]*?\S)\1(?!\w)", r"\2", value)
+    break_count = sum(structural.count(mark) for mark in SPEECH_BREAKS)
     if (break_count >= 2 or (value.count("|") >= 2 and "\n" in value)
             or (_CONTENTS_RE.search(value) and value.count(".") >= 3)):
         risks.append("list_or_table")
@@ -109,7 +111,8 @@ def get_speech_normalization(text):
             # Avoid adding a second spoken "copyright" from its symbol,
             # without deleting repeated words that were authored in the text.
             normalized, redundant = re.subn(
-                r"(\bcopyright\s*)©", r"\1", normalized, flags=re.IGNORECASE)
+                r"(\bcopyright\s*)©|©(\s*copyright\b)",
+                lambda match: match.group(1) or match.group(2), normalized, flags=re.IGNORECASE)
             if redundant:
                 transformations.append({"type": "dropped_redundant_symbol",
                                         "symbol": symbol, "replacement": ""})
@@ -137,9 +140,10 @@ def get_speech_normalization(text):
             normalized = spoken
             transformations.append({"type": "pronunciation_lexicon",
                                     "substitutions": applied})
-    except Exception:                                   # noqa: BLE001
+    except Exception as error:                          # noqa: BLE001
         # A broken lexicon must never stop a book generating.
-        pass
+        logging.getLogger(__name__).warning(
+            "Pronunciation processing failed; continuing without substitutions: %s", error)
     stripped = normalized.strip(" .\t\n")
     bounded = stripped + "." if stripped else ""
     if bounded != normalized:

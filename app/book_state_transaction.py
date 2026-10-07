@@ -164,7 +164,7 @@ def apply_book_state_locked(data_dir, replacements, removals):
 
 
 
-def get_book_snapshot(data_dir, allow_missing_script=False):
+def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True):
     """Read immutable persona inputs; caller holds the book-operation lock."""
     root = Path(data_dir)
     state_path = root / "state.json"
@@ -172,7 +172,7 @@ def get_book_snapshot(data_dir, allow_missing_script=False):
     script_path = root / "annotated_script.json"
     script_bytes = script_path.read_bytes() if script_path.exists() or not allow_missing_script else None
     voice_path = root / "voice_config.json"
-    voices = json.loads(voice_path.read_bytes()) if voice_path.exists() else {}
+    voices = json.loads(voice_path.read_bytes()) if include_voices and voice_path.exists() else {}
     if not isinstance(state, dict) or not isinstance(voices, dict):
         raise ValueError("Book state and voices must be objects")
     identity = {key:state.get(key) for key in ("active_book_id", "input_file_path", "book_generation")}

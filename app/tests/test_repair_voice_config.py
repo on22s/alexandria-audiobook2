@@ -46,6 +46,43 @@ DESIGN = {"type": "design", "voice": "Ryan", "seed": "-1"}
 CLONE = {"type": "clone", "voice": "Ryan", "seed": "-1"}
 
 
+class EnsembleRepairTests(unittest.TestCase):
+    def test_deliberate_ensemble_survives_automatic_custom_with_more_lines(self):
+        config = {'Alice': {'type': 'ensemble', 'members': ['ONE', 'TWO']},
+                  'ALICE': dict(CUSTOM), 'ONE': dict(CUSTOM), 'TWO': dict(LORA)}
+        before = json.dumps(config, sort_keys=True)
+        splits = find_splits(config, {}, {'Alice': 5, 'ALICE': 10})
+        self.assertEqual('Alice', splits[0]['winner'])
+        self.assertFalse(splits[0]['ambiguous'])
+        merged = apply_merges(config, splits)
+        self.assertEqual(['ONE', 'TWO'], merged['ALICE']['members'])
+        self.assertEqual('ensemble', merged['ALICE']['type'])
+        self.assertEqual(before, json.dumps(config, sort_keys=True))
+
+    def test_distinct_ensemble_members_are_ambiguous_and_require_override(self):
+        config = {'Alice': {'type': 'ensemble', 'members': ['ONE', 'TWO']},
+                  'ALICE': {'type': 'ensemble', 'members': ['ONE', 'THREE']}}
+        splits = find_splits(config, {}, {'Alice': 5, 'ALICE': 10})
+        self.assertEqual(1, len(splits))
+        self.assertTrue(splits[0]['ambiguous'])
+        self.assertEqual(config, apply_merges(config, splits))
+        forced = apply_merges(config, splits, force_ambiguous=True)
+        self.assertEqual(['ONE', 'THREE'], forced['Alice']['members'])
+        self.assertEqual(['ONE', 'TWO'], config['Alice']['members'])
+
+    def test_ensemble_and_other_top_deliberate_voice_are_ambiguous(self):
+        config = {'Alice': {'type': 'ensemble', 'members': ['ONE', 'TWO']},
+                  'ALICE': dict(CLONE)}
+        splits = find_splits(config, {}, {'ALICE': 10})
+        self.assertTrue(splits[0]['ambiguous'])
+        self.assertEqual(config, apply_merges(config, splits))
+
+    def test_identical_ensembles_remain_harmless_duplicates(self):
+        config = {'Alice': {'type': 'ensemble', 'members': ['ONE', 'TWO']},
+                  'ALICE': {'type': 'ensemble', 'members': ['ONE', 'TWO']}}
+        self.assertEqual([], find_splits(config, {}, {}))
+
+
 class TestCanonical(unittest.TestCase):
 
     def test_alias_map_is_case_insensitive(self):

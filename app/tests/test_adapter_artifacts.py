@@ -60,7 +60,7 @@ class AdapterReusePublicationTests(unittest.TestCase):
     def test_manifest_and_prefix_resume_reject_bad_core_and_metadata_then_accept_valid_renamed_adapter(self):
         for kind in (*CORE_DAMAGE,*META_DAMAGE):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp); renamed=root/'renamed'; prefix=root/'speaker_old'
+                root=Path(tmp); renamed=root/'renamed'; prefix=root/'speaker_100'
                 for path in (renamed,prefix): write_test_adapter(path); damage(path,kind)
                 snapshot={p.relative_to(root):p.read_bytes() for p in root.rglob('*') if p.is_file()}
                 self.assertIsNone(batch.adapter_exists(str(root),'speaker',[{'id':'renamed','dataset_id':'speaker'}]))
@@ -70,8 +70,8 @@ class AdapterReusePublicationTests(unittest.TestCase):
                 write_test_adapter(root/'complete')
                 self.assertEqual(str(root/'complete'),batch.adapter_exists(str(root),'speaker',[
                     {'id':'renamed','dataset_id':'speaker'},{'id':'complete','dataset_id':'speaker'}]))
-                write_test_adapter(root/'speaker_new')
-                self.assertEqual(str(root/'speaker_new'),batch.adapter_exists(str(root),'speaker',[]))
+                write_test_adapter(root/'speaker_200')
+                self.assertEqual(str(root/'speaker_200'),batch.adapter_exists(str(root),'speaker',[]))
 
     def test_actual_train_one_rejects_success_exit_with_invalid_files_and_preserves_existing_output(self):
         for kind in (None, *CORE_DAMAGE, *META_DAMAGE):

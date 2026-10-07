@@ -47,6 +47,51 @@ class VoiceAnalysisPhaseCompletionTests(unittest.TestCase):
             self.ns['write_pipeline_summary'](self.zips, self.output, self.analyze)
         return (self.output / 'pipeline_summary.log').read_text()
 
+    def test_missing_and_empty_analysis_inputs_publish_terminal_failure_state(self):
+        self.configure()
+        for mode in ('missing', 'empty'):
+            with self.subTest(mode=mode):
+                source = self.root / ('inputs_'+mode)
+                if mode == 'empty':
+                    source.mkdir()
+                state = self.analyze / 'phase_state.json'
+                state.write_text(json.dumps({'status': 'complete', 'groups': {'old': {}}}))
+                with redirect_stdout(io.StringIO()):
+                    self.ns['run_analyze'](self.ns['fixture_model'], 'cpu', source, self.analyze)
+                terminal = json.loads(state.read_text())
+                self.assertEqual('failed', terminal['status'])
+                self.assertEqual({}, terminal['groups'])
+                self.assertTrue(terminal['error'])
+                self.assertEqual({}, self.ns['get_completed_analysis_phase'](state))
+
+    def test_actual_cli_entrypoint_reports_partial_dedup_failure_and_clean_success(self):
+        import sys
+        from tests.test_voice_analysis_cache import SOURCE
+        self.configure()
+        tree = ast.parse(SOURCE.read_text())
+        entrypoint = tree.body[-1]
+        self.assertIsInstance(entrypoint, ast.If)
+        self.ns['__name__'] = '__main__'
+        for partial in (True, False):
+            with self.subTest(partial=partial):
+                self.write_zip(0.25)
+                if partial:
+                    with zipfile.ZipFile(self.zip, 'a') as archive:
+                        archive.writestr('train/broken.wav', b'not audio')
+                argv = ['voice_analysis', '--phase', 'dedup', '--device', 'cpu',
+                        '--zips2', str(self.zips), '--dedup-out', str(self.output)]
+                with patch.object(sys, 'argv', argv), redirect_stdout(io.StringIO()):
+                    try:
+                        exec(compile(ast.Module(body=[entrypoint], type_ignores=[]), str(SOURCE), 'exec'), self.ns)
+                    except SystemExit as exit_result:
+                        code = exit_result.code
+                    else:
+                        code = 0
+                state = json.loads((self.output / 'phase_state.json').read_text())
+                self.assertEqual('partial' if partial else 'complete', state['status'])
+                self.assertEqual(1 if partial else 0, code)
+                self.assertTrue(list((self.zips / '_deduped').glob('*.zip')))
+
     def test_unique_narrator_without_plot_is_done_using_actual_output_group_key(self):
         self.configure()
         self.run_dedup()

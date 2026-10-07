@@ -182,11 +182,16 @@ class HelperReviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             manager = ProjectManager(directory)
             utils.atomic_json_write([{'speaker': 'A', 'text': 'hello'}], manager.script_path)
+            rejected = []
             for value in ({'bad': 1}, [None], 42):
                 utils.atomic_json_write(value, manager.chunks_path)
                 chunks = manager.load_chunks()
                 self.assertEqual(chunks[0]['text'], 'hello')
-                self.assertEqual(utils.safe_load_json(manager.chunks_path + '.corrupt'), value)
+                rejected.append(value)
+                backups = [json.loads(path.read_text())
+                           for path in Path(directory).glob('chunks.json.corrupt*')]
+                self.assertCountEqual(rejected, backups)
+                self.assertEqual({'bad': 1}, utils.safe_load_json(manager.chunks_path + '.corrupt'))
                 self.assertEqual(utils.safe_load_json(manager.chunks_path), chunks)
 
     def test_audio_paths_reject_escape_in_loading_and_fingerprinting(self):

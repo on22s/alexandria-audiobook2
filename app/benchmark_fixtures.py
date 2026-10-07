@@ -8,7 +8,7 @@ import json
 from generate_script import fix_mojibake, split_into_chunks
 from source_normalization import normalize_known_source_corruptions
 from lora_evidence import get_file_sha256
-from benchmark_validation import (get_lora_training_sample_count, validate_persona_speakers,
+from benchmark_validation import (get_lora_training_sample_count, get_lora_training_entries, validate_persona_speakers,
                                   get_benchmark_file_path, get_benchmark_directory_path,
                                   get_benchmark_training_audio_path, get_benchmark_archive_audio_path,
                                   get_adapter_artifact_path)
@@ -267,9 +267,7 @@ def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None
         sample_count = get_lora_training_sample_count(fixture.get("sample_count", 8))
         with open(metadata_path, "rb") as metadata_file:
             metadata_raw = metadata_file.read()
-        entries = _load_jsonl_entries(metadata_raw, "LoRA training")[:sample_count]
-        if len(entries) < sample_count:
-            raise ValueError("LoRA training dataset has too few samples")
+        entries = get_lora_training_entries(_load_jsonl_entries(metadata_raw, "LoRA training"), sample_count)
         audio_hashes = {}
         for entry in entries:
             relative_audio = entry.get("audio_filepath") or entry.get("audio")

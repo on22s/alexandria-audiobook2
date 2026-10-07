@@ -69,7 +69,10 @@ def get_selected_interpreter_preflight(python, zip_paths, device):
         if not isinstance(report.get('datasets'), list) or not isinstance(report.get('errors'), list):
             raise ValueError('Selected interpreter returned malformed archive results')
         if report['status'] == 'ready':
-            names = [row.get('archive') for row in report['datasets'] if isinstance(row, dict)]
+            if any(not isinstance(row, dict) or not isinstance(row.get('archive'), str)
+                   or not row['archive'] for row in report['datasets']):
+                raise ValueError('Selected interpreter returned malformed archive results')
+            names = [row['archive'] for row in report['datasets']]
             expected = [os.path.basename(path) for path in zip_paths]
             if (report['errors'] or len(names) != len(expected) or sorted(names) != sorted(expected)
                     or not isinstance(report.get('runtime'), dict)):

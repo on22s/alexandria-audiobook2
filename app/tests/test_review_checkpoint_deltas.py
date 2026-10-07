@@ -200,3 +200,59 @@ class ReviewCheckpointDeltaTests(unittest.TestCase):
                 self.assertIsNone(review.load_checkpoint(str(output), 20, 10, 0, []))
             self.assertIsNone(editor._summarize_review_checkpoint(str(path)))
             self.assertEqual(before, record.read_bytes())
+
+
+class ReviewResumeCoordinateTests(unittest.TestCase):
+    def stats(self):
+        return {key: 0 for key in ('text_changed', 'speaker_changed', 'instruct_changed', 'entries_changed', 'entries_added', 'entries_removed', 'batches_failed', 'batches_skipped_vram')}
+
+    def rows(self):
+        return [{'speaker': 'ALICE', 'text': text, 'instruct': 'Neutral.'} for text in ('First. Second.', 'Third.', 'Unreviewed tail.')]
+
+    def test_source_and_published_output_resume_in_their_own_coordinate_spaces(self):
+        original = self.rows()
+        for corrected in ([{**original[0], 'text': 'First.'}, {**original[0], 'text': 'Second.'}, original[1]],
+                          [{**original[0], 'text': 'First. Second. Third.'}]):
+            with self.subTest(corrected=corrected), tempfile.TemporaryDirectory() as tmp:
+                output = str(Path(tmp) / 'reviewed.json'); published = corrected + original[2:]
+                review.save_checkpoint(output, 1, 2, 2, 0, corrected, self.stats(), corrected[-2:], [len(corrected)], [], review._entries_fingerprint(original), review._entries_fingerprint(published))
+                source_state = review._load_resume_state(output, 2, 2, 0, original, [], self.stats())
+                output_state = review._load_resume_state(output, 2, 2, 0, published, [], self.stats())
+                self.assertEqual(2, source_state[6])
+                self.assertEqual(len(corrected), output_state[6])
+                self.assertEqual(original[2:], original[source_state[6]:])
+                self.assertEqual(original[2:], published[output_state[6]:])
+
+    def test_actual_review_cli_keeps_unreviewed_tail_after_a_split_in_both_modes(self):
+        for context in (0, 2):
+            with self.subTest(context=context), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); source = root / 'source.json'; output = root / 'reviewed.json'
+                original = self.rows(); source.write_text(json.dumps(original))
+                corrected = [{**original[0], 'text': 'First.'}, {**original[0], 'text': 'Second.'}, original[1]]
+                review.save_checkpoint(str(output), 1, 2, 2, context, corrected, self.stats(), corrected[-2:], [3], [], review._entries_fingerprint(original))
+                recorded = []; native_save = review.save_checkpoint
+                def save_and_read(*args, **kwargs):
+                    native_save(*args, **kwargs)
+                    recorded.append(deltas.load_generation_checkpoint_document(review._checkpoint_path(str(output))).get('source_offsets'))
+                with contextlib.ExitStack() as stack:
+                    for name, value in [('get_runtime_data_dir', tmp), ('load_app_config', {'generation': {'review_batch_size': 2}, 'llm_mode': 'remote'}), ('get_active_llm_config', {'model_name': 'fixture'}), ('ensure_ideal_settings', (True, {}, 'fixture')), ('make_run_client', object()), ('get_completed_review_fingerprint', 'fixture'), ('get_cached_or_benchmarked_concurrency', 1), ('get_current_status', {'loaded': False})]:
+                        stack.enter_context(patch.object(review, name, return_value=value))
+                    run = stack.enter_context(patch.object(review, 'review_batch', side_effect=lambda client, model, batch, *args, **kwargs: batch))
+                    stack.enter_context(patch.object(review, 'save_checkpoint', side_effect=save_and_read))
+                    stack.enter_context(patch('sys.argv', ['review', '--input', str(source), '--output', str(output), '--context-window', str(context)]))
+                    stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                    review.main()
+                self.assertEqual(corrected + original[2:], json.loads(output.read_text()))
+                self.assertEqual(original[2:], run.call_args.args[2])
+                self.assertEqual([[2, 3]], recorded)
+                self.assertEqual(original, json.loads(source.read_text()))
+
+    def test_failed_batch_rewind_truncates_recorded_source_offsets(self):
+        original = [{'speaker': 'ALICE', 'text': f'Expanded prefix {i}.', 'instruct': 'Neutral.'} for i in range(5)] + self.rows()[2:]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / 'reviewed.json')
+            review.save_checkpoint(output, 2, 3, 2, 0, original, self.stats(), original[-2:], [5, 1], [2], review._entries_fingerprint(original))
+            path = Path(review._checkpoint_path(output)); data = json.loads(path.read_text()); data['source_offsets'] = [5, 6]; path.write_text(json.dumps(data))
+            resumed = review._load_resume_state(output, 3, 2, 0, original, [], self.stats())
+            self.assertEqual(5, resumed[6])
+            self.assertEqual([5], resumed[7]['source_offsets'])

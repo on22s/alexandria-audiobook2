@@ -9,7 +9,7 @@ SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),core=fs.readFileSync(process.argv[1],'utf8'),scripts=fs.readFileSync(process.argv[2],'utf8');
 const elements={},handlers={},toasts=[],suggestions=[];let selectedFilename='Book.One.txt',refuse=false;
 const decode=text=>text.replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
-function el(id){if(elements[id]){return elements[id];}let html='';const element={value:'',files:[],style:{},options:[],dataset:{},appendChild:()=>{},addEventListener:(event,callback)=>handlers[id+':'+event]=callback};Object.defineProperty(element,'innerHTML',{get:()=>html,set:value=>{html=value;element.options=[...value.matchAll(/<option value="([^"]*)"/g)].map(match=>({value:decode(match[1])}));}});Object.defineProperty(element,'textContent',{get:()=>decode(html.replace(/<[^>]*>/g,''))});elements[id]=element;return element;}
+function el(id){if(elements[id]){return elements[id];}let html='';const element={value:'',files:[],style:{},options:[],dataset:{},appendChild:()=>{},addEventListener:(event,callback)=>handlers[id+':'+event]=callback};Object.defineProperty(element,'innerHTML',{get:()=>html,set:value=>{html=value;element.options=[...value.matchAll(/<option value="([^"]*)"/g)].map(match=>({value:decode(match[1])}));}});Object.defineProperty(element,'textContent',{get:()=>decode(html.replace(/<[^>]*>/g,'')),set:value=>{html=String(value);}});elements[id]=element;return element;}
 const ctx={window:null,document:{getElementById:el},API:{post:async()=>{if(refuse){throw Error('refused');}return {stored_filename:selectedFilename};},upload:async()=>({stored_filename:selectedFilename,reused:true})},showPresetEditor:async options=>{suggestions.push(options.name);return null;},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,console,
  loadExistingScriptUploads:async()=>{},ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadChunks:async()=>{},loadVoices:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{}};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
@@ -61,3 +61,19 @@ ctx.showPresetEditor=async options=>{assert.strictEqual(options.nameLabel,'Snaps
 ctx.showPresetEditor=async()=>{ctx.applyCurrentBookFilename('other.txt');return{name:'my snapshot'};};await ctx.snapshotScript();assert.strictEqual(posts,0);assert(toasts.at(-1)[0].includes('book changed'));
 ctx.showPresetEditor=async()=>({name:'my snapshot'});await ctx.snapshotScript();assert.strictEqual(posts,1);
 ''')
+
+    def test_deferred_preview_publication_requires_current_request_book_and_inputs(self):
+        self.run_js(r"""
+load('window.previewNarratorSelection =','window.setVoiceApproval =');
+const posts=[],errors=[];ctx.API.post=(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}));ctx.showActionError=(...args)=>errors.push(args);
+ctx._voicesNames=['NARRATOR','Alice','Bob'];ctx._voicesByName={NARRATOR:{config:{versions:{adult:{},older:{}}}}};
+function select(){ctx.applyCurrentBookFilename('book-A');el('narrator-strategy').value='character';el('narrator-focus').value='Alice';el('narrator-version').value='adult';}
+select();const older=ctx.previewNarratorSelection();el('narrator-focus').value='Bob';const newer=ctx.previewNarratorSelection();
+posts[1].resolve({selected:{voice:'Bob'}});await newer;posts[0].resolve({selected:{voice:'Alice'}});await older;assert.strictEqual(el('narrator-preview-status').textContent,'Selected Bob.');
+for(const change of ['book','strategy','focus','version']){select();const before=el('narrator-preview-status').textContent;const index=posts.length;const pending=ctx.previewNarratorSelection();
+ if(change==='book'){ctx.applyCurrentBookFilename('book-B');}else{el('narrator-'+change).value=change==='strategy'?'global':change==='focus'?'Bob':'older';}
+ posts[index].resolve({selected:{voice:'Stale'}});await pending;assert.strictEqual(el('narrator-preview-status').textContent,before);
+}
+select();const staleIndex=posts.length,staleError=ctx.previewNarratorSelection();const latestIndex=posts.length,latest=ctx.previewNarratorSelection();posts[latestIndex].resolve({selected:{voice:'Current'}});await latest;posts[staleIndex].reject(Error('old failure'));await staleError;assert.strictEqual(errors.length,0);assert.strictEqual(el('narrator-preview-status').textContent,'Selected Current.');
+const errorIndex=posts.length,currentError=ctx.previewNarratorSelection();posts[errorIndex].reject(Error('current failure'));await currentError;assert.strictEqual(errors.length,1);
+""")

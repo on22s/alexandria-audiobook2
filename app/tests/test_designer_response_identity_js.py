@@ -47,7 +47,7 @@ const s=setup();s.context.window._designedVoicesCache=[{id:'A',name:'A',descript
 
     def test_delayed_save_preserves_newer_card_alias_and_detached_target(self):
         self.run_js(r'''(async()=>{
-for(const change of ['none','alias','card']){const s=setup();s.select('Alice');s.context.CSS={escape:value=>value};s.context.window._currentPreviewFile='Alice.wav';const alias={value:'Original'},card={querySelector:()=>alias};let currentCard=card,writes=0;s.context.document.querySelector=()=>currentCard;s.context.saveVoicesDebounced=()=>writes++;s.elements['design-alias-select'].value='Desired';const saving=s.context.window.saveDesignedVoice();if(change==='alias'){alias.value='Newer';}if(change==='card'){currentCard={querySelector:()=>({value:'Other'})};}s.posts[0].resolve({voice_id:'saved'});await saving;assert.strictEqual(writes,change==='none'?1:0);assert.strictEqual(alias.value,change==='none'?'Desired':change==='alias'?'Newer':'Original');assert.strictEqual(s.elements['design-source-name'].value,'');}
+for(const change of ['none','alias','card']){const s=setup();s.select('Alice');s.context.CSS={escape:value=>value};s.context.window._currentPreviewFile='Alice.wav';s.context.window._designerPreviewInputs={file:'Alice.wav',description:s.elements['design-description'].value.trim(),sample_text:s.elements['design-sample-text'].value.trim()};const alias={value:'Original'},card={querySelector:()=>alias};let currentCard=card,writes=0;s.context.document.querySelector=()=>currentCard;s.context.saveVoicesDebounced=()=>writes++;s.elements['design-alias-select'].value='Desired';const saving=s.context.window.saveDesignedVoice();if(change==='alias'){alias.value='Newer';}if(change==='card'){currentCard={querySelector:()=>({value:'Other'})};}s.posts[0].resolve({voice_id:'saved'});await saving;assert.strictEqual(writes,change==='none'?1:0);assert.strictEqual(alias.value,change==='none'?'Desired':change==='alias'?'Newer':'Original');assert.strictEqual(s.elements['design-source-name'].value,'');}
 })().catch(error=>{console.error(error);process.exitCode=1;});''')
 
     def test_preview_reset_editor_aba_and_out_of_order_ownership(self):
@@ -152,7 +152,7 @@ const s=setup();s.select('A');const old=s.context.window.generateDesignPreview()
 
     def test_saved_voice_open_hides_old_preview_before_lookup_completes(self):
         self.run_js(r'''
-(async()=>{const s=setup();let pauses=0,loads=0;const audio=s.elements['design-preview-audio'];audio.src='/old.wav';audio.pause=()=>pauses++;audio.removeAttribute=name=>{assert.strictEqual(name,'src');delete audio.src;};audio.load=()=>loads++;s.elements['design-preview-container'].style.display='block';s.context.window._currentPreviewFile='old.wav';s.context.window._editingDesignedVoiceId='old';s.context.window._designedVoicesCache=[{id:'new',name:'New',filename:'new.wav'}];
+(async()=>{const s=setup();let pauses=0,loads=0;const audio=s.elements['design-preview-audio'];audio.src='/old.wav';audio.pause=()=>pauses++;audio.removeAttribute=name=>{assert.strictEqual(name,'src');delete audio.src;};audio.load=()=>loads++;s.elements['design-preview-container'].style.display='block';s.context.window._currentPreviewFile='old.wav';s.context.window._designerPreviewInputs={file:'old.wav',description:s.elements['design-description'].value.trim(),sample_text:s.elements['design-sample-text'].value.trim()};s.context.window._editingDesignedVoiceId='old';s.context.window._designedVoicesCache=[{id:'new',name:'New',filename:'new.wav'}];
 const opening=s.context.window.openDesignedVoiceForEdit('new');await new Promise(setImmediate);assert.strictEqual(s.elements['design-preview-container'].style.display,'none');assert.strictEqual(s.context.window._currentPreviewFile,null);assert.strictEqual(s.context.window._editingDesignedVoiceId,null);assert.strictEqual(audio.src,undefined);assert.strictEqual(pauses,1);assert.strictEqual(loads,1);s.gets[0].resolve([]);await opening;assert.strictEqual(s.context.window._currentPreviewFile,'new.wav');assert.strictEqual(s.elements['design-preview-container'].style.display,'block');})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
@@ -165,11 +165,43 @@ s.context.stopDesignedVoicePlayback(s.elements['design-preview-audio']);assert.s
 
     def test_save_pending_duplicate_and_newer_editor_work_are_preserved(self):
         self.run_js(r'''
-(async()=>{for(const transition of ['edit','new-preview','other-voice','failure']){const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};s.select('A');s.context.window._currentPreviewFile='submitted.wav';s.elements['btn-design-save'].innerHTML='Save Voice';
+(async()=>{for(const transition of ['edit','new-preview','other-voice','failure']){const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};s.select('A');s.context.window._currentPreviewFile='submitted.wav';s.context.window._designerPreviewInputs={file:'submitted.wav',description:s.elements['design-description'].value.trim(),sample_text:s.elements['design-sample-text'].value.trim()};s.elements['btn-design-save'].innerHTML='Save Voice';
 const saving=s.context.window.saveDesignedVoice();assert(s.elements['btn-design-save'].disabled);assert.strictEqual(s.elements['btn-design-save'].innerHTML,'Saving…');assert.strictEqual(s.elements['design-save-status'].textContent,'Saving voice…');await s.context.window.saveDesignedVoice();assert.strictEqual(s.posts.length,1);
-if(transition==='edit'){s.elements['design-voice-name'].value='later name';s.elements['design-description'].value='later description';}if(transition==='new-preview'){s.context.window._currentPreviewFile='new.wav';}if(transition==='other-voice'){await s.select('B');s.context.window._currentPreviewFile='B.wav';}
+if(transition==='edit'){s.elements['design-voice-name'].value='later name';s.elements['design-description'].value='later description';}if(transition==='new-preview'){s.context.window._currentPreviewFile='new.wav';s.context.window._designerPreviewInputs={file:'new.wav',description:s.elements['design-description'].value.trim(),sample_text:s.elements['design-sample-text'].value.trim()};}if(transition==='other-voice'){await s.select('B');s.context.window._currentPreviewFile='B.wav';s.context.window._designerPreviewInputs={file:'B.wav',description:s.elements['design-description'].value.trim(),sample_text:s.elements['design-sample-text'].value.trim()};}
 if(transition==='failure'){s.posts[0].reject(Error('refused'));}else{s.posts[0].resolve({voice_id:'saved-A'});}await saving;assert(!s.elements['btn-design-save'].disabled);assert.strictEqual(s.elements['btn-design-save'].innerHTML,'Save Voice');assert.strictEqual(s.context.window._designSavePending,false);
 if(transition==='edit'){assert.strictEqual(s.elements['design-voice-name'].value,'later name');assert.strictEqual(s.elements['design-description'].value,'later description');assert.strictEqual(s.context.window._currentPreviewFile,null);assert.strictEqual(s.context.window._editingDesignedVoiceId,'saved-A');assert(s.elements['design-save-status'].textContent.includes('Later form edits were kept'));}
 if(transition==='new-preview'){assert.strictEqual(s.context.window._currentPreviewFile,'new.wav');assert(!s.elements['design-save-status'].textContent.includes('Generate a preview'));}if(transition==='other-voice'){assert.strictEqual(s.elements['design-voice-name'].value,'B');assert.strictEqual(s.context.window._currentPreviewFile,'B.wav');}
 if(transition==='failure'){assert.strictEqual(s.elements['design-voice-name'].value,'A');assert.strictEqual(s.context.window._currentPreviewFile,'submitted.wav');assert(s.elements['design-save-status'].textContent.includes('Your form is retained'));}}})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+    def test_save_requires_matching_preview_synthesis_inputs(self):
+        self.run_js(r"""(async()=>{
+for(const changed of ['description','sample-text','name','pending-description']){
+ const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};await s.select('A');const preview=s.context.window.generateDesignPreview();
+ if(changed==='pending-description'){s.elements['design-description'].value='Edited during synthesis';}
+ s.posts[0].resolve({audio_url:'/previews/owned.wav'});await preview;
+ if(changed==='description'){s.elements['design-description'].value='New description';}
+ if(changed==='sample-text'){s.elements['design-sample-text'].value='New sample';}
+ if(changed==='name'){s.elements['design-voice-name'].value='Renamed';}
+ const saving=s.context.window.saveDesignedVoice();
+ if(changed==='name'){assert.strictEqual(s.posts.length,2);assert.strictEqual(s.posts[1].args[1].preview_file,'owned.wav');s.posts[1].resolve({voice_id:'saved'});}
+ else{assert.strictEqual(s.posts.length,1,'edited synthesis inputs must not be saved against old audio');assert(s.toasts.some(t=>t[0].includes('preview')));}
+ await saving;
+}
+})().catch(e=>{console.error(e);process.exitCode=1;});""")
+
+    def test_saved_voice_preview_retains_original_metadata_ownership(self):
+        self.run_js(r"""(async()=>{
+for(const changed of ['none','description','during-lookup']){
+ const s=setup();s.context.CSS={escape:value=>value};s.context.document.querySelector=selector=>selector.startsWith('.voice-card')?null:{click(){}};
+ s.context.window._designedVoicesCache=[{id:'saved',name:'Saved',description:'Original description',sample_text:'Original sample',filename:'saved.wav'}];
+ const opening=s.context.window.openDesignedVoiceForEdit('saved');
+ if(changed==='during-lookup'){s.elements['design-description'].value='Edited while loading';}
+ s.gets[0].resolve([]);await opening;
+ if(changed==='description'){s.elements['design-description'].value='New description';}
+ const saving=s.context.window.saveDesignedVoice();
+ if(changed==='none'){assert.strictEqual(s.posts.length,1);assert.strictEqual(s.posts[0].args[1].voice_id,'saved');s.posts[0].resolve({voice_id:'saved'});}
+ else{assert.strictEqual(s.posts.length,0);assert(s.toasts.some(t=>t[0].includes('preview')));}
+ await saving;
+}
+})().catch(e=>{console.error(e);process.exitCode=1;});""")

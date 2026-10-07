@@ -1,20 +1,24 @@
-# Batch 12: Voice and cast UI
+# Batch 12: voice and cast UI ownership
 
-Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
+Narrator strategy writes are serialized and book-bound; previews accept only current requests and inputs. Cast matching and submission retain their originating context, and superseded cast-library reads cannot hide newly created casts. Voice suggestions are discarded after cast/book changes. Bulk Apply separates successful books from failures instead of reporting an all-success result.
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+Upload queue rebuilding keeps remaining narrator drafts by local File identity or stored filename. Generation and preflight use selected-book state rather than message styling. Failed cast-list retrieval keeps editor rows and reports unknown status. Unchanged clone saves preserve existing default style and persona description.
 
-- [ ] [#830](https://github.com/on22s/alexandria-audiobook2/issues/830) — Concurrent narrator strategy saves can persist an older choice than the dropdown shows
-- [ ] [#831](https://github.com/on22s/alexandria-audiobook2/issues/831) — Late narrator preview response replaces status for newer focus selection
-- [ ] [#832](https://github.com/on22s/alexandria-audiobook2/issues/832) — Pending cast match mixes old proposals with the newly selected cast and apply target
-- [ ] [#833](https://github.com/on22s/alexandria-audiobook2/issues/833) — Batch script queue rebuild erases narrator names for still-selected uploads
-- [ ] [#834](https://github.com/on22s/alexandria-audiobook2/issues/834) — Generation failure markup makes loaded-source checks block retry and book actions
-- [ ] [#835](https://github.com/on22s/alexandria-audiobook2/issues/835) — Cast-list retrieval failure is displayed as confirmed absence and no selected book
-- [ ] [#844](https://github.com/on22s/alexandria-audiobook2/issues/844) — Unchanged Voices save erases clone default style and persona description
-- [ ] [#845](https://github.com/on22s/alexandria-audiobook2/issues/845) — Truncated state version IDs silently overwrite distinct selected voices
-- [ ] [#846](https://github.com/on22s/alexandria-audiobook2/issues/846) — Late LoRA suggestion response restores old-cast choices under the new cast
-- [ ] [#847](https://github.com/on22s/alexandria-audiobook2/issues/847) — Pending voice timeline save can mutate a newly loaded book
-- [ ] [#852](https://github.com/on22s/alexandria-audiobook2/issues/852) — Late library response hides a newly created cast and rolls selection back
-- [ ] [#853](https://github.com/on22s/alexandria-audiobook2/issues/853) — Bulk cast Apply shows green success when every book failed
+Voice-state Apply allocates distinct bounded IDs without overwriting existing versions, and reuses matching versions on repeat Apply. Version creation, timeline save and clear validate captured book tokens under the shared book-state lock. Optional tokens keep legacy API calls supported; the UI requires a captured token. The OpenAPI snapshot documents the new optional fields and clear query parameter.
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Validation: 150 integrated focused tests pass without skips against main `82e0173f`, including API contract snapshots and real book-preflight admission. Full combined-tree checks passed: 7,007 unit tests across three shards without unit skips and 70 quick API checks; 12 full-mode API cases skipped. Tests use actual handlers, routes and persisted artifacts with controlled DOM/transport/model boundaries; no native browser or GPU/TTS inference was run.
+
+Tracker: #917.
+
+- [x] Fixes #830
+- [x] Fixes #831
+- [x] Fixes #832
+- [x] Fixes #833
+- [x] Fixes #834
+- [x] Fixes #835
+- [x] Fixes #844
+- [x] Fixes #845
+- [x] Fixes #846
+- [x] Fixes #847
+- [x] Fixes #852
+- [x] Fixes #853
