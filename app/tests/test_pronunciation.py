@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -353,3 +354,44 @@ class CharacterFormsRuntimeTests(unittest.TestCase):
                 self.assertEqual({"Legacy"}, set(pronunciation.character_forms()))
             for path, data in before.items():
                 self.assertEqual(data, path.read_bytes())
+
+
+class LexiconFailureDiagnosticsTests(unittest.TestCase):
+    def test_actual_invalid_files_warn_and_cached_fallback_stays_nonblocking(self):
+        import pronunciation
+        from speech_text import get_speech_normalization
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'lexicon.json')
+            for raw in (b'{broken json', b'\xff\xfe', b'[]'):
+                with self.subTest(raw=raw):
+                    with open(path, 'wb') as stream:
+                        stream.write(raw)
+                    with patch.object(pronunciation, 'DEFAULT_PATH', path):
+                        with self.assertLogs('pronunciation', level='WARNING') as captured:
+                            result = get_speech_normalization('Aeliana walked.')
+                        self.assertTrue(any('lexicon' in line.lower() for line in captured.output))
+                        self.assertEqual('Aeliana walked.', result['text'])
+                        self.assertFalse(result['changed'])
+                        with self.assertNoLogs('pronunciation', level='WARNING'):
+                            self.assertEqual(result, get_speech_normalization('Aeliana walked.'))
+            with patch.object(pronunciation, 'DEFAULT_PATH', path):
+                with open(path, 'w', encoding='utf-8') as stream:
+                    json.dump({'Aeliana': 'Ay lee ah nah'}, stream)
+                with self.assertNoLogs('pronunciation', level='WARNING'):
+                    self.assertEqual('Ay lee ah nah walked.', get_speech_normalization('Aeliana walked.')['text'])
+                with open(path, 'w', encoding='utf-8') as stream:
+                    stream.write('{}')
+                with self.assertNoLogs('pronunciation', level='WARNING'):
+                    self.assertEqual('Aeliana walked.', get_speech_normalization('Aeliana walked.')['text'])
+                os.remove(path)
+                with self.assertNoLogs('pronunciation', level='WARNING'):
+                    self.assertEqual('Aeliana walked.', get_speech_normalization('Aeliana walked.')['text'])
+
+    def test_unexpected_pronunciation_processing_failure_warns_without_stopping_generation(self):
+        import pronunciation
+        from speech_text import get_speech_normalization
+        with patch.object(pronunciation, 'apply_pronunciation', side_effect=RuntimeError('synthetic processing failure')):
+            with self.assertLogs('speech_text', level='WARNING') as captured:
+                result = get_speech_normalization('Synthetic sentence.')
+        self.assertEqual('Synthetic sentence.', result['text'])
+        self.assertTrue(any('synthetic processing failure' in line for line in captured.output))

@@ -2,7 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
-from source_encoding import get_decoded_source_text
+from source_encoding import get_decoded_source_text, get_normalized_source_newlines
 
 
 def get_file_sha256(path):
@@ -17,7 +17,7 @@ def get_generation_input(path):
     """Read source text and its raw-byte identity from one snapshot."""
     data = Path(path).read_bytes()
     text, _encoding = get_decoded_source_text(data)
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = get_normalized_source_newlines(text)
     return text, hashlib.sha256(data).hexdigest()
 
 

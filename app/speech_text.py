@@ -1,5 +1,6 @@
 """Conservative speech preparation and non-prose risk classification."""
 import re
+import logging
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
@@ -137,9 +138,10 @@ def get_speech_normalization(text):
             normalized = spoken
             transformations.append({"type": "pronunciation_lexicon",
                                     "substitutions": applied})
-    except Exception:                                   # noqa: BLE001
+    except Exception as error:                          # noqa: BLE001
         # A broken lexicon must never stop a book generating.
-        pass
+        logging.getLogger(__name__).warning(
+            "Pronunciation processing failed; continuing without substitutions: %s", error)
     stripped = normalized.strip(" .\t\n")
     bounded = stripped + "." if stripped else ""
     if bounded != normalized:

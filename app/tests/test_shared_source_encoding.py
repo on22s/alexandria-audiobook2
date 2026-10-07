@@ -10,6 +10,27 @@ import three_pass_generate as three_pass
 
 
 class SharedSourceEncodingTests(unittest.TestCase):
+    def test_prepared_source_normalizes_line_endings_before_publisher_cleanup(self):
+        from generate_script import get_preprocessed_source
+        paragraphs = ['Copyright © 2026 Synthetic Press'] + [
+            f'The traveler watched the distant hills while the wind moved softly through the trees. Synthetic paragraph {i}.' for i in range(20)]
+        baseline = None
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'source.txt'
+            for separator in ('\n\n', '\r\n\r\n', '\r\r'):
+                with self.subTest(separator=repr(separator)):
+                    raw = separator.join(paragraphs).encode('utf-8'); path.write_bytes(raw)
+                    single, _ = get_preprocessed_source(completion.get_generation_input(path)[0])
+                    triple, _ = three_pass.get_prepared_source(str(path))
+                    self.assertEqual(single, triple)
+                    self.assertNotIn('Copyright', triple)
+                    self.assertNotIn('\r', triple)
+                    self.assertIn(paragraphs[-1], triple)
+                    baseline = triple if baseline is None else baseline
+                    self.assertEqual(baseline, triple)
+                    self.assertEqual(raw, path.read_bytes())
+                    self.assertEqual(hashlib.sha256(raw).hexdigest(), completion.get_generation_input(path)[1])
+
     def test_both_paths_decode_native_files_with_one_policy_and_raw_hash(self):
         cases = [('Alice’s café — “quiet.”', 'utf-8'),
                  ('Alice’s café — “quiet.”', 'cp1252'),

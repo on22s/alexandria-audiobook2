@@ -48,8 +48,9 @@ class CastRoutesTest(unittest.TestCase):
             patch.object(script_module, "get_active_reasoning_effort", return_value=None),
             patch.object(script_module, "ensure_script_recovery_manifest", return_value={}),
             patch.object(script_module, "get_script_recovery_manifest", return_value={}),
-            patch.object(script_module, "schedule_claimed_background_task",
-                         side_effect=lambda _tasks, name, _run, command, *_: self.scheduled.append(command)),
+            patch.object(script_module, "reserve_background_task", return_value="cast-fixture-claim"),
+            patch.object(script_module, "register_claimed_background_task",
+                         side_effect=lambda _tasks, name, _claim, _run, command, *_: self.scheduled.append(command)),
         ]
         for p in self.patches:
             p.start()

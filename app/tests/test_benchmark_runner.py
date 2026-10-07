@@ -580,3 +580,93 @@ class PersonaEmptyFixtureTests(unittest.TestCase):
             self.assertEqual(1, result['discovery_calls'])
             self.assertEqual(1, result['compile_calls'])
         self.assertEqual(original, fixture)
+
+
+
+class RemoteTrainingCleanupTests(unittest.TestCase):
+    def test_actual_staging_files_removed_after_success_transfer_worker_timeout_and_cancel(self):
+        import copy
+        import shlex
+        import shutil
+        import subprocess
+        from types import SimpleNamespace
+        from benchmark_execution import BenchmarkCancelled
+        actual_run=subprocess.run
+        created=[]
+        for mode in ('success','transfer','worker','timeout','cancel'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);dataset=root/'dataset';dataset.mkdir()
+                (dataset/'metadata.jsonl').write_text('synthetic metadata')
+                fixture={'sha256':'a'*64,'dataset_path':'dataset','audio_sha256':{}}
+                original=copy.deepcopy(fixture);paths=[];cleanup=[]
+                def stage(command,**kwargs):
+                    if command[0]=='scp':
+                        target=command[-1].split(':',1)[1]
+                        shutil.copyfile(command[1],target)
+                        return SimpleNamespace(returncode=int(mode=='transfer'),stderr='transfer refused')
+                    args=shlex.split(command[2])
+                    result=actual_run(args,capture_output=True,text=True,check=True)
+                    if args[0]=='mktemp':
+                        path=result.stdout.strip();created.append(path);paths.append(path)
+                        result.stdout='SSH banner\n'+result.stdout
+                    return result
+                def remove(command,**kwargs):
+                    args=shlex.split(command[2]);self.assertEqual(['rm','-rf','--'],args[:3])
+                    self.assertEqual(paths[0],args[3]);self.assertEqual(30,kwargs['timeout'])
+                    self.assertTrue(Path(args[3],'metadata.jsonl').exists())
+                    cleanup.append(args[3]);shutil.rmtree(args[3])
+                    return SimpleNamespace(returncode=0)
+                failures={'transfer':RuntimeError,'worker':ValueError,'timeout':subprocess.TimeoutExpired,'cancel':BenchmarkCancelled}
+                error={'worker':ValueError('worker refused'),'timeout':subprocess.TimeoutExpired('worker',7200),
+                       'cancel':BenchmarkCancelled('cancelled')}.get(mode)
+                worker_result={'status':'passed'}
+                try:
+                    with patch.object(benchmark_runner,'run_benchmark_subprocess',side_effect=stage), \
+                         patch.object(benchmark_runner.subprocess,'run',side_effect=remove), \
+                         patch.object(benchmark_runner,'run_benchmark_worker',side_effect=error,return_value=worker_result) as worker:
+                        if mode=='success':
+                            self.assertEqual(worker_result,benchmark_runner._run_lora_training_worker(fixture,'thunder',{'remote_root':'/remote','remote_python':'python3'},str(root),'fixture-host'))
+                        else:
+                            with self.assertRaises(failures[mode]) as caught:
+                                benchmark_runner._run_lora_training_worker(fixture,'thunder',{'remote_root':'/remote','remote_python':'python3'},str(root),'fixture-host')
+                            if error is not None:self.assertIs(error,caught.exception)
+                        if mode=='transfer':worker.assert_not_called()
+                    self.assertEqual(paths,cleanup)
+                    self.assertFalse(Path(paths[0]).exists())
+                    self.assertEqual(original,fixture)
+                finally:
+                    for path in paths:
+                        if Path(path).exists():shutil.rmtree(path)
+        self.assertEqual(len(created),len(set(created)))
+
+    def test_cleanup_errors_do_not_replace_primary_failure_and_are_reported(self):
+        import subprocess
+        from types import SimpleNamespace
+        errors=(OSError('SSH unavailable'),subprocess.TimeoutExpired('cleanup',30),None)
+        for cleanup_error in errors:
+            for primary in (False,True):
+                with self.subTest(cleanup_error=cleanup_error,primary=primary):
+                    original=ValueError('original worker failure')
+                    stage=SimpleNamespace(returncode=0,stdout='/tmp/alexandria-lora-training.abcdefghij\n',stderr='')
+                    with patch.object(benchmark_runner,'run_benchmark_subprocess',return_value=stage), \
+                         patch.object(benchmark_runner,'run_benchmark_worker',side_effect=original if primary else None,return_value={}), \
+                         patch.object(benchmark_runner.subprocess,'run',side_effect=cleanup_error,return_value=SimpleNamespace(returncode=1)), \
+                         self.assertLogs('benchmark_runner',level='WARNING') as logs:
+                        with self.assertRaises(ValueError if primary else RuntimeError) as caught:
+                            benchmark_runner._run_lora_training_worker({'sha256':'a'*64,'dataset_path':'dataset','audio_sha256':{}},'thunder',{'remote_root':'/remote','remote_python':'python3'},'/fixture','fixture-host')
+                    if primary:self.assertIs(original,caught.exception)
+                    self.assertIn('cleanup failed',logs.output[0])
+
+    def test_local_training_and_unvalidated_remote_paths_are_never_deleted(self):
+        from types import SimpleNamespace
+        fixture={'sha256':'a'*64,'dataset_path':'dataset','audio_sha256':{}}
+        with patch.object(benchmark_runner,'run_benchmark_worker',return_value={'status':'passed'}), \
+             patch.object(benchmark_runner.subprocess,'run') as cleanup:
+            self.assertEqual({'status':'passed'},benchmark_runner._run_lora_training_worker(fixture,'local',{},'/fixture',None))
+            cleanup.assert_not_called()
+        for path in ('/tmp','/tmp/alexandria-lora-training.abcdefghij/other',''):
+            with self.subTest(path=path), \
+                 patch.object(benchmark_runner,'run_benchmark_subprocess',return_value=SimpleNamespace(returncode=0,stdout=path,stderr='')), \
+                 patch.object(benchmark_runner.subprocess,'run') as cleanup:
+                with self.assertRaises(ValueError):benchmark_runner._run_lora_training_worker(fixture,'thunder',{'remote_root':'/remote','remote_python':'python3'},'/fixture','fixture-host')
+                cleanup.assert_not_called()

@@ -15,3 +15,8 @@ def get_decoded_source_text(raw):
 def read_source_text(path):
     """Read one byte snapshot using the shared source decoding policy."""
     return get_decoded_source_text(Path(path).read_bytes())
+
+
+def get_normalized_source_newlines(text):
+    """Give both generation paths the same LF paragraph boundaries."""
+    return text.replace('\r\n', '\n').replace('\r', '\n')

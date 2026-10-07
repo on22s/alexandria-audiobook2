@@ -103,7 +103,9 @@ def _get_state(entry, current):
 
 
 def _is_new_state(state, current):
-    return (state[0] != current[0] and "unknown" not in (state[0], current[0])) \
+    return (current[0] == "unknown" and state[0] != "unknown") \
+        or (current[1] == "unknown" and state[1] != "unknown") \
+        or (state[0] != current[0] and "unknown" not in (state[0], current[0])) \
         or get_age_distance(state[1], current[1]) >= STATE_CHANGE_BANDS
 
 

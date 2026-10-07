@@ -61,7 +61,7 @@ from core import llm_timeout_seconds
 import re
 import sys
 import unicodedata
-from source_repair_paths import validate_repair_paths
+from source_repair_paths import validate_repair_paths, save_source_repair_result
 
 APP = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP)
@@ -120,7 +120,7 @@ def build_items(text, runs):
         after = text[start + length:start + length + CONTEXT]
         passage = (before + (FFFD * length) + after).replace("\n", " ⏎ ")
         items.append({"n": index, "run_length": length, "passage": passage,
-                      "start": start})
+                      "start": start, "marker_offset": len(before.replace("\n", " ⏎ "))})
     return items
 
 
@@ -238,7 +238,7 @@ def main():
         "replacement_chars_after": repaired.count(FFFD),
         "refusal_reasons": {},
         "samples": [],
-        "applied": bool(args.apply),
+        "apply_requested": bool(args.apply),
     }
     for reason in refusals.values():
         key = reason.split(":")[0]
@@ -247,14 +247,13 @@ def main():
         item = items[index]
         report["samples"].append({
             "chars": decisions[index],
-            "passage": item["passage"][CONTEXT - 45:CONTEXT + 45],
+            "source_offset": item["start"],
+            "run_length": item["run_length"],
+            "passage": item["passage"][max(0, item["marker_offset"] - 45):
+                                        item["marker_offset"] + item["run_length"] + 45],
         })
 
-    with open(report_path, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2, ensure_ascii=False)
-    if args.apply:
-        with open(out_path, "w", encoding="utf-8") as handle:
-            handle.write(repaired)
+    report = save_source_repair_result(report_path, report, out_path if args.apply else None, repaired)
 
     print(f"\n  resolved {len(decisions)} / {len(runs)} runs")
     print(f"  U+FFFD {text.count(FFFD)} -> {repaired.count(FFFD)}")
