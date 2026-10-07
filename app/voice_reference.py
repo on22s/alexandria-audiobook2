@@ -44,11 +44,13 @@ from utils import is_path_inside, get_runtime_data_dir
 
 APP = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(APP)
+if REPO not in sys.path:
+    sys.path.insert(0, REPO)
+from app_venv import get_app_python
 
 SIBLING_PY = os.environ.get(
     "ALEXANDRIA_SIBLING_PYTHON",
-    os.path.join(os.path.dirname(REPO), "alexandria-audiobook.git",
-                 "app", "env", "bin", "python"))
+    get_app_python(os.path.join(os.path.dirname(REPO), "alexandria-audiobook.git")))
 
 
 def get_speaker_model_python(voicelab_config=None):

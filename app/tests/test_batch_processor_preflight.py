@@ -32,6 +32,37 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         self.assertEqual([], processor.validate_files([str(audio_dir)]))
         self.assertEqual("Audio file not found", processor.results["skipped"][0]["reason"])
 
+    def test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips(self):
+        good=self.root/'good.wav';good.touch()
+        save_receipt=batch.save_batch_receipt
+        for kind in ('missing','unsupported','completed'):
+            with self.subTest(kind=kind):
+                other=self.root/('unsupported.txt' if kind=='unsupported' else kind+'.wav')
+                if kind!='missing':other.touch()
+                if kind=='completed':
+                    output=other.with_suffix('.zip')
+                    with zipfile.ZipFile(output,'w') as archive:
+                        archive.writestr('metadata.jsonl','{"audio_filepath":"train/clip.wav"}\n')
+                        archive.writestr('train/clip.wav',b'RIFF-sample')
+                    save_receipt(str(output)+'.complete.json',{
+                        'source':batch.get_source_identity(str(other)),'volumes':[str(output)]})
+                processor=batch.BatchProcessor(str(self.model))
+                def worker(path,*args):
+                    processor.results['succeeded'].append({'file':path,'output':'fixture.zip',
+                        'output_size_mb':0.1,'time':'0s','time_seconds':0})
+                with patch.object(batch,'log_gpu_stats'), \
+                     patch.object(batch,'get_output_name',side_effect=lambda path:str(Path(path).with_suffix('.zip'))), \
+                     patch.object(processor,'ensure_disk_space',return_value=True), \
+                     patch.object(processor,'process_file',side_effect=worker) as process, \
+                     patch.object(batch,'save_batch_receipt',side_effect=lambda name,data:save_receipt(self.root/name,data)):
+                    result=processor.run([str(good),str(other)])
+                self.assertEqual(kind=='completed',result)
+                process.assert_called_once_with(str(good),1,1)
+                self.assertEqual([],processor.results['failed'])
+                self.assertEqual(1,len(processor.results['skipped']))
+                receipt=json.loads(next(self.root.glob('batch_results_*.json')).read_text())
+                self.assertEqual(processor.results,receipt['results'])
+
     def test_folder_discovery_ignores_audio_named_directory(self):
         audio_dir = self.root / "book.wav"
         audio_dir.mkdir()
@@ -218,6 +249,75 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
         self.assertEqual("Already processed (use --force to reprocess)",
                          processor.results["skipped"][-1]["reason"])
+
+    def test_source_guided_completion_rejects_changed_text_even_with_same_stat(self):
+        audio=self.root/'book.wav';audio.touch()
+        source=self.root/'book.txt';source.write_text('old synthetic source')
+        output=self.root/'dataset.zip'
+        class Child:
+            stdout=[];returncode=0
+            def poll(self):return 0
+            def wait(self):return 0
+        def publish(*args,**kwargs):
+            with zipfile.ZipFile(output,'w') as archive:
+                archive.writestr('metadata.jsonl','{"audio_filepath":"train/clip.wav"}\n')
+                archive.writestr('train/clip.wav',b'RIFF-sample')
+            return Child()
+        for folder in (False,True):
+            with self.subTest(folder=folder):
+                source.write_text('old synthetic source')
+                settings={'source_folder':str(self.root)} if folder else {'source_path':str(source)}
+                processor=batch.BatchProcessor(str(self.model),**settings)
+                with patch.object(batch,'get_output_name',return_value=str(output)), \
+                     patch.object(batch.subprocess,'Popen',side_effect=publish),patch.object(sys.stdin,'isatty',return_value=False):
+                    processor.process_file(str(audio),1,1)
+                    self.assertEqual([],processor.validate_files([str(audio)]))
+                    stat=source.stat();source.write_text('new synthetic source')
+                    os.utime(source,ns=(stat.st_atime_ns,stat.st_mtime_ns))
+                    self.assertEqual([str(audio)],processor.validate_files([str(audio)]))
+                    source.write_text('old synthetic source')
+                    os.utime(source,ns=(stat.st_atime_ns,stat.st_mtime_ns))
+                    self.assertEqual([],processor.validate_files([str(audio)]))
+                    replacement=self.root/'other-sources'/'book.txt' if folder else source.with_name('other-source.txt')
+                    replacement.parent.mkdir(exist_ok=True)
+                    source.replace(replacement)
+                    if folder:processor.source_folder=str(replacement.parent)
+                    else:processor.source_path=str(replacement)
+                    self.assertEqual([str(audio)],processor.validate_files([str(audio)]))
+                    replacement.replace(source)
+                    if folder:
+                        with self.assertRaisesRegex(ValueError,'No source match'):
+                            processor.validate_files([str(audio)])
+                    else:
+                        self.assertEqual([str(audio)],processor.validate_files([str(audio)]))
+                        with patch.object(batch.subprocess,'Popen') as child:
+                            processor.process_file(str(audio),1,1)
+                        child.assert_not_called()
+                        self.assertFalse(Path(str(output)+'.complete.json').exists())
+
+    def test_changed_text_during_worker_cannot_publish_completion_receipt(self):
+        audio=self.root/'book.wav';audio.touch()
+        source=self.root/'book.txt';source.write_text('before')
+        output=self.root/'dataset.zip'
+        processor=batch.BatchProcessor(str(self.model),source_path=str(source))
+        class Child:
+            stdout=[];returncode=0
+            def poll(self):return 0
+            def wait(self):return 0
+        def publish(*args,**kwargs):
+            with zipfile.ZipFile(output,'w') as archive:
+                archive.writestr('metadata.jsonl','{"audio_filepath":"train/clip.wav"}\n')
+                archive.writestr('train/clip.wav',b'RIFF-sample')
+            original=source.stat();source.write_text('after!')
+            os.utime(source,ns=(original.st_atime_ns,original.st_mtime_ns))
+            return Child()
+        with patch.object(batch,'get_output_name',return_value=str(output)), \
+             patch.object(batch.subprocess,'Popen',side_effect=publish):
+            processor.process_file(str(audio),1,1)
+        self.assertFalse(Path(str(output)+'.complete.json').exists())
+        self.assertEqual([],processor.results['succeeded'])
+        self.assertEqual(1,len(processor.results['failed']))
+        self.assertTrue(output.is_file())
 
     def test_multivolume_success_is_recorded_and_source_change_reprocesses(self):
         audio = self.root / "book.wav"

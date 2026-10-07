@@ -13,6 +13,47 @@ import tts_vram_benchmark as benchmark
 
 
 class VramCliValidationTests(unittest.TestCase):
+    def test_real_summary_is_persisted_beside_results_and_failed_replacement_keeps_prior_bytes(self):
+        engine = SimpleNamespace(_local_custom_model='fixture',
+                                 _init_local_custom=Mock(), ensure_custom_warmup=Mock())
+        rows = [{'sub_batch_max_items': 4, 'peak_vram_gb': 1, 'rtf': 2, 'failed': 0}]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); output = root / 'nested' / 'result.json'
+            summary = output.parent / 'benchmark_summary.txt'
+            with patch.object(benchmark, 'APP_DIR', tmp), \
+                    patch.object(sys, 'argv', ['tts_vram_benchmark.py', '--out', 'nested/result.json']), \
+                    patch.object(benchmark, 'load_app_config', return_value={'tts': {}}), \
+                    patch('tts.TTSEngine', return_value=engine), \
+                    patch('experiments.gpu_guard.acquire_gpu_lock', return_value=None), \
+                    patch('experiments.gpu_guard.release_gpu_lock') as release, \
+                    patch.object(benchmark, 'vram_state', return_value={'allocated_gb': 0, 'free_gb': 8, 'total_gb': 8}), \
+                    patch.object(benchmark, 'gpu_name', return_value='Fixture GPU'), \
+                    patch.object(benchmark, 'run_sweep', return_value=rows), \
+                    contextlib.redirect_stdout(io.StringIO()) as terminal:
+                benchmark.main()
+                self.assertTrue(summary.exists())
+                text = summary.read_text()
+                self.assertIn('BENCHMARK SUMMARY', text)
+                self.assertIn('Tier table recommendation', text)
+                self.assertIn('Fixture GPU', text)
+                self.assertIn('max_items=  4', text)
+                self.assertIn(text, terminal.getvalue())
+                self.assertEqual(rows, json.loads(output.read_text())['baseline'])
+                old = summary.read_bytes()
+                rows[0]['rtf'] = 3
+                replace = benchmark.os.replace
+                def refuse_summary(src, dst):
+                    if Path(dst) == summary:
+                        raise PermissionError('synthetic summary publication refusal')
+                    return replace(src, dst)
+                with patch.object(benchmark.os, 'replace', side_effect=refuse_summary):
+                    with self.assertRaisesRegex(PermissionError, 'summary publication refusal'):
+                        benchmark.main()
+                self.assertEqual(old, summary.read_bytes())
+                self.assertEqual(2, release.call_count)
+                self.assertEqual({'result.json', 'benchmark_summary.txt'},
+                                 {path.name for path in output.parent.iterdir()})
+
     def test_invalid_sizes_chunks_and_outputs_stop_before_config_or_engine(self):
         cases = (['--sizes', '0'], ['--sizes', '-1'], ['--sizes', '4', '0'],
                  ['--chunks', '0'], ['--chunks', '-3'],
@@ -72,7 +113,8 @@ class VramCliValidationTests(unittest.TestCase):
             self.assertEqual([], saved['compiled'])
             self.assertFalse(saved['compile_tested'])
             self.assertEqual('CPU fixture', saved['gpu'])
-            self.assertEqual([output], [p for p in Path(tmp).rglob('*') if p.is_file()])
+            self.assertEqual({output, output.parent / 'benchmark_summary.txt'},
+                             {p for p in Path(tmp).rglob('*') if p.is_file()})
 
 
 class VramSummaryHeadroomTests(unittest.TestCase):

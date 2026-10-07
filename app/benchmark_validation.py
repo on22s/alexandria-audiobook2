@@ -90,6 +90,16 @@ def get_lora_training_sample_count(value):
     return value
 
 
+def get_lora_training_entries(entries, sample_count):
+    """Select the complete admitted workload before staging or launching training."""
+    count = get_lora_training_sample_count(sample_count)
+    if any(not isinstance(entry, dict) for entry in entries):
+        raise ValueError("LoRA training metadata entries must be objects")
+    if len(entries) < count:
+        raise ValueError("LoRA training dataset has too few samples")
+    return entries[:count]
+
+
 def validate_persona_speakers(speakers):
     """Require at least one speaker before persona discovery or scoring."""
     if (not isinstance(speakers, list) or not speakers

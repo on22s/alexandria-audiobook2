@@ -190,11 +190,16 @@ _NARRATOR_LABELS = frozenset({"NARRATOR", "NARRATION", "NARRATIVE"})
 DEFAULT_CONTEXT_LINES = 8
 
 
+def get_persona_context_limit(context_lines):
+    """Normalize the documented sample count using the existing CLI bound."""
+    return max(1, min(int(context_lines or DEFAULT_CONTEXT_LINES), 200))
+
+
 def select_persona_context(lines, narrator_context, context_lines=DEFAULT_CONTEXT_LINES):
     """-> (sample_text, intro_blob) for the persona prompt: the first
     `context_lines` spoken lines and up to as many narrator lines (#522 12.1:
     10 / 25 / 50 / 100 or custom, from the Voices tab)."""
-    n = max(1, int(context_lines or DEFAULT_CONTEXT_LINES))
+    n = get_persona_context_limit(context_lines)
     sample_text = "\n".join(lines[:n])
     intro = narrator_context[:n]
     intro_blob = "\n".join(intro) if intro else "(No nearby narrator intro lines found.)"
@@ -590,7 +595,7 @@ def _fallback_batch_characters(batch, batch_start=0):
     return list(by_speaker.values())
 
 
-def _compile_character_prompt(character_ref, prompt_template=None, reference_text=None):
+def _compile_character_prompt(character_ref, prompt_template=None, reference_text=None, sample_limit=30):
     compact = {
         "name": character_ref.get("name", ""),
         "aliases": character_ref.get("aliases", [])[:20],
@@ -598,7 +603,7 @@ def _compile_character_prompt(character_ref, prompt_template=None, reference_tex
         "personality": character_ref.get("personality", [])[:80],
         "voice_clues": character_ref.get("voice_clues", [])[:80],
         "relationships": character_ref.get("relationships", [])[:60],
-        "sample_lines": character_ref.get("sample_lines", [])[:30],
+        "sample_lines": character_ref.get("sample_lines", [])[:sample_limit],
         "observations": character_ref.get("observations", [])[-30:],
     }
     reference_text = _json_preview(compact) if reference_text is None else reference_text
@@ -766,14 +771,16 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt, context_length=None,
-                     llm_config=None, book_id=None, preview_saver=None):
+                     llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio. A supplied
     preview_saver handles this call only; production uses its usual saver.
     """
     ref = _load_character_ref(ref_dir, speaker)
+    sample_limit = 30  # Keep the existing bound for discovered reference lines.
     if not ref.get("sample_lines"):
-        ref["sample_lines"] = [line for line in samples.get(speaker, [])[:8] if line]
+        sample_limit = get_persona_context_limit(context_lines)
+        ref["sample_lines"] = [line for line in samples.get(speaker, [])[:sample_limit] if line]
         _atomic_json_write(ref, _character_ref_path(ref_dir, speaker))
 
     print(f"Compiling persona for: {speaker}")
@@ -781,16 +788,16 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     ref_text = ""
     try:
         messages = [{"role": "system", "content": system_prompt or "You produce concise JSON only."},
-                    {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}]
+                    {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt, sample_limit=sample_limit)}]
         params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
         # Preserve the existing selected preview, including its explicit truncation marker.
-        selected_reference = _compile_character_prompt(ref, "{character_ref}")
+        selected_reference = _compile_character_prompt(ref, "{character_ref}", sample_limit=sample_limit)
 
         def build_prompt(parts):
             reference = (selected_reference if parts == [("character_ref", selected_reference)]
                          else json.dumps({"name": speaker, "selected_reference_fragments": [
                              text for _, text in parts]}, ensure_ascii=False))
-            return _compile_character_prompt(ref, advanced_prompt, reference_text=reference)
+            return _compile_character_prompt(ref, advanced_prompt, reference_text=reference, sample_limit=sample_limit)
 
         parsed = request_persona_with_evidence(
             client, model_name, messages[0]["content"], build_prompt,
@@ -827,13 +834,34 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     return saved
 
 
+def get_recovered_persona(voice_entry, age_group):
+    """Select a compatible saved persona without relabelling another age."""
+    requested = age_group.strip()
+    selected = voice_entry
+    if requested:
+        versions = voice_entry.get("versions")
+        if isinstance(versions, dict) and isinstance(versions.get(requested), dict):
+            selected = versions[requested]
+            if selected.get("age_group", requested) != requested:
+                raise ValueError(f"Saved persona version does not match age group {requested}")
+        elif requested not in (voice_entry.get("active_version"), voice_entry.get("age_group")):
+            raise ValueError(f"No recovered persona for age group {requested}; generate that version first")
+    recovered = copy.deepcopy(voice_entry)
+    recovered.update(validate_persona_payload(selected))
+    if requested:
+        recovered["active_version"] = requested
+        recovered["age_group"] = requested
+    return recovered
+
+
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None, llm_config=None, book_id=None):
     selected_speakers = list(selected_speakers)
     failures = []
     recovered_speaker = getattr(args, "recovered_speaker", "")
     if recovered_speaker in selected_speakers and isinstance(voice_config.get(recovered_speaker), dict):
         try:
-            recovered = validate_persona_payload(voice_config[recovered_speaker])
+            recovered = get_recovered_persona(voice_config[recovered_speaker], getattr(args, "age_group", ""))
+            voice_config[recovered_speaker] = recovered
             print(f"Using recovered persona for {recovered_speaker}; skipping discovery and compilation.")
             if not _save_generated_preview(root, engine, voice_config, recovered_speaker,
                                            recovered["description"], recovered["ref_text"], book_id=book_id):
@@ -875,7 +903,8 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
         try:
             if _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
                                 speaker, samples, system_prompt, advanced_prompt, context_length,
-                                llm_config, book_id=book_id) is False:
+                                llm_config, book_id=book_id,
+                                context_lines=getattr(args, "context_lines", DEFAULT_CONTEXT_LINES)) is False:
                 failures.append(speaker)
         except Exception as error:
             print(f"Unhandled error for {speaker}: {error}")
@@ -984,7 +1013,7 @@ def main():
         samples.setdefault(speaker, []).append(entry.get("text", "").strip())
 
     narrator_context = {}
-    context_lines = max(1, min(int(args.context_lines or DEFAULT_CONTEXT_LINES), 200))
+    context_lines = get_persona_context_limit(args.context_lines)
     window = max(1, int(args.narration_window or 4), context_lines // 2)
     for speaker in samples.keys():
         narrator_context[speaker] = _collect_narrator_context(script, speaker, window)
@@ -1152,6 +1181,8 @@ def main():
         )
         if args.age_group.strip():
             for speaker in unique_speakers:
+                if speaker in failures:
+                    continue
                 current = voice_config.get(speaker)
                 if not isinstance(current, dict):
                     continue
@@ -1193,7 +1224,8 @@ def main():
             recovered = (speaker == args.recovered_speaker and
                          isinstance(voice_config.get(speaker), dict))
             if recovered:
-                parsed = voice_config[speaker]
+                parsed = get_recovered_persona(voice_config[speaker], args.age_group)
+                voice_config[speaker] = parsed
                 print(f"Using recovered persona for {speaker}; skipping the LLM request.")
             else:
                 params = _persona_params(messages[0]["content"], lm_status.get("context_length"),
@@ -1237,6 +1269,7 @@ def main():
             if not _save_generated_preview(data_dir, engine, voice_config, speaker, description, ref_text,
                                            book_id=book_snapshot["book_id"]):
                 failures.append(speaker)
+                continue
             if args.age_group.strip() and isinstance(voice_config.get(speaker), dict):
                 current = voice_config[speaker]
                 snapshot = {k: v for k, v in current.items()

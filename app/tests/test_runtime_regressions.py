@@ -101,6 +101,23 @@ class RuntimeTests(unittest.TestCase):
             for member_path, content in members.items():
                 archive.writestr(member_path, content)
 
+    def test_epub_adjacent_table_cells_keep_word_boundaries_and_row_structure(self):
+        opf = '<package><manifest><item id="body" href="body.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="body"/></spine></package>'
+        chapter = '<html><body><table><tr><th>Speaker</th><th>Words</th></tr><tr><td>Alice</td><td>said <em>hello</em></td></tr><tr><td>Bob</td><td>replied</td></tr></table></body></html>'
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, 'cells.epub')
+            self._write_epub(epub, opf, {'OEBPS/body.xhtml': chapter})
+            text = script_module.extract_epub_text(epub)
+        self.assertEqual('Speaker\nWords\n\nAlice\nsaid hello\n\nBob\nreplied', text)
+
+    def test_epub_toc_labels_sharing_anchor_keep_nested_toc_order(self):
+        opf = '<package><manifest><item id="body" href="body.xhtml" media-type="application/xhtml+xml"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/></manifest><spine><itemref idref="body"/></spine></package>'
+        nav = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="body.xhtml#chapter">First</a><ol><li><a href="body.xhtml#chapter">Second</a></li></ol></li></ol></nav></body></html>'
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, 'same-anchor.epub')
+            self._write_epub(epub, opf, {'OEBPS/body.xhtml': '<html><body><p id="chapter">Body</p></body></html>', 'OEBPS/nav.xhtml': nav})
+            self.assertEqual('First\n\nSecond\n\nBody', script_module.extract_epub_text(epub))
+
     def test_epub_xhtml_respects_unicode_encoding_and_declared_legacy_charset(self):
         opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
           <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
