@@ -37,7 +37,10 @@ refuse_if_dirty "$REPO" || exit 1
 python=$(resolve_python "$REPO") || { echo "no interpreter" >&2; exit 1; }
 
 for chain in dialogue_map_5_3_20260826.sh second_english_eval_20260820.sh; do
-    wait_for_chain "$chain"
+    wait_for_chain "$chain" || {
+        echo "REFUSING: could not inspect predecessor $chain" >&2
+        exit 1
+    }
 done
 
 # REQUIRE_VRAM_GB=0: this generates through llama-server, which holds the card.

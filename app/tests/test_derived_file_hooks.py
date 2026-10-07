@@ -444,15 +444,15 @@ class DerivedCommitDetectorTests(unittest.TestCase):
         helper = self.make_repo(root)
         audit = root / "ab_test_runtime" / "audit"
         audit.mkdir(parents=True)
-        (audit / "old.json").write_text('{"old": true}\n')
+        (audit / "artifact_structural_audit.json").write_text('{"old": true}\n')
         producer = root / "tools" / "regen_derived.sh"
         producer.write_text("#!/bin/bash\nif [ \"${1:-}\" = \"--paths\" ]; then\n"
-                            "  printf '%s\\n' RESULTS_INDEX.md results_index.csv ab_test_runtime/audit\nfi\n")
-        self.git(root, "add", "tools/regen_derived.sh", "ab_test_runtime/audit/old.json")
+                            "  printf '%s\\n' RESULTS_INDEX.md results_index.csv ab_test_runtime/audit/artifact_structural_audit.json ab_test_runtime/audit/goal_evidence_audit.json\nfi\n")
+        self.git(root, "add", "tools/regen_derived.sh", "ab_test_runtime/audit/artifact_structural_audit.json")
         self.git(root, "commit", "-qm", "audit fixture base")
         return helper, audit
 
-    def test_staged_child_of_derived_directory_is_allowed_but_similar_directory_is_not(self):
+    def test_registered_audit_output_is_allowed_but_foreign_directory_is_not(self):
         import tempfile
         for foreign in (False, True):
             with self.subTest(foreign=foreign), tempfile.TemporaryDirectory() as tmp:
@@ -462,7 +462,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 (root / "RESULTS_INDEX.md").write_text("new index\n")
                 target = (root / "ab_test_runtime" / "audit_extra") if foreign else audit
                 target.mkdir(exist_ok=True)
-                new = target / "new.json"
+                new = target / "goal_evidence_audit.json"
                 new.write_text('{"new": true}\n')
                 self.git(root, "add", str(new.relative_to(root)))
                 result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
@@ -474,7 +474,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                     self.assertEqual(str(new.relative_to(root)), self.git(root, "diff", "--cached", "--name-only"))
                 else:
                     self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
-                    self.assertEqual('{"new": true}', self.git(root, "show", "HEAD:ab_test_runtime/audit/new.json"))
+                    self.assertEqual('{"new": true}', self.git(root, "show", "HEAD:ab_test_runtime/audit/goal_evidence_audit.json"))
                     self.assertEqual("new index", self.git(root, "show", "HEAD:RESULTS_INDEX.md"))
 
     def test_new_untracked_and_already_staged_derived_outputs_trigger_real_commit(self):
@@ -484,7 +484,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 root = Path(tmp)
                 helper, audit = self.make_audit_repo(root)
                 before = self.git(root, "rev-parse", "HEAD")
-                new = audit / "new.json"
+                new = audit / "goal_evidence_audit.json"
                 new.write_text('{"new": true}\n')
                 if staged:
                     self.git(root, "add", str(new.relative_to(root)))
@@ -494,7 +494,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
                 self.assertEqual(before, self.git(root, "rev-parse", "HEAD^"))
-                self.assertEqual('{"new": true}', self.git(root, "show", "HEAD:ab_test_runtime/audit/new.json"))
+                self.assertEqual('{"new": true}', self.git(root, "show", "HEAD:ab_test_runtime/audit/goal_evidence_audit.json"))
                 self.assertEqual("", self.git(root, "diff", "--cached", "--name-only"))
 
     def test_clean_derived_state_does_not_commit_unrelated_working_changes(self):
@@ -520,8 +520,8 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 root = Path(tmp)
                 helper, audit = self.make_audit_repo(root)
                 (root / "RESULTS_INDEX.md").write_text("new index\n")
-                (audit / "new.json").write_text('{"new": true}\n')
-                self.git(root, "add", "ab_test_runtime/audit/new.json")
+                (audit / "goal_evidence_audit.json").write_text('{"new": true}\n')
+                self.git(root, "add", "ab_test_runtime/audit/goal_evidence_audit.json")
                 before_head = self.git(root, "rev-parse", "HEAD")
                 before_index = self.git(root, "write-tree")
                 executable = root / "bin" / "git"
@@ -627,3 +627,49 @@ class ReadyStagingGateTests(unittest.TestCase):
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("cannot inspect", result.stderr)
             self.assertFalse((repo / "verifier-ran").exists())
+
+
+class ActualDerivedPathSafetyTests(unittest.TestCase):
+    def test_real_helpers_publish_only_registered_outputs_and_refuse_foreign_staging(self):
+        import shutil
+        import tempfile
+        for staged in (False, True):
+            with self.subTest(staged=staged), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)
+                def git(*args):
+                    return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
+                git('init','-q');git('config','user.name','Fixture')
+                git('config','user.email','fixture@example.invalid');git('config','core.hooksPath','/dev/null')
+                tools=root/'tools';tools.mkdir()
+                for name in ('regen_derived.sh','regen_derived_commit.sh'):
+                    shutil.copy2(REPO/'tools'/name,tools/name)
+                outputs=('RESULTS_INDEX.md','results_index.csv','LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md',
+                         'ab_test_runtime/audit/artifact_structural_audit.json',
+                         'ab_test_runtime/audit/legacy_attribution_audit.json',
+                         'app/tests/unit_test_inventory.json','GOALS.md')
+                for name in outputs:
+                    target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_text('old fixture')
+                local=root/'ab_test_runtime/audit/machine_local.json';local.write_text('original local')
+                python=root/'app/env/bin/python';python.parent.mkdir(parents=True)
+                python.write_text('#!/bin/sh\nprintf "rebuilt" > "$FIXTURE_ROOT/RESULTS_INDEX.md"\nprintf "generated" > "$FIXTURE_ROOT/ab_test_runtime/audit/goal_evidence_audit.json"\n')
+                python.chmod(0o755)
+                git('add','.');git('commit','-qm','fixture base');before=git('rev-parse','HEAD')
+                local.write_text('edited local')
+                untracked=local.with_name('private_machine.json');untracked.write_text('untracked local')
+                if staged:git('add',str(untracked.relative_to(root)))
+                result=subprocess.run(['bash',str(tools/'regen_derived_commit.sh'),'fixture'],cwd=root,
+                                      env={**os.environ,'FIXTURE_ROOT':str(root)},capture_output=True,text=True,timeout=10)
+                self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                if staged:
+                    self.assertEqual(before,git('rev-parse','HEAD'))
+                    self.assertIn('other changes are staged',result.stderr)
+                    self.assertEqual(str(untracked.relative_to(root)),git('diff','--cached','--name-only'))
+                else:
+                    self.assertNotEqual(before,git('rev-parse','HEAD'))
+                    self.assertEqual('rebuilt',git('show','HEAD:RESULTS_INDEX.md'))
+                    self.assertEqual('generated',git('show','HEAD:ab_test_runtime/audit/goal_evidence_audit.json'))
+                    self.assertEqual('original local',git('show','HEAD:ab_test_runtime/audit/machine_local.json'))
+                    self.assertNotIn(str(untracked.relative_to(root)),git('ls-tree','-r','--name-only','HEAD'))
+                    self.assertEqual('',git('diff','--cached','--name-only'))
+                self.assertEqual('edited local',local.read_text())
+                self.assertEqual('untracked local',untracked.read_text())

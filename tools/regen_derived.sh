@@ -36,7 +36,9 @@ derived_paths() {
 RESULTS_INDEX.md
 results_index.csv
 LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md
-ab_test_runtime/audit
+ab_test_runtime/audit/artifact_structural_audit.json
+ab_test_runtime/audit/legacy_attribution_audit.json
+ab_test_runtime/audit/goal_evidence_audit.json
 app/tests/unit_test_inventory.json
 GOALS.md
 PATHS

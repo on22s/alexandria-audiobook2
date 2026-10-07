@@ -69,6 +69,44 @@ class PreparerRunStateTests(unittest.TestCase):
         with self.assertRaisesRegex(preparer.RunStateError, 'symlink'):
             preparer._load_existing_checkpoint(self.work)
 
+    def test_failed_tail_repair_preserves_checkpoint_and_samples_then_retry_recovers(self):
+        real_open=open;real_temporary=tempfile.NamedTemporaryFile
+        class FailedWrite:
+            def __init__(self,stream):self.stream=stream
+            def __getattr__(self,name):return getattr(self.stream,name)
+            def __enter__(self):return self
+            def __exit__(self,*args):self.stream.close()
+            def writelines(self,lines):
+                self.stream.write(lines[0][:10]);self.stream.flush()
+                raise OSError('injected disk full')
+        for failure in ('write','replace'):
+            with self.subTest(failure=failure):
+                rows=[];samples=[]
+                for index in range(2):
+                    name=f'sample_{index:04d}.wav';sample=self.write_sample(name)
+                    samples.append((sample,sample.read_bytes()))
+                    rows.append(json.dumps({'audio_filepath':name,'text':'synthetic',
+                        'start':index,'end':index+1,'duration':1})+'\n')
+                checkpoint=self.work/'metadata.jsonl';original=''.join(rows)+'{\n'
+                checkpoint.write_text(original,encoding='utf-8')
+                def broken_open(path,mode='r',*args,**kwargs):
+                    stream=real_open(path,mode,*args,**kwargs)
+                    return FailedWrite(stream) if Path(path)==checkpoint and mode=='w' else stream
+                def broken_stage(*args,**kwargs):return FailedWrite(real_temporary(*args,**kwargs))
+                from contextlib import ExitStack
+                with ExitStack() as contexts:
+                    if failure=='write':
+                        contexts.enter_context(patch.object(preparer,'open',side_effect=broken_open,create=True))
+                        contexts.enter_context(patch.object(preparer.tempfile,'NamedTemporaryFile',side_effect=broken_stage))
+                    else:contexts.enter_context(patch.object(preparer.os,'replace',side_effect=OSError('publication refused')))
+                    with self.assertRaises(preparer.RunStateError):preparer._load_existing_checkpoint(str(self.work))
+                self.assertEqual(original.encode(),checkpoint.read_bytes())
+                self.assertFalse(list(self.work.glob('.metadata-repair-*')))
+                for sample,raw in samples:self.assertEqual(raw,sample.read_bytes())
+                entries,resume,next_index=preparer._load_existing_checkpoint(str(self.work))
+                self.assertEqual((2,2),(resume,next_index));self.assertEqual(2,len(entries))
+                self.assertEqual(''.join(rows).encode(),checkpoint.read_bytes())
+
     def test_checkpoint_valid_entry_recovers_timeline(self):
         self.write_sample()
         self.write_checkpoint({'audio_filepath': 'sample_0000.wav',
@@ -288,6 +326,47 @@ class PreparerRunStateTests(unittest.TestCase):
         for frame in ('TALB', 'TPE1', 'COMM', 'TIT2'):
             with self.subTest(frame=frame):
                 self.assertEqual(1, len(tags.getall(frame)))
+
+    def test_windows_directory_refusal_keeps_receipt_and_chunk_file_sync(self):
+        import numpy as np
+        import alexandria_run_manifest as manifest
+        from alexandria_batch_processor import save_batch_receipt
+        real_open=os.open;real_fsync=os.fsync
+        def directory_refusal(path,flags,*args,**kwargs):
+            if os.path.isdir(path):raise PermissionError('simulated Windows directory refusal')
+            return real_open(path,flags,*args,**kwargs)
+        for operation in ('receipt','chunk'):
+            synced=[]
+            def sync(fd):
+                synced.append(stat.S_IFMT(os.fstat(fd).st_mode));real_fsync(fd)
+            proxy=SimpleNamespace(name='nt',open=directory_refusal,fsync=sync,close=os.close)
+            with self.subTest(operation=operation), (self.work/'metadata.jsonl').open('w') as checkpoint, \
+                 patch.object(manifest,'os',proxy),patch.object(os,'open',side_effect=directory_refusal),patch.object(os,'fsync',side_effect=sync):
+                if operation=='receipt':
+                    receipt=str(self.work/'receipt.json');save_batch_receipt(receipt,{'complete':True})
+                    self.assertEqual({'complete':True},json.loads(Path(receipt).read_text()))
+                    self.assertEqual([stat.S_IFREG],synced)
+                else:
+                    rows=[];stats={'chunk_durations':[]};timing={'kept_chunks':0,'wav_write':0.0}
+                    preparer._save_chunk_metadata({'audio_slice':np.zeros(2400,dtype=np.float32),
+                        'chunk_word_data':[{'speaker':'narrator'}],'current_start':0.0,'chunk_end_time':0.1},
+                        'hello',None,None,None,rows,checkpoint,stats,timing,0,str(self.work))
+                    self.assertEqual([stat.S_IFREG,stat.S_IFREG],synced)
+                    self.assertEqual(1,len(rows))
+                    self.assertEqual(rows[0],json.loads((self.work/'metadata.jsonl').read_text()))
+                    with wave.open(str(self.work/'sample_0000.wav')) as audio:
+                        self.assertEqual(2400,audio.getnframes())
+
+    def test_posix_directory_sync_failures_propagate_and_close_the_descriptor(self):
+        import alexandria_run_manifest as manifest
+        proxy=SimpleNamespace(name='posix',open=os.open,fsync=os.fsync,close=os.close,O_RDONLY=os.O_RDONLY)
+        with patch.object(manifest,'os',proxy),patch.object(proxy,'open',side_effect=PermissionError('directory denied')):
+            with self.assertRaises(PermissionError):manifest.sync_run_directory(str(self.work))
+        descriptor=os.open(str(self.work),os.O_RDONLY)
+        with patch.object(manifest,'os',proxy),patch.object(proxy,'open',return_value=descriptor), \
+             patch.object(proxy,'fsync',side_effect=OSError('disk sync failed')):
+            with self.assertRaisesRegex(OSError,'disk sync failed'):manifest.sync_run_directory(str(self.work))
+        with self.assertRaises(OSError):os.fstat(descriptor)
 
     def test_wav_directory_is_synced_before_checkpoint_record(self):
         import numpy as np

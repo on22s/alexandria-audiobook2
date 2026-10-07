@@ -48,7 +48,10 @@ refuse_if_dirty "$REPO" || exit 1
 
 for chain in second_english_eval_20260820.sh unseen_books_20260819b.sh \
              attribution_context_20260820.sh longref_arm_20260826.sh; do
-    wait_for_chain "$chain"
+    wait_for_chain "$chain" || {
+        echo "REFUSING: could not inspect predecessor $chain" >&2
+        exit 1
+    }
 done
 
 run_stage anchor_ssb0748 1h -- \

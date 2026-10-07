@@ -3,13 +3,13 @@
 import json
 import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
 import tempfile
 import time
 from urllib.request import Request, urlopen
 from api_test_auth import get_api_test_headers
+from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 
 
 SERVER_CODE = "from run_isolated_api_tests import run_isolated_server; run_isolated_server()"
@@ -63,7 +63,7 @@ def main():
         env = dict(os.environ, ALEXANDRIA_DATA_DIR=data_dir,
                    ALEXANDRIA_PORT="0", ALEXANDRIA_HOST="127.0.0.1")
         headers = get_api_test_headers(environ=env)
-        server = subprocess.Popen(
+        server = start_owned_subprocess(
             [sys.executable, "-c", SERVER_CODE], cwd=app_dir, env=env,
             start_new_session=True,
         )
@@ -100,13 +100,18 @@ def main():
             )
             return result.returncode
         finally:
-            if server.poll() is None:
-                os.killpg(server.pid, signal.SIGTERM)
+            original_error = sys.exc_info()[1]
+            try:
                 try:
-                    server.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(server.pid, signal.SIGKILL)
-                    server.wait()
+                    stop_owned_subprocess(server, timeout=10)
+                finally:
+                    control = getattr(server, "_alexandria_control", None)
+                    if control is not None:
+                        control.close()
+            except Exception as error:
+                if original_error is None:
+                    raise
+                print(f"Isolated server cleanup failed: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":

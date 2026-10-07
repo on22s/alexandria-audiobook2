@@ -21,6 +21,37 @@ CLI_SOURCE = Path(__file__).resolve().parents[2] / 'alexandria_preparer_rocm_com
 
 
 class PreparerInputOutputContractTests(unittest.TestCase):
+    def test_numeric_booleans_refuse_before_request_coercion_or_launch(self):
+        app=FastAPI();app.include_router(preparer.router)
+        fields=('chunk_size','min_chunk_duration','min_confidence','source_threshold',
+                'batch_size','source_start','min_snr')
+        with patch.object(preparer,'_save_upload_limited') as save, \
+             patch.object(preparer,'reserve_background_task') as reserve, \
+             patch.object(preparer,'_resolve_preparer_interpreter',
+                          side_effect=HTTPException(503,'validation reached interpreter')) as interpreter,TestClient(app) as client:
+            for field in fields:
+                for value in (False,True):
+                    with self.subTest(field=field,value=value):
+                        response=client.post('/api/preparer/start',data={
+                            'config_json':json.dumps({'audio_filename':'book.wav',field:value})},
+                            files={'audio_file':('book.wav',b'not staged','audio/wav')})
+                        self.assertEqual(422,response.status_code,response.text)
+                        save.assert_not_called();reserve.assert_not_called();interpreter.assert_not_called()
+            for field in ('min_confidence','min_snr'):
+                for value in (False,True):
+                    with self.subTest(batch=field,value=value):
+                        response=client.post('/api/preparer/batch/start',json={
+                            'tasks':[{'audio_filename':'book.wav','output_filename':'book.zip'}],field:value})
+                        self.assertEqual(422,response.status_code,response.text)
+                        interpreter.assert_not_called();reserve.assert_not_called()
+        for field in (*fields,'val_split','zip_max_files'):
+            with self.subTest(shared_validator=field):
+                with self.assertRaises(ValueError):numeric.validate_preparer_numeric_settings({field:True})
+        payload={'audio_filename':'book.wav','chunk_size':'10','min_snr':'25','resume':True}
+        config=preparer.PreparerConfig(**payload)
+        self.assertEqual(10.0,config.chunk_size);self.assertEqual(25,config.min_snr)
+        self.assertTrue(config.resume);self.assertEqual('10',payload['chunk_size'])
+
     def test_single_bad_numeric_values_refuse_before_staging_or_claim(self):
         cases = [('source_threshold', -1), ('source_threshold', 10), ('min_confidence', -1),
                  ('min_confidence', 2), ('chunk_size', 0), ('chunk_size', 'NaN'),

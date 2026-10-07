@@ -97,5 +97,39 @@ class ChainTest(unittest.TestCase):
                         src.index("pauses_four_arms 1h"))
 
 
+class PredecessorWaitTests(unittest.TestCase):
+    def run_wait(self, body):
+        return subprocess.run(["bash", "-c", 'set -uo pipefail\nsource "$1"\n'+body,
+                               "fixture", str(LIB)], capture_output=True, text=True, timeout=5)
+
+    def test_actual_caller_loops_refuse_inspection_errors_before_following_stage(self):
+        for name in ("narrator_x_context_20260821.sh", "anchor_and_separator_table_20260826.sh"):
+            source=(REPO/"run_chains"/name).read_text()
+            loop=re.search(r"for chain in .*?\ndone", source, re.S).group()
+            with self.subTest(name=name, inspection="error"):
+                result=self.run_wait('chain_running() { echo "inspection refused" >&2; return 2; }\n'+
+                                     loop+'\nprintf "FOLLOWING_STAGE_REACHED\\n"\n')
+                self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
+                self.assertIn("inspection refused",result.stderr)
+                self.assertNotIn("FOLLOWING_STAGE_REACHED",result.stdout)
+            with self.subTest(name=name, inspection="stopped"):
+                result=self.run_wait('chain_running() { return 1; }\n'+loop+
+                                     '\nprintf "FOLLOWING_STAGE_REACHED\\n"\n')
+                self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                self.assertIn("FOLLOWING_STAGE_REACHED",result.stdout)
+
+    def test_running_predecessor_finishes_and_seven_second_grace_keeps_exact_delays(self):
+        result=self.run_wait('''calls=0
+chain_running() { calls=$((calls+1)); [ "$calls" -lt 3 ]; }
+sleep() { printf "SLEEP=%s\\n" "$1"; }
+wait_for_chain fixture.sh || exit 1
+chain_running() { return 1; }
+wait_for_chain fixture.sh 7
+''')
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        self.assertIn("fixture.sh finished",result.stdout)
+        self.assertEqual(["5", "5", "2"], re.findall(r"SLEEP=(\d+)",result.stdout))
+
+
 if __name__ == "__main__":
     unittest.main()

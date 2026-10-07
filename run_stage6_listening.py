@@ -5,6 +5,8 @@ import os
 import subprocess
 import sys
 
+from app_venv import get_app_python
+
 from local_gpu_job import run_gpu_job
 
 REPO = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +23,7 @@ from experiments.run_status import (  # noqa: E402
     finish_experiment_status, load_experiment_status,
     record_experiment_stage, start_experiment_status)
 
-PYTHON = os.path.join(APP, "env", "bin", "python")
+PYTHON = get_app_python(REPO)
 SCENE = os.path.join(
     REPO, "ab_test_runtime", "experiments", "stage6_scene_aware_casting.json")
 INSTRUCTION = os.path.join(
