@@ -21,6 +21,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+from alexandria_run_manifest import sync_run_directory
 from gpu_stats import run_rocm_smi_json
 sys.path.append(str(Path(__file__).resolve().parent / "app"))
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
@@ -270,11 +271,7 @@ def save_batch_receipt(path, data):
             receipt.flush()
             os.fsync(receipt.fileno())
         os.replace(temporary, path)
-        directory_fd = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        sync_run_directory(directory)
     finally:
         if os.path.exists(temporary):
             os.remove(temporary)
@@ -293,6 +290,19 @@ def get_source_identity(audio_file):
     return {"path": os.path.realpath(path), "size": stat.st_size,
             "mtime_ns": stat.st_mtime_ns}
 
+
+
+def get_text_source_identity(path):
+    if path is None:
+        return None
+    identity = get_source_identity(path)
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    if identity != get_source_identity(path):
+        raise ValueError("Text source changed while hashing")
+    return {**identity, "sha256": digest.hexdigest()}
 
 def get_output_volumes(output_name):
     """Find the base archive and any speaker/style/volume-suffixed archives."""
@@ -323,7 +333,7 @@ def is_complete_dataset_zip(path):
         return False
 
 
-def get_completed_volumes(audio_file, output_name):
+def get_completed_volumes(audio_file, output_name, text_source=None):
     """Return recorded, verified volumes or an empty list when resume is unsafe."""
     marker = output_name + ".complete.json"
     try:
@@ -331,6 +341,8 @@ def get_completed_volumes(audio_file, output_name):
             record = json.load(file)
         volumes = record["volumes"]
         if record["source"] != get_source_identity(audio_file):
+            return []
+        if record.get("text_source") != get_text_source_identity(text_source):
             return []
         available = set(get_output_volumes(output_name))
         if not volumes or any(path not in available or not is_complete_dataset_zip(path)
@@ -393,6 +405,10 @@ class BatchProcessor:
             logger.error("Either fix the path or omit --fallback-model")
             sys.exit(1)
 
+        if self.source_folder and not self.source_path:
+            self.ensure_source_mapping([
+                audio for audio in audio_files if Path(audio).is_file()
+                and Path(audio).suffix.lower() in self.SUPPORTED_FORMATS])
         valid_files = []
 
         for audio_file in audio_files:
@@ -416,7 +432,8 @@ class BatchProcessor:
 
             # Check if output already exists (resume capability)
             expected_output = get_output_name(audio_file)
-            completed_volumes = get_completed_volumes(audio_file, expected_output) if not self.force else []
+            completed_volumes = get_completed_volumes(
+                audio_file, expected_output, self.get_matched_source(audio_file)) if not self.force else []
             if completed_volumes:
                 output_size_mb = sum(os.path.getsize(path) for path in completed_volumes) / (1024 * 1024)
                 logger.info(f"  ⊘ {audio_path.name} → already processed: {len(completed_volumes)} ZIP volume(s) ({output_size_mb:.1f} MB)")
@@ -443,8 +460,6 @@ class BatchProcessor:
         if self.source_path:
             logger.info(f"  ├─ Source-guided: {Path(self.source_path).name} "
                         f"(applied to every audio file)")
-        elif self.source_folder:
-            self.ensure_source_mapping(valid_files)
         if self.source_path or self.source_folder:
             logger.info(f"  ├─ Source threshold: {self.source_threshold:.2f} "
                         f"({'keep-unaligned' if self.keep_unaligned else 'strict-drop'})")
@@ -506,6 +521,9 @@ class BatchProcessor:
         self.results["failed"].append({
             "file": audio_file, "reason": f"Disk space admission refused at {directory}"})
         return False
+
+    def get_matched_source(self, audio_file):
+        return self.source_path or self.source_matches.get(audio_file)
 
     def ensure_source_mapping(self, audio_files):
         """Display and admit a complete mapping before any processing."""
@@ -582,19 +600,14 @@ class BatchProcessor:
         # `--source` takes precedence (single source applied to every file).
         # Otherwise `--source-folder` looks up a sibling file by basename. If
         # neither is set, or no match found, the preparer runs in legacy mode.
-        matched_source = None
-        if self.source_path:
-            matched_source = self.source_path
-        elif self.source_folder:
-            matched_source = self.source_matches.get(audio_file)
-            if audio_file not in self.source_matches:
-                self.ensure_source_mapping([audio_file])
-                matched_source = self.source_matches[audio_file]
-            if matched_source is None:
-                logger.warning(
-                    f"  ⚠ No source match in {self.source_folder} for "
-                    f"{Path(audio_file).stem!r} — running in legacy ASR-only mode"
-                )
+        if self.source_folder and not self.source_path and audio_file not in self.source_matches:
+            self.ensure_source_mapping([audio_file])
+        matched_source = self.get_matched_source(audio_file)
+        if self.source_folder and matched_source is None:
+            logger.warning(
+                f"  ⚠ No source match in {self.source_folder} for "
+                f"{Path(audio_file).stem!r} — running in legacy ASR-only mode"
+            )
         if matched_source:
             cmd.extend(["--source", matched_source,
                         "--source-threshold", str(self.source_threshold)])
@@ -616,6 +629,7 @@ class BatchProcessor:
             marker = output_name + ".complete.json"
             if os.path.exists(marker):
                 os.unlink(marker)
+            text_source_identity = get_text_source_identity(matched_source)
             # Use Popen for real-time output streaming
             process = subprocess.Popen(
                 cmd,
@@ -681,9 +695,11 @@ class BatchProcessor:
                 new_volumes = [path for path, state in current_volumes.items()
                                if previous_volumes.get(path) != state]
                 if (new_volumes and get_source_identity(audio_file) == source_identity and
+                        get_text_source_identity(matched_source) == text_source_identity and
                         all(is_complete_dataset_zip(path) for path in new_volumes)):
                     save_batch_receipt(output_name + ".complete.json", {
                         "source": source_identity,
+                        "text_source": text_source_identity,
                         "volumes": new_volumes,
                     })
                     output_bytes = sum(os.path.getsize(path) for path in new_volumes)
@@ -759,6 +775,11 @@ class BatchProcessor:
                 "reason": str(e)
             })
 
+    def is_batch_successful(self):
+        return not self.results["failed"] and all(
+            item.get("reason", "").startswith("Already processed")
+            for item in self.results["skipped"])
+
     def run(self, audio_files):
         """Process all audio files sequentially."""
         self.batch_start_time = time.monotonic()
@@ -777,9 +798,7 @@ class BatchProcessor:
             # A "File not found" / "Unsupported audio format" skip is a real
             # failure and must return False so a wrapping script doesn't see rc=0
             # having processed nothing.
-            all_already = bool(self.results["skipped"]) and all(
-                s.get("reason", "").startswith("Already processed")
-                for s in self.results["skipped"])
+            all_already = bool(self.results["skipped"]) and self.is_batch_successful()
             if all_already:
                 logger.info(f"All {len(self.results['skipped'])} files already processed (use --force to reprocess)")
                 self.print_summary()
@@ -824,7 +843,7 @@ class BatchProcessor:
 
         # Summary
         self.print_summary()
-        return len(self.results["failed"]) == 0
+        return self.is_batch_successful()
 
     def print_summary(self):
         """Print processing summary."""

@@ -122,5 +122,7 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
                             self.assertIn('no longer active',errors[0].detail)
                         self.assertFalse(core.is_task_running('script'));self.assertFalse(core.is_task_running('batch_script'))
                         self.assertEqual({},core._task_claims)
-                with patch.object(script,'three_pass_refusal',side_effect=slow),patch.object(core,'reserve_background_task',side_effect=observed):
+                with patch.object(script,'three_pass_refusal',side_effect=slow), \
+                     patch.object(core,'reserve_background_task',side_effect=observed), \
+                     patch.object(script,'reserve_background_task',side_effect=observed):
                     asyncio.run(run())

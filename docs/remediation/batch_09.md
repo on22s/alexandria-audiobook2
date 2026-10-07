@@ -1,20 +1,24 @@
-# Batch 09: Audio generation, exports and voice persistence
+# Batch 09: Audio, export and voice assets
 
-Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
+Audio generation now rejects non-finite samples before WAV encoding and validates every RIFF declared extent, while retaining RF64 support. Corrupt chunk recovery preserves earlier backups. Shared structural-text detection recognizes quoted and Unicode sentence endings; smart chapters exclude ordinary short dialogue and complete narration, retaining explicit headings, narrator fragments and the existing no-heading fallback.
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+Chapter exports stage the selected audio and manifest before publication and restore prior files on error or cancellation. Failed rollback keeps recovery backups with their location. Audacity checks cancellation through track/ZIP construction and before publication. Voice deletion preserves audio if manifest publication fails; Designer edits roll audio back if metadata publication fails, preserving recovery audio if restoration fails.
 
-- [ ] [#762](https://github.com/on22s/alexandria-audiobook2/issues/762) — Generated WAV validation accepts impossible near-limit RIFF lengths
-- [ ] [#763](https://github.com/on22s/alexandria-audiobook2/issues/763) — Generated WAV writer silently converts non-finite samples into full-scale PCM
-- [ ] [#789](https://github.com/on22s/alexandria-audiobook2/issues/789) — Smart chapter grouping promotes short dialogue to extra chapter headings
-- [ ] [#790](https://github.com/on22s/alexandria-audiobook2/issues/790) — Sentence-ending quotes and Unicode punctuation prevent same-speaker chunk merging
-- [ ] [#791](https://github.com/on22s/alexandria-audiobook2/issues/791) — Failed multi-chapter export leaves replaced audio under the previous manifest
-- [ ] [#792](https://github.com/on22s/alexandria-audiobook2/issues/792) — Repeated corrupt chunk loads overwrite the earlier recovery backup
-- [ ] [#793](https://github.com/on22s/alexandria-audiobook2/issues/793) — Audacity export publishes despite cancellation during track writing
-- [ ] [#809](https://github.com/on22s/alexandria-audiobook2/issues/809) — Clone deletion loses WAV when manifest publication fails
-- [ ] [#810](https://github.com/on22s/alexandria-audiobook2/issues/810) — Designed voice update commits metadata even when audio replacement fails
-- [ ] [#815](https://github.com/on22s/alexandria-audiobook2/issues/815) — Voice suggestions can apply book A casting to book B after an active-book switch
-- [ ] [#816](https://github.com/on22s/alexandria-audiobook2/issues/816) — Persona recovery overwrites a newly active book after validating the previous book
-- [ ] [#873](https://github.com/on22s/alexandria-audiobook2/issues/873) — Pending-file deletion error escapes external TTS timeout recovery
+Voice suggestions capture script, personas, identity and counts under the book lock, retain a generation token, and refuse stale generated suggestions. Persona recovery revalidates the same source generation under the book lock before saving. External TTS cleanup failures retain the per-chunk timeout result and later chunk bookkeeping, report leftover staging, and never publish late audio.
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Validation: 185 integrated focused tests passed without skips, using synthetic text, real PCM, actual HTTP routes, publication/rollback failure injection, actual book-load transactions and real executor threads. Native Windows behavior and GPU/LLM inference are not claimed. Full release gate is pending.
+
+Tracker: #917.
+
+- [x] Fixes #762
+- [x] Fixes #763
+- [x] Fixes #789
+- [x] Fixes #790
+- [x] Fixes #791
+- [x] Fixes #792
+- [x] Fixes #793
+- [x] Fixes #809
+- [x] Fixes #810
+- [x] Fixes #815
+- [x] Fixes #816
+- [x] Fixes #873

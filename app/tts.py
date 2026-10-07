@@ -4,6 +4,7 @@ import hashlib
 import io
 import re
 import json
+import logging
 import tempfile
 import sys
 import threading
@@ -2578,16 +2579,24 @@ class TTSEngine:
         executor = ThreadPoolExecutor(max_workers=workers)
         futures = {}
 
+        def remove_staging_audio(staging_path):
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                return None
+            except OSError as error:
+                diagnostic = f"Pending audio cleanup failed at {staging_path}: {error}"
+                logging.getLogger(__name__).warning(diagnostic)
+                return diagnostic
+            return None
+
         def render_to_staging(chunk, staging_path, endpoint, cancelled):
             try:
                 success = generate(chunk, staging_path, endpoint, cancelled)
                 return success, time.monotonic()
             finally:
                 if cancelled.is_set():
-                    try:
-                        os.remove(staging_path)
-                    except FileNotFoundError:
-                        pass
+                    remove_staging_audio(staging_path)
 
         for chunk in chunks:
             idx = chunk["index"]
@@ -2606,11 +2615,11 @@ class TTSEngine:
             except FutureTimeout:
                 cancelled.set()
                 future.cancel()
-                try:
-                    os.remove(staging_path)
-                except FileNotFoundError:
-                    pass
-                results["failed"].append((idx, f"external TTS timed out after {self._external_timeout}s"))
+                cleanup_error = remove_staging_audio(staging_path)
+                message = f"external TTS timed out after {self._external_timeout}s"
+                if cleanup_error:
+                    message += f"; {cleanup_error}"
+                results["failed"].append((idx, message))
                 continue
             except Exception as e:                              # noqa: BLE001
                 results["failed"].append((idx, str(e)))
@@ -2619,11 +2628,11 @@ class TTSEngine:
                 if publish_audio_output(staging_path, output_path, cancelled):
                     results["completed"].append(idx)
                 else:
-                    try:
-                        os.remove(staging_path)
-                    except FileNotFoundError:
-                        pass
-                    results["failed"].append((idx, "external TTS cancelled before publication"))
+                    cleanup_error = remove_staging_audio(staging_path)
+                    message = "external TTS cancelled before publication"
+                    if cleanup_error:
+                        message += f"; {cleanup_error}"
+                    results["failed"].append((idx, message))
             else:
                 results["failed"].append((idx, f"{kind} voice generation failed"))
         executor.shutdown(wait=False)

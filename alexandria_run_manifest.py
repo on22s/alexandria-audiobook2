@@ -114,6 +114,17 @@ def get_run_identity(args):
     }
 
 
+def sync_run_directory(path):
+    """Sync a published directory on platforms supporting directory descriptors."""
+    if os.name == 'nt':
+        return
+    directory_fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
 def write_json_atomic(data, path):
     """Replace one generated JSON artifact only after serialization succeeds."""
     destination = Path(path)
@@ -129,12 +140,7 @@ def write_json_atomic(data, path):
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(destination)
-        if os.name != 'nt':
-            directory_fd = os.open(destination.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        sync_run_directory(destination.parent)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

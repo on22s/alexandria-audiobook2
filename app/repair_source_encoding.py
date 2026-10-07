@@ -28,7 +28,7 @@ import collections
 import json
 import os
 import re
-from source_repair_paths import validate_repair_paths
+from source_repair_paths import validate_repair_paths, save_source_repair_result
 
 FFFD = "�"
 
@@ -240,7 +240,7 @@ def quote_balance(text):
         # Pair curly marks against each other, then let straight quotes absorb
         # whatever curly mark is left over on the line.
         leftover = abs(opens - closes)
-        if (straight + leftover) % 2 != 0:
+        if leftover > straight or (straight - leftover) % 2 != 0:
             unbalanced += 1
     share = unbalanced / quoted if quoted else 0.0
     return unbalanced, quoted, share
@@ -555,11 +555,11 @@ def main():
                 "also destroyed accented letters, ellipses and dashes, so a "
                 "rule that replaced every one with a quotation mark would be "
                 "confidently wrong. See 'coup d<FFFD><FFFD>tat'.",
-        "applied": bool(args.apply),
+        "apply_requested": bool(args.apply),
     }
 
-    with open(report_path, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2, ensure_ascii=False)
+    accepted_output = out_path if args.apply and (structurally_sound or args.force) else None
+    report = save_source_repair_result(report_path, report, accepted_output, repaired)
 
     if args.apply and not structurally_sound and not args.force:
         print(f"\nREFUSING TO WRITE: {regressions}. A substitution destroyed "
@@ -575,9 +575,6 @@ def main():
               f"(undamaged books run 0.5-3.4%). No proven-harmful shapes "
               "remain, so this is written, but the text still carries "
               "residual damage and may generate less reliably.")
-    if args.apply:
-        with open(out_path, "w", encoding="utf-8") as handle:
-            handle.write(repaired)
 
     print(f"=== {os.path.basename(args.source)} ===")
     print(f"  U+FFFD before : {before_count}")

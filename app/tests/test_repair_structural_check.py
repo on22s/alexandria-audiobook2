@@ -269,3 +269,14 @@ class SourceHealthCheckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CurlyQuoteAvailabilityTests(unittest.TestCase):
+    def test_even_curly_leftovers_need_enough_straight_marks_to_balance(self):
+        for text in ('“One and “two', '“One and “two and “three and “four', 'One” and two”', '“One and “two"'):
+            with self.subTest(text=text):
+                self.assertEqual((1, 1, 1.0), quote_balance(text))
+                self.assertIn('unbalanced_quotes', {row['issue'] for row in check_source_health(text)['findings']})
+        for text in ('“One.” And “two.”', '“One."', '"One.”', '“One" and “two"', 'Plain narration.'):
+            with self.subTest(text=text):
+                self.assertEqual(0, quote_balance(text)[0])

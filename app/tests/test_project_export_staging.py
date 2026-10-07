@@ -16,6 +16,48 @@ from project import ProjectManager
 
 
 class ExportStagingTests(unittest.TestCase):
+    def test_native_audacity_cancel_during_track_zip_and_before_publish_preserves_archive(self):
+        for boundary in ('track', 'zip', 'closed'):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as root:
+                manager = ProjectManager(root)
+                audio = AudioSegment(data=b'\x01\x00' * 2400,
+                                     sample_width=2, frame_rate=24000, channels=1)
+                source = Path(root, 'voice.wav')
+                with source.open('wb') as handle:
+                    audio.export(handle, format='wav')
+                manager.save_chunks([{'id': 0, 'uid': 'u1', 'speaker': 'ALICE',
+                                      'text': 'Synthetic sentence.', 'status': 'done',
+                                      'audio_path': source.name}])
+                previous = Path(root, 'audacity_export.zip')
+                previous.write_bytes(b'previous export')
+                cancelled = threading.Event()
+                original_zip = zipfile.ZipFile
+                class CancelZip(original_zip):
+                    def writestr(self, name, data, *args, **kwargs):
+                        result = super().writestr(name, data, *args, **kwargs)
+                        if boundary == 'zip' and str(name).endswith('.wav'):
+                            cancelled.set()
+                        return result
+                    def __exit__(self, *args):
+                        result = super().__exit__(*args)
+                        if boundary == 'closed':
+                            cancelled.set()
+                        return result
+                def progress(message):
+                    if boundary == 'track' and message.startswith('Writing track:'):
+                        cancelled.set()
+                with patch('project.zipfile.ZipFile', CancelZip):
+                    result = manager.export_audacity(progress_callback=progress,
+                                                     cancel_check=cancelled.is_set)
+                self.assertTrue(cancelled.is_set())
+                self.assertEqual((False, 'Export cancelled'), result)
+                self.assertEqual(b'previous export', previous.read_bytes())
+                self.assertEqual([], list(Path(root).glob('*.pending.*')))
+                self.assertTrue(manager.export_audacity()[0])
+                with original_zip(previous) as archive:
+                    decoded = AudioSegment.from_file(io.BytesIO(archive.read('alice.wav')), format='wav')
+                    self.assertEqual(audio.raw_data, decoded.raw_data)
+
     def make_manager(self, root, speaker, duration):
         manager = ProjectManager(root)
         audio = AudioSegment.silent(duration=duration, frame_rate=24000)
@@ -126,7 +168,7 @@ class ExportStagingTests(unittest.TestCase):
                 tracks.append(weakref.ref(track))
                 return original_export(track, *args, **kwargs)
 
-            with patch('project.compute_timeline', side_effect=lambda *args: CountedTimeline(original_timeline(*args))), \
+            with patch('project.compute_timeline', side_effect=lambda *args, **kwargs: CountedTimeline(original_timeline(*args, **kwargs))), \
                  patch.object(AudioSegment, 'export', export):
                 ok, path = manager.export_audacity()
             self.assertTrue(ok)
