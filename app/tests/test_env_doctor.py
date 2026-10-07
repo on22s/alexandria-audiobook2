@@ -7,6 +7,56 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from env_doctor import evaluate_env
 
 
+class AppInterpreterLayoutTests(unittest.TestCase):
+    def test_actual_doctor_probes_selected_layout_and_refuses_missing_interpreter(self):
+        import contextlib
+        import io
+        import json
+        import os
+        import tempfile
+        import types
+        import venv
+        from unittest.mock import patch
+        import env_doctor
+
+        source = Path(env_doctor.__file__).read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            venv.EnvBuilder(with_pip=False, symlinks=os.name != 'nt').create(root / 'app' / 'env')
+            native = root / 'app' / 'env' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            platforms = ('win32',) if os.name == 'nt' else ('linux', 'darwin', 'win32')
+            if os.name != 'nt':
+                windows = root / 'app' / 'env' / 'Scripts' / 'python.exe'
+                windows.parent.mkdir()
+                windows.symlink_to(sys.executable)
+            for platform in platforms:
+                with self.subTest(platform=platform):
+                    if platform == 'win32' and os.name != 'nt':
+                        native.rename(native.with_suffix('.hidden'))
+                    doctor = types.ModuleType('layout_doctor')
+                    doctor.__file__ = str(root / 'env_doctor.py')
+                    with patch.object(sys, 'platform', platform):
+                        exec(compile(source, doctor.__file__, 'exec'), doctor.__dict__)
+                    spec = doctor.ENV_SPECS['app_env']
+                    versions = {pkg: 'fixture' for pkg in spec['required']}
+                    versions['torch'] = '2.10.0+rocm7.0'
+                    doctor.PROBE_SCRIPT = 'print(' + repr(json.dumps(versions)) + ')'
+                    doctor.ENV_SPECS = {'app_env': spec}
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output):
+                        code = doctor.main(['--json'])
+                    self.assertEqual(0, code, output.getvalue())
+                    self.assertTrue(json.loads(output.getvalue())['ok'])
+                    selected = Path(spec['path'])
+                    self.assertEqual(platform == 'win32', selected.parent.name == 'Scripts')
+                    with patch.object(doctor.os.path, 'exists', return_value=False):
+                        output = io.StringIO()
+                        with contextlib.redirect_stdout(output):
+                            code = doctor.main(['--json'])
+                    self.assertEqual(1, code)
+                    self.assertFalse(json.loads(output.getvalue())['ok'])
+
+
 class EvaluateEnvTests(unittest.TestCase):
     def test_all_required_present_is_ok(self):
         spec = {"required": ["torch", "numpy"], "optional": [], "version_hint": {}}

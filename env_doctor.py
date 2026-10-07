@@ -28,7 +28,8 @@ VOICELAB_CONFIG_PATH = os.path.join(
 
 ENV_SPECS = {
     "app_env": {
-        "path": os.path.join(ROOT_DIR, "app", "env", "bin", "python"),
+        "path": os.path.join(ROOT_DIR, "app", "env", "Scripts", "python.exe")
+        if sys.platform == "win32" else os.path.join(ROOT_DIR, "app", "env", "bin", "python"),
         "required": [
             "fastapi", "uvicorn", "pydantic", "soundfile", "numpy", "rapidfuzz",
             "librosa", "transformers", "peft", "mutagen", "torch", "qwen-tts",

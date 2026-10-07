@@ -2542,6 +2542,7 @@
     "tests.test_ensure_llama_server_default.ServerLogPreflightTests.test_real_launcher_creates_log_parent_and_refuses_unusable_targets_before_stop"
   ],
   "test_env_doctor": [
+    "tests.test_env_doctor.AppInterpreterLayoutTests.test_actual_doctor_probes_selected_layout_and_refuses_missing_interpreter",
     "tests.test_env_doctor.EvaluateEnvTests.test_all_required_present_is_ok",
     "tests.test_env_doctor.EvaluateEnvTests.test_interpreter_not_found_fails_all_required",
     "tests.test_env_doctor.EvaluateEnvTests.test_optional_missing_passes_with_note",
