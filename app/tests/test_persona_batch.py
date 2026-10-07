@@ -48,6 +48,44 @@ class PersonaBatchTests(unittest.TestCase):
             self.assertEqual('ROOT', saved['BETTY']['alias_of'])
             self.assertEqual(0, saved['BETTY']['seed'])
 
+    def test_recovery_uses_requested_age_version_and_preserves_other_versions(self):
+        import copy
+        young = {'description': 'Synthetic young adult voice.', 'ref_text': 'A young greeting.', 'age_group': 'young'}
+        old = {'description': 'Synthetic elderly voice.', 'ref_text': 'An older greeting.', 'age_group': 'old'}
+        voices = {'ALICE': {**young, 'active_version': 'young', 'versions': {'young': young, 'old': old}}}
+        for advanced in (False, True):
+            for age in ('young', 'old'):
+                with self.subTest(advanced=advanced, age=age), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); source = root / 'source.wav'
+                    with wave.open(str(source), 'wb') as stream:
+                        stream.setparams((1, 2, 24000, 0, 'NONE', 'not compressed')); stream.writeframes(b'\0\0' * 2400)
+                    engine = unittest.mock.Mock(); engine.generate_voice_design.return_value = (str(source), None)
+                    before = copy.deepcopy(voices)
+                    with patch.object(personas, '_compile_persona') as compile_voice, \
+                         patch.object(personas, '_discover_batch_characters') as discover, \
+                         patch.object(personas, 'request_persona_with_evidence') as request:
+                        saved = self.run_cli(tmp, (['--advanced'] if advanced else []) + ['--recovered-speaker', 'ALICE', '--age-group', age], copy.deepcopy(voices), [{'speaker': 'ALICE', 'text': 'Synthetic line.'}], engine)
+                    chosen = young if age == 'young' else old
+                    engine.generate_voice_design.assert_called_once_with(description=chosen['description'], sample_text=chosen['ref_text'])
+                    compile_voice.assert_not_called(); discover.assert_not_called(); request.assert_not_called()
+                    self.assertEqual(chosen['description'], saved['ALICE']['versions'][age]['description'])
+                    self.assertEqual(chosen['ref_text'], saved['ALICE']['versions'][age]['ref_text'])
+                    self.assertEqual(age, saved['ALICE']['active_version'])
+                    self.assertEqual(before['ALICE']['versions']['old' if age == 'young' else 'young'], saved['ALICE']['versions']['old' if age == 'young' else 'young'])
+                    self.assertEqual(before, voices)
+                    self.assertEqual(source.read_bytes(), (root / saved['ALICE']['ref_audio']).read_bytes())
+
+    def test_recovery_refuses_missing_requested_age_without_overwriting_saved_voice(self):
+        for advanced in (False, True):
+            with self.subTest(advanced=advanced), tempfile.TemporaryDirectory() as tmp:
+                voices = {'ALICE': {'description': 'Saved young voice.', 'ref_text': 'Saved greeting.', 'active_version': 'young'}}
+                engine = unittest.mock.Mock()
+                with patch.object(personas, '_discover_batch_characters') as discover:
+                    with self.assertRaisesRegex(RuntimeError, 'ALICE'):
+                        self.run_cli(tmp, (['--advanced'] if advanced else []) + ['--recovered-speaker', 'ALICE', '--age-group', 'old'], voices, [{'speaker': 'ALICE', 'text': 'Synthetic line.'}], engine)
+                engine.generate_voice_design.assert_not_called(); discover.assert_not_called()
+                self.assertEqual(voices, json.loads((Path(tmp) / 'voice_config.json').read_text()))
+
     def test_advanced_recovery_renders_saved_persona_without_discovery_or_compile(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp, 'source.wav')

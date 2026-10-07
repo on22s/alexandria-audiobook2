@@ -827,13 +827,34 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     return saved
 
 
+def get_recovered_persona(voice_entry, age_group):
+    """Select a compatible saved persona without relabelling another age."""
+    requested = age_group.strip()
+    selected = voice_entry
+    if requested:
+        versions = voice_entry.get("versions")
+        if isinstance(versions, dict) and isinstance(versions.get(requested), dict):
+            selected = versions[requested]
+            if selected.get("age_group", requested) != requested:
+                raise ValueError(f"Saved persona version does not match age group {requested}")
+        elif requested not in (voice_entry.get("active_version"), voice_entry.get("age_group")):
+            raise ValueError(f"No recovered persona for age group {requested}; generate that version first")
+    recovered = copy.deepcopy(voice_entry)
+    recovered.update(validate_persona_payload(selected))
+    if requested:
+        recovered["active_version"] = requested
+        recovered["age_group"] = requested
+    return recovered
+
+
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None, llm_config=None, book_id=None):
     selected_speakers = list(selected_speakers)
     failures = []
     recovered_speaker = getattr(args, "recovered_speaker", "")
     if recovered_speaker in selected_speakers and isinstance(voice_config.get(recovered_speaker), dict):
         try:
-            recovered = validate_persona_payload(voice_config[recovered_speaker])
+            recovered = get_recovered_persona(voice_config[recovered_speaker], getattr(args, "age_group", ""))
+            voice_config[recovered_speaker] = recovered
             print(f"Using recovered persona for {recovered_speaker}; skipping discovery and compilation.")
             if not _save_generated_preview(root, engine, voice_config, recovered_speaker,
                                            recovered["description"], recovered["ref_text"], book_id=book_id):
@@ -1152,6 +1173,8 @@ def main():
         )
         if args.age_group.strip():
             for speaker in unique_speakers:
+                if speaker in failures:
+                    continue
                 current = voice_config.get(speaker)
                 if not isinstance(current, dict):
                     continue
@@ -1193,7 +1216,8 @@ def main():
             recovered = (speaker == args.recovered_speaker and
                          isinstance(voice_config.get(speaker), dict))
             if recovered:
-                parsed = voice_config[speaker]
+                parsed = get_recovered_persona(voice_config[speaker], args.age_group)
+                voice_config[speaker] = parsed
                 print(f"Using recovered persona for {speaker}; skipping the LLM request.")
             else:
                 params = _persona_params(messages[0]["content"], lm_status.get("context_length"),
@@ -1237,6 +1261,7 @@ def main():
             if not _save_generated_preview(data_dir, engine, voice_config, speaker, description, ref_text,
                                            book_id=book_snapshot["book_id"]):
                 failures.append(speaker)
+                continue
             if args.age_group.strip() and isinstance(voice_config.get(speaker), dict):
                 current = voice_config[speaker]
                 snapshot = {k: v for k, v in current.items()
