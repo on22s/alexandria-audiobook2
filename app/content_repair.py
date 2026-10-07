@@ -29,7 +29,7 @@ def build_content_review(entries):
             front_matter.append({"entry_number": index + 1, "text": text,
                                  "speaker": entry.get("speaker")})
         normalized = " ".join(instruct.split())
-        if instruct != normalized:
+        if normalized and instruct != normalized:
             directions.append({"entry_number": index + 1, "before": instruct,
                                "suggested": normalized, "reason": "whitespace"})
     return {"front_matter": front_matter, "direction_normalizations": directions}
