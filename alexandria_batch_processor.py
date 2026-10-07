@@ -759,6 +759,11 @@ class BatchProcessor:
                 "reason": str(e)
             })
 
+    def is_batch_successful(self):
+        return not self.results["failed"] and all(
+            item.get("reason", "").startswith("Already processed")
+            for item in self.results["skipped"])
+
     def run(self, audio_files):
         """Process all audio files sequentially."""
         self.batch_start_time = time.monotonic()
@@ -777,9 +782,7 @@ class BatchProcessor:
             # A "File not found" / "Unsupported audio format" skip is a real
             # failure and must return False so a wrapping script doesn't see rc=0
             # having processed nothing.
-            all_already = bool(self.results["skipped"]) and all(
-                s.get("reason", "").startswith("Already processed")
-                for s in self.results["skipped"])
+            all_already = bool(self.results["skipped"]) and self.is_batch_successful()
             if all_already:
                 logger.info(f"All {len(self.results['skipped'])} files already processed (use --force to reprocess)")
                 self.print_summary()
@@ -824,7 +827,7 @@ class BatchProcessor:
 
         # Summary
         self.print_summary()
-        return len(self.results["failed"]) == 0
+        return self.is_batch_successful()
 
     def print_summary(self):
         """Print processing summary."""

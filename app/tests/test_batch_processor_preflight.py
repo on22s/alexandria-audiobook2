@@ -32,6 +32,37 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         self.assertEqual([], processor.validate_files([str(audio_dir)]))
         self.assertEqual("Audio file not found", processor.results["skipped"][0]["reason"])
 
+    def test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips(self):
+        good=self.root/'good.wav';good.touch()
+        save_receipt=batch.save_batch_receipt
+        for kind in ('missing','unsupported','completed'):
+            with self.subTest(kind=kind):
+                other=self.root/('unsupported.txt' if kind=='unsupported' else kind+'.wav')
+                if kind!='missing':other.touch()
+                if kind=='completed':
+                    output=other.with_suffix('.zip')
+                    with zipfile.ZipFile(output,'w') as archive:
+                        archive.writestr('metadata.jsonl','{"audio_filepath":"train/clip.wav"}\n')
+                        archive.writestr('train/clip.wav',b'RIFF-sample')
+                    save_receipt(str(output)+'.complete.json',{
+                        'source':batch.get_source_identity(str(other)),'volumes':[str(output)]})
+                processor=batch.BatchProcessor(str(self.model))
+                def worker(path,*args):
+                    processor.results['succeeded'].append({'file':path,'output':'fixture.zip',
+                        'output_size_mb':0.1,'time':'0s','time_seconds':0})
+                with patch.object(batch,'log_gpu_stats'), \
+                     patch.object(batch,'get_output_name',side_effect=lambda path:str(Path(path).with_suffix('.zip'))), \
+                     patch.object(processor,'ensure_disk_space',return_value=True), \
+                     patch.object(processor,'process_file',side_effect=worker) as process, \
+                     patch.object(batch,'save_batch_receipt',side_effect=lambda name,data:save_receipt(self.root/name,data)):
+                    result=processor.run([str(good),str(other)])
+                self.assertEqual(kind=='completed',result)
+                process.assert_called_once_with(str(good),1,1)
+                self.assertEqual([],processor.results['failed'])
+                self.assertEqual(1,len(processor.results['skipped']))
+                receipt=json.loads(next(self.root.glob('batch_results_*.json')).read_text())
+                self.assertEqual(processor.results,receipt['results'])
+
     def test_folder_discovery_ignores_audio_named_directory(self):
         audio_dir = self.root / "book.wav"
         audio_dir.mkdir()

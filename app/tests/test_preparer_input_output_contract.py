@@ -112,6 +112,26 @@ class PreparerInputOutputContractTests(unittest.TestCase):
                 self.assertEqual(data.getvalue(), response.content)
                 self.assertEqual(404, client.get('/api/preparer/download/missing.zip').status_code)
 
+    def test_zip_listing_and_download_admit_all_extension_cases(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);data=io.BytesIO()
+            with zipfile.ZipFile(data,'w') as archive:
+                archive.writestr('metadata.json','{}')
+            names=('lower.zip','upper.ZIP','mixed.Zip')
+            for name in names:
+                (root/name).write_bytes(data.getvalue())
+            (root/'other.txt').write_text('not a dataset')
+            app=FastAPI();app.include_router(preparer.router)
+            with patch.object(preparer,'PREPARER_OUTPUT_DIR',str(root)),TestClient(app) as client:
+                response=client.get('/api/preparer/list')
+                self.assertEqual(200,response.status_code)
+                self.assertEqual(sorted(names),[row['filename'] for row in response.json()['files']])
+                for name in names:
+                    with self.subTest(name=name):
+                        response=client.get('/api/preparer/download/'+name)
+                        self.assertEqual(200,response.status_code)
+                        self.assertEqual(data.getvalue(),response.content)
+
     def test_native_batch_collision_tries_one_and_retains_prior_outputs(self):
         with tempfile.TemporaryDirectory() as root, ExitStack() as contexts:
             fixture = batch_fixture.PreparerBatchUploadTests()

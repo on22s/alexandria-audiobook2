@@ -696,6 +696,7 @@
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_fuzzy_source_tie_requires_explicit_choice",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_invalid_numeric_arguments_stop_before_processing",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_invalid_zip_is_reprocessed_but_complete_zip_is_skipped",
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_multivolume_success_is_recorded_and_source_change_reprocesses",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_preparer_path_does_not_depend_on_current_directory",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_receipt_write_failure_keeps_previous_receipt",
@@ -5156,7 +5157,8 @@
     "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_download_refuses_non_zip_and_resolved_non_zip_symlink",
     "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_native_batch_collision_tries_one_and_retains_prior_outputs",
     "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_single_bad_numeric_values_refuse_before_staging_or_claim",
-    "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_valid_boundary_values_are_preserved_without_mutating_input"
+    "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_valid_boundary_values_are_preserved_without_mutating_input",
+    "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_zip_listing_and_download_admit_all_extension_cases"
   ],
   "test_preparer_logging_lifecycle": [
     "tests.test_preparer_logging_lifecycle.PreparerLoggingLifecycleTests.test_explicit_setup_survives_reload_and_writes_once",

@@ -395,7 +395,7 @@ async def preparer_list_outputs():
     if not os.path.exists(PREPARER_OUTPUT_DIR):
         return {"files": files}
     for fname in sorted(os.listdir(PREPARER_OUTPUT_DIR)):
-        if not fname.endswith(".zip"):
+        if not fname.lower().endswith(".zip"):
             continue
         fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
         try:
