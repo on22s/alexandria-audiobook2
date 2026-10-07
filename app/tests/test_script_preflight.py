@@ -485,3 +485,47 @@ class NearDuplicateNormalizationTests(unittest.TestCase):
         self.assertEqual([], find_adjacent_near_duplicate_entries(['No.', 'NO!'], 'No.'))
         self.assertEqual([], find_adjacent_near_duplicate_entries([
             first, 'Her favorite recipe calls for flour sugar and eggs.'], first))
+
+
+class MixedSourceCyrillicRepairTests(unittest.TestCase):
+    def test_source_backed_cyrillic_survives_mixed_prose_but_ocr_and_introductions_stay_guarded(self):
+        import copy
+        source = 'He said привет and left.'
+        rows = [_entry(source), _entry('')]
+        before = copy.deepcopy(rows)
+        repair = build_deterministic_repair(rows, source)
+        self.assertEqual([], repair['unresolved'])
+        self.assertEqual(source, repair['entries'][0]['text'])
+        self.assertTrue(any(row['type'] == 'empty_entry_to_pause' for row in repair['changes']))
+        self.assertEqual(before, rows)
+        introduced = build_deterministic_repair([_entry(source)], 'He said hello and left.')
+        self.assertTrue(any(row['reason'] == 'unsupported_cyrillic_character' for row in introduced['unresolved']))
+        corruption = build_deterministic_repair([_entry('Please take саге of it.')], 'Please take саге of it.')
+        self.assertEqual('Please take care of it.', corruption['entries'][0]['text'])
+        self.assertEqual([], corruption['unresolved'])
+
+
+class MixedSourceRepairRouteTests(unittest.TestCase):
+    def test_native_preview_apply_preserves_mixed_source_word_and_refuses_introduced_word(self):
+        for source_backed in (True, False):
+            with self.subTest(source_backed=source_backed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); scripts = root / 'scripts'; scripts.mkdir(); uploads = root / 'uploads'; uploads.mkdir()
+                rows = [_entry('He said привет and left.'), _entry(''), _entry('Following synthetic line.')]
+                book = scripts / 'book.json'; book.write_text(json.dumps(rows)); before = book.read_bytes()
+                source = uploads / 'source.txt'; source.write_text(('He said привет and left.' if source_backed else 'He said hello and left.') + ' Following synthetic line.', encoding='utf-8'); source_before = source.read_bytes()
+                with patch.object(scripts_library, 'SCRIPTS_DIR', str(scripts)), patch.object(scripts_library, 'UPLOADS_DIR', str(uploads)):
+                    preview = scripts_library._preview_deterministic_repair_sync('book', scripts_library.ScriptRepairRequest(source_filename='source.txt'))
+                    request = scripts_library.ScriptRepairRequest(source_filename='source.txt', expected_sha256=preview['sha256'])
+                    if source_backed:
+                        result = scripts_library._apply_deterministic_repair_sync('book', request)
+                        self.assertEqual('repaired', result['status'])
+                        saved = json.loads(book.read_text())
+                        self.assertEqual(rows[0]['text'], saved[0]['text'])
+                        self.assertGreater(saved[0]['pause_after'], 0)
+                        self.assertEqual(before, (scripts / result['backup']).read_bytes())
+                    else:
+                        with self.assertRaises(HTTPException) as refused:
+                            scripts_library._apply_deterministic_repair_sync('book', request)
+                        self.assertEqual(409, refused.exception.status_code)
+                        self.assertEqual(before, book.read_bytes())
+                self.assertEqual(source_before, source.read_bytes())

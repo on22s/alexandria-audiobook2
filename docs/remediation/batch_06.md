@@ -2,12 +2,12 @@
 
 Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+This batch fixes speech normalization, checkpoint validation, source-backed repair, and advanced persona fallback context.
 
-- [ ] [#824](https://github.com/on22s/alexandria-audiobook2/issues/824) — Speech risk classification mistakes paired emphasis markers for a list or table
-- [ ] [#825](https://github.com/on22s/alexandria-audiobook2/issues/825) — Speech normalization duplicates copyright when the symbol precedes the word
-- [ ] [#891](https://github.com/on22s/alexandria-audiobook2/issues/891) — Stage 4 cross-drive WAV rejection escapes the validation-error wrapper
-- [ ] [#909](https://github.com/on22s/alexandria-audiobook2/issues/909) — Deterministic repair blocks faithful Cyrillic words in mixed-language sources
-- [ ] [#912](https://github.com/on22s/alexandria-audiobook2/issues/912) — Advanced persona fallback compilation ignores --context-lines and always selects eight samples
+- [x] [#824](https://github.com/on22s/alexandria-audiobook2/issues/824) — Speech risk classification mistakes paired emphasis markers for a list or table
+- [x] [#825](https://github.com/on22s/alexandria-audiobook2/issues/825) — Speech normalization duplicates copyright when the symbol precedes the word
+- [x] [#891](https://github.com/on22s/alexandria-audiobook2/issues/891) — Stage 4 cross-drive WAV rejection escapes the validation-error wrapper
+- [x] [#909](https://github.com/on22s/alexandria-audiobook2/issues/909) — Deterministic repair blocks faithful Cyrillic words in mixed-language sources
+- [x] [#912](https://github.com/on22s/alexandria-audiobook2/issues/912) — Advanced persona fallback compilation ignores --context-lines and always selects eight samples
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Validation: 167 focused tests and 6,904 full unit tests passed without skips; quick API checks passed 70 with 12 full-mode checks skipped. Real source-repair preview/apply routes preserve faithful mixed-script text and refuse introduced words. Actual persona orchestration publishes reference samples matching requested context counts, bounded by the existing maximum. Cross-drive refusal is simulated with Windows path semantics on Linux; native Windows execution is not claimed.

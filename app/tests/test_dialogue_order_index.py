@@ -40,6 +40,23 @@ class DialogueOrderIndexTests(unittest.TestCase):
             self.assertTrue(row['spoken'])
         self.assertEqual(before, entries)
 
+    def test_excess_duplicates_are_unlocated_and_unused_backward_matches_remain_valid(self):
+        source = 'He said "Oh." Then she said "Oh." and left.'
+        entries = [{'text': 'Oh.'} for _ in range(4)]
+        entries[-1].update(spoken=True, source_span=[0, 3], source_speaker='OLD')
+        before = copy.deepcopy(entries)
+        marked = dialogue.mark_entries(entries, source, 'paired_quotes')
+        self.assertEqual([[9, 12], [29, 32]], [row['source_span'] for row in marked[:2]])
+        for row in marked[2:]:
+            self.assertNotIn('source_span', row)
+            self.assertNotIn('spoken', row)
+            self.assertNotIn('source_speaker', row)
+        self.assertEqual(before, entries)
+        source = '"First." Then "Oh." Then "Last."'
+        marked = dialogue.mark_entries([{'text': text} for text in ('Last.', 'First.', 'Oh.')], source, 'paired_quotes')
+        self.assertEqual(['Last.', 'First.', 'Oh.'], [source[a:b] for a, b in (row['source_span'] for row in marked)])
+        self.assertTrue(all(row['spoken'] for row in marked))
+
     def test_ordered_entries_do_not_build_an_index(self):
         source = '“First line.” Then “Second line.”'
         with patch.object(dialogue, 'get_source_match_positions', side_effect=AssertionError('ordered source indexed')):
@@ -72,14 +89,20 @@ class DialogueOrderIndexTests(unittest.TestCase):
         source = 'ALICE “Oh.”\n\nNarration words.\n\nALICE “Hello\t wide\nworld.”\n\nALICE “Oh.”\n\nALICE “Extra one.”\n\nALICE “Extra two.”\n\nALICE “Extra three.”'
         entries = [{'speaker':'ALICE','text':text} for text in
                    ('Oh.','Oh.','Hello wide world.','Oh.','Invented missing.','Narration words.','Oh.')]
-        # A small direct oracle retains the original forward/first occurrence rule.
+        # A direct oracle retains backward fallback for unused occurrences only.
         normalized, offsets = dialogue._normalize_with_offsets(source)
-        cursor = 0; expected = []
+        cursor = 0; expected = []; used = {}
         for row in entries:
-            needle = dialogue._normalize(row['text']); found = normalized.find(needle, cursor)
+            needle = dialogue._normalize(row['text']); consumed = used.setdefault(needle, set())
+            found = normalized.find(needle, cursor)
+            while found in consumed:
+                found = normalized.find(needle, found + 1)
             if found == -1:
                 found = normalized.find(needle)
+                while found in consumed:
+                    found = normalized.find(needle, found + 1)
             if found != -1:
+                consumed.add(found)
                 cursor = found + len(needle)
                 expected.append([offsets[found], offsets[cursor-1]+1])
             else:
