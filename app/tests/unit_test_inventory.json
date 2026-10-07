@@ -1642,8 +1642,9 @@
   "test_config_backup_resume": [
     "tests.test_config_backup_resume.ConfigBackupResumeTests.test_failed_exit_restoration_reports_failure_and_keeps_backup_for_next_run",
     "tests.test_config_backup_resume.ConfigBackupResumeTests.test_failed_new_backup_capture_stops_without_mutating_config_or_leaving_partial_recovery_file",
-    "tests.test_config_backup_resume.ConfigBackupResumeTests.test_failed_stale_restoration_stops_before_capture_and_preserves_only_recovery_copy",
-    "tests.test_config_backup_resume.ConfigBackupResumeTests.test_stale_backup_restored_before_capture_normal_exit_and_new_user_edit_survive_next_run"
+    "tests.test_config_backup_resume.ConfigBackupResumeTests.test_failed_stale_restoration_stops_before_capture_and_preserves_destination_and_recovery_copy",
+    "tests.test_config_backup_resume.ConfigBackupResumeTests.test_stale_backup_restored_before_capture_normal_exit_and_new_user_edit_survive_next_run",
+    "tests.test_config_backup_resume.ConfigRestorePublicationTests.test_failed_rename_preserves_both_files_then_retry_publishes_exact_backup"
   ],
   "test_config_jsonable": [
     "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_a_config_without_profiles_is_unaffected",
@@ -2082,10 +2083,11 @@
     "tests.test_delivery_review_js.DeliveryReviewJsTests.test_native_list_retry_snapshot_and_owned_cancel_then_refresh"
   ],
   "test_derived_file_hooks": [
+    "tests.test_derived_file_hooks.ActualDerivedPathSafetyTests.test_real_helpers_publish_only_registered_outputs_and_refuse_foreign_staging",
     "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_clean_derived_state_does_not_commit_unrelated_working_changes",
     "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_git_inspection_failure_preserves_head_and_the_entire_index",
     "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_new_untracked_and_already_staged_derived_outputs_trigger_real_commit",
-    "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_staged_child_of_derived_directory_is_allowed_but_similar_directory_is_not",
+    "tests.test_derived_file_hooks.DerivedCommitDetectorTests.test_registered_audit_output_is_allowed_but_foreign_directory_is_not",
     "tests.test_derived_file_hooks.DerivedCommitFailureTests.test_exact_derived_staged_paths_and_working_changes_commit_only_rebuild",
     "tests.test_derived_file_hooks.DerivedCommitFailureTests.test_foreign_staged_path_containing_derived_name_cannot_ride_in_commit",
     "tests.test_derived_file_hooks.DerivedCommitFailureTests.test_staging_failure_stops_before_commit_tree_and_preserves_original_head",
@@ -2542,6 +2544,8 @@
     "tests.test_ensure_llama_server_default.ServerLogPreflightTests.test_real_launcher_creates_log_parent_and_refuses_unusable_targets_before_stop"
   ],
   "test_env_doctor": [
+    "tests.test_env_doctor.AppInterpreterLayoutTests.test_actual_doctor_probes_selected_layout_and_refuses_missing_interpreter",
+    "tests.test_env_doctor.AppInterpreterLayoutTests.test_stage_helpers_launch_selected_layout_and_refuse_missing_executable",
     "tests.test_env_doctor.EvaluateEnvTests.test_all_required_present_is_ok",
     "tests.test_env_doctor.EvaluateEnvTests.test_interpreter_not_found_fails_all_required",
     "tests.test_env_doctor.EvaluateEnvTests.test_optional_missing_passes_with_note",
@@ -2975,6 +2979,7 @@
   ],
   "test_full_sequence_scoring": [],
   "test_gate_campaign": [
+    "tests.test_gate_campaign.GateCampaignTests.test_campaign_writers_serialize_and_preserve_durable_results",
     "tests.test_gate_campaign.GateCampaignTests.test_changed_other_member_refuses_whole_completed_set",
     "tests.test_gate_campaign.GateCampaignTests.test_corrupt_journal_refuses_but_unrelated_standalone_gate_keeps_policy",
     "tests.test_gate_campaign.GateCampaignTests.test_failed_or_forged_measurement_cannot_complete",
@@ -3707,6 +3712,7 @@
     "tests.test_isolated_api_fixture.IsolatedApiFixtureTests.test_no_downloaded_voice_keeps_the_optional_cast_absent"
   ],
   "test_isolated_api_port": [
+    "tests.test_isolated_api_port.IsolatedApiCleanupTests.test_readiness_error_preserved_without_unix_killpg_and_owner_is_reaped",
     "tests.test_isolated_api_port.IsolatedApiPortTests.test_metadata_missing_invalid_and_valid_ports",
     "tests.test_isolated_api_port.IsolatedApiPortTests.test_native_bound_socket_is_retained_for_server_run",
     "tests.test_isolated_api_port.IsolatedApiPortTests.test_parent_failure_and_timeout_stop_only_owned_child_and_remove_state"
@@ -5199,6 +5205,8 @@
     "tests.test_preparer_run_state.PreparerBatchAnnotationContractTests.test_invalid_numbered_contract_falls_back_without_partial_success",
     "tests.test_preparer_run_state.PreparerBatchAnnotationContractTests.test_malformed_array_items_refuse_before_merging_any_annotation",
     "tests.test_preparer_run_state.PreparerBatchAnnotationContractTests.test_numbered_annotations_follow_labels_instead_of_response_order",
+    "tests.test_preparer_run_state.PreparerBatchAnnotationContractTests.test_tagged_and_untagged_fenced_arrays_match_bare_annotations",
+    "tests.test_preparer_run_state.PreparerBatchAnnotationContractTests.test_tagged_fence_still_refuses_wrong_count_empty_and_invalid_items",
     "tests.test_preparer_run_state.PreparerFallbackContextTests.test_full_and_tail_fallbacks_use_only_preceding_text_and_save_audio",
     "tests.test_preparer_run_state.PreparerRunStateTests.test_annotation_checks_manifest_before_loading_model",
     "tests.test_preparer_run_state.PreparerRunStateTests.test_checkpoint_rejects_malformed_fields_and_symlink",
@@ -5576,7 +5584,9 @@
     "tests.test_queue_chain_lib.LibraryTest.test_dirty_tree_preflight_uses_canonical_source_policy",
     "tests.test_queue_chain_lib.LibraryTest.test_it_can_wait_for_a_chain_that_has_not_started",
     "tests.test_queue_chain_lib.LibraryTest.test_it_excludes_itself_from_its_own_process_match",
-    "tests.test_queue_chain_lib.LibraryTest.test_the_interpreter_resolver_lives_here_only"
+    "tests.test_queue_chain_lib.LibraryTest.test_the_interpreter_resolver_lives_here_only",
+    "tests.test_queue_chain_lib.PredecessorWaitTests.test_actual_caller_loops_refuse_inspection_errors_before_following_stage",
+    "tests.test_queue_chain_lib.PredecessorWaitTests.test_running_predecessor_finishes_and_seven_second_grace_keeps_exact_delays"
   ],
   "test_queue_eta_native": [
     "tests.test_queue_eta_native.QueueEtaNativeTests.test_owned_cpu_job_reports_this_runs_progress_and_rejects_stale_identity"
@@ -6293,8 +6303,10 @@
   ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",
+    "tests.test_run_history.RunHistoryTests.test_artifact_size_and_digest_use_the_same_opened_version",
     "tests.test_run_history.RunHistoryTests.test_failed_summary_write_preserves_previous_record",
     "tests.test_run_history.RunHistoryTests.test_history_failure_does_not_block_task",
+    "tests.test_run_history.RunHistoryTests.test_in_place_change_during_hashing_refuses_receipt_publication",
     "tests.test_run_history.RunHistoryTests.test_invalid_run_id_cannot_escape_history_directory",
     "tests.test_run_history.RunHistoryTests.test_list_runs_rejects_invalid_limits",
     "tests.test_run_history.RunHistoryTests.test_retention_never_deletes_path_for_malformed_record_id",

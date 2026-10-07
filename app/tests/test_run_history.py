@@ -1,9 +1,11 @@
+import hashlib
 import os
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import core
+import run_history
 from run_history import (finish_run, get_run, list_runs, mark_interrupted_runs,
                          prune_runs, record_artifact, start_run, update_run)
 
@@ -51,6 +53,60 @@ class RunHistoryTests(unittest.TestCase):
             self.assertEqual(64, len(artifact["sha256"]))
             self.assertEqual("book.json", artifact["sources"][0]["path"])
             self.assertEqual("config.json", artifact["config"]["path"])
+
+    def test_artifact_size_and_digest_use_the_same_opened_version(self):
+        real_open = open
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "report.txt")
+            replacement = os.path.join(root, "replacement.txt")
+            original = b"original report"
+            with real_open(path, "wb") as handle:
+                handle.write(original)
+            with real_open(replacement, "wb") as handle:
+                handle.write(b"replacement with a different size")
+            run_id = start_run(os.path.join(root, "history"), "review")
+
+            def replace_after_open(filename, *args, **kwargs):
+                handle = real_open(filename, *args, **kwargs)
+                if filename == path and args == ("rb",):
+                    os.replace(replacement, path)
+                return handle
+
+            with patch("run_history.open", side_effect=replace_after_open):
+                artifact = record_artifact(os.path.join(root, "history"), run_id,
+                                           path, "report", root)
+            self.assertEqual(hashlib.sha256(original).hexdigest(), artifact["sha256"])
+            self.assertEqual(len(original), artifact["size_bytes"])
+            self.assertEqual(artifact, get_run(os.path.join(root, "history"),
+                                             run_id)["artifacts"][0])
+
+    def test_in_place_change_during_hashing_refuses_receipt_publication(self):
+        real_open = open
+        real_sha256 = hashlib.sha256
+        for same_size in (False, True):
+            with self.subTest(same_size=same_size), tempfile.TemporaryDirectory() as root:
+                path = os.path.join(root, "report.txt")
+                original = b"original report"
+                with real_open(path, "wb") as handle:
+                    handle.write(original)
+                run_id = start_run(os.path.join(root, "history"), "review")
+                before = get_run(os.path.join(root, "history"), run_id)
+                digest = real_sha256()
+
+                def update(block):
+                    digest.update(block)
+                    with real_open(path, "r+b") as handle:
+                        handle.write(b"changed content" if same_size else b"longer changed report")
+                        handle.truncate()
+                    stat = os.stat(path)
+                    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+
+                proxy = Mock(update=update, hexdigest=digest.hexdigest)
+                with patch.object(run_history.hashlib, "sha256", return_value=proxy):
+                    with self.assertRaisesRegex(ValueError, "changed while hashing"):
+                        record_artifact(os.path.join(root, "history"), run_id,
+                                        path, "report", root)
+                self.assertEqual(before, get_run(os.path.join(root, "history"), run_id))
 
     def test_shared_runner_records_failure_and_releases_task(self):
         key = "_test_history_failure"

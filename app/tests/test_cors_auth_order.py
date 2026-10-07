@@ -12,7 +12,7 @@ import run_isolated_api_tests as runner
 
 class CorsAuthOrderTests(unittest.TestCase):
     def test_native_allowed_denied_origins_and_optional_auth(self):
-        actual_popen = subprocess.Popen
+        actual_start = runner.start_owned_subprocess
         actual_run = subprocess.run
         probe = """
 import os, requests, json
@@ -53,7 +53,7 @@ print('CORS_RESULTS='+json.dumps(results))
                         observed['data_dir'] = kwargs['env']['ALEXANDRIA_DATA_DIR']
                         kwargs['stdout'] = server_log
                         kwargs['stderr'] = subprocess.STDOUT
-                    return actual_popen(command, **kwargs)
+                    return actual_start(command, **kwargs)
                 def run_probe(command, **kwargs):
                     env = dict(kwargs['env'], FIXTURE_URL=command[command.index('--url')+1])
                     result = actual_run([sys.executable, '-c', probe], cwd=kwargs['cwd'], env=env,
@@ -66,7 +66,7 @@ print('CORS_RESULTS='+json.dumps(results))
                                              'ALEXANDRIA_AUTH_USERNAME':'alexandria',
                                              'CORS_ORIGINS':'http://localhost:4200',
                                              'ALEXANDRIA_HOST':'127.0.0.1'}), \
-                     patch.object(runner.subprocess, 'Popen', side_effect=launch), \
+                     patch.object(runner, 'start_owned_subprocess', side_effect=launch), \
                      patch.object(runner.subprocess, 'run', side_effect=run_probe), \
                      patch.object(sys, 'argv', ['run_isolated_api_tests.py']):
                     self.assertEqual(0, runner.main())

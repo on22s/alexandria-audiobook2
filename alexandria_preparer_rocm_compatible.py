@@ -1834,10 +1834,11 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
             # Extract from code block
             parts = raw_output.split("```")
             for part in parts:
-                if part.strip().startswith("["):
-                    json_match = part.strip()
-                    if json_match.startswith("json"):
-                        json_match = json_match[4:].strip()
+                candidate = part.strip()
+                if candidate.startswith("json"):
+                    candidate = candidate[4:].strip()
+                if candidate.startswith("["):
+                    json_match = candidate
                     try:
                         json.loads(json_match)
                     except json.JSONDecodeError:

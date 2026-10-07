@@ -428,6 +428,29 @@ class PreparerBatchAnnotationContractTests(unittest.TestCase):
         self.assertEqual("Second original.", batch[1]["text"])
         return result, stats
 
+    def test_tagged_and_untagged_fenced_arrays_match_bare_annotations(self):
+        payload = '["*First* original.", "*Second* original."]'
+        for content in (payload, '```\n' + payload + '\n```',
+                        '```json\n' + payload + '\n```',
+                        'Explanation.\n```json\r\n' + payload + '\r\n```\nDone.'):
+            with self.subTest(content=content):
+                result, stats = self.annotate(content)
+                self.assertEqual([(17, "*First* original."), (42, "*Second* original.")], result)
+                self.assertEqual(2, stats['llm_success'])
+                self.assertEqual(0, stats.get('llm_batch_fail', 0))
+
+    def test_tagged_fence_still_refuses_wrong_count_empty_and_invalid_items(self):
+        from unittest.mock import Mock
+        for payload in ('["Only one."]', '["First.", ""]',
+                        '["First.", {"text":"Second."}]', '[broken]'):
+            with self.subTest(payload=payload):
+                merge = Mock(return_value='merged')
+                result, stats = self.annotate('```json\n' + payload + '\n```', merge)
+                self.assertIsNone(result)
+                merge.assert_not_called()
+                self.assertEqual(0, stats['llm_success'])
+                self.assertEqual(1, stats['llm_batch_fail'])
+
     def test_numbered_annotations_follow_labels_instead_of_response_order(self):
         for content in ("2. *Second* original.\n1. *First* original.",
                         "1) *First* original.\n2) *Second* original."):

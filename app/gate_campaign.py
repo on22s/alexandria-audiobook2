@@ -7,7 +7,7 @@ import uuid
 import sys
 
 from experiments.verify_adapter_identity import get_completed_identity_gate
-from utils import atomic_json_write
+from utils import atomic_json_write, file_lock
 
 
 JOURNAL_NAME = "regate_provenance_campaign.json"
@@ -45,7 +45,8 @@ def save_campaign_start(queue_path, journal_path):
         raise ValueError("cannot start an empty re-gate campaign")
     document = {"schema_version": 1, "campaign_id": uuid.uuid4().hex,
                 "status": "running", "members": members}
-    atomic_json_write(document, str(journal_path))
+    with file_lock(journal_path):
+        atomic_json_write(document, str(journal_path))
 
 
 def get_measured_campaign_member(journal_path, name, row, lines):
@@ -63,28 +64,30 @@ def get_measured_campaign_member(journal_path, name, row, lines):
 def save_campaign_result(journal_path, name, rc, lines=6):
     if type(rc) is not int:
         raise ValueError("worker status must be an integer")
-    document = get_campaign_document(journal_path)
-    if document["status"] != "running" or name not in document["members"]:
-        raise ValueError("campaign is not running for this member")
-    row = dict(document["members"][name], rc=rc)
-    if rc in (0, 3):
-        gate, digest = get_measured_campaign_member(journal_path, name, row, lines)
-        if rc != (0 if gate["passed"] else 3):
-            raise ValueError("worker status disagrees with measured verdict")
-        row["sha256"] = digest
-    document["members"][name] = row
-    atomic_json_write(document, str(journal_path))
+    with file_lock(journal_path):
+        document = get_campaign_document(journal_path)
+        if document["status"] != "running" or name not in document["members"]:
+            raise ValueError("campaign is not running for this member")
+        row = dict(document["members"][name], rc=rc)
+        if rc in (0, 3):
+            gate, digest = get_measured_campaign_member(journal_path, name, row, lines)
+            if rc != (0 if gate["passed"] else 3):
+                raise ValueError("worker status disagrees with measured verdict")
+            row["sha256"] = digest
+        document["members"][name] = row
+        atomic_json_write(document, str(journal_path))
 
 
 def save_campaign_completion(journal_path, lines=6):
-    document = get_campaign_document(journal_path)
-    for name, row in document["members"].items():
-        if type(row.get("rc")) is not int or row["rc"] not in (0, 3):
-            raise ValueError(f"campaign member {name} was not measured")
-        gate, digest = get_measured_campaign_member(journal_path, name, row, lines)
-        if row.get("sha256") != digest or row["rc"] != (0 if gate["passed"] else 3):
-            raise ValueError(f"campaign member {name} changed")
-    atomic_json_write(dict(document, status="complete"), str(journal_path))
+    with file_lock(journal_path):
+        document = get_campaign_document(journal_path)
+        for name, row in document["members"].items():
+            if type(row.get("rc")) is not int or row["rc"] not in (0, 3):
+                raise ValueError(f"campaign member {name} was not measured")
+            gate, digest = get_measured_campaign_member(journal_path, name, row, lines)
+            if row.get("sha256") != digest or row["rc"] != (0 if gate["passed"] else 3):
+                raise ValueError(f"campaign member {name} changed")
+        atomic_json_write(dict(document, status="complete"), str(journal_path))
 
 
 def get_campaign_gate_evidence_snapshot(path):
