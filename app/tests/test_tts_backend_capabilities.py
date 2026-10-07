@@ -17,6 +17,52 @@ from routers import voice_design
 
 
 class TTSBackendCapabilityTests(unittest.TestCase):
+    def test_dynamic_narrator_preserves_supported_speaker_key_in_single_and_batch(self):
+        for speaker in ('NARRATOR', 'Narrator'):
+            for strategy in ('chapter', 'focus'):
+                with self.subTest(speaker=speaker, strategy=strategy), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+                    config = {speaker: {'type': 'custom', 'voice': 'Ryan', 'narrator_strategy': strategy,
+                                       'versions': {'second': {'type': 'custom', 'voice': 'Aiden'}}},
+                              'HERO': {'type': 'custom', 'voice': 'Aiden'}}
+                    before = copy.deepcopy(config)
+                    chunk = {'index': 0, 'speaker': speaker, 'text': 'Synthetic narration.',
+                             'narrator_version': 'second', 'focus_speaker': 'HERO'}
+                    seen = []
+                    def render(text, instruct, name, selected, path):
+                        voice = selected[name]['voice']; seen.append(voice)
+                        sf.write(path, np.full(240, .25 if voice == 'Aiden' else .125), 24000)
+                        return True
+                    with patch.object(engine, 'generate_custom_voice', side_effect=render):
+                        resolved = tts.resolve_narrator_voice_config(speaker, config, chunk)
+                        self.assertTrue(engine.generate_voice(chunk['text'], '', speaker, resolved, str(root / 'single.wav')))
+                        result = engine.generate_batch([chunk], config, tmp)
+                    self.assertEqual({'completed': [0], 'failed': []}, result)
+                    self.assertEqual(['Aiden', 'Aiden'], seen)
+                    self.assertEqual(before, config)
+                    for name in ('single.wav', 'temp_batch_0.wav'):
+                        audio, rate = sf.read(root / name)
+                        self.assertEqual(24000, rate); np.testing.assert_allclose(audio, .25)
+
+    def test_external_timeline_versions_use_effective_backend_admission(self):
+        for category in ('lora', 'design'):
+            with self.subTest(category=category), tempfile.TemporaryDirectory() as tmp:
+                engine = tts.TTSEngine({'tts': {'mode': 'external'}})
+                voice = {'type': 'custom', 'voice': 'Ryan',
+                         'version_timeline': [{'from_index': 0, 'version_id': 'chosen'}],
+                         'versions': {'chosen': {'type': category, 'adapter_path': 'fixture',
+                                                'description': 'Fixture voice'}}}
+                with patch.object(engine, '_local_batch_lora') as lora, \
+                        patch.object(engine, 'generate_design_voice') as design, \
+                        patch.object(engine, '_external_batch') as external:
+                    result = engine.generate_batch(
+                        [{'index': 0, 'speaker': 'A', 'text': 'Synthetic sentence.'}], {'A': voice}, tmp)
+                self.assertEqual([], result['completed'])
+                self.assertEqual([0], [index for index, _ in result['failed']])
+                self.assertIn('local TTS mode', result['failed'][0][1])
+                lora.assert_not_called(); design.assert_not_called(); external.assert_not_called()
+                self.assertEqual([], list(Path(tmp).iterdir()))
+
     def test_external_single_and_batch_reject_lora_design_before_any_model_dispatch(self):
         for category in ('lora','design'):
             with self.subTest(category=category),tempfile.TemporaryDirectory() as tmp:

@@ -56,6 +56,30 @@ class AudioLoadingTest(unittest.TestCase):
 
 
 class SpeakableEntryTests(unittest.TestCase):
+    def test_sentence_endings_inside_closing_marks_and_unicode_merge(self):
+        for texts in [('"Okay."', '"Continue."'), ('“Okay!”', '“Continue?”'),
+                      ('はい。', '続けて。'), ('好的！', '继续？'),
+                      ('「はい。」', '『続けて。』'), ('(Okay.)', '[Continue.]')]:
+            with self.subTest(texts=texts):
+                chunks = group_into_chunks([
+                    {'speaker': 'ALICE', 'text': text, 'instruct': 'neutral'}
+                    for text in texts])
+                self.assertEqual(1, len(chunks))
+                self.assertEqual(' '.join(texts), chunks[0]['text'])
+
+    def test_structural_fragments_and_explicit_pauses_keep_boundaries(self):
+        for texts in [('Chapter 1', 'The Awakening'), ('"The Awakening"', 'Chapter 2')]:
+            with self.subTest(texts=texts):
+                chunks = group_into_chunks([
+                    {'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}
+                    for text in texts])
+                self.assertEqual(2, len(chunks))
+        chunks = group_into_chunks([
+            {'speaker': 'ALICE', 'text': '“Okay.”', 'instruct': 'neutral', 'pause_after': 500},
+            {'speaker': 'ALICE', 'text': '“Continue.”', 'instruct': 'neutral'}])
+        self.assertEqual(2, len(chunks))
+        self.assertEqual(500, chunks[0]['pause_after'])
+
     def test_nonverbal_dialogue_becomes_pause_without_mutating_input(self):
         entries = [
             {"speaker": "A", "text": "Wait here.", "instruct": "quiet"},
@@ -324,6 +348,20 @@ class M4BExportArtifactTests(unittest.TestCase):
 
 
 class ScriptShapeRegenerationTests(unittest.TestCase):
+    def test_repeated_corrupt_loads_preserve_every_prior_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            chunks = Path(tmp) / 'chunks.json'
+            expected = []
+            for value in (b'["first rejected row"]', b'["second rejected row"]', b'{broken third row'):
+                chunks.write_bytes(value)
+                expected.append(value)
+                self.assertEqual([], manager.load_chunks())
+                self.assertFalse(chunks.exists())
+                backups = [path.read_bytes() for path in Path(tmp).glob('chunks.json.corrupt*')]
+                self.assertCountEqual(expected, backups)
+            self.assertEqual(expected[0], Path(tmp, 'chunks.json.corrupt').read_bytes())
+
     def test_failed_corrupt_backup_preserves_original_and_refuses_regeneration(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager = ProjectManager(tmp)
@@ -338,7 +376,7 @@ class ScriptShapeRegenerationTests(unittest.TestCase):
             replace = os.replace
 
             def refuse_backup(src, dst):
-                if os.fspath(src) == str(chunks) and os.fspath(dst) == str(previous_backup):
+                if os.fspath(src) == str(chunks) and os.fspath(dst).startswith(str(previous_backup)):
                     raise PermissionError("backup destination denied")
                 return replace(src, dst)
 

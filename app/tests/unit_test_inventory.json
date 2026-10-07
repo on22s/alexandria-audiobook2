@@ -1285,12 +1285,17 @@
     "tests.test_chapter_download_boundary.ChapterDownloadBoundaryTests.test_invalid_manifest_paths_never_become_zip_members_or_available_rows"
   ],
   "test_chapter_export": [
+    "tests.test_chapter_export.ChapterGroupingTests.test_no_heading_fallback_and_explicit_per_chunk_are_preserved",
+    "tests.test_chapter_export.ChapterGroupingTests.test_short_dialogue_and_complete_narration_do_not_create_chapters",
     "tests.test_chapter_export.DeferredExportCancelTests.test_cancel_between_claim_and_chapter_worker_preserves_audio_artifacts",
     "tests.test_chapter_export.DeferredExportCancelTests.test_cancel_between_claim_and_merge_worker_preserves_audio_artifacts",
     "tests.test_chapter_export.DeferredExportCancelTests.test_new_merge_and_chapter_runs_still_clear_previous_run_cancel_and_export",
+    "tests.test_chapter_export.ExportChaptersTests.test_cancel_during_publication_restores_old_files_or_removes_new_files",
     "tests.test_chapter_export.ExportChaptersTests.test_changed_only_decodes_only_the_changed_chapter",
     "tests.test_chapter_export.ExportChaptersTests.test_changed_pause_defaults_rebuild_actual_audio_and_then_reuse_it",
     "tests.test_chapter_export.ExportChaptersTests.test_duplicate_template_refuses_before_it_can_write_over_a_chapter",
+    "tests.test_chapter_export.ExportChaptersTests.test_failed_rollback_preserves_backups_and_reports_their_location",
+    "tests.test_chapter_export.ExportChaptersTests.test_failed_selected_export_keeps_previous_audio_and_manifest",
     "tests.test_chapter_export.ExportChaptersTests.test_grouping_matches_the_m4b_grouping",
     "tests.test_chapter_export.ExportChaptersTests.test_preview_matches_export_names_and_drops_missing_audio",
     "tests.test_chapter_export.ExportChaptersTests.test_same_size_subsecond_audio_replacement_rebuilds_changed_chapter",
@@ -2839,7 +2844,8 @@
     "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_actual_partial_copy_failure_cleans_all_private_files_and_preserves_published_audio",
     "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_completed_in_time_later_request_survives_an_earlier_timeout",
     "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_completion_timestamp_rejects_a_late_success_even_if_its_future_is_done",
-    "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_later_request_cannot_complete_after_its_submission_deadline"
+    "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_later_request_cannot_complete_after_its_submission_deadline",
+    "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_pending_cleanup_denial_keeps_timeout_and_later_success"
   ],
   "test_external_comparability": [
     "tests.test_external_comparability.ContentTest.test_elsons_number_is_the_one_that_transfers",
@@ -5361,6 +5367,8 @@
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_decodable_partial_riff_is_rejected",
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_failed_chunk_export_preserves_prior_mp3_and_wav",
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_missing_empty_and_zero_frame_outputs_fail_loudly",
+    "tests.test_production_audio_validation.SharedAudioValidationTests.test_near_limit_riff_lengths_cannot_exempt_a_small_decodable_file",
+    "tests.test_production_audio_validation.SharedAudioValidationTests.test_nonfinite_generated_samples_refuse_before_pcm_encoding",
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_valid_audio_passes_after_full_decode"
   ],
   "test_production_trigram_audit": [
@@ -5443,10 +5451,13 @@
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_corrupt_chunk_backup_survives_invalid_source_shape",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_failed_corrupt_backup_preserves_original_and_refuses_regeneration",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_malformed_json_shapes_warn_without_replacing_source_or_writing_chunks",
+    "tests.test_project_chunks.ScriptShapeRegenerationTests.test_repeated_corrupt_loads_preserve_every_prior_backup",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_valid_empty_and_nonempty_arrays_keep_regeneration_and_uid_persistence",
     "tests.test_project_chunks.SpeakableEntryTests.test_block_glyphs_and_leading_marks_are_not_sent_to_tts",
     "tests.test_project_chunks.SpeakableEntryTests.test_nonverbal_dialogue_becomes_pause_without_mutating_input",
+    "tests.test_project_chunks.SpeakableEntryTests.test_sentence_endings_inside_closing_marks_and_unicode_merge",
     "tests.test_project_chunks.SpeakableEntryTests.test_spoken_words_with_punctuation_remain_speakable",
+    "tests.test_project_chunks.SpeakableEntryTests.test_structural_fragments_and_explicit_pauses_keep_boundaries",
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_caller_data_is_not_mutated",
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_clean_entry_is_unchanged",
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_elongation_moves_into_instruct",
@@ -5457,6 +5468,7 @@
   "test_project_export_staging": [
     "tests.test_project_export_staging.ExportStagingTests.test_audacity_releases_previous_track_and_groups_timeline_once",
     "tests.test_project_export_staging.ExportStagingTests.test_failed_exports_preserve_prior_outputs_and_clean_only_owned_staging",
+    "tests.test_project_export_staging.ExportStagingTests.test_native_audacity_cancel_during_track_zip_and_before_publish_preserves_archive",
     "tests.test_project_export_staging.ExportStagingTests.test_overlapping_audacity_exports_have_independent_archives",
     "tests.test_project_export_staging.ExportStagingTests.test_overlapping_m4b_exports_keep_each_calls_wav_and_metadata"
   ],
@@ -5958,6 +5970,10 @@
     "tests.test_repair_voice_batch.RepairVoiceBatchTests.test_prepared_index_has_same_sorted_unicode_and_empty_matching_policy"
   ],
   "test_repair_voice_config": [
+    "tests.test_repair_voice_config.EnsembleRepairTests.test_deliberate_ensemble_survives_automatic_custom_with_more_lines",
+    "tests.test_repair_voice_config.EnsembleRepairTests.test_distinct_ensemble_members_are_ambiguous_and_require_override",
+    "tests.test_repair_voice_config.EnsembleRepairTests.test_ensemble_and_other_top_deliberate_voice_are_ambiguous",
+    "tests.test_repair_voice_config.EnsembleRepairTests.test_identical_ensembles_remain_harmless_duplicates",
     "tests.test_repair_voice_config.RepairAliasShapeTests.test_invalid_alias_shapes_raise_value_error_without_publishing_changes",
     "tests.test_repair_voice_config.RepairAliasShapeTests.test_valid_map_and_missing_aliases_keep_the_existing_case_contract",
     "tests.test_repair_voice_config.SharedRepairIdentityTests.test_actual_cli_dry_run_and_apply_preserve_raw_keys_and_backup",
@@ -7909,6 +7925,8 @@
   "test_tts_audio_validation": [
     "tests.test_tts_audio_validation.EmptyEnsembleMemberTests.test_zero_frame_member_is_refused_before_mixing_or_replacing_previous_output",
     "tests.test_tts_audio_validation.TestClonePromptCacheInputs.test_reference_text_and_same_path_audio_bytes_invalidate_prompt",
+    "tests.test_tts_audio_validation.TestDesignPreviewOwnership.test_design_seed_reaches_single_and_batch_preview_with_random_default",
+    "tests.test_tts_audio_validation.TestDesignPreviewOwnership.test_failed_design_copy_or_publish_cleans_preview_and_preserves_prior_output",
     "tests.test_tts_audio_validation.TestDesignPreviewOwnership.test_same_clock_previews_keep_distinct_audio_and_chunk_cleanup_is_local",
     "tests.test_tts_audio_validation.TestSaveWavIsTheOnlyFunnel.test_every_generation_path_writes_through_save_wav",
     "tests.test_tts_audio_validation.TestSaveWavIsTheOnlyFunnel.test_save_wav_rejects_bad_fresh_bytes_after_clearing_prior_audio",
@@ -7920,8 +7938,10 @@
   ],
   "test_tts_backend_capabilities": [
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_direct_external_preview_and_lora_calls_reject_before_local_initialization",
+    "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_dynamic_narrator_preserves_supported_speaker_key_in_single_and_batch",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_external_ensemble_and_dynamic_narrator_cannot_hide_unsupported_members",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_external_single_and_batch_reject_lora_design_before_any_model_dispatch",
+    "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_external_timeline_versions_use_effective_backend_admission",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_local_design_and_lora_still_render_known_pcm",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_mixed_external_batch_preserves_supported_rows_and_reports_unsupported_rows",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_preview_http_returns_actionable_client_error_and_releases_its_claim"
@@ -8000,6 +8020,7 @@
     "tests.test_tts_vram_cli.VramCliLeaseTests.test_busy_kernel_lease_refuses_before_loading_engine",
     "tests.test_tts_vram_cli.VramCliLeaseTests.test_lease_covers_model_sweep_and_publication_and_releases_afterward",
     "tests.test_tts_vram_cli.VramCliValidationTests.test_invalid_sizes_chunks_and_outputs_stop_before_config_or_engine",
+    "tests.test_tts_vram_cli.VramCliValidationTests.test_real_summary_is_persisted_beside_results_and_failed_replacement_keeps_prior_bytes",
     "tests.test_tts_vram_cli.VramCliValidationTests.test_valid_sweep_keeps_options_and_publishes_nested_result",
     "tests.test_tts_vram_cli.VramSummaryHeadroomTests.test_absolute_peak_counts_resident_model_once_and_preserves_headroom_margin",
     "tests.test_tts_vram_cli.VramSummaryHeadroomTests.test_multiple_recommendations_retain_peak_and_both_timing_columns"
@@ -8344,10 +8365,20 @@
     "tests.test_voice_asset_failure_paths.VoiceAssetFailurePathTests.test_real_manifest_write_error_and_lock_timeout_leave_no_orphan",
     "tests.test_voice_asset_failure_paths.VoiceAssetFailurePathTests.test_valid_delete_removes_only_requested_voice_and_unknown_voice_is_404"
   ],
+  "test_voice_asset_publication": [
+    "tests.test_voice_asset_publication.VoiceAssetPublicationTests.test_clone_manifest_failure_preserves_audio_then_retry_deletes_both",
+    "tests.test_voice_asset_publication.VoiceAssetPublicationTests.test_designed_rollback_failure_keeps_original_audio_backup",
+    "tests.test_voice_asset_publication.VoiceAssetPublicationTests.test_designed_update_audio_or_manifest_failure_preserves_pair_then_retry"
+  ],
   "test_voice_autosave_metadata": [
     "tests.test_voice_autosave_metadata.VoiceAutosaveMetadataTests.test_actual_http_save_keeps_server_audit_and_reference_metadata",
     "tests.test_voice_autosave_metadata.VoiceAutosaveMetadataTests.test_bare_default_save_keeps_explicit_backend_persona_eligibility",
     "tests.test_voice_autosave_metadata.VoiceAutosaveMetadataTests.test_collect_keeps_audit_and_zero_seed_without_inactive_voice_fields"
+  ],
+  "test_voice_book_snapshot": [
+    "tests.test_voice_book_snapshot.VoiceBookSnapshotTests.test_catalog_switch_cannot_relabel_or_apply_previous_book_casting",
+    "tests.test_voice_book_snapshot.VoiceBookSnapshotTests.test_recovery_switch_between_validation_and_worker_save_refuses_publication",
+    "tests.test_voice_book_snapshot.VoiceBookSnapshotTests.test_reloading_same_named_book_rejects_old_suggestion_generation"
   ],
   "test_voice_clustering": [
     "tests.test_voice_clustering.SimilarityMatrixValidationTests.test_nonfinite_or_asymmetric_matrices_are_rejected_before_clustering",
@@ -8509,6 +8540,7 @@
     "tests.test_voice_reference.MedoidSelectionTest.test_the_comparison_count_is_bounded",
     "tests.test_voice_reference.MedoidSelectionTest.test_the_returned_index_addresses_the_original_list",
     "tests.test_voice_reference.MedoidSelectionTest.test_too_few_clips_is_refused",
+    "tests.test_voice_reference.SiblingInterpreterLayoutTests.test_default_constructor_and_resolver_select_platform_layout_with_existing_precedence",
     "tests.test_voice_reference.WeakMedoidTest.test_a_strong_medoid_is_still_recommended",
     "tests.test_voice_reference.WeakMedoidTest.test_a_weak_medoid_is_reported_but_not_recommended",
     "tests.test_voice_reference.WeakMedoidTest.test_the_threshold_sits_between_the_measured_cases"

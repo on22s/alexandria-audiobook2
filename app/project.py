@@ -111,8 +111,9 @@ def _is_structural_text(text):
     stripped = text.strip()
     if not stripped:
         return True
+    sentence = stripped.rstrip('\"\'”’»」』)）]】')
     # Very short and not a full sentence (no sentence-ending punctuation)
-    if len(stripped) < 80 and not stripped[-1] in '.!?':
+    if len(stripped) < 80 and (not sentence or sentence[-1] not in '.!?。！？'):
         return True
     return False
 
@@ -558,6 +559,10 @@ class ProjectManager:
             # resets every chunk to pending/no-audio, so keep a copy in case the
             # user's generation progress can be salvaged from it.
             backup = self.chunks_path + ".corrupt"
+            suffix = 0
+            while os.path.lexists(backup):
+                suffix += 1
+                backup = self.chunks_path + f".corrupt.{suffix}"
             logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
             try:
                 os.replace(self.chunks_path, backup)
@@ -1039,7 +1044,11 @@ class ProjectManager:
 
         # Phase 1 — Compute timeline
         pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-        timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
+        try:
+            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms,
+                                        cancel_check=cancel_check)
+        except ExportCancelled:
+            return False, "Export cancelled"
 
         if not timeline:
             return False, "No audio segments found"
@@ -1090,6 +1099,7 @@ class ProjectManager:
         zip_path = os.path.join(self.root_dir, "audacity_export.zip")
         tmp_zip = zip_path + f".pending.{uuid.uuid4().hex}"
         try:
+            ensure_audio_export_active(cancel_check)
             with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr("project.lof", lof_content)
                 zf.writestr("labels.txt", labels_content)
@@ -1097,9 +1107,11 @@ class ProjectManager:
                 for speaker in speakers_ordered:
                     if progress_callback:
                         progress_callback(f"Writing track: {speaker}")
+                    ensure_audio_export_active(cancel_check)
                     track_cursor = 0
                     track = AudioSegment.empty()
                     for segment, start_ms in speaker_chunks[speaker]:
+                        ensure_audio_export_active(cancel_check)
                         gap = start_ms - track_cursor
                         if gap > 0:
                             track += AudioSegment.silent(duration=gap)
@@ -1112,15 +1124,19 @@ class ProjectManager:
                     safe_name = speaker_filenames[speaker]
                     with io.BytesIO() as wav_buffer:
                         track.export(wav_buffer, format="wav")
+                        ensure_audio_export_active(cancel_check)
                         zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
                     del track
+            ensure_audio_export_active(cancel_check)
             os.replace(tmp_zip, zip_path)
-        except BaseException:
+        except BaseException as error:
             try:
                 if os.path.exists(tmp_zip):
                     os.remove(tmp_zip)
             except OSError:
                 pass
+            if isinstance(error, ExportCancelled):
+                return False, "Export cancelled"
             raise
 
         if skipped:
@@ -1264,7 +1280,7 @@ class ProjectManager:
     )
 
     def _chapter_groups(self, chunks, per_chunk_chapters):
-        """Chapter boundaries from chunk TEXT alone: list of
+        """Chapter boundaries from headings and narrator fragments: list of
         (title, first_index, last_index) over `chunks`. The one place chapter
         structure is decided, shared by the M4B export and the per-chapter
         export (and by filename previews, which have no audio to hand).
@@ -1277,15 +1293,12 @@ class ProjectManager:
         heading_indices = []
         for i, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
-            # Starts with a heading keyword, or short structural text in its
-            # own right (likely a stylized chapter title with no keyword,
-            # e.g. "The Awakening") - the second check used to also require
-            # self._HEADING_RE.search(text), which is redundant with (and
-            # since _HEADING_RE is ^-anchored, can never succeed when) the
-            # first check already failed, making this branch unreachable.
+            # Preserve explicit headings and unquoted narrator titles, while
+            # keeping short dialogue and complete sentences in their chapter.
             if self._HEADING_RE.match(text):
                 heading_indices.append(i)
-            elif len(text) < 80 and '"' not in text and text:
+            elif (get_speaker(chunk).upper() == "NARRATOR" and text
+                  and '"' not in text and _is_structural_text(text)):
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk
@@ -1348,6 +1361,64 @@ class ProjectManager:
                                     previous, chapters, changed_only, get_pairs,
                                     durations=None, progress_callback=None,
                                     cancel_check=None):
+        """Stage the selected set, then publish it with rollback on failure."""
+        out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
+        os.makedirs(out_dir, exist_ok=True)
+        with file_lock(os.path.join(self.root_dir, ".chapter-export")):
+            staging_dir = tempfile.mkdtemp(prefix=".chapter-export-", dir=out_dir)
+            retain_backup = False
+            try:
+                result = self._stage_chapter_export_plans(
+                    plans, chunks, options, pause_defaults, previous, chapters,
+                    changed_only, get_pairs, durations, progress_callback,
+                    cancel_check, staging_dir)
+                if not result or not result[0]:
+                    return result
+                ensure_audio_export_active(cancel_check)
+                backup_dir = os.path.join(staging_dir, "old")
+                os.mkdir(backup_dir)
+                names = sorted(name for name in os.listdir(staging_dir)
+                               if name not in ("old", "manifest.json")) + ["manifest.json"]
+                touched = []
+                try:
+                    for name in names:
+                        ensure_audio_export_active(cancel_check)
+                        target = os.path.join(out_dir, name)
+                        backup = os.path.join(backup_dir, name)
+                        existed = os.path.lexists(target)
+                        if existed:
+                            os.replace(target, backup)
+                        touched.append((target, backup, existed))
+                        os.replace(os.path.join(staging_dir, name), target)
+                except BaseException as error:
+                    failures = []
+                    for target, backup, existed in reversed(touched):
+                        try:
+                            if existed:
+                                os.replace(backup, target)
+                            elif os.path.lexists(target):
+                                os.unlink(target)
+                        except OSError as rollback_error:
+                            failures.append(f"{target}: {rollback_error}")
+                    if failures:
+                        retain_backup = True
+                        raise RuntimeError(
+                            f"Chapter export rollback failed; recovery files kept at {staging_dir}: "
+                            + "; ".join(failures)) from error
+                    if isinstance(error, ExportCancelled):
+                        return False, "Export cancelled"
+                    raise
+                return result
+            except ExportCancelled:
+                return False, "Export cancelled"
+            finally:
+                if not retain_backup:
+                    shutil.rmtree(staging_dir)
+
+    def _stage_chapter_export_plans(self, plans, chunks, options, pause_defaults,
+                                    previous, chapters, changed_only, get_pairs,
+                                    durations, progress_callback, cancel_check,
+                                    staging_dir):
         """Write selected plans and one manifest with shared absolute offsets."""
         try:
             wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
@@ -1384,7 +1455,7 @@ class ProjectManager:
                             f"Writing chapter {index + 1}/{len(plans)}: {plan['title'][:60]}")
                     kwargs = {"bitrate": MP3_BITRATE} if options["format"] == "mp3" else {}
                     _export_audio_segment(
-                        piece, os.path.join(out_dir, plan["file"]), options["format"],
+                        piece, os.path.join(staging_dir, plan["file"]), options["format"],
                         cancel_check=cancel_check, **kwargs)
                 except ExportCancelled:
                     return False, "Export cancelled"
@@ -1401,7 +1472,7 @@ class ProjectManager:
             cursor += duration
 
         atomic_json_write({**options, "chapters": rows},
-                          os.path.join(out_dir, "manifest.json"))
+                          os.path.join(staging_dir, "manifest.json"))
         note = f"{written} chapter file(s) written"
         if reused:
             note += f", {reused} unchanged and kept"

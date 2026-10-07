@@ -179,6 +179,69 @@ class TestValidationRejectsBadAudio(unittest.TestCase):
 
 
 class TestDesignPreviewOwnership(unittest.TestCase):
+    def test_design_seed_reaches_single_and_batch_preview_with_random_default(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        import tts
+        import soundfile as sf
+        for configured, expected in ((17, 17), ('17', 17), (0, 0), (-1, -1), (None, -1)):
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+                seeds = []
+                def preview(description, sample_text, seed=-1):
+                    seeds.append(seed)
+                    path = root / f'preview{len(seeds)}.wav'
+                    _wav(str(path), seconds=.1)
+                    return str(path), 24000
+                voice = {'type': 'design', 'description': 'Synthetic narrator'}
+                if configured is not None:
+                    voice['seed'] = configured
+                with patch.object(engine, 'generate_voice_design', side_effect=preview):
+                    self.assertTrue(engine.generate_design_voice('Synthetic sentence.', '', voice, str(root / 'single.wav')))
+                    result = engine.generate_batch([{'index': 3, 'speaker': 'A', 'text': 'Synthetic sentence.'}], {'A': voice}, tmp)
+                self.assertEqual({'completed': [3], 'failed': []}, result)
+                self.assertEqual([expected, expected], seeds)
+                for name in ('single.wav', 'temp_batch_3.wav'):
+                    self.assertEqual(2400, sf.info(root / name).frames)
+                self.assertEqual([], list(root.glob('preview*.wav')))
+
+    def test_failed_design_copy_or_publish_cleans_preview_and_preserves_prior_output(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        import tts
+        for boundary in ('copy', 'publish'):
+            for prior in (False, True):
+                with self.subTest(boundary=boundary, prior=prior), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+                    preview = root / 'preview.wav'; _wav(str(preview), seconds=.1)
+                    output = root / 'temp_batch_3.wav'
+                    old = None
+                    if prior:
+                        _wav(str(output), seconds=.2); old = output.read_bytes()
+                    copy, replace = tts.shutil.copy2, tts.os.replace
+                    def fail_copy(src, dst):
+                        if boundary == 'copy':
+                            Path(dst).write_bytes(Path(src).read_bytes()[:60])
+                            raise OSError('synthetic partial copy failure')
+                        return copy(src, dst)
+                    def fail_publish(src, dst):
+                        if boundary == 'publish' and Path(dst) == output:
+                            raise PermissionError('synthetic publication refusal')
+                        return replace(src, dst)
+                    with patch.object(engine, 'generate_voice_design', return_value=(str(preview), 24000)), \
+                            patch.object(tts.shutil, 'copy2', side_effect=fail_copy), \
+                            patch.object(tts.os, 'replace', side_effect=fail_publish):
+                        result = engine.generate_batch([{'index': 3, 'speaker': 'A', 'text': 'Synthetic sentence.'}],
+                                                       {'A': {'type': 'design', 'description': 'Synthetic narrator'}}, tmp)
+                    self.assertEqual([], result['completed'])
+                    self.assertEqual([3], [index for index, _ in result['failed']])
+                    self.assertFalse(preview.exists())
+                    self.assertEqual([], list(root.glob('*.pending.*')))
+                    if prior:
+                        self.assertTrue(old == output.read_bytes())
+                    else:
+                        self.assertFalse(output.exists())
+
     def test_same_clock_previews_keep_distinct_audio_and_chunk_cleanup_is_local(self):
         from pathlib import Path
         from types import SimpleNamespace
