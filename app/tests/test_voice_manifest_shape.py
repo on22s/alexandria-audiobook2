@@ -59,27 +59,39 @@ class VoiceManifestShapeTests(unittest.TestCase):
                     self.assertEqual(document,path.read_bytes())
 
     def test_batch_malformed_locked_reload_preserves_concurrent_bytes_and_accounts_failure(self):
+        from tests.test_support import write_test_adapter
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);argv=self.get_batch_args(root);path=root/'manifest.json';path.write_text('[]');out=io.StringIO()
             concurrent=b'[{"id":"human","custom":{"keep":7}},null]'
-            adapter=root/'models'/'completed_adapter';adapter.mkdir(parents=True);weights=adapter/'adapter_model.safetensors';weights.write_bytes(b'CPU adapter stand-in')
-            def train(*args):
-                path.write_bytes(concurrent);return {'id':'completed_adapter','dataset_id':'speaker'}
+            artifacts=[]
+            def train(source,dataset_id,adapter_id,args):
+                adapter=Path(args.models_dir)/adapter_id;write_test_adapter(adapter)
+                (adapter/'training_meta.json').write_text(json.dumps({'best_loss':1.0,'num_samples':1}))
+                weights=adapter/'adapter_model.safetensors';artifacts.append((weights,weights.read_bytes()))
+                path.write_bytes(concurrent);return {'id':adapter_id,'dataset_id':dataset_id}
             with patch.object(sys,'argv',argv),patch.object(batch,'train_one',side_effect=train),contextlib.redirect_stdout(out):
                 self.assertEqual(1,batch.main())
-            self.assertEqual(concurrent,path.read_bytes());self.assertEqual(b'CPU adapter stand-in',weights.read_bytes())
+            self.assertEqual(concurrent,path.read_bytes());self.assertEqual(1,len(artifacts))
+            self.assertEqual(artifacts[0][1],artifacts[0][0].read_bytes())
             self.assertIn('manifest',out.getvalue());self.assertIn('0 trained, 0 skipped, 1 errors',out.getvalue())
             self.assertEqual([],list(root.glob('.tmp_*')))
 
     def test_batch_missing_initialization_and_legacy_rows_preserved_on_success(self):
+        from tests.test_support import write_test_adapter
+        from lora_evidence import get_file_sha256
         for initial in (None,[{'custom':{'keep':'legacy'}}]):
             with self.subTest(initial=initial),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);argv=self.get_batch_args(root);path=root/'manifest.json'
+                root=Path(tmp);argv=self.get_batch_args(root);path=root/'manifest.json';results=[]
                 if initial is not None:path.write_text(json.dumps(initial))
-                result={'id':'speaker_adapter','dataset_id':'speaker','custom':{'new':1}}
-                with patch.object(sys,'argv',argv),patch.object(batch,'train_one',return_value=result),contextlib.redirect_stdout(io.StringIO()):
+                def train(source,dataset_id,adapter_id,args):
+                    folder=Path(args.models_dir)/adapter_id;write_test_adapter(folder)
+                    (folder/'training_meta.json').write_text(json.dumps({'best_loss':1.0,'num_samples':1}))
+                    result={'id':adapter_id,'dataset_id':dataset_id,'zip_source':source,
+                            'checkpoint_sha256':get_file_sha256(str(folder/'adapter_model.safetensors')),'custom':{'new':1}}
+                    results.append(result);return dict(result)
+                with patch.object(sys,'argv',argv),patch.object(batch,'train_one',side_effect=train),contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(0,batch.main())
-                self.assertEqual((initial or [])+[result],json.loads(path.read_text()))
+                self.assertEqual((initial or [])+results,json.loads(path.read_text()))
                 self.assertEqual([],list(root.glob('.tmp_*')))
 
     def test_profiler_bad_manifest_fails_check_dry_and_normal_before_model_or_artifacts(self):

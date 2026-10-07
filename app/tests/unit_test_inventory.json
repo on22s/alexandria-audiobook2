@@ -577,6 +577,7 @@
   ],
   "test_audit_adapter_training_split": [
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_a_stale_manifest_does_not_override_the_adapters_own_record",
+    "tests.test_audit_adapter_training_split.SplitAuditTests.test_actual_verify_hash_cli_refuses_unverifiable_weights",
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_an_unusual_count_is_reported_with_its_number_not_called_clean",
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_cli_fails_loudly_when_an_adapter_cannot_be_classified",
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_directories_outside_the_manifest_are_ignored",
@@ -716,6 +717,15 @@
     "tests.test_batch_reader_file_lifetime.BatchReaderFileLifetimeTests.test_batch_iterator_closes_before_yield_and_on_decode_error",
     "tests.test_batch_reader_file_lifetime.BatchReaderFileLifetimeTests.test_comparison_loader_closes_valid_and_malformed_inputs",
     "tests.test_batch_reader_file_lifetime.BatchReaderFileLifetimeTests.test_real_rejudge_cli_closes_all_inputs_and_preserves_selected_row"
+  ],
+  "test_batch_registration_recovery": [
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_changed_checkpoint_refuses_recovery_without_retraining_or_registration",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_changed_source_refuses_recovery_and_keeps_pending_evidence",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_failed_entry_receipt_write_recovers_from_original_intent_and_training_metadata",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_malformed_identity_and_version_refuse_without_consuming_pending_record",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_manifest_committed_before_cleanup_failure_retries_once_without_duplicate_row",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_retry_registers_completed_adapter_without_retraining_and_preserves_concurrent_row",
+    "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_structurally_valid_changed_weights_and_matching_metadata_still_refuse_frozen_receipt"
   ],
   "test_batch_review_pass_status": [
     "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
@@ -7790,7 +7800,7 @@
   ],
   "test_training_extraction_symlinks": [
     "tests.test_training_extraction_symlinks.TrainingExtractionSymlinkTests.test_existing_member_level_symlink_escape_is_still_rejected",
-    "tests.test_training_extraction_symlinks.TrainingExtractionSymlinkTests.test_regular_existing_destination_reuses_and_flattens_archive",
+    "tests.test_training_extraction_symlinks.TrainingExtractionSymlinkTests.test_regular_existing_destination_replaces_and_flattens_archive",
     "tests.test_training_extraction_symlinks.TrainingExtractionSymlinkTests.test_symlink_root_is_rejected_before_external_writes",
     "tests.test_training_extraction_symlinks.TrainingExtractionSymlinkTests.test_unreferenced_and_internal_symlinks_are_rejected_before_any_archive_write"
   ],
@@ -8302,7 +8312,9 @@
     "tests.test_voice_analysis_matrix_work.VoiceAnalysisMatrixWorkTests.test_nonfinite_prosody_retains_nan_instead_of_reporting_zero_divergence"
   ],
   "test_voice_analysis_phase_completion": [
+    "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_actual_cli_entrypoint_reports_partial_dedup_failure_and_clean_success",
     "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_interrupted_analysis_cannot_reuse_old_completion_record",
+    "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_missing_and_empty_analysis_inputs_publish_terminal_failure_state",
     "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_old_plots_cannot_mask_changed_source_or_missing_replacement",
     "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_partial_dedup_preserves_stale_outputs_and_retries_incomplete_cache",
     "tests.test_voice_analysis_phase_completion.VoiceAnalysisPhaseCompletionTests.test_partial_extraction_retries_missing_coverage_before_completion",
@@ -8619,15 +8631,18 @@
     "tests.test_voicelab_pipeline_scripts.ProfilerEpubNavigationTests.test_valid_xml_and_local_uri_variants_return_exact_passage_without_zip_changes",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_bad_zip_cannot_clean_the_datasets_root",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_default_interpreter_uses_existing_platform_venv_policy",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_empty_normalization_has_stable_distinct_child_ids",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_manifest_keeps_entry_written_during_training",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_rejects_colliding_normalized_dataset_ids",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_returns_failure_after_processing_all_archives",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_zip_validation_rejects_unsafe_and_oversized_archives",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_clean_replacement_refuses_an_archive_inside_the_destination",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_completed_profiles_rebuild_csv_without_loading_model",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_deduped_zip_names_preserve_same_basename_from_different_narrators",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_missing_or_unreadable_reference_returns_failure",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_new_archive_replaces_stale_training_split_without_overlay",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_only_complete_adapters_are_resume_skipped",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_defaults_are_checkout_and_data_root_relative",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_epub_search_uses_only_explicit_directories",
@@ -8637,6 +8652,7 @@
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_model_init_failure_is_concise_and_non_mutating",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_preflight_reports_missing_model_and_dependency",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resume_admission_requires_exact_dataset_identity_not_an_arbitrary_prefix",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_stage_scripts_resolve_within_the_selected_checkout",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_successful_subprocess_with_incomplete_adapter_is_cleaned_up",
