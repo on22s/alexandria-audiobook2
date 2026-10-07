@@ -57,6 +57,21 @@ class SelectedInterpreterPreflightTests(unittest.TestCase):
         with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(valid), '')):
             self.assertEqual(valid, get_selected_interpreter_preflight('/chosen/python', ['first.zip', 'last.zip'], 'cpu'))
 
+    def test_ready_receipt_rejects_malformed_archive_fields_before_sorting(self):
+        import json
+        import subprocess
+        from unittest.mock import patch
+        from training_preflight import get_selected_interpreter_preflight
+        for malformed in ({}, {'archive': None}, {'archive': 1}, {'archive': []},
+                          {'archive': ''}, 'not a dataset row'):
+            receipt = {'status': 'ready', 'datasets': [malformed, {'archive': 'b.zip'}],
+                       'errors': [], 'runtime': {'device': 'cpu'}}
+            with self.subTest(row=malformed), patch('subprocess.run', return_value=
+                    subprocess.CompletedProcess([], 0, json.dumps(receipt), '')):
+                report = get_selected_interpreter_preflight('/chosen/python', ['a.zip', 'b.zip'], 'cpu')
+                self.assertEqual('failed', report['status'])
+                self.assertTrue(report['errors'])
+
     def test_failed_interpreter_cannot_publish_an_otherwise_valid_ready_receipt(self):
         import json
         import subprocess

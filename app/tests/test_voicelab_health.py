@@ -214,3 +214,103 @@ class ProfilerPreflightIdentityTests(unittest.TestCase):
                         self.assertEqual(str(epub), command[command.index('--epub-dir') + 1])
                     self.assertEqual(b'fixture-one', first.read_bytes())
                     self.assertEqual(b'fixture-two', second.read_bytes())
+
+
+class VoiceLabDiskBoundaryTests(unittest.TestCase):
+    def test_admission_uses_raw_bytes_while_display_rounds(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from routers import voicelab as v
+        cfg = {'zips_dir': '', 'rocm_python': '', 'profiler_model': '', 'epub_dirs': []}
+        cases = [(1.96, True, False), (2.0, False, True),
+                 (9.96, False, True), (10.0, False, False)]
+        for gib, critical, low in cases:
+            with self.subTest(gib=gib), patch.object(v.shutil, 'disk_usage',
+                    return_value=SimpleNamespace(free=int(gib * 1024 ** 3))):
+                report = v._build_voicelab_preflight(v.VoiceLabRequest(stages=['name']), cfg)
+            self.assertEqual(critical, 'disk_critical' in [r['code'] for r in report['blockers']])
+            self.assertEqual(low, 'disk_low' in [r['code'] for r in report['warnings']])
+            self.assertEqual(round(gib, 1), report['runtime']['free_disk_gb'])
+
+
+class VoiceLabZipTypeTests(unittest.TestCase):
+    def test_http_inspect_and_preflight_count_only_regular_archives(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import voicelab as v
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ('narrator', '_deduped'):
+                folder = root / name
+                folder.mkdir()
+                (folder / 'folder.zip').mkdir()
+                (folder / 'real.ZIP').write_bytes(b'archive counting fixture')
+                (folder / 'notes.txt').write_text('Synthetic notes')
+            manifest = root / 'manifest.json'
+            manifest.write_text('[]')
+            cfg = {'zips_dir': tmp, 'rocm_python': '', 'profiler_model': '', 'epub_dirs': []}
+            app = FastAPI()
+            app.include_router(v.router)
+            with patch.object(v, '_load_voicelab_config', return_value=cfg), \
+                 patch.object(v, 'LORA_MODELS_MANIFEST', str(manifest)), TestClient(app) as client:
+                response = client.get('/api/voicelab/inspect')
+                preflight = client.post('/api/voicelab/preflight', json={'stages': ['name']})
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(200, preflight.status_code, preflight.text)
+            self.assertEqual(1, response.json()['narrators'][0]['zip_count'])
+            self.assertEqual(1, response.json()['deduped_count'])
+            self.assertEqual(1, preflight.json()['dataset']['zip_count'])
+            self.assertEqual(1, preflight.json()['dataset']['deduped_count'])
+
+
+class VoiceLabNamingInputTests(unittest.TestCase):
+    def test_name_only_needs_no_dataset_but_data_stages_still_refuse(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        from routers import voicelab as v
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = {'zips_dir': '', 'rocm_python': '', 'profiler_model': '', 'epub_dirs': []}
+            for folder in ('', str(Path(tmp) / 'removed')):
+                current = {**cfg, 'zips_dir': folder}
+                with self.subTest(folder=folder), patch.object(v, 'DATA_DIR', tmp):
+                    name = v._build_voicelab_preflight(v.VoiceLabRequest(stages=['name']), current)
+                    self.assertTrue(name['ready'], name['blockers'])
+                    for stage in ('quality', 'dedup', 'train', 'evaluate', 'profile'):
+                        report = v._build_voicelab_preflight(v.VoiceLabRequest(stages=[stage]), current)
+                        codes = [row['code'] for row in report['blockers']]
+                        self.assertIn('zips_missing' if folder else 'zips_unconfigured', codes)
+
+
+class VoiceLabMpsProbeTests(unittest.TestCase):
+    def test_actual_selected_interpreter_probe_and_backend_specific_admission(self):
+        from pathlib import Path
+        import sys
+        from unittest.mock import patch
+        from routers import voicelab as v
+        for backend in ('mps', 'cuda', 'cpu'):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / '_deduped').mkdir()
+                (root / '_deduped' / 'count.zip').write_bytes(b'counting fixture')
+                interpreter = root / 'synthetic-python'
+                interpreter.write_text('#!'+sys.executable+'\n'+
+                    'import sys,types,importlib.util\n'+
+                    'torch=types.SimpleNamespace(__version__="synthetic",version=types.SimpleNamespace(hip=None),'+
+                    'cuda=types.SimpleNamespace(is_available=lambda:'+str(backend=='cuda')+','+
+                    'get_device_name=lambda n:"Synthetic GPU",mem_get_info=lambda:(12*1024**3,16*1024**3)),'+
+                    'backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda:'+str(backend=='mps')+')))\n'+
+                    'sys.modules["torch"]=torch\nimportlib.util.find_spec=lambda name:object()\nexec(sys.argv[2])\n')
+                interpreter.chmod(0o700)
+                cfg = {'zips_dir': tmp, 'rocm_python': str(interpreter), 'profiler_model': '', 'epub_dirs': []}
+                with patch.object(v, 'DATA_DIR', tmp):
+                    probe = v._probe_voicelab_interpreter(str(interpreter))
+                    for device in ('auto', 'cpu', 'mps', 'cuda'):
+                        report = v._build_voicelab_preflight(v.VoiceLabRequest(stages=['train'], device=device), cfg)
+                        allowed = device=='cpu' or device==backend or device=='auto' and backend!='cpu'
+                        self.assertEqual(allowed, report['ready'], (backend,device,report['blockers']))
+                        if backend=='mps' and device in ('auto','mps'):
+                            self.assertIsNone(report['runtime']['free_vram_gb'])
+                self.assertEqual(backend=='mps', probe.get('mps_available'))
+                self.assertEqual(backend=='cuda', probe.get('cuda_available'))

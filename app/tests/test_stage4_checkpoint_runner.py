@@ -74,6 +74,23 @@ class Stage4CheckpointRunnerTest(unittest.TestCase):
             json.dump(doc, handle)
         return path
 
+    def test_windows_cross_drive_wav_is_wrapped_as_artifact_validation_error(self):
+        import copy
+        import ntpath
+        from types import SimpleNamespace
+        document = self._artifact(); path = self._write(document)
+        with patch.object(runner, '_provenance_harness_matches', return_value=True):
+            self.assertEqual(document, runner.validate_stage4_artifact(path, len(document['rows'])))
+        for wav in (r'C:\outside.wav', r'D:\outside.wav'):
+            with self.subTest(wav=wav):
+                invalid = copy.deepcopy(document); invalid['rows'][0]['wav'] = wav
+                path = self._write(invalid)
+                with patch.object(runner, 'REPO', r'C:\repository'), \
+                     patch.object(runner, 'os', SimpleNamespace(path=ntpath)), \
+                     patch.object(runner, '_provenance_harness_matches', return_value=True):
+                    with self.assertRaisesRegex(runner.ArtifactValidationError, 'row 0 WAV escapes'):
+                        runner.validate_stage4_artifact(path, len(invalid['rows']))
+
     def test_main_category_counts_follow_actual_category_matrices_and_keep_four_samples(self):
         import copy
         import contextlib

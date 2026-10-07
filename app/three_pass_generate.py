@@ -17,7 +17,7 @@ from dataclasses import replace
 from types import MappingProxyType
 
 from core import llm_timeout_seconds
-from source_encoding import read_source_text
+from source_encoding import read_source_text, get_normalized_source_newlines
 from llm_provider import make_llm_client, make_run_client, get_run_model_binding, get_run_fingerprint_identity
 
 from judge_reason_log import record_judge_run
@@ -2823,6 +2823,7 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     a source the shared gate refuses.
     """
     book, source_encoding = read_source_text(path)
+    book = get_normalized_source_newlines(book)
     if source_encoding != "utf-8":
         report(f"Read {path} as {source_encoding} (not valid UTF-8)")
     book, preprocessing = get_preprocessed_source(

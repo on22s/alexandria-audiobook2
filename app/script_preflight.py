@@ -3,6 +3,7 @@
 import difflib
 import re
 import shlex
+import sys
 import unicodedata
 from collections import Counter
 
@@ -116,12 +117,18 @@ def replacement_repair_hint(source_path=None):
     the same thing, from here.
     """
     target = source_path or "<source.txt>"
+    shell_hint = ""
+    command = "cd app && env/bin/python repair_source_encoding.py --apply -- " + shlex.quote(str(target))
+    if sys.platform == "win32":
+        shell_hint = " in PowerShell"
+        executable = "'" + sys.executable.replace("'", "''") + "'"
+        argument = "'" + str(target).replace("'", "''") + "'"
+        command = f"cd app; & {executable} repair_source_encoding.py --apply -- {argument}"
     return (
         "This is a decoding error, not lost content: the file was read with "
         "the wrong codec and every non-ASCII character became U+FFFD. Repair "
-        "it with\n"
-        "    cd app && env/bin/python repair_source_encoding.py --apply -- "
-        f"{shlex.quote(str(target))}\n"
+        f"it with{shell_hint}\n"
+        f"    {command}\n"
         "which writes <source>.repaired.txt beside the original, leaves the "
         "original untouched, and reports every substitution. It refuses to "
         "write if a substitution would break sentence structure."

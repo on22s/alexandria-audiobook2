@@ -13,6 +13,15 @@ from script_preflight import replacement_repair_hint
 
 
 class CommandBoundaryTests(unittest.TestCase):
+    def test_windows_repair_hint_uses_current_interpreter_and_powershell_literals(self):
+        executable = r'C:\App Root\app\env\Scripts\python.exe'
+        for source in (r'C:\Books\A B.txt', r"C:\Books\reader's book.txt", r'C:\Books\book;$(touch bad).txt'):
+            with self.subTest(source=source), patch.object(sys, 'platform', 'win32'), patch.object(sys, 'executable', executable):
+                hint = replacement_repair_hint(source)
+                self.assertIn('PowerShell', hint)
+                self.assertNotIn('env/bin/python', hint)
+                self.assertIn("& '" + executable + "' repair_source_encoding.py --apply -- '" + source.replace("'", "''") + "'", hint)
+
     def test_repair_hint_executes_literal_filename_not_extra_shell_statements(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);binary=root/'app/env/bin';binary.mkdir(parents=True)

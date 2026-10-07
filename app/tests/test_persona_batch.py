@@ -10,6 +10,26 @@ import generate_personas as personas
 
 
 class PersonaBatchTests(unittest.TestCase):
+    def test_advanced_fallback_honors_context_lines_and_existing_maximum(self):
+        for requested, expected in ((1, 1), (50, 50), (500, 200)):
+            with self.subTest(requested=requested), tempfile.TemporaryDirectory() as tmp:
+                lines = [f'Synthetic sample line {i}.' for i in range(250)]
+                script = [{'speaker': 'ALICE', 'text': text} for text in lines]
+                seen = []
+                def request(client, model, system, build_prompt, evidence, params, label):
+                    reference = json.loads(evidence[0][1]); seen.append(reference['sample_lines'])
+                    return {'description': 'A clear warm voice.', 'ref_text': lines[0]}
+                with patch.object(personas, '_discover_batch_characters', return_value=[]), \
+                     patch.object(personas, 'request_persona_with_evidence', side_effect=request), \
+                     patch.object(personas, '_save_generated_preview', return_value=True):
+                    failures = personas.run_advanced_persona_generation(script, ['ALICE'], {'ALICE': lines}, {}, None, 'fixture', None, tmp, SimpleNamespace(batch_size=40, context_lines=requested, recovered_speaker=''), book_id='fixture')
+                self.assertEqual([], failures)
+                self.assertEqual([lines[:expected]], seen)
+                # The reference published by the actual compiler contains the same selection.
+                references = list(Path(tmp).rglob('*.json'))
+                matching = [json.loads(path.read_text()) for path in references if json.loads(path.read_text()).get('name') == 'ALICE']
+                self.assertTrue(any(row.get('sample_lines') == lines[:expected] for row in matching))
+
     def test_unique_extension_never_exceeds_limit_or_mutates_input(self):
         for count in (119, 120, 130):
             with self.subTest(count=count):

@@ -156,9 +156,11 @@ def _probe_voicelab_interpreter(rocm_python: str) -> dict:
     code = (
         "import importlib.util,json,torch; "
         "ok=torch.cuda.is_available(); "
+        "mps=bool(getattr(getattr(torch,'backends',None),'mps',None) and torch.backends.mps.is_available()); "
         "print(json.dumps({'python':__import__('sys').version.split()[0],"
         "'torch':torch.__version__,'hip':getattr(torch.version,'hip',None),"
-        "'gpu':torch.cuda.get_device_name(0) if ok else None,"
+        "'cuda_available':ok,'mps_available':mps,"
+        "'gpu':torch.cuda.get_device_name(0) if ok else ('Apple MPS' if mps else None),"
         "'vram':torch.cuda.mem_get_info() if ok else None,"
         "'deps':{n:importlib.util.find_spec(n) is not None for n in "
         "['speechbrain','librosa','peft','llama_cpp']}}))")
@@ -205,6 +207,12 @@ def _validate_voicelab_config_paths(cfg: dict) -> None:
             _validate_voicelab_path(path, label)
 
 
+def get_voicelab_zip_files(folder: str) -> list[str]:
+    """List regular dataset archives for inspection and stage admission."""
+    return [name for name in os.listdir(folder)
+            if name.lower().endswith(".zip") and os.path.isfile(os.path.join(folder, name))]
+
+
 def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     """Build the canonical read-only start decision and sanitized UI report."""
     stages = get_voicelab_stages(request.stages)
@@ -220,10 +228,11 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
 
     raw = (request.zips_dir or cfg.get("zips_dir") or "").strip()
     zips_dir = _resolve_zips_dir(raw) if raw else ""
-    if not raw:
-        finding(blockers, "zips_unconfigured", "Configure an input dataset folder.")
-    elif not os.path.isdir(zips_dir):
-        finding(blockers, "zips_missing", "The input dataset folder does not exist.")
+    if not is_voicelab_cpu_only(stages):
+        if not raw:
+            finding(blockers, "zips_unconfigured", "Configure an input dataset folder.")
+        elif not os.path.isdir(zips_dir):
+            finding(blockers, "zips_missing", "The input dataset folder does not exist.")
     narrator_count = zip_count = deduped_count = 0
     if os.path.isdir(zips_dir):
         for name in os.listdir(zips_dir):
@@ -231,12 +240,10 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
             if name.startswith("_") or not os.path.isdir(folder):
                 continue
             narrator_count += 1
-            zip_count += sum(item.lower().endswith(".zip") and os.path.isfile(os.path.join(folder, item))
-                             for item in os.listdir(folder))
+            zip_count += len(get_voicelab_zip_files(folder))
         deduped = os.path.join(zips_dir, "_deduped")
         if os.path.isdir(deduped):
-            deduped_count = sum(item.lower().endswith(".zip") and os.path.isfile(os.path.join(deduped, item))
-                                for item in os.listdir(deduped))
+            deduped_count = len(get_voicelab_zip_files(deduped))
         if "train" in stages and "dedup" not in stages and not deduped_count:
             finding(blockers, "dedup_missing", "Training requires deduplicated ZIP files or the dedup stage.")
 
@@ -282,15 +289,23 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
 
     usage = shutil.disk_usage(DATA_DIR)
     free_gb = round(usage.free / 1024 ** 3, 1)
-    if get_training_disk_error(free_gb * 1024 ** 3):
+    if get_training_disk_error(usage.free):
         finding(blockers, "disk_critical", "Less than 2 GB of free disk remains.")
-    elif free_gb < 10:
+    elif usage.free < 10 * 1024 ** 3:
         finding(warnings, "disk_low", "Less than 10 GB of free disk remains.")
     vram = probe.get("vram") or []
     free_vram_gb = round(vram[0] / 1024 ** 3, 1) if len(vram) == 2 else None
     requested_device = request.device or "auto"
-    if needs_rocm and requested_device != "cpu" and not probe.get("gpu"):
-        finding(blockers, "gpu_unavailable", "The selected interpreter cannot see a GPU.")
+    cuda_available = probe.get("cuda_available", bool(probe.get("gpu")))
+    mps_available = probe.get("mps_available", False)
+    available = (requested_device == "cpu" or
+                 requested_device == "auto" and (cuda_available or mps_available) or
+                 requested_device.startswith("cuda") and cuda_available or
+                 requested_device == "mps" and mps_available)
+    if requested_device == "mps" or requested_device == "auto" and not cuda_available and mps_available:
+        free_vram_gb = None
+    if needs_rocm and not available:
+        finding(blockers, "gpu_unavailable", "The selected interpreter cannot see the requested GPU backend.")
     elif "train" in stages and get_training_vram_error(requested_device, free_vram_gb):
         finding(blockers, "vram_low", get_training_vram_error(requested_device, free_vram_gb))
     if request.candidate_checkpoints and request.max_epochs == 1:
@@ -299,6 +314,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     stable = {"stages": stages, "zips_dir": zips_dir, "narrators": narrator_count,
               "zips": zip_count, "deduped": deduped_count, "interpreter_ok": interpreter_ok,
               "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
+              "cuda_available": cuda_available, "mps_available": mps_available,
               "missing_deps": missing_deps, "blockers": [item["code"] for item in blockers],
               "profiler_command": (_build_profiler_command(
                   rocm, profiler_model, cfg.get("epub_dirs") or [], request.device)
@@ -643,13 +659,13 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
         sub = os.path.join(root, name)
         if name.startswith("_") or not os.path.isdir(sub):
             continue
-        zips = [f for f in os.listdir(sub) if f.lower().endswith(".zip")]
+        zips = get_voicelab_zip_files(sub)
         narrators.append({"name": name, "zip_count": len(zips)})
 
     deduped_dir = os.path.join(root, "_deduped")
     quality_summary = safe_load_json(os.path.join(root, "_quality", "summary.json"), default={})
     deduped_zips = (
-        [f for f in os.listdir(deduped_dir) if f.lower().endswith(".zip")]
+        get_voicelab_zip_files(deduped_dir)
         if os.path.isdir(deduped_dir) else []
     )
 

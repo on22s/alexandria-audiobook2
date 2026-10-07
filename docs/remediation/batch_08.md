@@ -4,7 +4,7 @@ Batch training now keeps durable source/checkpoint-bound registration receipts, 
 
 The batch interpreter uses the shared Windows/Linux venv selector. Hash auditing fails when weights cannot be verified. Voice analysis records terminal failure for missing/empty inputs and returns failure for incomplete requested phases.
 
-Validation: 93 integrated focused tests and 78 gate-follow-up tests passed. The full release gate passed 6,911 unit tests across three shards with no unit skips, plus 70 quick API tests; 12 full-mode API cases were skipped. Tests exercise native CPU artifacts, recovery, publication failures, unchanged bytes and actual CLI exit status. Windows interpreter layout was simulated on Linux; native Windows training and GPU training are not claimed.
+Validation: 93 integrated focused tests and 78 gate-follow-up tests passed. The full release gate passed 6,952 unit tests across three shards with no unit skips, plus 70 quick API tests; 12 full-mode API cases were skipped. Tests exercise native CPU artifacts, recovery, publication failures, unchanged bytes and actual CLI exit status. Windows interpreter layout was simulated on Linux; native Windows training and GPU training are not claimed.
 
 Tracker: #917.
 
