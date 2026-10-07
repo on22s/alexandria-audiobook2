@@ -99,8 +99,22 @@ def save_generation_quality_manifest(output_path, manifest):
     atomic_json_write(manifest, get_generation_quality_path(output_path))
 
 
+def validate_generation_output_path(input_path, output_path):
+    """Refuse source/output aliases before any generated artifact is written."""
+    collision = (os.path.normcase(os.path.realpath(input_path)) ==
+                 os.path.normcase(os.path.realpath(output_path)))
+    if not collision:
+        try:
+            collision = os.path.samefile(input_path, output_path)
+        except FileNotFoundError:
+            pass
+    if collision:
+        raise ValueError('Generation output must not replace its source input')
+
+
 def publish_completed_generation(output_path, entries, manifest, input_path, input_sha256):
     """Publish the verified output before binding its completion evidence."""
+    validate_generation_output_path(input_path, output_path)
     if manifest.get('status') != 'verified':
         raise ValueError('Cannot publish an unverified generation')
     if get_file_sha256(input_path) != input_sha256:
@@ -1825,6 +1839,15 @@ def main():
         print(f"Error: Input file not found: {input_file_path}")
         sys.exit(1)
 
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    output_path = args.output or os.path.join(data_dir, "annotated_script.json")
+    try:
+        validate_generation_output_path(input_file_path, output_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     book_content, input_sha256 = get_generation_input(input_file_path)
 
     book_content, preprocessing = get_preprocessed_source(
@@ -1901,9 +1924,6 @@ def main():
     print(f"Read {len(book_content)} characters")
 
     # Load LLM config
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    app_dir = os.path.dirname(__file__)
-    data_dir = get_runtime_data_dir(root)
     config_path = get_app_config_path(data_dir, root, app_dir)
     if not os.path.exists(config_path):
         print("Warning: config.json not found. Using defaults.")
@@ -2025,7 +2045,6 @@ def main():
           f"fits={request_preflight['predicted_fits']}; "
           "unknown future roster/tail context is checked on each actual request")
 
-    output_path = args.output or os.path.join(data_dir, "annotated_script.json")
     response_log = os.path.relpath(get_response_log_path("llm_responses.log"), data_dir)
 
     all_entries = []

@@ -85,7 +85,7 @@ def save_cast_list(path, cast, provenance=None):
     """
     from three_pass_generate import get_cast_from_data
     get_cast_from_data(cast)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
 
 

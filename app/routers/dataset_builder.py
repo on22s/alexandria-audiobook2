@@ -530,6 +530,8 @@ async def dataset_builder_cancel(name: Optional[str] = None):
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
     safe_name = _require_safe_filename(name, "Invalid dataset name")
+    if not os.path.isfile(os.path.join(DATASET_BUILDER_DIR, safe_name, "state.json")):
+        raise HTTPException(status_code=404, detail="Dataset builder project not found")
     state = _load_builder_state(safe_name)
     return {
         "description": state.get("description", ""),

@@ -78,3 +78,37 @@ class GenerationCompletionTests(unittest.TestCase):
         text,digest=get_generation_input(self.source)
         self.assertEqual('éclair\nsecond\nthird\n',text)
         self.assertEqual(hashlib.sha256(data).hexdigest(),digest)
+
+
+class GenerationSourceCollisionTests(unittest.TestCase):
+    def test_publication_refuses_source_path_aliases_without_changing_source_or_manifest(self):
+        import os
+        from generate_script import publish_completed_generation, get_generation_quality_path
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); source = root / 'source.txt'
+            source.write_text('Synthetic source stays readable.', encoding='utf-8')
+            symlink = root / 'source-link.json'; symlink.symlink_to(source)
+            hardlink = root / 'source-hardlink.json'; os.link(source, hardlink)
+            for output in (source, root / '.' / 'source.txt', symlink, hardlink):
+                with self.subTest(output=str(output)):
+                    before = source.read_bytes(); quality = Path(get_generation_quality_path(str(output)))
+                    quality.write_text('{"status":"previous"}', encoding='utf-8'); previous = quality.read_bytes()
+                    with self.assertRaisesRegex(ValueError, 'source'):
+                        publish_completed_generation(str(output), [{'text':'Generated script.'}], {'status':'verified'}, str(source), get_file_sha256(source))
+                    self.assertEqual(before, source.read_bytes())
+                    self.assertEqual(before, output.read_bytes())
+                    self.assertEqual(previous, quality.read_bytes())
+
+    def test_cli_refuses_collision_before_loading_source_or_constructing_client(self):
+        from unittest.mock import patch
+        import generate_script as generation
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.txt'; source.write_text('Synthetic source.')
+            with patch.object(generation.sys, 'argv', ['generate_script.py', str(source), '--output', str(source)]), \
+                 patch.object(generation, 'get_runtime_data_dir', return_value=tmp), \
+                 patch.object(generation, 'get_generation_input') as load, \
+                 patch.object(generation, 'make_run_client') as client:
+                with self.assertRaises(SystemExit):
+                    generation.main()
+                load.assert_not_called(); client.assert_not_called()
+            self.assertEqual('Synthetic source.', source.read_text())

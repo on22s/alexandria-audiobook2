@@ -4151,7 +4151,9 @@
             if (!card) { return null; }
             return {control, bookToken, speaker: card.dataset.voice, tag: control.tagName,
                 key: control.getAttribute('data-voice-focus-key'), label: control.getAttribute('aria-label'),
-                action: control.getAttribute('onclick') || control.getAttribute('onchange')};
+                action: control.getAttribute('onclick') || control.getAttribute('onchange'),
+                selectionStart: control.selectionStart, selectionEnd: control.selectionEnd,
+                selectionDirection: control.selectionDirection};
         }
 
         function restoreVoiceListFocus(container, snapshot, bookToken) {
@@ -4159,7 +4161,8 @@
                 || (document.activeElement !== document.body && document.activeElement !== snapshot.control)) { return; }
             const card = Array.from(container.querySelectorAll('.voice-card')).find(row => row.dataset.voice === snapshot.speaker);
             if (!card) { return; }
-            const control = Array.from(card.querySelectorAll('button,input,select,textarea')).find(field => field.tagName === snapshot.tag
+            const controls = Array.from(card.querySelectorAll('button,input,select,textarea'));
+            const control = controls.includes(snapshot.control) ? snapshot.control : controls.find(field => field.tagName === snapshot.tag
                 && (snapshot.key ? field.getAttribute('data-voice-focus-key') === snapshot.key
                     : snapshot.label ? field.getAttribute('aria-label') === snapshot.label
                         : snapshot.action && (field.getAttribute('onclick') || field.getAttribute('onchange')) === snapshot.action));
@@ -4167,6 +4170,9 @@
             if (!target || !target.getClientRects().length) { return; }
             if (target !== control) { target.tabIndex = -1; }
             target.focus({preventScroll: true});
+            if (target === control && typeof snapshot.selectionStart === 'number' && target.setSelectionRange) {
+                target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd, snapshot.selectionDirection);
+            }
         }
 
         async function loadVoices(refreshResources = true) {
@@ -4570,6 +4576,8 @@
         };
 
         function renderVoiceSuggestions() {
+            const container = document.getElementById('voices-list');
+            const focusSnapshot = getVoiceListFocusSnapshot(container, currentBookFilename);
             document.querySelectorAll('.voice-card').forEach(card => {
                 const name = card.dataset.voice;
                 const body = card.querySelector('.card-body');
@@ -4607,11 +4615,11 @@
                     <button class="btn btn-sm btn-success flex-shrink-0" data-voice="${escapeHtml(name)}" onclick="applyVoiceSuggestion(this.dataset.voice)"><i class="fas fa-check me-1"></i>Apply</button>
                 `;
             });
-            const container = document.getElementById('voices-list');
             Array.from(container.querySelectorAll('.voice-card'))
                 .sort((a, b) => (window._voiceSuggestions[b.dataset.voice]?.line_count || window._lineCounts[b.dataset.voice] || 0)
                                - (window._voiceSuggestions[a.dataset.voice]?.line_count || window._lineCounts[a.dataset.voice] || 0))
                 .forEach(card => container.appendChild(card));
+            restoreVoiceListFocus(container, focusSnapshot, currentBookFilename);
         }
 
         function applySuggestionToCard(name) {
@@ -5642,6 +5650,7 @@
 
         // --- Editor Tab: text integrity (issue #522 s7.4/7.5) ---
         let editorIntegrityView = 0;
+        let textDiffRequest = 0;
 
         function invalidateEditorIntegrity(message = 'Source check pending') {
             editorIntegrityView++;
@@ -5706,6 +5715,11 @@
             if (!panel) {
                 return;
             }
+            const request = ++textDiffRequest;
+            const book = currentBookFilename;
+            const edits = chunkEditsRevision;
+            const isCurrent = () => request === textDiffRequest
+                && book === currentBookFilename && edits === chunkEditsRevision;
             if (panel.style.display !== 'none') {
                 panel.style.display = 'none';
                 return;
@@ -5713,8 +5727,10 @@
             summary.textContent = 'Comparing…';
             try {
                 const diff = await API.get('/api/editor/integrity');
+                if (!isCurrent()) { return; }
                 renderTextDiff(diff);
             } catch (e) {
+                if (!isCurrent()) { return; }
                 summary.textContent = '';
                 showActionError("Text integrity unavailable", e, "Refresh the Editor and run Text integrity again. A failed check does not establish that the source matches.", "error");
             }
@@ -5727,6 +5743,7 @@
                 summary.textContent = 'Source comparison unavailable';
                 panel.style.display = '';
                 panel.textContent = diff.reason || 'No original source is on record.';
+                textDiffRequest++;
                 return;
             }
             const t = diff.totals || {};
@@ -5751,6 +5768,7 @@
                         </table>
                     </div>` : '<div class="small text-success mb-0">Every source word is in the script, in order.</div>'}
                 </div>`;
+            textDiffRequest++;
         }
 
         function scrollToChunkRow(id) {
@@ -5781,6 +5799,7 @@
         let isRenderingAll = false;
         let cachedChunks = []; // Cache to track changes
         let chunkSnapshotRevision = null;
+        let chunkSnapshotBook = null;
         let loadChunksTimer = null; // Pending standalone editor poll
         let chunkRefreshPromise = null;
         let chunkRefreshAgain = false;
@@ -5877,7 +5896,7 @@
             applyDriftFilter();
 
             // Update action area (button/progress)
-            const actionContainer = tr.querySelector('.d-flex');
+            const actionContainer = tr.querySelector('.chunk-actions');
             if (actionContainer) {
                 const existingBtn = actionContainer.querySelector('button');
                 const existingProgress = actionContainer.querySelector('.progress');
@@ -6056,6 +6075,7 @@
             const query = !forceFullRedraw && chunkSnapshotRevision
                 ? `?revision=${encodeURIComponent(chunkSnapshotRevision)}` : '';
             const snapshot = await API.get('/api/chunks/status' + query);
+            if (refreshBook !== currentBookFilename) { return cachedChunks; }
             if (!snapshot || typeof snapshot.revision !== 'string' || typeof snapshot.full !== 'boolean'
                     || !Array.isArray(snapshot.chunks) || !Array.isArray(snapshot.changed_ids)
                     || !Number.isInteger(snapshot.total) || snapshot.total < 0) {
@@ -6082,6 +6102,7 @@
             if (chunks.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center">No chunks found. Please generate script first.</td></tr>';
                 cachedChunks = [];
+                chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
                 return chunks;
             }
@@ -6103,6 +6124,7 @@
                     if (snapshot.full || snapshot.changed_ids.includes(chunk.id)) { updateChunkRow(chunk); }
                 });
                 cachedChunks = chunks;
+                chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
 
                 // Continue polling if generating
@@ -6129,6 +6151,28 @@
                     }
                 });
             } else {
+                const editorFields = [
+                    ['.chunk-text', 'text'], ['.chunk-instruct', 'instruct'],
+                    ['.chunk-pause-after', 'pause_after'], ['select', 'speaker']
+                ];
+                const drafts = new Map();
+                if (chunkSnapshotBook === refreshBook) {
+                    const previous = new Map(cachedChunks.map(chunk => [String(chunk.id), chunk]));
+                    for (const row of tbody.querySelectorAll?.('.chunk-row') || []) {
+                        const chunk = previous.get(row.dataset.id);
+                        if (!chunk?.uid) { continue; }
+                        const controls = editorFields.map(([selector, key]) => {
+                            const field = row.querySelector(selector);
+                            if (!field) { return null; }
+                            return {selector, value: field.value,
+                                dirty: field.value !== String(chunk[key] ?? ''),
+                                focused: field === document.activeElement,
+                                selectionStart: field.selectionStart, selectionEnd: field.selectionEnd,
+                                selectionDirection: field.selectionDirection};
+                        }).filter(Boolean);
+                        drafts.set(chunk.uid, {expanded: row.classList.contains('expanded'), controls});
+                    }
+                }
                 // Keep an unchanged audition when rebuilding the surrounding rows.
                 const playingAudio = Array.from(document.querySelectorAll('#chunks-table-body .chunk-audio'))
                     .find(audio => !audio.paused && !audio.ended);
@@ -6169,7 +6213,7 @@
                             </td>
                             <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span>${_driftBadge(chunk)}</td>
                             <td>
-                                <div class="d-flex align-items-center gap-2">
+                                <div class="chunk-actions d-flex align-items-center gap-2">
                                     ${actionArea}
                                     ${audioPlayer}
                                 </div>
@@ -6177,6 +6221,31 @@
                         </tr>
                     `;
                 }).join('');
+                for (const chunk of chunks) {
+                    const draft = drafts.get(chunk.uid);
+                    const row = draft && tbody.querySelector(`tr[data-id="${chunk.id}"]`);
+                    if (!row) { continue; }
+                    for (const saved of draft.controls) {
+                        const field = row.querySelector(saved.selector);
+                        if (!field) { continue; }
+                        if (saved.dirty) {
+                            if (saved.selector === 'select' && !Array.from(field.options).some(option => option.value === saved.value)) {
+                                const option = document.createElement('option');
+                                option.value = saved.value;
+                                option.textContent = saved.value + ' (custom)';
+                                field.appendChild(option);
+                            }
+                            field.value = saved.value;
+                        }
+                        if (saved.focused) {
+                            field.focus({preventScroll: true});
+                            if (typeof saved.selectionStart === 'number' && field.setSelectionRange) {
+                                field.setSelectionRange(saved.selectionStart, saved.selectionEnd, saved.selectionDirection);
+                            }
+                        }
+                    }
+                    if (draft.expanded) { window.toggleChunkExpand(row.querySelector('.chunk-toggle-btn')); }
+                }
                 if (retainedChunk) {
                     const replacement = tbody.querySelector(`audio.chunk-audio[data-id="${retainedChunk.id}"]`);
                     if (replacement) {
@@ -6198,6 +6267,7 @@
             }
 
             cachedChunks = chunks;
+            chunkSnapshotBook = refreshBook;
             chunkSnapshotRevision = snapshot.revision;
 
             // If any chunk is generating, poll (without full redraw)
@@ -6581,7 +6651,15 @@
             document.getElementById('btn-regen-all').style.display = 'inline-block';
             document.getElementById('btn-cancel-render').style.display = 'none';
             if (!skipApi) {
-                await cancelTask('/api/cancel_audio', { onSuccess: () => loadChunks(false) });
+                await cancelTask('/api/cancel_audio', { onSuccess: async () => {
+                    const byId = new Map(cachedChunks.map(chunk => [String(chunk.id), chunk]));
+                    document.querySelectorAll('#chunks-table-body tr.table-info').forEach(row => {
+                        const chunk = byId.get(row.dataset.id);
+                        if (chunk) { updateChunkRow(chunk); }
+                        row.classList.remove('table-info');
+                    });
+                    await loadChunks(false);
+                } });
             }
         };
 
@@ -6599,6 +6677,7 @@
         // endpoints return different fields, so that can't be a static
         // template). See FIXED.md F-065.
         async function _runBatchRender(endpoint, regenerateAll, { label, describeStart }) {
+            const batchBook = currentBookFilename;
             let rowsMarked = false;
             isRenderingAll = true;
             document.getElementById('btn-batch-fast').style.display = 'none';
@@ -6631,9 +6710,13 @@
                     toProcess = freshChunks.filter(c => c.text && c.text.trim());
                 }
 
+                if (batchBook !== currentBookFilename) {
+                    throw new Error('Active book changed; restart rendering for the current book.');
+                }
                 rowsMarked = true;
                 // Mark all chunks as generating in UI
                 const indices = toProcess.map(c => c.id);
+                const selectedUids = new Map(toProcess.map(chunk => [chunk.id, chunk.uid]));
                 for (const id of indices) {
                     const tr = document.querySelector(`tr[data-id="${id}"]`);
                     if (tr) {
@@ -6666,7 +6749,12 @@
                         document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
                         cancelRender(true);
 
-                        const selected = updated.chunks.filter(chunk => indices.includes(chunk.id));
+                        if (batchBook !== currentBookFilename) {
+                            showToast('Render finished for a previous book. Open that book to check its audio.', 'warning');
+                            return;
+                        }
+                        const selected = updated.chunks.filter(chunk => indices.includes(chunk.id)
+                            && selectedUids.get(chunk.id) === chunk.uid);
                         const outcome = getBatchOutcome(selected, indices.length);
                         const label = outcome.complete ? 'complete' : 'incomplete';
                         showToast(`Batch ${label}: ${outcome.completed} succeeded, ${outcome.failed} failed, ${outcome.cancelled} cancelled, ${outcome.unfinished} unfinished`,
@@ -7178,11 +7266,12 @@
             }
             const quietMs = now - (track.changedAt || now);
             const waitingForReply = !!status.manual_request;
-            const parts = [waitingForReply ? 'Waiting for your reply (manual reply panel at the top of the page)' : 'Working'];
+            const paused = !!status.paused;
+            const parts = [paused ? 'Paused (use Resume to continue)' : waitingForReply ? 'Waiting for your reply (manual reply panel at the top of the page)' : 'Working'];
             if (marker) { parts.push(marker); }
             if (retry && (!marker || logs.lastIndexOf(retry) > logs.lastIndexOf(marker))) { parts.push(retry); }
-            if (!waitingForReply && status.eta && status.eta.eta_seconds != null) { parts.push(`about ${formatDuration(status.eta.eta_seconds)} left`); }
-            if (!waitingForReply && quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
+            if (!paused && !waitingForReply && status.eta && status.eta.eta_seconds != null) { parts.push(`about ${formatDuration(status.eta.eta_seconds)} left`); }
+            if (!paused && !waitingForReply && quietMs >= ACTIVITY_QUIET_MS) { parts.push(`waiting on the model for ${formatDuration(quietMs / 1000)}`); }
             el.textContent = parts.join(' \u00b7 ');
             el.hidden = false;
         }

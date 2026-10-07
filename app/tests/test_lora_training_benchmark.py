@@ -106,6 +106,46 @@ class LoraTrainingBenchmarkTests(unittest.TestCase):
                 "epochs": 1, "seed": 42, "lr": 1e-6, "lora_r": 8,
                 "lora_alpha": 16, "grad_accum": 1, "language": "english"}
 
+    def test_supplied_manifest_and_direct_worker_refuse_short_workload_before_output(self):
+        from benchmark_runner import _validate_lora_training_fixture
+        from benchmark_fixtures import _hash_entries
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._fixture(tmp)
+            fixture['sample_count'] = 2
+            keys = ('dataset_path', 'metadata_sha256', 'sample_count', 'audio_sha256',
+                    'epochs', 'seed', 'lr', 'lora_r', 'lora_alpha', 'grad_accum', 'language')
+            fixture['sha256'] = _hash_entries({key: fixture[key] for key in keys})
+            with self.subTest(boundary='parent'), self.assertRaisesRegex(ValueError, 'too few samples'):
+                _validate_lora_training_fixture(fixture, tmp)
+            output = Path(tmp) / 'out'
+            output.mkdir()
+            sentinel = output / 'calibration'
+            sentinel.mkdir()
+            (sentinel / 'keep').write_bytes(b'prior result')
+            with patch('lora_training_benchmark.subprocess.run') as train:
+                with self.assertRaisesRegex(ValueError, 'too few samples'):
+                    execute_fixture(fixture, 'fixture-python', 'fixture-train', str(output))
+            train.assert_not_called()
+            self.assertEqual(b'prior result', (sentinel / 'keep').read_bytes())
+
+    def test_worker_rejects_receipt_sample_count_different_from_admitted_workload(self):
+        for count in (0, 2, True):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
+                fixture = self._fixture(tmp)
+                def train(command, **kwargs):
+                    output = Path(command[command.index('--output_dir') + 1])
+                    output.mkdir(parents=True)
+                    weights = b'synthetic trained adapter'
+                    (output / 'adapter_model.safetensors').write_bytes(weights)
+                    (output / 'training_meta.json').write_text(json.dumps({
+                        'checkpoint_sha256': hashlib.sha256(weights).hexdigest(),
+                        'training_time_seconds': 1, 'num_samples': count, 'epochs': 1,
+                        'final_loss': 1, 'best_loss': 1, 'oom_skips': 0}))
+                    return type('Result', (), {'returncode': 0})()
+                with patch('lora_training_benchmark.subprocess.run', side_effect=train):
+                    with self.assertRaisesRegex(ValueError, 'sample count'):
+                        execute_fixture(fixture, 'fixture-python', 'fixture-train', str(Path(tmp) / 'out'))
+
     def test_invalid_sample_count_rejected_before_training_or_output_changes(self):
         for count in (-1, 0, 1.5, "1", None):
             with self.subTest(sample_count=count), tempfile.TemporaryDirectory() as tmp:

@@ -76,7 +76,7 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         (source/'untracked.py').write_text('unrecorded source\n')
         with self.assertRaises(ValueError):helper.get_comparison_source_commit(source)
 
-    def compare(self, kind):
+    def compare(self, kind, gpu_probe=None):
         scripts=self.root/'run_chains';scripts.mkdir();builddir=self.root/'ab_test_runtime/reference_spread';builddir.mkdir(parents=True)
         (builddir/'build_spread3.json').write_text(json.dumps({'ref_sample':'ref.wav','ref_text':'Reference speech'}))
         (self.root/'ref.wav').write_bytes(b'known reference fixture')
@@ -100,7 +100,8 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
                                                QWEN_MODEL_REVISION=self.commit,CHATTERBOX_MODEL_REVISION=self.commit)
         original=subprocess.check_output
         def capture(argv,*args,**kwargs):
-            if argv[0]=='nvidia-smi':return 'fixture gpu'
+            if argv[0]=='nvidia-smi':
+                return gpu_probe(kwargs) if gpu_probe else 'fixture gpu'
             return original(argv,*args,**kwargs)
         with patch.dict(sys.modules,modules),patch.dict(os.environ,env),patch.object(metadata,'version',return_value='1.2.3'), \
              patch.object(subprocess,'check_output',side_effect=capture),contextlib.redirect_stdout(io.StringIO()):
@@ -122,3 +123,29 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
 
     def test_actual_qwen_result_records_loaded_snapshot_and_package_version(self):self.compare('qwen')
     def test_actual_chatterbox_heredoc_records_loaded_snapshot_source_and_package(self):self.compare('chatterbox')
+
+
+    def test_qwen_metadata_timeout_publishes_audio_with_explicit_missing_identity(self):
+        def probe(options):
+            self.assertIn('timeout',options)
+            self.assertLessEqual(options['timeout'],5)
+            return subprocess.check_output([sys.executable,'-c','import time;time.sleep(60)'],text=True,timeout=.05)
+        result=self.compare('qwen',gpu_probe=probe)
+        self.assertIsNone(result['gpu'])
+        self.assertEqual('unavailable',result['gpu_metadata']['status'])
+        self.assertIn('TimeoutExpired',result['gpu_metadata']['error'])
+        with wave.open(str(self.root/'out/audiobook_passage.wav')) as audio:
+            self.assertEqual(2,audio.getnframes())
+
+    def test_qwen_missing_metadata_executable_publishes_named_failure(self):
+        def probe(options):raise FileNotFoundError('synthetic missing metadata executable')
+        result=self.compare('qwen',gpu_probe=probe)
+        self.assertIsNone(result['gpu'])
+        self.assertEqual('unavailable',result['gpu_metadata']['status'])
+        self.assertIn('FileNotFoundError',result['gpu_metadata']['error'])
+
+    def test_qwen_empty_metadata_is_not_a_measured_identity(self):
+        result=self.compare('qwen',gpu_probe=lambda options:'   ')
+        self.assertIsNone(result['gpu'])
+        self.assertEqual('unavailable',result['gpu_metadata']['status'])
+        self.assertIn('empty',result['gpu_metadata']['error'])

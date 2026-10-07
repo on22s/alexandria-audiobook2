@@ -278,3 +278,83 @@ class AlignmentCliRegressionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SourceDiacriticCleanupTests(unittest.TestCase):
+    def test_abbreviation_initials_stay_separate_and_detached_endings_still_rejoin(self):
+        cases={'café e.g.':'café e.g.','résumé a.m.':'résumé a.m.',
+               'fiancé i.e. arrived':'fiancé i.e. arrived',
+               'fianc é':'fiancé','fiancé e':'fiancée',
+               'fiancé e. Next.':'fiancée. Next.',
+               'fiancé e, then':'fiancée, then','fiancé event':'fiancé event'}
+        for source,expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected,alignment.clean_source_text(source))
+                # The comparison CLI imports the same two cleanup expressions.
+                cleaned=compare._DIACRITIC_REJOIN.sub(r'\1\2',source)
+                cleaned=compare._DIACRITIC_REJOIN_TAIL.sub(r'\1\2',cleaned)
+                self.assertEqual(expected,cleaned)
+
+
+class SpokenYearAlignmentTests(unittest.TestCase):
+    def test_years_match_digits_and_preserve_both_source_boundaries(self):
+        for words,year in ((['nineteen','ninety'],1990),(['twenty','twenty-four'],2024),
+                           (['twenty','twenty','four'],2024),(['eighteen','sixty','five'],1865),
+                           (['ten','sixty-six'],1066)):
+            with self.subTest(words=words):
+                self.assertEqual(year,alignment._parse_number(words))
+                self.assertTrue(alignment._num_eq(words,[str(year)]))
+                self.assertFalse(alignment._num_eq(words,[str(sum(
+                    alignment._parse_number([word]) for word in words))]))
+                self.assertEqual((0,2),alignment.trim_span_to_alignment(['in',*words],['in',str(year)],0,2))
+                self.assertEqual((0,2),alignment.trim_span_to_alignment([*words,'began'],[str(year),'began'],0,2))
+
+    def test_conventional_cardinals_keep_their_existing_value(self):
+        for words,value in ((['twenty','five'],25),(['ninety','nine'],99),
+                            (['two','thousand','and','eight'],2008),
+                            (['sixteen','hundred','eleven'],1611),(['forty-seven'],47)):
+            with self.subTest(words=words):
+                self.assertEqual(value,alignment._parse_number(words))
+        self.assertIsNone(alignment._parse_number(['nineteen','bananas']))
+        self.assertFalse(alignment._num_eq(['twenty','five'],['2005']))
+
+
+class CheckpointLocaleTests(unittest.TestCase):
+    def test_checkpoint_reconstructs_exact_utf8_edits_under_non_utf8_default_locale(self):
+        original_read=Path.read_text
+        def locale_read(path,encoding=None,errors=None):
+            return original_read(path,encoding=encoding or 'cp1252',errors=errors)
+        with tempfile.TemporaryDirectory() as tmp:
+            path=str(Path(tmp,'metadata.jsonl'))
+            decisions={'0':{'action':'edit','text':'café résumé 日本語'}}
+            compare.save_checkpoint(path,decisions,1)
+            with patch.object(Path,'read_text',locale_read):
+                recovered=compare.load_checkpoint(path)
+            self.assertEqual(decisions,recovered['decisions'])
+            self.assertEqual(1,recovered['cursor'])
+
+
+class SkippedEntryCursorTests(unittest.TestCase):
+    def test_real_skip_resume_retains_exact_entry_text_and_source_position(self):
+        import contextlib
+        for initial,source,entries,choices in ((0,['one'],[{'text':'one'}],['s']),
+                (0,['one','two'],[{'text':'one'},{'text':'two'}],['s','k']),
+                (2,['One','other','one'],[{'text':'one'}],['s'])):
+            with self.subTest(initial=initial,entries=entries),tempfile.TemporaryDirectory() as tmp:
+                jsonl=str(Path(tmp,'metadata.jsonl'));output=str(Path(tmp,'output.jsonl'))
+                Path(jsonl).write_text(''.join(json.dumps(entry)+'\n' for entry in entries),encoding='utf-8')
+                kwargs=dict(entries=entries,orig_display=source,orig_match=[word.lower() for word in source],decisions={},
+                    cursor=initial,threshold=.9,review_all=True,jsonl_path=jsonl,output_path=output,
+                    log_path=compare.review_log_path(output))
+                with patch('builtins.input',side_effect=choices),contextlib.redirect_stdout(io.StringIO()):
+                    compare.run(**kwargs)
+                checkpoint=compare.load_checkpoint(jsonl)
+                kwargs.update(decisions=checkpoint['decisions'],cursor=checkpoint['cursor'])
+                with patch('builtins.input',return_value='a'),contextlib.redirect_stdout(io.StringIO()):
+                    compare.run(**kwargs)
+                self.assertEqual([entry['text'] for entry in entries],
+                                 [json.loads(line)['text'] for line in Path(output).read_text(encoding='utf-8').splitlines()])
+                records=[json.loads(line) for line in compare.review_log_path(output).read_text(encoding='utf-8').splitlines()]
+                record=next(row for row in records if row['entry_idx']==0)
+                self.assertEqual('one',record['original'])
+                self.assertGreater(record['ratio'],.99)

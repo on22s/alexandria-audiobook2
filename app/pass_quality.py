@@ -7,12 +7,12 @@ import unicodedata
 
 from recall_core import tokens, ngrams, counter_recall
 from review_script import normalize_text
-# Import the fidelity thresholds and the introduced-character regex from the
+# Import the fidelity thresholds and introduced-character check from the
 # single-pass gate so pass 1 tracks any recalibration there automatically
 # (e.g. the 0.84->0.82 near-miss floor history) instead of drifting.
 from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
                            MIN_OUTPUT_SOURCE_RATIO, MAX_OUTPUT_SOURCE_RATIO,
-                           _CYRILLIC_RE)
+                           get_unsupported_cyrillic_characters)
 from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
@@ -158,6 +158,9 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char == '"':
+            if depth == 0 and _is_metadata_paragraph(current):
+                saw_quote = True
+                continue
             if depth and not text[paragraph_start:index].strip():
                 saw_quote = True
                 continue
@@ -280,11 +283,8 @@ def _region_contains_entry(regions, entry_text):
         return True
     for region in regions:
         haystack = normalize_text(region).split()
-        if len(needle) == 1:
-            if haystack == needle:
-                return True
-        elif any(haystack[i:i + len(needle)] == needle
-                 for i in range(len(haystack) - len(needle) + 1)):
+        if any(haystack[i:i + len(needle)] == needle
+               for i in range(len(haystack) - len(needle) + 1)):
             return True
     return False
 
@@ -361,8 +361,7 @@ def _introduced_character_findings(source_text, output_text, entries):
     unsupported_unicode_character, source_unsupported_duplicate). Text-only, so
     it is shape-agnostic across {type,text} and {speaker,text,instruct}."""
     findings = []
-    source_cyrillic = set(_CYRILLIC_RE.findall(source_text))
-    unsupported = sorted(set(_CYRILLIC_RE.findall(output_text)) - source_cyrillic)
+    unsupported = get_unsupported_cyrillic_characters(source_text, output_text)
     if unsupported:
         findings.append({"code": "unsupported_cyrillic", "characters": unsupported,
                          "message": "Response introduced Cyrillic characters absent from the source."})

@@ -45,7 +45,14 @@ def _paired_spans(text):
             # Straight quotes cannot be told apart, so pair them in order and
             # ignore an unmatched trailing one rather than running to the end
             # of the book.
-            positions = [m.start() for m in re.finditer(re.escape(opener), text)]
+            positions = []
+            for match in re.finditer(re.escape(opener), text):
+                position = match.start()
+                # Outside a quoted span, a mark immediately after a number is
+                # an inch mark. Inside speech, numeric endings still close it.
+                if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
+                    continue
+                positions.append(position)
             for start, end in zip(positions[0::2], positions[1::2]):
                 if not 1 < end - start < 2000:
                     continue
@@ -200,10 +207,13 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
               if uses_speaker_labels(source_text, speaker_names=speaker_names) else {})
     normalized_source, raw_offsets = _normalize_with_offsets(source_text)
     marked, cursor = [], 0
+    used_positions = {}
     match_positions = None
     for entry_index, entry in enumerate(entries):
         row = dict(entry)
         row.pop('source_speaker', None)
+        row.pop('source_span', None)
+        row.pop('spoken', None)
         needle = _normalize(str(entry.get("text", "")))
         if needle:
             if match_positions is None:
@@ -216,9 +226,14 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
             if match_positions is not None:
                 occurrences = match_positions.get(needle, [])
                 position = bisect_left(occurrences, cursor)
-                normalized_where = (occurrences[position] if position < len(occurrences)
-                                    else occurrences[0] if occurrences else -1)
+                used = used_positions.get(needle, set())
+                normalized_where = next((where for where in occurrences[position:]
+                                         if where not in used), -1)
+                if normalized_where == -1:
+                    normalized_where = next((where for where in occurrences
+                                             if where not in used), -1)
             if normalized_where != -1:
+                used_positions.setdefault(needle, set()).add(normalized_where)
                 cursor = normalized_where + len(needle)
                 where = raw_offsets[normalized_where]
                 end = raw_offsets[normalized_where + len(needle) - 1] + 1
@@ -269,7 +284,7 @@ def apply_dialogue_map(entries, source_text, speaker_names=None):
 # Where that answer is printed, copying it is free and deterministic, and it
 # needs no model call at all.
 LABEL_BEFORE_QUOTE = re.compile(
-    r'(?:^|\n)[ \t]*([A-Z][\w.\'’-]{1,20}(?:[ \t]+[A-Z][\w.\'’-]{1,20}){0,2})'
+    r'(?:^|\n)[ \t]*([^\W\d_][\w.\'’-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’-]{1,20}){0,2})'
     r'[ \t]+(?=[“"「『])')
 
 

@@ -82,7 +82,10 @@ class LoraArtifactRetentionTests(unittest.TestCase):
             source=root/'stage.wav';sf.write(source,np.full(2400,.15),24000)
             filename='test_voice_23_'+('c'*32)+'.wav'
             with patch.object(lora,'LORA_MODELS_DIR',tmp),patch.object(lora.os,'remove',side_effect=PermissionError('fixture cleanup denied')):
-                with self.assertRaisesRegex(PermissionError,'cleanup denied'):
-                    lora.apply_lora_audio_publication('voice',False,str(source),filename)
+                with self.assertLogs(lora.logger, level='WARNING') as warnings:
+                    url = lora.apply_lora_audio_publication('voice',False,str(source),filename)
+                self.assertTrue(url.endswith('/'+filename))
+                self.assertIn('retention cleanup failed', warnings.output[0])
+                self.assertIn('cleanup denied', warnings.output[0])
             self.assertEqual(2400,sf.info(adapter/filename).frames)
             self.assertEqual(23,len(list(adapter.glob('test_voice_*'))))

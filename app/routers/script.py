@@ -111,6 +111,7 @@ from core import (
     _warn_corrupted_json,
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task,
+    reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     run_process,
 )
@@ -365,7 +366,7 @@ class _HTMLTextExtractor(HTMLParser):
     """Strip HTML tags from EPUB content, preserving block-level structure."""
     BLOCK_TAGS = frozenset({
         'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'li', 'blockquote', 'br', 'hr', 'tr', 'section', 'article',
+        'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
 
@@ -585,7 +586,9 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
     # document order - legal EPUBs need not, and a table of contents that
     # names a later anchor first then lands its title short by the length of
     # everything inserted before it, which can be mid-word.
-    for position, label in sorted(insertions, key=lambda entry: entry[0],
+    # Equal-offset labels are prepended in reverse TOC order so their final
+    # order matches the TOC, while distinct offsets still run back to front.
+    for position, label in sorted(reversed(insertions), key=lambda entry: entry[0],
                                   reverse=True):
         text = text[:position] + label + '\n\n' + text[position:]
     return text
@@ -1313,30 +1316,37 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        if require_recovery and get_script_recovery_manifest() is None:
-            raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
-        if request is not None and request.start_over and not require_recovery:
-            discard_script_progress(locked=True)
-        if not require_recovery:
-            if cast_source:
-                cast_bytes = Path(cast_source).read_bytes()
-                temporary = get_run_cast_path() + ".tmp"
-                Path(temporary).write_bytes(cast_bytes)
-                os.replace(temporary, get_run_cast_path())
-                options["cast_sha256"] = hashlib.sha256(cast_bytes).hexdigest()
-            else:
-                Path(get_run_cast_path()).unlink(missing_ok=True)
-                options["cast_sha256"] = None
-        state_path = os.path.join(DATA_DIR, "state.json")
-        state = safe_load_json(state_path, {})
-        if isinstance(state, dict):
-            # Retry reads these instead of the current form. Otherwise a
-            # changed checkbox would invalidate the resume fingerprint.
-            state["script_generation_options"] = options
-            state["script_generation_input_file"] = input_file
-            atomic_json_write(state, state_path)
-        schedule_claimed_background_task(background_tasks, "script", run_process, command, "script")
+    claim_id = None
+    try:
+        with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            if require_recovery and get_script_recovery_manifest() is None:
+                raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
+            claim_id = reserve_background_task("script")
+            if request is not None and request.start_over and not require_recovery:
+                discard_script_progress(locked=True)
+            if not require_recovery:
+                if cast_source:
+                    cast_bytes = Path(cast_source).read_bytes()
+                    temporary = get_run_cast_path() + ".tmp"
+                    Path(temporary).write_bytes(cast_bytes)
+                    os.replace(temporary, get_run_cast_path())
+                    options["cast_sha256"] = hashlib.sha256(cast_bytes).hexdigest()
+                else:
+                    Path(get_run_cast_path()).unlink(missing_ok=True)
+                    options["cast_sha256"] = None
+            state_path = os.path.join(DATA_DIR, "state.json")
+            state = safe_load_json(state_path, {})
+            if isinstance(state, dict):
+                # Retry reads these instead of the current form. Otherwise a
+                # changed checkbox would invalidate the resume fingerprint.
+                state["script_generation_options"] = options
+                state["script_generation_input_file"] = input_file
+                atomic_json_write(state, state_path)
+            register_claimed_background_task(background_tasks, "script", claim_id, run_process, command, "script")
+    except BaseException:
+        if claim_id is not None:
+            release_gpu_task_claim("script", claim_id, pending_only=True)
+        raise
     return {"status": "resuming" if require_recovery else "started"}
 
 

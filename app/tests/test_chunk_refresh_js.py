@@ -18,7 +18,7 @@ vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')));
 run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));
 const start=source.includes('function ensureChunkRefresh(')?source.indexOf('function ensureChunkRefresh('):source.indexOf('async function loadChunks(');
-run(source.slice(start,source.indexOf('window.toggleChunkExpand',start)));
+run(source.slice(start,source.indexOf('window.toggleChunkExpand =',start)));
 // Delivery UI is exercised with native route replies in its own suite.
 ctx.refreshDeliveryReview=async()=>null;
 let getFixture;
@@ -37,6 +37,73 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_cancel_reconciles_optimistic_rows_without_forcing_redraw_or_losing_controls(self):
+        self.run_js(r'''
+const updateStart=source.indexOf('function updateChunkRow(chunk)');run(source.slice(updateStart,source.indexOf('function ensureChunkRefresh(',updateStart)));
+const cancelStart=source.indexOf('window.cancelRender =');run(source.slice(cancelStart,source.indexOf('window.startRender =',cancelStart)));
+const batchStart=source.indexOf('async function _runBatchRender(');run(source.slice(batchStart,source.indexOf('window.renderAll =',batchStart)));
+const server=[{...chunk(1),uid:'one'},{...chunk(2),uid:'two'}];ctx.API.get=async url=>({revision:'v1',full:!url.includes('?revision='),total:2,running_count:0,changed_ids:[],chunks:url.includes('?revision=')?[]:server});await ctx.loadChunks(true);
+const rows=body.children;for(const row of rows){const set=new Set();row.classList={add:k=>set.add(k),remove:k=>set.delete(k),contains:k=>set.has(k),toggle(k,on){if(on){set.add(k);}else{set.delete(k);}}};row.badge={innerText:'pending',insertAdjacentHTML(){}};row.draft={value:'Unsubmitted draft'};const action={querySelector:selector=>selector==='button'?{}:null};row.querySelector=selector=>selector==='.badge'?row.badge:selector==='.chunk-actions'?action:null;}
+ctx.applyDriftFilter=()=>{};ctx.document.querySelector=selector=>rows.find(row=>selector.includes('data-id="'+row.dataset.id+'"'))||null;
+ctx.document.querySelectorAll=selector=>selector==='#chunks-table-body tr.table-info'?rows.filter(row=>row.classList.contains('table-info')):[];
+ctx.ensureEditorRenderSnapshot=async()=>run('cachedChunks');ctx.API.post=async()=>({});ctx.showToast=()=>{};let poll;ctx._startPolling=(key,fetch,options)=>poll=options;
+ctx.cancelTask=async(path,options)=>{assert.equal(path,'/api/cancel_audio');await options.onSuccess();};
+await ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});assert(rows.every(row=>row.badge.innerText==='generating'&&row.classList.contains('table-info')));const count=draws;
+await ctx.cancelRender();assert(rows.every(row=>row.badge.innerText==='pending'&&!row.classList.contains('table-info')));assert.strictEqual(draws,count);assert.strictEqual(body.children,rows);assert(rows.every(row=>row.draft.value==='Unsubmitted draft'));
+await poll.onDone({audio:{running:false},chunks:server});assert(rows.every(row=>row.badge.innerText==='pending'));assert(run('cachedChunks').every(row=>row.status==='pending'));
+''')
+
+    def test_batch_completion_uses_starting_book_and_row_uids(self):
+        self.run_js(r'''
+const bookStart=source.indexOf("let currentBookFilename = ''");run(source.slice(bookStart,source.indexOf('function getCurrentBookName(',bookStart)));
+run(source.slice(source.indexOf('function getBatchOutcome('),source.indexOf('function pollReviewBatch()')));
+const cancelStart=source.indexOf('window.cancelRender =');run(source.slice(cancelStart,source.indexOf('window.startRender =',cancelStart)));
+const batchStart=source.indexOf('async function _runBatchRender(');run(source.slice(batchStart,source.indexOf('window.renderAll =',batchStart)));
+const toasts=[],drifts=[];let poll;ctx.showToast=(text,tone)=>toasts.push({text,tone});ctx.runDriftCheck=rows=>drifts.push(Array.from(rows));ctx.showActionError=error=>{throw Error(error);};ctx.API.post=async()=>({});
+ctx._startPolling=(key,fetch,options)=>{assert.equal(key,'render_batch');poll={fetch,...options};};
+for(const change of ['book','uid','none']){
+toasts.length=drifts.length=0;ctx.applyCurrentBookFilename('book-A.json');ctx.ensureEditorRenderSnapshot=async()=>[1,2,3,4,5,6].map(id=>({...chunk(id),uid:'A-'+id}));
+await ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});assert(poll);
+if(change==='book'){ctx.applyCurrentBookFilename('book-B.json');}
+const finished=[1,2,3,4,5,6].map(id=>({...chunk(id,'done'),uid:(change==='none'?'A-':'B-')+id}));
+await poll.onDone({audio:{running:false},chunks:finished});
+if(change==='book'){assert.equal(drifts.length,0);assert(!toasts.some(row=>row.text.startsWith('Batch complete')));assert(toasts.some(row=>row.text.includes('previous book')));}
+else if(change==='uid'){assert.equal(drifts.length,0);assert(toasts.some(row=>row.text.includes('0 succeeded')&&row.text.includes('6 unfinished')));}
+else{assert.deepStrictEqual(drifts,[[1,2,3,4,5,6]]);assert.equal(toasts[0].text,'Batch complete: 6 succeeded, 0 failed, 0 cancelled, 0 unfinished');}
+}
+''')
+
+    def test_expanded_completion_updates_generated_action_container_without_replacing_pause_label(self):
+        self.run_js(r'''
+const updateStart=source.indexOf('function updateChunkRow(chunk)');run(source.slice(updateStart,source.indexOf('function ensureChunkRefresh(',updateStart)));
+const expandStart=source.indexOf('window.toggleChunkExpand =');run(source.slice(expandStart,source.indexOf('window.insertChunkAfter =',expandStart)));
+ctx.applyDriftFilter=()=>{};ctx.generateChunk=()=>{};ctx.document.createElement=()=>({style:{}});
+function classes(text){const set=new Set(text.split(/\s+/));return{contains:k=>set.has(k),add:k=>set.add(k),remove:k=>set.delete(k),toggle(k,force){const on=force===undefined?!set.has(k):force;if(on){set.add(k);}else{set.delete(k);}return on;}};}
+for(const expanded of [false,true]){
+ctx.API.get=async()=>({revision:'generating',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1,'generating'),uid:'one',pause_after:500}]});await ctx.loadChunks(true);
+const markup=body.innerHTML,pauseClass=markup.match(/class="(chunk-pause-row[^"]*)"/)[1],actionClass=markup.match(/<div class="([^"]*align-items-center gap-2[^"]*)"/)[1];
+let pauseAudio=false,actionAudio='',progress={},button=null;const pauseLabel={textContent:'Pause after (ms):'};Object.defineProperty(pauseLabel,'outerHTML',{set:value=>{pauseAudio=value.includes('<audio');}});
+const noAudio={};Object.defineProperty(noAudio,'outerHTML',{set:value=>{actionAudio=value;}});
+const pause={classList:classes(pauseClass),querySelector:selector=>selector==='.text-muted'?pauseLabel:null};
+const action={classList:classes(actionClass),querySelector:selector=>selector==='button'?button:selector==='.progress'?progress:selector==='.text-muted'?noAudio:null,replaceChild(newNode,oldNode){assert.strictEqual(oldNode,progress);button=newNode;progress=null;}};
+const badge={insertAdjacentHTML(){}};const row={classList:classes('chunk-row'),querySelector(selector){if(selector==='.badge'){return badge;}if(selector==='.drift-badge'){return null;}return[pause,action].find(node=>node.classList.contains(selector.slice(1)))||null;},querySelectorAll(selector){return selector==='.chunk-pause-row'?[pause]:[];}};
+ctx.document.querySelector=()=>row;if(expanded){ctx.toggleChunkExpand({closest:()=>row});assert(pause.classList.contains('d-flex'));}
+assert(ctx.updateChunkRow({...chunk(1,'done'),uid:'one',audio_path:'synthetic.wav'}));assert.strictEqual(badge.innerText,'done');assert(button&&button.innerHTML.includes('Gen'));assert.strictEqual(progress,null);assert(actionAudio.includes('src="/synthetic.wav?t='));assert.strictEqual(pauseAudio,false);assert.strictEqual(pauseLabel.textContent,'Pause after (ms):');
+}
+''')
+
+    def test_managed_refresh_does_not_paint_prior_book_response_while_new_read_waits(self):
+        self.run_js(r'''
+const bookStart=source.indexOf("let currentBookFilename = ''");run(source.slice(bookStart,source.indexOf('function getCurrentBookName(',bookStart)));
+const reads=[];ctx.API.get=()=>{const gate=deferred();reads.push(gate);return gate.promise;};
+const snapshot=book=>({revision:'revision-'+book,full:true,total:1,running_count:0,changed_ids:[1],chunks:[{...chunk(1),uid:'uid-'+book,text:'Synthetic text from '+book}]});
+ctx.applyCurrentBookFilename('book-A.json');const a=ctx.ensureChunkRefresh(true);
+ctx.applyCurrentBookFilename('book-B.json');const b=ctx.ensureChunkRefresh(true);assert.strictEqual(reads.length,1);assert.strictEqual(a,b);
+reads[0].resolve(snapshot('A'));await turn();assert.strictEqual(reads.length,2);
+assert(!body.innerHTML.includes('Synthetic text from A'));assert.strictEqual(run('cachedChunks.length'),0);assert.strictEqual(run('chunkSnapshotRevision'),null);
+reads[1].resolve(snapshot('B'));await Promise.all([a,b]);assert(body.innerHTML.includes('Synthetic text from B'));assert.strictEqual(run('cachedChunks[0].uid'),'uid-B');assert.strictEqual(run('chunkSnapshotRevision'),'revision-B');
+''')
+
     def test_forced_redraw_retains_only_same_chunk_and_audio(self):
         self.run_js(r'''let reply={revision:'v1',full:true,total:1,changed_ids:[1],chunks:[{...chunk(1,'done'),uid:'one',audio_path:'audio.wav'}]};ctx.API.get=async()=>reply;await ctx.loadChunks(true);
 let replaced=0,plays=0,paused=0,metadata,removed=0;const player={dataset:{id:'1'},paused:false,ended:false,currentTime:8,isConnected:true,setAttribute:(key,value)=>{assert.equal(key,'onplay');assert.equal(value,'stopOthers(2)');},addEventListener:(event,fn)=>{assert.equal(event,'loadedmetadata');metadata=fn;},removeEventListener:()=>removed++,load:()=>{player.currentTime=0;metadata();},play:()=>{plays++;return Promise.resolve();},pause:()=>paused++};
@@ -126,3 +193,40 @@ assert.strictEqual(urls.at(-1),'/api/chunks/status');assert.ok(draws>before);ass
 reply={revision:'bad',full:false,total:2,changed_ids:[77],chunks:[chunk(77)]};await assert.rejects(ctx.ensureChunkRefresh(),/refresh required/);
 assert.strictEqual(run('chunkSnapshotRevision'),null);assert.strictEqual(run('cachedChunks[0].text'),'Edited text');
 ''')
+
+    def test_full_snapshot_preserves_uid_owned_drafts_focus_and_expansion(self):
+        code = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+const document={body:{},activeElement:null,getElementById:id=>id==='chunks-table-body'?tbody:null,querySelectorAll:()=>[],createElement:()=>({})};document.activeElement=document.body;
+function classes(){const values=new Set();return{contains:k=>values.has(k),add:k=>values.add(k),remove:k=>values.delete(k),toggle(k){if(values.has(k)){values.delete(k);return false;}values.add(k);return true;}};}
+function control(value){return{value:String(value),options:[{value:'Narrator'}],appendChild(option){this.options.push(option);},style:{},scrollHeight:100,selectionStart:1,selectionEnd:4,selectionDirection:'forward',focus(){document.activeElement=this;},setSelectionRange(a,b,d){this.selectionStart=a;this.selectionEnd=b;this.selectionDirection=d;}};}
+let rows=[],markup='',data;
+const tbody={get children(){return rows;},querySelectorAll:()=>rows,querySelector:selector=>rows.find(row=>selector.includes('"'+row.dataset.id+'"'))};
+Object.defineProperty(tbody,'innerHTML',{get:()=>markup,set(value){markup=value;document.activeElement=document.body;rows=[];
+for(const m of value.matchAll(/<tr data-id="(\d+)"[\s\S]*?<\/tr>/g)){
+ const html=m[0],fields={'.chunk-text':control(html.match(/chunk-text[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-instruct':control(html.match(/chunk-instruct[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-pause-after':control(html.match(/chunk-pause-after[^>]*value="([^"]*)"/)[1]),'select':control('Narrator')};
+ const pause={classList:classes()},btn={innerHTML:'',closest:()=>row};
+ const row={dataset:{id:m[1]},classList:classes(),fields,querySelector:selector=>selector==='.chunk-toggle-btn'?btn:fields[selector],querySelectorAll:selector=>selector==='.chunk-text, .chunk-instruct'?[fields['.chunk-text'],fields['.chunk-instruct']]:selector==='.chunk-pause-row'?[pause]:[],pause,btn};rows.push(row);
+}}});
+const c={window:null,document,currentBookFilename:'book-A',API:{get:async()=>data,post:async()=>({})},invalidateEditorIntegrity(){},refreshEditorIntegrity:async()=>{},Date,escapeHtml:String,buildSpeakerSelect:()=>'<select></select>',_driftBadge:()=>'',_driftKey:()=>'',isAudioPlaying:()=>false,updateChunkRow(){},setTimeout:()=>1,clearTimeout(){},applyDriftFilter(){},generateChunk(){}};c.window=c;vm.createContext(c);
+function run(code){return vm.runInContext(code,c);}let a=source.indexOf('let isPlayingSequence =');run(source.slice(a,source.indexOf('function buildSpeakerSelect(',a)));
+a=source.indexOf('async function refreshChunkSnapshot(');run(source.slice(a,source.indexOf('window.insertChunkAfter =',a)));
+a=source.indexOf('const pendingChunkEdits =');run(source.slice(a,source.indexOf('async function flushChunkEdits()',a)));
+const original=[{id:1,uid:'first',text:'First saved line',instruct:'',speaker:'Narrator',status:'pending'},{id:2,uid:'second',text:'Second saved line',instruct:'old style',pause_after:50,speaker:'Narrator',status:'generating'}];
+function reply(chunks){data={revision:'r'+Math.random(),full:true,total:chunks.length,changed_ids:chunks.map(row=>row.id),chunks};}
+(async()=>{
+for(const change of ['none','uid','book']){
+ c.currentBookFilename='book-A';reply(original);await c.refreshChunkSnapshot(true);
+ const row=rows[1],field=row.fields['.chunk-text'];field.value='Unsaved second-row draft';field.focus();field.selectionStart=3;field.selectionEnd=12;
+ row.fields['.chunk-instruct'].value='Unsaved delivery';row.fields['.chunk-pause-after'].value='900';row.fields.select.value='Custom speaker';c.toggleChunkExpand(row.btn);
+ rows[0].fields['.chunk-text'].value='Submitted first row';await c.applyChunkEdits(1,{text:'Submitted first row'});assert.strictEqual(run('chunkSnapshotRevision'),null);
+ if(change==='book'){c.currentBookFilename='book-B';}
+ const updated=[{...original[0],text:'Server-normalized first row'},{...original[1],id:7,uid:change==='uid'?'replacement':'second',text:'Server second row'}];reply(updated);await c.refreshChunkSnapshot(false);
+ assert.strictEqual(rows[0].fields['.chunk-text'].value,'Server-normalized first row');assert.strictEqual(run('cachedChunks')[1].text,'Server second row');
+ const restored=rows[1];if(change==='none'){assert.strictEqual(restored.fields['.chunk-text'].value,'Unsaved second-row draft');assert.strictEqual(document.activeElement,restored.fields['.chunk-text']);assert.strictEqual(document.activeElement.selectionStart,3);assert.strictEqual(document.activeElement.selectionEnd,12);assert(restored.classList.contains('expanded'));assert.strictEqual(restored.fields['.chunk-instruct'].value,'Unsaved delivery');assert.strictEqual(restored.fields['.chunk-pause-after'].value,'900');assert.strictEqual(restored.fields.select.value,'Custom speaker');assert(restored.fields.select.options.some(option=>option.value==='Custom speaker'));}
+ else{assert.strictEqual(restored.fields['.chunk-text'].value,'Server second row');assert(!restored.classList.contains('expanded'));assert.strictEqual(document.activeElement,document.body);}
+}
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+        result = subprocess.run(['node', '-e', code, str(SOURCE)], capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)

@@ -45,6 +45,23 @@ class ValuesTest(unittest.TestCase):
 
 
 class SummaryTest(unittest.TestCase):
+    def test_persistent_known_traits_fill_initial_unknowns_without_accepting_short_noise(self):
+        for early, later, field in ((('male', 'unknown'), ('male', 'adult'), 'age_group'),
+                                    (('unknown', 'adult'), ('male', 'adult'), 'gender')):
+            with self.subTest(field=field):
+                initial = [_line(*early)] * st.PERSIST_LINES
+                short = initial + [_line(*later)] * (st.PERSIST_LINES - 1)
+                self.assertEqual('unknown', st.get_speaker_trait_summary(short)['current'][field])
+                entries = initial + [_line(*later)] * st.PERSIST_LINES
+                self.assertEqual({'gender': later[0], 'age_group': later[1]}, st.get_speaker_trait_summary(entries)['current'])
+                self.assertEqual('male, adult', st.get_established_traits(entries)['X'])
+                timeline = st.get_state_timeline(entries)['X']
+                self.assertEqual(st.PERSIST_LINES, timeline[-1]['from_entry'])
+                self.assertEqual('male', timeline[-1]['gender'])
+                self.assertEqual('adult', timeline[-1]['age_group'])
+                missing = entries + [_line('unknown', 'unknown')] * st.PERSIST_LINES
+                self.assertEqual({'gender': 'male', 'age_group': 'adult'}, st.get_speaker_trait_summary(missing)['current'])
+
     def test_a_time_skip_is_a_state_change(self):
         lines = [_line("male", "child")] * 12 + [_line("male", "adult")] * 14
         summary = st.get_speaker_trait_summary(lines)
