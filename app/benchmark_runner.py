@@ -88,14 +88,20 @@ def _validate_tts_fixture(fixture, root_dir=None):
 
 
 def _validate_lora_training_fixture(fixture, root_dir):
+    from itertools import islice
+    from benchmark_validation import get_lora_training_entries, get_lora_training_sample_count
     keys = ("dataset_path", "metadata_sha256", "sample_count", "audio_sha256",
             "epochs", "seed", "lr", "lora_r", "lora_alpha", "grad_accum", "language")
     content = {key: fixture[key] for key in keys}
     if _hash_entries(content) != fixture.get("sha256"):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
     dataset_path = get_benchmark_directory_path(root_dir, fixture["dataset_path"])
-    get_benchmark_verified_file_path(
+    metadata_path = get_benchmark_verified_file_path(
         dataset_path, "metadata.jsonl", fixture["metadata_sha256"], "training metadata")
+    sample_count = get_lora_training_sample_count(fixture["sample_count"])
+    with open(metadata_path, encoding="utf-8") as metadata_file:
+        selected = islice((line for line in metadata_file if line.strip()), sample_count)
+        get_lora_training_entries([json.loads(line) for line in selected], sample_count)
     for relative_path, expected in fixture["audio_sha256"].items():
         audio_path = get_benchmark_training_audio_path(dataset_path, relative_path)
         if get_file_sha256(audio_path) != expected:

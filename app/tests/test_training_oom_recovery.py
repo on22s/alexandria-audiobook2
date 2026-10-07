@@ -262,3 +262,62 @@ class TrainingSampleIsolationTests(unittest.TestCase):
         self.assertNotEqual(prior[0].data_ptr(),a.grad.data_ptr());self.assertNotEqual(prior[1].data_ptr(),b.grad.data_ptr())
         print(json.dumps({'measurement':'CPU float32 parameter gradients','prior_gradient_bytes':measurements[0][0],
             'attempt_gradient_bytes':measurements[0][1],'additional_gradient_bytes':measurements[0][1],'combined_gradient_bytes':sum(measurements[0])}))
+
+
+class TrainingNumericalRefusalTests(unittest.TestCase):
+    def test_nonfinite_loss_refuses_before_optimizer_and_preserves_prior_output(self):
+        real_ce = torch.nn.functional.cross_entropy
+        for loss in (float('nan'), float('inf')):
+            with self.subTest(loss=loss), tempfile.TemporaryDirectory() as tmp:
+                fixture = TrainingFixture(tmp, ['success'], sub_weight=loss)
+                prior = fixture.output / 'adapter_model.safetensors'
+                prior.write_bytes(b'prior completed adapter')
+                before = [p.detach().clone() for p in fixture.talker.parameters()]
+                with fixture.patches(), patch.object(torch.nn.functional, 'cross_entropy', real_ce):
+                    with self.assertRaisesRegex(RuntimeError, 'non-finite'):
+                        train_lora.train(fixture.args)
+                self.assertEqual([], fixture.steps)
+                self.assertEqual([], fixture.saved)
+                self.assertEqual(b'prior completed adapter', prior.read_bytes())
+                for parameter, original in zip(fixture.talker.parameters(), before):
+                    torch.testing.assert_close(parameter, original)
+                self.assertNotIn('[DONE]', fixture.logs.getvalue())
+
+    def test_nonfinite_backward_restores_exact_previous_gradients(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = TrainingFixture(tmp, ['success'])
+            parameters = tuple(fixture.talker.parameters())
+            previous = [torch.full_like(p, 3) for p in parameters]
+            for parameter, gradient in zip(parameters, previous):
+                parameter.grad = gradient
+            hook = parameters[0].register_hook(lambda grad: torch.full_like(grad, float('nan')))
+            try:
+                with fixture.patches(), self.assertRaisesRegex(RuntimeError, 'non-finite'):
+                    train_lora.run_training_sample({'mode': 'success'}, fixture.hf, fixture.talker,
+                        fixture.talker.model, parameters, 'cpu', torch.float32)
+            finally:
+                hook.remove()
+            for parameter, gradient in zip(parameters, previous):
+                self.assertIs(gradient, parameter.grad)
+                torch.testing.assert_close(parameter.grad, torch.full_like(parameter, 3))
+
+    def test_nonfinite_optimizer_weights_never_publish_a_successful_adapter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = TrainingFixture(tmp, ['success'])
+            optimizer = fixture.optimizer
+            def corrupt(parameters, **kwargs):
+                result = optimizer(parameters, **kwargs)
+                step = result.step
+                def corrupted_step(*args, **options):
+                    value = step(*args, **options)
+                    with torch.no_grad():
+                        fixture.talker.a.fill_(float('nan'))
+                    return value
+                result.step = corrupted_step
+                return result
+            with fixture.patches(), patch.object(torch.optim, 'AdamW', side_effect=corrupt):
+                with self.assertRaisesRegex(RuntimeError, 'non-finite'):
+                    train_lora.train(fixture.args)
+            self.assertEqual([], fixture.saved)
+            self.assertFalse((fixture.output / 'adapter_model.safetensors').exists())
+            self.assertNotIn('[DONE]', fixture.logs.getvalue())

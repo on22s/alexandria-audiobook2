@@ -1973,6 +1973,7 @@
     "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_http_delete_removes_only_selected_project_and_preserves_root_and_other_project",
     "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_http_invalid_row_seed_types_refuse_entire_write_and_keep_batch_guard",
     "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_http_row_save_accepts_integer_and_legacy_string_seeds_without_coercion",
+    "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_http_status_distinguishes_empty_deleted_and_missing_state_projects",
     "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_single_sample_requires_a_saved_project_and_an_existing_row_before_gpu_claim",
     "tests.test_dataset_builder_regressions.DatasetBuilderRegressionTests.test_unchanged_inputs_preserve_completed_audio",
     "tests.test_dataset_builder_regressions.DatasetReferenceIndexTests.test_negative_reference_is_rejected_before_loading_or_publishing",
@@ -4454,8 +4455,16 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_metadata_audio_cannot_escape_temporary_dataset",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_positive_counts_preserve_selected_membership_and_real_prepared_audio",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_returned_adapter_and_metadata_links_refuse_before_metrics_publication",
+    "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_supplied_manifest_and_direct_worker_refuse_short_workload_before_output",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_worker_refuses_outside_dataset_and_metadata_before_dispatch_or_output",
+    "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_worker_rejects_receipt_sample_count_different_from_admitted_workload",
     "tests.test_lora_training_benchmark.TrainingHashCoverageTests.test_every_selected_clip_requires_an_expected_hash_before_output_changes"
+  ],
+  "test_lora_upload_structure": [
+    "tests.test_lora_upload_structure.LoraAudioRetentionPublicationTests.test_locked_old_file_logs_cleanup_failure_after_successful_publication",
+    "tests.test_lora_upload_structure.LoraUploadStructureTests.test_clean_nested_upload_publishes_original_pcm_and_metadata",
+    "tests.test_lora_upload_structure.LoraUploadStructureTests.test_flattening_refuses_all_collisions_and_keeps_existing_datasets",
+    "tests.test_lora_upload_structure.LoraUploadStructureTests.test_metadata_directory_is_a_concrete_input_error"
   ],
   "test_lora_worker_responsiveness": [
     "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_cancelled_render_keeps_task_claim_until_publication_and_cleanup",
@@ -7826,6 +7835,9 @@
     "tests.test_training_numbers_js.ZipUploadSuffixJsTests.test_actual_upload_handler_preserves_file_and_accepts_case_insensitive_suffix"
   ],
   "test_training_oom_recovery": [
+    "tests.test_training_oom_recovery.TrainingNumericalRefusalTests.test_nonfinite_backward_restores_exact_previous_gradients",
+    "tests.test_training_oom_recovery.TrainingNumericalRefusalTests.test_nonfinite_loss_refuses_before_optimizer_and_preserves_prior_output",
+    "tests.test_training_oom_recovery.TrainingNumericalRefusalTests.test_nonfinite_optimizer_weights_never_publish_a_successful_adapter",
     "tests.test_training_oom_recovery.TrainingOOMLoopTests.test_boundary_coverage_normal_training_and_actual_early_stop_metadata",
     "tests.test_training_oom_recovery.TrainingOOMLoopTests.test_existing_zero_success_and_consecutive_oom_caps_stay_fail_loud",
     "tests.test_training_oom_recovery.TrainingOOMLoopTests.test_failed_backward_contributes_nothing_and_partial_window_is_flushed",
@@ -7841,9 +7853,13 @@
     "tests.test_training_oom_recovery.TrainingSampleIsolationTests.test_partial_backward_restores_references_and_next_optimizer_update_excludes_failed_signal",
     "tests.test_training_oom_recovery.TrainingSampleIsolationTests.test_success_preserves_scaling_sub_loss_weight_and_unused_prior_gradient"
   ],
+  "test_training_reference_encoding": [
+    "tests.test_training_reference_encoding.TrainingReferenceEncodingTests.test_reference_sources_preserve_unicode_with_strict_captured_stdout"
+  ],
   "test_training_resource_preflight": [
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_failed_interpreter_cannot_publish_an_otherwise_valid_ready_receipt",
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_interpreter_errors_are_failures_not_ready_defaults",
+    "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_ready_receipt_rejects_malformed_archive_fields_before_sorting",
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_ready_receipt_requires_exact_requested_archive_coverage",
     "tests.test_training_resource_preflight.SelectedInterpreterPreflightTests.test_selected_interpreter_receives_all_archive_paths_and_device",
     "tests.test_training_resource_preflight.TrainingResourcePreflightTests.test_disk_floor_and_larger_scratch_need",
@@ -8568,6 +8584,7 @@
   ],
   "test_voicelab_health": [
     "tests.test_voicelab_health.ProfilerPreflightIdentityTests.test_changed_profile_inputs_reject_old_preflight_before_gpu_claim",
+    "tests.test_voicelab_health.VoiceLabDiskBoundaryTests.test_admission_uses_raw_bytes_while_display_rounds",
     "tests.test_voicelab_health.VoiceLabHealthTests.test_active_run_reports_eta_from_shared_estimator",
     "tests.test_voicelab_health.VoiceLabHealthTests.test_builder_does_not_mutate_state_or_write_files",
     "tests.test_voicelab_health.VoiceLabHealthTests.test_corrupt_history_record_is_skipped",
@@ -8575,7 +8592,10 @@
     "tests.test_voicelab_health.VoiceLabHealthTests.test_idle_when_no_history_and_no_state",
     "tests.test_voicelab_health.VoiceLabHealthTests.test_newest_of_each_kind_is_selected",
     "tests.test_voicelab_health.VoiceLabHealthTests.test_recovery_required_takes_precedence_over_success",
-    "tests.test_voicelab_health.VoiceLabHealthTests.test_running_reports_stage_and_nonnegative_elapsed"
+    "tests.test_voicelab_health.VoiceLabHealthTests.test_running_reports_stage_and_nonnegative_elapsed",
+    "tests.test_voicelab_health.VoiceLabMpsProbeTests.test_actual_selected_interpreter_probe_and_backend_specific_admission",
+    "tests.test_voicelab_health.VoiceLabNamingInputTests.test_name_only_needs_no_dataset_but_data_stages_still_refuse",
+    "tests.test_voicelab_health.VoiceLabZipTypeTests.test_http_inspect_and_preflight_count_only_regular_archives"
   ],
   "test_voicelab_inspect_identity_js": [
     "tests.test_voicelab_inspect_identity_js.VoicelabInspectIdentityJsTests.test_edit_without_new_request_suppresses_stale_result_and_explicit_run_root_is_retained",
