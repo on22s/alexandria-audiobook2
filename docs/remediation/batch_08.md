@@ -1,15 +1,17 @@
 # Batch 08: Datasets, Voice Lab and training
 
-Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
+Batch training now keeps durable source/checkpoint-bound registration receipts, so a completed adapter can be registered after an interrupted manifest write without retraining or overwriting concurrent entries. Changed sources or weights refuse recovery. Existing adapters must match the dataset identity; extraction publishes a clean replacement dataset with rollback, preserving old data when preparation fails.
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+The batch interpreter uses the shared Windows/Linux venv selector. Hash auditing fails when weights cannot be verified. Voice analysis records terminal failure for missing/empty inputs and returns failure for incomplete requested phases.
 
-- [ ] [#895](https://github.com/on22s/alexandria-audiobook2/issues/895) — --verify-hash exits successfully when adapter weights cannot be verified
-- [ ] [#902](https://github.com/on22s/alexandria-audiobook2/issues/902) — Batch LoRA resume skips an untrained dataset when another adapter shares its prefix
-- [ ] [#903](https://github.com/on22s/alexandria-audiobook2/issues/903) — Batch LoRA default interpreter ignores Windows venv layout
-- [ ] [#904](https://github.com/on22s/alexandria-audiobook2/issues/904) — Batch LoRA retries skip a completed adapter after failed manifest registration
-- [ ] [#905](https://github.com/on22s/alexandria-audiobook2/issues/905) — Stale training split overrides a newly extracted batch dataset ZIP
-- [ ] [#906](https://github.com/on22s/alexandria-audiobook2/issues/906) — Analyze leaves running phase state after returning for missing or empty inputs
-- [ ] [#907](https://github.com/on22s/alexandria-audiobook2/issues/907) — Voice-analysis CLI returns normally after partial dedup extraction
+Validation: 93 integrated focused tests and 78 gate-follow-up tests passed. The full release gate passed 6,911 unit tests across three shards with no unit skips, plus 70 quick API tests; 12 full-mode API cases were skipped. Tests exercise native CPU artifacts, recovery, publication failures, unchanged bytes and actual CLI exit status. Windows interpreter layout was simulated on Linux; native Windows training and GPU training are not claimed.
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Tracker: #917.
+
+- [x] Fixes #895
+- [x] Fixes #902
+- [x] Fixes #903
+- [x] Fixes #904
+- [x] Fixes #905
+- [x] Fixes #906
+- [x] Fixes #907

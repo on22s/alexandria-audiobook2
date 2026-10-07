@@ -551,7 +551,9 @@ def run_analyze(model, device, deduped_root, output_dir, seed=42):
     cache_file = output_dir / "embeddings_cache.pkl"
 
     if not deduped_root.is_dir():
-        print(f"WARNING: {deduped_root} not found — run the dedup phase first (--phase dedup, or --phase both).")
+        error = f"{deduped_root} not found — run the dedup phase first (--phase dedup, or --phase both)."
+        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file))
+        print(f"WARNING: {error}")
         return
 
     zip_groups = {}
@@ -563,7 +565,9 @@ def run_analyze(model, device, deduped_root, output_dir, seed=42):
         zip_groups.setdefault(key, []).append(str(zp))
 
     if not zip_groups:
-        print(f"No ZIPs found in {deduped_root}")
+        error = f"No ZIPs found in {deduped_root}"
+        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file))
+        print(error)
         return
 
     from voice_analysis_cache import save_voice_analysis_checkpoint, compact_voice_analysis_checkpoints
@@ -939,6 +943,17 @@ def main():
         run_analyze(model, device, deduped_root, args.analyze_out, seed=args.seed)
         write_pipeline_summary(args.zips2, args.dedup_out, args.analyze_out)
 
+    phase_states = []
+    if args.phase in ("dedup", "both"):
+        phase_states.append(args.dedup_out / "phase_state.json")
+    if run_analyze_phase:
+        phase_states.append(args.analyze_out / "phase_state.json")
+    incomplete = [path for path in phase_states if not get_completed_analysis_phase(path)]
+    if incomplete:
+        print("Voice analysis did not complete every requested phase: " + ", ".join(map(str, incomplete)))
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

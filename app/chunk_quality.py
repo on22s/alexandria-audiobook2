@@ -27,6 +27,13 @@ MISSING_SPAN_PREVIEW_TOKENS = 12
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
 
 
+def get_unsupported_cyrillic_characters(source_text, output_text):
+    """Return introduced Cyrillic letters, allowing source letter case changes."""
+    source_folded = {char.casefold() for char in _CYRILLIC_RE.findall(source_text)}
+    return sorted(char for char in set(_CYRILLIC_RE.findall(output_text))
+                  if char.casefold() not in source_folded)
+
+
 def validate_chunk_quality(source_text, entries):
     """Return deterministic metrics and findings without mutating inputs."""
     findings = []
@@ -74,8 +81,7 @@ def validate_chunk_quality(source_text, entries):
                          "message": "Output length is implausible for the source chunk."})
 
     source_cyrillic = sorted(set(_CYRILLIC_RE.findall(source_text)))
-    output_cyrillic = sorted(set(_CYRILLIC_RE.findall(output_text)))
-    unsupported = sorted(set(output_cyrillic) - set(source_cyrillic))
+    unsupported = get_unsupported_cyrillic_characters(source_text, output_text)
     if unsupported:
         findings.append({"code": "unsupported_cyrillic", "characters": unsupported,
                          "message": "Response introduced Cyrillic characters absent from the source."})

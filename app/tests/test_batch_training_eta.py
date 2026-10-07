@@ -26,6 +26,11 @@ class BatchTrainingEtaTests(unittest.TestCase):
         def train(zip_path, dataset_id, adapter_id, args):
             clock[0] += 600
             trained.append(dataset_id)
+            import json
+            from tests.test_support import write_test_adapter
+            folder = Path(args.models_dir) / adapter_id
+            write_test_adapter(folder)
+            (folder / 'training_meta.json').write_text(json.dumps({'best_loss': 1.0, 'num_samples': 1}))
             return {'id': adapter_id, 'dataset_id': dataset_id}
         def exists(directory, dataset_id, manifest):
             lookups[dataset_id] = lookups.get(dataset_id, 0) + 1
@@ -50,14 +55,13 @@ class BatchTrainingEtaTests(unittest.TestCase):
                     '--datasets_dir', str(root / 'datasets'), '--manifest', str(root / 'manifest.json'),
                     '--python', sys.executable, '--device', 'cpu']
             stack.enter_context(patch.object(sys, 'argv', argv))
-            stack.enter_context(patch.object(batch, 'load_manifest', return_value=[]))
             stack.enter_context(patch.object(batch, 'adapter_exists', side_effect=exists))
             stack.enter_context(patch.object(batch, 'train_one', side_effect=train))
             stack.enter_context(patch.object(batch.time, 'time', side_effect=lambda: clock[0]))
             stack.enter_context(patch.object(batch, 'lock_adapter_naming', side_effect=lambda *args: contextlib.nullcontext()))
             stack.enter_context(patch.object(batch, 'get_adapter_publication_recovery_command', return_value=None))
             stack.enter_context(patch.object(batch, 'validate_adapter_registration_id_locked'))
-            saved = stack.enter_context(patch.object(batch, 'save_manifest'))
+            saved = stack.enter_context(patch.object(batch, 'save_manifest', wraps=batch.save_manifest))
             output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             self.assertEqual(0, batch.main())
             self.assertEqual(len(trained), saved.call_count)

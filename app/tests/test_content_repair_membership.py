@@ -60,3 +60,19 @@ class ContentRepairMembershipTests(unittest.TestCase):
             self.assertEqual(200,response.status_code,response.text)
             self.assertEqual([{**ROWS[1],'instruct':'Calm.'}]+ROWS[2:],json.loads(script.read_bytes()))
             self.assertEqual(original,(root/response.json()['backup']).read_bytes())
+
+
+class EmptyDirectionPreviewTests(unittest.TestCase):
+    def test_whitespace_only_directions_are_not_offered_as_empty_repairs(self):
+        for instruct in ('  ', '\n', '\t \n'):
+            with self.subTest(instruct=instruct):
+                rows = [{'speaker': 'NARRATOR', 'text': 'Synthetic greeting.', 'instruct': instruct}]
+                before = copy.deepcopy(rows)
+                self.assertEqual([], build_content_review(rows)['direction_normalizations'])
+                with self.assertRaises(ValueError):
+                    apply_content_selections(rows, [], [{'entry_number': 1, 'expected_instruct': instruct, 'new_instruct': ''}])
+                self.assertEqual(before, rows)
+        rows = [{'speaker': 'NARRATOR', 'text': 'Synthetic greeting.', 'instruct': ' read   naturally '}]
+        offered = build_content_review(rows)['direction_normalizations'][0]
+        repaired = apply_content_selections(rows, [], [{'entry_number': 1, 'expected_instruct': offered['before'], 'new_instruct': offered['suggested']}])
+        self.assertEqual('read naturally', repaired['entries'][0]['instruct'])

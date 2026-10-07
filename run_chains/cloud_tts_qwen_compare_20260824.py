@@ -66,6 +66,18 @@ finished = time.time()
 audio_path = OUT / "audiobook_passage.wav"
 sf.write(audio_path, wavs[0], sample_rate)
 duration = len(wavs[0]) / sample_rate
+try:
+    gpu = subprocess.check_output(
+        ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
+        text=True, timeout=5,
+    ).strip()
+    if not gpu:
+        raise ValueError("GPU metadata probe returned empty output")
+except (OSError, subprocess.SubprocessError, ValueError) as error:
+    gpu = None
+    gpu_metadata = {"status": "unavailable", "error": f"{type(error).__name__}: {error}"}
+else:
+    gpu_metadata = {"status": "measured"}
 result = {
     "model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     "backend": "qwen-tts",
@@ -80,10 +92,8 @@ result = {
     "load_seconds": loaded - started,
     "generation_seconds": finished - loaded,
     "rtf": (finished - loaded) / duration,
-    "gpu": subprocess.check_output(
-        ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
-        text=True,
-    ).strip(),
+    "gpu": gpu,
+    "gpu_metadata": gpu_metadata,
     "python": platform.python_version(),
     "torch": torch.__version__,
 }
