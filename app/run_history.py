@@ -74,12 +74,21 @@ def finish_run(history_dir, run_id, status, error=None):
         "status": status, "finished_at": _utc_now(), "error": error})
 
 
-def _sha256_file(path):
+def _get_file_snapshot(path):
     digest = hashlib.sha256()
     with open(path, "rb") as source:
+        before = os.fstat(source.fileno())
+        size = 0
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
-    return digest.hexdigest()
+            size += len(block)
+        after = os.fstat(source.fileno())
+    version_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if (size != before.st_size or
+            any(getattr(before, field) != getattr(after, field)
+                for field in version_fields)):
+        raise ValueError(f"Declared file changed while hashing: {path}")
+    return {"sha256": digest.hexdigest(), "size_bytes": size}
 
 
 def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
@@ -101,8 +110,7 @@ def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
             raise FileNotFoundError(f"Declared file not found: {absolute}")
         return {
             "path": os.path.relpath(absolute, data_dir),
-            "sha256": _sha256_file(absolute),
-            "size_bytes": os.path.getsize(absolute),
+            **_get_file_snapshot(absolute),
         }
 
     artifact = {

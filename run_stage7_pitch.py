@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 
+from app_venv import get_app_python
+
 REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
@@ -13,7 +15,7 @@ from experiments.pitch_profile_matrix import (  # noqa: E402
 from local_gpu_job import run_gpu_job  # noqa: E402
 from results_index_validation import require_results_index_entries  # noqa: E402
 
-PYTHON = os.path.join(APP, "env", "bin", "python")
+PYTHON = get_app_python(REPO)
 MANIFEST = os.path.join(REPO, "lora_models", "manifest.json")
 PILOT = os.path.join(
     REPO, "ab_test_runtime", "experiments", "pitch_profile_matrix_pilot.json")

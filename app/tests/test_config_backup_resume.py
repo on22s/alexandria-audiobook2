@@ -88,17 +88,20 @@ class ConfigBackupResumeTests(unittest.TestCase):
                     self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                     self.assertEqual(edited,config.read_bytes());self.assertFalse(backup.exists())
 
-    def test_failed_stale_restoration_stops_before_capture_and_preserves_only_recovery_copy(self):
+    def test_failed_stale_restoration_stops_before_capture_and_preserves_destination_and_recovery_copy(self):
         for name in CHAINS:
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);script,config,backup,original,env=self.fixture(root,name)
                 backup.write_bytes(original);config.write_text('{"llm":{"model_name":"stale override"}}')
+                current=config.read_bytes()
                 result=self.run_chain(script,{**env,'COPY_FAILURE':'restore'})
                 self.assertEqual(1,result.returncode,result.stdout+result.stderr)
                 self.assertIn('fixture copy refused',result.stderr)
                 self.assertEqual(original,backup.read_bytes())
                 self.assertFalse((root/'calls.txt').exists(),'work started despite restoration failure')
-                # Even a partial destination copy can be recovered from intact backup.
+                self.assertEqual(current,config.read_bytes())
+                self.assertFalse(list(config.parent.glob(config.name+'.restore.*')))
+                # Retrying publishes the exact authoritative recovery bytes.
                 result=self.run_chain(script,env)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 self.assertEqual(original,config.read_bytes());self.assertFalse(backup.exists())
@@ -127,3 +130,27 @@ class ConfigBackupResumeTests(unittest.TestCase):
                 result=self.run_chain(script,env)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 self.assertEqual(original,config.read_bytes());self.assertFalse(backup.exists())
+
+
+class ConfigRestorePublicationTests(unittest.TestCase):
+    def test_failed_rename_preserves_both_files_then_retry_publishes_exact_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);config=root/'config.json';backup=root/'backup.json'
+            current=b'{"current":true}';saved=b'{"saved":true}'
+            config.write_bytes(current);backup.write_bytes(saved)
+            binaries=root/'bin';binaries.mkdir()
+            mv=binaries/'mv';mv.write_text('#!/bin/sh\necho fixture-publication-refused >&2\nexit 1\n');mv.chmod(0o755)
+            command=['bash','-c','source "$1"; restore_config_backup "$2" "$3"',
+                     'fixture',str(ROOT/'run_chains/lib/config_backup.sh'),str(backup),str(config)]
+            result=subprocess.run(command,env={**os.environ,'PATH':str(binaries)+os.pathsep+os.environ['PATH']},
+                                  capture_output=True,text=True,timeout=5)
+            self.assertEqual(1,result.returncode,result.stdout+result.stderr)
+            self.assertIn('recovery retained',result.stderr)
+            self.assertEqual(current,config.read_bytes())
+            self.assertEqual(saved,backup.read_bytes())
+            self.assertFalse(list(root.glob('config.json.restore.*')))
+            result=subprocess.run(command,capture_output=True,text=True,timeout=5)
+            self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+            self.assertEqual(saved,config.read_bytes())
+            self.assertFalse(backup.exists())
+            self.assertFalse(list(root.glob('config.json.restore.*')))

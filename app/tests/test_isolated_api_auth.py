@@ -61,14 +61,14 @@ client.test_clone_voices_upload_bad_format()
         for username in ('alexandria','fixture-声'):
             with self.subTest(username=username),tempfile.TemporaryFile(mode='w+b') as server_log:
                 observed={}
-                actual_popen=subprocess.Popen
+                actual_start=runner.start_owned_subprocess
                 def launch(command,**kwargs):
                     if len(command) < 3 or command[2] != runner.SERVER_CODE:
-                        return actual_popen(command, **kwargs)
+                        return actual_start(command, **kwargs)
                     self.assertEqual('fixture-秘密',kwargs['env']['ALEXANDRIA_AUTH_PASSWORD'])
                     observed['data_dir']=kwargs['env']['ALEXANDRIA_DATA_DIR']
                     kwargs['stdout']=server_log;kwargs['stderr']=subprocess.STDOUT
-                    return actual_popen(command,**kwargs)
+                    return actual_start(command,**kwargs)
                 def run_probe(command,**kwargs):
                     self.assertEqual('fixture-秘密',kwargs['env']['ALEXANDRIA_AUTH_PASSWORD'])
                     observed['url']=command[command.index('--url')+1]
@@ -79,7 +79,7 @@ client.test_clone_voices_upload_bad_format()
                     self.scheme_case_artifacts.append({'username':username,'requests':json.loads(line.split('=',1)[1])})
                     return result
                 with patch.dict(os.environ,{'ALEXANDRIA_AUTH_PASSWORD':'fixture-秘密','ALEXANDRIA_AUTH_USERNAME':username,'ALEXANDRIA_HOST':'127.0.0.1'}), \
-                     patch.object(runner.subprocess,'Popen',side_effect=launch),patch.object(runner.subprocess,'run',side_effect=run_probe), \
+                     patch.object(runner,'start_owned_subprocess',side_effect=launch),patch.object(runner.subprocess,'run',side_effect=run_probe), \
                      patch.object(sys,'argv',['run_isolated_api_tests.py']):
                     self.assertEqual(0,runner.main())
                 self.assertFalse(Path(observed['data_dir']).exists())
@@ -93,9 +93,9 @@ client.test_clone_voices_upload_bad_format()
             self.assertEqual('alexandria:fixture',base64.b64decode(token[6:]).decode())
             return MagicMock()
         with patch.dict(os.environ,{'ALEXANDRIA_AUTH_PASSWORD':'fixture','ALEXANDRIA_AUTH_USERNAME':'alexandria'}), \
-             patch.object(runner.subprocess,'Popen',return_value=server),patch.object(runner.subprocess,'run',return_value=type('Result',(),{'returncode':0})()), \
+             patch.object(runner,'start_owned_subprocess',return_value=server),patch.object(runner.subprocess,'run',return_value=type('Result',(),{'returncode':0})()), \
              patch.object(runner,'get_isolated_server_port',return_value=18765), \
-             patch.object(runner,'urlopen',side_effect=probe),patch.object(runner.os,'killpg'),patch.object(sys,'argv',['runner']):
+             patch.object(runner,'urlopen',side_effect=probe),patch.object(runner,'stop_owned_subprocess'),patch.object(sys,'argv',['runner']):
             self.assertEqual(0,runner.main())
             self.assertEqual('fixture',os.environ['ALEXANDRIA_AUTH_PASSWORD'])
 

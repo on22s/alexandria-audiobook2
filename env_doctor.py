@@ -13,7 +13,10 @@ import json
 import os
 import subprocess
 import sys
+
 from typing import Dict, List, Optional, Tuple
+
+from app_venv import get_app_python
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT_DIR, "app"))
@@ -28,8 +31,7 @@ VOICELAB_CONFIG_PATH = os.path.join(
 
 ENV_SPECS = {
     "app_env": {
-        "path": os.path.join(ROOT_DIR, "app", "env", "Scripts", "python.exe")
-        if sys.platform == "win32" else os.path.join(ROOT_DIR, "app", "env", "bin", "python"),
+        "path": get_app_python(ROOT_DIR),
         "required": [
             "fastapi", "uvicorn", "pydantic", "soundfile", "numpy", "rapidfuzz",
             "librosa", "transformers", "peft", "mutagen", "torch", "qwen-tts",

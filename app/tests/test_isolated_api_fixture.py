@@ -46,14 +46,13 @@ class IsolatedApiFixtureTests(unittest.TestCase):
         with patch.object(Path, "glob", autospec=True, side_effect=glob), \
              patch.object(runner, "get_isolated_server_port", return_value=18765), \
              patch.object(runner, "urlopen", return_value=MagicMock()) as request, \
-             patch.object(runner.subprocess, "Popen", side_effect=launch), \
+             patch.object(runner, "start_owned_subprocess", side_effect=launch), \
              patch.object(runner.subprocess, "run", side_effect=run_suite), \
-             patch.object(runner.os, "killpg") as kill, \
+             patch.object(runner, "stop_owned_subprocess") as stop, \
              patch.object(runner.sys, "argv", ["run_isolated_api_tests.py", "--full"]):
             self.assertEqual(7, runner.main())
             request.assert_called_once_with("http://127.0.0.1:18765/api/config", timeout=1)
-            kill.assert_called_once_with(server.pid, signal.SIGTERM)
-            server.wait.assert_called_once_with(timeout=10)
+            stop.assert_called_once_with(server, timeout=10)
         self.assertFalse(Path(observed["data_dir"]).exists(), "disposable state must be removed")
         self.assertEqual(["-m", "tests.test_api", "--url", "http://127.0.0.1:18765", "--full"],
                          observed["suite_command"][1:])

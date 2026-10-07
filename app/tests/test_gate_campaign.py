@@ -4,6 +4,7 @@ import ast
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +14,84 @@ from tests.test_identity_gate_completion import make_inputs, measured_document
 
 
 class GateCampaignTests(unittest.TestCase):
+    def test_campaign_writers_serialize_and_preserve_durable_results(self):
+        for operation in ('result', 'completion', 'restart'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as tmp:
+                gates, queue, journal = self.prepare(Path(tmp))
+                campaign.save_campaign_start(queue, journal)
+                original_id = campaign.get_campaign_document(journal)['campaign_id']
+                if operation == 'completion':
+                    campaign.save_campaign_result(journal, 'b', 0, lines=10)
+                measured = threading.Event()
+                release = threading.Event()
+                attempted = threading.Event()
+                entered = threading.Event()
+                errors = []
+                measure = campaign.get_measured_campaign_member
+                read = campaign.get_campaign_document
+                write = campaign.atomic_json_write
+
+                def blocked_measure(*args):
+                    if threading.current_thread().name == 'campaign-first':
+                        measured.set()
+                        if not release.wait(5):
+                            raise RuntimeError('fixture did not release measurement')
+                    return measure(*args)
+
+                def observed_read(*args):
+                    if threading.current_thread().name == 'campaign-second':
+                        entered.set()
+                    return read(*args)
+
+                def observed_write(*args):
+                    if threading.current_thread().name == 'campaign-second':
+                        entered.set()
+                    return write(*args)
+
+                def worker(first):
+                    try:
+                        if first:
+                            campaign.save_campaign_result(journal, 'a', 0, lines=10)
+                        else:
+                            attempted.set()
+                            if operation == 'result':
+                                campaign.save_campaign_result(journal, 'b', 0, lines=10)
+                            elif operation == 'completion':
+                                campaign.save_campaign_completion(journal, lines=10)
+                            else:
+                                campaign.save_campaign_start(queue, journal)
+                    except Exception as error:
+                        errors.append(error)
+
+                first = threading.Thread(target=worker, args=(True,), name='campaign-first')
+                second = threading.Thread(target=worker, args=(False,), name='campaign-second')
+                with patch.object(campaign, 'get_measured_campaign_member', blocked_measure), \
+                     patch.object(campaign, 'get_campaign_document', observed_read), \
+                     patch.object(campaign, 'atomic_json_write', observed_write):
+                    first.start()
+                    try:
+                        self.assertTrue(measured.wait(2))
+                        second.start()
+                        self.assertTrue(attempted.wait(2))
+                        self.assertFalse(entered.wait(.2), 'writer entered a live journal transaction')
+                    finally:
+                        release.set()
+                        first.join(5)
+                        if second.ident is not None:
+                            second.join(5)
+                self.assertFalse(first.is_alive())
+                self.assertFalse(second.is_alive())
+                self.assertEqual([], errors)
+                saved = campaign.get_campaign_document(journal)
+                if operation == 'restart':
+                    self.assertNotEqual(original_id, saved['campaign_id'])
+                    self.assertTrue(all('rc' not in row for row in saved['members'].values()))
+                else:
+                    self.assertTrue(all(row['rc'] == 0 and row['sha256']
+                                        for row in saved['members'].values()))
+                    if operation == 'completion':
+                        self.assertEqual('complete', saved['status'])
+
     def prepare(self, root):
         gates = root / 'gates'
         gates.mkdir()

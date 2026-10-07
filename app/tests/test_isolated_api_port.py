@@ -70,13 +70,37 @@ print('PORT_OWNERSHIP='+json.dumps({'port':runner.get_isolated_server_port(Path(
                     if mode=='invalid':raise ValueError('invalid port receipt')
                     return None
                 expected=ValueError if mode=='invalid' else RuntimeError
-                with patch.object(runner.subprocess,'Popen',side_effect=launch), \
+                with patch.object(runner,'start_owned_subprocess',side_effect=launch), \
                      patch.object(runner,'get_isolated_server_port',side_effect=port), \
                      patch.object(runner.time,'monotonic',side_effect=[0,0,21]), \
-                     patch.object(runner.time,'sleep'),patch.object(runner.os,'killpg') as kill, \
+                     patch.object(runner.time,'sleep'),patch.object(runner,'stop_owned_subprocess') as stop, \
                      patch.object(runner,'urlopen',side_effect=AssertionError('unpublished port reached readiness')), \
                      patch.object(runner.subprocess,'run',side_effect=AssertionError('failed startup reached suite')):
                     with self.assertRaises(expected):runner.main()
                 self.assertFalse(observed['root'].exists())
-                if mode=='exited':kill.assert_not_called();server.wait.assert_not_called()
-                else:kill.assert_called_once_with(server.pid,runner.signal.SIGTERM);server.wait.assert_called_once_with(timeout=10)
+                stop.assert_called_once_with(server,timeout=10)
+
+
+class IsolatedApiCleanupTests(unittest.TestCase):
+    def test_readiness_error_preserved_without_unix_killpg_and_owner_is_reaped(self):
+        from types import SimpleNamespace
+        import subprocess_ownership as ownership
+        server=MagicMock();server.poll.return_value=None;server.pid=12345678
+        server._alexandria_control=None
+        job=SimpleNamespace(handle=object(),active=1)
+        job.get_active_process_count=lambda:job.active
+        server._alexandria_windows_owner=SimpleNamespace(job=job)
+        control=MagicMock();server._alexandria_control=control
+        control.sendall.side_effect=lambda message:setattr(job,'active',0)
+        original=RuntimeError('readiness refused')
+        with patch.object(runner.subprocess,'Popen',return_value=server), \
+             patch.object(runner,'start_owned_subprocess',return_value=server,create=True), \
+             patch.object(runner,'get_isolated_server_port',return_value=18765), \
+             patch.object(runner,'urlopen',side_effect=original), \
+             patch.object(ownership.sys,'platform','win32'), \
+             patch.object(runner.os,'killpg',side_effect=AttributeError('killpg unavailable')):
+            with self.assertRaises(RuntimeError) as caught:runner.main()
+        self.assertIs(original,caught.exception)
+        server.wait.assert_called_once_with(timeout=10)
+        control.sendall.assert_called_once_with(b'15\n')
+        control.close.assert_called_once_with()

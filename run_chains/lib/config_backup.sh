@@ -1,13 +1,19 @@
 # Shared campaign config recovery. A leftover backup is authoritative until
 # restoration succeeds; never overwrite it with the temporary campaign config.
 restore_config_backup() {
-    local backup="$1" config="$2"
+    local backup="$1" config="$2" staging
     [ -f "$backup" ] || return 0
-    if ! command cp -f "$backup" "$config"; then
-        echo "REFUSING: could not restore $config; recovery retained at $backup" >&2
+    staging=$(mktemp "${config}.restore.XXXXXX") || {
+        echo "REFUSING: could not stage $config; recovery retained at $backup" >&2
         return 1
+    }
+    if command cp -f "$backup" "$staging" && command mv -f "$staging" "$config"; then
+        command rm -f "$backup"
+        return $?
     fi
-    command rm -f "$backup"
+    command rm -f "$staging"
+    echo "REFUSING: could not restore $config; recovery retained at $backup" >&2
+    return 1
 }
 
 save_config_backup() {

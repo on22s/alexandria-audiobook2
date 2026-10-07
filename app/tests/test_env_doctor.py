@@ -56,6 +56,50 @@ class AppInterpreterLayoutTests(unittest.TestCase):
                     self.assertEqual(1, code)
                     self.assertFalse(json.loads(output.getvalue())['ok'])
 
+    def test_stage_helpers_launch_selected_layout_and_refuse_missing_executable(self):
+        import contextlib
+        import io
+        import os
+        import tempfile
+        import types
+        from unittest.mock import patch
+
+        repository = Path(__file__).resolve().parents[2]
+        platforms = ('win32',) if os.name == 'nt' else ('linux', 'darwin', 'win32')
+        for platform in platforms:
+            for name in ('run_stage6_listening.py', 'run_stage7_pitch.py'):
+                with self.subTest(platform=platform, script=name), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    suffix = 'Scripts/python.exe' if platform == 'win32' else 'bin/python'
+                    executable = root / 'app' / 'env' / suffix
+                    executable.parent.mkdir(parents=True)
+                    if os.name == 'nt':
+                        import venv
+                        venv.EnvBuilder(with_pip=False).create(root / 'app' / 'env')
+                    else:
+                        executable.symlink_to(sys.executable)
+                    module = types.ModuleType('layout_stage')
+                    module.__file__ = str(root / name)
+                    before_path = sys.path[:]
+                    try:
+                        with patch.object(sys, 'platform', platform):
+                            exec(compile((repository / name).read_text(), module.__file__, 'exec'), module.__dict__)
+                        marker = root / 'helper-ran'
+                        command = [module.PYTHON, '-c',
+                                   'from pathlib import Path; Path(' + repr(str(marker)) + ').write_text("ran")']
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            module.run(command)
+                        self.assertEqual('ran', marker.read_text())
+                        self.assertEqual(str(executable), module.PYTHON)
+                        executable.unlink()
+                        marker.unlink()
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            with self.assertRaises(FileNotFoundError):
+                                module.run(command)
+                        self.assertFalse(marker.exists())
+                    finally:
+                        sys.path[:] = before_path
+
 
 class EvaluateEnvTests(unittest.TestCase):
     def test_all_required_present_is_ok(self):
