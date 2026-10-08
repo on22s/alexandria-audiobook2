@@ -92,7 +92,8 @@ def main():
     result = audit(args.models_dir, args.verify_hash)
     print(json.dumps(result if args.full else result["summary"], indent=1, sort_keys=True))
     summary = result["summary"]
-    if summary["unclassified"] or summary.get("weights_do_not_match_meta"):
+    if (summary["unclassified"] or summary.get("weights_do_not_match_meta")
+            or summary.get("weights_unverifiable")):
         sys.exit(2)     # the audit could not vouch for every adapter: fail loudly, do not report a clean count
 
 

@@ -6,6 +6,23 @@ from tests import test_training_ui_contract as ui
 class TrainingModelRefreshTests(unittest.TestCase):
     run_js = ui.TrainingUiContractTests.run_js
 
+    def test_comparison_latest_request_owns_results_and_errors(self):
+        self.run_js(r'''
+ctx.API=vm.runInContext('API',ctx);const pending=[];ctx.API.get=path=>new Promise((resolve,reject)=>pending.push({path,resolve,reject}));const panel=element('lora-comparison-panel');panel.scrollIntoView=()=>{};
+const first=ctx.openLoraCandidateComparison('A'),second=ctx.openLoraCandidateComparison('B');pending[1].resolve({candidate_id:'B',probe_pairs:[]});await second;const newer=panel.innerHTML;pending[0].resolve({candidate_id:'A',probe_pairs:[]});await first;assert.strictEqual(panel.innerHTML,newer);assert(newer.includes('comparison: B'));
+const stale=ctx.openLoraCandidateComparison('A'),latest=ctx.openLoraCandidateComparison('C');pending[3].resolve({candidate_id:'C',probe_pairs:[]});await latest;const current=panel.innerHTML;pending[2].reject(Error('stale error'));await stale;assert.strictEqual(panel.innerHTML,current);
+const failed=ctx.openLoraCandidateComparison('D');pending[4].reject(Error('current error'));await failed;assert(panel.innerHTML.includes('current error'));
+''')
+
+    def test_download_restores_button_after_success_even_when_real_list_refresh_fails(self):
+        self.run_js(r'''
+ctx.API=vm.runInContext('API',ctx);const button=element('lora-dl-btn-fixture');button.innerHTML='Download';let finish;
+ctx.API.post=()=>new Promise(resolve=>finish=resolve);ctx.API.get=async()=>{throw Error('refresh offline');};
+const downloading=ctx.downloadBuiltinAdapter('fixture');assert.strictEqual(button.disabled,true);assert(button.innerHTML.includes('Downloading'));
+finish({status:'downloaded'});await downloading;await new Promise(resolve=>setImmediate(resolve));assert.strictEqual(button.disabled,false);assert.strictEqual(button.innerHTML,'Download');assert(toasts.some(t=>t[0].includes('downloaded successfully')));assert(element('lora-models-refresh-status').textContent.includes('Could not load adapters'));
+ctx.API.post=async()=>{throw Error('download refused');};await ctx.downloadBuiltinAdapter('fixture');assert.strictEqual(button.disabled,false);assert.strictEqual(button.innerHTML,'Download');assert(toasts.at(-1)[0].includes('download refused'));
+''')
+
     def test_independent_requests_start_before_either_settles_and_backup_failure_is_optional(self):
         self.run_js(r"""
 const requests=[],pending={};

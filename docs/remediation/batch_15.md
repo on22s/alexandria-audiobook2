@@ -1,22 +1,25 @@
-# Batch 15: Benchmarks, evidence and developer tooling
+# Batch 15: benchmark evidence and failure reporting
 
-Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
+Failed generation manifests retain a failed-chunk record even when detailed attempt telemetry is absent. Fixture IDs include stable source-path identity, and contained audio names beginning with two dots remain admissible without allowing path escapes.
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+Remote checkout output is framed so hexadecimal login banners cannot masquerade as Git revisions. Runtime observations must still match the verified clean checkout. Remote Linux staging and worker paths use POSIX semantics even on a Windows controller; local source paths retain native semantics. Runtime diagnostics retain complete branch names. Benchmark registration failures publish a failed status after releasing their claims.
 
-- [ ] [#761](https://github.com/on22s/alexandria-audiobook2/issues/761) — Generation-attempt analysis reports zero failures for failed manifests without attempt arrays
-- [ ] [#764](https://github.com/on22s/alexandria-audiobook2/issues/764) — Thunder checkout preflight mistakes hexadecimal login banners for Git revision output
-- [ ] [#765](https://github.com/on22s/alexandria-audiobook2/issues/765) — CPU benchmark preflight accepts a worker checkout observed dirty after its clean check
-- [ ] [#766](https://github.com/on22s/alexandria-audiobook2/issues/766) — Benchmark fixture IDs collide for distinct sources sharing a filename
-- [ ] [#767](https://github.com/on22s/alexandria-audiobook2/issues/767) — Windows benchmark orchestration builds Linux worker paths with backslashes
-- [ ] [#768](https://github.com/on22s/alexandria-audiobook2/issues/768) — Remote LoRA benchmark input staging accumulates without cleanup or a bounded cache
-- [ ] [#769](https://github.com/on22s/alexandria-audiobook2/issues/769) — LoRA benchmark rejects contained audio filenames beginning with two dots
-- [ ] [#771](https://github.com/on22s/alexandria-audiobook2/issues/771) — Shard coverage verifier accepts duplicated and omitted tests when totals match
-- [ ] [#778](https://github.com/on22s/alexandria-audiobook2/issues/778) — Review cleanup reports removals when unlink fails and history remains
-- [ ] [#782](https://github.com/on22s/alexandria-audiobook2/issues/782) — Gold fixture merge truncates the previous fixture when publication fails
-- [ ] [#819](https://github.com/on22s/alexandria-audiobook2/issues/819) — Runtime branch diagnostics discard branch-name prefixes at slashes
-- [ ] [#874](https://github.com/on22s/alexandria-audiobook2/issues/874) — Benchmark UI remains labeled running after background registration fails
+Review cleanup refuses deletion errors instead of reporting files removed. Gold builders, mergers and rejudgers publish atomically with direct-move fallback disabled only for these outputs; other atomic-writer callers retain their existing fallback policy.
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Unit shards record executed test identities. The release report validates identity receipts, and the final checker rejects duplicated, omitted, unknown or missing identities alongside its existing count/status checks. Two imported fixture classes previously caused 19 duplicate executions; module imports preserve their fixture methods while discovering each original test once. A discovery regression covers all four affected modules.
 
-#768 also has PR #920; coordinate with that fix and avoid duplicate implementation.
+Validation against main `857542fa`: 7,025 unique unit tests pass across three shards, with exact-once inventory coverage independently checked. All 70 quick API checks pass; 12 full-mode API cases are explicitly skipped. Focused checks include 125 remote/registration tests, 126 integration tests and 59 discovery/publication/checkpoint tests, without skips. Git and filesystem checks use disposable native Linux artifacts; Windows controller paths are simulated. No native Windows/browser or GPU/model inference is claimed.
+
+Tracker: #917. Remote training staging cleanup (#768) was already merged through #920 and is not reimplemented here.
+
+- [x] Fixes #761
+- [x] Fixes #764
+- [x] Fixes #765
+- [x] Fixes #766
+- [x] Fixes #767
+- [x] Fixes #769
+- [x] Fixes #771
+- [x] Fixes #778
+- [x] Fixes #782
+- [x] Fixes #819
+- [x] Fixes #874

@@ -62,6 +62,16 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["First line.", "Second line."],
                          [text[a:b] for a, b in spans])
 
+    def test_inches_before_dialogue_do_not_shift_speech_into_narration(self):
+        for measurement in ('5"', '12.5"'):
+            with self.subTest(measurement=measurement):
+                source = f'A board measured {measurement} tall. She said "Hello." Then he answered "Bye."'
+                self.assertEqual(['Hello.', 'Bye.'], [source[a:b] for a, b in spoken_spans(source, 'paired_quotes')])
+                mapped = mark_entries([{'text': text} for text in ('tall. She said', 'Hello.', 'Then he answered', 'Bye.')], source, 'paired_quotes')
+                self.assertEqual([False, True, False, True], [row['spoken'] for row in mapped])
+        source = 'She said "I am 5" and he said "I am 6".'
+        self.assertEqual(['I am 5', 'I am 6'], [source[a:b] for a, b in spoken_spans(source, 'paired_quotes')])
+
     def test_an_unmatched_straight_quote_does_not_swallow_the_book(self):
         text = '"Only one mark here, and then a great deal of narration. ' + "x " * 500
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
@@ -136,6 +146,21 @@ class MixedQuoteStyleTest(unittest.TestCase):
 
 
 class PrintedSpeakerLabelTest(unittest.TestCase):
+
+    def test_roster_confirmed_unicode_labels_keep_inventory_and_repeat_guards(self):
+        from dialogue_spans import apply_dialogue_map
+        for name in ('ELODIE', 'ÉLODIE', 'АННА', 'ÉLODIE АННА'):
+            with self.subTest(name=name):
+                lines = [f'Synthetic line {i}.' for i in range(6)]
+                source = '\n'.join(f'{name} “{line}”' for line in lines)
+                entries = [{'text': line, 'speaker': 'NARRATOR'} for line in lines]
+                mapped = apply_dialogue_map(entries, source, speaker_names=[name])
+                self.assertEqual([name] * 6, [row['speaker'] for row in mapped['entries']])
+                self.assertEqual(6, len(speaker_labels(source, speaker_names=[name])))
+                self.assertEqual([], speaker_labels(source, speaker_names=['OTHER']))
+                self.assertEqual([], speaker_labels('\n'.join(source.splitlines()[:2]), speaker_names=[name]))
+                self.assertEqual(['NARRATOR'] * 6, [row['speaker'] for row in entries])
+
 
     def test_repeated_adverbs_cannot_create_authoritative_speakers(self):
         import copy

@@ -79,9 +79,10 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     "--models_dir", str(models), "--manifest", str(manifest),
                     "--python", sys.executable, "--device", "cpu"]
 
-            def train_with_intervening_write(*args):
+            def train_with_intervening_write(source, dataset_id, adapter_id, args):
                 batch_train.save_manifest(str(manifest), [{"id": "other", "dataset_id": "other"}])
-                return {"id": "new", "dataset_id": "new"}
+                self.make_adapter(models / adapter_id)
+                return {"id": adapter_id, "dataset_id": dataset_id}
 
             with patch.object(sys, "argv", argv), \
                  patch.object(batch_train, "train_one", side_effect=train_with_intervening_write), \
@@ -89,7 +90,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                 self.assertEqual(0, batch_train.main())
 
             self.assertEqual({"other", "new"},
-                             {entry["id"] for entry in batch_train.load_manifest(str(manifest))})
+                             {entry["dataset_id"] for entry in batch_train.load_manifest(str(manifest))})
 
     def test_stage_scripts_resolve_within_the_selected_checkout(self):
         for name in ("audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
@@ -153,6 +154,25 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
         self.assertEqual(str(ROOT), batch_train.REPO2_DIR)
         self.assertEqual(str(ROOT / "app" / "train_lora.py"), batch_train.TRAIN_SCRIPT)
         self.assertEqual(str(ROOT / "lora_models"), batch_train.MODELS_DIR)
+
+    def test_batch_default_interpreter_uses_existing_platform_venv_policy(self):
+        import types
+        for platform, relative in (('win32', 'Scripts/python.exe'), ('linux', 'bin/python')):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                python = root / 'app' / 'env' / relative
+                python.parent.mkdir(parents=True)
+                python.write_text('#!'+sys.executable+'\nimport sys,json\njson.load(sys.stdin)\n'+
+                    'print(json.dumps({"status":"ready","datasets":[],"errors":[],"runtime":{}}))\n')
+                python.chmod(0o700)
+                module = types.ModuleType('synthetic_batch_layout')
+                module.__file__ = str(root / 'tools' / 'voice_lab' / 'batch_train_lora.py')
+                source = Path(batch_train.__file__).read_text()
+                with patch.object(sys, 'path', list(sys.path)), patch.object(sys, 'platform', platform):
+                    exec(compile(source, module.__file__, 'exec'), module.__dict__)
+                self.assertEqual(str(python), module.PYTHON)
+                receipt = module.get_selected_interpreter_preflight(module.PYTHON, [], 'cpu')
+                self.assertEqual('ready', receipt['status'], receipt)
 
     def test_profiler_epub_search_uses_only_explicit_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -260,6 +280,88 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             self.make_adapter(complete)
             manifest = [{"id": "renamed_voice", "dataset_id": "speaker"}]
             self.assertEqual(complete, batch_train.adapter_exists(tmp, "speaker", manifest))
+
+    def test_resume_admission_requires_exact_dataset_identity_not_an_arbitrary_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            other = os.path.join(tmp, 'anna_smith_1700000000')
+            self.make_adapter(other, {'best_loss': 1.0, 'dataset_id': 'anna_smith'})
+            manifest = [{'id': os.path.basename(other), 'dataset_id': 'anna_smith'}]
+            self.assertIsNone(batch_train.adapter_exists(tmp, 'anna', manifest))
+            self.assertIsNone(batch_train.adapter_exists(tmp, 'anna', []))
+            self.assertEqual(other, batch_train.adapter_exists(tmp, 'anna_smith', manifest))
+            self.assertIsNone(batch_train.adapter_exists(tmp, 'unrelated', manifest))
+            exact = os.path.join(tmp, 'anna_1700000001')
+            self.make_adapter(exact, {'best_loss': 1.0, 'dataset_id': 'unrelated'})
+            self.assertIsNone(batch_train.adapter_exists(tmp, 'anna', manifest))
+            Path(exact, 'training_meta.json').write_text(json.dumps({'best_loss': 1.0, 'dataset_id': 'anna'}))
+            self.assertEqual(exact, batch_train.adapter_exists(tmp, 'anna', manifest))
+            Path(exact, 'training_meta.json').write_text(json.dumps({'best_loss': 1.0}))
+            self.assertEqual(exact, batch_train.adapter_exists(tmp, 'anna', []))
+            claimed = [{'id': os.path.basename(exact), 'dataset_id': 'another'}]
+            self.assertIsNone(batch_train.adapter_exists(tmp, 'anna', claimed))
+            named = os.path.join(tmp, 'anna_named')
+            self.make_adapter(named, {'best_loss': 1.0, 'dataset_id': 'anna'})
+            self.assertEqual(named, batch_train.adapter_exists(tmp, 'anna', claimed))
+
+    def test_clean_replacement_refuses_an_archive_inside_the_destination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = Path(tmp) / 'dataset'
+            dataset.mkdir()
+            archive = dataset / 'current.zip'
+            with zipfile.ZipFile(archive, 'w') as handle:
+                handle.writestr('metadata.jsonl', '{"audio":"new.wav","text":"Synthetic sample."}\n')
+            prior = archive.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'inside.*destination'):
+                batch_train.extract_zip(str(archive), str(dataset))
+            self.assertEqual(prior, archive.read_bytes())
+            self.assertEqual([archive], list(dataset.iterdir()))
+            args = SimpleNamespace(datasets_dir=tmp, models_dir=str(Path(tmp) / 'models'))
+            with patch.object(batch_train.subprocess, 'Popen') as training, redirect_stdout(io.StringIO()):
+                result = batch_train.train_one(str(archive), 'dataset', 'dataset_100', args)
+            self.assertIsNone(result)
+            training.assert_not_called()
+            self.assertEqual(prior, archive.read_bytes())
+            self.assertFalse((Path(args.models_dir) / 'dataset_100').exists())
+
+    def test_new_archive_replaces_stale_training_split_without_overlay(self):
+        from dataset_metadata import get_training_metadata
+        for fail_publish in (False, True):
+            with self.subTest(fail_publish=fail_publish), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                dataset = root / 'dataset'
+                (dataset / 'train').mkdir(parents=True)
+                old_meta = json.dumps({'audio': 'old.wav', 'text': 'Old synthetic sample.'})+'\n'
+                (dataset / 'train' / 'metadata.jsonl').write_text(old_meta)
+                (dataset / 'old.wav').write_bytes(b'prior audio')
+                archive = root / 'current.zip'
+                new_meta = json.dumps({'audio': 'new.wav', 'text': 'New synthetic sample.'})+'\n'
+                with zipfile.ZipFile(archive, 'w') as handle:
+                    handle.writestr('metadata.jsonl', new_meta)
+                    handle.writestr('new.wav', b'current synthetic audio')
+                replace = os.replace
+                def publish(source, destination):
+                    if fail_publish and str(destination) == str(dataset) and 'stage' in str(source):
+                        raise OSError('Synthetic dataset publication failure')
+                    return replace(source, destination)
+                with patch.object(batch_train.os, 'replace', side_effect=publish):
+                    if fail_publish:
+                        with self.assertRaisesRegex(OSError, 'publication failure'):
+                            batch_train.extract_zip(str(archive), str(dataset))
+                    else:
+                        batch_train.extract_zip(str(archive), str(dataset))
+                entries, split = get_training_metadata(str(dataset))
+                self.assertEqual(fail_publish, split)
+                self.assertEqual('Old synthetic sample.' if fail_publish else 'New synthetic sample.', entries[0]['text'])
+                if fail_publish:
+                    self.assertEqual(old_meta, (dataset / 'train' / 'metadata.jsonl').read_text())
+                    self.assertEqual(b'prior audio', (dataset / 'old.wav').read_bytes())
+                else:
+                    self.assertFalse((dataset / 'train').exists())
+                    self.assertFalse((dataset / 'old.wav').exists())
+                    self.assertEqual(new_meta, (dataset / 'metadata.jsonl').read_text())
+                    self.assertEqual(b'current synthetic audio', (dataset / 'new.wav').read_bytes())
+                self.assertFalse(list(root.glob('.batch-dataset-stage-*')))
+                self.assertFalse(list(root.glob('.batch-dataset-backup-*')))
 
     def test_training_failure_removes_new_partial_output_and_dataset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -773,6 +875,10 @@ class BatchTrainingEtaTests(unittest.TestCase):
                     clock[0]+=300.0  # Controlled fixture duration, not a GPU measurement.
                     if fail_first and len(attempted)==1:
                         return None
+                    from tests.test_support import write_test_adapter
+                    folder = Path(args.models_dir) / adapter_id
+                    write_test_adapter(folder)
+                    (folder / 'training_meta.json').write_text(json.dumps({'best_loss': 1.0, 'num_samples': 1}))
                     return {'id':adapter_id,'dataset_id':dataset_id}
                 argv=['batch_train_lora.py','--zips_dir',str(zips),
                     '--datasets_dir',str(root/'datasets'),'--models_dir',str(root/'models'),

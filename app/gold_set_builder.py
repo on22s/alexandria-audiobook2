@@ -28,6 +28,7 @@ import os
 import random
 import re
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
+from utils import atomic_json_write
 
 INSTRUCTIONS = (
     "For each row, read the passage and put the speaker's NAME in ANSWER "
@@ -386,8 +387,7 @@ def main(argv=None):
         for number, batch in enumerate(batches, 1):
             batch["source_run"] = args.run
             path = os.path.join(args.out, f"{args.book}_batch{number:02d}.json")
-            with open(path, "w", encoding="utf-8") as handle:
-                json.dump(batch, handle, indent=1, ensure_ascii=False)
+            atomic_json_write(batch, path, allow_nonatomic_fallback=False)
             print(f"{path}  {len(batch['rows'])} rows")
         judged = sum(len(b["rows"]) for b in batches)
         print(f"\n{judged} lines sampled from {pool} eligible "
@@ -419,8 +419,7 @@ def main(argv=None):
             return 1
         aliases = [group.split(",") for group in args.alias]
         fixture = merge(answers, batches, args.book, source_run, args.judged_by, aliases)
-        with open(args.out, "w", encoding="utf-8") as handle:
-            json.dump(fixture, handle, indent=1, ensure_ascii=False)
+        atomic_json_write(fixture, args.out, allow_nonatomic_fallback=False)
         print(f"wrote {args.out}: {len(fixture['entries'])} entries")
         return 0
 
@@ -439,8 +438,7 @@ def main(argv=None):
                        "passage as it now stands; if the speaker is still "
                        f"undetermined, {args.answer} remains correct."),
                    "rows": rows}
-        with open(args.out, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=1, ensure_ascii=False)
+        atomic_json_write(payload, args.out, allow_nonatomic_fallback=False)
         print(f"wrote {args.out}: {len(rows)} rows to revisit "
               f"({len([i for i,v in answers.items() if v['answer'].upper()==args.answer.upper()])} "
               f"were {args.answer}, the rest had unchanged windows)")

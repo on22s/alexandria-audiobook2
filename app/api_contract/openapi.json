@@ -2117,6 +2117,18 @@
       },
       "NarratorStrategyRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "strategy": {
             "enum": [
               "global",
@@ -2941,6 +2953,18 @@
       },
       "VersionTimelineRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "points": {
             "items": {
               "$ref": "#/components/schemas/VoiceVersionPoint"
@@ -3627,6 +3651,18 @@
             "maxLength": 40,
             "title": "Age Group",
             "type": "string"
+          },
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
           },
           "config": {
             "additionalProperties": true,
@@ -10096,6 +10132,22 @@
             "schema": {
               "title": "Speaker",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
             }
           }
         ],

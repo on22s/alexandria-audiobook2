@@ -37,7 +37,7 @@ def _get_git_revision(root_dir: str) -> tuple[str | None, str | None]:
     if not head.startswith("ref:"):
         return (head if len(head) >= 7 else None), None
     ref = head[4:].strip()
-    branch = ref.rsplit("/", 1)[-1]
+    branch = ref.removeprefix("refs/heads/")
     ref_dirs = [git_dir]
     try:
         common_marker = Path(git_dir, "commondir").read_text(encoding="utf-8").strip()

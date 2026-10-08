@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 
-from benchmark_validation import (get_lora_training_sample_count, get_benchmark_directory_path,
+from benchmark_validation import (get_lora_training_sample_count, get_lora_training_entries, get_benchmark_directory_path,
                                   get_benchmark_training_audio_path, get_benchmark_verified_file_path,
                                   get_benchmark_artifact_name, get_benchmark_output_path)
 from lora_evidence import get_file_sha256
@@ -28,7 +28,7 @@ def execute_fixture(fixture, python_executable, train_script, output_root):
         source_dir, "metadata.jsonl", fixture["metadata_sha256"], "training metadata")
     with open(metadata_path, encoding="utf-8") as metadata_file:
         entries = [json.loads(line) for line in metadata_file if line.strip()]
-    entries = entries[:sample_count]
+    entries = get_lora_training_entries(entries, sample_count)
     paths = [entry.get("audio_filepath") or entry.get("audio") for entry in entries]
     for relative_path in [*fixture["audio_sha256"], *paths]:
         _safe_file_path(source_dir, relative_path)
@@ -66,6 +66,8 @@ def execute_fixture(fixture, python_executable, train_script, output_root):
     adapter_path = get_benchmark_output_path(output_dir, "adapter_model.safetensors")
     if not os.path.isfile(adapter_path) or get_file_sha256(adapter_path) != meta.get("checkpoint_sha256"):
         raise ValueError("trained adapter checkpoint hash does not match metadata")
+    if type(meta.get("num_samples")) is not int or meta["num_samples"] != sample_count:
+        raise ValueError("trained adapter sample count does not match admitted workload")
     return {"elapsed_seconds": round(elapsed, 3),
             "setup_seconds": round(elapsed - meta["training_time_seconds"], 3),
             "training_seconds": meta["training_time_seconds"],

@@ -101,7 +101,21 @@ async def get_chunks():
 
 def _ensure_chunk_listing():
     with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
-        chunks = project_manager.load_chunks()
+        chunks = _ensure_editor_chunks()
+    return chunks
+
+
+def _ensure_editor_chunks():
+    """Load rows without inventing IDs or discarding persisted progress."""
+    chunks = project_manager.load_chunks()
+    seen = set()
+    for position, chunk in enumerate(chunks):
+        chunk_id = chunk.get('id')
+        if type(chunk_id) is not int or chunk_id < 0 or chunk_id in seen:
+            raise HTTPException(status_code=409, detail=(
+                f"Editor chunk at position {position} has a missing, invalid or duplicate id. "
+                "Repair chunks.json before continuing; saved progress and audio are retained."))
+        seen.add(chunk_id)
     return chunks
 
 _editor_poll_snapshots = EditorPollSnapshots()
@@ -115,7 +129,7 @@ async def get_chunk_status_snapshot(revision: Annotated[Optional[str], Query(max
 def _ensure_chunk_status_snapshot(revision):
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
-        chunks = project_manager.load_chunks()
+        chunks = _ensure_editor_chunks()
         try:
             with open(os.path.join(root, 'state.json'), encoding='utf-8') as stream:
                 state = json.load(stream)

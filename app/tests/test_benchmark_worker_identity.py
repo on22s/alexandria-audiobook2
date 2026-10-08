@@ -24,6 +24,31 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 class BenchmarkWorkerIdentityTests(unittest.TestCase):
+    def test_worker_change_after_initial_check_is_refused_by_runtime_observation(self):
+        original = env._ssh_run
+        dirty = self.remote / 'app' / 'changed_after_check.py'
+        baseline = subprocess.check_output(['git', '-C', str(self.remote), 'rev-parse', 'HEAD'], text=True).strip()
+        for change in ('dirty', 'revision'):
+            def race(alias, command, **kwargs):
+                reply = original(alias, command, **kwargs)
+                if command.startswith('git '):
+                    if change == 'dirty':
+                        dirty.write_text('synthetic change\n')
+                    else:
+                        subprocess.run(['git', '-C', str(self.remote), '-c', 'user.name=fixture',
+                            '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty',
+                            '-m', 'synthetic race'], check=True, capture_output=True)
+                return reply
+            with self.subTest(change=change), patch.object(env, '_ssh_run', side_effect=race):
+                with self.assertRaisesRegex(ValueError, 'clean.*match'):
+                    self.collect('cpu')
+            if dirty.exists():
+                dirty.unlink()
+            subprocess.run(['git', '-C', str(self.remote), 'reset', '--hard', baseline],
+                           check=True, capture_output=True)
+            self.assertFalse(self.collect('cpu')['details']['worktree']['dirty'])
+
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

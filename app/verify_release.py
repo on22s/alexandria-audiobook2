@@ -124,6 +124,20 @@ def run_report_command(*args, **kwargs):
     return run_command(*args, **kwargs, capture_output=False)
 
 
+def run_unit_test_report(label, command, app_dir):
+    """Record executed identities alongside the independently checked count."""
+    with tempfile.TemporaryDirectory(prefix="alexandria-unit-receipt-") as directory:
+        receipt = Path(directory) / "tests.json"
+        count = run_report_command(label, command + ["--test-report", str(receipt)],
+                                   app_dir, reject_unittest_skips=True)
+        ids = json.loads(receipt.read_text(encoding="utf-8")).get("test_ids")
+        if (not isinstance(ids, list) or len(ids) != count
+                or any(not isinstance(identifier, str) or not identifier for identifier in ids)
+                or len(set(ids)) != len(ids)):
+            raise ValueError("Unit-test receipt identities do not match the executed count")
+        return {"tests_ran": count, "test_ids": ids}
+
+
 def get_python_paths(repo_dir):
     """Return tracked and non-ignored untracked Python files deterministically."""
     result = subprocess.run(
@@ -324,13 +338,13 @@ def main(argv=None):
         if args.shard is not None:
             unit_command += ["--shard", args.shard]
         run_report_gate(
-            report, "unit_tests", lambda: {"tests_ran": run_report_command(
+            report, "unit_tests", lambda: run_unit_test_report(
                 # ci_env keeps local import exclusions aligned with CI.
                 # CI supplies CPU Torch/PEFT for structural artifact checks.
                 "Unit test discovery (CI-equivalent env)"
                 + (f", shard {args.shard}" if args.shard is not None else ""),
-                unit_command, app_dir, reject_unittest_skips=True,
-            )},
+                unit_command, app_dir,
+            ),
         )
         # THE THREE CHECKS CI RUNS AND THIS DID NOT. "verifier green" was
         # followed by a red CI three times on 2026-08-19/20, every time because

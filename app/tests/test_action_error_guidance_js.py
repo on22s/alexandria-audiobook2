@@ -162,7 +162,7 @@ API:{post:async()=>{throw failure;}},showToast:()=>{},stopDesignedVoicePlayback:
 isDesignerGenerationCurrent:()=>true,
 escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
-vm.runInContext(s.slice(s.indexOf('window.generateDesignPreview ='),s.indexOf('function getDesignerSaveSnapshot()')),c);
+vm.runInContext(s.slice(s.indexOf('function getDesignerSynthesisInputs()'),s.indexOf('function getDesignerSaveSnapshot()')),c);
 (async()=>{
 await c.window.generateDesignPreview();
 assert(fields['design-status'].innerHTML.includes('Could not reach Alexandria'));

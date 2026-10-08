@@ -130,7 +130,7 @@ def load_checkpoint(jsonl_path: str, identity: dict = None) -> dict:
     cp = checkpoint_path(jsonl_path)
     if cp.exists():
         try:
-            saved = json.loads(cp.read_text())
+            saved = json.loads(cp.read_text(encoding='utf-8'))
             if (not isinstance(saved, dict)
                     or not isinstance(saved.get('decisions', {}), dict)
                     or not isinstance(saved.get('cursor', 0), int)):
@@ -265,9 +265,19 @@ def remove_log_entries(log_path: Path, indices: set) -> int:
             except json.JSONDecodeError:
                 pass
             kept.append(line)
-    with open(log_path, 'w', encoding='utf-8') as f:
-        for line in kept:
-            f.write(line + '\n')
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=log_path.parent,
+                                         prefix=f'.{log_path.name}.', suffix='.tmp', delete=False) as f:
+            temporary = Path(f.name)
+            for line in kept:
+                f.write(line + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        temporary.replace(log_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return removed
 
 def find_last_manual_idx(decisions: dict):
@@ -468,6 +478,10 @@ def run(
             idx += 1
             continue
 
+        if key in decisions and decisions[key]['action'] == 'skip':
+            previous = decisions.get(str(idx - 1), {})
+            cursor = decisions[key].get('cursor_before', previous.get('cursor_after', 0))
+
         chunk_text  = entry.get('text', '')
         chunk_words = to_words(chunk_text)
 
@@ -637,6 +651,7 @@ def run(
                     'text': chunk_text,
                     'ratio': ratio,
                     'cursor_after': new_cursor,
+                    'cursor_before': cursor,
                 }
                 print(f"  {YELLOW}Skipped — will appear again on next run{RESET}")
                 break

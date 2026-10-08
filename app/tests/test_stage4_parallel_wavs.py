@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 import wave
 
-from tests.test_stage4_checkpoint_runner import Stage4CheckpointRunnerTest as Fixture
+from tests import test_stage4_checkpoint_runner as stage4_fixture
 from tests.test_stage4_checkpoint_runner import runner, summarize
 
 if os.environ.get('STAGE4_VALIDATOR_SOURCE'):
@@ -22,13 +22,13 @@ if os.environ.get('STAGE4_VALIDATOR_SOURCE'):
 
 
 class Stage4ParallelWavTests(unittest.TestCase):
-    setUp = Fixture.setUp
-    tearDown = Fixture.tearDown
-    _wav = Fixture._wav
-    _write = Fixture._write
+    setUp = stage4_fixture.Stage4CheckpointRunnerTest.setUp
+    tearDown = stage4_fixture.Stage4CheckpointRunnerTest.tearDown
+    _wav = stage4_fixture.Stage4CheckpointRunnerTest._wav
+    _write = stage4_fixture.Stage4CheckpointRunnerTest._write
 
     def artifact(self):
-        doc = Fixture._artifact(self)
+        doc = stage4_fixture.Stage4CheckpointRunnerTest._artifact(self)
         template = copy.deepcopy(doc['rows'])
         doc['provenance']['args']['adapters'] = ['adapter-' + str(i) for i in range(4)]
         doc['rows'] = []

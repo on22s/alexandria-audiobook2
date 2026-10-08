@@ -71,3 +71,16 @@ vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),sourc
                 self.assertEqual('Loaded: ' + name, parsed.text)
                 self.assertEqual(['span', 'i'], [tag for tag, _ in parsed.tags])
                 self.assertTrue(all(set(attrs) == {'class'} for _, attrs in parsed.tags))
+
+    def test_collapsed_nav_closes_through_the_actual_large_breakpoint(self):
+        root = SOURCE.parent.parent
+        self.assertIn('navbar-expand-lg', (root / 'index.html').read_text())
+        self.assertIn('@media (min-width:992px){.navbar-expand-lg', (root / 'vendor/bootstrap-5.3.0/bootstrap.min.css').read_text())
+        self.run_js(r"""
+const target={style:{}},link={dataset:{tab:'setup'},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){}};
+let shown=true,hides=0,loads=0;const nav={classList:{contains:()=>shown}};
+const c={window:{innerWidth:700,location:{hash:'#setup'}},document:{querySelectorAll:selector=>selector==='.nav-link'?[link]:[target],getElementById:id=>id==='navbarNav'?nav:target},getTabLink:()=>link,rememberTab(){},pollLmStudioStatus:()=>loads++,bootstrap:{Collapse:{getOrCreateInstance:node=>{assert.strictEqual(node,nav);return{hide(){hides++;shown=false;}};}}}};
+vm.createContext(c);const a=source.indexOf('function activateTab(');vm.runInContext(source.slice(a,source.indexOf('function restoreTab(',a)),c);
+for(const width of [700,800,991,992,1200]){shown=true;const count=hides;c.window.innerWidth=width;c.activateTab('setup',false);assert.strictEqual(hides-count,width<992?1:0);assert.strictEqual(target.style.display,'block');}
+shown=false;c.window.innerWidth=800;const count=hides;c.activateTab('setup',false);assert.strictEqual(hides,count);assert.strictEqual(loads,6);
+""")

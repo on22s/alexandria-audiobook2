@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,24 @@ import runtime_info
 
 
 class RuntimeInfoTests(unittest.TestCase):
+    def test_real_git_nested_branches_survive_loose_and_packed_refs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def git(*args):
+                return subprocess.check_output(['git', '-C', tmp, *args], text=True).strip()
+            git('init', '-q')
+            git('-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid',
+                'commit', '-q', '--allow-empty', '-m', 'fixture')
+            for branch in ('plain', 'feature/audio-fix', 'bugfix/audio-fix', 'feature/deep/audio-fix'):
+                git('checkout', '-q', '-b', branch)
+                for packed in (False, True):
+                    if packed:
+                        git('pack-refs', '--all')
+                    revision, observed = runtime_info._get_git_revision(tmp)
+                    self.assertEqual(git('branch', '--show-current'), observed)
+                    self.assertEqual(git('rev-parse', 'HEAD'), revision)
+            git('checkout', '-q', '--detach')
+            self.assertEqual((git('rev-parse', 'HEAD'), None), runtime_info._get_git_revision(tmp))
+
     def tearDown(self):
         runtime_info.get_runtime_info.cache_clear()
 

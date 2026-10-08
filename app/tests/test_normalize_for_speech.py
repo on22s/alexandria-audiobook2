@@ -242,3 +242,26 @@ class SpeechFormattingEvidenceTests(unittest.TestCase):
         clean = get_speech_normalization('Plain prose.')
         self.assertFalse(clean['changed'])
         self.assertEqual([], clean['transformations'])
+
+
+class SpeechEvidenceRegressionTests(unittest.TestCase):
+    def test_inline_emphasis_is_not_list_evidence_but_bullets_and_tables_are(self):
+        for emphasized in ('*hello*', '_hello_', '**hello**', '__hello__', '***hello***', '*hello world*'):
+            with self.subTest(emphasized=emphasized):
+                text = f'She said {emphasized} and left.'
+                self.assertNotIn('list_or_table', get_speech_risks(text))
+                self.assertNotIn('list_or_table', get_speech_normalization(text)['risk_categories'])
+        for text in ('• item one\n• item two', '* item one\n* item two', '_ item one\n_ item two', '| **Name** | Words |\n| Alice | Hello |'):
+            with self.subTest(text=text):
+                self.assertIn('list_or_table', get_speech_risks(text))
+
+    def test_copyright_symbol_is_redundant_on_either_side_without_deleting_authored_words(self):
+        for source, expected in [('© Copyright.', 'Copyright.'), ('©copyright 2026.', 'copyright 2026.'),
+                                 ('Copyright © 2026.', 'Copyright 2026.'), ('© 2026.', 'copyright 2026.'),
+                                 ('The heading says copyright copyright © 2026.', 'The heading says copyright copyright 2026.'),
+                                 ('© Copyright Copyright.', 'Copyright Copyright.')]:
+            with self.subTest(source=source):
+                result = get_speech_normalization(source)
+                self.assertEqual(expected, result['text'])
+                if '©' in source and 'Copyright' in source:
+                    self.assertIn('dropped_redundant_symbol', {row['type'] for row in result['transformations']})

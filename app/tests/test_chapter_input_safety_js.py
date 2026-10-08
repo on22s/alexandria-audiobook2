@@ -24,6 +24,19 @@ const key='alexandria.chapter-template-presets';
 
 
 class ChapterInputSafetyJsTests(unittest.TestCase):
+    def test_import_latest_selection_owns_storage_and_error_feedback(self):
+        self.run_js(r'''
+ctx.FileReader=class {constructor(){readers.push(this);}readAsText(file){this.file=file;}};
+const input=()=>({files:[{size:100}],value:'selected'});
+storage.set(key,JSON.stringify({retained:{template:'keep'}}));
+ctx.importChapterTemplatePresets(input());ctx.importChapterTemplatePresets(input());
+readers[1].result=JSON.stringify({shared:{template:'NEW',padding:3}});readers[1].onload();const saved=storage.get(key),count=toasts.length;
+readers[0].result=JSON.stringify({shared:{template:'OLD',padding:2}});readers[0].onload();assert.strictEqual(storage.get(key),saved);assert.strictEqual(toasts.length,count);assert.strictEqual(JSON.parse(saved).retained.template,'keep');
+ctx.importChapterTemplatePresets(input());ctx.importChapterTemplatePresets(input());readers[2].onerror();readers[2].result='invalid';readers[2].onload();assert.strictEqual(toasts.length,count);assert.strictEqual(storage.get(key),saved);
+readers[3].onerror();assert.strictEqual(toasts.length,count+1);assert(toasts.at(-1)[0].includes('could not be read'));
+ctx.importChapterTemplatePresets(input());readers[4].result=JSON.stringify({next:{template:'next'}});readers[4].onload();assert.strictEqual(JSON.parse(storage.get(key)).next.template,'next');
+''')
+
     def test_preview_count_and_export_use_current_selection_and_reject_stale_responses(self):
         self.run_js(r"""
 let done=false;process.on('beforeExit',()=>assert(done,'chapter count assertions must finish'));

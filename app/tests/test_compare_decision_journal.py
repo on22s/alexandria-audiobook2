@@ -196,3 +196,63 @@ compare.main()
         saved=self.load();self.assertEqual({'0':self.decision},saved['decisions'])
         generation=self.start(saved['decisions'],saved['cursor']);self.append(generation,'1',cursor=6)
         self.assertEqual({'0','1'},set(self.load()['decisions']))
+
+
+class CompareReviewLogPublicationTests(unittest.TestCase):
+    def test_failed_rewrite_preserves_original_and_retry_removes_only_targets(self):
+        real_open = open
+        real_temporary = compare.tempfile.NamedTemporaryFile
+        class FailingStream:
+            def __init__(self, stream, failure):
+                self.stream, self.failure = stream, failure
+            def __enter__(self):
+                self.stream.__enter__()
+                return self
+            def __exit__(self, *args):
+                return self.stream.__exit__(*args)
+            def __getattr__(self, name):
+                return getattr(self.stream, name)
+            def write(self, text):
+                if self.failure == 'write':
+                    raise OSError('injected write failure')
+                return self.stream.write(text)
+            def flush(self):
+                if self.failure == 'flush':
+                    raise OSError('injected flush failure')
+                return self.stream.flush()
+        for failure in ('write', 'flush', 'sync', 'replace'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / 'review.jsonl'
+                rows = ['{"entry_idx":0,"text":"élève"}', 'not valid JSON',
+                        '{"entry_idx":1,"text":"日本語"}', '{"entry_idx":2}']
+                before = ('\n'.join(rows) + '\n').encode('utf-8')
+                log.write_bytes(before)
+                def broken_open(path, mode='r', *args, **kwargs):
+                    stream = real_open(path, mode, *args, **kwargs)
+                    return FailingStream(stream, failure) if Path(path) == log and mode == 'w' else stream
+                def broken_stage(*args, **kwargs):
+                    return FailingStream(real_temporary(*args, **kwargs), failure)
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(patch.object(compare, 'open', side_effect=broken_open, create=True))
+                    stack.enter_context(patch.object(compare.tempfile, 'NamedTemporaryFile', side_effect=broken_stage))
+                    if failure == 'sync':
+                        stack.enter_context(patch.object(compare.os, 'fsync', side_effect=OSError('injected sync failure')))
+                    if failure == 'replace':
+                        stack.enter_context(patch.object(Path, 'replace', side_effect=OSError('injected replace failure')))
+                    with self.assertRaisesRegex(OSError, 'injected'):
+                        compare.remove_log_entries(log, {1})
+                self.assertEqual(before, log.read_bytes())
+                self.assertEqual([log], list(Path(tmp).iterdir()))
+                self.assertEqual(1, compare.remove_log_entries(log, {1}))
+                self.assertEqual('\n'.join([rows[0], rows[1], rows[3]]) + '\n', log.read_text(encoding='utf-8'))
+                self.assertEqual([log], list(Path(tmp).iterdir()))
+
+    def test_missing_log_is_not_created_and_empty_result_is_published(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / 'review.jsonl'
+            self.assertEqual(0, compare.remove_log_entries(log, {0}))
+            self.assertFalse(log.exists())
+            log.write_text('{"entry_idx":0}\n', encoding='utf-8')
+            self.assertEqual(1, compare.remove_log_entries(log, {0}))
+            self.assertEqual(b'', log.read_bytes())
+            self.assertEqual([log], list(Path(tmp).iterdir()))

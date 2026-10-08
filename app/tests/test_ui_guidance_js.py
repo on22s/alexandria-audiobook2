@@ -5,6 +5,20 @@ import unittest
 
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
 class UiGuidanceJsTests(unittest.TestCase):
+    def test_pending_auto_config_preserves_edits_and_ignores_older_requests(self):
+        self.run_js(r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
+const fields={},toasts=[],requests=[];const el=id=>fields[id]??={value:'initial',checked:false,style:{},innerHTML:'',scrollIntoView(){}};
+const c={document:{getElementById:el},API:{get:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},escapeHtml:String,showToast:(...args)=>toasts.push(args),showActionError:(...args)=>toasts.push(args),toggleTTSMode(){},toggleSubBatchFields(){}};vm.createContext(c);const a=s.indexOf('async function autoConfigureSettings()');vm.runInContext(s.slice(a,s.indexOf('// Local/Remote LLM profile state.',a)),c);
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
+for(const [id,property] of [['tts-mode','value'],['parallel-workers','value'],['compile-codec','checked'],['batch-group-by-type','checked'],['sub-batch-enabled','checked'],['sub-batch-min-size','value'],['sub-batch-ratio','value'],['sub-batch-max-items','value']]){
+ const count=toasts.length;const waiting=c.autoConfigureSettings();
+ const unchanged=()=>JSON.stringify(Object.fromEntries(Object.entries(fields).filter(([k])=>k!==id&&k!=='btn-auto-configure').map(([k,v])=>[k,{value:v.value,checked:v.checked}])));const before=unchanged();el(id)[property]=property==='value'?'changed':!el(id).checked;const value=el(id)[property];requests.at(-1).resolve({gpu:null});await waiting;
+ assert.strictEqual(el(id)[property],value,id+' newer edit retained');assert.strictEqual(unchanged(),before,'no partial application');assert.strictEqual(toasts.length,count+1);assert(toasts.at(-1)[0].includes('changed'));assert.strictEqual(el('btn-auto-configure').disabled,false);
+}
+const first=c.autoConfigureSettings(),old=requests.at(-1);const second=c.autoConfigureSettings(),latest=requests.at(-1);old.resolve({gpu:null});await first;assert.strictEqual(el('btn-auto-configure').disabled,true,'older completion cannot enable current request');latest.resolve({gpu:{total_gb:16}});await second;assert.strictEqual(el('parallel-workers').value,2);assert.strictEqual(el('tts-mode').value,'local');assert.strictEqual(el('sub-batch-max-items').value,8);assert.strictEqual(el('btn-auto-configure').disabled,false);
+const stale=c.autoConfigureSettings(),staleRequest=requests.at(-1);const current=c.autoConfigureSettings();const count=toasts.length;staleRequest.reject(Error('old error'));await stale;assert.strictEqual(toasts.length,count);requests.at(-1).reject(Error('current error'));await current;assert.strictEqual(toasts.length,count+1);assert.strictEqual(el('btn-auto-configure').disabled,false);finished=true;
+})().catch(e=>{console.error(e);process.exitCode=1;});''')
+
     def test_provider_heading_names_hidden_transport_gpu_and_reasoning_controls(self):
         from html.parser import HTMLParser
         class Section(HTMLParser):
@@ -124,7 +138,7 @@ assert.strictEqual(c.getTraitBadgeHtml(null),'');assert.strictEqual(c.getTraitBa
 
     def test_generating_row_is_busy_and_becomes_actionable_when_complete(self):
         script=r'''
-const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');let child={tag:'button'};const container={querySelector:selector=>selector==='button'?(child.tag==='button'?child:null):selector==='.progress'?(child.tag==='div'?child:null):null,replaceChild:node=>child=node};const tr={querySelector:selector=>selector==='.d-flex'?container:null};const c={document:{querySelector:()=>tr,createElement:tag=>({tag,style:{}})},applyDriftFilter(){},generateChunk(){}};vm.createContext(c);const a=s.indexOf('function updateChunkRow(');vm.runInContext(s.slice(a,s.indexOf('function ensureChunkRefresh(',a)),c);
+const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');let child={tag:'button'};const container={querySelector:selector=>selector==='button'?(child.tag==='button'?child:null):selector==='.progress'?(child.tag==='div'?child:null):null,replaceChild:node=>child=node};const tr={querySelector:selector=>selector==='.chunk-actions'?container:null};const c={document:{querySelector:()=>tr,createElement:tag=>({tag,style:{}})},applyDriftFilter(){},generateChunk(){}};vm.createContext(c);const a=s.indexOf('function updateChunkRow(');vm.runInContext(s.slice(a,s.indexOf('function ensureChunkRefresh(',a)),c);
 assert(c.updateChunkRow({id:1,status:'generating'}));assert.strictEqual(child.tag,'div');assert(child.innerHTML.includes('role="status"'));assert(child.innerHTML.includes('aria-label="Generating audio"'));assert(child.innerHTML.includes('Generating…'));assert(!child.innerHTML.includes('width: 100%'));assert(!child.innerHTML.includes('role="progressbar"'));
 c.updateChunkRow({id:1,status:'done'});assert.strictEqual(child.tag,'button');assert(child.innerHTML.includes('Gen'));
 '''

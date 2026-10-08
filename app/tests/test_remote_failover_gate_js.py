@@ -20,6 +20,7 @@ function client(activeRemote=false,failoverRemote=true){
  function load(a,b){const start=source.indexOf(a),end=source.indexOf(b,start);assert(start>=0&&end>start);vm.runInContext(source.slice(start,end),ctx);}
  load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
  vm.runInContext('let _scriptStartOver=false;let scriptBatchPoller=null;',ctx);
+ load('function getLoadedScriptSourceFilename()', 'window.startBookPreflight =');
  load("document.getElementById('btn-gen-script').addEventListener", '// Pause is SIGSTOP');
  load('function _isReviewForceChecked()', 'function _isStripFrontMatterChecked()');
  load("document.getElementById('btn-review-script').addEventListener", 'const _reviewPauseResume =');
@@ -75,3 +76,13 @@ const batch=client(true,false);assert.strictEqual(await batch.ctx.confirmIfRemot
 const hidden=client(false,true);assert.strictEqual(await hidden.ctx.confirmIfRemote('this batch script generation'),false);assert.match(hidden.prompts[0],/failover is on/);
 const local=client(false,false);assert.strictEqual(await local.ctx.confirmIfRemote('local batch'),true);assert.strictEqual(local.prompts.length,0);
 ''')
+
+    def test_loaded_book_can_retry_generation_after_failure_markup_changes(self):
+        self.run_js(r"""
+const s=client(false,false);s.ctx.escapeHtml=String;
+const a=source.indexOf('function showActionError(');vm.runInContext(source.slice(a,source.indexOf('function showConfirm(',a)),s.ctx);
+let calls=0;s.ctx.API.post=async(path)=>{assert.strictEqual(path,'/api/generate_script');calls++;if(calls===1){throw Error('temporarily busy');}return{};};
+const script=s.actions.find(row=>row[0]==='script')[1];await script();assert.strictEqual(calls,1);assert(s.el('upload-status').innerHTML.includes('text-danger'));assert.strictEqual(s.ctx.currentBookFilename,'book.txt');
+await script();assert.strictEqual(calls,2);assert.strictEqual(s.ctx.getLoadedScriptSourceFilename(),'book.txt');
+s.ctx.currentBookFilename='';s.el('btn-gen-script').disabled=false;await script();assert.strictEqual(calls,2);assert.strictEqual(s.ctx.getLoadedScriptSourceFilename(),'');
+""")

@@ -9,6 +9,38 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-workbench.js"
 
 
 class DatasetUiOwnershipJsTests(unittest.TestCase):
+    def test_project_switch_cannot_publish_old_rows_or_metadata_while_destination_loads(self):
+        self.run_scenario(r'''
+let finished=false;process.on('beforeExit',()=>assert(finished,'switch assertions must finish'));const warnings=[];context.showToast=(...args)=>warnings.push(args);
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'A row',emotion:'warm',seed:0,status:'pending'}]");context.document.getElementById('dsb-project-select').value='B';let resolve;context.API.get=()=>new Promise(done=>resolve=done);const loading=context.dsbOnProjectChange();await new Promise(done=>setImmediate(done));
+context.dsbUpdateRow(0,'text','edited A');run('dsbSaveRows();dsbSaveForm()');await flushTimers();assert.strictEqual(posts.length,0);assert.strictEqual(run('dsbRows[0].text'),'A row');assert(warnings.at(-1)[0].includes('load'));
+resolve({description:'B voice',samples:[{text:'B row',emotion:'cold',seed:2,status:'pending'}],running:false});await loading;assert.strictEqual(run('dsbLoadedProject'),'B');context.dsbUpdateRow(0,'text','edited B');await flushTimers();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.name,'B');assert.strictEqual(posts[0].data.rows[0].text,'edited B');finished=true;
+''')
+
+    def test_status_responses_cannot_overwrite_pending_or_completed_optimization(self):
+        self.run_scenario(r'''
+let finished=false;process.on('beforeExit',()=>assert(finished,'status assertions must finish'));
+run(source.slice(source.indexOf('async function refreshLmStudioStatus()'),source.indexOf('function reattachTaskActivity(')));
+const pending=[];let finish;context.API.get=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));context.API.post=()=>new Promise(resolve=>finish=resolve);context.showToast=()=>{};
+const toggle=context.document.getElementById('lmstudio-optimize-toggle'),badge=context.document.getElementById('lmstudio-status-badge');toggle.checked=true;
+const old=context.refreshLmStudioStatus();const optimizing=context.toggleLmStudioOptimize();const count=pending.length;await context.refreshLmStudioStatus();assert.strictEqual(pending.length,count,'poll must not release a pending optimization');pending[0].resolve({available:true,loaded:true,optimized:false});await old;assert.strictEqual(badge.textContent,'Applying...');assert.strictEqual(toggle.disabled,true);
+finish({});await new Promise(resolve=>setImmediate(resolve));pending.at(-1).resolve({available:true,loaded:true,optimized:true,context_length:8192,parallel:1});await optimizing;assert.strictEqual(toggle.checked,true);assert(badge.textContent.startsWith('On'));
+const first=context.refreshLmStudioStatus(),second=context.refreshLmStudioStatus();pending.at(-1).resolve({remote:true,optimized:true});await second;const current=badge.textContent;pending[pending.length-2].reject(Error('old status'));await first;assert.strictEqual(badge.textContent,current);assert.strictEqual(toggle.checked,true);finished=true;
+''')
+
+    def test_scientific_seed_values_reach_generation_and_export_without_truncation(self):
+        self.run_scenario(r'''
+const errors=[];context.showToast=(...args)=>errors.push(args);context.document.getElementById('dsb-description').value='voice';const global=context.document.getElementById('dsb-global-seed');let packet,exported;
+context.API.post=async(path,body)=>{packet=body;return {audio_url:'/current.wav'};};context.Blob=class {constructor(parts){exported=JSON.parse(parts[0]);}};context.URL={createObjectURL:()=>'/blob',revokeObjectURL(){}};context.document.createElement=()=>({click(){}});
+for(const [line,root,expected] of [['1e3','7',1000],['','2e3',2000],['-1','2e3',2000],['0','2e3',0],['','','-1']]){
+ run(`dsbCurrentProject='A';dsbRows=[{text:'line',emotion:'',seed:${JSON.stringify(line)},status:'pending'}];`);global.value=root;await context.dsbGenSample(0);assert.strictEqual(packet.seed,Number(expected));context.dsbExport();if(line!==''){assert.strictEqual(exported[0].seed,Number(line));}
+}
+context.dsbStartPolling=()=>{};run("dsbBatchRunning=false;dsbCurrentProject='A';dsbRows=[{text:'line',emotion:'',seed:'1e3',status:'pending'},{text:'other',emotion:'',seed:'',status:'pending'}]");global.value='2e3';await context.dsbGenerateAll();assert.strictEqual(packet.global_seed,2000);assert.deepStrictEqual(plain(packet.seeds),[1000,-1]);
+for(const value of ['1.5','NaN','Infinity','2x','-2','9007199254740992']){
+ run(`dsbRows=[{text:'line',emotion:'',seed:${JSON.stringify(value)},status:'pending'}]`);packet=null;exported=null;run('dsbBatchRunning=false');await context.dsbGenSample(0);assert.strictEqual(packet,null,value);assert.strictEqual(run('dsbRows[0].status'),'pending');context.dsbExport();assert.strictEqual(exported,null,value);await context.dsbGenerateAll();assert.strictEqual(packet,null,value);assert.strictEqual(run('dsbRows[0].status'),'pending');
+}assert.strictEqual(errors.length,18);assert(errors.every(t=>t[0].includes('safe whole numbers')));
+''')
+
     def test_late_boot_project_list_cannot_clear_restored_owner_selection(self):
         self.run_scenario(r"""
 let resolveBoot,listCalls=0;const boot=new Promise(resolve=>resolveBoot=resolve);
@@ -410,7 +442,7 @@ await context.startPreparer();
 assert.deepStrictEqual(requests,['/api/preparer/batch/upload_start']);
 assert.deepStrictEqual(polls,['batch_preparer']);
 assert.strictEqual(posts.length,0,'batch must not post names as a JSON-only request');
-assert.strictEqual(toasts.length,0);
+assert.strictEqual(toasts.length,1);assert(toasts[0][0].includes('finish'));assert.strictEqual(run('prepBatchQueue[0].audio'),selected[0]);
 // The preceding accepted run has completed before testing a later start failure.
 run('_applyPreparerControls(null)');
 // Restore the original selection and exercise a plain-text proxy failure.
@@ -546,7 +578,7 @@ assert.match(elements['dsb-ref-select'].innerHTML, /C current/);
     def test_generation_responses_ignore_switched_removed_and_replaced_rows(self):
         self.run_scenario(r'''
 for (const fail of [false, true]) {
-    for (const change of ['project', 'remove', 'replace', 'shift']) {
+    for (const change of ['project', 'remove', 'replace', 'shift', 'text', 'emotion', 'seed']) {
         run("dsbCurrentProject = 'A'; dsbRows = [{emotion:'',text:'first',seed:''}, {emotion:'',text:'second',seed:''}];");
         context.document.getElementById('dsb-description').value = 'voice';
         let resolve, reject;
@@ -559,6 +591,8 @@ for (const fail of [false, true]) {
             run('dsbRows = [];');
         } else if (change === 'replace') {
             run("dsbRows[0] = {text:'replacement',status:'pending'};");
+        } else if (['text', 'emotion', 'seed'].includes(change)) {
+            context.dsbUpdateRow(0, change, 'edited');
         } else {
             run('dsbRows.shift();');
         }

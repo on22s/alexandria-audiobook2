@@ -4,7 +4,7 @@ import subprocess
 import unittest
 
 class LmStudioVisiblePollJsTests(unittest.TestCase):
-    def test_tablet_navigation_stays_open_and_phone_selection_still_collapses(self):
+    def test_navigation_collapses_below_large_breakpoint_and_desktop_stays_open(self):
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const core=fs.readFileSync(process.argv[1],'utf8');
@@ -15,14 +15,14 @@ const nav={classList:classes()};let hidden=0,voiceLoads=0;
 const ctx={window:{innerWidth:800},rememberTab:()=>{},loadVoices:()=>voiceLoads++,bootstrap:{Collapse:{getOrCreateInstance:()=>({hide:()=>{hidden++;nav.classList.remove('show');}})}},document:{querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='navbarNav'?nav:tabs[id]}};
 ctx.window=ctx.window||{};ctx.window.location={hash:'#setup'};ctx.window.history={pushState:(_s,_t,hash)=>ctx.window.location.hash=hash};ctx.window.addEventListener=()=>{};
 vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('const TAB_STORAGE_KEY ='),core.indexOf('// --- LLM model picker')),ctx);
-for(const width of [767,768,800,991,1200]){
+for(const width of [767,768,800,991,992,1200]){
  ctx.window.innerWidth=width;nav.classList.add('show');const before=hidden;
  links[0].click({currentTarget:links[0],preventDefault(){}});
- assert.strictEqual(hidden-before,width<768?1:0);assert.strictEqual(nav.classList.contains('show'),width>=768);
+ assert.strictEqual(hidden-before,width<992?1:0);assert.strictEqual(nav.classList.contains('show'),width>=992);
  assert.strictEqual(tabs['script-tab'].style.display,'block');assert.strictEqual(links[0].attrs['aria-current'],'page');
- if(width>=768){links[1].click({currentTarget:links[1],preventDefault(){}});assert(nav.classList.contains('show'));assert.strictEqual(tabs['voices-tab'].style.display,'block');assert.strictEqual(links[1].attrs['aria-current'],'page');assert.strictEqual(links[0].attrs['aria-current'],undefined);}
+ if(width>=992){links[1].click({currentTarget:links[1],preventDefault(){}});assert(nav.classList.contains('show'));assert.strictEqual(tabs['voices-tab'].style.display,'block');assert.strictEqual(links[1].attrs['aria-current'],'page');assert.strictEqual(links[0].attrs['aria-current'],undefined);}
 }
-assert.strictEqual(voiceLoads,4);nav.classList.remove('show');ctx.window.innerWidth=600;const before=hidden;links[0].click({currentTarget:links[0],preventDefault(){}});assert.strictEqual(hidden,before);
+assert.strictEqual(voiceLoads,2);nav.classList.remove('show');ctx.window.innerWidth=600;const before=hidden;links[0].click({currentTarget:links[0],preventDefault(){}});assert.strictEqual(hidden,before);
 """
         static = Path(__file__).resolve().parent.parent / 'static/js'
         result = subprocess.run(['node', '-e', code, str(static / 'app-core.js')], capture_output=True, text=True)

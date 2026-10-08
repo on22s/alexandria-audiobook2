@@ -1,10 +1,10 @@
 """Fail unless the sharded unit-test jobs together ran every test exactly once.
 
 Each shard writes a verify_release.py JSON report whose unit_tests gate records
-`tests_ran`. A shard that passes proves only that ITS tests passed; a dropped or
-double-assigned module would still be green. So the totals are compared with the
-checked-in inventory, which `update_test_inventory.py --check` already ties to
-discovery.
+`tests_ran` and the identities observed when each test starts. Counts alone
+cannot detect equal-count duplicates and omissions. Both counts and executed
+identities are compared with the inventory, which update_test_inventory.py
+already ties to discovery.
 
     python check_shard_reports.py DIR --shards 3
 
@@ -13,6 +13,7 @@ release-report.json is read.
 """
 
 import argparse
+from collections import Counter
 import json
 import sys
 from pathlib import Path
@@ -31,12 +32,12 @@ def get_unit_gate(report):
     return next((gate for gate in report.get("gates", []) if gate.get("name") == "unit_tests"), None)
 
 
-def get_shard_report_errors(reports, shard_count, expected_tests):
-    """Return a list of problems; empty means the shards cover the suite exactly once."""
+def get_shard_report_errors(reports, shard_count, expected_tests, expected_test_ids=None):
+    """Check shard counts and identities; compare exact inventory when supplied."""
     errors = []
     if len(reports) != shard_count:
         errors.append(f"expected {shard_count} shard reports, found {len(reports)}")
-    seen, total = [], 0
+    seen, total, executed = [], 0, []
     for position, report in enumerate(reports, 1):
         spec = report.get("shard")
         try:
@@ -58,11 +59,28 @@ def get_shard_report_errors(reports, shard_count, expected_tests):
             errors.append(f"{label} did not record a positive tests_ran (got {ran!r})")
         else:
             total += ran
+        ids = (gate or {}).get("result", {}).get("test_ids")
+        if (not isinstance(ids, list) or any(not isinstance(item, str) or not item for item in ids)
+                or len(ids) != ran):
+            errors.append(f"{label} has no valid executed test identities matching tests_ran")
+        else:
+            executed.extend(ids)
     if sorted(seen) != list(range(1, shard_count + 1)):
         errors.append(f"shard numbers {sorted(seen)} are not exactly 1..{shard_count}, each once")
     if total != expected_tests:
         errors.append(f"shards ran {total} tests in total but the inventory lists {expected_tests}; "
                       "a module was dropped or run twice")
+    duplicated = sorted(identifier for identifier, count in Counter(executed).items() if count > 1)
+    if duplicated:
+        errors.append(f"tests executed more than once: {duplicated}")
+    if expected_test_ids is not None:
+        expected = set(expected_test_ids)
+        missing = sorted(expected - set(executed))
+        unknown = sorted(set(executed) - expected)
+        if missing:
+            errors.append(f"inventory tests not executed: {missing}")
+        if unknown:
+            errors.append(f"executed tests outside inventory: {unknown}")
     return errors
 
 
@@ -75,7 +93,9 @@ def main(argv=None):
     paths = sorted(Path(args.directory).rglob("release-report.json"))
     reports = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
     expected = get_inventory_total(args.inventory)
-    errors = get_shard_report_errors(reports, args.shards, expected)
+    inventory = json.loads(Path(args.inventory).read_text(encoding="utf-8"))
+    identities = [identifier for tests in inventory.values() for identifier in tests]
+    errors = get_shard_report_errors(reports, args.shards, expected, identities)
     for error in errors:
         print(f"SHARD CHECK FAILED: {error}", file=sys.stderr)
     if errors:

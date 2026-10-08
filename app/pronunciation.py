@@ -31,6 +31,7 @@ raw WER would select for names that are easy to transcribe rather than right.
 """
 from collections import Counter
 import json
+import logging
 import os
 import re
 import threading
@@ -40,6 +41,7 @@ DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 
 _cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}
 _cache_lock = threading.RLock()
+logger = logging.getLogger(__name__)
 
 
 def _compile(entries):
@@ -69,7 +71,9 @@ def _load_lexicon(path=None, force=False):
         stat = os.stat(path)
         fingerprint = (stat.st_dev, stat.st_ino, stat.st_size,
                        stat.st_mtime_ns, stat.st_ctime_ns)
-    except OSError:
+    except OSError as error:
+        if not isinstance(error, FileNotFoundError):
+            logger.warning("Pronunciation lexicon unavailable at %s; continuing without substitutions: %s", path, error)
         _cache.update({"path": path, "fingerprint": None, "entries": {},
                        "pattern": None})
         return {}
@@ -78,14 +82,17 @@ def _load_lexicon(path=None, force=False):
     try:
         with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
-    except (ValueError, OSError):
-        # A malformed lexicon must not stop a book from generating. It
-        # degrades to "no substitutions", which is the previous behaviour.
+    except (ValueError, OSError) as error:
+        # Retain nonblocking generation, but make the failed lexicon visible.
+        logger.warning("Pronunciation lexicon invalid at %s; continuing without substitutions: %s", path, error)
         _cache.update({"path": path, "fingerprint": fingerprint, "entries": {},
                        "pattern": None})
         return {}
     if not isinstance(raw, dict):
+        logger.warning("Pronunciation lexicon invalid at %s; expected an object, continuing without substitutions", path)
         raw = {}
+    elif "names" in raw and not isinstance(raw["names"], dict):
+        logger.warning("Pronunciation lexicon has invalid names at %s; skipping non-string entries", path)
     source = raw.get("names") if isinstance(raw.get("names"), dict) else raw
     entries = {str(k): str(v) for k, v in source.items()
                if isinstance(k, str) and isinstance(v, str)

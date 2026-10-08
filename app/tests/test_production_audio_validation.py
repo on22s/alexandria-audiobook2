@@ -22,6 +22,48 @@ def _write_wav(path, frames=2400):
 
 
 class SharedAudioValidationTests(unittest.TestCase):
+    def test_near_limit_riff_lengths_cannot_exempt_a_small_decodable_file(self):
+        import struct
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'fixture.wav'
+            _write_wav(path, frames=80)
+            original = path.read_bytes()
+            self.assertEqual(path, validate_generated_audio(path))
+            for declared in (0xffffffe8, 0xfffffff0, 0xffffffff):
+                with self.subTest(declared=declared):
+                    path.write_bytes(original[:4] + struct.pack('<I', declared) + original[8:])
+                    with self.assertRaisesRegex(GeneratedAudioError, 'truncated audio'):
+                        validate_generated_audio(path)
+            # Only the file-extent boundary is simulated; no multi-GiB decoding claim.
+            with patch('audio_validation.os.path.getsize', return_value=2**32 + len(original)):
+                self.assertEqual(path, validate_generated_audio(path))
+            sf.write(path, np.full(80, 0.25), 24000, format='RF64')
+            self.assertEqual(b'RF64', path.read_bytes()[:4])
+            self.assertEqual(path, validate_generated_audio(path))
+
+    def test_nonfinite_generated_samples_refuse_before_pcm_encoding(self):
+        from pathlib import Path
+        from audio_validation import save_generated_wav
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'fixture.wav'
+            for channels in (1, 2):
+                for value in (float('nan'), float('inf'), -float('inf')):
+                    with self.subTest(channels=channels, value=value):
+                        samples = np.zeros((8, channels), dtype=np.float32)
+                        samples[-1, -1] = value
+                        _write_wav(path)
+                        with patch.object(sf, 'write', wraps=sf.write) as writer:
+                            with self.assertRaisesRegex(GeneratedAudioError, 'non-finite'):
+                                save_generated_wav(samples, 24000, path)
+                        writer.assert_not_called()
+                        self.assertFalse(path.exists())
+            samples = np.full((8, 2), 0.25, dtype=np.float32)
+            self.assertEqual(path, save_generated_wav(samples, 24000, path))
+            decoded, rate = sf.read(path, always_2d=True)
+            self.assertEqual(24000, rate)
+            np.testing.assert_allclose(samples, decoded, atol=1/32768)
+
     def test_failed_chunk_export_preserves_prior_mp3_and_wav(self):
         with tempfile.TemporaryDirectory() as root:
             manager = ProjectManager(root)

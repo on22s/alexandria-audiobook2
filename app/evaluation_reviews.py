@@ -431,8 +431,11 @@ def cleanup(reviews_dir, adapter_id):
         try:
             freed = os.path.getsize(path)
             os.unlink(path)
-        except OSError:
+        except FileNotFoundError:
             freed = 0
+            removed = 0
+        except OSError as error:
+            raise ReviewError("Could not remove review history; retained reviews remain available") from error
     return {"removed_count": removed, "freed_bytes": freed}
 
 

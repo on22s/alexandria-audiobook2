@@ -4,6 +4,7 @@ import hashlib
 import io
 import re
 import json
+import logging
 import tempfile
 import sys
 import threading
@@ -306,6 +307,7 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
         return voice_config
     resolved = dict(voice_config)
     resolved["NARRATOR"] = dict(selected)
+    resolved[speaker] = resolved["NARRATOR"]
     return resolved
 
 
@@ -1481,17 +1483,27 @@ class TTSEngine:
             print("Warning: Design voice has no description or instruct. Using generic.")
             description = "A clear, natural speaking voice"
 
-        wav_path, sr = self.generate_voice_design(description=description, sample_text=text)
-        shutil.copy2(wav_path, output_path)
-        # Remove the throwaway preview WAV now that it's copied to output_path, so
-        # chunk/batch design-voice generation doesn't leak one preview per chunk
-        # into designed_voices/previews/ (only the Designer route caps that dir).
+        seed = int(voice_data.get("seed", -1))
+        wav_path, sr = self.generate_voice_design(description=description, sample_text=text, seed=seed)
+        staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         try:
+            shutil.copy2(wav_path, staging_path)
+            return publish_audio_output(staging_path, output_path)
+        finally:
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                logging.getLogger(__name__).warning("Design staging cleanup failed at %s: %s", staging_path, error)
+            # A generated preview is throwaway even when output copying fails.
             if os.path.abspath(wav_path) != os.path.abspath(output_path):
-                os.remove(wav_path)
-        except OSError:
-            pass
-        return True
+                try:
+                    os.remove(wav_path)
+                except FileNotFoundError:
+                    pass
+                except OSError as error:
+                    logging.getLogger(__name__).warning("Design preview cleanup failed at %s: %s", wav_path, error)
 
     # ── LoRA voice generation ────────────────────────────────────
 
@@ -1691,9 +1703,9 @@ class TTSEngine:
                 results["failed"].append((chunk["index"],
                     f"No voice configuration for '{speaker}'."))
                 continue
-            voice_config_for_chunk(resolved, speaker, chunk["index"])
+            effective_config = voice_config_for_chunk(resolved, speaker, chunk["index"])
             try:
-                self.get_voice_backend(voice_category(resolved.get(speaker)))
+                self.get_voice_backend(voice_category(effective_config.get(speaker)))
             except UnsupportedVoiceBackendError as error:
                 results["failed"].append((chunk["index"], str(error)))
                 continue
@@ -2578,16 +2590,24 @@ class TTSEngine:
         executor = ThreadPoolExecutor(max_workers=workers)
         futures = {}
 
+        def remove_staging_audio(staging_path):
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                return None
+            except OSError as error:
+                diagnostic = f"Pending audio cleanup failed at {staging_path}: {error}"
+                logging.getLogger(__name__).warning(diagnostic)
+                return diagnostic
+            return None
+
         def render_to_staging(chunk, staging_path, endpoint, cancelled):
             try:
                 success = generate(chunk, staging_path, endpoint, cancelled)
                 return success, time.monotonic()
             finally:
                 if cancelled.is_set():
-                    try:
-                        os.remove(staging_path)
-                    except FileNotFoundError:
-                        pass
+                    remove_staging_audio(staging_path)
 
         for chunk in chunks:
             idx = chunk["index"]
@@ -2606,11 +2626,11 @@ class TTSEngine:
             except FutureTimeout:
                 cancelled.set()
                 future.cancel()
-                try:
-                    os.remove(staging_path)
-                except FileNotFoundError:
-                    pass
-                results["failed"].append((idx, f"external TTS timed out after {self._external_timeout}s"))
+                cleanup_error = remove_staging_audio(staging_path)
+                message = f"external TTS timed out after {self._external_timeout}s"
+                if cleanup_error:
+                    message += f"; {cleanup_error}"
+                results["failed"].append((idx, message))
                 continue
             except Exception as e:                              # noqa: BLE001
                 results["failed"].append((idx, str(e)))
@@ -2619,11 +2639,11 @@ class TTSEngine:
                 if publish_audio_output(staging_path, output_path, cancelled):
                     results["completed"].append(idx)
                 else:
-                    try:
-                        os.remove(staging_path)
-                    except FileNotFoundError:
-                        pass
-                    results["failed"].append((idx, "external TTS cancelled before publication"))
+                    cleanup_error = remove_staging_audio(staging_path)
+                    message = "external TTS cancelled before publication"
+                    if cleanup_error:
+                        message += f"; {cleanup_error}"
+                    results["failed"].append((idx, message))
             else:
                 results["failed"].append((idx, f"{kind} voice generation failed"))
         executor.shutdown(wait=False)

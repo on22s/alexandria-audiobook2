@@ -23,7 +23,7 @@ class BenchmarkEnvironmentParallelTests(unittest.TestCase):
         called = []
         lock = threading.Lock()
         runtime = {'revision': 'a' * 40, 'platform': {'system': 'Linux'}, 'packages': {'local': '1'}}
-        remote = {'hostname': 'thunder', 'python_version': '3.11',
+        remote = {'hostname': 'thunder', 'python_version': '3.11', 'git_commit': 'a' * 40,
                   'packages': {'remote': '2'}, 'platform': {'system': 'Linux'},
                   'worktree': {'dirty': False, 'sha256': 'remote-tree'}}
         status = {'available': True, 'loaded': True, 'parallel': 1, 'context_length': 4096}
@@ -91,7 +91,7 @@ class BenchmarkEnvironmentParallelTests(unittest.TestCase):
 class BenchmarkConcurrentProbeFailureTests(unittest.TestCase):
     def test_invalid_observations_cannot_publish_a_fingerprint(self):
         runtime = {'revision': 'a' * 40, 'platform': {}, 'packages': {}}
-        remote = {'hostname': 'thunder', 'python_version': '3.11',
+        remote = {'hostname': 'thunder', 'python_version': '3.11', 'git_commit': 'a' * 40,
                   'packages': {}, 'platform': {}, 'worktree': {'dirty': False, 'sha256': 'tree'}}
         for failure in ('checkout', 'gpu', 'lmstudio'):
             with self.subTest(failure=failure), ExitStack() as patches:

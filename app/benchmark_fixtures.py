@@ -8,7 +8,7 @@ import json
 from generate_script import fix_mojibake, split_into_chunks
 from source_normalization import normalize_known_source_corruptions
 from lora_evidence import get_file_sha256
-from benchmark_validation import (get_lora_training_sample_count, validate_persona_speakers,
+from benchmark_validation import (get_lora_training_sample_count, get_lora_training_entries, validate_persona_speakers,
                                   get_benchmark_file_path, get_benchmark_directory_path,
                                   get_benchmark_training_audio_path, get_benchmark_archive_audio_path,
                                   get_adapter_artifact_path)
@@ -39,6 +39,12 @@ def get_normalized_source_chunks(raw, chunk_size):
     return split_into_chunks(text, max_size=chunk_size)
 
 
+def get_script_fixture_source_id(path, root_dir):
+    relative = os.path.relpath(os.path.realpath(path), os.path.realpath(root_dir)).replace(os.sep, "/")
+    identity = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:16]
+    return f"{os.path.splitext(os.path.basename(path))[0]}-{identity}"
+
+
 def build_script_generation_manifest(specs, uploads_dir, repetitions=1,
                                      targets=None, chunk_size=6000):
     """Build hashed chunk references without copying source text."""
@@ -66,7 +72,7 @@ def build_script_generation_manifest(specs, uploads_dir, repetitions=1,
                     not isinstance(entry, dict) for entry in previous_entries):
                 raise ValueError("previous_entries_by_chunk values must be lists of entries")
             fixtures.append({
-                "id": f"{os.path.splitext(os.path.basename(path))[0]}-chunk-{chunk_number}",
+                "id": f"{get_script_fixture_source_id(path, uploads_dir)}-chunk-{chunk_number}",
                 "sha256": hashlib.sha256(chunk.encode("utf-8")).hexdigest(),
                 "path": path, "source_sha256": source_sha256,
                 "chunk_number": chunk_number, "total_chunks": len(chunks),
@@ -114,7 +120,7 @@ def build_script_review_manifest(specs, scripts_dir, repetitions=1,
                 raise ValueError(f"entry_start out of range for {os.path.basename(path)}")
             selected = entries[start - 1:start - 1 + batch_size]
             fixtures.append({
-                "id": f"{os.path.splitext(os.path.basename(path))[0]}-entries-{start}-{start + len(selected) - 1}",
+                "id": f"{get_script_fixture_source_id(path, scripts_dir)}-entries-{start}-{start + len(selected) - 1}",
                 "sha256": _hash_entries(selected), "path": path,
                 "source_sha256": hashlib.sha256(raw).hexdigest(),
                 "entry_start": start, "entry_count": len(selected),
@@ -267,9 +273,7 @@ def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None
         sample_count = get_lora_training_sample_count(fixture.get("sample_count", 8))
         with open(metadata_path, "rb") as metadata_file:
             metadata_raw = metadata_file.read()
-        entries = _load_jsonl_entries(metadata_raw, "LoRA training")[:sample_count]
-        if len(entries) < sample_count:
-            raise ValueError("LoRA training dataset has too few samples")
+        entries = get_lora_training_entries(_load_jsonl_entries(metadata_raw, "LoRA training"), sample_count)
         audio_hashes = {}
         for entry in entries:
             relative_audio = entry.get("audio_filepath") or entry.get("audio")

@@ -36,7 +36,7 @@ def get_benchmark_verified_file_path(root, name, expected_sha256, description):
 def get_benchmark_training_audio_path(root, relative):
     """Apply the existing training member-name policy and shared containment."""
     if (not isinstance(relative, str) or not relative or os.path.isabs(relative)
-            or os.path.normpath(relative).startswith('..')):
+            or os.path.normpath(relative).split(os.sep)[0] == '..'):
         raise ValueError(f"unsafe training audio path: {relative!r}")
     try:
         return get_benchmark_file_path(root, relative)
@@ -88,6 +88,16 @@ def get_lora_training_sample_count(value):
     if not isinstance(value, int) or value < 1:
         raise ValueError("LoRA training sample_count must be positive")
     return value
+
+
+def get_lora_training_entries(entries, sample_count):
+    """Select the complete admitted workload before staging or launching training."""
+    count = get_lora_training_sample_count(sample_count)
+    if any(not isinstance(entry, dict) for entry in entries):
+        raise ValueError("LoRA training metadata entries must be objects")
+    if len(entries) < count:
+        raise ValueError("LoRA training dataset has too few samples")
+    return entries[:count]
 
 
 def validate_persona_speakers(speakers):
