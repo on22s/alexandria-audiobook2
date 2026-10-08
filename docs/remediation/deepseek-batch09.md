@@ -11,3 +11,5 @@ Approved scope: saved-book and voice API persistence. Keep explicit clearing, au
 - [ ] Complete ready.sh and publish the draft PR.
 
 Tests exercise CPU fixtures and actual persistence, without model inference or GPU use.
+
+Validation: 58 focused tests; ready.sh passed with 7,067 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
