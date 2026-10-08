@@ -2143,6 +2143,13 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_deepseek_persistence": [
+    "tests.test_deepseek_persistence.PersistenceTests.test_corrupt_and_wrong_shape_books_refuse_without_publishing",
+    "tests.test_deepseek_persistence.PersistenceTests.test_explicit_bad_reference_refused_without_replacing_dataset",
+    "tests.test_deepseek_persistence.PersistenceTests.test_narrator_strategy_resolves_legacy_without_merging_other_characters",
+    "tests.test_deepseek_persistence.PersistenceTests.test_partial_voice_save_preserves_omitted_collections_and_explicit_clear",
+    "tests.test_deepseek_persistence.PersistenceTests.test_reports_with_identical_clock_keep_both_native_artifacts"
+  ],
   "test_deepseek_text_helpers": [
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail",

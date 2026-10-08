@@ -575,6 +575,8 @@ def _dataset_builder_save_sync(request: DatasetSaveRequest):
         ref_idx = request.ref_index
         ref_sample = next((s for i, s in done_samples if i == ref_idx), None)
         if ref_sample is None:
+            if request.ref_index is not None:
+                raise HTTPException(status_code=400, detail="Selected reference must be a completed, available sample")
             # Fall back to first completed sample
             ref_idx = done_samples[0][0]
             ref_sample = done_samples[0][1]

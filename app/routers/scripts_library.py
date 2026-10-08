@@ -130,6 +130,18 @@ async def list_saved_scripts():
 class ScriptSaveRequest(BaseModel):
     name: str
 
+def validate_book_json_bytes(raw, expected_type, status_code, label):
+    """Refuse corrupt stored JSON before a book transaction publishes anything."""
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise HTTPException(status_code=status_code,
+                            detail=f"{label} contains malformed JSON; repair the file before continuing.") from error
+    if not isinstance(value, expected_type):
+        shape = "an entry list" if expected_type is list else "an object"
+        raise HTTPException(status_code=status_code, detail=f"{label} must contain {shape}.")
+
+
 def _save_script_sync(request):
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
@@ -139,15 +151,13 @@ def _save_script_sync(request):
         if not os.path.isfile(SCRIPT_PATH):
             raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
         script_bytes = Path(SCRIPT_PATH).read_bytes()
-        if not isinstance(json.loads(script_bytes), list):
-            raise HTTPException(status_code=422, detail="Active script must contain an entry list.")
+        validate_book_json_bytes(script_bytes, list, 422, "Active script")
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps({"book_id": get_active_book_id() or safe_name}).encode("utf-8")}
         voice_name = f"{safe_name}.voice_config.json"
         if os.path.isfile(VOICE_CONFIG_PATH):
             voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
-            if not isinstance(json.loads(voice_bytes), dict):
-                raise HTTPException(status_code=422, detail="Active voices must contain an object.")
+            validate_book_json_bytes(voice_bytes, dict, 422, "Active voices")
             replacements[voice_name] = voice_bytes
         removals = [os.path.basename(path) for path in _get_saved_book_companions(dest)
                     if os.path.basename(path) not in replacements]
@@ -193,8 +203,7 @@ def _load_script_sync(request: ScriptLoadRequest):
             raise HTTPException(status_code=409,
                 detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
         script_bytes = Path(src).read_bytes()
-        if not isinstance(json.loads(script_bytes), list):
-            raise HTTPException(status_code=400, detail="Saved script must contain an entry list.")
+        validate_book_json_bytes(script_bytes, list, 400, "Saved script")
         state_path = os.path.join(DATA_DIR, "state.json")
         state = safe_load_json(state_path, default={})
         state.update(active_book_id=_get_saved_book_id(safe_name), input_file_path=src,
@@ -212,8 +221,7 @@ def _load_script_sync(request: ScriptLoadRequest):
         companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
         if os.path.exists(companion):
             voice_bytes = Path(companion).read_bytes()
-            if not isinstance(json.loads(voice_bytes), dict):
-                raise HTTPException(status_code=400, detail="Saved voices must contain an object.")
+            validate_book_json_bytes(voice_bytes, dict, 400, "Saved voices")
             replacements[os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR)] = voice_bytes
         else:
             removals.append(VOICE_CONFIG_PATH)

@@ -240,6 +240,8 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
             snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH))
             if get_book_snapshot_token(snapshot) != book_token:
                 raise HTTPException(status_code=409, detail="Active book changed; reload voices before saving")
+        if speaker == "NARRATOR":
+            speaker = get_script_narrator_speaker()
         _require_script_speaker(speaker)
         entry = _mutate_voice_entry(speaker, mutator)
         with file_lock(VOICE_CONFIG_PATH):
@@ -253,6 +255,17 @@ def get_script_speaker(entry):
         return ""
     value = entry.get("speaker") or entry.get("type") or ""
     return value.strip() if isinstance(value, str) else ""
+
+
+def get_script_narrator_speaker():
+    """Resolve only the supported modern and legacy narrator spellings."""
+    _require_script_speaker(None)
+    script = safe_load_json(SCRIPT_PATH, default=[])
+    speakers = {get_script_speaker(entry) for entry in script}
+    for name in ("NARRATOR", "Narrator"):
+        if name in speakers:
+            return name
+    raise HTTPException(status_code=404, detail="Narrator is not present in the active script")
 
 
 def _require_script_speaker(speaker):
@@ -396,9 +409,9 @@ async def save_narrator_strategy(request: NarratorStrategyRequest):
 
 @router.post("/api/narrator/preview")
 async def preview_narrator(request: NarratorPreviewRequest):
-    await asyncio.to_thread(_require_script_speaker, "NARRATOR")
+    speaker = await asyncio.to_thread(get_script_narrator_speaker)
     config = await asyncio.to_thread(safe_load_json, VOICE_CONFIG_PATH, default={})
-    narrator = dict(config.get("NARRATOR") or config.get("Narrator") or {})
+    narrator = dict(config.get(speaker) or {})
     narrator["narrator_strategy"] = request.strategy
     config["NARRATOR"] = narrator
     resolved = resolve_narrator_voice_config("NARRATOR", config, {
@@ -734,7 +747,11 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
             for voice_name, config in config_data.items():
                 existing = current_config.get(voice_name)
                 metadata = dict(existing) if isinstance(existing, dict) else {}
-                updated[voice_name] = {**metadata, **config.model_dump()}
+                fields = config.model_dump(exclude_unset=isinstance(existing, dict))
+                for key in ('style_timeline', 'version_timeline'):
+                    if key in fields:
+                        fields[key] = config.model_dump()[key]
+                updated[voice_name] = {**metadata, **fields}
             return updated
 
         updated = apply_voice_config_update(VOICE_CONFIG_PATH, apply_updates,

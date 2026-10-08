@@ -48,7 +48,7 @@ class AliasSurvivesSaveTests(unittest.TestCase):
 
     def test_clearing_the_alias_in_the_tab_clears_it_in_the_file(self):
         save(self.path, self.payload)
-        del self.payload["YOUNG ELENA"]["alias_of"]   # the tab omits the key when "Alias of" is empty
+        self.payload["YOUNG ELENA"]["alias_of"] = None   # the tab explicitly clears an empty alias
         saved = save(self.path, self.payload)
         pm = ProjectManager.__new__(ProjectManager)
         self.assertIsNone(saved["YOUNG ELENA"]["alias_of"])
