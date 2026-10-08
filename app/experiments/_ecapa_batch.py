@@ -1,6 +1,7 @@
 """Score speaker-embedding pairs in the interpreter that has speechbrain.
 
-Run as a subprocess by `ljspeech_score.py`, never imported. `app/env` has no
+Run as a subprocess by speaker-scoring callers. The cache path helper is also
+used to fingerprint the model assets for reference-score reuse. `app/env` has no
 speechbrain, and the existing `voice_data_saturation.embedder()` responds to
 that by silently returning None and falling back to acoustic-feature distance -
 which is precisely the substitution of a weaker metric for a stronger one that
@@ -19,10 +20,16 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
 
+def get_ecapa_model_dir(repo=None):
+    """Keep downloaded assets outside the tracked, machine-specific symlinks."""
+    return os.path.join(repo or REPO, "cache", "ecapa")
+
+
 def main():
     pairs = json.loads(sys.stdin.read())
     try:
         from speechbrain.inference.speaker import EncoderClassifier
+        from speechbrain.utils.fetching import LocalStrategy
     except Exception as exc:                            # noqa: BLE001
         print(f"speechbrain unavailable: {exc}", file=sys.stderr)
         return 2
@@ -37,7 +44,8 @@ def main():
     # instead of contending with it.
     enc = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",
-        savedir=os.path.join(REPO, "ab_test_runtime", "ecapa"),
+        savedir=get_ecapa_model_dir(),
+        local_strategy=LocalStrategy.COPY,
         run_opts={"device": "cpu"})
 
     cache = {}

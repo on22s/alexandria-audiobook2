@@ -121,7 +121,8 @@ def _get_reference_score_key(pairs, python_bin, script):
             for entry in (site / package / "__init__.py", site / (package + ".py")):
                 if entry.is_file():
                     files[str(entry)] = entry
-    assets = Path(REPO) / "ab_test_runtime/ecapa"
+    from experiments._ecapa_batch import get_ecapa_model_dir
+    assets = Path(get_ecapa_model_dir(REPO))
     if assets.exists():
         for parent, directories, names in os.walk(assets):
             if any((Path(parent) / name).is_symlink() for name in directories):

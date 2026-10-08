@@ -51,7 +51,7 @@ print('provider banner');print(json.dumps(values))
         metadata.parent.mkdir(parents=True)
         metadata.write_text("Version: 1\n")
         self.metadata = metadata
-        self.asset = self.root / "ab_test_runtime/ecapa/embedding_model.ckpt"
+        self.asset = self.root / "cache/ecapa/embedding_model.ckpt"
         self.asset.parent.mkdir(parents=True)
         self.asset.write_bytes(b"synthetic model identity")
         self.paths = []

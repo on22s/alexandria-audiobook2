@@ -2581,6 +2581,10 @@
     "tests.test_ecapa_duration_confound.VerdictTest.test_a_ratio_that_does_track_duration_is_visible",
     "tests.test_ecapa_duration_confound.VerdictTest.test_median_and_range_describe_the_clips_that_were_scored"
   ],
+  "test_ecapa_portable_cache": [
+    "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_reference_cache_tracks_the_actual_worker_model_assets",
+    "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_worker_copies_yaml_without_using_checkout_placeholder_or_symlinks"
+  ],
   "test_editor_index_selection": [
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_route_forwards_normalized_selection_to_real_export",
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_routes_validate_against_real_audio_groups_before_schedule",
