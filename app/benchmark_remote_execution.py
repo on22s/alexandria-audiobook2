@@ -1,6 +1,7 @@
 """Benchmark SSH control keeps the task claimed until remote shutdown is proven."""
 import json
 import os
+import posixpath
 import shlex
 import socket
 import subprocess
@@ -19,8 +20,8 @@ def run_remote_benchmark_subprocess(command, worker, state, *, timeout, check,
     if not capture_output or not kwargs.get('text'):
         raise ValueError('Remote benchmark commands require captured text output')
     token = uuid.uuid4().hex
-    app_dir = os.path.dirname(worker[1])
-    supervisor = shlex.join([worker[0], os.path.join(app_dir, 'benchmark_remote_command.py')])
+    app_dir = posixpath.dirname(worker[1])
+    supervisor = shlex.join([worker[0], posixpath.join(app_dir, 'benchmark_remote_command.py')])
     transport = [command[0], command[1], supervisor]
     packet = (json.dumps({'command':worker, 'input':input, 'token':token}) + '\n').encode('utf-8')
     probe_code = (

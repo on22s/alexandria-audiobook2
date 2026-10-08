@@ -224,6 +224,17 @@ def source_occurrences_for_text(source_normalized, text_normalized,
     return 0
 
 
+def get_source_block_occurrences(source_normalized, block, *, count_phrase=None):
+    """Count contiguous support, then require support for every emitted line."""
+    count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
+    contiguous = count_phrase(_normalize_words(" ".join(block)))
+    if source_normalized and not contiguous:
+        return min((source_occurrences_for_text(
+            source_normalized, _normalize_words(text), count_phrase=count_phrase)
+                    for text in block), default=0)
+    return contiguous
+
+
 def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None, count_phrase=None):
     findings = []
     occupied = set()
@@ -238,7 +249,6 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
             positions = set(range(index, index + (2 * block_size)))
             if (positions.isdisjoint(occupied) and left == right and
                     all(len(text) >= 8 for text in left)):
-                block_text = _normalize_words(" ".join(left))
                 # TWO WAYS TO ASK "does the source contain this block?", and
                 # the contiguous one alone is wrong.
                 #
@@ -260,14 +270,9 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
                 # So fall back to the per-entry minimum: if every line in the
                 # block is in the source, the block is duplicated (removable).
                 # Only a line the source lacks entirely is an invention.
-                contiguous = count_phrase(block_text)
-                if source_normalized and not contiguous:
-                    source_occurrences = min(
-                        source_occurrences_for_text(
-                            source_normalized, _normalize_words(text), count_phrase=count_phrase)
-                        for text in left)
-                else:
-                    source_occurrences = contiguous
+                contiguous = count_phrase(_normalize_words(" ".join(left)))
+                source_occurrences = get_source_block_occurrences(
+                    source_normalized, left, count_phrase=count_phrase)
                 # A block the SOURCE itself repeats is faithful
                 # transcription, not a defect. grimgar03 opens with its
                 # title eight times; the whole-book gate rejected the

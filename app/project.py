@@ -815,7 +815,7 @@ class ProjectManager:
             audio_path = f"voicelines/voiceline_{chunk['uid']}_{sanitize_filename(speaker)}{extension}"
             updated = self._update_chunk_fields_by_uid(
                 chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
-                status="done", audio_path=audio_path, error=None, drift=None)
+                status="done", audio_path=audio_path, audio_revision=uuid.uuid4().hex, error=None, drift=None)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
             return audio_path

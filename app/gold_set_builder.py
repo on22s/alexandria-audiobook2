@@ -144,8 +144,17 @@ def context(segmented, index, before=9, after=6, names=None,
     return span(index - before, index), span(index + 1, index + 1 + after)
 
 
+def validate_build_options(count, batch_size):
+    """Reject invalid work sizes while retaining an explicit empty selection."""
+    if count < 0:
+        raise ValueError("--count must be non-negative")
+    if batch_size <= 0:
+        raise ValueError("--batch-size must be positive")
+
+
 def build(segmented, book, count, batch_size, seed=11, names=None):
     """Judgement batches over randomly sampled, unambiguous SPOKEN lines."""
+    validate_build_options(count, batch_size)
     pool = eligible_indexes(segmented)
     chosen = sorted(random.Random(seed).sample(pool, min(count, len(pool))))
     rows = []
@@ -374,6 +383,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "build":
+        try:
+            validate_build_options(args.count, args.batch_size)
+        except ValueError as exc:
+            parser.error(str(exc))
         checkpoint = load_run(args.root, args.run, args.book)
         segmented = checkpoint["segmented"]
         source = os.path.join(args.root, "inputs", f"{args.book}.txt")

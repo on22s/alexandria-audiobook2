@@ -592,7 +592,8 @@ for (const fail of [false, true]) {
         } else if (change === 'replace') {
             run("dsbRows[0] = {text:'replacement',status:'pending'};");
         } else if (['text', 'emotion', 'seed'].includes(change)) {
-            context.dsbUpdateRow(0, change, 'edited');
+            // Simulate external row replacement; user edits are blocked during generation.
+            run(`dsbRows[0][${JSON.stringify(change)}]='edited';`);
         } else {
             run('dsbRows.shift();');
         }

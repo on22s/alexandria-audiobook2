@@ -285,7 +285,7 @@
                     API.get('/api/lora/models'),
                     API.get('/api/lora/backups').catch(e => {
                         console.debug('LoRA backup status unavailable', e);
-                        return { backups: [], total_size_bytes: 0, free_bytes: 0, low_space_warning: false };
+                        return { backups: [], unavailable: true };
                     }),
                 ]);
                 if (request !== loraModelsRequest) { return; }
@@ -300,8 +300,8 @@
                 const models = loadedModels.map(model => ({
                     ...model, rollback_backup: backupsByAdapter.get(model.id) || null,
                 }));
-                status.textContent = '';
-                retry.hidden = true;
+                status.textContent = backupStatus.unavailable ? 'Adapters loaded; rollback backup and disk-space status are unavailable. Retry the list refresh to check them.' : '';
+                retry.hidden = !backupStatus.unavailable;
                 window._loraModelsCache = models;
                 const container = document.getElementById('lora-models-list');
                 const testForm = document.getElementById('lora-test-form');
@@ -404,12 +404,16 @@
             }
         }
 
-        window.openLoraCandidateComparison = async (adapterId) => {
-            const panel = document.getElementById('lora-comparison-panel');
+        function beginLoraPanelView(panel) {
             const request = {};
             panel._comparisonRequest = request;
-            const isCurrent = () => panel._comparisonRequest === request
+            return () => panel._comparisonRequest === request
                 && document.getElementById('lora-comparison-panel') === panel;
+        }
+
+        window.openLoraCandidateComparison = async (adapterId) => {
+            const panel = document.getElementById('lora-comparison-panel');
+            const isCurrent = beginLoraPanelView(panel);
             panel.style.display = '';
             panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading comparison…</div>';
             try {
@@ -461,11 +465,13 @@
 
         window.openLoraBlindReview = async (adapterId) => {
             const panel = document.getElementById('lora-comparison-panel');
+            const isCurrent = beginLoraPanelView(panel);
             panel.style.display = '';
             panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Opening blind review…</div>';
             try {
                 const session = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/review/session`, {});
-                _blindReview = { adapterId: adapterId, sessionId: session.session_id };
+                if (!isCurrent()) { return; }
+                _blindReview = { adapterId: adapterId, sessionId: session.session_id, isCurrent };
                 const pairsHtml = session.pairs.map(pair => `
                     <div class="border rounded p-2 mb-2">
                         <div class="small mb-2"><strong>${escapeHtml(pair.id)}</strong><br>${escapeHtml(pair.text)}</div>
@@ -501,12 +507,14 @@
                     </div>`;
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
+                if (!isCurrent()) { return; }
                 panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("Blind review unavailable", e, "Check the selected adapter and review candidates, then reopen blind review."))}</div>`;
             }
         };
 
         window.submitLoraBlindReview = async () => {
-            if (!_blindReview) { return; }
+            if (!_blindReview || !_blindReview.isCurrent()) { return; }
+            const review = _blindReview;
             const choice = _blindReviewSelectedChoice();
             if (!choice) { showToast('Pick Sample A, Sample B, or No preference.', 'warning'); return; }
             const ratingRaw = document.getElementById('blind-rating').value;
@@ -522,9 +530,11 @@
             if (submitBtn) { submitBtn.disabled = true; }
             try {
                 const result = await API.post(
-                    `/api/lora/models/${encodeURIComponent(_blindReview.adapterId)}/review/session/${encodeURIComponent(_blindReview.sessionId)}`, body);
+                    `/api/lora/models/${encodeURIComponent(review.adapterId)}/review/session/${encodeURIComponent(review.sessionId)}`, body);
+                if (!review.isCurrent()) { return; }
                 renderBlindReviewResult(result);
             } catch (e) {
+                if (!review.isCurrent()) { return; }
                 if (submitBtn) { submitBtn.disabled = false; }
                 showActionError("Could not record review", e, "Keep your rating and notes. Reopen review history to check whether the decision was saved before submitting again.");
             }
@@ -556,12 +566,15 @@
 
         window.openLoraReviewHistory = async (adapterId) => {
             const panel = document.getElementById('lora-comparison-panel');
+            const isCurrent = beginLoraPanelView(panel);
             panel.style.display = '';
             panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading review history…</div>';
             try {
                 const data = await API.get(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews`);
+                if (!isCurrent()) { return; }
                 renderLoraReviewHistory(adapterId, data.reviews || []);
             } catch (e) {
+                if (!isCurrent()) { return; }
                 panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("History unavailable", e, "Check the selected adapter, then reopen review history. An unavailable history is not an empty history."))}</div>`;
             }
         };
@@ -593,9 +606,15 @@
         }
 
         window.clearLoraReviewHistory = async (adapterId) => {
+            const panel = document.getElementById('lora-comparison-panel');
+            const request = panel._comparisonRequest;
+            const isCurrent = () => panel._comparisonRequest === request
+                && document.getElementById('lora-comparison-panel') === panel;
             if (!await showConfirm('Delete all human review history for this adapter?', {title: 'Delete review history?', actionLabel: 'Delete history', danger: true})) { return; }
+            if (!isCurrent()) { return; }
             try {
                 const result = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews/cleanup`, {});
+                if (!isCurrent()) { return; }
                 const freedKb = (result.freed_bytes / 1024).toFixed(1);
                 showToast(`Cleared ${result.removed_count} review(s), freed ${freedKb} KB.`, 'success');
                 openLoraReviewHistory(adapterId);

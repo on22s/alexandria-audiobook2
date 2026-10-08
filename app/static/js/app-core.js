@@ -1602,11 +1602,22 @@
                 out.innerHTML = '<i class="fas fa-times me-1"></i>Enter a Base URL before testing.';
                 return;
             }
+            const request = {};
+            testLlmConnection.request = request;
+            const mode = currentLlmMode;
+            let profile;
+            const isCurrent = () => {
+                if (testLlmConnection.request !== request || currentLlmMode !== mode) { return false; }
+                try { return !profile || JSON.stringify(getEditedLlmProfile()) === JSON.stringify(profile); }
+                catch (_) { return false; }
+            };
             btn.disabled = true;
             out.className = 'ms-2 small text-muted';
             out.textContent = 'Testing…';
             try {
-                const res = await API.post('/api/llm/test', getEditedLlmProfile());
+                profile = getEditedLlmProfile();
+                const res = await API.post('/api/llm/test', profile);
+                if (!isCurrent()) { return; }
                 if (res.ok) {
                     out.className = 'ms-2 small text-success';
                     const note = res.model_present === false
@@ -1626,10 +1637,11 @@
                     out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
                 }
             } catch (e) {
+                if (!isCurrent()) { return; }
                 out.className = 'ms-2 small text-danger';
                 out.textContent = 'Test request failed: ' + (e.message || 'unknown error');
             } finally {
-                btn.disabled = false;
+                if (testLlmConnection.request === request) { btn.disabled = false; }
             }
         }
 
@@ -1662,6 +1674,16 @@
         let currentBookFilename = '';
         function applyCurrentBookFilename(filename) {
             currentBookFilename = typeof filename === 'string' ? filename : '';
+        }
+        function enqueueBookSelection(request, action) {
+            const previous = window._existingUploadSelectionPending || Promise.resolve();
+            const pending = (async () => {
+                await previous.catch(() => {});
+                if (window._existingUploadSelectionRequest !== request) { return; }
+                return action();
+            })();
+            window._existingUploadSelectionPending = pending;
+            return pending;
         }
         function getCurrentBookName(fallback = 'book') {
             return currentBookFilename.trim().replace(/\.[^.]+$/, '') || fallback;
@@ -1862,8 +1884,7 @@
 
                 if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
 
-                document.getElementById('system-prompt').value = defaults.system_prompt;
-                document.getElementById('user-prompt').value = defaults.user_prompt;
+                renderPromptPresets(promptPresets, 'default');
                 passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
                 passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
                 passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
@@ -2060,9 +2081,7 @@
             }
             if (!isCurrent()) { return; }
             const statusEl = document.getElementById('upload-status');
-            const previous = window._existingUploadSelectionPending || Promise.resolve();
-            const selecting = (async () => {
-                await previous.catch(() => {});
+            const selecting = enqueueBookSelection(request, async () => {
                 if (!isCurrent()) { return; }
                 const result = await API.post('/api/uploads/select', { filename });
                 if (!isCurrent()) { return; }
@@ -2073,8 +2092,7 @@
                 document.getElementById('cast-list-panel').style.display = 'none';
                 clearCastListEditor();
                 await loadCastList(false);
-            })();
-            window._existingUploadSelectionPending = selecting;
+            });
             try { await selecting; }
             catch (e) {
                 if (isCurrent()) { statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Book selection was not confirmed', e, 'Check the current loaded book before selecting another upload.'))}</span>`; }
@@ -2091,18 +2109,28 @@
             if (!await ensureCastListEditsDiscardable()) { fileInput.value = ''; return; }
             if (fileInput.files[0] !== file) { return; }
 
+            const request = {};
+            window._existingUploadSelectionRequest = request;
+            const isCurrent = () => window._existingUploadSelectionRequest === request
+                && fileInput.files[0] === file;
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
-                const res = await API.upload(file);
-                applyCurrentBookFilename(res.stored_filename);
-                document.getElementById('existing-upload-select').value = '';
-                const verb = res.reused ? 'Reused existing copy' : 'Loaded';
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
-                document.getElementById('cast-list-panel').style.display = 'none';
-                clearCastListEditor();
-                await loadCastList(false);
-                await loadExistingScriptUploads();
+                await enqueueBookSelection(request, async () => {
+                    if (!isCurrent()) { return; }
+                    const res = await API.upload(file);
+                    if (!isCurrent()) { return; }
+                    applyCurrentBookFilename(res.stored_filename);
+                    document.getElementById('existing-upload-select').value = '';
+                    const verb = res.reused ? 'Reused existing copy' : 'Loaded';
+                    statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
+                    document.getElementById('cast-list-panel').style.display = 'none';
+                    clearCastListEditor();
+                    await loadCastList(false);
+                    if (!isCurrent()) { return; }
+                    await loadExistingScriptUploads();
+                });
             } catch (e) {
+                if (!isCurrent()) { return; }
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
             }
         });
@@ -2799,7 +2827,20 @@
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
             if (!(await ensureScriptStartConfirmed('this batch script generation'))) { return; }
             if (scriptBatchStartOperation) { return; }
+            const queue = scriptBatchQueue;
+            const narratorValues = queue.map((_, index) => document.getElementById(`script-batch-narrator-${index}`).value);
+            const collisionPolicy = document.getElementById('script-collision-policy').value;
             const operation = { cancelled: false, phase: 'preparing' };
+            const isCurrentQueue = () => !operation.cancelled && scriptBatchQueue === queue
+                && collisionPolicy === document.getElementById('script-collision-policy').value
+                && queue.every((_, index) => narratorValues[index] === document.getElementById(`script-batch-narrator-${index}`)?.value);
+            const ensureCurrentQueue = () => {
+                if (!isCurrentQueue() && !operation.cancelled) {
+                    operation.cancelled = true;
+                    showToast('The batch selection changed during preparation. Check the queue and start again.', 'warning');
+                }
+                return !operation.cancelled;
+            };
             scriptBatchStartOperation = operation;
             let started = false;
             let startUnconfirmed = false;
@@ -2819,7 +2860,7 @@
 
             try {
                 // Upload files in parallel; map preserves queue order for `tasks`.
-                const tasks = await Promise.all(scriptBatchQueue.map(async (item, index) => {
+                const tasks = await Promise.all(queue.map(async (item, index) => {
                     const firstPersonNarrator =
                         document.getElementById(`script-batch-narrator-${index}`).value.trim() || null;
                     if (item.storedFilename) {
@@ -2835,13 +2876,12 @@
                         first_person_narrator: firstPersonNarrator,
                     };
                 }));
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
 
-                const collisionPolicy = document.getElementById('script-collision-policy').value;
                 const preflight = await API.post('/api/generate_script/batch/preflight', {
                     tasks, collision_policy: collisionPolicy
                 });
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
                 const scripts = [...new Set(preflight.books.flatMap(book => book.scripts))];
                 const fallback = preflight.fallback_reason
                     ? `\nSafety adjustment: ${preflight.fallback_reason}` : '';
@@ -2865,7 +2905,7 @@
                     `Largest predicted request: ${preflight.worst_request_tokens.toLocaleString()} tokens\n` +
                     `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`,
                     {title: 'Start batch generation?', actionLabel: 'Start generation', danger: false});
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
                 if (!approved) {
                     statusMsg.innerHTML = '<span class="text-muted">Batch cancelled after preflight.</span>';
                     btn.disabled = false;
@@ -4156,7 +4196,7 @@
                 return '<div class="text-muted">No other characters to combine.</div>';
             }
             // Only prefill when nothing is saved yet — never override a choice.
-            const selected = new Set(members && members.length ? members : suggestEnsembleMembers(name));
+            const selected = new Set(Array.isArray(members) ? members : suggestEnsembleMembers(name));
             return names.map(n => `
                 <div class="form-check form-check-inline">
                     <input class="form-check-input ensemble-member" aria-label="${escapeHtml(`Include ${n} in voices together for ${name}`)}" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
@@ -4786,8 +4826,7 @@
             restoreVoiceListFocus(container, focusSnapshot, currentBookFilename);
         }
 
-        function applySuggestionToCard(name) {
-            const sugg = window._voiceSuggestions[name];
+        function applySuggestionToCard(name, sugg = window._voiceSuggestions[name]) {
             if (!sugg) { return false; }
             const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
             if (!card) { return false; }
@@ -4825,6 +4864,27 @@
             return true;
         }
 
+        function getSuggestionApplySnapshot(name, suggestion) {
+            const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
+            const getForm = () => card ? JSON.stringify(Array.from(card.querySelectorAll('input, select, textarea'),
+                field => [field.value, field.checked])) : null;
+            const form = getForm();
+            const book = currentBookFilename;
+            const cast = window._selectedCast || null;
+            const original = suggestion;
+            const submitted = JSON.parse(JSON.stringify(suggestion));
+            return {submitted, reconcile: () => {
+                if (book !== currentBookFilename || cast !== (window._selectedCast || null)
+                    || document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`) !== card) { return; }
+                const pending = window._voiceSuggestions[name];
+                if (getForm() !== form || (pending && (pending !== original || JSON.stringify(pending) !== JSON.stringify(submitted)))) {
+                    showToast('Earlier voice suggestion applied on the server. Your newer edits and suggestions are kept; review before saving.', 'warning');
+                    return;
+                }
+                applySuggestionToCard(name, submitted);
+            }};
+        }
+
         async function applyVoiceSuggestion(name) {
             if (window._voiceSuggestionContext && !window._voiceSuggestionContext.isCurrent()) {
                 showToast('The cast or book changed. Request current voice suggestions before applying.', 'warning');
@@ -4832,11 +4892,12 @@
             }
             const sugg = window._voiceSuggestions[name];
             if (!sugg) { return; }
+            const snapshot = getSuggestionApplySnapshot(name, sugg);
             try {
                 await API.post('/api/suggest_voices/apply', {
-                    character: name, cast: window._selectedCast || null, suggestion: sugg,
+                    character: name, cast: window._selectedCast || null, suggestion: snapshot.submitted,
                 });
-                applySuggestionToCard(name);
+                snapshot.reconcile();
                 await loadCastLibrary();
             } catch (e) {
                 showActionError("Failed to apply suggestion", e, "Check the current character voice and cast library before applying the suggestion again.");
@@ -4844,13 +4905,19 @@
         }
 
         async function applyAllVoiceSuggestions() {
-            const pending = { ...window._voiceSuggestions };
+            if (window._voiceSuggestionContext && !window._voiceSuggestionContext.isCurrent()) {
+                showToast('The cast or book changed. Request current voice suggestions before applying.', 'warning');
+                return;
+            }
+            const snapshots = Object.fromEntries(Object.entries(window._voiceSuggestions)
+                .map(([name, suggestion]) => [name, getSuggestionApplySnapshot(name, suggestion)]));
+            const pending = Object.fromEntries(Object.entries(snapshots).map(([name, snapshot]) => [name, snapshot.submitted]));
             if (!Object.keys(pending).length) { return; }
             try {
                 await API.post('/api/suggest_voices/apply_bulk', {
                     cast: window._selectedCast || null, suggestions: pending,
                 });
-                Object.keys(pending).forEach(name => applySuggestionToCard(name));
+                Object.values(snapshots).forEach(snapshot => snapshot.reconcile());
                 await loadCastLibrary();
             } catch (e) {
                 showActionError("Failed to apply suggestions", e, "Check the current character voices and cast library before applying the suggestions again.");
@@ -5300,12 +5367,19 @@
             document.getElementById('btn-cast-apply-bulk-submit').onclick = () => submitCastApplyBulk(script_names);
         }
 
+        let castApplyBulkPending = false;
         async function submitCastApplyBulk(script_names) {
+            if (castApplyBulkPending) { return; }
             const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
+            const cast = window._selectedCast;
+            const button = document.getElementById('btn-cast-apply-bulk-submit');
+            const wasDisabled = button?.disabled;
+            castApplyBulkPending = true;
+            if (button) { button.disabled = true; }
             try {
-                const res = await API.post('/api/voice_library/apply_bulk', { cast: window._selectedCast, mapping, script_names });
+                const res = await API.post('/api/voice_library/apply_bulk', { cast, mapping, script_names: [...script_names] });
                 const successful = res.results.filter(row => !row.error);
                 const failed = res.results.length - successful.length;
                 const summary = successful.length
@@ -5319,14 +5393,17 @@
                     </li>`).join('');
                 panel.innerHTML = `
                     <div class="border rounded p-2">
-                        <div class="small fw-bold mb-1">${escapeHtml(summary)} — cast "${escapeHtml(window._selectedCast)}"</div>
+                        <div class="small fw-bold mb-1">${escapeHtml(summary)} — cast "${escapeHtml(cast)}"</div>
                         <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>${total} voice${total !== 1 ? 's' : ''} applied in total, across the selected saved books. Your currently loaded book's voice settings and audio are unchanged. To use a saved book's updated voices, load it from Saved Scripts; loading replaces the current script and chunks.</div>
                         <ul class="list-group list-group-flush border rounded mb-2">${rows || '<li class="list-group-item small text-muted py-2 px-2">No books updated.</li>'}</ul>
                         <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Done</button>
                     </div>`;
                 setCastStatus(`${failed || !successful.length ? '' : '<i class="fas fa-check text-success me-1"></i>'}${escapeHtml(summary)}`,
                     failed > 0 || successful.length === 0);
-            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast to saved books failed", e, "Review the selected saved books and their voice assignments before applying again; some books may already have been updated.")), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast to saved books failed", e, "Review the selected saved books and their voice assignments before applying again; some books may already have been updated.")), true); } finally {
+                castApplyBulkPending = false;
+                if (button) { button.disabled = wasDisabled; }
+            }
         }
 
         // Identity anchors that take over from a line onward (#603): shown under
@@ -6140,7 +6217,7 @@
                 if (chunk.status === 'done' && chunk.audio_path) {
                     const existingAudio = actionContainer.querySelector('audio');
                     const existingNoAudio = actionContainer.querySelector('.text-muted');
-                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${Date.now()}`;
+                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
 
                     if (existingNoAudio) {
                         // No audio element yet, create one
@@ -6272,6 +6349,12 @@
             }
         }
 
+        function getChunkAudioIdentity(chunk) {
+            const revision = chunk.audio_revision || null;
+            return JSON.stringify([chunk.audio_path, revision,
+                ...(revision ? [] : [chunk.text, chunk.instruct, chunk.speaker])]);
+        }
+
         async function refreshChunkSnapshot(forceFullRedraw = false) {
             const refreshBook = currentBookFilename;
             // Cancel any pending poll so re-entrant calls don't stack up
@@ -6361,7 +6444,7 @@
                 // Incremental update - only update changed rows
                 chunks.forEach((chunk, i) => {
                     const cached = cachedChunks[i];
-                    if (!cached || cached.status !== chunk.status || cached.audio_path !== chunk.audio_path
+                    if (!cached || cached.status !== chunk.status || getChunkAudioIdentity(cached) !== getChunkAudioIdentity(chunk)
                             || _driftKey(cached.drift) !== _driftKey(chunk.drift)) {
                         updateChunkRow(chunk);
                     }
@@ -6395,7 +6478,7 @@
                 const playingChunk = playingAudio
                     ? cachedChunks.find(chunk => String(chunk.id) === playingAudio.dataset.id) : null;
                 const retainedChunk = refreshBook === currentBookFilename && playingChunk?.uid && chunks.find(chunk => chunk.uid === playingChunk.uid
-                    && chunk.audio_path && chunk.audio_path === playingChunk.audio_path);
+                    && chunk.audio_path && getChunkAudioIdentity(chunk) === getChunkAudioIdentity(playingChunk));
                 const playbackTime = playingAudio?.currentTime;
                 // Full redraw needed
                 tbody.innerHTML = chunks.map(chunk => {
@@ -6404,7 +6487,7 @@
                                       chunk.status === 'error' ? 'danger' : 'secondary';
 
                     const audioPlayer = chunk.audio_path ?
-                        `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${Date.now()}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
+                        `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
                         '<span class="text-muted small">No audio</span>';
 
                     const actionArea = chunk.status === 'generating' ?
@@ -7527,6 +7610,7 @@
         let _manualReplyFor = null;
         let _manualReplySubmitting = null;
         let _manualReplyAcknowledged = null;
+        let _manualAcknowledgedText = null;
         async function renderManualRequest(status, taskName) {
             const panel = document.getElementById('manual-llm-panel');
             if (!panel) { return; }
@@ -7565,7 +7649,7 @@
             document.getElementById('manual-llm-hint').textContent = full.stage_hint || '';
             document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
             const reply = document.getElementById('manual-llm-reply');
-            if (reply.value.trim() && _manualReplyFor !== full.id && _manualReplyAcknowledged !== _manualReplyFor) {
+            if (reply.value.trim() && _manualReplyFor !== full.id && (_manualReplyAcknowledged !== _manualReplyFor || reply.value !== _manualAcknowledgedText)) {
                 const retained = document.createElement('details');
                 const title = document.createElement('summary');
                 title.textContent = 'Retained reply from an earlier request';
@@ -7609,12 +7693,14 @@
                 return;
             }
             if (!reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            const submittedText = reply.value;
             _manualReplySubmitting = req.id;
             btn.disabled = true;
             reply.disabled = true;
             try {
-                await API.post('/api/manual_llm/response', { id: req.id, content: reply.value });
+                await API.post('/api/manual_llm/response', { id: req.id, content: submittedText });
                 _manualReplyAcknowledged = req.id;
+                _manualAcknowledgedText = submittedText;
                 if (window._manualPending?.id === req.id) {
                     document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
                 }

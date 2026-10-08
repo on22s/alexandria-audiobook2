@@ -10,7 +10,7 @@ import uuid
 from adapter_publication import save_adapter_publication_bytes, sync_adapter_directory
 from utils import file_lock
 
-FIELDS = frozenset(("status", "audio_path", "error", "drift"))
+FIELDS = frozenset(("status", "audio_path", "audio_revision", "error", "drift"))
 logger = logging.getLogger(__name__)
 
 

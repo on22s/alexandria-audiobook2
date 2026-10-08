@@ -88,15 +88,15 @@
             if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`, {title: 'Replace active book?', actionLabel: 'Load book', danger: true})) { return; }
             let request;
             let loading;
-            const isCurrent = () => !request || loadScript.request === request;
+            const isCurrent = () => !request || (loadScript.request === request
+                && window._existingUploadSelectionRequest === request);
             try {
                 await flushVoiceSaves();
                 if (!await ensureCastListEditsDiscardable()) { return; }
                 request = {};
                 loadScript.request = request;
-                const previous = loadScript.pending || Promise.resolve();
-                loading = (async () => {
-                    await previous.catch(() => {});
+                window._existingUploadSelectionRequest = request;
+                loading = enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }
                     const loaded = await API.post('/api/scripts/load', { name });
                     if (!isCurrent()) { return; }
@@ -113,7 +113,7 @@
                     if (!isCurrent()) { return; }
                     loadSavedScripts();
                     loadDesignedVoices();
-                })();
+                });
                 loadScript.pending = loading;
                 await loading;
             } catch (e) {
@@ -451,9 +451,13 @@
                     () => true, async () => {
                         const res = await fetch(`/api/voice_design/${encodeURIComponent(voiceId)}`, {method: 'DELETE'});
                         if (!res.ok) { const err = await res.json(); showActionError('Designed voice deletion refused', {message: err.detail || 'Failed to delete.', status: res.status}, 'Refresh the voice library and check the selected voice before deleting again.'); return; }
-                        await loadDesignedVoices();
-                        await loadVoices();
                         showToast('Designed voice deleted. Characters that used it need a new reference.', 'warning');
+                        try {
+                            await loadDesignedVoices();
+                            await loadVoices();
+                        } catch (e) {
+                            showActionError('Voice deleted; list refresh failed', e, 'Reload the voice library to refresh the list. The deletion was confirmed; do not delete again.');
+                        }
                     });
             } catch (e) {
                 showActionError("Deleting designed voice failed", e, "Refresh the voice library to check whether the voice was deleted before trying again.");

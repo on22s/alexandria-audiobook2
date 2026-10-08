@@ -21,7 +21,8 @@ class RemotePathPlatformTests(unittest.TestCase):
                 def run(command, **kwargs):
                     calls.append(command)
                     return SimpleNamespace(returncode=0, stderr="", stdout=
-                                           "/tmp/alexandria-lora-training.ABCDEF1234\n")
+                                           ("/tmp/alexandria-dedup.ABCDEF1234\n" if stage == "dedup" else
+                                            "/tmp/alexandria-lora-training.ABCDEF1234\n"))
 
                 def worker(command, *args, **kwargs):
                     workers.append(shlex.split(command[2]))

@@ -24,7 +24,7 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
 
     if cache.get("malformed_version") == file_version:
         raise RuntimeError(malformed_msg)
-    if cache.get("mtime") == mtime and cache.get("prompts") is not None:
+    if cache.get("file_version") == file_version and cache.get("prompts") is not None:
         return cache["prompts"]
 
     try:
@@ -48,5 +48,6 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
         raise RuntimeError(malformed_msg)
     cache.pop("malformed_version", None)
     cache["mtime"] = mtime
+    cache["file_version"] = file_version
     cache["prompts"] = prompts
     return prompts

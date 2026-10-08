@@ -20,6 +20,8 @@ def load_cluster_overrides(path: Path, narrator: str) -> dict:
     if not isinstance(narrators, dict):
         raise ValueError("cluster overrides must contain a narrators object")
     override = narrators.get(narrator, {})
+    if not isinstance(override, dict):
+        raise ValueError(f"cluster overrides for {narrator} must be an object")
     merge = override.get("merge", [])
     split = override.get("split", [])
     if not isinstance(merge, list) or not isinstance(split, list):

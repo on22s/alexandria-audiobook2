@@ -1698,15 +1698,15 @@ class TTSEngine:
         dynamic_chunks = []
         for chunk in chunks:
             speaker = chunk.get("speaker")
-            resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
-            if not is_voice_config_present(speaker, resolved):
-                results["failed"].append((chunk["index"],
-                    f"No voice configuration for '{speaker}'."))
-                continue
-            effective_config = voice_config_for_chunk(resolved, speaker, chunk["index"])
             try:
+                resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
+                if not is_voice_config_present(speaker, resolved):
+                    results["failed"].append((chunk["index"],
+                        f"No voice configuration for '{speaker}'."))
+                    continue
+                effective_config = voice_config_for_chunk(resolved, speaker, chunk["index"])
                 self.get_voice_backend(voice_category(effective_config.get(speaker)))
-            except UnsupportedVoiceBackendError as error:
+            except (UnsupportedVoiceBackendError, ValueError, TypeError, OverflowError) as error:
                 results["failed"].append((chunk["index"], str(error)))
                 continue
             dynamic_chunks.append((chunk, resolved))
@@ -1722,6 +1722,9 @@ class TTSEngine:
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 resolved = voice_config_for_chunk(resolved, chunk.get("speaker"), idx)
+                if batch_seed >= 0:
+                    speaker = chunk.get("speaker")
+                    resolved = {**resolved, speaker: {**resolved[speaker], "seed": batch_seed}}
                 try:
                     if self.generate_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
                         results["completed"].append(idx)
@@ -2123,11 +2126,18 @@ class TTSEngine:
         batch_peak_vram_gb = 0.0
         measure_gpu_peak = torch.cuda.is_available()
 
-        # Group chunks by speaker
+        # Group only chunks that resolve to the same speaker and clone reference.
         speaker_groups = {}
         for chunk in chunks:
             speaker = chunk.get("speaker", "")
-            speaker_groups.setdefault(speaker, []).append(chunk)
+            try:
+                selected = voice_config_for_chunk(voice_config, speaker, chunk["index"])
+                data = selected.get(speaker, {})
+                key = json.dumps([speaker, data.get("ref_audio"), data.get("ref_text")],
+                                 sort_keys=True)
+                speaker_groups.setdefault(key, (speaker, selected, []))[2].append(chunk)
+            except (ValueError, TypeError, OverflowError) as error:
+                results["failed"].append((chunk["index"], str(error)))
 
         model = self._init_local_clone()
 
@@ -2137,9 +2147,9 @@ class TTSEngine:
         t_total_start = time.time()
         total_audio_duration = 0.0
 
-        for speaker, group in speaker_groups.items():
+        for speaker, selected, group in speaker_groups.values():
             try:
-                prompt = self._get_clone_prompt(speaker, voice_config)
+                prompt = self._get_clone_prompt(speaker, selected)
             except Exception as e:
                 print(f"  Error building clone prompt for '{speaker}': {e}")
                 for chunk in group:

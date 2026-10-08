@@ -61,7 +61,7 @@ const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
 const guard = source.slice(source.indexOf('function isCastApplyContextCurrent('), source.indexOf('// Shared by submitCastApply/submitCastApplyBulk'));
 const single = source.slice(source.indexOf('function getCastApplyWarningsHtml('), source.indexOf('// --- Apply a cast to multiple saved books'));
-const bulk = source.slice(source.indexOf('async function submitCastApplyBulk('), source.indexOf('// Identity anchors that take over'));
+const bulk = source.slice(source.indexOf('let castApplyBulkPending ='), source.indexOf('// Identity anchors that take over'));
 const panel = {innerHTML:''}; const statuses = []; let refreshes = 0;
 let response;
 const context = {window:{_selectedCast:'series'},currentBookFilename:'fixture-book',_voiceSaveSnapshot:{book_token:'fixture-token'},document:{getElementById:()=>panel},
