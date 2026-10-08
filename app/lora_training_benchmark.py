@@ -13,6 +13,7 @@ from benchmark_validation import (get_lora_training_sample_count, get_lora_train
                                   get_benchmark_training_audio_path, get_benchmark_verified_file_path,
                                   get_benchmark_artifact_name, get_benchmark_output_path)
 from lora_evidence import get_file_sha256
+from dataset_metadata import get_training_reference_path
 
 
 def _safe_file_path(root, relative):
@@ -37,13 +38,20 @@ def execute_fixture(fixture, python_executable, train_script, output_root):
     for relative_path, expected in fixture["audio_sha256"].items():
         if get_file_sha256(_safe_file_path(source_dir, relative_path)) != expected:
             raise ValueError(f"training audio hash changed: {relative_path}")
+    reference = fixture.get("reference_audio") or os.path.relpath(
+        get_training_reference_path(source_dir, entries), source_dir)
+    if reference not in fixture["audio_sha256"]:
+        raise ValueError("training reference audio is unverified")
     os.makedirs(output_root, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="alexandria-lora-dataset-") as dataset_dir:
-        for entry in entries:
-            relative_path = entry.get("audio_filepath") or entry.get("audio")
+        for relative_path in dict.fromkeys([*paths, reference]):
             destination = os.path.join(dataset_dir, relative_path)
             os.makedirs(os.path.dirname(destination), exist_ok=True)
             shutil.copy2(_safe_file_path(source_dir, relative_path), destination)
+        if "reference_audio" in fixture:
+            entries = [{**entry, 'ref_audio': reference} for entry in entries]
+            with open(os.path.join(dataset_dir, 'ref_text.txt'), 'w', encoding='utf-8') as output:
+                output.write(fixture['reference_text'])
         with open(os.path.join(dataset_dir, "metadata.jsonl"), "w", encoding="utf-8") as output:
             for entry in entries:
                 output.write(json.dumps(entry, ensure_ascii=False) + "\n")

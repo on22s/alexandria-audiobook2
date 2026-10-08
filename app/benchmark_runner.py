@@ -94,6 +94,9 @@ def _validate_lora_training_fixture(fixture, root_dir):
     keys = ("dataset_path", "metadata_sha256", "sample_count", "audio_sha256",
             "epochs", "seed", "lr", "lora_r", "lora_alpha", "grad_accum", "language")
     content = {key: fixture[key] for key in keys}
+    for key in ('reference_audio', 'reference_text'):
+        if key in fixture:
+            content[key] = fixture[key]
     if _hash_entries(content) != fixture.get("sha256"):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
     dataset_path = get_benchmark_directory_path(root_dir, fixture["dataset_path"])

@@ -13,6 +13,7 @@ from benchmark_validation import (get_lora_training_sample_count, get_lora_train
                                   get_benchmark_training_audio_path, get_benchmark_archive_audio_path,
                                   get_adapter_artifact_path)
 from dedup_benchmark import get_dedup_selected_entries
+from dataset_metadata import get_training_reference_path, get_training_reference_text
 
 
 def _load_jsonl_entries(raw: bytes, label: str) -> list[dict]:
@@ -279,9 +280,18 @@ def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None
             relative_audio = entry.get("audio_filepath") or entry.get("audio")
             audio_path = get_benchmark_training_audio_path(dataset_path, relative_audio)
             audio_hashes[relative_audio] = get_file_sha256(audio_path)
+        reference = get_training_reference_path(dataset_path, entries)
+        reference_relative = os.path.relpath(reference, dataset_path)
+        audio_hashes[reference_relative] = get_file_sha256(reference)
+        all_entries = _load_jsonl_entries(metadata_raw, "LoRA training")
+        samples = [{**entry, 'audio_path': get_benchmark_training_audio_path(
+            dataset_path, entry.get('audio_filepath') or entry.get('audio'))}
+            for entry in all_entries]
+        reference_text = get_training_reference_text(dataset_path, reference, samples)
         selected = {"dataset_path": os.path.relpath(dataset_path, root_dir),
                     "metadata_sha256": hashlib.sha256(metadata_raw).hexdigest(),
                     "sample_count": sample_count, "audio_sha256": audio_hashes,
+                    "reference_audio": reference_relative, "reference_text": reference_text,
                     "epochs": fixture.get("epochs", 1), "seed": fixture.get("seed", 42),
                     "lr": fixture.get("lr", 1e-6), "lora_r": fixture.get("lora_r", 8),
                     "lora_alpha": fixture.get("lora_alpha", 16),

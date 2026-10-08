@@ -212,6 +212,11 @@ def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
         if not os.path.isfile(source):
             raise FileNotFoundError(f"Candidate is incomplete: missing {filename}")
         shutil.copy2(source, os.path.join(destination_dir, filename))
+    # This audition belongs to the checkpoint being replaced. The caller
+    # stages the complete bundle, so failure still restores the old audition.
+    preview = os.path.join(destination_dir, "preview_sample.wav")
+    if os.path.exists(preview):
+        os.remove(preview)
 
 
 def _get_directory_size(path: str) -> int:

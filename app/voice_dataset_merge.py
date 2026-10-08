@@ -12,7 +12,7 @@ import numpy as np
 import soundfile as sf
 
 
-MERGE_VERSION = 4
+MERGE_VERSION = 5
 
 
 def get_file_fingerprint(path: Path) -> dict:
@@ -82,6 +82,7 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
     merged_metadata = []
     provenance = []
     duplicate_count = 0
+    reference_paths = {}
     reference = None
     reference_text = None
     try:
@@ -116,6 +117,21 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                         output.writestr(output_path, wav_bytes)
                         merged_entry = dict(entry)
                         merged_entry["audio_filepath"] = output_path
+                        ref_audio = entry.get("ref_audio")
+                        if ref_audio:
+                            if ref_audio == original_path:
+                                merged_entry["ref_audio"] = output_path
+                            else:
+                                key = (source_index, ref_audio)
+                                if key not in reference_paths:
+                                    try:
+                                        ref_bytes = source.read(ref_audio)
+                                    except KeyError as error:
+                                        raise ValueError(f"metadata reference audio is missing: {ref_audio}") from error
+                                    get_pcm_hash(ref_bytes)
+                                    reference_paths[key] = f"references/s{source_index:03d}_{len(reference_paths):06d}.wav"
+                                    output.writestr(reference_paths[key], ref_bytes)
+                                merged_entry["ref_audio"] = reference_paths[key]
                         merged_metadata.append(merged_entry)
                         seen_pcm[pcm_hash] = output_path
                         seen_transcripts[pcm_hash] = entry.get("text")

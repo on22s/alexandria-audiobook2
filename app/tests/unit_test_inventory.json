@@ -2078,6 +2078,15 @@
     "tests.test_dataset_publication.DatasetPublicationTests.test_upload_and_builder_share_the_destination_lock_and_preserve_upload_bytes",
     "tests.test_dataset_publication.DatasetPublicationTests.test_upload_is_invisible_during_extraction_and_publishes_validated_rows"
   ],
+  "test_dataset_review_regressions": [
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_checkpoint_promotion_and_rollback_discard_old_audition",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_merged_archive_rewrites_self_and_separate_references",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_metadata_edits_invalidate_inherited_rows_and_preserve_explicit_seed",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_naming_cli_publishes_a_descriptive_id_for_fresh_batch_adapter",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_real_training_fixture_copies_and_hashes_external_reference_and_transcript",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_timestamp_training_ids_are_unnamed_and_descriptive_ids_stay_named",
+    "tests.test_dataset_review_regressions.DatasetReviewRegressions.test_transitive_manual_merge_refuses_a_split_conflict"
+  ],
   "test_dataset_row_edits": [
     "tests.test_dataset_row_edits.DatasetRowEditTests.test_multi_edit_validates_all_before_write_and_unchanged_inputs_keep_audio",
     "tests.test_dataset_row_edits.DatasetRowEditTests.test_revision_instrument_and_native_artifact_changed_only_in_selected_sample",

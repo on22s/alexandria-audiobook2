@@ -73,6 +73,8 @@ def cluster_voices(labels: list[str], similarities, threshold: float,
             raise ValueError("merge and split overrides conflict")
         matched = [cluster for cluster in clusters if cluster & group_set]
         merged = set().union(*matched)
+        if any(pair <= merged for pair in split_pairs):
+            raise ValueError("merge and split overrides conflict")
         clusters = [cluster for cluster in clusters if cluster not in matched] + [merged]
         decisions.append({"type": "manual_merge", "labels": sorted(merged)})
 

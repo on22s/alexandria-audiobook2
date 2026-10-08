@@ -152,6 +152,18 @@ def validate_dataset_row_definitions(rows):
         raise HTTPException(status_code=400, detail="Each row needs string text and emotion, and a string or integer seed")
 
 
+def get_effective_dataset_seed(row_seed, global_seed):
+    """Per-row seed takes precedence over the global seed; blank means random."""
+    for value in (row_seed, global_seed):
+        try:
+            seed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if seed >= 0:
+            return seed
+    return -1
+
+
 def get_merged_dataset_sample(row, existing=None):
     sample = {"emotion": row.get("emotion", ""), "text": row.get("text", "").strip(),
               "seed": row.get("seed", ""), "status": "pending", "audio_url": None}
@@ -219,7 +231,7 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
     return {"name": safe_name}
 
 def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
-    """Update project description and global seed without touching samples."""
+    """Invalidate cached samples whose inherited generation inputs changed."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     with _get_builder_state_lock(safe_name):
@@ -227,6 +239,12 @@ def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
         if not os.path.exists(work_dir):
             raise HTTPException(status_code=404, detail="Project not found")
         state = _load_builder_state(safe_name)
+        description_changed = state.get("description", "") != request.description
+        seed_changed = get_effective_dataset_seed("", state.get("global_seed", "")) != get_effective_dataset_seed("", request.global_seed)
+        state["samples"] = [
+            get_merged_dataset_sample(row) if (description_changed or
+                (seed_changed and get_effective_dataset_seed(row.get("seed", ""), "") < 0))
+            else row for row in state.get("samples", [])]
         state["description"] = request.description
         state["global_seed"] = request.global_seed
         _save_builder_state(safe_name, state)
@@ -461,11 +479,9 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
 
                 try:
                     # Resolve seed: per-line > global > random
-                    seed = -1
-                    if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0:
-                        seed = per_seeds[idx]
-                    elif global_seed >= 0:
-                        seed = global_seed
+                    seed = get_effective_dataset_seed(
+                        per_seeds[idx] if per_seeds and idx < len(per_seeds) else -1,
+                        global_seed)
 
                     wav_path, _ = engine.generate_voice_design(
                         description=description,

@@ -1,3 +1,4 @@
+from voice_manifest import is_adapter_named
 import asyncio
 import logging
 import json
@@ -674,7 +675,7 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
     evaluated = sum(1 for e in manifest if (e.get("evaluation") or {}).get("status") in
                     ("pass", "warning"))
     unnamed = sum(1 for e in manifest
-                  if e.get("zip_source") and e.get("dataset_id") and e.get("id") == e.get("dataset_id"))
+                  if e.get("zip_source") and e.get("dataset_id") and not is_adapter_named(e))
     profiled = sum(1 for e in manifest if e.get("voice_profile"))
 
     return {

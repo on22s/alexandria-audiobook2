@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import re
 
 
 def get_voice_manifest(path):
@@ -267,3 +268,15 @@ def validate_adapter_registration_id_locked(models_dir, adapter_id, manifest):
     reserved.update(get_reserved_adapter_ids(get_adapter_id_alias_map([row for row in manifest if 'id' in row])))
     if os.path.normcase(adapter_id) in reserved:
         raise ValueError('Adapter registration would reuse an existing or historical identity')
+
+
+def is_adapter_named(entry):
+    """Raw batch IDs optionally append their training timestamp to the dataset stem."""
+    dataset_id = entry.get('dataset_id')
+    if not dataset_id:
+        return True
+    adapter_id = entry.get('id')
+    if adapter_id == dataset_id:
+        return False
+    return not (isinstance(adapter_id, str) and re.fullmatch(
+        re.escape(str(dataset_id)) + r'_[0-9]{10}', adapter_id))

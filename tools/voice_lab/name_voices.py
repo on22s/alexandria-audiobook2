@@ -45,7 +45,7 @@ from adapter_naming_transaction import (
     recover_adapter_naming_locked, validate_naming_manifest,
 )
 from adapter_publication import get_adapter_publication_recovery_command, get_adapter_publication_owner
-from voice_manifest import get_voice_manifest, get_adapter_alias_registry, get_reserved_adapter_ids, get_resolved_adapter_manifest_rows_locked
+from voice_manifest import is_adapter_named, get_voice_manifest, get_adapter_alias_registry, get_reserved_adapter_ids, get_resolved_adapter_manifest_rows_locked
 from voice_acoustics import get_pitch_gender_estimate
 
 DEFAULT_MODELS_DIR = os.path.join(SCRIPT_DIR, "lora_models")
@@ -121,16 +121,7 @@ def _strip_suffix(slug: str) -> str:
 
 
 def _is_named(entry: dict) -> bool:
-    """An entry is 'named' once its id differs from the raw dataset stem.
-
-    An entry with NO dataset_id is treated as named (conservative): we can't
-    tell it's unnamed, and re-renaming a shipped voice id other configs
-    reference is worse than skipping it. Use --overwrite to force.
-    """
-    ds = entry.get("dataset_id")
-    if not ds:
-        return True
-    return entry.get("id") != ds
+    return is_adapter_named(entry)
 
 
 def _mean_f0(entry: dict):

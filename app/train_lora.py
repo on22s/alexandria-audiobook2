@@ -124,35 +124,7 @@ def deduplicate_evaluation_candidates(output_dir, records):
     return retained, skipped, production_hash
 
 
-def get_training_reference_preview(text):
-    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text[:60].encode(encoding, errors="backslashreplace").decode(encoding)
-
-
-def get_training_reference_text(data_dir, ref_audio_path, samples):
-    ref_text_file = os.path.join(data_dir, "ref_text.txt")
-    ref_sample_text = ""
-    if os.path.exists(ref_text_file):
-        with open(ref_text_file, "r", encoding="utf-8") as f:
-            ref_sample_text = f.read().strip()
-        if ref_sample_text:
-            print(f"[DATA] Using ref text from ref_text.txt: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
-    if not ref_sample_text:
-        from lora_evidence import get_file_sha256
-        reference_hash = get_file_sha256(ref_audio_path)
-        matched_sample = next((sample for sample in samples
-                               if sample.get("audio_path")
-                               and os.path.isfile(sample["audio_path"])
-                               and get_file_sha256(sample["audio_path"]) == reference_hash), None)
-        if matched_sample is not None:
-            ref_sample_text = matched_sample["text"]
-            print(f"[DATA] Using matching sample text as ref text: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
-        else:
-            # Legacy datasets: ref.wav is typically the first sample
-            ref_sample_text = samples[0]["text"]
-            print(f"[DATA] Using first sample text as ref text: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
-
-    return ref_sample_text
+from dataset_metadata import get_training_reference_preview, get_training_reference_text
 
 
 def get_training_checkpoint_metadata(args, samples, ref_audio_path, ref_sample_text,
