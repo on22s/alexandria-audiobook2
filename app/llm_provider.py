@@ -84,8 +84,12 @@ def adapt_request_for_reasoning_model(kwargs):
         effort = "none" if re.fullmatch(
             r"gpt-5\.(?:1|2|4)(?:-\d{4}-\d{2}-\d{2})?", model) else "medium"
     if effort != "none":
+        if "extra_body" in out and out["extra_body"] is not None:
+            out["extra_body"] = dict(out["extra_body"])
         for key in _SAMPLING_KEYS:
             out.pop(key, None)
+            if out.get("extra_body") is not None:
+                out["extra_body"].pop(key, None)
     return out
 
 
@@ -451,6 +455,55 @@ def manual_llm_dir(data_dir):
     return os.path.join(data_dir, MANUAL_DIR_NAME)
 
 
+def get_manual_process_identity(pid):
+    """Read a kernel birth identity, never just a reusable process number."""
+    import sys
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        api = ctypes.WinDLL("kernel32", use_last_error=True)
+        api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        api.OpenProcess.restype = ctypes.c_void_p
+        api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        api.WaitForSingleObject.restype = ctypes.c_uint32
+        api.GetProcessTimes.argtypes = [ctypes.c_void_p] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        api.GetProcessTimes.restype = ctypes.c_int
+        api.CloseHandle.argtypes = [ctypes.c_void_p]
+        api.CloseHandle.restype = ctypes.c_int
+        handle = api.OpenProcess(0x101000, False, pid)  # SYNCHRONIZE + QUERY_LIMITED_INFORMATION
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:
+                return None
+            raise OSError(error, "Cannot inspect manual LLM request owner")
+        try:
+            status = api.WaitForSingleObject(handle, 0)
+            if status == 0:
+                return None
+            if status != 258:
+                raise OSError(ctypes.get_last_error(), "Cannot query manual LLM request owner")
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not api.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+                raise OSError(ctypes.get_last_error(), "Cannot read manual LLM owner creation time")
+            return "windows:" + str((times[0].dwHighDateTime << 32) | times[0].dwLowDateTime)
+        finally:
+            api.CloseHandle(handle)
+    if sys.platform.startswith("linux"):
+        from subprocess_ownership import get_process_identity
+        try:
+            return "linux:" + get_process_identity(pid)
+        except (FileNotFoundError, ProcessLookupError):
+            return None
+    import subprocess
+    result = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="],
+                            capture_output=True, text=True, timeout=5)
+    if result.returncode == 1 and not result.stdout.strip():
+        return None
+    if result.returncode or not result.stdout.strip():
+        raise OSError("Cannot read manual LLM owner creation time")
+    return "posix:" + result.stdout.strip()
+
+
 def is_manual_request_owner_alive(pending):
     """Whether a queued manual request still has a process to receive it."""
     pid = pending.get("owner_pid") if isinstance(pending, dict) else None
@@ -464,39 +517,10 @@ def is_manual_request_owner_alive(pending):
             owner = _manual_request_owners.get(request_id)
         return bool(owner is not None and owner.ident == pending.get("owner_thread")
                     and owner.is_alive())
-    if os.name == "nt":
-        import ctypes
-        api = ctypes.WinDLL("kernel32", use_last_error=True)
-        api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
-        api.OpenProcess.restype = ctypes.c_void_p
-        api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-        api.WaitForSingleObject.restype = ctypes.c_uint32
-        api.CloseHandle.argtypes = [ctypes.c_void_p]
-        api.CloseHandle.restype = ctypes.c_int
-        handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE only
-        if not handle:
-            error = ctypes.get_last_error()
-            if error == 87:  # ERROR_INVALID_PARAMETER: process no longer exists
-                return False
-            if error == 5:  # ERROR_ACCESS_DENIED: preserve the owner's request
-                return True
-            raise OSError(error, "Cannot inspect manual LLM request owner")
-        try:
-            status = api.WaitForSingleObject(handle, 0)
-            if status == 258:  # WAIT_TIMEOUT: process has not exited
-                return True
-            if status == 0:  # WAIT_OBJECT_0: process exited
-                return False
-            raise OSError(ctypes.get_last_error(), "Cannot query manual LLM request owner")
-        finally:
-            api.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
+    identity = pending.get("owner_process_identity")
+    if not isinstance(identity, str) or not identity:
         return False
-    except PermissionError:
-        return True
+    return get_manual_process_identity(pid) == identity
 
 
 class ManualClient:
@@ -543,6 +567,7 @@ class ManualClient:
         request = {
             "id": uuid.uuid4().hex, "sequence": self.sequence, "created": time.time(),
             "owner_pid": os.getpid(), "owner_thread": threading.get_ident(),
+            "owner_process_identity": get_manual_process_identity(os.getpid()),
             "model": kwargs.get("model"), "messages": kwargs.get("messages") or [],
             "params": {**{key: value for key, value in kwargs.items()
                           if key not in ("model", "messages", "timeout",

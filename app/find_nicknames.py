@@ -204,7 +204,20 @@ def _parse_alias_response(raw, speakers, existing_aliases=None):
     for variant, canonical in aliases.items():
         if variant not in safe and resolve_speaker_label(canonical, speakers) is None:
             _warn_near_miss_label("canonical", canonical, speakers)
-    return safe, evidence
+    retained_evidence = {}
+    conflicting_evidence = set()
+    for label, explanation in evidence.items():
+        if not isinstance(label, str):
+            continue
+        variant = resolve_speaker_label(label.strip(), speakers)
+        if variant in safe and variant not in conflicting_evidence:
+            previous = retained_evidence.get(variant)
+            if previous is not None and previous != explanation:
+                retained_evidence.pop(variant, None)
+                conflicting_evidence.add(variant)
+                continue
+            retained_evidence[variant] = explanation
+    return safe, retained_evidence
 
 
 def _chunk_evidence(cooccur, evidence_budget):

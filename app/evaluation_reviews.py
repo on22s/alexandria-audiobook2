@@ -295,6 +295,8 @@ def get_session_audio_path(reviews_dir, session_id, label, probe_id, adapter_id=
 def _clean_rating(rating):
     if rating is None:
         return None
+    if isinstance(rating, bool) or (isinstance(rating, float) and not rating.is_integer()):
+        raise ReviewError("Rating must be an integer 1-5 or omitted")
     try:
         value = int(rating)
     except (TypeError, ValueError):
