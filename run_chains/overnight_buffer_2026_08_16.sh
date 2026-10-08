@@ -9,7 +9,7 @@
 set -uo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$repo/ab_test_runtime"; python="$repo/app/env/bin/python"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock" GPU_QLOG="$runtime/logs/gpu_jobq.log"
+export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 note() { echo "[$(date -u +%FT%TZ)] $*"; }
 attempt() { local n="$1" a="$2"; shift 2
     [ -e "$a" ] && { note "SKIP $n"; return 0; }

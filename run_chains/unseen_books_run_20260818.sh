@@ -12,7 +12,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 LOG="$runtime/logs/overnight_20260818"
 mkdir -p "$LOG"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 DEADLINE=$(date -d "2026-08-18 11:20" +%s)
 

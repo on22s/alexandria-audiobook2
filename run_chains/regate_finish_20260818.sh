@@ -17,7 +17,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 STAGE_LOG_DIR="$runtime/logs/regate_finish"
 source "$REPO/run_chains/lib/stage.sh"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 # 11:45, so everything including the index refresh is done before noon.

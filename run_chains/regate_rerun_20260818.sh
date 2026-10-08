@@ -18,7 +18,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 STAGE_LOG_DIR="$runtime/logs/regate_rerun"
 source "$REPO/run_chains/lib/stage.sh"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 # Stop at 11:15, five minutes before the machine is wanted back.

@@ -267,7 +267,7 @@ stamp() { date -u +%FT%TZ; }
 # Queue records are required; an unrecorded run must never look successful.
 source "$REPO/run_chains/lib/gpu_queue_log.sh" || exit 4
 write_queue_log() {
-    append_queue_log "$@" || exit 8
+    append_queue_log "$* owner_pid=$$" || exit 8
 }
 
 if [ "$ACTION" = check_llm ]; then
@@ -482,7 +482,7 @@ identity() {
          "gpu_job_sha=${script_sha:-unknown} host=$(hostname)" \
          "gpu=${gpu:-unknown} cmd=${command_text% }"
 }
-write_queue_log "$(identity "$@")"
+append_queue_log "$(identity "$@")" || exit 8
 
 # A DIRTY TREE IS NOW A GATE, NOT JUST A NOTE. The identity block above has
 # recorded `tree=dirty` since 2026-08-04 and nothing ever read it: 86 of 178

@@ -23,7 +23,6 @@ runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/attribution_fix"
 source "$REPO/run_chains/lib/stage.sh"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 # The narrator arm needs an LLM; the preflight refuses the run rather than

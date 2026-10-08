@@ -16,6 +16,8 @@ present in it would report a running job as finished, which is worse.
 """
 import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -46,12 +48,20 @@ def markers_cleared():
         pause = fh.read()
     if 'source "$REPO/run_chains/lib/gpu_queue_log.sh"' not in pause or 'get_logged_queue_job' not in pause:
         raise AssertionError("gpu_pause.sh must use the shared queue status reader")
-    with open(os.path.join(REPO, "run_chains/lib/gpu_queue_log.sh"), encoding="utf-8") as fh:
-        for line in fh:
-            if '{line=""}' in line and "/" in line:
-                body = line[line.index("/") + 1:line.rindex("/")].removeprefix("^(").removesuffix(")$")
-                return {p.strip() for p in body.split("|") if p.strip()}
-    raise AssertionError("no terminal-marker pattern found in shared queue status reader")
+    cleared = set()
+    with tempfile.TemporaryDirectory() as directory:
+        qlog = os.path.join(directory, 'queue.log')
+        for marker in TERMINAL | PROCEEDS:
+            with open(qlog, 'w', encoding='utf-8') as handle:
+                handle.write('2099-01-01T00:00:00Z START job owner_pid=123\n')
+                handle.write(f'2099-01-01T00:00:01Z {marker} job owner_pid=123\n')
+            result = subprocess.run(['bash', '-c',
+                'source "$1/run_chains/lib/gpu_queue_log.sh"; QLOG="$2"; get_queue_active_start',
+                'probe', REPO, qlog], capture_output=True, text=True, check=True)
+            if not result.stdout.strip():
+                cleared.add(marker)
+    return cleared
+
 
 
 @unittest.skipUnless(os.path.exists(JOB) and os.path.exists(PAUSE),

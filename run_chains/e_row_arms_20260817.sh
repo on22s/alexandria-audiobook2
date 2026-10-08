@@ -43,7 +43,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 source "$REPO/run_chains/lib/queue.sh"
 python=$(resolve_python "$REPO") || { echo "no interpreter for e-row arms" >&2; exit 1; }
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 LIMIT="${E_ROW_LIMIT:-400}"
 

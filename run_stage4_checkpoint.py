@@ -9,12 +9,12 @@ import subprocess
 import sys
 
 from local_gpu_job import run_gpu_job
-from results_index_validation import require_results_index_entries
 
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
+from results_index_validation import require_results_index_entries
 PILOT = os.path.join(
     REPO, "ab_test_runtime", "experiments", "nonprose_replication_pilot.json")
 FULL = os.path.join(

@@ -28,7 +28,7 @@ artifact_complete() {
 }
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$repo/ab_test_runtime"; python="$repo/app/env/bin/python"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock" GPU_QLOG="$runtime/logs/gpu_jobq.log"
+export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 out="$runtime/experiments/respelling_rule_b.json"
 # artifact_complete() was defined above and never called - see the note in
 # app/tests/test_chain_skip_guards.py. A partial file must not read as done.

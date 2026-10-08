@@ -36,7 +36,6 @@ runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
 LOG="$runtime/logs/overnight_20260818"
 mkdir -p "$LOG" "$runtime/reports/overnight_20260818" || exit 1
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 # 16:30Z = 11:30am CDT, half an hour before the machine is wanted back.

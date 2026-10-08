@@ -4,7 +4,22 @@ import os
 
 def get_default_gpu_lock_path(repo_dir):
     """Resolve the shared native path without requiring a shell or creating it."""
-    return os.path.join(os.path.realpath(repo_dir), 'ab_test_runtime', 'logs',
+    root = os.path.realpath(repo_dir)
+    git_file = os.path.join(root, '.git')
+    if os.path.isfile(git_file):
+        with open(git_file, encoding='utf-8') as stream:
+            entry = stream.read().strip()
+        if not entry.startswith('gitdir: '):
+            raise ValueError('Invalid worktree Git directory')
+        git_dir = os.path.realpath(os.path.join(root, entry[8:]))
+        common_file = os.path.join(git_dir, 'commondir')
+        if os.path.isfile(common_file):
+            with open(common_file, encoding='utf-8') as stream:
+                common = stream.read().strip()
+            if not common:
+                raise ValueError('Empty worktree common directory')
+            root = os.path.dirname(os.path.realpath(os.path.join(git_dir, common)))
+    return os.path.join(root, 'ab_test_runtime', 'logs',
                         'alexandria_gpu.lock')
 
 

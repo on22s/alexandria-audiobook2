@@ -14,7 +14,6 @@ python="$REPO/app/env/bin/python"
 inputs="$runtime/results/collect_all_20260722-155801/inputs"
 STAGE_LOG_DIR="$runtime/logs/overnight_20260819"
 source "$REPO/run_chains/lib/stage.sh"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 DEADLINE=$(date -d "2026-08-19 14:30" +%s)
 left() { echo $(( DEADLINE - $(date +%s) )); }

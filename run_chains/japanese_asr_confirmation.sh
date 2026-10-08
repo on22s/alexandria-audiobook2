@@ -28,7 +28,6 @@ artifact_complete() {
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$repo/ab_test_runtime"
 python="$repo/app/env/bin/python"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 mkdir -p "$runtime/logs" "$runtime/experiments"
 

@@ -19,7 +19,6 @@ runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/everything_20260818"
 source "$REPO/run_chains/lib/stage.sh"
-export GPU_LOCK="$runtime/logs/alexandria_gpu.lock"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 mkdir -p "$STAGE_LOG_DIR"
 

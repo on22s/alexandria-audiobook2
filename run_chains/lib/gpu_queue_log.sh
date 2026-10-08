@@ -1,8 +1,26 @@
 # Shared queue record retention; the separate lock inode never rotates.
 get_queue_active_start() {
     awk '
-        $2 == "START" {line=$0}
-        $2 ~ /^(OK|FAILED|REFUSED|NO_VRAM|NO_LLM|KILLED|LOCK_FAILED|PENDING_FAILED|INTERRUPTED|STOPPED)$/ {line=""}
+        function pid(record, fields, count) {
+            count=split(record, fields, / owner_pid=/)
+            return count > 1 && fields[count] ~ /^[0-9]+$/ ? fields[count] : ""
+        }
+        function body(record) {
+            sub(/^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+/, "", record)
+            sub(/ owner_pid=[0-9]+$/, "", record)
+            return record
+        }
+        $2 == "START" {line=$0; owner=pid($0); name=body($0)}
+        $2 ~ /^(OK|FAILED|REFUSED|NO_VRAM|NO_LLM|KILLED|LOCK_FAILED|PENDING_FAILED|INTERRUPTED|STOPPED)$/ {
+            event_owner=pid($0)
+            if (owner != "" && event_owner != "") {
+                if (owner == event_owner) line=""
+            } else {
+                event_name=body($0)
+                if (event_name == name || (substr(event_name,1,length(name)) == name &&
+                    substr(event_name,length(name)+1) ~ /^ (rc=[0-9]+( .*)?|\(.*\))$/)) line=""
+            }
+        }
         END {if (line != "") print line}' "$QLOG"
 }
 
@@ -51,5 +69,5 @@ append_queue_log() (
 get_logged_queue_job() (
     exec 8>> "$QLOG.lock" && flock -s 8 || return 1
     [ -e "$QLOG" ] || return 0
-    get_queue_active_start | sed 's/^[^ ]* START    //'
+    get_queue_active_start | sed -e 's/^[^ ]* START    //' -e 's/ owner_pid=[0-9]*$//'
 )

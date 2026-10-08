@@ -3630,7 +3630,8 @@
     "tests.test_gpu_queue_rotation.QueueRotationTests.test_concurrent_writers_rotate_without_losing_or_splitting_records",
     "tests.test_gpu_queue_rotation.QueueRotationTests.test_pause_and_resume_use_rotation_and_fail_loud_on_bad_log",
     "tests.test_gpu_queue_rotation.QueueRotationTests.test_retention_preserves_active_start_beyond_all_archives",
-    "tests.test_gpu_queue_rotation.QueueRotationTests.test_status_words_in_names_do_not_clear_start_but_terminal_fields_do"
+    "tests.test_gpu_queue_rotation.QueueRotationTests.test_status_words_in_names_do_not_clear_start_but_terminal_fields_do",
+    "tests.test_gpu_queue_rotation.QueueRotationTests.test_unrelated_terminal_preserves_active_owner_and_real_completion_clears_it"
   ],
   "test_gpu_source_identity": [
     "tests.test_gpu_source_identity.SourceIdentityTests.test_binary_untracked_and_odd_names_are_restorable_from_patch",
@@ -9029,6 +9030,10 @@
   "test_workbench_status_js": [
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_page_initialization_restores_existing_voicelab_run_and_controls",
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_remote_optimize_toggle_tracks_actual_status_after_endpoint_switch"
+  ],
+  "test_worktree_gpu_lock": [
+    "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_linked_worktree_and_primary_share_actual_kernel_lock",
+    "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_stage4_loads_without_preexisting_app_pythonpath"
   ],
   "test_wp2021_fixture": [
     "tests.test_wp2021_fixture.BuildTests.test_an_entry_carries_the_canonical_speaker_and_gender",

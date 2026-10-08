@@ -28,6 +28,23 @@ class QueueRotationTests(unittest.TestCase):
                         self.assertEqual(0, result.returncode, result.stderr)
                         self.assertEqual("", result.stdout)
 
+    def test_unrelated_terminal_preserves_active_owner_and_real_completion_clears_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("active", "active job", "active (queued)"):
+                start = f"stamp START    {name} owner_pid=123"
+                for status in ("FAILED", "LOCK_FAILED", "PENDING_FAILED"):
+                    (root / "q.log").write_text(start + f"\nstamp {status} {name} owner_pid=456\n")
+                    result = self.run_shell(root, "get_logged_queue_job")
+                    self.assertEqual(name, result.stdout.strip(), result.stderr)
+                (root / "q.log").write_text(start + f"\nstamp FAILED {name} rc=2 owner_pid=123\n")
+                self.assertEqual("", self.run_shell(root, "get_logged_queue_job").stdout)
+            (root / "q.log").write_text("stamp START    active job\nstamp PENDING_FAILED other job\n")
+            self.assertEqual("active job", self.run_shell(root, "get_logged_queue_job").stdout.strip())
+            with open(root / "q.log", "a") as stream:
+                stream.write("stamp FAILED active job rc=2\n")
+            self.assertEqual("", self.run_shell(root, "get_logged_queue_job").stdout)
+
     def run_shell(self, root, body, *args):
         return subprocess.run(["bash", "-c", 'source "$1"; QLOG="$2"; ' + body,
                                "fixture", str(HELPER), str(root / "q.log"), *args],
