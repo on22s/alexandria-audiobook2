@@ -635,6 +635,8 @@
             { key: 'night',       icon: 'fa-moon',     label: 'Night'      },
             { key: 'super-night', icon: 'fa-circle',   label: 'Super Night'},
             { key: 'cyberpunk',   icon: 'fa-bolt',     label: 'Cyberpunk'  },
+            { key: 'bread',       icon: 'fa-bread-slice', label: 'Bread'   },
+            { key: 'leek',        icon: 'fa-leaf',     label: 'Leek'       },
         ];
 
         function applyTheme(key) {

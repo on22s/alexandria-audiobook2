@@ -303,6 +303,7 @@
         .table thead th { background-color: var(--bg-card-header); color: var(--text-heading); }
         .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(0,0,0,0.03); }
         html[data-theme="night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.03); }
+        html[data-theme="leek"] .table-striped > tbody > tr:nth-of-type(odd) > *,
         html[data-theme="super-night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.02); }
 
         /* Modals */
@@ -452,6 +453,7 @@
             border-color: rgba(100,160,255,0.4);
             color: rgba(150,190,255,0.9);
         }
+        html[data-theme="leek"] #theme-toggle,
         html[data-theme="super-night"] #theme-toggle {
             border-color: rgba(80,80,80,0.6);
             color: rgba(120,120,120,0.9);
@@ -487,16 +489,21 @@
 
         /* Tinted card headers in night modes */
         html[data-theme="night"] .bg-success.bg-opacity-10,
+        html[data-theme="leek"] .bg-success.bg-opacity-10,
         html[data-theme="super-night"] .bg-success.bg-opacity-10 { background-color: rgba(25,135,84,0.12) !important; }
         html[data-theme="night"] .bg-info.bg-opacity-10,
+        html[data-theme="leek"] .bg-info.bg-opacity-10,
         html[data-theme="super-night"] .bg-info.bg-opacity-10 { background-color: rgba(13,202,240,0.08) !important; }
         html[data-theme="night"] .bg-warning.bg-opacity-10,
+        html[data-theme="leek"] .bg-warning.bg-opacity-10,
         html[data-theme="super-night"] .bg-warning.bg-opacity-10 { background-color: rgba(255,193,7,0.08) !important; }
         html[data-theme="night"] .bg-primary.bg-opacity-10,
+        html[data-theme="leek"] .bg-primary.bg-opacity-10,
         html[data-theme="super-night"] .bg-primary.bg-opacity-10 { background-color: rgba(13,110,253,0.1) !important; }
 
         /* Select option backgrounds (browser-rendered, needs explicit override) */
         html[data-theme="night"] select option,
+        html[data-theme="leek"] select option,
         html[data-theme="super-night"] select option {
             background-color: var(--bg-input);
             color: var(--text-primary);
@@ -523,12 +530,14 @@
         /* Form switches: Bootstrap's unchecked knob + border are near-invisible
            on dark backgrounds — give the track a visible border and a light knob. */
         html[data-theme="night"] .form-switch .form-check-input,
+        html[data-theme="leek"] .form-switch .form-check-input,
         html[data-theme="super-night"] .form-switch .form-check-input {
             background-color: var(--bg-input);
             border-color: rgba(255,255,255,0.30);
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba(255,255,255,0.6)'/%3e%3c/svg%3e");
         }
         html[data-theme="night"] .form-switch .form-check-input:checked,
+        html[data-theme="leek"] .form-switch .form-check-input:checked,
         html[data-theme="super-night"] .form-switch .form-check-input:checked {
             background-color: #198754;   /* match the app's green accent */
             border-color: #198754;
@@ -536,6 +545,7 @@
 
         /* ── Bootstrap contextual table class overrides ────────────────── */
         html[data-theme="night"] .table-light,
+        html[data-theme="leek"] .table-light,
         html[data-theme="super-night"] .table-light,
         html[data-theme="cyberpunk"] .table-light {
             --bs-table-color: var(--text-primary);
@@ -544,6 +554,7 @@
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-primary,
+        html[data-theme="leek"] .table-primary,
         html[data-theme="super-night"] .table-primary,
         html[data-theme="cyberpunk"] .table-primary {
             --bs-table-color: var(--text-primary);
@@ -552,6 +563,7 @@
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-info,
+        html[data-theme="leek"] .table-info,
         html[data-theme="super-night"] .table-info,
         html[data-theme="cyberpunk"] .table-info {
             --bs-table-color: var(--text-primary);
@@ -560,6 +572,7 @@
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-warning,
+        html[data-theme="leek"] .table-warning,
         html[data-theme="super-night"] .table-warning,
         html[data-theme="cyberpunk"] .table-warning {
             --bs-table-color: var(--text-primary);
@@ -568,6 +581,7 @@
             color: var(--text-primary);
         }
         html[data-theme="night"] .table-secondary,
+        html[data-theme="leek"] .table-secondary,
         html[data-theme="super-night"] .table-secondary,
         html[data-theme="cyberpunk"] .table-secondary {
             --bs-table-color: var(--text-primary);
@@ -578,36 +592,44 @@
 
         /* ── Bootstrap bg utility overrides ────────────────────────────── */
         html[data-theme="night"] .bg-white,
+        html[data-theme="leek"] .bg-white,
         html[data-theme="super-night"] .bg-white { background-color: var(--bg-card) !important; }
         html[data-theme="night"] .bg-light,
+        html[data-theme="leek"] .bg-light,
         html[data-theme="super-night"] .bg-light { background-color: var(--bg-card-header) !important; }
         html[data-theme="night"] .bg-body,
+        html[data-theme="leek"] .bg-body,
         html[data-theme="super-night"] .bg-body { background-color: var(--bg-page) !important; }
 
         /* Progress track (Bootstrap default is light gray and shows white when empty/0%) */
         html[data-theme="night"] .progress,
+        html[data-theme="leek"] .progress,
         html[data-theme="super-night"] .progress { background-color: var(--bg-input); }
 
         /* ── Bootstrap alert overrides ─────────────────────────────────── */
         html[data-theme="night"] .alert-info,
+        html[data-theme="leek"] .alert-info,
         html[data-theme="super-night"] .alert-info {
             background-color: rgba(13,202,240,0.1);
             border-color: rgba(13,202,240,0.25);
             color: var(--text-primary);
         }
         html[data-theme="night"] .alert-warning,
+        html[data-theme="leek"] .alert-warning,
         html[data-theme="super-night"] .alert-warning {
             background-color: rgba(255,193,7,0.1);
             border-color: rgba(255,193,7,0.25);
             color: var(--text-primary);
         }
         html[data-theme="night"] .alert-success,
+        html[data-theme="leek"] .alert-success,
         html[data-theme="super-night"] .alert-success {
             background-color: rgba(25,135,84,0.1);
             border-color: rgba(25,135,84,0.25);
             color: var(--text-primary);
         }
         html[data-theme="night"] .alert-danger,
+        html[data-theme="leek"] .alert-danger,
         html[data-theme="super-night"] .alert-danger {
             background-color: rgba(220,53,69,0.1);
             border-color: rgba(220,53,69,0.25);
@@ -616,6 +638,7 @@
 
         /* ── btn-outline-secondary in dark modes ───────────────────────── */
         html[data-theme="night"] .btn-outline-secondary,
+        html[data-theme="leek"] .btn-outline-secondary,
         html[data-theme="super-night"] .btn-outline-secondary,
         html[data-theme="cyberpunk"] .btn-outline-secondary {
             --bs-btn-color:         var(--text-primary);
@@ -633,35 +656,189 @@
            background. Brighten the resting text/border in dark modes; hover
            behavior (filled bg) keeps Bootstrap's defaults. ─────────────────── */
         html[data-theme="night"] .btn-outline-primary,
+        html[data-theme="leek"] .btn-outline-primary,
         html[data-theme="super-night"] .btn-outline-primary,
         html[data-theme="cyberpunk"] .btn-outline-primary {
             --bs-btn-color: #6ea8fe; --bs-btn-border-color: #6ea8fe;
         }
         html[data-theme="night"] .btn-outline-success,
+        html[data-theme="leek"] .btn-outline-success,
         html[data-theme="super-night"] .btn-outline-success,
         html[data-theme="cyberpunk"] .btn-outline-success {
             --bs-btn-color: #75b798; --bs-btn-border-color: #75b798;
         }
         html[data-theme="night"] .btn-outline-danger,
+        html[data-theme="leek"] .btn-outline-danger,
         html[data-theme="super-night"] .btn-outline-danger,
         html[data-theme="cyberpunk"] .btn-outline-danger {
             --bs-btn-color: #ea868f; --bs-btn-border-color: #ea868f;
         }
         html[data-theme="night"] .btn-outline-warning,
+        html[data-theme="leek"] .btn-outline-warning,
         html[data-theme="super-night"] .btn-outline-warning,
         html[data-theme="cyberpunk"] .btn-outline-warning {
             --bs-btn-color: #ffda6a; --bs-btn-border-color: #ffda6a;
         }
         html[data-theme="night"] .btn-outline-info,
+        html[data-theme="leek"] .btn-outline-info,
         html[data-theme="super-night"] .btn-outline-info,
         html[data-theme="cyberpunk"] .btn-outline-info {
             --bs-btn-color: #6edff6; --bs-btn-border-color: #6edff6;
         }
 
         /* ── Voice card left accent ────────────────────────────────────── */
+        html[data-theme="leek"] .voice-card,
         html[data-theme="super-night"] .voice-card {
             border-left-color: #4a90d9;
         }
+        /* Bread: warm cream, red hair accents and a charcoal uniform. */
+        html[data-theme="bread"] {
+            color-scheme: light;
+            --bg-page: #fff5e8;
+            --bg-card: #fffaf2;
+            --bg-card-header: #f4e5d4;
+            --bg-input: #fffdf8;
+            --bg-navbar: #302a2c;
+            --bg-modal: #fffaf2;
+            --text-primary: #343139;
+            --text-muted: #76645d;
+            --text-heading: #572736;
+            --border-color: #d9c4b3;
+            --border-input: #ae8e7e;
+            --shadow: rgba(83,42,46,0.12);
+            --step-bg: #f0dfcc;
+            --step-color: #76645d;
+            --hr-color: #d9c4b3;
+            --badge-muted-bg: #76645d;
+            --log-bg: #302a2c;
+            --log-color: #ffdb9e;
+            --accent: #a62342;
+            --accent-strong: #861735;
+            --accent-soft: rgba(166,35,66,0.12);
+            --accent-ink: #ffffff;
+            --nav-accent: #ffb1b9;
+            --secondary-accent: #e8b87b;
+            --focus-ring: rgba(166,35,66,0.42);
+            --bs-primary-rgb: 166,35,66;
+        }
+
+        /* Leek: turquoise hair, graphite clothing and pink headset details. */
+        html[data-theme="leek"] {
+            color-scheme: dark;
+            --bg-page: #111b20;
+            --bg-card: #1b2a30;
+            --bg-card-header: #24363d;
+            --bg-input: #14242a;
+            --bg-navbar: #0b151a;
+            --bg-modal: #1b2a30;
+            --text-primary: #e2f1f0;
+            --text-muted: #a4bfbe;
+            --text-heading: #eafffc;
+            --border-color: #3a555b;
+            --border-input: #55767a;
+            --shadow: rgba(0,0,0,0.4);
+            --step-bg: #2b4148;
+            --step-color: #a4bfbe;
+            --hr-color: #3a555b;
+            --badge-muted-bg: #486266;
+            --log-bg: #0b151a;
+            --log-color: #67e8d7;
+            --accent: #39c5bb;
+            --accent-strong: #78e3d8;
+            --accent-soft: rgba(57,197,187,0.14);
+            --accent-ink: #102b2c;
+            --nav-accent: #78e3d8;
+            --secondary-accent: #f4a9cb;
+            --focus-ring: rgba(57,197,187,0.5);
+            --bs-primary-rgb: 57,197,187;
+        }
+
+        html:is([data-theme="bread"], [data-theme="leek"]) {
+            --bs-body-bg: var(--bg-page);
+            --bs-body-color: var(--text-primary);
+            --bs-border-color: var(--border-color);
+            --bs-secondary-bg: var(--bg-card-header);
+            --bs-tertiary-bg: var(--bg-card);
+            --bs-secondary-color: var(--text-muted);
+            --bs-tertiary-color: var(--text-muted);
+            --bs-link-color: var(--accent);
+            --bs-link-hover-color: var(--accent-strong);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .form-control:focus,
+        html:is([data-theme="bread"], [data-theme="leek"]) .form-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 0.2rem var(--focus-ring);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .btn-primary {
+            --bs-btn-color: var(--accent-ink);
+            --bs-btn-bg: var(--accent);
+            --bs-btn-border-color: var(--accent);
+            --bs-btn-hover-color: var(--accent-ink);
+            --bs-btn-hover-bg: var(--accent-strong);
+            --bs-btn-hover-border-color: var(--accent-strong);
+            --bs-btn-active-color: var(--accent-ink);
+            --bs-btn-active-bg: var(--accent-strong);
+            --bs-btn-active-border-color: var(--accent-strong);
+            --bs-btn-disabled-color: var(--accent-ink);
+            --bs-btn-disabled-bg: var(--accent);
+            --bs-btn-disabled-border-color: var(--accent);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .btn-outline-primary {
+            --bs-btn-color: var(--accent);
+            --bs-btn-border-color: var(--accent);
+            --bs-btn-hover-color: var(--accent-ink);
+            --bs-btn-hover-bg: var(--accent);
+            --bs-btn-hover-border-color: var(--accent);
+            --bs-btn-active-color: var(--accent-ink);
+            --bs-btn-active-bg: var(--accent-strong);
+            --bs-btn-active-border-color: var(--accent-strong);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link {
+            color: var(--nav-accent);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link.active,
+        html:is([data-theme="bread"], [data-theme="leek"]) .step-active {
+            background-color: var(--accent);
+            color: var(--accent-ink);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .nav-link.nav-advanced.active {
+            box-shadow: inset 0 -2px var(--secondary-accent);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) #theme-toggle {
+            border-color: var(--nav-accent);
+            color: var(--nav-accent);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) select option {
+            background-color: var(--bg-input);
+            color: var(--text-primary);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .table {
+            --bs-table-bg: var(--bg-card);
+            --bs-table-color: var(--text-primary);
+            --bs-table-striped-color: var(--text-primary);
+            --bs-table-hover-color: var(--text-primary);
+        }
+        html:is([data-theme="bread"], [data-theme="leek"]) .table-primary {
+            --bs-table-bg: var(--accent-soft);
+            --bs-table-color: var(--text-primary);
+        }
+        html[data-theme="bread"] .bg-white { background-color: var(--bg-card) !important; }
+        html[data-theme="bread"] .bg-light { background-color: var(--bg-card-header) !important; }
+        html[data-theme="bread"] .bg-body { background-color: var(--bg-page) !important; }
+        html:is([data-theme="bread"], [data-theme="leek"]) .form-control::placeholder { opacity: 1; }
+        html[data-theme="bread"] .btn-outline-info {
+            --bs-btn-color: #117084;
+            --bs-btn-border-color: #117084;
+        }
+        html[data-theme="bread"] .text-info { color: #117084 !important; }
+        html[data-theme="leek"] .form-select {
+            --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a4bfbe' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        }
+        html[data-theme="leek"] .form-check-input:checked {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+        html[data-theme="leek"] .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
     </style>
     <script>
         /* Anti-flash: apply saved theme before first paint */
