@@ -56,6 +56,7 @@ function client(){
   applyCurrentBookFilename:name=>c.currentBookFilename=name,showToast(){},showConfirm:async text=>{confirms.push(text);return !text.startsWith('Discard')||accept;},flushVoiceSaves:async()=>{},loadExistingScriptUploads:async()=>{},clearCharacterAliases(){},resetDesignerForm(){},clearVoiceSuggestions(){},loadCharacterAliases:async()=>{},loadChunks:async()=>{},loadVoices:async()=>{},loadSavedScripts(){},loadDesignedVoices(){}};c.window=c;vm.createContext(c);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
  function load(text,start,end){const a=text.indexOf(start),b=text.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(text.slice(a,b),c);}
  load(core,'let castListLoaded =','async function buildCastList()');load(core,'function renderCastListStatus(','let characterAliasesLoaded');
+ load(core,'function enqueueBookSelection(','function getCurrentBookName(');
  load(core,'window.selectExistingScriptUpload =','// Generate resumes saved progress');load(scripts,'async function loadScript(name)','async function deleteScript(name)');
  vm.runInContext('castListEditorSnapshot=getCastListEditorSnapshot();',c);rows[0][0]='EDITED';el('existing-upload-select').value='B.txt';el('file-upload').files=[{}];
  return{c,el,requests,confirms,handlers,accept:()=>accept=true};

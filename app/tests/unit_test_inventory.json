@@ -2143,6 +2143,15 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_deepseek_ui_state": [
+    "tests.test_deepseek_ui_state.UiStateTests.test_connection_results_are_bound_to_current_profile_and_request",
+    "tests.test_deepseek_ui_state.UiStateTests.test_file_selections_serialize_backend_and_ignore_stale_success_failure",
+    "tests.test_deepseek_ui_state.UiStateTests.test_native_audio_publication_changes_revision_at_the_same_path",
+    "tests.test_deepseek_ui_state.UiStateTests.test_new_manual_draft_retained_after_acknowledgement_unchanged_answer_not",
+    "tests.test_deepseek_ui_state.UiStateTests.test_queue_changes_during_each_preparation_phase_require_fresh_start",
+    "tests.test_deepseek_ui_state.UiStateTests.test_regenerated_same_path_audio_is_not_retained_unchanged_audio_is",
+    "tests.test_deepseek_ui_state.UiStateTests.test_reset_selects_default_identity_and_preserves_user_presets"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
