@@ -157,6 +157,20 @@ def inspect_artifact(name):
     with open(path, encoding="utf-8") as handle:
         doc = json.load(handle)
     meta, rows = doc["meta"], doc["rows"]
+    malformed = (not isinstance(rows, list) or any(
+        not isinstance(row, dict) or not isinstance(row.get("arm"), str)
+        or not row["arm"] or type(row.get("correct")) is not bool
+        or "in_candidates" not in row
+        for row in rows))
+    if malformed:
+        family = meta.get("experiment")
+        return {"artifact": name, "family": family,
+                "rows": len(rows) if isinstance(rows, list) else 0,
+                "arms": [], "classification": "exploratory",
+                "dirty": bool((meta.get("git") or {}).get("dirty")),
+                "problems": ["Malformed rows: arm must be a nonempty string, correct a JSON boolean, and in_candidates present"],
+                "current_gold": {"available": False},
+                "semantic_limit": FAMILY_LIMITS.get(family, "Malformed artifact; no measurement supported")}
     record = ExperimentRecord.__new__(ExperimentRecord)
     record.meta, record.rows = meta, rows
     problems = list(record.validate())
