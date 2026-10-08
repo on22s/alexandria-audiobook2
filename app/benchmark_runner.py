@@ -216,6 +216,22 @@ def apply_remote_tts_asset_cleanup(ssh_alias, path):
     apply_remote_benchmark_asset_cleanup(ssh_alias, path, "TTS")
 
 
+def create_remote_benchmark_dataset_directory(ssh_alias, asset_kind):
+    """Create and validate a private staging directory before taking ownership."""
+    prefixes = {"training": "/tmp/alexandria-lora-training", "dedup": "/tmp/alexandria-dedup"}
+    prefix = prefixes[asset_kind]
+    created = run_benchmark_subprocess(get_remote_benchmark_command(
+        ssh_alias, ["mktemp", "-d", prefix + ".XXXXXXXXXX"]),
+        capture_output=True, text=True, timeout=30, check=False)
+    if created.returncode:
+        raise RuntimeError(created.stderr.strip() or f"could not create remote {asset_kind} fixture")
+    lines = [line.strip() for line in created.stdout.splitlines() if line.strip()]
+    candidate = lines[-1] if lines else ""
+    if not re.fullmatch(re.escape(prefix) + r"\.[A-Za-z0-9]{10}", candidate):
+        raise ValueError(f"could not validate newly created remote {asset_kind} directory")
+    return candidate
+
+
 def apply_remote_benchmark_asset_cleanup(ssh_alias, path, asset_kind):
     """Run bounded cleanup independently of cancellation, retaining primary errors."""
     primary_failure = sys.exc_info()[1]
@@ -353,16 +369,7 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
             python_executable = settings.get("remote_python")
             if not remote_root or not python_executable or not ssh_alias:
                 raise ValueError("Thunder training requires remote_root, remote_python, and SSH alias")
-            mkdir = run_benchmark_subprocess(get_remote_benchmark_command(
-                ssh_alias, ["mktemp", "-d", "/tmp/alexandria-lora-training.XXXXXXXXXX"]),
-                                   capture_output=True, text=True, timeout=30, check=False)
-            if mkdir.returncode:
-                raise RuntimeError(mkdir.stderr.strip() or "could not create remote training fixture")
-            lines = [line.strip() for line in mkdir.stdout.splitlines() if line.strip()]
-            candidate = lines[-1] if lines else ""
-            if not re.fullmatch(r"/tmp/alexandria-lora-training\.[A-Za-z0-9]{10}", candidate):
-                raise ValueError("could not validate newly created remote training directory")
-            remote_source = candidate
+            remote_source = create_remote_benchmark_dataset_directory(ssh_alias, "training")
             source_dir = os.path.join(root_dir, fixture["dataset_path"])
             files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
             for relative_path in files:
@@ -470,10 +477,35 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
         manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
     if apply_benchmark_cancellation(state, report, manifest, report_path):
         return report
+    track_progress = is_benchmark_progress_stage(manifest["stage"])
     if pending:
-        for case in execute_batch(pending):
-            report = save_benchmark_case(report_path, report, case,
-                log_state=state if is_benchmark_progress_stage(manifest["stage"]) else None)
+        pending_ids = {fixture["id"] for fixture in pending}
+        active_indexes = [index for index, fixture in enumerate(manifest["fixtures"])
+                          if fixture["id"] in pending_ids]
+        if track_progress:
+            state["status"] = "running"
+            state["current_task_idx"] = active_indexes[0]
+            for index in active_indexes:
+                state["tasks"][index]["status"] = "running"
+        try:
+            for case in execute_batch(pending):
+                report = save_benchmark_case(report_path, report, case,
+                                             log_state=state if track_progress else None)
+                if track_progress:
+                    completed = get_benchmark_completed_cases(report)
+                    for index in active_indexes:
+                        fixture_id = manifest["fixtures"][index]["id"]
+                        if all((fixture_id, repetition) in completed
+                               for repetition in range(1, manifest["repetitions"] + 1)):
+                            state["tasks"][index]["status"] = "done"
+        except BaseException:
+            if not apply_benchmark_cancellation(state, report, manifest, report_path):
+                if track_progress:
+                    state["status"] = "failed"
+                    for index in active_indexes:
+                        if state["tasks"][index]["status"] != "done":
+                            state["tasks"][index]["status"] = "failed"
+            raise
     apply_benchmark_completion(state, report, manifest, report_path)
     return report
 
@@ -541,43 +573,48 @@ def run_preparer_benchmark(manifest, environment, report_path, state,
 
 
 def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
-    worker_fixture = copy.deepcopy(fixture)
-    if target == "local":
-        python_executable = settings.get("local_python")
-        if not python_executable:
-            raise ValueError("local dedup benchmark requires local_python")
-        worker_fixture["root_dir"] = root_dir
-        analysis_script = get_voice_lab_script_path(root_dir, "voice_analysis.py")
-        worker_script = os.path.join(root_dir, "app", "dedup_benchmark.py")
-    else:
-        remote_root = settings.get("remote_root")
-        python_executable = settings.get("remote_python")
-        if not remote_root or not python_executable or not ssh_alias:
-            raise ValueError("Thunder dedup requires remote_root, remote_python, and SSH alias")
-        remote_source = f"/tmp/alexandria-dedup-{fixture['sha256']}"
-        source_dir = os.path.join(root_dir, fixture["dataset_path"])
-        files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
-        for relative_path in files:
-            remote_path = posixpath.join(remote_source, relative_path)
-            mkdir = run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--",
-                                    posixpath.dirname(remote_path)]), capture_output=True,
-                                   text=True, timeout=30, check=False)
-            if mkdir.returncode:
-                raise RuntimeError(mkdir.stderr.strip() or "could not create remote dedup fixture")
-            transfer = run_benchmark_subprocess(["scp", os.path.join(source_dir, relative_path),
-                                       f"{ssh_alias}:{remote_path}"], capture_output=True,
-                                      text=True, timeout=300, check=False)
-            if transfer.returncode:
-                raise RuntimeError(transfer.stderr.strip() or "dedup fixture transfer failed")
-        worker_fixture.update({"root_dir": "/tmp", "dataset_path": posixpath.basename(remote_source)})
-        analysis_script = get_voice_lab_script_path(remote_root, "voice_analysis.py", remote=True)
-        worker_script = posixpath.join(remote_root, "app", "dedup_benchmark.py")
-    payload = {"fixture": worker_fixture, "python": python_executable,
-               "analysis_script": analysis_script}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker_script, "--payload", encoded]
-    command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600)
+    remote_source = None
+    try:
+        worker_fixture = copy.deepcopy(fixture)
+        if target == "local":
+            python_executable = settings.get("local_python")
+            if not python_executable:
+                raise ValueError("local dedup benchmark requires local_python")
+            worker_fixture["root_dir"] = root_dir
+            analysis_script = get_voice_lab_script_path(root_dir, "voice_analysis.py")
+            worker_script = os.path.join(root_dir, "app", "dedup_benchmark.py")
+        else:
+            remote_root = settings.get("remote_root")
+            python_executable = settings.get("remote_python")
+            if not remote_root or not python_executable or not ssh_alias:
+                raise ValueError("Thunder dedup requires remote_root, remote_python, and SSH alias")
+            remote_source = create_remote_benchmark_dataset_directory(ssh_alias, "dedup")
+            source_dir = os.path.join(root_dir, fixture["dataset_path"])
+            files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
+            for relative_path in files:
+                remote_path = posixpath.join(remote_source, relative_path)
+                mkdir = run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--",
+                                        posixpath.dirname(remote_path)]), capture_output=True,
+                                       text=True, timeout=30, check=False)
+                if mkdir.returncode:
+                    raise RuntimeError(mkdir.stderr.strip() or "could not create remote dedup fixture")
+                transfer = run_benchmark_subprocess(["scp", os.path.join(source_dir, relative_path),
+                                           f"{ssh_alias}:{remote_path}"], capture_output=True,
+                                          text=True, timeout=300, check=False)
+                if transfer.returncode:
+                    raise RuntimeError(transfer.stderr.strip() or "dedup fixture transfer failed")
+            worker_fixture.update({"root_dir": "/tmp", "dataset_path": posixpath.basename(remote_source)})
+            analysis_script = get_voice_lab_script_path(remote_root, "voice_analysis.py", remote=True)
+            worker_script = posixpath.join(remote_root, "app", "dedup_benchmark.py")
+        payload = {"fixture": worker_fixture, "python": python_executable,
+                   "analysis_script": analysis_script}
+        encoded = get_encoded_worker_payload(payload)
+        worker_command = [python_executable, worker_script, "--payload", encoded]
+        command = get_benchmark_worker_command(worker_command, target, ssh_alias)
+        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600)
+    finally:
+        if remote_source is not None:
+            apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "dedup")
 
 
 @wrap_benchmark_cancellation
@@ -1126,7 +1163,9 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
     if not isinstance(max_retries, int) or max_retries < 0:
         raise ValueError("script-generation max_retries must be a non-negative integer")
 
-    texts = get_text_fixture_sources(manifest["fixtures"], uploads_dir)
+    pending = _pending_fixtures_with_repetitions(
+        manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
+    texts = get_text_fixture_sources(pending, uploads_dir)
 
     if target == "thunder":
         def execute_batch(pending):
@@ -1221,8 +1260,10 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
     lower = thresholds.get("word_ratio_min", 0.95)
     upper = thresholds.get("word_ratio_max", 1.05)
 
+    pending = _pending_fixtures_with_repetitions(
+        manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
     originals = {fixture["id"]: _load_review_fixture(fixture, scripts_dir)
-                for fixture in manifest["fixtures"]}
+                 for fixture in pending}
 
     if target == "thunder":
         def execute_batch(pending):

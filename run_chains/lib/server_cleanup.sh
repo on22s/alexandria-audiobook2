@@ -57,7 +57,15 @@ wait_for_server_vram_release() {
     local waited=0 used
     while [ "$waited" -lt "${STAGE_VRAM_WAIT:-90}" ]; do
         used=$(rocm-smi --showmeminfo vram 2>/dev/null \
-               | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
+               | grep -i 'total used memory' | awk '
+                   {
+                       sub(/^.*:[[:space:]]*/, "")
+                       if ($0 !~ /^[0-9]+[[:space:]]*$/) { unknown = 1; next }
+                       value = $0 + 0
+                       if (!seen || value > maximum) { maximum = value }
+                       seen = 1
+                   }
+                   END { if (seen && !unknown) { printf "%.0f\n", maximum } }')
         if [ -z "$used" ]; then
             echo "VRAM release unknown: used-memory telemetry unavailable; job capacity gate remains required"
             return 0

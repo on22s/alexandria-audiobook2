@@ -403,6 +403,13 @@ def _parse_number(words: list):
             suffix = _parse_number(tokens[1:])
             if suffix is not None and 10 <= suffix <= 99:
                 return century * 100 + suffix
+    # Page/address readings can pair one hundreds digit with a two-digit suffix.
+    hundreds = _NUM_ONES.get(tokens[0])
+    if hundreds and len(tokens) in (2, 3) and (tokens[1] in _NUM_TEENS or tokens[1] in _NUM_TENS):
+        if len(tokens) == 2 or (tokens[1] in _NUM_TENS and tokens[2] in _NUM_ONES):
+            suffix = _parse_number(tokens[1:])
+            if suffix is not None and 10 <= suffix <= 99:
+                return hundreds * 100 + suffix
     # Spelled out — must contain at least one number word, no foreign words
     total, current = 0, 0
     saw_num = False

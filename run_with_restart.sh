@@ -66,22 +66,36 @@ if [[ ! -f "$PREPARER" ]]; then
 fi
 
 CHILD_PGID=""
+stop_preparer_group() {
+    if [[ -z "$CHILD_PGID" ]]; then
+        return 0
+    fi
+    local wrapper_group
+    wrapper_group=$(ps -o pgid= -p "$$") || return 1
+    wrapper_group=${wrapper_group//[[:space:]]/}
+    if [[ ! "$CHILD_PGID" =~ ^[1-9][0-9]*$ || "$CHILD_PGID" == "$wrapper_group" ]]; then
+        echo "REFUSING preparer cleanup: invalid or wrapper-owned process group" >&2
+        return 1
+    fi
+    kill -TERM -- "-$CHILD_PGID" 2>/dev/null || true
+    local waited=0
+    # Match gpu_job.sh's shutdown grace so checkpoint writes can finish.
+    while (( waited < 20 )); do
+        kill -0 -- "-$CHILD_PGID" 2>/dev/null || break
+        sleep 1
+        waited=$((waited + 1))
+    done
+    kill -KILL -- "-$CHILD_PGID" 2>/dev/null || true
+    wait "$CHILD_PGID" 2>/dev/null || true
+    CHILD_PGID=""
+}
+
 cleanup_preparer() {
     local rc=$?
     if [[ -n "$CHILD_PGID" ]]; then
         # Finish cleanup even if another signal arrives during the grace period.
         trap '' INT TERM HUP
-        kill -TERM -- "-$CHILD_PGID" 2>/dev/null || true
-        local waited=0
-        # Match gpu_job.sh's shutdown grace so checkpoint writes can finish.
-        while (( waited < 20 )); do
-            kill -0 -- "-$CHILD_PGID" 2>/dev/null || break
-            sleep 1
-            waited=$((waited + 1))
-        done
-        kill -KILL -- "-$CHILD_PGID" 2>/dev/null || true
-        wait "$CHILD_PGID" 2>/dev/null || true
-        CHILD_PGID=""
+        stop_preparer_group || return 1
     fi
     return "$rc"
 }
@@ -103,7 +117,7 @@ run_preparer() {
         wait "$CHILD_PGID"
         rc=$?
     done
-    CHILD_PGID=""
+    stop_preparer_group || exit 2
     return "$rc"
 }
 

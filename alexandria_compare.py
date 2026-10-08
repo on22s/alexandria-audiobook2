@@ -691,7 +691,6 @@ def run(
                 break
 
             elif choice == 'q':
-                cursor = new_cursor
                 generation = save_checkpoint(jsonl_path, decisions, cursor, checkpoint_identity)
                 write_output(entries, decisions, output_path)
                 n_done = sum(1 for d in decisions.values() if d['action'] != 'skip')

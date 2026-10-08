@@ -3,7 +3,7 @@
 import copy
 import re
 
-from script_preflight import find_adjacent_duplicate_blocks, _normalize, _normalize_words, get_source_phrase_occurrences, audit_unicode_text
+from script_preflight import find_adjacent_duplicate_blocks, _normalize, _normalize_words, get_source_phrase_occurrences, get_source_block_occurrences, audit_unicode_text
 from source_normalization import KNOWN_SOURCE_CORRUPTIONS
 
 
@@ -31,7 +31,7 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
     changes = []
     notes = []
     unresolved = []
-    source_words = set(re.findall(r"\w+", _normalize(source_text), re.UNICODE))
+    source_words = set(re.findall(r"[^\W_]+", _normalize(source_text), re.UNICODE))
     preserve_source_cyrillic = "LATIN" not in audit_unicode_text(source_text)["scripts"]
 
     for index, entry in enumerate(repaired):
@@ -99,8 +99,7 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
             emitted_copies += 1
         handled.update(range(start, start + emitted_copies * unit_size))
         if unit_size < block_size:
-            unit_text = _normalize_words(" ".join(unit))
-            occurrences = get_source_phrase_occurrences(source_normalized, unit_text) if unit_text else 0
+            occurrences = get_source_block_occurrences(source_normalized, unit)
         # Three cases, and the old `!= 1` test collapsed two opposite ones.
         #
         #   0  the block is nowhere in the source: the model invented the

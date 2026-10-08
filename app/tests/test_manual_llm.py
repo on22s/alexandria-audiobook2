@@ -69,48 +69,57 @@ class ManualClientTests(unittest.TestCase):
 
     def test_posix_probe_does_not_terminate_real_child(self):
         child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+        identity = llm_provider.get_manual_process_identity(child.pid)
         try:
-            self.assertTrue(llm_provider.is_manual_request_owner_alive({'owner_pid': child.pid}))
+            self.assertTrue(llm_provider.is_manual_request_owner_alive({'owner_pid': child.pid, 'owner_process_identity': identity}))
             self.assertIsNone(child.poll())
         finally:
             child.terminate(); child.wait(timeout=3)
-        self.assertFalse(llm_provider.is_manual_request_owner_alive({'owner_pid': child.pid}))
+        self.assertFalse(llm_provider.is_manual_request_owner_alive({'owner_pid': child.pid, 'owner_process_identity': identity}))
 
-    def test_windows_owner_probe_queries_handle_without_sending_a_signal(self):
+    def test_windows_owner_probe_queries_birth_time_without_sending_a_signal(self):
         import ctypes
+        from ctypes import wintypes
         from types import SimpleNamespace
         from unittest.mock import Mock
+        def read_times(_handle, created, *_rest):
+            ctypes.cast(created, ctypes.POINTER(wintypes.FILETIME)).contents.dwLowDateTime = 42
+            return 1
         for wait_result, alive in ((258, True), (0, False)):
             with self.subTest(wait_result=wait_result):
                 api = SimpleNamespace(OpenProcess=Mock(return_value=123),
-                    WaitForSingleObject=Mock(return_value=wait_result), CloseHandle=Mock(return_value=1))
+                    WaitForSingleObject=Mock(return_value=wait_result),
+                    GetProcessTimes=Mock(side_effect=read_times), CloseHandle=Mock(return_value=1))
                 with patch.object(llm_provider.os, 'name', 'nt'), \
                      patch.object(ctypes, 'WinDLL', return_value=api, create=True), \
-                     patch.object(llm_provider.os, 'kill', side_effect=AssertionError('destructive Windows signal')):
-                    self.assertEqual(alive, llm_provider.is_manual_request_owner_alive({'owner_pid': 98765}))
-                api.OpenProcess.assert_called_once_with(0x100000, False, 98765)
+                     patch.object(llm_provider.os, 'kill', side_effect=AssertionError('destructive signal')):
+                    self.assertEqual(alive, llm_provider.is_manual_request_owner_alive(
+                        {'owner_pid':98765, 'owner_process_identity':'windows:42'}))
+                api.OpenProcess.assert_called_once_with(0x101000, False, 98765)
                 api.WaitForSingleObject.assert_called_once_with(123, 0)
                 api.CloseHandle.assert_called_once_with(123)
-        for error, expected in ((87, False), (5, True), (6, None)):
-            with self.subTest(error=error):
-                api = SimpleNamespace(OpenProcess=Mock(return_value=0), WaitForSingleObject=Mock(), CloseHandle=Mock())
-                with patch.object(llm_provider.os, 'name', 'nt'), \
-                     patch.object(ctypes, 'WinDLL', return_value=api, create=True), \
-                     patch.object(ctypes, 'get_last_error', return_value=error, create=True), \
-                     patch.object(llm_provider.os, 'kill', side_effect=AssertionError('destructive Windows signal')):
-                    if expected is None:
-                        with self.assertRaises(OSError):
-                            llm_provider.is_manual_request_owner_alive({'owner_pid': 98765})
-                    else:
-                        self.assertEqual(expected, llm_provider.is_manual_request_owner_alive({'owner_pid': 98765}))
-                api.WaitForSingleObject.assert_not_called(); api.CloseHandle.assert_not_called()
-        api = SimpleNamespace(OpenProcess=Mock(return_value=123), WaitForSingleObject=Mock(return_value=0xffffffff), CloseHandle=Mock(return_value=1))
-        with patch.object(llm_provider.os, 'name', 'nt'), \
-             patch.object(ctypes, 'WinDLL', return_value=api, create=True), \
-             patch.object(ctypes, 'get_last_error', return_value=6, create=True):
-            with self.assertRaises(OSError):
-                llm_provider.is_manual_request_owner_alive({'owner_pid': 98765})
-        api.CloseHandle.assert_called_once_with(123)
+        for error in (87, 5, 6):
+            api = SimpleNamespace(OpenProcess=Mock(return_value=0), WaitForSingleObject=Mock(),
+                                  GetProcessTimes=Mock(), CloseHandle=Mock())
+            with patch.object(llm_provider.os, 'name', 'nt'), \
+                 patch.object(ctypes, 'WinDLL', return_value=api, create=True), \
+                 patch.object(ctypes, 'get_last_error', return_value=error, create=True):
+                if error == 87:
+                    self.assertIsNone(llm_provider.get_manual_process_identity(98765))
+                else:
+                    with self.assertRaises(OSError):
+                        llm_provider.get_manual_process_identity(98765)
+            api.GetProcessTimes.assert_not_called(); api.CloseHandle.assert_not_called()
+        for wait_result, read_result in ((0xffffffff, 1), (258, 0)):
+            api = SimpleNamespace(OpenProcess=Mock(return_value=123),
+                WaitForSingleObject=Mock(return_value=wait_result), GetProcessTimes=Mock(return_value=read_result),
+                CloseHandle=Mock(return_value=1))
+            with patch.object(llm_provider.os, 'name', 'nt'), \
+                 patch.object(ctypes, 'WinDLL', return_value=api, create=True), \
+                 patch.object(ctypes, 'get_last_error', return_value=6, create=True):
+                with self.assertRaises(OSError):
+                    llm_provider.get_manual_process_identity(98765)
+            api.CloseHandle.assert_called_once_with(123)
 
     def test_non_object_replies_keep_request_pending_until_valid_reply(self):
         import io
