@@ -2143,6 +2143,14 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_deepseek_benchmark_recovery": [
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_batch_publishes_active_state_and_preserves_finished_cases_on_error",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_remote_supervisor_path_independent_of_local_path_semantics",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_resume_loads_only_pending_sources_and_rejects_pending_drift",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_actual_staging_files_removed_after_success_transfer_worker_timeout_and_cancel",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_cleanup_errors_do_not_replace_primary_failure_and_are_reported",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_local_dedup_and_unvalidated_remote_paths_are_never_deleted"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
